@@ -43,6 +43,7 @@ class Recorder:
             self.csv_file = open(csv_filename, 'w', newline='')
             self.csv_writer = csv.writer(self.csv_file)
             self.csv_writer.writerow(['timestamp', 'frame', 'x1', 'y1', 'x2', 'y2', 'confidence'])
+            self.csv_file.flush() # Ensure header is written immediately
         except IOError as e:
             print(f"Error: Could not open CSV file {csv_filename}. {e}")
             self.video_writer.release() # clean up video writer
@@ -98,6 +99,8 @@ class Recorder:
             writer = csv.writer(f)
             writer.writerow(['x', 'y'])
             writer.writerows(config.POLYGON)
+            f.flush()
+            os.fsync(f.fileno())
 
         # Save Areas of Interest (Squares)
         areas_of_interest_filename = os.path.join(folder_path, f"2_AreasOfInterest_{self.base_name}.csv")
@@ -106,6 +109,8 @@ class Recorder:
             writer.writerow(['area', 'x1', 'y1', 'x2', 'y2'])
             for i, ((x1, y1), (x2, y2)) in enumerate(config.SQUARES):
                 writer.writerow([f'Area {i+1}', x1, y1, x2, y2])
+            f.flush()
+            os.fsync(f.fileno())
 
         print(f"Saved area definitions to {folder_path}")
 
