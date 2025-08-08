@@ -14,6 +14,9 @@ video_queue = queue.Queue()
 detection_queue = queue.Queue()
 capturing = False  # Inicialmente não estamos capturando
 processing = True
+stop_event = threading.Event()
+program_exit_event = threading.Event()
+video_stop_event = threading.Event()  # Novo evento para a thread de gravação
 
 # Configuração da câmera USB
 camera_index = 1  # Índice da câmera USB
@@ -37,7 +40,7 @@ if not ret:
 actual_height, actual_width = frame.shape[:2]
 print(f"Resolução real do frame: {actual_width} x {actual_height}")
 
-arduino_port = 'COM9'  # Modify this with the appropriate serial port
+arduino_port = 'COM13'  # Modify this with the appropriate serial port
 baud_rate = 9600  # Modify this with the appropriate baud rate
 
 confThreshold = 0.3
@@ -101,9 +104,10 @@ out = None
 csv_file = None
 csv_writer = None
 frame_count = 0
+recording_start_frame_count = None  # Adicione esta linha
 fps = 30  # Taxa de quadros alvo
 start_time = 0  # Inicialização da variável
-stop_event = threading.Event()
+#stop_event = threading.Event()
 recording_start_time = None
 
 # Estabelecer conexão serial com o Arduino Nano
@@ -176,21 +180,20 @@ def findObject(outputs, img, csv_writer=None, frame_count=0, timestamp=0):
                         current_square = 0
 
 # Variável global para o intervalo de processamento
-processing_interval = 8  # Processar a cada x frames
-processing_offset = 2     # Começar no frame y
+processing_interval = 10  # Processar a cada x frames
+processing_offset = 1     # Começar no frame y
 
 
 def frame_capture_thread():
-    global cap, stop_event, frame_count, processing_interval, processing_offset, capturing, processing
-    frame_count = 0
-    while not stop_event.is_set():
+    global cap, program_exit_event, frame_count, capturing, processing
+    while not program_exit_event.is_set():
         ret, frame = cap.read()
         if not ret:
             print("Falha ao capturar imagem da câmera no thread de captura")
             break
         frame_count += 1
-        
-        # Somente colocar frames na detection_queue se processing for True
+
+        # Colocar frames na detection_queue se processing for true
         if processing:
             try:
                 detection_frame = frame.copy()
@@ -209,18 +212,23 @@ def frame_capture_thread():
                 continue
 
 
+
 def video_recording_thread():
-    global out, stop_event, recording, frame_count
-    while not stop_event.is_set() and recording:
+    global out, video_stop_event, recording, frame_count
+    print("Video recording thread started")
+    while not video_stop_event.is_set() and recording:
         try:
             frame_count, frame = video_queue.get(timeout=1)
-            if frame is None:
-                print("Frame é None, não será gravado.")
+            if frame is None or out is None or not out.isOpened():
+                print("Frame ou 'out' inválido, não será gravado.")
                 continue
             out.write(frame)
-            #print(f"Gravando frame {frame_count}")
         except queue.Empty:
             continue
+        except Exception as e:
+            print(f"Erro ao escrever frame no vídeo: {e}")
+            break
+    print("Video recording thread finished")
     # Liberar recursos ao terminar
     if out:
         out.release()
@@ -228,28 +236,35 @@ def video_recording_thread():
         csv_file.close()
 
 
+
 # Thread para processamento de objetos e exibição em tempo real
 def object_detection_thread():
-    global stop_event, recording_start_time, processing
-    
-    model = YOLO('C:\\Users\\santa\\OneDrive\\Desktop\\Codigos_Prontos\\best8.pt')
+    global stop_event, recording_start_time, processing, recording_start_frame_count
+
+    model = YOLO('C:\\Users\\santa\\OneDrive\\Desktop\\Codigos_Prontos\\best12.pt')
+    print("Object detection thread started")
 
     while not stop_event.is_set():
+        if not processing:
+            time.sleep(0.1)
+            continue
         try:
             frame_count, frame = detection_queue.get(timeout=1)
             current_time = time.time()
             timestamp = current_time - (recording_start_time or current_time)
 
-            # Decidir se deve realizar a detecção neste frame
+            # Calcular o número do frame relativo à gravação atual
+            if recording and recording_start_frame_count is not None:
+                adjusted_frame_count = frame_count - recording_start_frame_count
+            else:
+                adjusted_frame_count = 0
+
+            # Realizar a inferência
             if (frame_count - processing_offset) % processing_interval == 0:
-                # Realizar a inferência
                 results = model(frame)
                 predictions = results[0].boxes.data.cpu().numpy()
-                findObject(predictions, frame, csv_writer if recording else None, frame_count, timestamp)
+                findObject(predictions, frame, csv_writer if recording else None, adjusted_frame_count, timestamp)
                 print(f"Processando frame {frame_count}")
-            #else:
-                #print(f"Exibindo frame {frame_count} sem detecção.")
-
 
             # Desenhar quadrados e polígono
             for i, ((x1, y1), (x2, y2)) in enumerate(squares):
@@ -261,24 +276,24 @@ def object_detection_thread():
                 stop_event.set()
                 break
         except queue.Empty:
-            if not processing and detection_queue.empty():
-                print("Detecção concluída.")
-                detection_complete()
-                break
-            else:
-                continue
+            time.sleep(0.1)
+            continue
+    print("Object detection thread finished")
     cv2.destroyAllWindows()
 
 
-def detection_complete():
-    processing_status.set("")  # Limpar o status de processamento
-    root.after(0, lambda: messagebox.showinfo("Informação", "Processamento de detecção concluído."))
+
+#def detection_complete():
+#    processing_status.set("")  # Limpar o status de processamento
+#    root.after(0, lambda: messagebox.showinfo("Informação", "Processamento de detecção concluído."))
 
 
 def wait_for_detection_to_finish():
-    global detection_thread
+    global detection_thread, stop_event
     detection_thread.join()
-    detection_complete()
+    stop_event.clear()  # Limpa o evento para permitir que o thread seja iniciado novamente
+#    detection_complete()
+
 
 def start_detection_thread():
     global detection_thread, stop_event
@@ -329,29 +344,21 @@ def create_project_button():
             group_name = simpledialog.askstring("Nome do Grupo", f"Digite o nome do grupo {i + 1}:")
             if group_name:
                 group_names.append(group_name)
-        messagebox.showinfo("Informação", f"Você especificou os seguintes grupos: {', '.join(group_names)}")
+        messagebox.showinfo("Informação", f"Você especificou os seguintes grupos:\n" + "\n".join(group_names))
     else:
         messagebox.showwarning("Atenção", "Nenhuma quantidade de grupos foi especificada.")
 
 # Function to start recording
-def start_recording_button():
-    global recording, out, csv_file, csv_writer, frame_count, start_time, stop_event, group_names, project_folder_path, base_name, recording_start_time, capturing
-    capturing = True  # Iniciar a captura de frames
-    
-    recording_start_time = time.time()
-    start_detection_thread()
-
+def start_recording_button(use_timer=False):
+    global recording, capturing, group_names, project_folder_path
     if not recording:
         if not group_names:
             messagebox.showwarning("Aviso", "Nenhum grupo foi criado. Crie um projeto primeiro.")
             return
 
-        # Iniciar ou reiniciar a thread de detecção
-        start_detection_thread()
-
-        # Selecionar um grupo
+        # Janela para seleção de grupo
         group_var = StringVar(root)
-        group_var.set(group_names[0])  # Definir valor padrão
+        group_var.set(group_names[0])  # Valor padrão
         group_selection_window = Toplevel(root)
         group_selection_window.title("Selecionar Grupo")
 
@@ -359,36 +366,38 @@ def start_recording_button():
         group_dropdown = OptionMenu(group_selection_window, group_var, *group_names)
         group_dropdown.pack()
 
-        # Botão para confirmar a seleção do grupo
         def confirm_group():
-            global out, csv_file, csv_writer, frame_count, recording, start_time, base_name
+            global out, csv_file, csv_writer, frame_count, recording, recording_start_time, video_stop_event
+            global capturing, recording_start_frame_count, stop_event, base_name
+            global timer_running, timer_window, processing, capturing
+
             cobaia_number = simpledialog.askstring("Número da Cobaia", "Digite o número da cobaia:")
             if not cobaia_number:
                 messagebox.showwarning("Aviso", "Você deve fornecer um número para a cobaia.")
                 return
-            
+
             # Fechar a janela de seleção de grupo
             group_selection_window.destroy()
 
-            # Definir nome da nova pasta com base no grupo e no número da cobaia
-            new_folder_name = f"{group_var.get()}__{cobaia_number}"
+            # Definir 'recording_start_time' e 'recording_start_frame_count' aqui
+            recording_start_time = time.time()
+            recording_start_frame_count = frame_count  # Captura o frame_count no início da gravação
 
-            # Criar a nova pasta no diretório do projeto selecionado anteriormente
+            # Criar a nova pasta no diretório do projeto
+            new_folder_name = f"{group_var.get()}_{cobaia_number}"
             new_folder_path = os.path.join(project_folder_path, new_folder_name)
-
-            # Criar a nova pasta
             try:
-                os.makedirs(new_folder_path, exist_ok=True)  # Cria a pasta se ainda não existir
+                os.makedirs(new_folder_path, exist_ok=True)
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao criar a pasta: {str(e)}")
                 return
-            
-            # Definir o caminho completo do arquivo de vídeo na nova pasta
-            out_filename = f"{group_var.get()}_cobaia_{cobaia_number}.mp4"
+
+            # Configurar o caminho e nome do arquivo de vídeo
+            out_filename = f"{group_var.get()}_{cobaia_number}.mp4"
             out_full_path = os.path.join(new_folder_path, out_filename)
             folder_path = os.path.dirname(out_full_path)
 
-            # Criação do vídeo
+            # Configurar o gravador de vídeo
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             frame_width, frame_height = actual_width, actual_height
             out = cv2.VideoWriter(out_full_path, fourcc, fps, (frame_width, frame_height))
@@ -397,20 +406,14 @@ def start_recording_button():
                 messagebox.showerror("Erro", "Não foi possível inicializar o gravador de vídeo.")
                 return
 
-            # Criação do arquivo CSV com o mesmo nome e localização do vídeo
-            # Extrai o nome base do arquivo de vídeo sem a extensão
-            base_name = os.path.splitext(os.path.basename(out_full_path))[0]
-
-            # Define o novo nome do arquivo CSV com o prefixo desejado
-            csv_filename = os.path.join(os.path.dirname(out_full_path), f"3_CoordMovimento_{base_name}.csv")
+            # Criar o arquivo CSV
+            base_name = f"{group_var.get()}_{cobaia_number}"
+            csv_filename = os.path.join(folder_path, f"3_CoordMovimento_{base_name}.csv")
             csv_file = open(csv_filename, mode='w', newline='')
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(['timestamp', 'frame', 'x1', 'y1', 'x2', 'y2', 'confidence'])
 
-            frame_count = 0
-            recording = True
-            start_time = time.time()
-            stop_event.clear()
+            # Criar arquivos CSV adicionais conforme necessário
 
             # Function to create CSV files
             def create_csv(filename, headers):
@@ -421,7 +424,6 @@ def start_recording_button():
             # Construct the filenames with the desired structure
             processing_area_filename = os.path.join(folder_path, f"1_ProcessingArea_{base_name}.csv")
             areas_of_interest_filename = os.path.join(folder_path, f"2_AreasOfInterest_{base_name}.csv")
-
 
             # Create CSV files for coordinates with the new filenames
             create_csv(processing_area_filename, ['x', 'y'])
@@ -441,8 +443,37 @@ def start_recording_button():
 
             print(f"Files '{processing_area_filename}' and '{areas_of_interest_filename}' have been created.")
 
+            # Limpar a fila de detecção antes de iniciar a nova gravação.
+            with detection_queue.mutex:
+                detection_queue.queue.clear()
+
+            # Definir 'capturing' e 'recording' como True
+            capturing = True  # Iniciar a captura de frames
+            recording = True  # Iniciar gravação
+            processing = True  # Iniciar o processamento de frames
+
+            # Limpar o evento de parada antes de iniciar os threads
+            stop_event.clear()
+
+            # Iniciar o thread de detecção após configurar tudo
+            #start_detection_thread()
+            video_stop_event.clear()  # Limpar o evento antes de iniciar a thread
             # Iniciar thread de gravação de vídeo
-            threading.Thread(target=video_recording_thread).start()
+            global video_thread  # Adicione esta linha
+            video_thread = threading.Thread(target=video_recording_thread)
+            video_thread.start()
+
+            # Iniciar o timer se use_timer for True
+            if use_timer:
+                # Criar uma janela para mostrar o timer
+                timer_window = Toplevel(root)
+                timer_window.title("Timer de Gravação")
+                timer_label = Label(timer_window, text="Tempo Restante: 5:00", font=("Helvetica", 16))
+                timer_label.pack()
+
+                # Iniciar o timer em uma thread separada
+                timer_running = True
+                threading.Thread(target=run_timer, args=(timer_label,), daemon=True).start()
 
         Button(group_selection_window, text="Confirmar", command=confirm_group).pack()
 
@@ -450,12 +481,29 @@ def start_recording_button():
 
 # Function to stop recording
 def stop_recording_button():
-    global recording, out, csv_file, csv_writer, capturing, processing, detection_thread, stop_event
+    global recording, out, csv_file, csv_writer, capturing, processing
+    global recording_start_frame_count
+    global timer_running, timer_window
+    global video_stop_event, video_thread, detection_queue
+
     if recording:
         recording = False
         capturing = False  # Parar de capturar frames para gravação
-        processing = False  # Parar de adicionar frames à detection_queue
+        processing = False  # Parar de processar frames
+        # Limpar a fila de detecção
+        with detection_queue.mutex:
+            detection_queue.queue.clear()
+        recording_start_frame_count = None
         processing_status.set("Processando frames restantes...")
+
+        # Sinalizar para que a thread de gravação finalize
+        video_stop_event.set()
+
+        # Aguarda a conclusão da thread de gravação
+        if video_thread.is_alive():
+            video_thread.join()
+
+        # Liberar recursos relacionados ao vídeo
         if out is not None:
             out.release()
             out = None
@@ -463,34 +511,41 @@ def stop_recording_button():
             csv_file.close()
             csv_file = None
         csv_writer = None
+
+        # Informar o usuário
         root.after(0, lambda: messagebox.showinfo("Informação", "Arquivos de vídeo e CSV gravados."))
-        # Sinalizar para que a thread de detecção finalize
-        stop_event.set()
-#        if detection_thread.is_alive():  # Verifica se a thread está ativa antes de tentar juntar
-#           detection_thread.join() # Aguarda até que a thread de detecção termine
-        # Iniciar uma thread para aguardar a conclusão da detecção
-        threading.Thread(target=wait_for_detection_to_finish).start()
+
         # Limpa o status de processamento após o término
         root.after(0, lambda: processing_status.set(""))
 
-        # Reinicia a câmera para uma nova sessão de gravação
-        restart_camera()
+        # Parar o timer se estiver em execução
+        if timer_running:
+            timer_running = False
+            if timer_window:
+                timer_window.destroy()
+                timer_window = None
 
-def restart_camera():
-    """Função para reiniciar a câmera e a thread de exibição após gravação"""
-    global cap, capturing, processing, detection_thread
+        # Limpar o evento para a próxima gravação
+        video_stop_event.clear()
+
+
+
+
+#def restart_camera():
+#    global cap, capturing, processing, detection_thread
 
     # Reabre a captura de vídeo se foi liberada
-    if not cap.isOpened():
-        cap.open(camera_index)
+#    if not cap.isOpened():
+#        cap.open(camera_index)
 
     # Reinicia a captura e processamento para exibição em tempo real
-    capturing = False
-    processing = True  # Permitindo a captura para visualização ao vivo
-    stop_event.clear()  # Limpar sinal para iniciar nova detecção
+#    capturing = False
+#    processing = True  # Permitindo a captura para visualização ao vivo
+#    stop_event.clear()  # Limpar sinal para iniciar nova detecção
 
-    # Inicia uma nova thread de detecção se não houver uma ativa
-    start_detection_thread()
+    # Inicia uma nova thread de detecção
+    #start_detection_thread()
+
 
 
 
@@ -500,30 +555,86 @@ def end_project_button():
     global recording, group_names, project_folder_path, out, csv_file, csv_writer
     if recording:
         stop_recording_button()
+        print("e1")
     # Resetar variáveis relacionadas ao projeto
     group_names = []
     project_folder_path = None
+    print("e2")
     # Opcionalmente, resetar outras variáveis se necessário
     # Informar o usuário
     messagebox.showinfo("Informação", "Projeto encerrado. As configurações foram reiniciadas.")
     # O programa permanece em execução, pronto para iniciar um novo projeto
+    print("e3")
 
 
 # Function to end the program
 def end_program_button():
-    global stop_event, recording, cap
+    global stop_event, program_exit_event, recording, cap
     stop_event.set()
+    program_exit_event.set()
+    print("e4")
     if recording:
         stop_recording_button()
+        print("e5")
     # Liberar recursos
     cap.release()
+    print("e6")
     cv2.destroyAllWindows()
+    print("e7")
     # Encerrar a interface Tkinter
     root.quit()
+    print("e8")
     # Sair do programa
     import sys
+    print("e9")
     sys.exit()
 
+
+# Variáveis globais para o timer
+timer_window = None
+timer_running = False
+
+# Função para iniciar a gravação com timer
+def start_recording_with_timer():
+    start_recording_button(use_timer=True)
+    
+
+# Função para o timer
+def run_timer(label):
+    global timer_running, timer_window
+    total_seconds = 5 * 60  # 5 minutos
+
+    while total_seconds > 0 and timer_running:
+        mins, secs = divmod(total_seconds, 60)
+        label.config(text=f"Tempo Restante: {mins:02}:{secs:02}")
+        time.sleep(1)
+        total_seconds -= 1
+
+    if timer_running:  # Timer terminou naturalmente
+        label.config(text="Tempo Esgotado!")
+        stop_recording_button()  # Parar gravação automaticamente
+
+    # Fechar a janela do timer independentemente do estado de timer_running
+    if timer_window:
+        timer_window.destroy()
+        timer_window = None  # Opcionalmente, redefina para None
+
+
+
+# Função para parar a gravação e o timer
+#def stop_recording_with_timer():
+#    global timer_running, timer_window
+
+    # Parar o timer
+#    timer_running = False
+
+    # Fechar a janela do timer, se aberta
+#    if timer_window:
+#        timer_window.destroy()
+#        timer_window = None
+
+    # Parar a gravação
+#    stop_recording_button()
 
 # Iniciar threads
 threading.Thread(target=frame_capture_thread, daemon=True).start()
@@ -538,6 +649,9 @@ def create_buttons():
     start_recording_btn = Button(root, text="Iniciar Gravação", command=start_recording_button)
     start_recording_btn.pack(side="left")
 
+    start_recording_with_timer_btn = Button(root, text="Iniciar Gravação (com Timer)", command=start_recording_with_timer)
+    start_recording_with_timer_btn.pack(side="left")
+
     stop_recording_btn = Button(root, text="Parar Gravação", command=stop_recording_button)
     stop_recording_btn.pack(side="left")
 
@@ -546,6 +660,9 @@ def create_buttons():
 
     end_program_btn = Button(root, text="Terminar Programa", command=end_program_button)
     end_program_btn.pack(side="left")
+
+#    stop_recording_btn = Button(root, text="Parar Gravação (com Timer)", command=stop_recording_with_timer)
+#    stop_recording_btn.pack(side="left")
 
 
 create_buttons()
