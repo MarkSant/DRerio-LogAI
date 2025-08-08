@@ -79,12 +79,14 @@ class Recorder:
         if self.is_recording and self.video_writer:
             self.video_writer.write(frame)
 
-    def write_detection_data(self, frame_number, detections):
+    def write_detection_data(self, timestamp, frame_number, detections):
+        """
+        Writes a row of detection data to the CSV file.
+        Timestamp and frame_number are now passed in directly.
+        """
         if self.is_recording and self.csv_writer:
-            timestamp = time.time() - self.start_time
-            relative_frame = frame_number - self.recording_start_frame
             for (x1, y1, x2, y2, confidence) in detections:
-                self.csv_writer.writerow([timestamp, relative_frame, x1, y1, x2, y2, int(confidence * 100)])
+                self.csv_writer.writerow([f"{timestamp:.4f}", frame_number, x1, y1, x2, y2, int(confidence * 100)])
 
     def _save_area_definitions(self, folder_path):
         """
