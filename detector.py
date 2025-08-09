@@ -31,45 +31,26 @@ class Detector:
     def process_frame(self, frame, project_type):
         """
         Processes a single frame for object detection and tracking.
-
-        Args:
-            frame: The input image frame from the camera.
-            project_type (str): The type of project, e.g., 'live' or 'pre-recorded'.
-
-        Returns:
-            A tuple containing:
-            - detections (list): A filtered list of detections inside the polygon.
-            - command (int or None): The command to be sent to the Arduino (only for 'live' projects).
+        Relies on the model's internal NMS.
         """
+        # Perform inference. The model handles NMS internally.
+        # We can adjust conf/iou thresholds here if needed, or rely on model defaults.
+        results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
 
-        # Perform inference
-        results = self.model(frame, verbose=False)
+        # The result object contains detected boxes with coordinates and confidence
         predictions = results[0].boxes.data.cpu().numpy()
-
-        bbox = []
-        confs = []
-
-        for det in predictions:
-            x1, y1, x2, y2, confidence, _ = det
-            if confidence > self.conf_threshold:
-                bbox.append([int(x1), int(y1), int(x2), int(y2)])
-                confs.append(float(confidence))
-
-        # Apply Non-Max Suppression
-        indices = cv2.dnn.NMSBoxes(bbox, confs, self.conf_threshold, self.nms_threshold)
 
         detections_in_polygon = []
         command_to_send = None
         found_object_for_state_change = False
 
-        if len(indices) > 0:
-            for i in indices.flatten():
-                box = bbox[i]
-                x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+        if len(predictions) > 0:
+            for det in predictions:
+                x1, y1, x2, y2, confidence, _ = det
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                 # 1. Correctly filter detections by polygon
                 if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON):
-                    confidence = confs[i]
                     detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
                     # 2. Only check for square states if it's a 'live' project

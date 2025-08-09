@@ -430,8 +430,13 @@ class ApplicationGUI:
 
         self.currently_processing_video = None
         self.process_video_btn.config(state="normal")
-        self.status_var.set(f"Project: {self.project_manager.get_project_name()} (pre-recorded) - Ready for next video.")
-        messagebox.showinfo("Processing Complete", "Finished processing video.")
+
+        # Update status bar to indicate completion and readiness for the next video
+        next_video = self.project_manager.get_next_video()
+        if next_video:
+            self.status_var.set(f"Project: {self.project_manager.get_project_name()} - Ready to process: {os.path.basename(next_video)}")
+        else:
+            self.status_var.set(f"Project: {self.project_manager.get_project_name()} - All videos processed.")
 
     def _on_close(self):
         if messagebox.askokcancel("Quit", "Do you want to exit the program?"):
