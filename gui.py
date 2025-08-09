@@ -157,24 +157,27 @@ class ApplicationGUI:
             except queue.Empty:
                 continue
 
+            # Determine if the source is a file before processing
+            is_file_source = isinstance(self.active_frame_source, VideoFileSource)
+
             if self.is_processing:
+                # Use a consistent processing interval, respecting the config file
+                # The logic already starts from the first frame due to PROCESSING_OFFSET=1
                 if (frame_count - config.PROCESSING_OFFSET) % config.PROCESSING_INTERVAL == 0:
                     detections, command = self.detector.process_frame(frame)
-                    if command is not None: self.arduino.send_command(command)
+
+                    # 1. Decouple Arduino for File Analysis
+                    if command is not None and not is_file_source:
+                        self.arduino.send_command(command)
 
                     if self.is_recording:
-                        # Determine timestamp and frame number based on source
                         timestamp = 0
                         log_frame_num = 0
-
-                        is_file_source = isinstance(self.active_frame_source, VideoFileSource)
                         if is_file_source:
-                            # For files, timestamp is based on video properties
                             props = self.active_frame_source.get_properties()
                             log_frame_num = int(self.active_frame_source.get_current_frame_number())
                             timestamp = log_frame_num / props['fps'] if props['fps'] > 0 else 0
                         else:
-                            # For live camera, timestamp is real-time
                             log_frame_num = frame_count - self.recorder.recording_start_frame
                             timestamp = time.time() - self.recorder.start_time
 
@@ -183,7 +186,15 @@ class ApplicationGUI:
                     detections = []
                 draw_overlay(frame, detections)
 
-            cv2.imshow('Live View', frame)
+            # 2. Optimize Video Display Speed
+            if is_file_source:
+                # For files, only display every 60 frames to speed up visual feedback
+                if frame_count % 60 == 0:
+                    cv2.imshow('Live View', frame)
+            else:
+                # For live camera, display every frame
+                cv2.imshow('Live View', frame)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 self._on_close()
                 break

@@ -10,7 +10,7 @@ ARDUINO_PORT = 'COM13'
 BAUD_RATE = 9600
 
 # YOLO model settings
-YOLO_MODEL_PATH = 'C:\\Users\\santa\\OneDrive\\Desktop\\Codigos_Prontos\\best12.pt'
+YOLO_MODEL_PATH = 'best12.pt'
 CONF_THRESHOLD = 0.3
 NMS_THRESHOLD = 0.3
 
