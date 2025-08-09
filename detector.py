@@ -60,34 +60,39 @@ class Detector:
 
         detections = []
         command_to_send = None
+        found_object_in_frame = False # To ensure we only process one state change per frame
 
         if len(indices) > 0:
-            best_detection_idx = indices[0] # Assuming the highest confidence detection is the primary one
-            best_detection_idx = best_detection_idx if isinstance(best_detection_idx, np.int32) else best_detection_idx[0]
+            # Flatten the indices array to handle cases where it's a column vector
+            for i in indices.flatten():
+                box = bbox[i]
+                x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+                confidence = confs[i]
 
-            box = bbox[best_detection_idx]
-            x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-            confidence = confs[best_detection_idx]
+                # Add all surviving detections to the list for drawing
+                detections.append((x1, y1, x2, y2, confidence))
 
-            detections.append((x1, y1, x2, y2, confidence))
-
-            if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON):
-                # Logic to determine if a command should be sent
-                if self.flag == 0:
-                    for index, square in enumerate(config.SQUARES):
-                        if self._is_inside_square(x1, y1, x2, y2, square):
-                            self.crossed_in = True
-                            self.flag = 1
-                            self.current_square = index + 1
-                            command_to_send = config.ENTER_COMMANDS[index]
-                            break
-                elif self.flag == 1:
-                    is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in config.SQUARES)
-                    if not is_in_any_square:
-                        self.crossed_out = True
-                        self.flag = 0
-                        command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
-                        self.current_square = 0
+                # But, only process the FIRST valid object for state changes
+                if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON) and not found_object_in_frame:
+                    if self.flag == 0:
+                        # Logic to check for entering a square
+                        for index, square in enumerate(config.SQUARES):
+                            if self._is_inside_square(x1, y1, x2, y2, square):
+                                self.crossed_in = True
+                                self.flag = 1
+                                self.current_square = index + 1
+                                command_to_send = config.ENTER_COMMANDS[index]
+                                found_object_in_frame = True # Mark that we've processed an event
+                                break # Stop checking other squares for this object
+                    elif self.flag == 1:
+                        # Logic to check for exiting all squares
+                        is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in config.SQUARES)
+                        if not is_in_any_square:
+                            self.crossed_out = True
+                            self.flag = 0
+                            command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
+                            self.current_square = 0
+                            found_object_in_frame = True # Mark that we've processed an event
 
         return detections, command_to_send
 
