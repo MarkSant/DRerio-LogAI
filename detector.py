@@ -28,18 +28,18 @@ class Detector:
         return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
                cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
 
-    def process_frame(self, frame):
+    def process_frame(self, frame, project_type):
         """
         Processes a single frame for object detection and tracking.
 
         Args:
             frame: The input image frame from the camera.
+            project_type (str): The type of project, e.g., 'live' or 'pre-recorded'.
 
         Returns:
             A tuple containing:
-            - detections (list): A list of tuples, where each tuple contains
-              (x1, y1, x2, y2, confidence).
-            - command (int or None): The command to be sent to the Arduino, or None.
+            - detections (list): A filtered list of detections inside the polygon.
+            - command (int or None): The command to be sent to the Arduino (only for 'live' projects).
         """
 
         # Perform inference
@@ -58,43 +58,41 @@ class Detector:
         # Apply Non-Max Suppression
         indices = cv2.dnn.NMSBoxes(bbox, confs, self.conf_threshold, self.nms_threshold)
 
-        detections = []
+        detections_in_polygon = []
         command_to_send = None
-        found_object_in_frame = False # To ensure we only process one state change per frame
+        found_object_for_state_change = False
 
         if len(indices) > 0:
-            # Flatten the indices array to handle cases where it's a column vector
             for i in indices.flatten():
                 box = bbox[i]
                 x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-                confidence = confs[i]
 
-                # Add all surviving detections to the list for drawing
-                detections.append((x1, y1, x2, y2, confidence))
+                # 1. Correctly filter detections by polygon
+                if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON):
+                    confidence = confs[i]
+                    detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
-                # But, only process the FIRST valid object for state changes
-                if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON) and not found_object_in_frame:
-                    if self.flag == 0:
-                        # Logic to check for entering a square
-                        for index, square in enumerate(config.SQUARES):
-                            if self._is_inside_square(x1, y1, x2, y2, square):
-                                self.crossed_in = True
-                                self.flag = 1
-                                self.current_square = index + 1
-                                command_to_send = config.ENTER_COMMANDS[index]
-                                found_object_in_frame = True # Mark that we've processed an event
-                                break # Stop checking other squares for this object
-                    elif self.flag == 1:
-                        # Logic to check for exiting all squares
-                        is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in config.SQUARES)
-                        if not is_in_any_square:
-                            self.crossed_out = True
-                            self.flag = 0
-                            command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
-                            self.current_square = 0
-                            found_object_in_frame = True # Mark that we've processed an event
+                    # 2. Only check for square states if it's a 'live' project
+                    if project_type == 'live' and not found_object_for_state_change:
+                        if self.flag == 0:
+                            for index, square in enumerate(config.SQUARES):
+                                if self._is_inside_square(x1, y1, x2, y2, square):
+                                    self.crossed_in = True
+                                    self.flag = 1
+                                    self.current_square = index + 1
+                                    command_to_send = config.ENTER_COMMANDS[index]
+                                    found_object_for_state_change = True
+                                    break
+                        elif self.flag == 1:
+                            is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in config.SQUARES)
+                            if not is_in_any_square:
+                                self.crossed_out = True
+                                self.flag = 0
+                                command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
+                                self.current_square = 0
+                                found_object_for_state_change = True
 
-        return detections, command_to_send
+        return detections_in_polygon, command_to_send
 
 def draw_overlay(frame, detections):
     """

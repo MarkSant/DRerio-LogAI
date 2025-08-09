@@ -159,15 +159,16 @@ class ApplicationGUI:
 
             # Determine if the source is a file before processing
             is_file_source = isinstance(self.active_frame_source, VideoFileSource)
+            project_type = self.project_manager.get_project_type()
 
             if self.is_processing:
                 # Use a consistent processing interval, respecting the config file
-                # The logic already starts from the first frame due to PROCESSING_OFFSET=1
                 if (frame_count - config.PROCESSING_OFFSET) % config.PROCESSING_INTERVAL == 0:
-                    detections, command = self.detector.process_frame(frame)
+                    # Pass project_type to the detector
+                    detections, command = self.detector.process_frame(frame, project_type)
 
-                    # 1. Decouple Arduino for File Analysis
-                    if command is not None and not is_file_source:
+                    # Arduino command is now only generated for 'live' projects inside detector
+                    if command is not None:
                         self.arduino.send_command(command)
 
                     if self.is_recording:
@@ -184,15 +185,29 @@ class ApplicationGUI:
                         self.recorder.write_detection_data(timestamp, log_frame_num, detections)
                 else:
                     detections = []
+
+                # Always draw the overlay with detections
                 draw_overlay(frame, detections)
 
-            # 2. Optimize Video Display Speed
+            # Add progress bar for file sources
+            if is_file_source and self.active_frame_source:
+                props = self.active_frame_source.get_properties()
+                total_frames = props.get('frame_count', 0)
+                current_frame_num = self.active_frame_source.get_current_frame_number()
+                if total_frames > 0:
+                    progress = current_frame_num / total_frames
+                    bar_width = int(progress * frame.shape[1])
+                    bar_height = 20
+                    # Draw background
+                    cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1)
+                    # Draw foreground
+                    cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (bar_width, frame.shape[0]), (0, 255, 0), -1)
+
+            # Optimize Video Display Speed
             if is_file_source:
-                # For files, only display every 60 frames to speed up visual feedback
                 if frame_count % 60 == 0:
                     cv2.imshow('Live View', frame)
             else:
-                # For live camera, display every frame
                 cv2.imshow('Live View', frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
