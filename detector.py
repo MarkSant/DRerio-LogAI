@@ -18,13 +18,45 @@ class Detector:
         self.flag = 0
         self.current_square = 0
 
+        # Placeholders for scaled coordinates
+        self.scaled_polygon = config.POLYGON
+        self.scaled_squares = config.SQUARES
+        self.update_scaling(config.DESIRED_WIDTH, config.DESIRED_HEIGHT)
+
+    def update_scaling(self, actual_width, actual_height):
+        """
+        Updates the polygon and square coordinates based on the actual video resolution.
+        """
+        base_width = config.DESIRED_WIDTH
+        base_height = config.DESIRED_HEIGHT
+
+        if actual_width == base_width and actual_height == base_height:
+            self.scaled_polygon = config.POLYGON
+            self.scaled_squares = config.SQUARES
+            return
+
+        scale_x = actual_width / base_width
+        scale_y = actual_height / base_height
+
+        # Scale polygon
+        self.scaled_polygon = (config.POLYGON * [scale_x, scale_y]).astype(np.int32)
+
+        # Scale squares
+        self.scaled_squares = []
+        for (p1, p2) in config.SQUARES:
+            x1, y1 = p1
+            x2, y2 = p2
+            scaled_p1 = (int(x1 * scale_x), int(y1 * scale_y))
+            scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
+            self.scaled_squares.append((scaled_p1, scaled_p2))
+
+        print(f"Detector coordinates scaled for resolution {actual_width}x{actual_height}")
+
     def _is_inside_square(self, x1, y1, x2, y2, square):
         (sx1, sy1), (sx2, sy2) = square
-        # Check for any overlap between the bounding box and the square
         return not (x2 < sx1 or x1 > sx2 or y2 < sy1 or y1 > sy2)
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
-        # Check if either the top-left or bottom-right corner of the bbox is inside the polygon
         return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
                cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
 
@@ -33,11 +65,7 @@ class Detector:
         Processes a single frame for object detection and tracking.
         Relies on the model's internal NMS.
         """
-        # Perform inference. The model handles NMS internally.
-        # We can adjust conf/iou thresholds here if needed, or rely on model defaults.
         results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
-
-        # The result object contains detected boxes with coordinates and confidence
         predictions = results[0].boxes.data.cpu().numpy()
 
         detections_in_polygon = []
@@ -49,14 +77,12 @@ class Detector:
                 x1, y1, x2, y2, confidence, _ = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                # 1. Correctly filter detections by polygon
-                if self._is_inside_polygon(x1, y1, x2, y2, config.POLYGON):
+                if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
-                    # 2. Only check for square states if it's a 'live' project
                     if project_type == 'live' and not found_object_for_state_change:
                         if self.flag == 0:
-                            for index, square in enumerate(config.SQUARES):
+                            for index, square in enumerate(self.scaled_squares):
                                 if self._is_inside_square(x1, y1, x2, y2, square):
                                     self.crossed_in = True
                                     self.flag = 1
@@ -65,7 +91,7 @@ class Detector:
                                     found_object_for_state_change = True
                                     break
                         elif self.flag == 1:
-                            is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in config.SQUARES)
+                            is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in self.scaled_squares)
                             if not is_in_any_square:
                                 self.crossed_out = True
                                 self.flag = 0
@@ -75,16 +101,16 @@ class Detector:
 
         return detections_in_polygon, command_to_send
 
-def draw_overlay(frame, detections):
+def draw_overlay(frame, detections, detector_instance):
     """
-    Draws detection overlays on the frame.
+    Draws detection overlays on the frame using scaled coordinates from the detector instance.
     """
-    # Draw squares
-    for i, ((x1, y1), (x2, y2)) in enumerate(config.SQUARES):
+    # Draw scaled squares
+    for i, ((x1, y1), (x2, y2)) in enumerate(detector_instance.scaled_squares):
         cv2.rectangle(frame, (x1, y1), (x2, y2), config.COLORS[i], 2)
 
-    # Draw polygon
-    cv2.polylines(frame, [config.POLYGON], isClosed=True, color=(0, 0, 0), thickness=1)
+    # Draw scaled polygon
+    cv2.polylines(frame, [detector_instance.scaled_polygon], isClosed=True, color=(0, 0, 0), thickness=1)
 
     # Draw detections
     for (x1, y1, x2, y2, confidence) in detections:

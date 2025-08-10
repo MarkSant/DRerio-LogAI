@@ -101,6 +101,8 @@ class ApplicationGUI:
             try:
                 self.camera = Camera()
                 self.active_frame_source = self.camera
+                # Update detector scaling for the live camera resolution
+                self.detector.update_scaling(self.camera.actual_width, self.camera.actual_height)
             except IOError as e:
                 messagebox.showerror("Camera Error", str(e))
                 self._create_welcome_frame() # Go back to welcome screen
@@ -187,7 +189,7 @@ class ApplicationGUI:
                     detections = []
 
                 # Always draw the overlay with detections
-                draw_overlay(frame, detections)
+                draw_overlay(frame, detections, self.detector)
 
             # Add progress bar for file sources
             if is_file_source and self.active_frame_source:
@@ -381,12 +383,14 @@ class ApplicationGUI:
 
             try:
                 self.active_frame_source = VideoFileSource(video_path)
+                # Update detector scaling for the video file's resolution
+                video_props = self.active_frame_source.get_properties()
+                self.detector.update_scaling(video_props['width'], video_props['height'])
             except (IOError, FileNotFoundError) as e:
                 messagebox.showerror("Error", f"Could not open video file: {e}")
                 return
 
             self.currently_processing_video = video_path
-            video_props = self.active_frame_source.get_properties()
             video_basename = os.path.splitext(os.path.basename(video_path))[0]
 
             group_name = group_var.get()
