@@ -6,7 +6,7 @@ DESIRED_WIDTH = 1280
 DESIRED_HEIGHT = 720
 
 # Arduino settings
-ARDUINO_PORT = 'COM13'
+ARDUINO_PORT = 'COM5'
 BAUD_RATE = 9600
 
 # YOLO model settings
