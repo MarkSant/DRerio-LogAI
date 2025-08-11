@@ -1,0 +1,11 @@
+# Core dependencies for the Zebtrack Controller application.
+
+numpy==2.2.6
+opencv-python==4.12.0.88
+pyserial==3.5
+
+# The ultralytics package is required for object detection.
+# It could not be fully installed in this environment due to its large size.
+# Please install it manually. The latest version that was attempted was 8.3.176.
+# You can install it using: pip install ultralytics
+ultralytics
