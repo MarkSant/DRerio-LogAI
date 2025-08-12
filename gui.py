@@ -602,16 +602,19 @@ class ApplicationGUI:
     def _join_threads(self):
         """Espera que todas as threads de núcleo terminem."""
         logging.info("Waiting for core threads to join.")
-            if hasattr(self, 'capture_thread') and self.capture_thread.is_alive(): self.capture_thread.join()
-            if hasattr(self, 'processing_thread') and self.processing_thread.is_alive(): self.processing_thread.join()
-            logging.info("Core threads joined.")
+        if hasattr(self, 'capture_thread') and self.capture_thread.is_alive():
+            self.capture_thread.join()
+        if hasattr(self, 'processing_thread') and self.processing_thread.is_alive():
+            self.processing_thread.join()
+        logging.info("Core threads joined.")
 
-            if self.camera: self.camera.release()
-            if self.active_frame_source and not isinstance(self.active_frame_source, Camera):
-                self.active_frame_source.release()
-            self.arduino.close()
-            self.root.destroy()
-            logging.info("Application shutdown complete.")
+        if self.camera:
+            self.camera.release()
+        if self.active_frame_source and not isinstance(self.active_frame_source, Camera):
+            self.active_frame_source.release()
+        self.arduino.close()
+        self.root.destroy()
+        logging.info("Application shutdown complete.")
 
 if __name__ == '__main__':
     print("This file is intended to be imported, not run directly.")
