@@ -137,8 +137,10 @@ class Detector:
         # Get input size of the model
         n, c, h, w = self.input_layer.shape
 
-        # Apply letterboxing to the frame
-        letterboxed_frame, _, _ = letterbox(frame, new_shape=(w, h))
+        # Apply letterboxing to the frame. `auto=False` ensures the frame is padded
+        # to the exact `new_shape` (e.g., 640x640), which is required for static
+        # model input shapes.
+        letterboxed_frame, _, _ = letterbox(frame, new_shape=(w, h), auto=False)
 
         # Convert from BGR to RGB
         rgb_frame = cv2.cvtColor(letterboxed_frame, cv2.COLOR_BGR2RGB)
