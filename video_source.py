@@ -1,8 +1,29 @@
+"""
+Este módulo fornece a classe VideoFileSource, um wrapper conveniente em torno
+do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
+"""
 import cv2
 import os
+import logging
 
 class VideoFileSource:
+    """
+    Representa um arquivo de vídeo como uma fonte de quadros.
+
+    Esta classe encapsula um objeto `cv2.VideoCapture` para abrir um arquivo de vídeo,
+    ler suas propriedades (largura, altura, FPS), e fornecer quadros um por um.
+    """
     def __init__(self, video_path):
+        """
+        Inicializa a fonte de vídeo a partir de um caminho de arquivo.
+
+        Args:
+            video_path (str): O caminho para o arquivo de vídeo.
+
+        Raises:
+            FileNotFoundError: Se o arquivo de vídeo não for encontrado.
+            IOError: Se o arquivo de vídeo não puder ser aberto pelo OpenCV.
+        """
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found at: {video_path}")
 
@@ -21,8 +42,8 @@ class VideoFileSource:
             self.fps = 30
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        print(f"Video source loaded: {os.path.basename(video_path)}")
-        print(f"Properties: {self.width}x{self.height} @ {self.fps:.2f} FPS, {self.frame_count} frames total.")
+        logging.info(f"Video source loaded: {os.path.basename(video_path)}")
+        logging.info(f"Properties: {self.width}x{self.height} @ {self.fps:.2f} FPS, {self.frame_count} frames total.")
 
     def get_frame(self):
         """
@@ -41,7 +62,10 @@ class VideoFileSource:
 
     def get_properties(self):
         """
-        Returns the properties of the video file.
+        Retorna um dicionário com as propriedades do vídeo.
+
+        Returns:
+            dict: Um dicionário contendo largura, altura, FPS e contagem total de quadros.
         """
         return {
             "width": self.width,
@@ -51,12 +75,10 @@ class VideoFileSource:
         }
 
     def release(self):
-        """
-        Releases the video file resource.
-        """
+        """Libera o recurso do arquivo de vídeo."""
         if self.cap.isOpened():
             self.cap.release()
-            print(f"Video source released: {os.path.basename(self.video_path)}")
+            logging.info(f"Video source released: {os.path.basename(self.video_path)}")
 
 if __name__ == '__main__':
     print("Testing VideoFileSource...")
