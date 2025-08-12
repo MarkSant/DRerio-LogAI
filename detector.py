@@ -6,6 +6,7 @@ a entrada e saída de áreas de interesse.
 import cv2
 import numpy as np
 from ultralytics import YOLO
+from ultralytics.utils.ops import non_max_suppression, scale_boxes
 import openvino as ov
 import config
 
@@ -113,8 +114,6 @@ class Detector:
         Loads the OpenVINO model from the specified directory.
         It finds the .xml file within the directory to load the model.
         """
-        # The path we receive is to the directory, e.g., '.../best_openvino_model/'
-        # We need to find the .xml file inside it.
         import glob
         import os
         xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
@@ -126,86 +125,72 @@ class Detector:
 
         core = ov.Core()
         model = core.read_model(model_xml_path)
-        # Using "AUTO" allows OpenVINO to automatically select the best device (CPU, GPU, etc.)
         self.compiled_model = core.compile_model(model=model, device_name="AUTO")
         self.input_layer = self.compiled_model.input(0)
         self.output_layer = self.compiled_model.output(0)
 
     def _preprocess_openvino(self, frame):
-        """Preprocesses a frame for OpenVINO inference."""
-        # Get input size of the model, which is in NCHW format
+        """
+        Prepares a frame for OpenVINO inference using letterboxing, which is
+        the standard for YOLO models.
+        """
+        # Get input size of the model
         n, c, h, w = self.input_layer.shape
 
-        # Convert BGR frame to RGB, as YOLO models expect RGB input.
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Apply letterboxing to the frame
+        letterboxed_frame, _, _ = letterbox(frame, new_shape=(w, h))
 
-        # Resize the image to the model's input size (w, h)
-        resized_image = cv2.resize(rgb_frame, (w, h))
-        # Convert to float32, normalize to [0,1] and expand dimensions to create a batch.
-        input_image = np.expand_dims(resized_image, axis=0).astype(np.float32) / 255.0
-        input_image = input_image.transpose(0, 3, 1, 2) # From NHWC to NCHW
-        return input_image, frame.shape[1], frame.shape[0]
+        # Convert from BGR to RGB
+        rgb_frame = cv2.cvtColor(letterboxed_frame, cv2.COLOR_BGR2RGB)
 
-    def _postprocess_openvino(self, result, original_w, original_h):
+        # Transpose from HWC to CHW and normalize to [0,1]
+        input_tensor = rgb_frame.transpose(2, 0, 1) / 255.0
+
+        # Add batch dimension to create NHWC
+        input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)
+
+        return input_tensor
+
+    def _postprocess_openvino(self, result, original_frame_shape):
         """
-        Postprocesses the OpenVINO model's output to extract bounding boxes,
-        confidences, and class IDs. This implementation correctly handles the
-        YOLOv8 output format [x, y, w, h, class1_score, class2_score, ...].
+        Postprocesses the OpenVINO model's output using the official
+        ultralytics utility functions for robust and accurate results.
         """
         # Get the raw output tensor from the model
         output_tensor = result[self.output_layer]
 
-        # The output shape is (1, 84, 8400) for COCO, where 84 = 4 (bbox) + 80 (classes).
-        # We transpose it to (1, 8400, 84) to iterate through proposals.
-        proposals = np.squeeze(output_tensor).T
+        # Use the official ultralytics non_max_suppression utility
+        # This function handles all the complex parsing of class scores and confidences.
+        # The output shape of the model is (1, 84, 8400) for COCO.
+        # We pass it directly to the utility.
+        import torch
+        preds = non_max_suppression(
+            prediction=torch.from_numpy(output_tensor),
+            conf_thres=self.conf_threshold,
+            iou_thres=self.nms_threshold,
+            agnostic=True # Class-agnostic NMS
+        )
 
-        boxes = []
-        confidences = []
-        # In this version, we don't use class_ids, but it's good practice to extract it.
-        # class_ids = []
+        # The result of NMS is a list with one element per image in the batch.
+        # We only have one image, so we take the first element.
+        detections = preds[0]
 
-        # Iterate over each proposal.
-        for prop in proposals:
-            # Extract bounding box information (center_x, center_y, width, height)
-            bbox_coords = prop[:4]
-
-            # Extract class scores.
-            class_scores = prop[4:]
-
-            # Find the class with the highest score and its value.
-            max_score = np.max(class_scores)
-
-            # Filter out proposals with low confidence.
-            if max_score >= self.conf_threshold:
-                # Get the bounding box values.
-                center_x, center_y, w, h = bbox_coords
-
-                # Convert normalized coordinates to pixel values for NMS.
-                # The format required by cv2.dnn.NMSBoxes is (x, y, width, height)
-                # where (x, y) is the top-left corner.
-                x1 = int((center_x - w / 2) * original_w)
-                y1 = int((center_y - h / 2) * original_h)
-                width = int(w * original_w)
-                height = int(h * original_h)
-
-                boxes.append([x1, y1, width, height])
-                confidences.append(float(max_score))
-
-        # Apply Non-Maximum Suppression to filter out overlapping boxes.
-        if not boxes:
+        if detections is None or len(detections) == 0:
             return []
 
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, self.nms_threshold)
+        # Rescale the bounding boxes from the model's input size (e.g., 640x640)
+        # back to the original frame's size.
+        model_input_shape = (self.input_layer.shape[2], self.input_layer.shape[3]) # (h, w)
+        detections[:, :4] = scale_boxes(model_input_shape, detections[:, :4], original_frame_shape).round()
 
-        if len(indices) == 0:
-            return []
-
-        # Prepare the final list of detections in (x1, y1, x2, y2, confidence) format.
+        # Convert the results to the format expected by the rest of the application:
+        # A list of tuples: (x1, y1, x2, y2, confidence)
         final_detections = []
-        for i in indices.flatten():
-            x, y, w, h = boxes[i]
-            confidence = confidences[i]
-            final_detections.append((x, y, x + w, y + h, confidence))
+        for *xyxy, conf, cls in detections:
+            # We ignore 'cls' for now as the application is class-agnostic
+            final_detections.append(
+                (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
+            )
 
         return final_detections
 
@@ -215,9 +200,9 @@ class Detector:
         """
         if self.is_openvino:
             # --- OpenVINO Inference Path ---
-            input_tensor, orig_w, orig_h = self._preprocess_openvino(frame)
+            input_tensor = self._preprocess_openvino(frame)
             results = self.compiled_model.infer_new_request({self.input_layer.any_name: input_tensor})
-            predictions = self._postprocess_openvino(results, orig_w, orig_h)
+            predictions = self._postprocess_openvino(results, frame.shape)
             # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
         else:
             # --- Default Ultralytics Inference Path ---
@@ -261,6 +246,42 @@ class Detector:
                                 found_object_for_state_change = True
 
         return detections_in_polygon, command_to_send
+
+def letterbox(img: np.ndarray, new_shape:tuple=(640, 640), color:tuple=(114, 114, 114), auto:bool=True, scaleFill:bool=False, scaleup:bool=True, stride:int=32):
+    """
+    Resize and pad image while meeting stride-multiple constraints.
+    This is the standard letterboxing function from the ultralytics library.
+    """
+    shape = img.shape[:2]  # current shape [height, width]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better test mAP)
+        r = min(r, 1.0)
+
+    # Compute padding
+    ratio = r, r  # width, height ratios
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+    if auto:  # minimum rectangle
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
+    elif scaleFill:  # stretch
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+    dw /= 2  # divide padding into 2 sides
+    dh /= 2
+
+    if shape[::-1] != new_unpad:  # resize
+        img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    return img, ratio, (dw, dh)
+
 
 def draw_overlay(frame, detections, detector_instance):
     """
