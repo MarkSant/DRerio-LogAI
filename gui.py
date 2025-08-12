@@ -151,28 +151,20 @@ class ApplicationGUI:
                 self.status_var.set(f"Project: {self.project_manager.get_project_name()} - Ready to process: {os.path.basename(next_video)}")
 
         # --- Inicia as Threads de Núcleo ---
-        # A arquitetura de threads difere com base no tipo de projeto para otimização.
-
         self.capture_thread = None
         self.processing_thread = None
 
         if project_type == "live":
-            # Para projetos ao vivo, precisamos de duas threads: uma para capturar
-            # da câmera sem bloquear e outra para processar.
+            # Para projetos ao vivo, a thread de captura e processamento são iniciadas
+            # imediatamente e rodam durante toda a vida do projeto.
             self.capture_thread = threading.Thread(target=self._live_frame_capture_loop, name="CaptureThread", daemon=True)
             self.processing_thread = threading.Thread(target=self._live_processing_loop, name="ProcessingThread", daemon=True)
             logging.info("Starting core threads for LIVE project.")
             self.capture_thread.start()
-
-        elif project_type == "pre-recorded":
-            # Para projetos pré-gravados, a thread de captura é desnecessária e ineficiente.
-            # A thread de processamento pode buscar quadros diretamente do arquivo.
-            self.processing_thread = threading.Thread(target=self._file_processing_loop, name="ProcessingThread", daemon=True)
-            logging.info("Starting core thread for PRE-RECORDED project.")
-
-        # A thread de processamento é iniciada para ambos os tipos.
-        if self.processing_thread:
             self.processing_thread.start()
+
+        # Para projetos pré-gravados, a thread de processamento é criada e iniciada
+        # apenas quando o usuário clica em "Process Next Video".
 
     # --- Core Application Loops (run in threads) ---
     def _live_frame_capture_loop(self):
@@ -377,21 +369,20 @@ class ApplicationGUI:
     def _close_project(self):
         """Fecha o projeto atual, para as threads e retorna à tela de boas-vindas."""
         logging.info("Closing project.")
+
+        # Sinaliza para todas as threads que devem terminar.
+        self.program_exit_event.set()
+
+        # Lida com o estado de gravação antes de esperar pelas threads
         if self.is_recording:
             logging.info("Recording is active, stopping it before closing.")
             if self.project_manager.get_project_type() == 'live':
                 self._stop_recording()
-            else:
-                # Para processamento de arquivo, apenas sinalizar o evento de saída é suficiente
-                # para que o loop pare e se limpe.
-                self.program_exit_event.set()
+            # Para arquivos, a `program_exit_event` fará com que o loop pare.
+            # O cleanup ocorrerá, mas talvez não a atualização da UI, o que é aceitável ao fechar.
 
-        # Para as threads de núcleo de forma limpa
-        self.program_exit_event.set()
-        logging.info("Waiting for core threads to join.")
-        if self.capture_thread and self.capture_thread.is_alive(): self.capture_thread.join()
-        if self.processing_thread and self.processing_thread.is_alive(): self.processing_thread.join()
-        logging.info("Core threads joined.")
+        # Espera que as threads terminem de forma segura.
+        self._join_threads()
         self.program_exit_event.clear()
 
         # Libera recursos
@@ -534,7 +525,12 @@ class ApplicationGUI:
                 logging.info(f"Starting analysis for video: {video_path}")
                 self.project_manager.update_video_status(video_path, "processing")
                 self.is_recording = True
-                self.active_frame_source = video_source # Define a fonte para o loop de processamento
+                self.active_frame_source = video_source
+
+                # Cria e inicia a thread de processamento de arquivo AQUI.
+                self.processing_thread = threading.Thread(target=self._file_processing_loop, name="ProcessingThread", daemon=True)
+                self.processing_thread.start()
+
                 self.process_video_btn.config(state="disabled")
                 self.status_var.set(f"Processing: {os.path.basename(video_path)}")
             else:
@@ -589,15 +585,23 @@ class ApplicationGUI:
         logging.info("Close button clicked.")
         if messagebox.askokcancel("Quit", "Do you want to exit the program?"):
             logging.info("User confirmed quit.")
-            if self.is_recording:
-                logging.info("Recording is active, stopping it before closing.")
-                if self.project_manager.get_project_type() == 'live':
-                    self._stop_recording()
-                else:
-                    self._handle_source_finished()
 
+            # Sinaliza para todas as threads que devem terminar.
             self.program_exit_event.set()
-            logging.info("Waiting for core threads to join.")
+
+            # Se uma gravação ao vivo estiver em andamento, pare-a de forma limpa.
+            if self.is_recording and self.project_manager.get_project_type() == 'live':
+                self._stop_recording()
+
+            # Espera pelas threads e depois destrói a janela.
+            # É melhor fazer a junção final em um local para evitar lógicas duplicadas.
+            self._join_threads()
+            self.root.destroy()
+            logging.info("Application shutdown complete.")
+
+    def _join_threads(self):
+        """Espera que todas as threads de núcleo terminem."""
+        logging.info("Waiting for core threads to join.")
             if hasattr(self, 'capture_thread') and self.capture_thread.is_alive(): self.capture_thread.join()
             if hasattr(self, 'processing_thread') and self.processing_thread.is_alive(): self.processing_thread.join()
             logging.info("Core threads joined.")
