@@ -126,7 +126,8 @@ class Detector:
 
         core = ov.Core()
         model = core.read_model(model_xml_path)
-        self.compiled_model = core.compile_model(model=model, device_name="CPU")
+        # Using "AUTO" allows OpenVINO to automatically select the best device (CPU, GPU, etc.)
+        self.compiled_model = core.compile_model(model=model, device_name="AUTO")
         self.input_layer = self.compiled_model.input(0)
         self.output_layer = self.compiled_model.output(0)
 
@@ -134,11 +135,13 @@ class Detector:
         """Preprocesses a frame for OpenVINO inference."""
         # Get input size of the model, which is in NCHW format
         n, c, h, w = self.input_layer.shape
+
+        # Convert BGR frame to RGB, as YOLO models expect RGB input.
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
         # Resize the image to the model's input size (w, h)
-        resized_image = cv2.resize(frame, (w, h))
-        # Convert to float32, normalize to [0,1] and transpose from HWC to NCHW format
-        # BGR to RGB conversion is often implicitly handled by YOLO models, but let's be safe.
-        # However, ultralytics models are trained on RGB. The export handles this. Let's assume the exported model expects BGR.
+        resized_image = cv2.resize(rgb_frame, (w, h))
+        # Convert to float32, normalize to [0,1] and expand dimensions to create a batch.
         input_image = np.expand_dims(resized_image, axis=0).astype(np.float32) / 255.0
         input_image = input_image.transpose(0, 3, 1, 2) # From NHWC to NCHW
         return input_image, frame.shape[1], frame.shape[0]
