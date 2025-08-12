@@ -16,9 +16,10 @@ class Recorder:
         self.frame_count = 0
         self.recording_start_frame = 0
 
-    def start_recording(self, output_folder, frame_width, frame_height):
+    def start_recording(self, output_folder, frame_width, frame_height, is_video_file=False):
         """
         Initializes video and CSV recording.
+        If is_video_file is True, it skips creating the video file.
         """
         if self.is_recording:
             print("Already recording.")
@@ -29,13 +30,16 @@ class Recorder:
 
         self.base_name = os.path.basename(output_folder)
 
-        # 1. Setup Video Writer
-        video_filename = os.path.join(output_folder, f"{self.base_name}.mp4")
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.video_writer = cv2.VideoWriter(video_filename, fourcc, config.FPS, (frame_width, frame_height))
-        if not self.video_writer.isOpened():
-            print(f"Error: Could not open video writer for {video_filename}")
-            return False
+        # 1. Setup Video Writer, only if not processing a pre-recorded file
+        if not is_video_file:
+            video_filename = os.path.join(output_folder, f"{self.base_name}.mp4")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.video_writer = cv2.VideoWriter(video_filename, fourcc, config.FPS, (frame_width, frame_height))
+            if not self.video_writer.isOpened():
+                print(f"Error: Could not open video writer for {video_filename}")
+                return False
+        else:
+            self.video_writer = None # Ensure it's None
 
         # 2. Setup CSV Writer for movement data
         csv_filename = os.path.join(output_folder, f"3_CoordMovimento_{self.base_name}.csv")
@@ -46,7 +50,8 @@ class Recorder:
             self.csv_file.flush() # Ensure header is written immediately
         except IOError as e:
             print(f"Error: Could not open CSV file {csv_filename}. {e}")
-            self.video_writer.release() # clean up video writer
+            if self.video_writer:
+                self.video_writer.release() # clean up video writer if it exists
             return False
 
         # 3. Save area definitions

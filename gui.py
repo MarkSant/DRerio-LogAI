@@ -207,9 +207,11 @@ class ApplicationGUI:
 
             # Optimize Video Display Speed
             if is_file_source:
-                if frame_count % 60 == 0:
+                # Display every 2nd frame for smoother playback
+                if frame_count % 2 == 0:
                     cv2.imshow('Live View', frame)
             else:
+                # For live sources, show every frame
                 cv2.imshow('Live View', frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -382,9 +384,9 @@ class ApplicationGUI:
             selection_window.destroy()
 
             try:
-                self.active_frame_source = VideoFileSource(video_path)
-                # Update detector scaling for the video file's resolution
-                video_props = self.active_frame_source.get_properties()
+                # Instantiate the source but don't assign it to the active source yet
+                video_source = VideoFileSource(video_path)
+                video_props = video_source.get_properties()
                 self.detector.update_scaling(video_props['width'], video_props['height'])
             except (IOError, FileNotFoundError) as e:
                 messagebox.showerror("Error", f"Could not open video file: {e}")
@@ -397,22 +399,31 @@ class ApplicationGUI:
             output_folder_name = f"{video_basename}_{group_name}_{cobaia_number}"
             output_path = os.path.join(self.project_manager.project_path, output_folder_name)
 
-            success = self.recorder.start_recording(output_path, video_props['width'], video_props['height'])
+            # Pass the video properties to the recorder, indicating it's a pre-recorded file
+            success = self.recorder.start_recording(output_path, video_props['width'], video_props['height'], is_video_file=True)
 
             if success:
                 self.project_manager.update_video_status(video_path, "processing")
                 with self.frame_queue.mutex: self.frame_queue.queue.clear()
-                with self.video_queue.mutex: self.video_queue.queue.clear()
+                with self.video_queue.mutex: self.video_queue.queue.clear() # Keep this clear, just in case
+
                 self.is_recording = True
-                self.is_capturing_for_video = True # Save video output as well
-                self.video_stop_event.clear()
-                self.video_thread = threading.Thread(target=self._video_recording_loop, daemon=True)
-                self.video_thread.start()
+                self.is_capturing_for_video = False # Do not save the video file again
+
+                # The video recording thread is not needed for pre-recorded files
+                # self.video_stop_event.clear()
+                # self.video_thread = threading.Thread(target=self._video_recording_loop, daemon=True)
+                # self.video_thread.start()
+
                 self.process_video_btn.config(state="disabled")
                 self.status_var.set(f"Processing: {os.path.basename(video_path)}")
+
+                # NOW, activate the frame source. The capture loop will start picking it up.
+                self.active_frame_source = video_source
             else:
                 messagebox.showerror("Error", "Failed to start recorder for video processing.")
-                self.active_frame_source.release()
+                # Ensure the unopened source is released
+                video_source.release()
                 self.active_frame_source = None
 
         Button(selection_window, text="Confirm", command=on_confirm).pack(pady=10)
@@ -431,6 +442,9 @@ class ApplicationGUI:
 
         self.recorder.stop_recording()
         self.project_manager.update_video_status(self.currently_processing_video, "complete")
+
+        # Close the OpenCV window to prevent the UI from freezing
+        cv2.destroyAllWindows()
 
         self.currently_processing_video = None
         self.process_video_btn.config(state="normal")
