@@ -1,3 +1,10 @@
+"""
+Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack.
+
+A classe `ApplicationGUI` gerencia a janela principal, os widgets da interface,
+a inicialização dos módulos de backend (câmera, detector, etc.) e a coordenação
+das threads de processamento de vídeo e detecção de objetos.
+"""
 import tkinter as tk
 from tkinter import (filedialog, simpledialog, messagebox, Button, Label, Frame,
                      StringVar, OptionMenu, Toplevel)
@@ -18,35 +25,55 @@ from project_manager import ProjectManager
 from video_source import VideoFileSource
 
 class ApplicationGUI:
+    """
+    A classe principal que gerencia a interface gráfica e a lógica da aplicação.
+
+    Esta classe é responsável por:
+    - Construir a janela principal e as visualizações da interface (boas-vindas e controle principal).
+    - Inicializar e gerenciar os módulos de backend como câmera, detector e gravador.
+    - Manter o estado da aplicação através de variáveis de controle.
+    - Orquestrar as threads para captura de quadros, detecção de objetos e gravação de vídeo
+      para garantir que a interface do usuário permaneça responsiva.
+    """
     def __init__(self, root):
+        """
+        Inicializa a ApplicationGUI.
+
+        Args:
+            root (tk.Tk): A janela raiz do Tkinter para a aplicação.
+        """
         self.root = root
         self.root.title("Zebtrack Controller")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # --- Initialize Modules ---
-        self.camera = None  # Will be initialized if needed
+        # --- Inicialização dos Módulos ---
+        # Cada módulo lida com uma parte específica da lógica do backend.
+        self.camera = None  # Câmera será inicializada apenas se um projeto 'live' for criado.
         self.arduino = Arduino()
         self.detector = Detector()
         self.recorder = Recorder()
         self.project_manager = ProjectManager()
 
-        # --- State Variables ---
-        self.is_processing = True
-        self.is_capturing_for_video = False
-        self.is_recording = False
-        self.active_frame_source = None
-        self.welcome_frame = None
-        self.main_controls_frame = None
-        self.currently_processing_video = None
+        # --- Variáveis de Estado ---
+        # Controlam o fluxo e o comportamento da aplicação em tempo de execução.
+        self.is_processing = True  # Flag para habilitar/desabilitar a detecção de objetos.
+        self.is_capturing_for_video = False  # Flag para indicar se os quadros devem ser salvos em um vídeo.
+        self.is_recording = False  # Flag mestre para indicar se os dados (CSV, vídeo) devem ser gravados.
+        self.active_frame_source = None  # Armazena a fonte de quadros ativa (câmera ou arquivo de vídeo).
+        self.welcome_frame = None  # Contêiner para a tela de boas-vindas.
+        self.main_controls_frame = None  # Contêiner para os controles principais da aplicação.
+        self.currently_processing_video = None  # Caminho para o arquivo de vídeo sendo processado no momento.
 
-        # --- Threading and Queues ---
-        self.program_exit_event = threading.Event()
-        self.video_stop_event = threading.Event()
-        self.source_finished_event = threading.Event()
-        self.frame_queue = queue.Queue(maxsize=10)
-        self.video_queue = queue.Queue(maxsize=300)
+        # --- Threads e Filas ---
+        # Usado para executar tarefas demoradas (como processamento de vídeo) sem bloquear a GUI.
+        self.program_exit_event = threading.Event()  # Sinaliza para todas as threads que o programa está fechando.
+        self.video_stop_event = threading.Event()  # Sinaliza para a thread de gravação de vídeo parar.
+        self.source_finished_event = threading.Event()  # Sinaliza que a fonte de vídeo (arquivo) terminou.
+        self.frame_queue = queue.Queue(maxsize=10)  # Fila para passar quadros da thread de captura para a de detecção.
+        self.video_queue = queue.Queue(maxsize=300)  # Fila para passar quadros para a thread de gravação de vídeo.
 
-        # --- UI Elements ---
+        # --- Elementos da UI ---
+        # Inicia a aplicação mostrando a tela de boas-vindas.
         self._create_welcome_frame()
 
     def _create_welcome_frame(self):
@@ -95,7 +122,13 @@ class ApplicationGUI:
         Label(self.root, textvariable=self.status_var).pack(pady=5)
 
     def _load_project_view(self):
-        """Transitions from the welcome screen to the main control view and starts threads."""
+        """
+        Transiciona da tela de boas-vindas para a visualização de controle principal.
+
+        Este método é chamado após um projeto ser criado ou carregado. Ele configura
+        a fonte de quadros (câmera ou prepara para arquivos de vídeo) e inicia as
+        threads de núcleo para captura e processamento de quadros.
+        """
         self._create_main_control_frame()
 
         project_type = self.project_manager.get_project_type()
@@ -128,20 +161,32 @@ class ApplicationGUI:
 
     # --- Core Application Loops (run in threads) ---
     def _frame_capture_loop(self):
+        """
+        Loop executado em uma thread para capturar quadros da fonte ativa.
+
+        Esta função continuamente:
+        1. Verifica se há uma fonte de quadros ativa (`self.active_frame_source`).
+        2. Obtém o número do quadro (do arquivo de vídeo ou de um contador para live).
+        3. Lê o quadro da fonte.
+        4. Se a fonte terminar, sinaliza `_handle_source_finished`.
+        5. Coloca o par (número do quadro, imagem do quadro) na `frame_queue` para
+           ser consumido pela thread de detecção.
+        6. Se a gravação de vídeo estiver ativa, também coloca o quadro na `video_queue`.
+        """
         live_frame_count = 0
         while not self.program_exit_event.is_set():
             if not self.active_frame_source:
-                time.sleep(0.1)
+                time.sleep(0.1)  # Aguarda por uma fonte ativa.
                 continue
 
             is_file_source = isinstance(self.active_frame_source, VideoFileSource)
 
             frame_number = 0
             if is_file_source:
-                # For video files, the frame number from the source is the ground truth
+                # Para arquivos de vídeo, o número do quadro da fonte é a autoridade.
                 frame_number = int(self.active_frame_source.get_current_frame_number())
             else:
-                # For live sources, we use a simple counter
+                # Para fontes ao vivo, usamos um contador simples.
                 live_frame_count += 1
                 frame_number = live_frame_count
 
@@ -149,29 +194,45 @@ class ApplicationGUI:
             if not ret:
                 logging.info(f"Capture thread: end of source at frame number {frame_number}.")
                 if is_file_source:
+                    # Notifica a thread principal da GUI que a fonte terminou.
                     self.root.after(0, self._handle_source_finished)
                 self.active_frame_source = None
                 continue
 
+            # Coloca o quadro na fila para processamento.
             if not self.frame_queue.full():
                 self.frame_queue.put((frame_number, frame.copy()))
+
+            # Se a gravação de vídeo estiver habilitada, coloca o quadro na fila de vídeo.
             if self.is_capturing_for_video and not self.video_queue.full():
                 self.video_queue.put(frame.copy())
 
-            # For files, we can sleep less to process faster
+            # Para fontes ao vivo, um pequeno delay evita o uso excessivo da CPU.
+            # Para arquivos, processamos o mais rápido possível.
             if not is_file_source:
                 time.sleep(1 / (config.FPS * 1.5))
 
     def _object_detection_loop(self):
+        """
+        Loop executado em uma thread para processar quadros e detectar objetos.
+
+        Esta função continuamente:
+        1. Pega um quadro da `frame_queue`.
+        2. Se a fonte terminou e a fila está vazia, o loop termina.
+        3. A cada `PROCESSING_INTERVAL` quadros, executa o modelo de detecção.
+        4. Se detecções são encontradas durante a gravação, as envia para o `recorder`.
+        5. Desenha as sobreposições (caixas de detecção, etc.) e a barra de progresso no quadro.
+        6. Exibe o quadro processado em uma janela do OpenCV.
+        """
         while not self.program_exit_event.is_set():
             try:
                 frame_number, frame = self.frame_queue.get(timeout=1)
-                # logging.debug(f"Detection loop: Dequeued frame {frame_number}")
             except queue.Empty:
+                # Se a fonte de vídeo terminou e a fila está vazia, podemos sair.
                 if self.source_finished_event.is_set():
                     logging.info("Source is finished and queue is empty, exiting detection loop.")
-                    break  # Gracefully exit the loop
-                continue
+                    break  # Saída graciosa do loop.
+                continue  # Caso contrário, continue esperando por quadros.
 
             # Determine if the source is a file before processing
             is_file_source = isinstance(self.active_frame_source, VideoFileSource)
@@ -235,6 +296,13 @@ class ApplicationGUI:
         logging.info("Object detection loop finished and destroyed CV2 windows.")
 
     def _video_recording_loop(self):
+        """
+        Loop executado em uma thread para gravar quadros em um arquivo de vídeo.
+
+        Esta função é usada apenas para projetos 'live' para salvar a gravação da câmera.
+        Ela consome quadros da `video_queue` e os escreve no arquivo de vídeo
+        usando o `recorder`.
+        """
         logging.info("Video recording thread started.")
         while not self.video_stop_event.is_set():
             try:
@@ -244,8 +312,14 @@ class ApplicationGUI:
                 continue
         logging.info("Video recording thread finished.")
 
-    # --- Project Workflow Methods ---
+    # --- Métodos de Fluxo de Trabalho do Projeto ---
     def _create_project_workflow(self):
+        """
+        Guia o usuário através do processo de criação de um novo projeto.
+
+        Isso inclui selecionar um diretório, nomear o projeto, escolher o tipo
+        (live ou pré-gravado) e, se aplicável, selecionar os arquivos de vídeo.
+        """
         base_path = filedialog.askdirectory(title="Select a Parent Folder for the Project")
         if not base_path: return
 
@@ -282,6 +356,7 @@ class ApplicationGUI:
             messagebox.showerror("Error", "Failed to create the new project.")
 
     def _open_project_workflow(self):
+        """Abre um projeto existente a partir de um diretório selecionado pelo usuário."""
         project_path = filedialog.askdirectory(title="Select an Existing Project Folder")
         if not project_path: return
 
@@ -293,6 +368,7 @@ class ApplicationGUI:
             messagebox.showerror("Error", "Failed to load the project. Check if it's a valid project folder.")
 
     def _close_project(self):
+        """Fecha o projeto atual, para as threads e retorna à tela de boas-vindas."""
         logging.info("Closing project.")
         if self.is_recording:
             logging.info("Recording is active, stopping it before closing.")
@@ -301,6 +377,7 @@ class ApplicationGUI:
             else:
                 self._handle_source_finished()
 
+        # Para as threads de núcleo de forma limpa
         self.program_exit_event.set()
         logging.info("Waiting for core threads to join.")
         if self.capture_thread and self.capture_thread.is_alive(): self.capture_thread.join()
@@ -308,6 +385,7 @@ class ApplicationGUI:
         logging.info("Core threads joined.")
         self.program_exit_event.clear()
 
+        # Libera recursos
         if self.camera:
             self.camera.release()
             self.camera = None
@@ -315,12 +393,14 @@ class ApplicationGUI:
              self.active_frame_source.release()
         self.active_frame_source = None
 
+        # Reseta o estado para um novo projeto
         self.project_manager = ProjectManager()
         self._create_welcome_frame()
         logging.info("Project closed and welcome screen recreated.")
 
-    # --- UI Command Methods ---
+    # --- Métodos de Comando da UI ---
     def _define_groups(self):
+        """Permite que o usuário defina nomes para os grupos de tratamento do projeto."""
         group_count = simpledialog.askinteger("Number of Groups", "Enter the total number of groups:")
         if group_count is not None:
             group_names = []
@@ -332,6 +412,7 @@ class ApplicationGUI:
             messagebox.showinfo("Success", "Group names have been updated.")
 
     def _start_recording(self):
+        """Inicia a gravação para um projeto 'live'."""
         if not self.project_manager.project_data.get("groups"):
             messagebox.showwarning("Setup Required", "Please define groups for this project first.")
             return
@@ -355,13 +436,20 @@ class ApplicationGUI:
             success = self.recorder.start_recording(output_folder, cam_props['width'], cam_props['height'])
 
             if success:
+                # Limpa as filas para garantir que a gravação comece do zero
                 with self.frame_queue.mutex: self.frame_queue.queue.clear()
                 with self.video_queue.mutex: self.video_queue.queue.clear()
+
+                # Ativa as flags de gravação
                 self.is_recording = True
                 self.is_capturing_for_video = True
+
+                # Inicia a thread de gravação de vídeo
                 self.video_stop_event.clear()
                 self.video_thread = threading.Thread(target=self._video_recording_loop, daemon=True)
                 self.video_thread.start()
+
+                # Atualiza o estado da UI
                 self.start_rec_btn.config(state="disabled")
                 self.stop_rec_btn.config(state="normal")
                 self.status_var.set(f"Recording to: {os.path.basename(output_folder)}")
@@ -371,18 +459,27 @@ class ApplicationGUI:
         Button(selection_window, text="Confirm", command=on_confirm).pack(pady=10)
 
     def _stop_recording(self):
+        """Para a gravação de um projeto 'live'."""
         self.is_recording = False
         self.is_capturing_for_video = False
+
+        # Para a thread de gravação de vídeo
         self.video_stop_event.set()
         if hasattr(self, 'video_thread') and self.video_thread.is_alive():
             self.video_thread.join(timeout=5)
+
         self.recorder.stop_recording()
+
+        # Atualiza o estado da UI
         self.start_rec_btn.config(state="normal")
         self.stop_rec_btn.config(state="disabled")
         self.status_var.set(f"Project: {self.project_manager.get_project_name()} (live) - Ready")
         messagebox.showinfo("Success", "Recording stopped and files saved.")
 
     def _process_next_video(self):
+        """
+        Inicia o fluxo de trabalho para processar o próximo vídeo em um projeto 'pre-gravado'.
+        """
         if self.is_recording:
             messagebox.showwarning("Busy", "A video is already being processed.")
             return
