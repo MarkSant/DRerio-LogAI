@@ -2,6 +2,7 @@ import os
 import cv2
 import csv
 import time
+import logging
 from datetime import datetime
 import config
 
@@ -59,7 +60,7 @@ class Recorder:
 
         self.is_recording = True
         self.start_time = time.time()
-        print(f"Started recording. Output folder: {output_folder}")
+        logging.info(f"Started recording. Output folder: {output_folder}")
         return True
 
     def stop_recording(self):
@@ -79,7 +80,7 @@ class Recorder:
             self.csv_writer = None
 
         self.is_recording = False
-        print(f"Stopped recording for {self.base_name}.")
+        logging.info(f"Stopped recording for {self.base_name}.")
 
     def write_video_frame(self, frame):
         if self.is_recording and self.video_writer:
@@ -93,6 +94,7 @@ class Recorder:
         if self.is_recording and self.csv_writer:
             for (x1, y1, x2, y2, confidence) in detections:
                 self.csv_writer.writerow([f"{timestamp:.4f}", frame_number, x1, y1, x2, y2, int(confidence * 100)])
+            logging.info(f"Wrote {len(detections)} detections for frame {frame_number}")
 
     def _save_area_definitions(self, folder_path):
         """

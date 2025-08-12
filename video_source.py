@@ -1,5 +1,6 @@
 import cv2
 import os
+import logging
 
 class VideoFileSource:
     def __init__(self, video_path):
@@ -21,8 +22,8 @@ class VideoFileSource:
             self.fps = 30
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        print(f"Video source loaded: {os.path.basename(video_path)}")
-        print(f"Properties: {self.width}x{self.height} @ {self.fps:.2f} FPS, {self.frame_count} frames total.")
+        logging.info(f"Video source loaded: {os.path.basename(video_path)}")
+        logging.info(f"Properties: {self.width}x{self.height} @ {self.fps:.2f} FPS, {self.frame_count} frames total.")
 
     def get_frame(self):
         """
@@ -56,7 +57,7 @@ class VideoFileSource:
         """
         if self.cap.isOpened():
             self.cap.release()
-            print(f"Video source released: {os.path.basename(self.video_path)}")
+            logging.info(f"Video source released: {os.path.basename(self.video_path)}")
 
 if __name__ == '__main__':
     print("Testing VideoFileSource...")
