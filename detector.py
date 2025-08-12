@@ -165,18 +165,27 @@ class Detector:
             if confidence >= self.conf_threshold:
                 # Convert model's [center_x, center_y, width, height] to [x1, y1, x2, y2]
                 center_x, center_y, w, h = prop[:4]
-                x1 = int((center_x - w / 2) * original_w)
-                y1 = int((center_y - h / 2) * original_h)
-                x2 = int((center_x + w / 2) * original_w)
-                y2 = int((center_y + h / 2) * original_h)
-                boxes.append([x1, y1, x2, y2])
+                # Convert normalized [center_x, center_y, width, height] to pixel [x1, y1, x2, y2]
+                center_x_px = center_x * original_w
+                center_y_px = center_y * original_h
+                w_px = w * original_w
+                h_px = h * original_h
+                x1 = int(center_x_px - w_px / 2)
+                y1 = int(center_y_px - h_px / 2)
+
+                # For cv2.dnn.NMSBoxes, we need the format [x, y, width, height]
+                boxes.append([x1, y1, int(w_px), int(h_px)])
                 confidences.append(float(confidence))
 
         # Apply Non-Maximum Suppression
         if boxes:
             indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, self.nms_threshold)
             if len(indices) > 0:
-                final_boxes = [(*boxes[i], confidences[i]) for i in indices.flatten()]
+                # After NMS, convert back to (x1, y1, x2, y2, confidence) for drawing and logging
+                final_boxes = []
+                for i in indices.flatten():
+                    x, y, w, h = boxes[i]
+                    final_boxes.append((x, y, x + w, y + h, confidences[i]))
                 return final_boxes
         return []
 
