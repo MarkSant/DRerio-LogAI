@@ -7,7 +7,8 @@ das threads de processamento de vídeo e detecção de objetos.
 """
 import tkinter as tk
 from tkinter import (filedialog, simpledialog, messagebox, Button, Label, Frame,
-                     StringVar, OptionMenu, Toplevel)
+                     StringVar, OptionMenu, Toplevel, Scale, Checkbutton,
+                     IntVar, BooleanVar)
 import threading
 import queue
 import time
@@ -71,6 +72,10 @@ class ApplicationGUI:
         self.frame_queue = queue.Queue(maxsize=10)  # Fila para passar quadros da thread de captura para a de detecção.
         self.video_queue = queue.Queue(maxsize=300)  # Fila para passar quadros para a thread de gravação de vídeo.
 
+        # --- Variáveis de UI para Opções de Processamento ---
+        self.processing_interval_var = IntVar(value=config.PROCESSING_INTERVAL)
+        self.show_preview_var = BooleanVar(value=True)
+
         # --- Elementos da UI ---
         # Inicia a aplicação mostrando a tela de boas-vindas.
         self._create_welcome_frame()
@@ -110,9 +115,23 @@ class ApplicationGUI:
             self.stop_rec_btn = Button(self.main_controls_frame, text="Stop Recording", command=self._stop_recording, state="disabled")
             self.stop_rec_btn.pack(side="left", padx=5)
         elif project_type == "pre-recorded":
-            Button(self.main_controls_frame, text="Define Groups", command=self._define_groups).pack(side="left", padx=5)
-            self.process_video_btn = Button(self.main_controls_frame, text="Process Next Video", command=self._process_next_video)
+            # Frame for pre-recorded controls, separating buttons and options
+            prerecorded_controls_frame = Frame(self.main_controls_frame)
+            prerecorded_controls_frame.pack(side="left")
+
+            # --- Row 1: Buttons ---
+            button_frame = Frame(prerecorded_controls_frame)
+            button_frame.pack(fill="x", padx=5, pady=2)
+            Button(button_frame, text="Define Groups", command=self._define_groups).pack(side="left")
+            self.process_video_btn = Button(button_frame, text="Process Next Video", command=self._process_next_video)
             self.process_video_btn.pack(side="left", padx=5)
+
+            # --- Row 2: Options ---
+            options_frame = Frame(prerecorded_controls_frame)
+            options_frame.pack(fill="x", padx=5, pady=2)
+            Label(options_frame, text="Frame Interval:").pack(side="left")
+            Scale(options_frame, from_=1, to=100, orient="horizontal", variable=self.processing_interval_var).pack(side="left")
+            Checkbutton(options_frame, text="Show Preview", variable=self.show_preview_var).pack(side="left", padx=10)
 
         Button(self.main_controls_frame, text="Close Project", command=self._close_project).pack(side="left", padx=5)
 
@@ -230,19 +249,25 @@ class ApplicationGUI:
         Loop para processar um ARQUIVO de vídeo de forma eficiente.
 
         Este loop é executado em uma única thread e gerencia todo o processo:
-        1. Calcula o próximo frame a ser processado com base no `PROCESSING_INTERVAL`.
-        2. Usa `cap.set()` para "saltar" diretamente para o frame de interesse.
-        3. Lê, processa, grava dados e exibe o frame.
-        4. Repete até o final do vídeo.
-        5. Realiza a limpeza no final.
+        1. Lê as opções da GUI (intervalo, pré-visualização).
+        2. Calcula o próximo frame a ser processado com base no intervalo.
+        3. Usa `cap.set()` para "saltar" diretamente para o frame de interesse.
+        4. Lê, processa, grava dados e, opcionalmente, exibe o frame.
+        5. Repete até o final do vídeo e realiza a limpeza.
         """
         if not self.is_recording or not isinstance(self.active_frame_source, VideoFileSource):
             logging.error("File processing loop started in an invalid state.")
             return
 
+        # --- Obter opções da GUI ---
+        show_preview = self.show_preview_var.get()
+        processing_interval = self.processing_interval_var.get()
+        if processing_interval < 1:  # Garante que o intervalo seja pelo menos 1
+            processing_interval = 1
+
         video_source = self.active_frame_source
         total_frames = video_source.get_properties()['frame_count']
-        frame_number = -1 # Começa em -1 para que o primeiro frame seja o de offset
+        frame_number = -1  # Começa em -1 para que o primeiro frame seja o de offset
 
         while not self.program_exit_event.is_set() and frame_number < total_frames:
 
@@ -250,7 +275,7 @@ class ApplicationGUI:
                 # Define o primeiro frame a ser processado
                 target_frame = config.PROCESSING_OFFSET if config.PROCESSING_OFFSET > 0 else 1
             else:
-                target_frame = frame_number + config.PROCESSING_INTERVAL
+                target_frame = frame_number + processing_interval
 
             if target_frame >= total_frames:
                 logging.info(f"Target frame {target_frame} exceeds total frames {total_frames}. Finishing.")
@@ -268,6 +293,14 @@ class ApplicationGUI:
             frame_number = target_frame
             logging.info(f"Processing frame {frame_number}...")
 
+            # Se a pré-visualização estiver desativada, atualiza a barra de status com o progresso
+            if not show_preview:
+                if total_frames > 0:
+                    progress_percent = int((frame_number / total_frames) * 100)
+                    video_name = os.path.basename(self.currently_processing_video)
+                    status_msg = f"Processing: {video_name} ({progress_percent}%)"
+                    self.root.after(0, self.status_var.set, status_msg)
+
             # Processamento e gravação
             detections, _ = self.detector.process_frame(frame, 'pre-recorded')
             if detections:
@@ -275,23 +308,24 @@ class ApplicationGUI:
                 timestamp = frame_number / props['fps'] if props['fps'] > 0 else 0
                 self.recorder.write_detection_data(timestamp, frame_number, detections)
 
-            # Desenho e exibição
-            draw_overlay(frame, detections, self.detector)
-            progress = frame_number / total_frames
-            bar_width = int(progress * frame.shape[1])
-            bar_height = 20
-            cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1)
-            cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (bar_width, frame.shape[0]), (0, 255, 0), -1)
-            # Usa um nome de janela diferente para evitar conflitos se a GUI for expandida
-            cv2.imshow('File Processing', frame)
+            # Desenho e exibição (condicional)
+            if show_preview:
+                draw_overlay(frame, detections, self.detector)
+                progress = frame_number / total_frames
+                bar_width = int(progress * frame.shape[1])
+                bar_height = 20
+                cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1)
+                cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (bar_width, frame.shape[0]), (0, 255, 0), -1)
+                cv2.imshow('File Processing', frame)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                logging.info("User requested to stop processing.")
-                self.program_exit_event.set()
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    logging.info("User requested to stop processing.")
+                    self.program_exit_event.set()
 
         # --- Limpeza Pós-Loop ---
         # Garante que a UI seja atualizada e os recursos liberados
-        cv2.destroyAllWindows()
+        if show_preview:
+            cv2.destroyAllWindows()
         self.root.after(0, self._cleanup_after_processing)
 
     def _video_recording_loop(self):
