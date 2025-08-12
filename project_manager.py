@@ -40,7 +40,8 @@ class ProjectManager:
                 # By removing it, the export will succeed and save to a default location.
                 # The export() method returns the exact path to the exported model file.
                 exported_path = model.export(format='openvino', half=True)
-                openvino_model_path = exported_path
+                # The returned path can be relative, so we make it absolute to avoid issues.
+                openvino_model_path = os.path.abspath(exported_path)
                 logging.info(f"Model exported successfully to {openvino_model_path}")
             except Exception as e:
                 logging.error(f"Failed to export model to OpenVINO format: {e}")

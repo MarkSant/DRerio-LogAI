@@ -108,10 +108,24 @@ class Detector:
         return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
                cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
 
-    def _load_openvino_model(self, model_path):
-        """Loads and compiles the OpenVINO model."""
+    def _load_openvino_model(self, model_dir_path):
+        """
+        Loads the OpenVINO model from the specified directory.
+        It finds the .xml file within the directory to load the model.
+        """
+        # The path we receive is to the directory, e.g., '.../best_openvino_model/'
+        # We need to find the .xml file inside it.
+        import glob
+        import os
+        xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
+        if not xml_files:
+            raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_dir_path}")
+
+        model_xml_path = xml_files[0]
+        print(f"Found OpenVINO model file: {model_xml_path}")
+
         core = ov.Core()
-        model = core.read_model(model_path)
+        model = core.read_model(model_xml_path)
         self.compiled_model = core.compile_model(model=model, device_name="CPU")
         self.input_layer = self.compiled_model.input(0)
         self.output_layer = self.compiled_model.output(0)
