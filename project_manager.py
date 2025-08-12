@@ -1,6 +1,11 @@
 import os
 import json
 from tkinter import messagebox
+from ultralytics import YOLO
+import logging
+
+import config
+
 
 CONFIG_FILE_NAME = "project_config.json"
 
@@ -9,9 +14,10 @@ class ProjectManager:
         self.project_path = None
         self.project_data = {}
 
-    def create_new_project(self, project_path, project_type, video_files=None):
+    def create_new_project(self, project_path, project_type, use_openvino=False, video_files=None):
         """
         Initializes a new project, creating its directory and config file.
+        If use_openvino is True, it also converts the model to OpenVINO format.
         """
         self.project_path = project_path
 
@@ -24,9 +30,27 @@ class ProjectManager:
             messagebox.showerror("Creation Error", f"Could not create project directory: {e}")
             return False
 
+        # Export the model if requested, BEFORE saving the project config
+        openvino_model_path = ""
+        if use_openvino:
+            try:
+                logging.info("Starting OpenVINO model export...")
+                model = YOLO(config.YOLO_MODEL_PATH)
+                # The export path will be inside the new project directory
+                export_dir = os.path.join(self.project_path, "model")
+                exported_path = model.export(format='openvino', half=True, workspace=export_dir)
+                openvino_model_path = exported_path
+                logging.info(f"Model exported successfully to {openvino_model_path}")
+            except Exception as e:
+                logging.error(f"Failed to export model to OpenVINO format: {e}")
+                messagebox.showerror("OpenVINO Export Error", f"Failed to export model to OpenVINO format: {e}")
+                return False
+
         self.project_data = {
             "project_name": os.path.basename(project_path),
             "project_type": project_type,
+            "use_openvino": use_openvino,
+            "openvino_model_path": openvino_model_path,
             "videos": []
         }
 

@@ -45,7 +45,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "prerecorded_project")
         video_files = ["/path/to/video1.mp4", "/path/to/video2.mp4"]
-        success = pm.create_new_project(project_path, "pre-recorded", video_files)
+        success = pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
@@ -63,7 +63,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "load_test_project")
         video_files = ["vid1.mp4"]
-        pm.create_new_project(project_path, "pre-recorded", video_files)
+        pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         loader_pm = ProjectManager()
         success = loader_pm.load_project(project_path)
@@ -87,7 +87,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "status_project")
         video_files = ["video1.mp4", "video2.mp4", "video3.mp4"]
-        pm.create_new_project(project_path, "pre-recorded", video_files)
+        pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         # First pending video should be video1.mp4
         next_video = pm.get_next_video()

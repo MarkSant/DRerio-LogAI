@@ -6,11 +6,12 @@ a entrada e saída de áreas de interesse.
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import openvino.runtime as ov
 import config
 
 class Detector:
     """
-    Encapsula o modelo YOLO e a lógica de detecção.
+    Encapsula o modelo de detecção (YOLO ou OpenVINO) e a lógica de detecção.
 
     Esta classe carrega o modelo de detecção de objetos, gerencia as coordenadas
     das áreas de interesse (escalando-as para a resolução do vídeo) e processa
@@ -18,16 +19,33 @@ class Detector:
     implementa uma máquina de estados simples para gerar comandos para o Arduino
     baseado na movimentação do objeto detectado entre as áreas.
     """
-    def __init__(self):
+    def __init__(self, project_manager=None):
         """
         Inicializa o detector de objetos.
 
-        - Carrega o modelo YOLO a partir do caminho especificado em `config.py`.
+        - Carrega o modelo YOLO ou OpenVINO com base na configuração do projeto.
         - Define os limiares de confiança e Non-Maximum Suppression (NMS).
         - Inicializa variáveis de estado para rastrear a movimentação do objeto.
         - Define as coordenadas das áreas de interesse com base na resolução padrão.
         """
-        self.model = YOLO(config.YOLO_MODEL_PATH)
+        self.model = None
+        self.is_openvino = False
+        self.compiled_model = None
+        self.input_layer = None
+        self.output_layer = None
+
+        use_openvino = False
+        openvino_path = ""
+        if project_manager and project_manager.project_data:
+            use_openvino = project_manager.project_data.get("use_openvino", False)
+            openvino_path = project_manager.project_data.get("openvino_model_path", "")
+
+        if use_openvino and openvino_path:
+            self._load_openvino_model(openvino_path)
+            self.is_openvino = True
+        else:
+            self.model = YOLO(config.YOLO_MODEL_PATH)
+
         self.conf_threshold = config.CONF_THRESHOLD
         self.nms_threshold = config.NMS_THRESHOLD
 
@@ -90,55 +108,108 @@ class Detector:
         return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
                cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
 
+    def _load_openvino_model(self, model_path):
+        """Loads and compiles the OpenVINO model."""
+        core = ov.Core()
+        model = core.read_model(model_path)
+        self.compiled_model = core.compile_model(model=model, device_name="CPU")
+        self.input_layer = self.compiled_model.input(0)
+        self.output_layer = self.compiled_model.output(0)
+
+    def _preprocess_openvino(self, frame):
+        """Preprocesses a frame for OpenVINO inference."""
+        # Get input size of the model, which is in NCHW format
+        n, c, h, w = self.input_layer.shape
+        # Resize the image to the model's input size (w, h)
+        resized_image = cv2.resize(frame, (w, h))
+        # Convert to float32, normalize to [0,1] and transpose from HWC to NCHW format
+        # BGR to RGB conversion is often implicitly handled by YOLO models, but let's be safe.
+        # However, ultralytics models are trained on RGB. The export handles this. Let's assume the exported model expects BGR.
+        input_image = np.expand_dims(resized_image, axis=0).astype(np.float32) / 255.0
+        input_image = input_image.transpose(0, 3, 1, 2) # From NHWC to NCHW
+        return input_image, frame.shape[1], frame.shape[0]
+
+    def _postprocess_openvino(self, result, original_w, original_h):
+        """Postprocesses the OpenVINO model's output."""
+        # The output of YOLO is a collection of proposals, each with class scores.
+        # We need to filter these based on confidence and apply NMS.
+        detections = result[self.output_layer]
+        boxes = []
+        confidences = []
+
+        # The output shape is typically [1, num_classes + 4, num_proposals]
+        # We need to transpose it to [1, num_proposals, num_classes + 4]
+        proposals = np.squeeze(detections).T
+
+        for prop in proposals:
+            # First 4 values are bbox, the rest are class scores.
+            # We assume a single class, so we take the 5th value as confidence.
+            confidence = prop[4]
+            if confidence >= self.conf_threshold:
+                # Convert model's [center_x, center_y, width, height] to [x1, y1, x2, y2]
+                center_x, center_y, w, h = prop[:4]
+                x1 = int((center_x - w / 2) * original_w)
+                y1 = int((center_y - h / 2) * original_h)
+                x2 = int((center_x + w / 2) * original_w)
+                y2 = int((center_y + h / 2) * original_h)
+                boxes.append([x1, y1, x2, y2])
+                confidences.append(float(confidence))
+
+        # Apply Non-Maximum Suppression
+        if boxes:
+            indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, self.nms_threshold)
+            if len(indices) > 0:
+                final_boxes = [(*boxes[i], confidences[i]) for i in indices.flatten()]
+                return final_boxes
+        return []
+
     def process_frame(self, frame, project_type):
         """
         Processa um único quadro para detecção de objetos e rastreamento de estado.
-
-        Args:
-            frame: O quadro de vídeo a ser processado.
-            project_type (str): O tipo do projeto ('live' ou 'pre-recorded').
-                                A lógica de comando do Arduino só é executada para 'live'.
-
-        Returns:
-            tuple: Uma tupla contendo:
-                - detections_in_polygon (list): Lista de detecções encontradas dentro do polígono.
-                - command_to_send (int or None): O comando a ser enviado para o Arduino, ou None.
         """
-        # Executa o modelo YOLO no quadro. `verbose=False` desativa a impressão de logs do YOLO.
-        results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
-        predictions = results[0].boxes.data.cpu().numpy()
+        if self.is_openvino:
+            # --- OpenVINO Inference Path ---
+            input_tensor, orig_w, orig_h = self._preprocess_openvino(frame)
+            results = self.compiled_model.infer_new_request({self.input_layer.any_name: input_tensor})
+            predictions = self._postprocess_openvino(results, orig_w, orig_h)
+            # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
+        else:
+            # --- Default Ultralytics Inference Path ---
+            results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
+            # Convert to a common format: list of (x1, y1, x2, y2, confidence)
+            predictions = []
+            for det in results[0].boxes.data.cpu().numpy():
+                x1, y1, x2, y2, confidence, _ = det
+                predictions.append((int(x1), int(y1), int(x2), int(y2), confidence))
 
+        # --- Common Logic for both paths ---
         detections_in_polygon = []
         command_to_send = None
         found_object_for_state_change = False # Garante que apenas um comando seja enviado por quadro
 
         if len(predictions) > 0:
             for det in predictions:
-                x1, y1, x2, y2, confidence, _ = det
+                x1, y1, x2, y2, confidence = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                # Considera apenas detecções dentro da área de processamento principal (polígono).
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
-                    # A lógica de máquina de estados abaixo só é relevante para projetos 'live'.
                     if project_type == 'live' and not found_object_for_state_change:
-                        # Estado 0: Procurando por um objeto entrando em um quadrado.
                         if self.flag == 0:
                             for index, square in enumerate(self.scaled_squares):
                                 if self._is_inside_square(x1, y1, x2, y2, square):
                                     self.crossed_in = True
-                                    self.flag = 1  # Muda para o estado 1 (procurando saída)
+                                    self.flag = 1
                                     self.current_square = index + 1
                                     command_to_send = config.ENTER_COMMANDS[index]
                                     found_object_for_state_change = True
                                     break
-                        # Estado 1: Procurando pelo objeto saindo de todos os quadrados.
                         elif self.flag == 1:
                             is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in self.scaled_squares)
                             if not is_in_any_square:
                                 self.crossed_out = True
-                                self.flag = 0  # Retorna para o estado 0
+                                self.flag = 0
                                 command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
                                 self.current_square = 0
                                 found_object_for_state_change = True
