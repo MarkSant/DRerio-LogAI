@@ -36,9 +36,10 @@ class ProjectManager:
             try:
                 logging.info("Starting OpenVINO model export...")
                 model = YOLO(config.YOLO_MODEL_PATH)
-                # The export path will be inside the new project directory
-                export_dir = os.path.join(self.project_path, "model")
-                exported_path = model.export(format='openvino', half=True, workspace=export_dir)
+                # The 'workspace' argument is for memory allocation (in GB), not for output path.
+                # By removing it, the export will succeed and save to a default location.
+                # The export() method returns the exact path to the exported model file.
+                exported_path = model.export(format='openvino', half=True)
                 openvino_model_path = exported_path
                 logging.info(f"Model exported successfully to {openvino_model_path}")
             except Exception as e:

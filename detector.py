@@ -6,7 +6,7 @@ a entrada e saída de áreas de interesse.
 import cv2
 import numpy as np
 from ultralytics import YOLO
-import openvino.runtime as ov
+import openvino as ov
 import config
 
 class Detector:
