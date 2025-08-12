@@ -147,47 +147,67 @@ class Detector:
         return input_image, frame.shape[1], frame.shape[0]
 
     def _postprocess_openvino(self, result, original_w, original_h):
-        """Postprocesses the OpenVINO model's output."""
-        # The output of YOLO is a collection of proposals, each with class scores.
-        # We need to filter these based on confidence and apply NMS.
-        detections = result[self.output_layer]
+        """
+        Postprocesses the OpenVINO model's output to extract bounding boxes,
+        confidences, and class IDs. This implementation correctly handles the
+        YOLOv8 output format [x, y, w, h, class1_score, class2_score, ...].
+        """
+        # Get the raw output tensor from the model
+        output_tensor = result[self.output_layer]
+
+        # The output shape is (1, 84, 8400) for COCO, where 84 = 4 (bbox) + 80 (classes).
+        # We transpose it to (1, 8400, 84) to iterate through proposals.
+        proposals = np.squeeze(output_tensor).T
+
         boxes = []
         confidences = []
+        # In this version, we don't use class_ids, but it's good practice to extract it.
+        # class_ids = []
 
-        # The output shape is typically [1, num_classes + 4, num_proposals]
-        # We need to transpose it to [1, num_proposals, num_classes + 4]
-        proposals = np.squeeze(detections).T
-
+        # Iterate over each proposal.
         for prop in proposals:
-            # First 4 values are bbox, the rest are class scores.
-            # We assume a single class, so we take the 5th value as confidence.
-            confidence = prop[4]
-            if confidence >= self.conf_threshold:
-                # Convert model's [center_x, center_y, width, height] to [x1, y1, x2, y2]
-                center_x, center_y, w, h = prop[:4]
-                # Convert normalized [center_x, center_y, width, height] to pixel [x1, y1, x2, y2]
-                center_x_px = center_x * original_w
-                center_y_px = center_y * original_h
-                w_px = w * original_w
-                h_px = h * original_h
-                x1 = int(center_x_px - w_px / 2)
-                y1 = int(center_y_px - h_px / 2)
+            # Extract bounding box information (center_x, center_y, width, height)
+            bbox_coords = prop[:4]
 
-                # For cv2.dnn.NMSBoxes, we need the format [x, y, width, height]
-                boxes.append([x1, y1, int(w_px), int(h_px)])
-                confidences.append(float(confidence))
+            # Extract class scores.
+            class_scores = prop[4:]
 
-        # Apply Non-Maximum Suppression
-        if boxes:
-            indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, self.nms_threshold)
-            if len(indices) > 0:
-                # After NMS, convert back to (x1, y1, x2, y2, confidence) for drawing and logging
-                final_boxes = []
-                for i in indices.flatten():
-                    x, y, w, h = boxes[i]
-                    final_boxes.append((x, y, x + w, y + h, confidences[i]))
-                return final_boxes
-        return []
+            # Find the class with the highest score and its value.
+            max_score = np.max(class_scores)
+
+            # Filter out proposals with low confidence.
+            if max_score >= self.conf_threshold:
+                # Get the bounding box values.
+                center_x, center_y, w, h = bbox_coords
+
+                # Convert normalized coordinates to pixel values for NMS.
+                # The format required by cv2.dnn.NMSBoxes is (x, y, width, height)
+                # where (x, y) is the top-left corner.
+                x1 = int((center_x - w / 2) * original_w)
+                y1 = int((center_y - h / 2) * original_h)
+                width = int(w * original_w)
+                height = int(h * original_h)
+
+                boxes.append([x1, y1, width, height])
+                confidences.append(float(max_score))
+
+        # Apply Non-Maximum Suppression to filter out overlapping boxes.
+        if not boxes:
+            return []
+
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, self.nms_threshold)
+
+        if len(indices) == 0:
+            return []
+
+        # Prepare the final list of detections in (x1, y1, x2, y2, confidence) format.
+        final_detections = []
+        for i in indices.flatten():
+            x, y, w, h = boxes[i]
+            confidence = confidences[i]
+            final_detections.append((x, y, x + w, y + h, confidence))
+
+        return final_detections
 
     def process_frame(self, frame, project_type):
         """
