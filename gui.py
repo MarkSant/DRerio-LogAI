@@ -68,7 +68,6 @@ class ApplicationGUI:
         # Usado para executar tarefas demoradas (como processamento de vídeo) sem bloquear a GUI.
         self.program_exit_event = threading.Event()  # Sinaliza para todas as threads que o programa está fechando.
         self.video_stop_event = threading.Event()  # Sinaliza para a thread de gravação de vídeo parar.
-        self.source_finished_event = threading.Event()  # Sinaliza que a fonte de vídeo (arquivo) terminou.
         self.frame_queue = queue.Queue(maxsize=10)  # Fila para passar quadros da thread de captura para a de detecção.
         self.video_queue = queue.Queue(maxsize=300)  # Fila para passar quadros para a thread de gravação de vídeo.
 
@@ -151,149 +150,157 @@ class ApplicationGUI:
             else:
                 self.status_var.set(f"Project: {self.project_manager.get_project_name()} - Ready to process: {os.path.basename(next_video)}")
 
-        # --- Start Core Threads ---
-        self.capture_thread = threading.Thread(target=self._frame_capture_loop, name="CaptureThread", daemon=True)
-        self.processing_thread = threading.Thread(target=self._object_detection_loop, name="ProcessingThread", daemon=True)
+        # --- Inicia as Threads de Núcleo ---
+        # A arquitetura de threads difere com base no tipo de projeto para otimização.
 
-        logging.info("Starting core threads.")
-        self.capture_thread.start()
-        self.processing_thread.start()
+        self.capture_thread = None
+        self.processing_thread = None
+
+        if project_type == "live":
+            # Para projetos ao vivo, precisamos de duas threads: uma para capturar
+            # da câmera sem bloquear e outra para processar.
+            self.capture_thread = threading.Thread(target=self._live_frame_capture_loop, name="CaptureThread", daemon=True)
+            self.processing_thread = threading.Thread(target=self._live_processing_loop, name="ProcessingThread", daemon=True)
+            logging.info("Starting core threads for LIVE project.")
+            self.capture_thread.start()
+
+        elif project_type == "pre-recorded":
+            # Para projetos pré-gravados, a thread de captura é desnecessária e ineficiente.
+            # A thread de processamento pode buscar quadros diretamente do arquivo.
+            self.processing_thread = threading.Thread(target=self._file_processing_loop, name="ProcessingThread", daemon=True)
+            logging.info("Starting core thread for PRE-RECORDED project.")
+
+        # A thread de processamento é iniciada para ambos os tipos.
+        if self.processing_thread:
+            self.processing_thread.start()
 
     # --- Core Application Loops (run in threads) ---
-    def _frame_capture_loop(self):
+    def _live_frame_capture_loop(self):
         """
-        Loop executado em uma thread para capturar quadros da fonte ativa.
+        Loop para capturar quadros de uma fonte AO VIVO (câmera).
 
-        Esta função continuamente:
-        1. Verifica se há uma fonte de quadros ativa (`self.active_frame_source`).
-        2. Obtém o número do quadro (do arquivo de vídeo ou de um contador para live).
-        3. Lê o quadro da fonte.
-        4. Se a fonte terminar, sinaliza `_handle_source_finished`.
-        5. Coloca o par (número do quadro, imagem do quadro) na `frame_queue` para
-           ser consumido pela thread de detecção.
-        6. Se a gravação de vídeo estiver ativa, também coloca o quadro na `video_queue`.
+        Esta função é executada em uma thread separada para não bloquear a GUI.
+        Ela lê continuamente da câmera e coloca os quadros em uma fila
+        para serem processados pela `_live_processing_loop`.
         """
         live_frame_count = 0
         while not self.program_exit_event.is_set():
             if not self.active_frame_source:
-                time.sleep(0.1)  # Aguarda por uma fonte ativa.
+                time.sleep(0.1)
                 continue
-
-            is_file_source = isinstance(self.active_frame_source, VideoFileSource)
-
-            frame_number = 0
-            if is_file_source:
-                # Para arquivos de vídeo, o número do quadro da fonte é a autoridade.
-                frame_number = int(self.active_frame_source.get_current_frame_number())
-            else:
-                # Para fontes ao vivo, usamos um contador simples.
-                live_frame_count += 1
-                frame_number = live_frame_count
 
             ret, frame = self.active_frame_source.get_frame()
             if not ret:
-                logging.info(f"Capture thread: end of source at frame number {frame_number}.")
-                if is_file_source:
-                    # Notifica a thread principal da GUI que a fonte terminou.
-                    self.root.after(0, self._handle_source_finished)
-                self.active_frame_source = None
+                logging.error("Capture thread: Failed to get frame from live source.")
+                time.sleep(0.5)
                 continue
 
-            # Coloca o quadro na fila para processamento.
-            if not self.frame_queue.full():
-                self.frame_queue.put((frame_number, frame.copy()))
+            live_frame_count += 1
 
-            # Se a gravação de vídeo estiver habilitada, coloca o quadro na fila de vídeo.
+            if not self.frame_queue.full():
+                self.frame_queue.put((live_frame_count, frame.copy()))
             if self.is_capturing_for_video and not self.video_queue.full():
                 self.video_queue.put(frame.copy())
 
-            # Para fontes ao vivo, um pequeno delay evita o uso excessivo da CPU.
-            # Para arquivos, processamos o mais rápido possível.
-            if not is_file_source:
-                time.sleep(1 / (config.FPS * 1.5))
+            time.sleep(1 / (config.FPS * 1.5))
 
-    def _object_detection_loop(self):
+    def _live_processing_loop(self):
         """
-        Loop executado em uma thread para processar quadros e detectar objetos.
+        Loop para processar quadros de uma fonte AO VIVO.
 
-        Esta função continuamente:
-        1. Pega um quadro da `frame_queue`.
-        2. Se a fonte terminou e a fila está vazia, o loop termina.
-        3. A cada `PROCESSING_INTERVAL` quadros, executa o modelo de detecção.
-        4. Se detecções são encontradas durante a gravação, as envia para o `recorder`.
-        5. Desenha as sobreposições (caixas de detecção, etc.) e a barra de progresso no quadro.
-        6. Exibe o quadro processado em uma janela do OpenCV.
+        Consome quadros da `frame_queue`, executa a detecção, desenha
+        sobreposições e exibe o resultado.
         """
         while not self.program_exit_event.is_set():
             try:
                 frame_number, frame = self.frame_queue.get(timeout=1)
             except queue.Empty:
-                # Se a fonte de vídeo terminou e a fila está vazia, podemos sair.
-                if self.source_finished_event.is_set():
-                    logging.info("Source is finished and queue is empty, exiting detection loop.")
-                    break  # Saída graciosa do loop.
-                continue  # Caso contrário, continue esperando por quadros.
-
-            # Determine if the source is a file before processing
-            is_file_source = isinstance(self.active_frame_source, VideoFileSource)
-            project_type = self.project_manager.get_project_type()
+                continue
 
             if self.is_processing:
-                # Use a consistent processing interval, respecting the config file
-                if (frame_number - config.PROCESSING_OFFSET) % config.PROCESSING_INTERVAL == 0:
-                    logging.info(f"Detection loop: Processing frame {frame_number} for detection.")
-                    # Pass project_type to the detector
-                    detections, command = self.detector.process_frame(frame, project_type)
-
-                    # Arduino command is now only generated for 'live' projects inside detector
-                    if command is not None:
-                        self.arduino.send_command(command)
-
-                    if self.is_recording and detections:
-                        timestamp = 0
-                        # For video files, the frame number is the ground truth
-                        if is_file_source and self.active_frame_source:
-                            props = self.active_frame_source.get_properties()
-                            timestamp = frame_number / props['fps'] if props['fps'] > 0 else 0
-                        else:
-                            # For live video, it's based on time
-                            timestamp = time.time() - self.recorder.start_time
-
-                        self.recorder.write_detection_data(timestamp, frame_number, detections)
-                else:
-                    detections = []
-
-                # Always draw the overlay with detections
+                detections, command = self.detector.process_frame(frame, 'live')
+                if command is not None:
+                    self.arduino.send_command(command)
+                if self.is_recording and detections:
+                    timestamp = time.time() - self.recorder.start_time
+                    self.recorder.write_detection_data(timestamp, frame_number, detections)
                 draw_overlay(frame, detections, self.detector)
 
-            # Add progress bar for file sources
-            if is_file_source and self.active_frame_source:
-                props = self.active_frame_source.get_properties()
-                total_frames = props.get('frame_count', 0)
-                current_frame_num = self.active_frame_source.get_current_frame_number()
-                if total_frames > 0:
-                    progress = current_frame_num / total_frames
-                    bar_width = int(progress * frame.shape[1])
-                    bar_height = 20
-                    # Draw background
-                    cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1)
-                    # Draw foreground
-                    cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (bar_width, frame.shape[0]), (0, 255, 0), -1)
-
-            # Optimize Video Display Speed
-            if is_file_source:
-                # Display every 2nd frame for smoother playback
-                if frame_number % 2 == 0:
-                    cv2.imshow('Live View', frame)
-            else:
-                # For live sources, show every frame
-                cv2.imshow('Live View', frame)
-
+            cv2.imshow('Live View', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 self._on_close()
                 break
         cv2.destroyAllWindows()
-        logging.info("Object detection loop finished and destroyed CV2 windows.")
+        logging.info("Live processing loop finished and destroyed CV2 windows.")
+
+    def _file_processing_loop(self):
+        """
+        Loop para processar um ARQUIVO de vídeo de forma eficiente.
+
+        Este loop é executado em uma única thread e gerencia todo o processo:
+        1. Calcula o próximo frame a ser processado com base no `PROCESSING_INTERVAL`.
+        2. Usa `cap.set()` para "saltar" diretamente para o frame de interesse.
+        3. Lê, processa, grava dados e exibe o frame.
+        4. Repete até o final do vídeo.
+        5. Realiza a limpeza no final.
+        """
+        if not self.is_recording or not isinstance(self.active_frame_source, VideoFileSource):
+            logging.error("File processing loop started in an invalid state.")
+            return
+
+        video_source = self.active_frame_source
+        total_frames = video_source.get_properties()['frame_count']
+        frame_number = -1 # Começa em -1 para que o primeiro frame seja o de offset
+
+        while not self.program_exit_event.is_set() and frame_number < total_frames:
+
+            if frame_number < 0:
+                # Define o primeiro frame a ser processado
+                target_frame = config.PROCESSING_OFFSET if config.PROCESSING_OFFSET > 0 else 1
+            else:
+                target_frame = frame_number + config.PROCESSING_INTERVAL
+
+            if target_frame >= total_frames:
+                logging.info(f"Target frame {target_frame} exceeds total frames {total_frames}. Finishing.")
+                break
+
+            # Pula para o frame alvo
+            video_source.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+
+            ret, frame = video_source.get_frame()
+            if not ret:
+                logging.warning(f"Could not read frame {target_frame} even though it's within total_frames.")
+                break
+
+            # `get_current_frame_number` pode não ser exato após um `set`, então usamos o target como referência
+            frame_number = target_frame
+            logging.info(f"Processing frame {frame_number}...")
+
+            # Processamento e gravação
+            detections, _ = self.detector.process_frame(frame, 'pre-recorded')
+            if detections:
+                props = video_source.get_properties()
+                timestamp = frame_number / props['fps'] if props['fps'] > 0 else 0
+                self.recorder.write_detection_data(timestamp, frame_number, detections)
+
+            # Desenho e exibição
+            draw_overlay(frame, detections, self.detector)
+            progress = frame_number / total_frames
+            bar_width = int(progress * frame.shape[1])
+            bar_height = 20
+            cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1)
+            cv2.rectangle(frame, (0, frame.shape[0] - bar_height), (bar_width, frame.shape[0]), (0, 255, 0), -1)
+            # Usa um nome de janela diferente para evitar conflitos se a GUI for expandida
+            cv2.imshow('File Processing', frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                logging.info("User requested to stop processing.")
+                self.program_exit_event.set()
+
+        # --- Limpeza Pós-Loop ---
+        # Garante que a UI seja atualizada e os recursos liberados
+        cv2.destroyAllWindows()
+        self.root.after(0, self._cleanup_after_processing)
 
     def _video_recording_loop(self):
         """
@@ -375,7 +382,9 @@ class ApplicationGUI:
             if self.project_manager.get_project_type() == 'live':
                 self._stop_recording()
             else:
-                self._handle_source_finished()
+                # Para processamento de arquivo, apenas sinalizar o evento de saída é suficiente
+                # para que o loop pare e se limpe.
+                self.program_exit_event.set()
 
         # Para as threads de núcleo de forma limpa
         self.program_exit_event.set()
@@ -506,7 +515,6 @@ class ApplicationGUI:
             selection_window.destroy()
 
             try:
-                # Instantiate the source but don't assign it to the active source yet
                 video_source = VideoFileSource(video_path)
                 video_props = video_source.get_properties()
                 self.detector.update_scaling(video_props['width'], video_props['height'])
@@ -516,69 +524,44 @@ class ApplicationGUI:
 
             self.currently_processing_video = video_path
             video_basename = os.path.splitext(os.path.basename(video_path))[0]
-
             group_name = group_var.get()
             output_folder_name = f"{video_basename}_{group_name}_{cobaia_number}"
             output_path = os.path.join(self.project_manager.project_path, output_folder_name)
 
-            # Pass the video properties to the recorder, indicating it's a pre-recorded file
             success = self.recorder.start_recording(output_path, video_props['width'], video_props['height'], is_video_file=True)
 
             if success:
                 logging.info(f"Starting analysis for video: {video_path}")
-                self.source_finished_event.clear() # Reset for the new analysis
                 self.project_manager.update_video_status(video_path, "processing")
-                with self.frame_queue.mutex: self.frame_queue.queue.clear()
-                with self.video_queue.mutex: self.video_queue.queue.clear() # Keep this clear, just in case
-
                 self.is_recording = True
-                self.is_capturing_for_video = False # Do not save the video file again
-
-                # The video recording thread is not needed for pre-recorded files
-                # self.video_stop_event.clear()
-                # self.video_thread = threading.Thread(target=self._video_recording_loop, daemon=True)
-                # self.video_thread.start()
-
+                self.active_frame_source = video_source # Define a fonte para o loop de processamento
                 self.process_video_btn.config(state="disabled")
                 self.status_var.set(f"Processing: {os.path.basename(video_path)}")
-
-                # NOW, activate the frame source. The capture loop will start picking it up.
-                self.active_frame_source = video_source
             else:
                 logging.error(f"Failed to start recorder for video processing: {video_path}")
                 messagebox.showerror("Error", "Failed to start recorder for video processing.")
-                # Ensure the unopened source is released
                 video_source.release()
-                self.active_frame_source = None
 
         Button(selection_window, text="Confirm", command=on_confirm).pack(pady=10)
 
-    def _handle_source_finished(self):
-        """Called from the capture thread when a video file ends."""
-        if not self.is_recording:
-            logging.warning("Source finished but was not in a recording state.")
-            return
+    def _cleanup_after_processing(self):
+        """
+        Executa a limpeza necessária após o término do processamento de um arquivo.
+        Este método é chamado a partir da thread de processamento através de `root.after()`.
+        """
+        logging.info(f"Cleaning up after processing video: {os.path.basename(self.currently_processing_video)}.")
 
-        logging.info(f"Source finished: {os.path.basename(self.currently_processing_video)}. Cleaning up.")
         self.is_recording = False
-        self.is_capturing_for_video = False
-        self.video_stop_event.set()
-        if hasattr(self, 'video_thread') and self.video_thread.is_alive():
-            logging.info("Waiting for video thread to join.")
-            self.video_thread.join(timeout=5)
-            logging.info("Video thread joined.")
-
         self.recorder.stop_recording()
         self.project_manager.update_video_status(self.currently_processing_video, "complete")
 
-        # Signal to the detection thread that the source is done.
-        # The detection thread will be responsible for closing the window.
-        self.source_finished_event.set()
+        if self.active_frame_source:
+            self.active_frame_source.release()
+            self.active_frame_source = None
 
         self.currently_processing_video = None
         self.process_video_btn.config(state="normal")
 
-        # Update status bar to indicate completion and readiness for the next video
         next_video = self.project_manager.get_next_video()
         if next_video:
             status_msg = f"Ready to process: {os.path.basename(next_video)}"
@@ -588,6 +571,18 @@ class ApplicationGUI:
             status_msg = "All videos processed."
             self.status_var.set(f"Project: {self.project_manager.get_project_name()} - {status_msg}")
             logging.info(f"Analysis complete. {status_msg}")
+
+    def _handle_source_finished(self):
+        """
+        Manipula o fim de uma fonte de quadros.
+        Na nova arquitetura, este método é usado principalmente como um placeholder
+        ou para cenários de erro em fontes ao vivo, já que a limpeza de arquivos
+        é tratada por `_cleanup_after_processing`.
+        """
+        logging.warning("'_handle_source_finished' was called. This should typically not happen for file processing anymore.")
+        if self.is_recording:
+            self.is_recording = False
+            self.recorder.stop_recording()
 
 
     def _on_close(self):
