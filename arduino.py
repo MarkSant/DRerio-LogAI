@@ -1,5 +1,6 @@
 import serial
 import time
+import logging
 import config
 
 class Arduino:
