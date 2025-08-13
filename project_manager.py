@@ -59,14 +59,17 @@ class ProjectManager:
 
                     # Move the exported model to our cache directory.
                     # The name of the exported dir is returned by `exported_path`.
-                    # We move it into our cache_dir and give it a consistent name.
-                    # shutil.move might fail if the destination exists, so we ensure it doesn't.
-                    if os.path.exists(cached_model_dir):
-                        shutil.rmtree(cached_model_dir)
-                    shutil.move(exported_path, cached_model_dir)
+                    # To prevent race conditions, we remove the destination first if it exists.
+                    shutil.rmtree(cached_model_dir, ignore_errors=True)
 
-                    openvino_model_path = os.path.abspath(cached_model_dir)
-                    logging.info(f"Model exported and cached at {openvino_model_path}")
+                    try:
+                        shutil.move(exported_path, cached_model_dir)
+                        openvino_model_path = os.path.abspath(cached_model_dir)
+                        logging.info(f"Model exported and cached at {openvino_model_path}")
+                    except Exception as move_exc:
+                        logging.error(f"Failed to move exported model to cache directory: {move_exc}")
+                        messagebox.showerror("OpenVINO Export Error", f"Failed to move exported model to cache directory: {move_exc}")
+                        return False
                 except Exception as e:
                     logging.error(f"Failed to export model to OpenVINO format: {e}")
                     messagebox.showerror("OpenVINO Export Error", f"Failed to export model to OpenVINO format: {e}")

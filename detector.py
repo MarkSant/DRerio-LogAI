@@ -9,6 +9,9 @@ from ultralytics import YOLO
 from ultralytics.utils.ops import non_max_suppression, scale_boxes
 import openvino as ov
 import config
+import glob
+import os
+import torch
 
 class Detector:
     """
@@ -114,9 +117,6 @@ class Detector:
         Loads the OpenVINO model from the specified directory.
         It finds the .xml file within the directory to load the model.
         """
-        import glob
-        # import glob
-        # import os
         xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
         if not xml_files:
             raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_dir_path}")
@@ -203,7 +203,8 @@ class Detector:
         if self.is_openvino:
             # --- OpenVINO Inference Path ---
             input_tensor = self._preprocess_openvino(frame)
-            results = self.compiled_model.infer_new_request({self.input_layer.any_name: input_tensor})
+            # The `infer` method is the recommended synchronous approach in the latest API
+            results = self.compiled_model.infer({self.input_layer.any_name: input_tensor})
             predictions = self._postprocess_openvino(results, frame.shape)
             # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
         else:
