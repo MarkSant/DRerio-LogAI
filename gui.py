@@ -8,7 +8,7 @@ das threads de processamento de vídeo e detecção de objetos.
 import tkinter as tk
 from tkinter import (filedialog, simpledialog, messagebox, Button, Label, Frame,
                      StringVar, OptionMenu, Toplevel, Scale, Checkbutton,
-                     IntVar, BooleanVar)
+                     IntVar, BooleanVar, Entry)
 import threading
 import queue
 import time
@@ -73,9 +73,9 @@ class ApplicationGUI:
         self.video_queue = queue.Queue(maxsize=300)  # Fila para passar quadros para a thread de gravação de vídeo.
 
         # --- Variáveis de UI para Opções de Processamento ---
-        self.processing_interval_var = IntVar(value=config.PROCESSING_INTERVAL)
+        self.processing_interval_var = StringVar(value=str(config.PROCESSING_INTERVAL))
         self.show_preview_var = BooleanVar(value=True)
-        self.use_openvino_var = BooleanVar(value=False)
+        self.use_openvino_var = BooleanVar(value=True)
 
         # --- Elementos da UI ---
         # Inicia a aplicação mostrando a tela de boas-vindas.
@@ -131,7 +131,7 @@ class ApplicationGUI:
             options_frame = Frame(prerecorded_controls_frame)
             options_frame.pack(fill="x", padx=5, pady=2)
             Label(options_frame, text="Frame Interval:").pack(side="left")
-            Scale(options_frame, from_=1, to=100, orient="horizontal", variable=self.processing_interval_var).pack(side="left")
+            Entry(options_frame, textvariable=self.processing_interval_var, width=5).pack(side="left")
             Checkbutton(options_frame, text="Show Preview", variable=self.show_preview_var).pack(side="left", padx=10)
 
         Button(self.main_controls_frame, text="Close Project", command=self._close_project).pack(side="left", padx=5)
@@ -156,6 +156,10 @@ class ApplicationGUI:
 
         project_type = self.project_manager.get_project_type()
         if project_type == "live":
+            # For live projects, attempt to connect to the Arduino.
+            if not self.arduino.connect():
+                messagebox.showwarning("Arduino Warning", "Could not connect to Arduino. Running in offline mode.")
+
             try:
                 self.camera = Camera()
                 self.active_frame_source = self.camera
@@ -553,6 +557,16 @@ class ApplicationGUI:
             cobaia_number = simpledialog.askstring("Cobaia Number", "Enter the cobaia number for this run:")
             if not cobaia_number: return
             selection_window.destroy()
+
+            # Validate the frame interval input BEFORE starting the thread
+            try:
+                interval = int(self.processing_interval_var.get())
+                if interval < 1:
+                    messagebox.showwarning("Invalid Input", "Frame interval must be 1 or greater.")
+                    return
+            except ValueError:
+                messagebox.showerror("Invalid Input", f"Frame interval must be a valid number. You entered: '{self.processing_interval_var.get()}'")
+                return
 
             try:
                 video_source = VideoFileSource(video_path)

@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from tkinter import messagebox
 from ultralytics import YOLO
 import logging
@@ -30,23 +31,46 @@ class ProjectManager:
             messagebox.showerror("Creation Error", f"Could not create project directory: {e}")
             return False
 
-        # Export the model if requested, BEFORE saving the project config
+        # Export the model if requested, checking for a cached version first.
         openvino_model_path = ""
         if use_openvino:
-            try:
-                logging.info("Starting OpenVINO model export...")
-                model = YOLO(config.YOLO_MODEL_PATH)
-                # The 'workspace' argument is for memory allocation (in GB), not for output path.
-                # By removing it, the export will succeed and save to a default location.
-                # The export() method returns the exact path to the exported model file.
-                exported_path = model.export(format='openvino', half=True)
-                # The returned path can be relative, so we make it absolute to avoid issues.
-                openvino_model_path = os.path.abspath(exported_path)
-                logging.info(f"Model exported successfully to {openvino_model_path}")
-            except Exception as e:
-                logging.error(f"Failed to export model to OpenVINO format: {e}")
-                messagebox.showerror("OpenVINO Export Error", f"Failed to export model to OpenVINO format: {e}")
-                return False
+            cache_dir = "openvino_model_cache"
+            base_model_name = os.path.splitext(os.path.basename(config.YOLO_MODEL_PATH))[0]
+            # Ultralytics appends `_openvino_model` to the exported directory name.
+            cached_model_dir_name = f"{base_model_name}_openvino_model"
+            cached_model_dir = os.path.join(cache_dir, cached_model_dir_name)
+
+            # The actual model file has .xml extension
+            # Note: ultralytics export might name it `best.xml` or `<base_model_name>.xml`
+            # We will just check for existence of the directory for simplicity, detector.py finds the xml.
+
+            if os.path.exists(cached_model_dir):
+                logging.info(f"Found cached OpenVINO model at {cached_model_dir}")
+                openvino_model_path = os.path.abspath(cached_model_dir)
+            else:
+                logging.info("No cached OpenVINO model found. Exporting now...")
+                try:
+                    model = YOLO(config.YOLO_MODEL_PATH)
+                    # Export to a temporary default location
+                    exported_path = model.export(format='openvino', half=True)
+
+                    # Ensure cache directory exists
+                    os.makedirs(cache_dir, exist_ok=True)
+
+                    # Move the exported model to our cache directory.
+                    # The name of the exported dir is returned by `exported_path`.
+                    # We move it into our cache_dir and give it a consistent name.
+                    # shutil.move might fail if the destination exists, so we ensure it doesn't.
+                    if os.path.exists(cached_model_dir):
+                        shutil.rmtree(cached_model_dir)
+                    shutil.move(exported_path, cached_model_dir)
+
+                    openvino_model_path = os.path.abspath(cached_model_dir)
+                    logging.info(f"Model exported and cached at {openvino_model_path}")
+                except Exception as e:
+                    logging.error(f"Failed to export model to OpenVINO format: {e}")
+                    messagebox.showerror("OpenVINO Export Error", f"Failed to export model to OpenVINO format: {e}")
+                    return False
 
         self.project_data = {
             "project_name": os.path.basename(project_path),

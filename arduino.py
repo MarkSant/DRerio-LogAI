@@ -4,14 +4,28 @@ import config
 
 class Arduino:
     def __init__(self):
+        """Initializes the Arduino controller in an offline state."""
+        self.ser = None
+        logging.info("Arduino module initialized in offline mode.")
+
+    def connect(self):
+        """
+        Attempts to establish a serial connection with the Arduino.
+        Returns True on success, False on failure.
+        """
+        if self.ser and self.ser.is_open:
+            logging.info("Already connected to Arduino.")
+            return True
         try:
             self.ser = serial.Serial(config.ARDUINO_PORT, config.BAUD_RATE, timeout=1)
             time.sleep(2)  # Wait for the connection to establish
-            print(f"Successfully connected to Arduino on port {config.ARDUINO_PORT}")
+            logging.info(f"Successfully connected to Arduino on port {config.ARDUINO_PORT}")
+            return True
         except serial.SerialException as e:
-            print(f"Error: Could not connect to Arduino on port {config.ARDUINO_PORT}. {e}")
-            print("Running in offline mode. No commands will be sent to Arduino.")
+            logging.warning(f"Could not connect to Arduino on port {config.ARDUINO_PORT}. {e}")
+            logging.warning("Running in offline mode. No commands will be sent to Arduino.")
             self.ser = None
+            return False
 
     def send_command(self, box_number):
         """
@@ -21,11 +35,11 @@ class Arduino:
             command = f"{box_number}\n"
             try:
                 self.ser.write(command.encode('utf-8'))
-                print(f"Sent command to Arduino: {command.strip()}")
+                logging.info(f"Sent command to Arduino: {command.strip()}")
             except serial.SerialException as e:
-                print(f"Error writing to serial port: {e}")
+                logging.error(f"Error writing to serial port: {e}")
         else:
-            print(f"Offline mode: Command '{box_number}' not sent.")
+            logging.debug(f"Offline mode: Command '{box_number}' not sent.")
 
     def close(self):
         """
@@ -33,7 +47,7 @@ class Arduino:
         """
         if self.ser and self.ser.is_open:
             self.ser.close()
-            print("Arduino connection closed.")
+            logging.info("Arduino connection closed.")
 
 if __name__ == '__main__':
     # Example usage for testing the Arduino module
