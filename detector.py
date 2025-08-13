@@ -165,7 +165,6 @@ class Detector:
         # This function handles all the complex parsing of class scores and confidences.
         # The output shape of the model is (1, 84, 8400) for COCO.
         # We pass it directly to the utility.
-        import torch
         preds = non_max_suppression(
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
