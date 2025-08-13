@@ -115,7 +115,8 @@ class Detector:
         It finds the .xml file within the directory to load the model.
         """
         import glob
-        import os
+        # import glob
+        # import os
         xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
         if not xml_files:
             raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_dir_path}")
