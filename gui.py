@@ -270,7 +270,14 @@ class ApplicationGUI:
 
         # --- Obter opções da GUI ---
         show_preview = self.show_preview_var.get()
-        processing_interval = self.processing_interval_var.get()
+        # The value from the Entry widget is a string, so it must be converted to an integer.
+        # Validation is handled before this thread starts, so we can safely convert.
+        try:
+            processing_interval = int(self.processing_interval_var.get())
+        except ValueError:
+            # Fallback in case of an unlikely error, though validation should prevent this.
+            processing_interval = 1
+
         if processing_interval < 1:  # Garante que o intervalo seja pelo menos 1
             processing_interval = 1
 
