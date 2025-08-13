@@ -6,11 +6,16 @@ a entrada e saída de áreas de interesse.
 import cv2
 import numpy as np
 from ultralytics import YOLO
+from ultralytics.utils.ops import non_max_suppression, scale_boxes
+import openvino as ov
 import config
+import glob
+import os
+import torch
 
 class Detector:
     """
-    Encapsula o modelo YOLO e a lógica de detecção.
+    Encapsula o modelo de detecção (YOLO ou OpenVINO) e a lógica de detecção.
 
     Esta classe carrega o modelo de detecção de objetos, gerencia as coordenadas
     das áreas de interesse (escalando-as para a resolução do vídeo) e processa
@@ -18,16 +23,33 @@ class Detector:
     implementa uma máquina de estados simples para gerar comandos para o Arduino
     baseado na movimentação do objeto detectado entre as áreas.
     """
-    def __init__(self):
+    def __init__(self, project_manager=None):
         """
         Inicializa o detector de objetos.
 
-        - Carrega o modelo YOLO a partir do caminho especificado em `config.py`.
+        - Carrega o modelo YOLO ou OpenVINO com base na configuração do projeto.
         - Define os limiares de confiança e Non-Maximum Suppression (NMS).
         - Inicializa variáveis de estado para rastrear a movimentação do objeto.
         - Define as coordenadas das áreas de interesse com base na resolução padrão.
         """
-        self.model = YOLO(config.YOLO_MODEL_PATH)
+        self.model = None
+        self.is_openvino = False
+        self.compiled_model = None
+        self.input_layer = None
+        self.output_layer = None
+
+        use_openvino = False
+        openvino_path = ""
+        if project_manager and project_manager.project_data:
+            use_openvino = project_manager.project_data.get("use_openvino", False)
+            openvino_path = project_manager.project_data.get("openvino_model_path", "")
+
+        if use_openvino and openvino_path:
+            self._load_openvino_model(openvino_path)
+            self.is_openvino = True
+        else:
+            self.model = YOLO(config.YOLO_MODEL_PATH)
+
         self.conf_threshold = config.CONF_THRESHOLD
         self.nms_threshold = config.NMS_THRESHOLD
 
@@ -90,60 +112,179 @@ class Detector:
         return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
                cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
 
+    def _load_openvino_model(self, model_dir_path):
+        """
+        Loads the OpenVINO model from the specified directory.
+        It finds the .xml file within the directory to load the model.
+        """
+        xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
+        if not xml_files:
+            raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_dir_path}")
+
+        model_xml_path = xml_files[0]
+        print(f"Found OpenVINO model file: {model_xml_path}")
+
+        core = ov.Core()
+        model = core.read_model(model_xml_path)
+        self.compiled_model = core.compile_model(model=model, device_name="AUTO")
+        self.input_layer = self.compiled_model.input(0)
+        self.output_layer = self.compiled_model.output(0)
+
+    def _preprocess_openvino(self, frame):
+        """
+        Prepares a frame for OpenVINO inference using letterboxing, which is
+        the standard for YOLO models.
+        """
+        # Get input size of the model
+        n, c, h, w = self.input_layer.shape
+
+        # Apply letterboxing to the frame. `auto=False` ensures the frame is padded
+        # to the exact `new_shape` (e.g., 640x640), which is required for static
+        # model input shapes.
+        letterboxed_frame, _, _ = letterbox(frame, new_shape=(w, h), auto=False)
+
+        # Convert from BGR to RGB
+        rgb_frame = cv2.cvtColor(letterboxed_frame, cv2.COLOR_BGR2RGB)
+
+        # Transpose from HWC to CHW and normalize to [0,1]
+        input_tensor = rgb_frame.transpose(2, 0, 1) / 255.0
+
+        # Add batch dimension to create NHWC
+        input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)
+
+        return input_tensor
+
+    def _postprocess_openvino(self, result, original_frame_shape):
+        """
+        Postprocesses the OpenVINO model's output using the official
+        ultralytics utility functions for robust and accurate results.
+        """
+        # Get the raw output tensor from the model
+        output_tensor = result[self.output_layer]
+
+        # Use the official ultralytics non_max_suppression utility
+        # This function handles all the complex parsing of class scores and confidences.
+        # The output shape of the model is (1, 84, 8400) for COCO.
+        # We pass it directly to the utility.
+        preds = non_max_suppression(
+            prediction=torch.from_numpy(output_tensor),
+            conf_thres=self.conf_threshold,
+            iou_thres=self.nms_threshold,
+            agnostic=True # Class-agnostic NMS
+        )
+
+        # The result of NMS is a list with one element per image in the batch.
+        # We only have one image, so we take the first element.
+        detections = preds[0]
+
+        if detections is None or len(detections) == 0:
+            return []
+
+        # Rescale the bounding boxes from the model's input size (e.g., 640x640)
+        # back to the original frame's size.
+        model_input_shape = (self.input_layer.shape[2], self.input_layer.shape[3]) # (h, w)
+        detections[:, :4] = scale_boxes(model_input_shape, detections[:, :4], original_frame_shape).round()
+
+        # Convert the results to the format expected by the rest of the application:
+        # A list of tuples: (x1, y1, x2, y2, confidence)
+        final_detections = []
+        for *xyxy, conf, cls in detections:
+            # We ignore 'cls' for now as the application is class-agnostic
+            final_detections.append(
+                (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
+            )
+
+        return final_detections
+
     def process_frame(self, frame, project_type):
         """
         Processa um único quadro para detecção de objetos e rastreamento de estado.
-
-        Args:
-            frame: O quadro de vídeo a ser processado.
-            project_type (str): O tipo do projeto ('live' ou 'pre-recorded').
-                                A lógica de comando do Arduino só é executada para 'live'.
-
-        Returns:
-            tuple: Uma tupla contendo:
-                - detections_in_polygon (list): Lista de detecções encontradas dentro do polígono.
-                - command_to_send (int or None): O comando a ser enviado para o Arduino, ou None.
         """
-        # Executa o modelo YOLO no quadro. `verbose=False` desativa a impressão de logs do YOLO.
-        results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
-        predictions = results[0].boxes.data.cpu().numpy()
+        if self.is_openvino:
+            # --- OpenVINO Inference Path ---
+            input_tensor = self._preprocess_openvino(frame)
+            # The `infer` method is the recommended synchronous approach in the latest API
+            results = self.compiled_model.infer({self.input_layer.any_name: input_tensor})
+            predictions = self._postprocess_openvino(results, frame.shape)
+            # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
+        else:
+            # --- Default Ultralytics Inference Path ---
+            results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
+            # Convert to a common format: list of (x1, y1, x2, y2, confidence)
+            predictions = []
+            for det in results[0].boxes.data.cpu().numpy():
+                x1, y1, x2, y2, confidence, _ = det
+                predictions.append((int(x1), int(y1), int(x2), int(y2), confidence))
 
+        # --- Common Logic for both paths ---
         detections_in_polygon = []
         command_to_send = None
         found_object_for_state_change = False # Garante que apenas um comando seja enviado por quadro
 
         if len(predictions) > 0:
             for det in predictions:
-                x1, y1, x2, y2, confidence, _ = det
+                x1, y1, x2, y2, confidence = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                # Considera apenas detecções dentro da área de processamento principal (polígono).
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
-                    # A lógica de máquina de estados abaixo só é relevante para projetos 'live'.
                     if project_type == 'live' and not found_object_for_state_change:
-                        # Estado 0: Procurando por um objeto entrando em um quadrado.
                         if self.flag == 0:
                             for index, square in enumerate(self.scaled_squares):
                                 if self._is_inside_square(x1, y1, x2, y2, square):
                                     self.crossed_in = True
-                                    self.flag = 1  # Muda para o estado 1 (procurando saída)
+                                    self.flag = 1
                                     self.current_square = index + 1
                                     command_to_send = config.ENTER_COMMANDS[index]
                                     found_object_for_state_change = True
                                     break
-                        # Estado 1: Procurando pelo objeto saindo de todos os quadrados.
                         elif self.flag == 1:
                             is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in self.scaled_squares)
                             if not is_in_any_square:
                                 self.crossed_out = True
-                                self.flag = 0  # Retorna para o estado 0
+                                self.flag = 0
                                 command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
                                 self.current_square = 0
                                 found_object_for_state_change = True
 
         return detections_in_polygon, command_to_send
+
+def letterbox(img: np.ndarray, new_shape:tuple=(640, 640), color:tuple=(114, 114, 114), auto:bool=True, scaleFill:bool=False, scaleup:bool=True, stride:int=32):
+    """
+    Resize and pad image while meeting stride-multiple constraints.
+    This is the standard letterboxing function from the ultralytics library.
+    """
+    shape = img.shape[:2]  # current shape [height, width]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better test mAP)
+        r = min(r, 1.0)
+
+    # Compute padding
+    ratio = r, r  # width, height ratios
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+    if auto:  # minimum rectangle
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
+    elif scaleFill:  # stretch
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+    dw /= 2  # divide padding into 2 sides
+    dh /= 2
+
+    if shape[::-1] != new_unpad:  # resize
+        img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    return img, ratio, (dw, dh)
+
 
 def draw_overlay(frame, detections, detector_instance):
     """

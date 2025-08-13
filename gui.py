@@ -8,7 +8,7 @@ das threads de processamento de vídeo e detecção de objetos.
 import tkinter as tk
 from tkinter import (filedialog, simpledialog, messagebox, Button, Label, Frame,
                      StringVar, OptionMenu, Toplevel, Scale, Checkbutton,
-                     IntVar, BooleanVar)
+                     IntVar, BooleanVar, Entry)
 import threading
 import queue
 import time
@@ -51,7 +51,7 @@ class ApplicationGUI:
         # Cada módulo lida com uma parte específica da lógica do backend.
         self.camera = None  # Câmera será inicializada apenas se um projeto 'live' for criado.
         self.arduino = Arduino()
-        self.detector = Detector()
+        self.detector = None # Detector será inicializado após o carregamento de um projeto.
         self.recorder = Recorder()
         self.project_manager = ProjectManager()
 
@@ -73,8 +73,9 @@ class ApplicationGUI:
         self.video_queue = queue.Queue(maxsize=300)  # Fila para passar quadros para a thread de gravação de vídeo.
 
         # --- Variáveis de UI para Opções de Processamento ---
-        self.processing_interval_var = IntVar(value=config.PROCESSING_INTERVAL)
+        self.processing_interval_var = StringVar(value=str(config.PROCESSING_INTERVAL))
         self.show_preview_var = BooleanVar(value=True)
+        self.use_openvino_var = BooleanVar(value=True)
 
         # --- Elementos da UI ---
         # Inicia a aplicação mostrando a tela de boas-vindas.
@@ -130,7 +131,7 @@ class ApplicationGUI:
             options_frame = Frame(prerecorded_controls_frame)
             options_frame.pack(fill="x", padx=5, pady=2)
             Label(options_frame, text="Frame Interval:").pack(side="left")
-            Scale(options_frame, from_=1, to=100, orient="horizontal", variable=self.processing_interval_var).pack(side="left")
+            Entry(options_frame, textvariable=self.processing_interval_var, width=5).pack(side="left")
             Checkbutton(options_frame, text="Show Preview", variable=self.show_preview_var).pack(side="left", padx=10)
 
         Button(self.main_controls_frame, text="Close Project", command=self._close_project).pack(side="left", padx=5)
@@ -147,10 +148,18 @@ class ApplicationGUI:
         a fonte de quadros (câmera ou prepara para arquivos de vídeo) e inicia as
         threads de núcleo para captura e processamento de quadros.
         """
+        # O Detector é inicializado aqui porque agora temos as informações do projeto
+        # (incluindo se deve usar OpenVINO ou não).
+        self.detector = Detector(self.project_manager)
+
         self._create_main_control_frame()
 
         project_type = self.project_manager.get_project_type()
         if project_type == "live":
+            # For live projects, attempt to connect to the Arduino.
+            if not self.arduino.connect():
+                messagebox.showwarning("Arduino Warning", "Could not connect to Arduino. Running in offline mode.")
+
             try:
                 self.camera = Camera()
                 self.active_frame_source = self.camera
@@ -261,7 +270,14 @@ class ApplicationGUI:
 
         # --- Obter opções da GUI ---
         show_preview = self.show_preview_var.get()
-        processing_interval = self.processing_interval_var.get()
+        # The value from the Entry widget is a string, so it must be converted to an integer.
+        # Validation is handled before this thread starts, so we can safely convert.
+        try:
+            processing_interval = int(self.processing_interval_var.get())
+        except ValueError:
+            # Fallback in case of an unlikely error, though validation should prevent this.
+            processing_interval = 1
+
         if processing_interval < 1:  # Garante que o intervalo seja pelo menos 1
             processing_interval = 1
 
@@ -368,6 +384,10 @@ class ApplicationGUI:
         type_window.title("Project Type")
         type_var = StringVar()
         Label(type_window, text="Choose the project type:").pack(padx=20, pady=10)
+
+        # Add the OpenVINO checkbox
+        Checkbutton(type_window, text="Optimize with OpenVINO (for Intel GPUs)", variable=self.use_openvino_var).pack(padx=20, pady=5)
+
         Button(type_window, text="Live Analysis", command=lambda: [type_var.set("live"), type_window.destroy()]).pack(fill="x", padx=20, pady=5)
         Button(type_window, text="Pre-recorded Analysis", command=lambda: [type_var.set("pre-recorded"), type_window.destroy()]).pack(fill="x", padx=20, pady=5)
         self.root.wait_window(type_window)
@@ -380,7 +400,13 @@ class ApplicationGUI:
             video_files = filedialog.askopenfilenames(title="Select Video Files", filetypes=[("Video files", "*.mp4 *.avi")])
             if not video_files: return
 
-        success = self.project_manager.create_new_project(project_path, project_type, video_files)
+        use_openvino = self.use_openvino_var.get()
+        success = self.project_manager.create_new_project(
+            project_path,
+            project_type,
+            use_openvino=use_openvino,
+            video_files=video_files
+        )
         if success:
             logging.info(f"Successfully created project '{project_name}' at {project_path}")
             self._load_project_view()
@@ -538,6 +564,16 @@ class ApplicationGUI:
             cobaia_number = simpledialog.askstring("Cobaia Number", "Enter the cobaia number for this run:")
             if not cobaia_number: return
             selection_window.destroy()
+
+            # Validate the frame interval input BEFORE starting the thread
+            try:
+                interval = int(self.processing_interval_var.get())
+                if interval < 1:
+                    messagebox.showwarning("Invalid Input", "Frame interval must be 1 or greater.")
+                    return
+            except ValueError:
+                messagebox.showerror("Invalid Input", f"Frame interval must be a valid number. You entered: '{self.processing_interval_var.get()}'")
+                return
 
             try:
                 video_source = VideoFileSource(video_path)
