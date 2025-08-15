@@ -37,6 +37,7 @@ class Detector:
         self.compiled_model = None
         self.input_layer = None
         self.output_layer = None
+        self.infer_request = None
 
         use_openvino = False
         openvino_path = ""
@@ -129,6 +130,7 @@ class Detector:
         self.compiled_model = core.compile_model(model=model, device_name="AUTO")
         self.input_layer = self.compiled_model.input(0)
         self.output_layer = self.compiled_model.output(0)
+        self.infer_request = self.compiled_model.create_infer_request()
 
     def _preprocess_openvino(self, frame):
         """
@@ -204,7 +206,8 @@ class Detector:
             # --- OpenVINO Inference Path ---
             input_tensor = self._preprocess_openvino(frame)
             # The `infer` method is the recommended synchronous approach in the latest API
-            results = self.compiled_model.infer({self.input_layer.any_name: input_tensor})
+            self.infer_request.infer({self.input_layer.any_name: input_tensor})
+            results = self.infer_request.results
             predictions = self._postprocess_openvino(results, frame.shape)
             # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
         else:
