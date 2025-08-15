@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+authors:
+  - family-names: "Your Family Name"
+    given-names: "Your Given Name"
+    orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"
+  - name: "The Zebtrack Controller Project"
+title: "Zebtrack Controller"
+version: 0.1.0
+date-released: 2025-08-15
+abstract: "A graphical application for object tracking in video streams, with integration for hardware control."
+keywords:
+  - "object tracking"
+  - "behavioral analysis"
+  - "zebrafish"
+  - "arduino"
+  - "computer vision"
+license: MIT
+repository-code: "https://github.com/your-username/your-repository" # TODO: Replace with actual repository URL
+# identifiers:
+#   - type: doi
+#     value: 10.5281/zenodo.XXXXXXX # TODO: Replace with your Zenodo DOI after archiving

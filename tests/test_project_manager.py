@@ -1,29 +1,26 @@
-import unittest
-import os
 import json
+import os
 import shutil
 import sys
+import unittest
 
-# Add the root directory to the Python path to allow importing from the main package
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
 
-from project_manager import ProjectManager, CONFIG_FILE_NAME
 
 class TestProjectManager(unittest.TestCase):
-
     def setUp(self):
         """Set up a temporary directory for testing."""
         self.test_dir = "temp_test_project_dir"
         os.makedirs(self.test_dir, exist_ok=True)
         # Suppress messagebox popups during tests
-        self.original_showerror = sys.modules['tkinter.messagebox'].showerror
-        sys.modules['tkinter.messagebox'].showerror = lambda title, message: None
+        self.original_showerror = sys.modules["tkinter.messagebox"].showerror
+        sys.modules["tkinter.messagebox"].showerror = lambda title, message: None
 
     def tearDown(self):
         """Clean up the temporary directory after tests."""
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
-        sys.modules['tkinter.messagebox'].showerror = self.original_showerror
+        sys.modules["tkinter.messagebox"].showerror = self.original_showerror
 
     def test_create_new_live_project(self):
         """Test the creation of a new 'live' project."""
@@ -34,29 +31,31 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(success)
         self.assertTrue(os.path.exists(os.path.join(project_path, CONFIG_FILE_NAME)))
 
-        with open(os.path.join(project_path, CONFIG_FILE_NAME), 'r') as f:
+        with open(os.path.join(project_path, CONFIG_FILE_NAME), "r") as f:
             data = json.load(f)
-            self.assertEqual(data['project_name'], "live_project")
-            self.assertEqual(data['project_type'], "live")
-            self.assertEqual(data['videos'], [])
+            self.assertEqual(data["project_name"], "live_project")
+            self.assertEqual(data["project_type"], "live")
+            self.assertEqual(data["videos"], [])
 
     def test_create_new_prerecorded_project(self):
         """Test the creation of a new 'pre-recorded' project."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "prerecorded_project")
         video_files = ["/path/to/video1.mp4", "/path/to/video2.mp4"]
-        success = pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
+        success = pm.create_new_project(
+            project_path, "pre-recorded", video_files=video_files
+        )
 
         self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             data = json.load(f)
-            self.assertEqual(data['project_type'], "pre-recorded")
-            self.assertEqual(len(data['videos']), 2)
-            self.assertEqual(data['videos'][0]['path'], video_files[0])
-            self.assertEqual(data['videos'][0]['status'], "pending")
+            self.assertEqual(data["project_type"], "pre-recorded")
+            self.assertEqual(len(data["videos"]), 2)
+            self.assertEqual(data["videos"][0]["path"], video_files[0])
+            self.assertEqual(data["videos"][0]["status"], "pending")
 
     def test_load_project(self):
         """Test loading an existing project configuration."""
@@ -71,13 +70,13 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(loader_pm.get_project_name(), "load_test_project")
         self.assertEqual(loader_pm.get_project_type(), "pre-recorded")
-        self.assertEqual(len(loader_pm.project_data['videos']), 1)
+        self.assertEqual(len(loader_pm.project_data["videos"]), 1)
 
     def test_load_nonexistent_project(self):
         """Test loading from a directory with no config file."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "nonexistent_project")
-        os.makedirs(project_path, exist_ok=True) # Create dir but no config
+        os.makedirs(project_path, exist_ok=True)  # Create dir but no config
 
         success = pm.load_project(project_path)
         self.assertFalse(success)
@@ -103,7 +102,7 @@ class TestProjectManager(unittest.TestCase):
         # Verify that the change was saved by loading it into a new instance
         loader_pm = ProjectManager()
         loader_pm.load_project(project_path)
-        self.assertEqual(loader_pm.project_data['videos'][0]['status'], 'complete')
+        self.assertEqual(loader_pm.project_data["videos"][0]["status"], "complete")
         self.assertEqual(loader_pm.get_next_video(), "video2.mp4")
 
         # Mark all as complete
@@ -113,5 +112,6 @@ class TestProjectManager(unittest.TestCase):
         # Now there should be no pending videos
         self.assertIsNone(pm.get_next_video())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

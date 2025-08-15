@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "zebtrack-controller"
+version = "0.1.0"
+description = "A graphical application for object tracking in video streams, with integration for hardware control via Arduino."
+authors = ["The Project Developers <placeholder@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "zebtrack", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.12"
+numpy = "==2.2.6"
+opencv-python = "==4.12.0.88"
+pyserial = "==3.5"
+openvino = "==2025.1.0"
+ultralytics = ">=8.3.179,<9.0.0"
+pyyaml = "^6.0.2"
+pydantic = "^2.11.7"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.12.9"
+pytest = "^8.4.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
