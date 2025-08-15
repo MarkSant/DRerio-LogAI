@@ -1,0 +1,13 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# PyTorch model files
+*.pt
+
+# Test artifacts
+.pytest_cache/
+test_projects/
+
+# Log files
+*.log
