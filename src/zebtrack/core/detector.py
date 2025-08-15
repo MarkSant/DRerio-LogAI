@@ -3,15 +3,19 @@ Este módulo contém a classe Detector, responsável por usar o modelo YOLO
 para detectar objetos em quadros de vídeo e a lógica associada para rastrear
 a entrada e saída de áreas de interesse.
 """
-import cv2
-import numpy as np
-from ultralytics import YOLO
-from ultralytics.utils.ops import non_max_suppression, scale_boxes
-import openvino as ov
-import config
+
 import glob
 import os
+
+import cv2
+import numpy as np
+import openvino as ov
 import torch
+from ultralytics import YOLO
+from ultralytics.utils.ops import non_max_suppression, scale_boxes
+
+from zebtrack.settings import settings
+
 
 class Detector:
     """
@@ -23,6 +27,7 @@ class Detector:
     implementa uma máquina de estados simples para gerar comandos para o Arduino
     baseado na movimentação do objeto detectado entre as áreas.
     """
+
     def __init__(self, project_manager=None):
         """
         Inicializa o detector de objetos.
@@ -49,26 +54,34 @@ class Detector:
             self._load_openvino_model(openvino_path)
             self.is_openvino = True
         else:
-            self.model = YOLO(config.YOLO_MODEL_PATH)
+            self.model = YOLO(settings.yolo_model.path)
 
-        self.conf_threshold = config.CONF_THRESHOLD
-        self.nms_threshold = config.NMS_THRESHOLD
+        self.conf_threshold = settings.yolo_model.confidence_threshold
+        self.nms_threshold = settings.yolo_model.nms_threshold
 
-        # Variáveis de estado para rastrear a movimentação do objeto (usado em projetos 'live').
+        # Variáveis de estado para rastrear a movimentação do objeto
+        # (usado em projetos 'live').
         self.crossed_in = False
         self.crossed_out = False
         self.flag = 0  # 0: procurando entrada, 1: procurando saída
-        self.current_square = 0 # Qual quadrado o objeto entrou
+        self.current_square = 0  # Qual quadrado o objeto entrou
 
         # As coordenadas são definidas em `config.py` para uma resolução base
         # e escaladas para a resolução real do vídeo pela `update_scaling`.
-        self.scaled_polygon = config.POLYGON
-        self.scaled_squares = config.SQUARES
-        self.update_scaling(config.DESIRED_WIDTH, config.DESIRED_HEIGHT)
+        self.base_polygon = np.array(
+            settings.detection_zones.polygon, dtype=np.int32
+        )
+        self.base_squares = settings.detection_zones.squares
+        self.scaled_polygon = self.base_polygon
+        self.scaled_squares = self.base_squares
+        self.update_scaling(
+            settings.camera.desired_width, settings.camera.desired_height
+        )
 
     def update_scaling(self, actual_width, actual_height):
         """
-        Atualiza as coordenadas do polígono e dos quadrados com base na resolução real do vídeo.
+        Atualiza as coordenadas do polígono e dos quadrados com base na
+        resolução real do vídeo.
 
         Isso permite que as áreas de interesse sejam definidas uma vez em `config.py`
         e funcionem com vídeos de diferentes tamanhos.
@@ -77,31 +90,36 @@ class Detector:
             actual_width (int): A largura real da fonte de vídeo.
             actual_height (int): A altura real da fonte de vídeo.
         """
-        base_width = config.DESIRED_WIDTH
-        base_height = config.DESIRED_HEIGHT
+        base_width = settings.camera.desired_width
+        base_height = settings.camera.desired_height
 
         # Se a resolução já for a base, não há necessidade de escalar.
         if actual_width == base_width and actual_height == base_height:
-            self.scaled_polygon = config.POLYGON
-            self.scaled_squares = config.SQUARES
+            self.scaled_polygon = self.base_polygon
+            self.scaled_squares = self.base_squares
             return
 
         scale_x = actual_width / base_width
         scale_y = actual_height / base_height
 
         # Escala o polígono
-        self.scaled_polygon = (config.POLYGON * [scale_x, scale_y]).astype(np.int32)
+        self.scaled_polygon = (self.base_polygon * [scale_x, scale_y]).astype(
+            np.int32
+        )
 
         # Escala os quadrados
         self.scaled_squares = []
-        for (p1, p2) in config.SQUARES:
+        for p1, p2 in self.base_squares:
             x1, y1 = p1
             x2, y2 = p2
             scaled_p1 = (int(x1 * scale_x), int(y1 * scale_y))
             scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
             self.scaled_squares.append((scaled_p1, scaled_p2))
 
-        print(f"Detector coordinates scaled for resolution {actual_width}x{actual_height}")
+        print(
+            f"Detector coordinates scaled for resolution "
+            f"{actual_width}x{actual_height}"
+        )
 
     def _is_inside_square(self, x1, y1, x2, y2, square):
         """Verifica se uma caixa delimitadora se sobrepõe a um quadrado de área."""
@@ -109,9 +127,11 @@ class Detector:
         return not (x2 < sx1 or x1 > sx2 or y2 < sy1 or y1 > sy2)
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
-        """Verifica se pelo menos um canto da caixa delimitadora está dentro do polígono."""
-        return cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0 or \
-               cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
+        """Verifica se um canto da caixa delimitadora está dentro do polígono."""
+        return (
+            cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0
+            or cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
+        )
 
     def _load_openvino_model(self, model_dir_path):
         """
@@ -120,7 +140,9 @@ class Detector:
         """
         xml_files = glob.glob(os.path.join(model_dir_path, "*.xml"))
         if not xml_files:
-            raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_dir_path}")
+            raise FileNotFoundError(
+                f"Could not find a .xml model file in directory: {model_dir_path}"
+            )
 
         model_xml_path = xml_files[0]
         print(f"Found OpenVINO model file: {model_xml_path}")
@@ -140,9 +162,8 @@ class Detector:
         # Get input size of the model
         n, c, h, w = self.input_layer.shape
 
-        # Apply letterboxing to the frame. `auto=False` ensures the frame is padded
-        # to the exact `new_shape` (e.g., 640x640), which is required for static
-        # model input shapes.
+        # Apply letterboxing. `auto=False` ensures the frame is padded
+        # to the exact `new_shape` (e.g., 640x640), required for static shapes.
         letterboxed_frame, _, _ = letterbox(frame, new_shape=(w, h), auto=False)
 
         # Convert from BGR to RGB
@@ -164,15 +185,15 @@ class Detector:
         # Get the raw output tensor from the model
         output_tensor = result[self.output_layer]
 
-        # Use the official ultralytics non_max_suppression utility
-        # This function handles all the complex parsing of class scores and confidences.
+        # Use the official ultralytics non_max_suppression utility.
+        # This handles all the complex parsing of class scores and confidences.
         # The output shape of the model is (1, 84, 8400) for COCO.
         # We pass it directly to the utility.
         preds = non_max_suppression(
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
-            agnostic=True # Class-agnostic NMS
+            agnostic=True,  # Class-agnostic NMS
         )
 
         # The result of NMS is a list with one element per image in the batch.
@@ -184,8 +205,13 @@ class Detector:
 
         # Rescale the bounding boxes from the model's input size (e.g., 640x640)
         # back to the original frame's size.
-        model_input_shape = (self.input_layer.shape[2], self.input_layer.shape[3]) # (h, w)
-        detections[:, :4] = scale_boxes(model_input_shape, detections[:, :4], original_frame_shape).round()
+        model_input_shape = (
+            self.input_layer.shape[2],
+            self.input_layer.shape[3],
+        )  # (h, w)
+        detections[:, :4] = scale_boxes(
+            model_input_shape, detections[:, :4], original_frame_shape
+        ).round()
 
         # Convert the results to the format expected by the rest of the application:
         # A list of tuples: (x1, y1, x2, y2, confidence)
@@ -205,14 +231,16 @@ class Detector:
         if self.is_openvino:
             # --- OpenVINO Inference Path ---
             input_tensor = self._preprocess_openvino(frame)
-            # The `infer` method is the recommended synchronous approach in the latest API
+            # The `infer` method is the recommended sync approach in the latest API
             self.infer_request.infer({self.input_layer.any_name: input_tensor})
             results = self.infer_request.results
             predictions = self._postprocess_openvino(results, frame.shape)
-            # The output of postprocess is already in (x1, y1, x2, y2, confidence) format
+            # The output is already in (x1, y1, x2, y2, confidence) format
         else:
             # --- Default Ultralytics Inference Path ---
-            results = self.model(frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold)
+            results = self.model(
+                frame, verbose=False, conf=self.conf_threshold, iou=self.nms_threshold
+            )
             # Convert to a common format: list of (x1, y1, x2, y2, confidence)
             predictions = []
             for det in results[0].boxes.data.cpu().numpy():
@@ -222,7 +250,9 @@ class Detector:
         # --- Common Logic for both paths ---
         detections_in_polygon = []
         command_to_send = None
-        found_object_for_state_change = False # Garante que apenas um comando seja enviado por quadro
+        found_object_for_state_change = (
+            False  # Garante que apenas um comando seja enviado por quadro
+        )
 
         if len(predictions) > 0:
             for det in predictions:
@@ -232,28 +262,44 @@ class Detector:
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence))
 
-                    if project_type == 'live' and not found_object_for_state_change:
+                    if project_type == "live" and not found_object_for_state_change:
                         if self.flag == 0:
                             for index, square in enumerate(self.scaled_squares):
                                 if self._is_inside_square(x1, y1, x2, y2, square):
                                     self.crossed_in = True
                                     self.flag = 1
                                     self.current_square = index + 1
-                                    command_to_send = config.ENTER_COMMANDS[index]
+                                    command_to_send = (
+                                        settings.detection_zones.enter_commands[index]
+                                    )
                                     found_object_for_state_change = True
                                     break
                         elif self.flag == 1:
-                            is_in_any_square = any(self._is_inside_square(x1, y1, x2, y2, sq) for sq in self.scaled_squares)
+                            is_in_any_square = any(
+                                self._is_inside_square(x1, y1, x2, y2, sq)
+                                for sq in self.scaled_squares
+                            )
                             if not is_in_any_square:
                                 self.crossed_out = True
                                 self.flag = 0
-                                command_to_send = config.EXIT_COMMANDS[self.current_square - 1]
+                                command_to_send = settings.detection_zones.exit_commands[
+                                    self.current_square - 1
+                                ]
                                 self.current_square = 0
                                 found_object_for_state_change = True
 
         return detections_in_polygon, command_to_send
 
-def letterbox(img: np.ndarray, new_shape:tuple=(640, 640), color:tuple=(114, 114, 114), auto:bool=True, scaleFill:bool=False, scaleup:bool=True, stride:int=32):
+
+def letterbox(
+    img: np.ndarray,
+    new_shape: tuple = (640, 640),
+    color: tuple = (114, 114, 114),
+    auto: bool = True,
+    scaleFill: bool = False,
+    scaleup: bool = True,
+    stride: int = 32,
+):
     """
     Resize and pad image while meeting stride-multiple constraints.
     This is the standard letterboxing function from the ultralytics library.
@@ -285,7 +331,9 @@ def letterbox(img: np.ndarray, new_shape:tuple=(640, 640), color:tuple=(114, 114
         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    img = cv2.copyMakeBorder(
+        img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
+    )  # add border
     return img, ratio, (dw, dh)
 
 
@@ -304,19 +352,34 @@ def draw_overlay(frame, detections, detector_instance):
     """
     # Desenha os quadrados de área de interesse
     for i, ((x1, y1), (x2, y2)) in enumerate(detector_instance.scaled_squares):
-        cv2.rectangle(frame, (x1, y1), (x2, y2), config.COLORS[i], 2)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), settings.detection_zones.colors[i], 2)
 
     # Desenha o polígono da área de processamento
-    cv2.polylines(frame, [detector_instance.scaled_polygon], isClosed=True, color=(0, 0, 0), thickness=1)
+    cv2.polylines(
+        frame,
+        [detector_instance.scaled_polygon],
+        isClosed=True,
+        color=(0, 0, 0),
+        thickness=1,
+    )
 
     # Desenha as caixas delimitadoras das detecções
-    for (x1, y1, x2, y2, confidence) in detections:
+    for x1, y1, x2, y2, confidence in detections:
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
-        cv2.putText(frame, f'{int(confidence * 100)}%', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+        cv2.putText(
+            frame,
+            f"{int(confidence * 100)}%",
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 0, 255),
+            2,
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # This test requires a camera and will display the output.
-    from camera import Camera
+    from zebtrack.io.camera import Camera
 
     print("Running detector test...")
     cam = Camera()
@@ -328,16 +391,16 @@ if __name__ == '__main__':
             print("Failed to get frame.")
             break
 
-        detections, command = detector.process_frame(frame)
+        detections, command = detector.process_frame(frame, "live")
 
         if command is not None:
             print(f"Detector generated command: {command}")
 
-        draw_overlay(frame, detections)
+        draw_overlay(frame, detections, detector)
 
-        cv2.imshow('Detector Test', frame)
+        cv2.imshow("Detector Test", frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cam.release()

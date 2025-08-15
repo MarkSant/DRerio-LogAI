@@ -1,21 +1,24 @@
-import os
 import json
+import logging
+import os
 import shutil
 from tkinter import messagebox
+
 from ultralytics import YOLO
-import logging
 
-import config
-
+from zebtrack.settings import settings
 
 CONFIG_FILE_NAME = "project_config.json"
+
 
 class ProjectManager:
     def __init__(self):
         self.project_path = None
         self.project_data = {}
 
-    def create_new_project(self, project_path, project_type, use_openvino=False, video_files=None):
+    def create_new_project(
+        self, project_path, project_type, use_openvino=False, video_files=None
+    ):
         """
         Initializes a new project, creating its directory and config file.
         If use_openvino is True, it also converts the model to OpenVINO format.
@@ -28,21 +31,26 @@ class ProjectManager:
         try:
             os.makedirs(self.project_path, exist_ok=True)
         except OSError as e:
-            messagebox.showerror("Creation Error", f"Could not create project directory: {e}")
+            messagebox.showerror(
+                "Creation Error", f"Could not create project directory: {e}"
+            )
             return False
 
         # Export the model if requested, checking for a cached version first.
         openvino_model_path = ""
         if use_openvino:
             cache_dir = "openvino_model_cache"
-            base_model_name = os.path.splitext(os.path.basename(config.YOLO_MODEL_PATH))[0]
+            base_model_name = os.path.splitext(
+                os.path.basename(settings.yolo_model.path)
+            )[0]
             # Ultralytics appends `_openvino_model` to the exported directory name.
             cached_model_dir_name = f"{base_model_name}_openvino_model"
             cached_model_dir = os.path.join(cache_dir, cached_model_dir_name)
 
             # The actual model file has .xml extension
-            # Note: ultralytics export might name it `best.xml` or `<base_model_name>.xml`
-            # We will just check for existence of the directory for simplicity, detector.py finds the xml.
+            # Note: ultralytics export might name it `best.xml` or
+            # `<base_model_name>.xml`. We will just check for existence of the
+            # directory for simplicity, detector.py finds the xml.
 
             if os.path.exists(cached_model_dir):
                 logging.info(f"Found cached OpenVINO model at {cached_model_dir}")
@@ -50,29 +58,42 @@ class ProjectManager:
             else:
                 logging.info("No cached OpenVINO model found. Exporting now...")
                 try:
-                    model = YOLO(config.YOLO_MODEL_PATH)
+                    model = YOLO(settings.yolo_model.path)
                     # Export to a temporary default location
-                    exported_path = model.export(format='openvino', half=True)
+                    exported_path = model.export(format="openvino", half=True)
 
                     # Ensure cache directory exists
                     os.makedirs(cache_dir, exist_ok=True)
 
                     # Move the exported model to our cache directory.
                     # The name of the exported dir is returned by `exported_path`.
-                    # To prevent race conditions, we remove the destination first if it exists.
+                    # To prevent race conditions, we remove the destination
+                    # first if it exists.
                     shutil.rmtree(cached_model_dir, ignore_errors=True)
 
                     try:
                         shutil.move(exported_path, cached_model_dir)
                         openvino_model_path = os.path.abspath(cached_model_dir)
-                        logging.info(f"Model exported and cached at {openvino_model_path}")
+                        logging.info(
+                            f"Model exported and cached at {openvino_model_path}"
+                        )
                     except Exception as move_exc:
-                        logging.error(f"Failed to move exported model to cache directory: {move_exc}")
-                        messagebox.showerror("OpenVINO Export Error", f"Failed to move exported model to cache directory: {move_exc}")
+                        logging.error(
+                            "Failed to move exported model to cache directory: "
+                            f"{move_exc}"
+                        )
+                        messagebox.showerror(
+                            "OpenVINO Export Error",
+                            "Failed to move exported model to cache directory: "
+                            f"{move_exc}",
+                        )
                         return False
                 except Exception as e:
                     logging.error(f"Failed to export model to OpenVINO format: {e}")
-                    messagebox.showerror("OpenVINO Export Error", f"Failed to export model to OpenVINO format: {e}")
+                    messagebox.showerror(
+                        "OpenVINO Export Error",
+                        f"Failed to export model to OpenVINO format: {e}",
+                    )
                     return False
 
         self.project_data = {
@@ -80,15 +101,17 @@ class ProjectManager:
             "project_type": project_type,
             "use_openvino": use_openvino,
             "openvino_model_path": openvino_model_path,
-            "videos": []
+            "videos": [],
         }
 
         if video_files:
             for video_path in video_files:
-                self.project_data["videos"].append({
-                    "path": video_path,
-                    "status": "pending" # Other statuses: "processing", "complete"
-                })
+                self.project_data["videos"].append(
+                    {
+                        "path": video_path,
+                        "status": "pending",  # Other statuses: "processing", "complete"
+                    }
+                )
 
         return self.save_project()
 
@@ -98,14 +121,19 @@ class ProjectManager:
         """
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         if not os.path.exists(config_path):
-            messagebox.showerror("Load Error", f"Project config file not found at:\n{config_path}")
+            messagebox.showerror(
+                "Load Error", f"Project config file not found at:\n{config_path}"
+            )
             return False
 
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 self.project_data = json.load(f)
             self.project_path = project_path
-            print(f"Project '{self.project_data.get('project_name')}' loaded successfully.")
+            print(
+                f"Project '{self.project_data.get('project_name')}' "
+                "loaded successfully."
+            )
             return True
         except (json.JSONDecodeError, IOError) as e:
             messagebox.showerror("Load Error", f"Failed to load project config: {e}")
@@ -120,7 +148,7 @@ class ProjectManager:
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
         try:
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(self.project_data, f, indent=4)
             print(f"Project state saved to {config_path}")
             return True
@@ -135,7 +163,10 @@ class ProjectManager:
         for video in self.project_data.get("videos", []):
             if video["path"] == video_path:
                 video["status"] = new_status
-                print(f"Updated status of '{os.path.basename(video_path)}' to '{new_status}'")
+                print(
+                    f"Updated status of '{os.path.basename(video_path)}' to "
+                    f"'{new_status}'"
+                )
                 return self.save_project()
         return False
 
@@ -146,7 +177,7 @@ class ProjectManager:
         for video in self.project_data.get("videos", []):
             if video["status"] == "pending":
                 return video["path"]
-        return None # No more pending videos
+        return None  # No more pending videos
 
     def get_project_name(self):
         return self.project_data.get("project_name", "N/A")
@@ -154,7 +185,8 @@ class ProjectManager:
     def get_project_type(self):
         return self.project_data.get("project_type")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Example usage for testing the ProjectManager
     print("Testing ProjectManager...")
 
@@ -168,7 +200,7 @@ if __name__ == '__main__':
     # 1. Test creating a new pre-recorded project
     print("\n--- Test 1: Creating a new project ---")
     video_list = ["C:/videos/vid1.mp4", "C:/videos/vid2.mp4"]
-    success = pm.create_new_project(test_dir, "pre-recorded", video_list)
+    success = pm.create_new_project(test_dir, "pre-recorded", video_files=video_list)
     if success:
         print(f"Project created at: {pm.project_path}")
         print("Project data:", pm.project_data)
@@ -197,6 +229,7 @@ if __name__ == '__main__':
 
     # Clean up the test directory
     import shutil
+
     shutil.rmtree(test_dir)
     print(f"\nCleaned up test directory: {test_dir}")
 

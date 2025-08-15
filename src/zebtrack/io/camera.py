@@ -1,18 +1,23 @@
 import cv2
-import config
+
+from zebtrack.settings import settings
+
 
 class Camera:
     def __init__(self):
-        self.cap = cv2.VideoCapture(config.CAMERA_INDEX)
+        self.cap = cv2.VideoCapture(settings.camera.index)
         if not self.cap.isOpened():
-            raise IOError(f"Cannot open camera at index {config.CAMERA_INDEX}")
+            raise IOError(f"Cannot open camera at index {settings.camera.index}")
 
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.DESIRED_WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.DESIRED_HEIGHT)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.camera.desired_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.camera.desired_height)
 
         self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print(f"Camera initialized with resolution: {self.actual_width}x{self.actual_height}")
+        print(
+            f"Camera initialized with resolution: "
+            f"{self.actual_width}x{self.actual_height}"
+        )
 
     def get_frame(self):
         """
@@ -39,10 +44,11 @@ class Camera:
         return {
             "width": self.actual_width,
             "height": self.actual_height,
-            "fps": self.cap.get(cv2.CAP_PROP_FPS) or config.FPS
+            "fps": self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps,
         }
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Example usage for testing the camera module
     try:
         camera = Camera()
@@ -54,15 +60,15 @@ if __name__ == '__main__':
                 print("Failed to grab frame")
                 break
 
-            cv2.imshow('Camera Test', frame)
+            cv2.imshow("Camera Test", frame)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
     except IOError as e:
         print(e)
     finally:
-        if 'camera' in locals() and camera:
+        if "camera" in locals() and camera:
             camera.release()
         cv2.destroyAllWindows()
         print("Test finished.")
