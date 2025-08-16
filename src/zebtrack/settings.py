@@ -99,11 +99,15 @@ class DetectionZonesSettings(BaseModel):
     )
     enter_commands: List[int] = Field(
         ...,
-        description="List of commands to send to Arduino when an object enters a square.",
+        description=(
+            "List of commands to send to Arduino when an object enters a square."
+        ),
     )
     exit_commands: List[int] = Field(
         ...,
-        description="List of commands to send to Arduino when an object exits a square.",
+        description=(
+            "List of commands to send to Arduino when an object exits a square."
+        ),
     )
 
 

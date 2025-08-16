@@ -90,7 +90,10 @@ class TestDetector(unittest.TestCase):
         square = settings.detection_zones.squares[0]
         x_c = (square[0][0] + square[1][0]) // 2
         y_c = (square[0][1] + square[1][1]) // 2
-        dummy_frame = np.zeros((settings.camera.desired_height, settings.camera.desired_width, 3), dtype=np.uint8)
+        dummy_frame = np.zeros(
+            (settings.camera.desired_height, settings.camera.desired_width, 3),
+            dtype=np.uint8,
+        )
 
         # --- Step 1: Object enters a square, should generate ENTER command ---
         fake_detection = [(x_c - 5, y_c - 5, x_c + 5, y_c + 5, 0.9)]
@@ -104,9 +107,11 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(command, settings.detection_zones.enter_commands[0])
 
         # --- Step 2: Object is still inside, should generate NO command ---
-        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, command = self.detector.process_frame(dummy_frame, "live")
-        self.assertIsNone(command, "No command should be sent if object is still inside")
+        self.assertIsNone(
+            command, "No command should be sent if object is still inside"
+        )
 
         # --- Step 3: Object moves outside all squares, should generate EXIT command ---
         self.mock_plugin.set_detect_return_value([(10, 10, 20, 20, 0.9)])

@@ -249,7 +249,10 @@ class ApplicationGUI:
 
             if not self.controller.frame_queue.full():
                 self.controller.frame_queue.put((live_frame_count, frame.copy()))
-            if self.controller.is_capturing_for_video and not self.controller.video_queue.full():
+            if (
+                self.controller.is_capturing_for_video
+                and not self.controller.video_queue.full()
+            ):
                 self.controller.video_queue.put(frame.copy())
 
             time.sleep(1 / (settings.video_processing.fps * 1.5))
@@ -265,7 +268,9 @@ class ApplicationGUI:
                 continue
 
             if self.controller.is_processing:
-                detections, command = self.controller.detector.process_frame(frame, "live")
+                detections, command = self.controller.detector.process_frame(
+                    frame, "live"
+                )
                 if command is not None:
                     self.controller.arduino.send_command(command)
                 if self.controller.is_recording and detections:
@@ -305,7 +310,10 @@ class ApplicationGUI:
         total_frames = video_source.get_properties()["frame_count"]
         frame_number = -1
 
-        while not self.controller.program_exit_event.is_set() and frame_number < total_frames:
+        while (
+            not self.controller.program_exit_event.is_set()
+            and frame_number < total_frames
+        ):
             target_frame = (
                 (
                     settings.video_processing.processing_offset
@@ -329,15 +337,21 @@ class ApplicationGUI:
 
             if not show_preview and total_frames > 0:
                 progress_percent = int((frame_number / total_frames) * 100)
-                video_name = os.path.basename(self.controller.currently_processing_video)
+                video_name = os.path.basename(
+                    self.controller.currently_processing_video
+                )
                 status_msg = f"Processing: {video_name} ({progress_percent}%)"
                 self.root.after(0, self.status_var.set, status_msg)
 
-            detections, _ = self.controller.detector.process_frame(frame, "pre-recorded")
+            detections, _ = self.controller.detector.process_frame(
+                frame, "pre-recorded"
+            )
             if detections:
                 props = video_source.get_properties()
                 timestamp = frame_number / props["fps"] if props["fps"] > 0 else 0
-                self.controller.recorder.write_detection_data(timestamp, frame_number, detections)
+                self.controller.recorder.write_detection_data(
+                    timestamp, frame_number, detections
+                )
 
             if show_preview:
                 draw_overlay(frame, detections, self.controller.detector)
@@ -357,13 +371,18 @@ class ApplicationGUI:
         if not base_path:
             return
 
-        project_name = self.ask_string("Project Name", "Enter a name for the new project:")
+        project_name = self.ask_string(
+            "Project Name", "Enter a name for the new project:"
+        )
         if not project_name:
             return
 
         project_path = os.path.join(base_path, project_name)
         if os.path.exists(project_path) and os.listdir(project_path):
-            self.show_error("Error", "A project folder with this name already exists and is not empty.")
+            self.show_error(
+                "Error",
+                "A project folder with this name already exists and is not empty.",
+            )
             return
 
         type_window = Toplevel(self.root)
@@ -376,10 +395,14 @@ class ApplicationGUI:
             variable=self.use_openvino_var,
         ).pack(padx=20, pady=5)
         Button(
-            type_window, text="Live Analysis", command=lambda: [type_var.set("live"), type_window.destroy()]
+            type_window,
+            text="Live Analysis",
+            command=lambda: [type_var.set("live"), type_window.destroy()],
         ).pack(fill="x", padx=20, pady=5)
         Button(
-            type_window, text="Pre-recorded Analysis", command=lambda: [type_var.set("pre-recorded"), type_window.destroy()]
+            type_window,
+            text="Pre-recorded Analysis",
+            command=lambda: [type_var.set("pre-recorded"), type_window.destroy()],
         ).pack(fill="x", padx=20, pady=5)
         self.root.wait_window(type_window)
         project_type = type_var.get()
@@ -389,13 +412,18 @@ class ApplicationGUI:
 
         video_files = []
         if project_type == "pre-recorded":
-            video_files = self.ask_open_filenames(title="Select Video Files", filetypes=[("Video files", "*.mp4 *.avi")])
+            video_files = self.ask_open_filenames(
+                title="Select Video Files",
+                filetypes=[("Video files", "*.mp4 *.avi")],
+            )
             if not video_files:
                 return
 
         use_openvino = self.use_openvino_var.get()
 
-        self.controller.create_project_workflow(project_path, project_type, use_openvino, video_files)
+        self.controller.create_project_workflow(
+            project_path, project_type, use_openvino, video_files
+        )
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
@@ -407,20 +435,26 @@ class ApplicationGUI:
 
     def _define_groups(self):
         """Permite que o usuário defina nomes para os grupos de tratamento."""
-        group_count = self.ask_string("Number of Groups", "Enter the total number of groups:")
+        group_count = self.ask_string(
+            "Number of Groups", "Enter the total number of groups:"
+        )
         if group_count is not None:
             try:
                 num_groups = int(group_count)
                 group_names = []
                 for i in range(num_groups):
-                    name = self.ask_string("Group Name", f"Enter name for group {i + 1}:")
+                    name = self.ask_string(
+                        "Group Name", f"Enter name for group {i + 1}:"
+                    )
                     if name:
                         group_names.append(name)
                 self.controller.project_manager.project_data["groups"] = group_names
                 self.controller.project_manager.save_project()
                 self.show_info("Success", "Group names have been updated.")
             except (ValueError, TypeError):
-                self.show_error("Invalid Input", "Please enter a valid number for the group count.")
+                self.show_error(
+                    "Invalid Input", "Please enter a valid number for the group count."
+                )
 
     def _on_close(self):
         """Delegates the close action to the controller."""

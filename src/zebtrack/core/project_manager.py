@@ -122,7 +122,8 @@ class ProjectManager:
                             "OpenVINO Export Error",
                             (
                                 "Failed to move the exported OpenVINO model to the "
-                                f"cache directory.\nPlease check permissions.\n\nError: {move_exc}"
+                                "cache directory.\nPlease check permissions.\n\n"
+                                f"Error: {move_exc}"
                             ),
                         )
                         return False
@@ -131,9 +132,10 @@ class ProjectManager:
                     messagebox.showerror(
                         "OpenVINO Export Error",
                         (
-                            "An unexpected error occurred during OpenVINO model export.\n"
-                            "Ensure all dependencies are installed correctly and the model "
-                            f"path is valid.\n\nError: {e}"
+                            "An unexpected error occurred during OpenVINO model "
+                            "export.\nEnsure all dependencies are installed "
+                            "correctly and the model path is valid.\n\n"
+                            f"Error: {e}"
                         ),
                     )
                     return False

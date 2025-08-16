@@ -1,10 +1,12 @@
 import os
+import time
+from unittest.mock import MagicMock
 
 import cv2
 import numpy as np
 import pytest
 
-from zebtrack.io import FrameSource, VideoFileSource, create_source
+from zebtrack.io import Camera, FrameSource, VideoFileSource, create_source
 
 
 @pytest.fixture
@@ -113,11 +115,6 @@ def test_create_source_file_wrong_kwarg_type():
 
 
 # --- Tests for Camera class ---
-
-import time
-from unittest.mock import MagicMock
-
-from zebtrack.io import Camera
 
 
 @pytest.fixture
