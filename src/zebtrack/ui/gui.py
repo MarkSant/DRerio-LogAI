@@ -19,6 +19,7 @@ from tkinter import (
     filedialog,
     messagebox,
     simpledialog,
+    ttk,
 )
 
 import cv2
@@ -51,6 +52,7 @@ class ApplicationGUI:
         self.welcome_frame = None
         self.main_controls_frame = None
         self.status_var = StringVar()
+        self.progress_bar = None
         self.processing_interval_var = StringVar(
             value=str(settings.video_processing.processing_interval)
         )
@@ -151,7 +153,15 @@ class ApplicationGUI:
             f"({project_type})"
         )
         self.status_var.set(status_text)
-        Label(self.root, textvariable=self.status_var).pack(pady=5)
+
+        status_frame = Frame(self.root)
+        status_frame.pack(pady=5, fill="x", padx=10)
+        Label(status_frame, textvariable=self.status_var).pack()
+        self.progress_bar = ttk.Progressbar(
+            status_frame, orient="horizontal", length=300, mode="determinate"
+        )
+        self.progress_bar.pack(pady=5)
+        self.progress_bar.pack_forget()  # Hide it initially
 
     def _load_project_view(self):
         """
@@ -467,6 +477,19 @@ class ApplicationGUI:
     def set_status(self, text):
         """Updates the UI status bar."""
         self.status_var.set(text)
+
+    def update_progress(self, value):
+        """Updates the progress bar."""
+        if self.progress_bar:
+            if not self.progress_bar.winfo_viewable():
+                self.progress_bar.pack(pady=5)
+            self.progress_bar["value"] = value
+            self.root.update_idletasks()
+
+    def hide_progress_bar(self):
+        """Hides the progress bar."""
+        if self.progress_bar:
+            self.progress_bar.pack_forget()
 
     def show_error(self, title, message):
         """Shows an error message box."""
