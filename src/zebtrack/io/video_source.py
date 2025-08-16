@@ -5,11 +5,15 @@ do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
 
 import logging
 import os
+from typing import Any, Dict, Tuple
 
 import cv2
+import numpy as np
+
+from zebtrack.io.frame_source import FrameSource
 
 
-class VideoFileSource:
+class VideoFileSource(FrameSource):
     """
     Representa um arquivo de vídeo como uma fonte de quadros.
 
@@ -18,7 +22,7 @@ class VideoFileSource:
     um por um.
     """
 
-    def __init__(self, video_path):
+    def __init__(self, video_path: str):
         """
         Inicializa a fonte de vídeo a partir de um caminho de arquivo.
 
@@ -53,7 +57,7 @@ class VideoFileSource:
             f"{self.frame_count} frames total."
         )
 
-    def get_frame(self):
+    def get_frame(self) -> Tuple[bool, np.ndarray | None]:
         """
         Reads the next frame from the video file.
 
@@ -62,13 +66,15 @@ class VideoFileSource:
             Returns (False, None) at the end of the video.
         """
         ret, frame = self.cap.read()
+        if not ret:
+            return False, None
         return ret, frame
 
-    def get_current_frame_number(self):
+    def get_current_frame_number(self) -> float:
         """Returns the index of the next frame to be decoded."""
         return self.cap.get(cv2.CAP_PROP_POS_FRAMES)
 
-    def get_properties(self):
+    def get_properties(self) -> Dict[str, Any]:
         """
         Retorna um dicionário com as propriedades do vídeo.
 
@@ -83,7 +89,7 @@ class VideoFileSource:
             "frame_count": self.frame_count,
         }
 
-    def release(self):
+    def release(self) -> None:
         """Libera o recurso do arquivo de vídeo."""
         if self.cap.isOpened():
             self.cap.release()
