@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -11,6 +12,20 @@ from zebtrack.settings import settings
 
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
+
+
+def _calculate_sha256(filepath: str) -> str:
+    """Calculates the SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            # Read and update hash in chunks of 4K
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except IOError:
+        logging.error(f"Could not read file to calculate hash: {filepath}")
+        return ""
 
 
 class ProjectManager:
@@ -52,7 +67,9 @@ class ProjectManager:
             os.makedirs(self.project_path, exist_ok=True)
         except OSError as e:
             messagebox.showerror(
-                "Creation Error", f"Could not create project directory: {e}"
+                "Creation Error",
+                f"Could not create project directory:\n{e}\n\n"
+                "Please check folder permissions and ensure the path is valid.",
             )
             return False
 
@@ -107,15 +124,17 @@ class ProjectManager:
                         )
                         messagebox.showerror(
                             "OpenVINO Export Error",
-                            "Failed to move exported model to cache directory: "
-                            f"{move_exc}",
+                            "Failed to move the exported OpenVINO model to the cache directory.\n"
+                            f"Please check permissions.\n\nError: {move_exc}",
                         )
                         return False
                 except Exception as e:
                     logging.error(f"Failed to export model to OpenVINO format: {e}")
                     messagebox.showerror(
                         "OpenVINO Export Error",
-                        f"Failed to export model to OpenVINO format: {e}",
+                        "An unexpected error occurred during OpenVINO model export.\n"
+                        "Ensure all dependencies are installed correctly and the model path is valid.\n\n"
+                        f"Error: {e}",
                     )
                     return False
 
@@ -129,9 +148,11 @@ class ProjectManager:
 
         if video_files:
             for video_path in video_files:
+                video_hash = _calculate_sha256(video_path)
                 self.project_data["videos"].append(
                     {
                         "path": video_path,
+                        "sha256": video_hash,
                         "status": "pending",  # Other statuses: "processing", "complete"
                     }
                 )
@@ -145,7 +166,9 @@ class ProjectManager:
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         if not os.path.exists(config_path):
             messagebox.showerror(
-                "Load Error", f"Project config file not found at:\n{config_path}"
+                "Load Error",
+                f"Project config file '{CONFIG_FILE_NAME}' not found in the selected directory:\n{project_path}\n\n"
+                "Please ensure you have selected a valid project folder.",
             )
             return False
 
@@ -159,7 +182,11 @@ class ProjectManager:
             )
             return True
         except (json.JSONDecodeError, IOError) as e:
-            messagebox.showerror("Load Error", f"Failed to load project config: {e}")
+            messagebox.showerror(
+                "Load Error",
+                f"Failed to load or parse the project config file:\n{config_path}\n\n"
+                f"The file may be corrupted or unreadable.\n\nError: {e}",
+            )
             return False
 
     def save_project(self):
@@ -176,7 +203,11 @@ class ProjectManager:
             print(f"Project state saved to {config_path}")
             return True
         except IOError as e:
-            messagebox.showerror("Save Error", f"Failed to save project config: {e}")
+            messagebox.showerror(
+                "Save Error",
+                f"Failed to save project config file:\n{config_path}\n\n"
+                f"Please check folder permissions.\n\nError: {e}",
+            )
             return False
 
     def update_video_status(self, video_path, new_status):

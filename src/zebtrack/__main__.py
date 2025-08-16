@@ -1,8 +1,8 @@
 import logging
 import tkinter as tk
 
+from zebtrack.core.controller import AppController
 from zebtrack.settings import settings
-from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.utils import set_seed
 
 
@@ -24,11 +24,16 @@ def main():
 
     logging.info("Application starting.")
 
-    root = tk.Tk()
-    ApplicationGUI(root)
-    root.mainloop()
-
-    logging.info("Application finished.")
+    try:
+        root = tk.Tk()
+        controller = AppController(root)
+        controller.run()
+    except Exception as e:
+        logging.critical("An unhandled exception occurred.", exc_info=True)
+        # Optionally, show a message to the user
+        # messagebox.showerror("Fatal Error", f"A fatal error occurred: {e}\nSee analysis.log for details.")
+    finally:
+        logging.info("Application finished.")
 
 
 if __name__ == "__main__":
