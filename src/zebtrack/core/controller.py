@@ -1,16 +1,21 @@
-"""
-This module contains the main controller for the Zebtrack application.
+"""Main application controller for Zebtrack.
 
-The AppController is responsible for managing the application's state,
-handling business logic, and coordinating between the user interface (View)
-and the backend modules (Model).
+Coordinates UI (View) with backend modules (Model): project management, video
+capture/processing, detection pipeline, recording, Arduino I/O.
 """
+
+from __future__ import annotations
 
 import os
 import queue
 import threading
+import time
 
-import structlog
+try:
+    import structlog  # type: ignore
+except ImportError:  # Fallback lightweight logger so code still runs
+    import logging as structlog  # type: ignore
+    structlog.get_logger = lambda *a, **k: structlog.getLogger("zebtrack")
 
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.io.arduino import Arduino
@@ -22,22 +27,15 @@ log = structlog.get_logger()
 
 
 class AppController:
-    """
-    The main controller for the application.
-    """
+    """Primary application controller."""
 
     def __init__(self, root):
-        """
-        Initializes the AppController.
-
-        Args:
-            root (tk.Tk): The root Tkinter window.
-        """
         self.root = root
-        self.view = ApplicationGUI(root, self)  # The View component
+        self.view = ApplicationGUI(root, self)
 
-        # --- Backend Modules ---
+        # Backend modules
         from zebtrack.settings import settings
+
         self.project_manager = ProjectManager()
         self.recorder = Recorder()
         self.arduino = Arduino(
@@ -46,28 +44,30 @@ class AppController:
         self.detector = None
         self.camera = None
 
-        # --- State Variables ---
+        # State
         self.is_processing = True
         self.is_capturing_for_video = False
         self.is_recording = False
         self.active_frame_source = None
-        self.currently_processing_video = None
+        self.currently_processing_video: str | None = None
+        self.processing_start_time: float | None = None
+        self._last_frame_time: float | None = None
 
-        # --- Threads and Queues ---
+        # Threads / Queues
         self.program_exit_event = threading.Event()
         self.video_stop_event = threading.Event()
-        self.frame_queue = queue.Queue(maxsize=10)
-        self.video_queue = queue.Queue(maxsize=300)
-        self.capture_thread = None
-        self.processing_thread = None
-        self.video_thread = None
+        self.frame_queue: queue.Queue = queue.Queue(maxsize=10)
+        self.video_queue: queue.Queue = queue.Queue(maxsize=300)
+        self.capture_thread: threading.Thread | None = None
+        self.processing_thread: threading.Thread | None = None
+        self.video_thread: threading.Thread | None = None
 
         log.info("controller.init.success")
 
+    # ---------------------------------------------------------------------
+    # Lifecycle
+    # ---------------------------------------------------------------------
     def run(self):
-        """
-        Starts the application's main loop.
-        """
         log.info("ui.mainloop.start")
         self.root.mainloop()
 
@@ -239,17 +239,31 @@ class AppController:
         log.info("video_thread.finished")
 
     def process_next_video(self):
-        """Handles the business logic for processing the next pre-recorded video."""
+        """Start processing the next queued pre-recorded video."""
+        log.info("process_next_video.start")
         if self.is_recording:
             self.view.show_warning("Busy", "A video is already being processed.")
             return
 
         video_path = self.project_manager.get_next_video()
         if not video_path:
+            log.info("process_next_video.none_left")
             self.view.show_info(
                 "Project Complete", "All videos in this project have been processed."
             )
             return
+
+        # If all videos were previously complete and user restarts, optionally reset.
+        # (Only reset if user confirms.)
+        completed_only = all(
+            v.get("status") == "complete" for v in self.project_manager.project_data.get("videos", [])
+        )
+        if completed_only:
+            # Non-blocking gentle reset without popup for now; comment out if not desired.
+            self.project_manager.reset_all_video_statuses("pending")
+            video_path = self.project_manager.get_next_video()
+            if not video_path:
+                return
 
         if not self.project_manager.project_data.get("groups"):
             self.view.show_warning(
@@ -262,16 +276,18 @@ class AppController:
         )
         if not details:
             return
-
         group_name, cobaia_number = details
 
         try:
             from zebtrack.io.video_source import VideoFileSource
+
             video_source = VideoFileSource(video_path)
             video_props = video_source.get_properties()
             self.detector.update_scaling(video_props["width"], video_props["height"])
+            log.info("process_next_video.video_opened", path=video_path, props=video_props)
         except (IOError, FileNotFoundError) as e:
             self.view.show_error("Error", f"Could not open video file: {e}")
+            log.error("process_next_video.video_open_fail", error=str(e))
             return
 
         video_basename = os.path.splitext(os.path.basename(video_path))[0]
@@ -283,47 +299,80 @@ class AppController:
         success = self.recorder.start_recording(
             output_path, video_props["width"], video_props["height"], is_video_file=True
         )
-
-        if success:
-            self.project_manager.update_video_status(video_path, "processing")
-            self.is_recording = True
-            self.active_frame_source = video_source
-            self.currently_processing_video = video_path
-
-            self.processing_thread = threading.Thread(
-                target=self._file_processing_loop, name="ProcessingThread", daemon=True
-            )
-            self.processing_thread.start()
-
-            self.view.update_button_state("process_video", "disabled")
-            self.view.set_status(f"Processing: {os.path.basename(video_path)}")
-            self.view.update_progress(0)
-        else:
+        if not success:
+            log.error("process_next_video.recorder_start_failed", output_path=output_path)
             self.view.show_error(
                 "Error", "Failed to start recorder for video processing."
             )
             video_source.release()
+            return
+
+        # Update state
+        self.project_manager.update_video_status(video_path, "processing")
+        self.is_recording = True
+        self.active_frame_source = video_source
+        self.currently_processing_video = video_path
+        self.processing_start_time = time.time()
+
+        # Persist preferences
+        try:
+            interval_val = int(self.view.processing_interval_var.get())
+        except ValueError:
+            interval_val = 1
+        self.project_manager.project_data["last_processing_interval"] = interval_val
+        self.project_manager.project_data["last_show_preview"] = bool(
+            self.view.show_preview_var.get()
+        )
+        self.project_manager.save_project()
+        log.info(
+            "process_next_video.state_set",
+            video=video_path,
+            output=output_path,
+            interval=interval_val,
+            preview=self.view.show_preview_var.get(),
+        )
+
+        # Launch worker thread
+        self.processing_thread = threading.Thread(
+            target=self._file_processing_loop, name="ProcessingThread", daemon=True
+        )
+        self.processing_thread.start()
+
+        # UI init
+        self.view.update_button_state("process_video", "disabled")
+        self.view.update_button_state("cancel_processing", "normal")
+        self.view.set_status(f"Processing: {os.path.basename(video_path)}")
+        self.view.update_progress(0)
+        self.view.update_progress_stats(
+            total=video_props["frame_count"],
+            processed=0,
+            detected=0,
+            percent=0.0,
+            elapsed=0.0,
+            eta=-1,
+        )
+        log.info("process_next_video.thread_started")
 
     def _file_processing_loop(self):
-        """
-        Loop for processing a video file. This is the core logic that runs in a thread.
-        """
+        """Worker thread: processes a pre-recorded video file frame-by-frame."""
         import cv2
-
         from zebtrack.core.detector import draw_overlay
         from zebtrack.settings import settings
 
-        show_preview = self.view.show_preview_var.get()
         try:
             processing_interval = int(self.view.processing_interval_var.get())
         except ValueError:
             processing_interval = 1
         if processing_interval < 1:
             processing_interval = 1
+        show_preview = self.view.show_preview_var.get()
 
         video_source = self.active_frame_source
-        total_frames = video_source.get_properties()["frame_count"]
+        props = video_source.get_properties()
+        total_frames = props["frame_count"]
         frame_number = -1
+        detected_frames = 0
+        start_time = time.time()
 
         while not self.program_exit_event.is_set() and frame_number < total_frames:
             if frame_number < 0:
@@ -331,63 +380,116 @@ class AppController:
                 target_frame = offset if offset > 0 else 1
             else:
                 target_frame = frame_number + processing_interval
-
             if target_frame >= total_frames:
                 break
+
             video_source.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
             ret, frame = video_source.get_frame()
             if not ret:
                 break
             frame_number = target_frame
-            if not show_preview and total_frames > 0:
-                progress_percent = int((frame_number / total_frames) * 100)
-                video_name = os.path.basename(self.currently_processing_video)
-                status_msg = f"Processing: {video_name} ({progress_percent}%)"
-                self.root.after(
-                    0, self.view.update_progress, progress_percent
-                )
-                self.root.after(0, self.view.set_status, status_msg)
+
+            progress_percent = (frame_number / total_frames) * 100 if total_frames > 0 else 0
+            video_name = os.path.basename(self.currently_processing_video or "")
+            status_msg = f"Processing: {video_name} ({progress_percent:.1f}%)"
+            self.root.after(0, self.view.update_progress, progress_percent)
+            self.root.after(0, self.view.set_status, status_msg)
+
             detections, _ = self.detector.process_frame(frame, "pre-recorded")
             if detections:
-                props = video_source.get_properties()
+                detected_frames += 1
                 timestamp = frame_number / props["fps"] if props["fps"] > 0 else 0
                 self.recorder.write_detection_data(timestamp, frame_number, detections)
+
+            elapsed = time.time() - start_time
+            remaining = max(total_frames - frame_number, 0)
+            fps_est = (frame_number / elapsed) if elapsed > 0 else 0
+            eta = (remaining / fps_est) if fps_est > 0 else -1
+            self.root.after(
+                0,
+                lambda tf=total_frames, pf=frame_number, df=detected_frames, pp=progress_percent, el=elapsed, et=eta: self.view.update_progress_stats(
+                    total=tf, processed=pf, detected=df, percent=pp, elapsed=el, eta=et
+                ),
+            )
+
             if show_preview:
                 draw_overlay(frame, detections, self.detector)
-                cv2.imshow("File Processing", frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    self.program_exit_event.set()
-        if show_preview:
-            cv2.destroyAllWindows()
+                self.root.after(0, lambda f=frame.copy(): self.view.display_frame(f))
+
+        # Cleanup on main thread
         self.root.after(0, self.cleanup_after_processing)
 
-    def cleanup_after_processing(self):
-        """Cleans up resources after video processing is complete."""
-        video_name = os.path.basename(self.currently_processing_video)
-        log.info("video_processing.cleanup.start", video_name=video_name)
-
-        self.is_recording = False
-        self.recorder.stop_recording()
+    def cancel_processing(self):
+        """User-requested cancellation of current pre-recorded video processing."""
+        if not self.is_recording or not self.currently_processing_video:
+            return
         self.project_manager.update_video_status(
-            self.currently_processing_video, "complete"
+            self.currently_processing_video, "cancelled"
         )
-
+        self.program_exit_event.set()
+        if self.processing_thread and self.processing_thread.is_alive():
+            self.processing_thread.join(timeout=2)
+        self.program_exit_event.clear()
         if self.active_frame_source:
             self.active_frame_source.release()
             self.active_frame_source = None
-
+        self.recorder.stop_recording()
+        self.is_recording = False
         self.currently_processing_video = None
         self.view.update_button_state("process_video", "normal")
+        self.view.update_button_state("cancel_processing", "disabled")
         self.view.hide_progress_bar()
+        self.view.set_status(
+            f"Project: {self.project_manager.get_project_name()} - Cancelled"
+        )
 
+    def cleanup_after_processing(self):
+        """Finalize state after a video finishes processing (success path)."""
+        log.info("processing.cleanup.start")
+        # Stop recorder if still running
+        try:
+            if self.is_recording:
+                self.recorder.stop_recording()
+        except Exception as e:  # pragma: no cover - defensive
+            log.error("processing.cleanup.recorder_stop_error", error=str(e))
+
+        # Release video source
+        if self.active_frame_source:
+            try:
+                self.active_frame_source.release()
+            except Exception as e:  # pragma: no cover
+                log.error("processing.cleanup.source_release_error", error=str(e))
+            self.active_frame_source = None
+
+        # Mark video complete if still in 'processing'
+        if self.currently_processing_video:
+            # Only update if not cancelled earlier
+            for v in self.project_manager.project_data.get("videos", []):
+                if v.get("path") == self.currently_processing_video and v.get("status") == "processing":
+                    self.project_manager.update_video_status(
+                        self.currently_processing_video, "complete"
+                    )
+                    break
+
+        finished_video = os.path.basename(self.currently_processing_video) if self.currently_processing_video else "?"
+        self.currently_processing_video = None
+        self.is_recording = False
+
+        # UI updates
+        self.view.update_button_state("process_video", "normal")
+        self.view.update_button_state("cancel_processing", "disabled")
+
+        # Decide status message
         next_video = self.project_manager.get_next_video()
         if next_video:
-            status_msg = f"Ready to process: {os.path.basename(next_video)}"
-            self.view.set_status(
-                f"Project: {self.project_manager.get_project_name()} - {status_msg}"
-            )
+            msg = f"Finished: {finished_video}. Ready for next video."
         else:
-            status_msg = "All videos processed."
-            self.view.set_status(
-                f"Project: {self.project_manager.get_project_name()} - {status_msg}"
-            )
+            msg = f"Finished: {finished_video}. All videos processed."
+        self.view.set_status(
+            f"Project: {self.project_manager.get_project_name()} - {msg}"
+        )
+
+        # Optionally hide progress bar after completion (comment out if you want it to stay)
+        self.view.hide_progress_bar()
+
+        log.info("processing.cleanup.done", next_pending=bool(next_video))

@@ -236,6 +236,18 @@ class ProjectManager:
                 return self.save_project()
         return False
 
+    def reset_all_video_statuses(self, to_status: str = "pending"):
+        """Reset every video status to a given value (default 'pending')."""
+        changed = False
+        for video in self.project_data.get("videos", []):
+            if video.get("status") != to_status:
+                video["status"] = to_status
+                changed = True
+        if changed:
+            log.info("video.status.reset_all", to_status=to_status)
+            self.save_project()
+        return changed
+
     def get_next_video(self):
         """
         Returns the path of the next video with 'pending' status.

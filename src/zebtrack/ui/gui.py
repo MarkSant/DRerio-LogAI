@@ -49,10 +49,17 @@ class ApplicationGUI:
         self.root.title("Zebtrack Controller")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
+        # Dynamic widgets / state variables
         self.welcome_frame = None
         self.main_controls_frame = None
         self.status_var = StringVar()
+        # Progress + stats (created later)
+        self.progress_frame: Frame | None = None
         self.progress_bar = None
+        self.progress_labels: dict[str, StringVar] = {}
+        self.video_label: Label | None = None
+
+        # User options
         self.processing_interval_var = StringVar(
             value=str(settings.video_processing.processing_interval)
         )
@@ -131,6 +138,13 @@ class ApplicationGUI:
                 command=self.controller.process_next_video,
             )
             self.process_video_btn.pack(side="left", padx=5)
+            self.cancel_proc_btn = Button(
+                button_frame,
+                text="Cancel",
+                state="disabled",
+                command=self.controller.cancel_processing,
+            )
+            self.cancel_proc_btn.pack(side="left", padx=5)
 
             options_frame = Frame(prerecorded_controls_frame)
             options_frame.pack(fill="x", padx=5, pady=2)
@@ -157,11 +171,38 @@ class ApplicationGUI:
         status_frame = Frame(self.root)
         status_frame.pack(pady=5, fill="x", padx=10)
         Label(status_frame, textvariable=self.status_var).pack()
+
+        # Progress + video frame (hidden until needed)
+        self._build_progress_frame()
+
+    def _build_progress_frame(self):
+        if self.progress_frame:
+            self.progress_frame.destroy()
+        self.progress_frame = Frame(self.root)
+        # Video preview area (placed above bar as requested: bar below video)
+        self.video_label = Label(self.progress_frame)
+        self.video_label.pack(pady=3)
         self.progress_bar = ttk.Progressbar(
-            status_frame, orient="horizontal", length=300, mode="determinate"
+            self.progress_frame, orient="horizontal", length=400, mode="determinate"
         )
-        self.progress_bar.pack(pady=5)
-        self.progress_bar.pack_forget()  # Hide it initially
+        self.progress_bar.pack(pady=3, fill="x")
+        stats_container = Frame(self.progress_frame)
+        stats_container.pack(fill="x")
+        for key, label_text in [
+            ("total", "Total Frames:"),
+            ("processed", "Processed:"),
+            ("detected", "Detected Frames:"),
+            ("percent", "Completed:"),
+            ("elapsed", "Elapsed:"),
+            ("eta", "ETA:"),
+        ]:
+            f = Frame(stats_container)
+            f.pack(side="left", padx=5)
+            Label(f, text=label_text).pack(anchor="w")
+            var = StringVar(value="-")
+            Label(f, textvariable=var).pack(anchor="w")
+            self.progress_labels[key] = var
+        self.progress_frame.pack_forget()
 
     def _load_project_view(self):
         """
@@ -170,6 +211,23 @@ class ApplicationGUI:
         """
         pm = self.controller.project_manager
         use_openvino = pm.project_data.get("use_openvino", False)
+
+        # Load persisted user preferences if present
+        if pm.get_project_type() == "pre-recorded":
+            if pm.project_data.get("last_processing_interval") is not None:
+                try:
+                    self.processing_interval_var.set(
+                        str(int(pm.project_data["last_processing_interval"]))
+                    )
+                except (ValueError, TypeError):
+                    pass
+            if pm.project_data.get("last_show_preview") is not None:
+                try:
+                    self.show_preview_var.set(
+                        bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
 
         try:
             if use_openvino:
@@ -481,15 +539,73 @@ class ApplicationGUI:
     def update_progress(self, value):
         """Updates the progress bar."""
         if self.progress_bar:
-            if not self.progress_bar.winfo_viewable():
-                self.progress_bar.pack(pady=5)
+            if not self.progress_frame.winfo_viewable():
+                self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = value
             self.root.update_idletasks()
 
+    def update_progress_stats(
+        self,
+        *,
+        total=None,
+        processed=None,
+        detected=None,
+        percent=None,
+        elapsed=None,
+        eta=None,
+    ):
+        """Update textual statistics for file processing."""
+        if not self.progress_labels:
+            return
+        if total is not None:
+            self.progress_labels["total"].set(str(total))
+        if processed is not None:
+            self.progress_labels["processed"].set(str(processed))
+        if detected is not None:
+            self.progress_labels["detected"].set(str(detected))
+        if percent is not None:
+            self.progress_labels["percent"].set(f"{percent:.1f}%")
+        if elapsed is not None:
+            self.progress_labels["elapsed"].set(self._format_time(elapsed))
+        if eta is not None:
+            self.progress_labels["eta"].set(self._format_time(eta) if eta >= 0 else "-")
+
     def hide_progress_bar(self):
         """Hides the progress bar."""
-        if self.progress_bar:
-            self.progress_bar.pack_forget()
+        if self.progress_frame and self.progress_frame.winfo_viewable():
+            self.progress_frame.pack_forget()
+
+    def display_frame(self, frame):
+        """Display a video frame inside the GUI (used for preview)."""
+        try:
+            import cv2
+            try:
+                from PIL import Image, ImageTk  # type: ignore
+                # Convert and embed
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(frame_rgb)
+                imgtk = ImageTk.PhotoImage(image=img)
+                if self.video_label:
+                    self.video_label.configure(image=imgtk)
+                    self.video_label.image = imgtk  # keep reference
+            except ImportError:
+                # Fallback to OpenCV window if Pillow not installed
+                cv2.imshow("Preview", frame)
+                cv2.waitKey(1)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        if seconds is None or seconds < 0:
+            return "-"
+        m, s = divmod(int(seconds), 60)
+        h, m = divmod(m, 60)
+        if h:
+            return f"{h:d}h {m:02d}m {s:02d}s"
+        if m:
+            return f"{m:d}m {s:02d}s"
+        return f"{s:d}s"
 
     def show_error(self, title, message):
         """Shows an error message box."""
@@ -527,6 +643,8 @@ class ApplicationGUI:
             self.stop_rec_btn.config(state=state)
         elif button_name == "process_video" and hasattr(self, 'process_video_btn'):
             self.process_video_btn.config(state=state)
+        elif button_name == "cancel_processing" and hasattr(self, 'cancel_proc_btn'):
+            self.cancel_proc_btn.config(state=state)
 
     def ask_recording_details(self, group_names):
         """Shows a dialog to get group and cobaia number from the user."""
