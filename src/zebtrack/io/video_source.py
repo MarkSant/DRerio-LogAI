@@ -3,35 +3,26 @@ Este módulo fornece a classe VideoFileSource, um wrapper conveniente em torno
 do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
 """
 
-import logging
 import os
 from typing import Any, Dict, Tuple
 
 import cv2
 import numpy as np
+import structlog
 
 from zebtrack.io.frame_source import FrameSource
+
+log = structlog.get_logger()
 
 
 class VideoFileSource(FrameSource):
     """
     Representa um arquivo de vídeo como uma fonte de quadros.
-
-    Esta classe encapsula um objeto `cv2.VideoCapture` para abrir um arquivo de
-    vídeo, ler suas propriedades (largura, altura, FPS), e fornecer quadros
-    um por um.
     """
 
     def __init__(self, video_path: str):
         """
         Inicializa a fonte de vídeo a partir de um caminho de arquivo.
-
-        Args:
-            video_path (str): O caminho para o arquivo de vídeo.
-
-        Raises:
-            FileNotFoundError: Se o arquivo de vídeo não for encontrado.
-            IOError: Se o arquivo de vídeo não puder ser aberto pelo OpenCV.
         """
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found at: {video_path}")
@@ -42,29 +33,25 @@ class VideoFileSource(FrameSource):
         if not self.cap.isOpened():
             raise IOError(f"Cannot open video file: {video_path}")
 
-        # Store video properties
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         if self.fps == 0:
-            print("Warning: Video FPS is 0. Defaulting to 30.")
+            log.warning("video.fps.zero", path=video_path)
             self.fps = 30
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        logging.info(f"Video source loaded: {os.path.basename(video_path)}")
-        logging.info(
-            f"Properties: {self.width}x{self.height} @ {self.fps:.2f} FPS, "
-            f"{self.frame_count} frames total."
+        log.info(
+            "video.source.loaded",
+            path=video_path,
+            width=self.width,
+            height=self.height,
+            fps=self.fps,
+            frame_count=self.frame_count,
         )
 
     def get_frame(self) -> Tuple[bool, np.ndarray | None]:
-        """
-        Reads the next frame from the video file.
-
-        Returns:
-            A tuple containing a boolean (success) and the frame (numpy array).
-            Returns (False, None) at the end of the video.
-        """
+        """Reads the next frame from the video file."""
         ret, frame = self.cap.read()
         if not ret:
             return False, None
@@ -75,13 +62,7 @@ class VideoFileSource(FrameSource):
         return self.cap.get(cv2.CAP_PROP_POS_FRAMES)
 
     def get_properties(self) -> Dict[str, Any]:
-        """
-        Retorna um dicionário com as propriedades do vídeo.
-
-        Returns:
-            dict: Um dicionário contendo largura, altura, FPS e contagem total
-                  de quadros.
-        """
+        """Returns a dictionary with the video properties."""
         return {
             "width": self.width,
             "height": self.height,
@@ -90,16 +71,15 @@ class VideoFileSource(FrameSource):
         }
 
     def release(self) -> None:
-        """Libera o recurso do arquivo de vídeo."""
+        """Releases the video file resource."""
         if self.cap.isOpened():
             self.cap.release()
-            logging.info(f"Video source released: {os.path.basename(self.video_path)}")
+            log.info("video.source.released", path=self.video_path)
 
 
 if __name__ == "__main__":
     print("Testing VideoFileSource...")
 
-    # Create a dummy video file for testing since we can't assume one exists.
     test_video_path = "test_video.mp4"
     frame_width, frame_height = 640, 480
     fps = 30
@@ -110,10 +90,8 @@ if __name__ == "__main__":
     if not writer.isOpened():
         print("Failed to create a dummy video writer.")
     else:
-        # Write 100 black frames with a frame number
         for i in range(100):
-            frame = cv2.UMat(frame_height, frame_width, cv2.CV_8UC3)
-            frame.setTo(0)
+            frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
             text = f"Frame {i + 1}"
             cv2.putText(
                 frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2
@@ -122,35 +100,27 @@ if __name__ == "__main__":
         writer.release()
         print(f"Created a dummy video file: {test_video_path}")
 
-        # Now, test the VideoFileSource with the created file
         try:
             video_source = VideoFileSource(test_video_path)
-
             frame_counter = 0
             while True:
                 ret, frame = video_source.get_frame()
                 if not ret:
                     print("\nEnd of video reached.")
                     break
-
                 frame_counter += 1
-                # To test, we can just show a few frames
                 if frame_counter <= 5 or frame_counter >= 95:
                     reported_frame = video_source.get_current_frame_number()
                     print(
                         f"Read frame number: {frame_counter} "
                         f"(reported: {reported_frame})"
                     )
-                    # cv2.imshow("Test Video", frame) # Can't show in this env
-                    # cv2.waitKey(30)
 
             print(f"\nTotal frames read: {frame_counter}")
             video_source.release()
-
         except (FileNotFoundError, IOError) as e:
             print(f"Error: {e}")
         finally:
-            # Clean up the dummy video file
             if os.path.exists(test_video_path):
                 os.remove(test_video_path)
                 print(f"Cleaned up dummy video file: {test_video_path}")

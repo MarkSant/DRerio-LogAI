@@ -6,18 +6,19 @@ handling business logic, and coordinating between the user interface (View)
 and the backend modules (Model).
 """
 
-import logging
 import os
 import queue
 import threading
-import time
-from tkinter import messagebox
+
+import structlog
 
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
 from zebtrack.ui.gui import ApplicationGUI
+
+log = structlog.get_logger()
 
 
 class AppController:
@@ -61,25 +62,22 @@ class AppController:
         self.processing_thread = None
         self.video_thread = None
 
-        logging.info("AppController initialized with backend modules and state.")
+        log.info("controller.init.success")
 
     def run(self):
         """
         Starts the application's main loop.
         """
-        logging.info("Starting main UI loop.")
+        log.info("ui.mainloop.start")
         self.root.mainloop()
 
     def on_close(self):
         """Handles the application shutdown process."""
-        logging.info("Close button clicked.")
+        log.info("ui.close_button.clicked")
         if self.view.ask_ok_cancel("Quit", "Do you want to exit the program?"):
-            logging.info("User confirmed quit.")
+            log.info("user.quit.confirmed")
 
             self.program_exit_event.set()
-
-            # if self.is_recording and self.project_manager.get_project_type() == "live":
-            #     self.stop_recording() # This will be moved later
 
             self.join_threads()
 
@@ -92,11 +90,11 @@ class AppController:
             self.arduino.close()
 
             self.root.destroy()
-            logging.info("Application shutdown complete.")
+            log.info("application.shutdown.complete")
 
     def join_threads(self):
         """Waits for all core threads to finish."""
-        logging.info("Waiting for core threads to join.")
+        log.info("threads.join.start")
         if (
             hasattr(self, "capture_thread")
             and self.capture_thread
@@ -115,7 +113,7 @@ class AppController:
             and self.video_thread.is_alive()
         ):
             self.video_thread.join(timeout=5)
-        logging.info("Core threads joined.")
+        log.info("threads.join.finished")
 
     def stop_recording(self):
         """Stops the recording for a 'live' project."""
@@ -123,21 +121,21 @@ class AppController:
         self.is_capturing_for_video = False
         self.video_stop_event.set()
 
-        # We need to join the video_thread here
         if hasattr(self, "video_thread") and self.video_thread.is_alive():
             self.video_thread.join(timeout=5)
 
         self.recorder.stop_recording()
 
-        # Update the view
         self.view.update_button_state("start_rec", "normal")
         self.view.update_button_state("stop_rec", "disabled")
-        self.view.set_status(f"Project: {self.project_manager.get_project_name()} (live) - Ready")
+        self.view.set_status(
+            f"Project: {self.project_manager.get_project_name()} (live) - Ready"
+        )
         self.view.show_info("Success", "Recording stopped and files saved.")
 
     def close_project(self):
         """Closes the current project and returns to the welcome screen."""
-        logging.info("Closing project.")
+        log.info("project.close.start")
         self.program_exit_event.set()
 
         if self.is_recording and self.project_manager.get_project_type() == "live":
@@ -153,14 +151,14 @@ class AppController:
             self.active_frame_source.release()
             self.active_frame_source = None
 
-        # Reset the project manager for the next project
         self.project_manager = ProjectManager()
 
-        # Tell the view to go back to the welcome screen
         self.view.create_welcome_frame()
-        logging.info("Project closed and welcome screen recreated.")
+        log.info("project.close.finished")
 
-    def create_project_workflow(self, project_path, project_type, use_openvino, video_files):
+    def create_project_workflow(
+        self, project_path, project_type, use_openvino, video_files
+    ):
         """Handles the logic of creating a new project."""
         success = self.project_manager.create_new_project(
             project_path,
@@ -169,8 +167,6 @@ class AppController:
             video_files=video_files,
         )
         if success:
-            # This method still lives in the view, we need to move it.
-            # For now, we call it on the view.
             self.view._load_project_view()
         else:
             self.view.show_error("Error", "Failed to create the new project.")
@@ -180,18 +176,24 @@ class AppController:
         if self.project_manager.load_project(project_path):
             self.view._load_project_view()
         else:
-            self.view.show_error("Error", "Failed to load the project. Check if it's a valid project folder.")
+            self.view.show_error(
+                "Error",
+                "Failed to load the project. Check if it's a valid project folder.",
+            )
 
     def start_recording(self):
         """Handles the business logic for starting a recording session."""
         if not self.project_manager.project_data.get("groups"):
-            self.view.show_warning("Setup Required", "Please define groups for this project first.")
+            self.view.show_warning(
+                "Setup Required", "Please define groups for this project first."
+            )
             return
 
-        # Ask the view to get details from the user
-        details = self.view.ask_recording_details(self.project_manager.project_data["groups"])
+        details = self.view.ask_recording_details(
+            self.project_manager.project_data["groups"]
+        )
         if not details:
-            return # User cancelled
+            return
 
         group_name, cobaia_number = details
         output_folder = os.path.join(
@@ -217,7 +219,6 @@ class AppController:
             )
             self.video_thread.start()
 
-            # Update the view
             self.view.update_button_state("start_rec", "disabled")
             self.view.update_button_state("stop_rec", "normal")
             self.view.set_status(f"Recording to: {os.path.basename(output_folder)}")
@@ -228,14 +229,14 @@ class AppController:
         """
         Loop executed in a thread to write video frames to a file.
         """
-        logging.info("Video recording thread started.")
+        log.info("video_thread.start")
         while not self.video_stop_event.is_set():
             try:
                 frame = self.video_queue.get(timeout=1)
                 self.recorder.write_video_frame(frame)
             except queue.Empty:
                 continue
-        logging.info("Video recording thread finished.")
+        log.info("video_thread.finished")
 
     def process_next_video(self):
         """Handles the business logic for processing the next pre-recorded video."""
@@ -245,14 +246,20 @@ class AppController:
 
         video_path = self.project_manager.get_next_video()
         if not video_path:
-            self.view.show_info("Project Complete", "All videos in this project have been processed.")
+            self.view.show_info(
+                "Project Complete", "All videos in this project have been processed."
+            )
             return
 
         if not self.project_manager.project_data.get("groups"):
-            self.view.show_warning("Setup Required", "Please define groups for this project first.")
+            self.view.show_warning(
+                "Setup Required", "Please define groups for this project first."
+            )
             return
 
-        details = self.view.ask_recording_details(self.project_manager.project_data["groups"])
+        details = self.view.ask_recording_details(
+            self.project_manager.project_data["groups"]
+        )
         if not details:
             return
 
@@ -269,7 +276,9 @@ class AppController:
 
         video_basename = os.path.splitext(os.path.basename(video_path))[0]
         output_folder_name = f"{video_basename}_{group_name}_{cobaia_number}"
-        output_path = os.path.join(self.project_manager.project_path, output_folder_name)
+        output_path = os.path.join(
+            self.project_manager.project_path, output_folder_name
+        )
 
         success = self.recorder.start_recording(
             output_path, video_props["width"], video_props["height"], is_video_file=True
@@ -289,16 +298,19 @@ class AppController:
             self.view.update_button_state("process_video", "disabled")
             self.view.set_status(f"Processing: {os.path.basename(video_path)}")
         else:
-            self.view.show_error("Error", "Failed to start recorder for video processing.")
+            self.view.show_error(
+                "Error", "Failed to start recorder for video processing."
+            )
             video_source.release()
 
     def _file_processing_loop(self):
         """
         Loop for processing a video file. This is the core logic that runs in a thread.
         """
-        from zebtrack.settings import settings
-        from zebtrack.core.detector import draw_overlay
         import cv2
+
+        from zebtrack.core.detector import draw_overlay
+        from zebtrack.settings import settings
 
         show_preview = self.view.show_preview_var.get()
         try:
@@ -313,11 +325,12 @@ class AppController:
         frame_number = -1
 
         while not self.program_exit_event.is_set() and frame_number < total_frames:
-            target_frame = (
-                (settings.video_processing.processing_offset if settings.video_processing.processing_offset > 0 else 1)
-                if frame_number < 0
-                else frame_number + processing_interval
-            )
+            if frame_number < 0:
+                offset = settings.video_processing.processing_offset
+                target_frame = offset if offset > 0 else 1
+            else:
+                target_frame = frame_number + processing_interval
+
             if target_frame >= total_frames:
                 break
             video_source.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
@@ -347,7 +360,7 @@ class AppController:
     def cleanup_after_processing(self):
         """Cleans up resources after video processing is complete."""
         video_name = os.path.basename(self.currently_processing_video)
-        logging.info(f"Cleaning up after processing video: {video_name}.")
+        log.info("video_processing.cleanup.start", video_name=video_name)
 
         self.is_recording = False
         self.recorder.stop_recording()
@@ -365,7 +378,11 @@ class AppController:
         next_video = self.project_manager.get_next_video()
         if next_video:
             status_msg = f"Ready to process: {os.path.basename(next_video)}"
-            self.view.set_status(f"Project: {self.project_manager.get_project_name()} - {status_msg}")
+            self.view.set_status(
+                f"Project: {self.project_manager.get_project_name()} - {status_msg}"
+            )
         else:
             status_msg = "All videos processed."
-            self.view.set_status(f"Project: {self.project_manager.get_project_name()} - {status_msg}")
+            self.view.set_status(
+                f"Project: {self.project_manager.get_project_name()} - {status_msg}"
+            )

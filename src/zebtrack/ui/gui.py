@@ -2,7 +2,6 @@
 Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack.
 """
 
-import logging
 import os
 import queue
 import threading
@@ -23,41 +22,32 @@ from tkinter import (
 )
 
 import cv2
+import structlog
 
 # Import custom modules
 from zebtrack.core.detector import Detector, draw_overlay
 from zebtrack.io.camera import Camera
 from zebtrack.io.video_source import VideoFileSource
+from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
+
+log = structlog.get_logger()
 
 
 class ApplicationGUI:
     """
     A classe principal que gerencia a interface gráfica (a "Visão").
-
-    Esta classe é responsável por:
-    - Construir a janela principal e os widgets da interface.
-    - Exibir o estado da aplicação conforme ditado pelo AppController.
-    - Encaminhar as ações do usuário (cliques de botão, etc.) para o AppController.
     """
 
     def __init__(self, root, controller):
         """
         Inicializa a ApplicationGUI.
-
-        Args:
-            root (tk.Tk): A janela raiz do Tkinter para a aplicação.
-            controller (AppController): A instância do controlador principal.
         """
         self.root = root
         self.controller = controller
         self.root.title("Zebtrack Controller")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
-        # A inicialização dos módulos de backend e o gerenciamento de estado
-        # são de responsabilidade do AppController.
-
-        # --- Variáveis de UI ---
         self.welcome_frame = None
         self.main_controls_frame = None
         self.status_var = StringVar()
@@ -114,13 +104,13 @@ class ApplicationGUI:
             self.start_rec_btn = Button(
                 self.main_controls_frame,
                 text="Start Recording",
-                command=self.controller.start_recording, # Delegated
+                command=self.controller.start_recording,
             )
             self.start_rec_btn.pack(side="left", padx=5)
             self.stop_rec_btn = Button(
                 self.main_controls_frame,
                 text="Stop Recording",
-                command=self.controller.stop_recording, # Delegated
+                command=self.controller.stop_recording,
                 state="disabled",
             )
             self.stop_rec_btn.pack(side="left", padx=5)
@@ -151,45 +141,83 @@ class ApplicationGUI:
             ).pack(side="left", padx=10)
 
         Button(
-            self.main_controls_frame, text="Close Project", command=self.controller.close_project # Delegated
+            self.main_controls_frame,
+            text="Close Project",
+            command=self.controller.close_project,
         ).pack(side="left", padx=5)
 
         status_text = (
-            f"Project: {self.controller.project_manager.get_project_name()} ({project_type})"
+            f"Project: {self.controller.project_manager.get_project_name()} "
+            f"({project_type})"
         )
         self.status_var.set(status_text)
         Label(self.root, textvariable=self.status_var).pack(pady=5)
 
     def _load_project_view(self):
         """
-        Transiciona da tela de boas-vindas para a visualização de controle principal.
+        Transitions from the welcome screen to the main control view and
+        initializes the detector with the appropriate plugin.
         """
-        self.controller.detector = Detector(self.controller.project_manager)
+        pm = self.controller.project_manager
+        use_openvino = pm.project_data.get("use_openvino", False)
+
+        try:
+            if use_openvino:
+                plugin_name = "OpenVINO"
+                model_path = pm.project_data.get("openvino_model_path")
+                if not model_path or not os.path.exists(model_path):
+                    raise ValueError("OpenVINO model path not found or invalid.")
+            else:
+                plugin_name = "YOLOv8 (Ultralytics)"
+                model_path = settings.yolo_model.path
+
+            plugin_class = DETECTOR_PLUGINS.get(plugin_name)
+            if not plugin_class:
+                raise ValueError(f"Detector plugin '{plugin_name}' not found.")
+
+            plugin_instance = plugin_class(model_path=model_path)
+            self.controller.detector = Detector(plugin=plugin_instance)
+
+        except (ValueError, FileNotFoundError) as e:
+            log.error("detector.init.failed", error=str(e), exc_info=True)
+            self.show_error(
+                "Detector Error", f"Failed to initialize the detector: {e}"
+            )
+            self._create_welcome_frame()
+            return
 
         self._create_main_control_frame()
 
-        project_type = self.controller.project_manager.get_project_type()
+        project_type = pm.get_project_type()
         if project_type == "live":
             if not self.controller.arduino.connect():
-                self.show_warning("Arduino Warning", "Could not connect to Arduino. Running in offline mode.")
+                self.show_warning(
+                    "Arduino Warning",
+                    "Could not connect to Arduino. Running in offline mode.",
+                )
             try:
                 self.controller.camera = Camera()
                 self.controller.active_frame_source = self.controller.camera
                 self.controller.detector.update_scaling(
-                    self.controller.camera.actual_width, self.controller.camera.actual_height
+                    self.controller.camera.actual_width,
+                    self.controller.camera.actual_height,
                 )
             except IOError as e:
                 self.show_error("Camera Error", str(e))
                 self._create_welcome_frame()
                 return
         elif project_type == "pre-recorded":
-            next_video = self.controller.project_manager.get_next_video()
+            next_video = pm.get_next_video()
             if next_video is None:
                 self.process_video_btn.config(state="disabled")
-                self.set_status(f"Project: {self.controller.project_manager.get_project_name()} - All videos processed.")
+                self.set_status(
+                    f"Project: {pm.get_project_name()} - All videos processed."
+                )
             else:
                 video_name = os.path.basename(next_video)
-                self.set_status(f"Project: {self.controller.project_manager.get_project_name()} - Ready to process: {video_name}")
+                self.set_status(
+                    f"Project: {pm.get_project_name()} - Ready to process: {video_name}"
+                )
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
@@ -213,7 +241,7 @@ class ApplicationGUI:
 
             ret, frame = self.controller.active_frame_source.get_frame()
             if not ret:
-                logging.error("Capture thread: Failed to get frame from live source.")
+                log.error("gui.capture_thread.get_frame_failed")
                 time.sleep(0.5)
                 continue
 
@@ -221,7 +249,10 @@ class ApplicationGUI:
 
             if not self.controller.frame_queue.full():
                 self.controller.frame_queue.put((live_frame_count, frame.copy()))
-            if self.controller.is_capturing_for_video and not self.controller.video_queue.full():
+            if (
+                self.controller.is_capturing_for_video
+                and not self.controller.video_queue.full()
+            ):
                 self.controller.video_queue.put(frame.copy())
 
             time.sleep(1 / (settings.video_processing.fps * 1.5))
@@ -237,7 +268,9 @@ class ApplicationGUI:
                 continue
 
             if self.controller.is_processing:
-                detections, command = self.controller.detector.process_frame(frame, "live")
+                detections, command = self.controller.detector.process_frame(
+                    frame, "live"
+                )
                 if command is not None:
                     self.controller.arduino.send_command(command)
                 if self.controller.is_recording and detections:
@@ -252,7 +285,7 @@ class ApplicationGUI:
                 self.controller.on_close()
                 break
         cv2.destroyAllWindows()
-        logging.info("Live processing loop finished and destroyed CV2 windows.")
+        log.info("gui.live_processing_loop.finished")
 
     def _file_processing_loop(self):
         """
@@ -261,7 +294,7 @@ class ApplicationGUI:
         if not self.controller.is_recording or not isinstance(
             self.controller.active_frame_source, VideoFileSource
         ):
-            logging.error("File processing loop started in an invalid state.")
+            log.error("gui.file_processing_loop.invalid_state")
             return
 
         show_preview = self.show_preview_var.get()
@@ -277,7 +310,10 @@ class ApplicationGUI:
         total_frames = video_source.get_properties()["frame_count"]
         frame_number = -1
 
-        while not self.controller.program_exit_event.is_set() and frame_number < total_frames:
+        while (
+            not self.controller.program_exit_event.is_set()
+            and frame_number < total_frames
+        ):
             target_frame = (
                 (
                     settings.video_processing.processing_offset
@@ -297,23 +333,28 @@ class ApplicationGUI:
                 break
 
             frame_number = target_frame
-            logging.info(f"Processing frame {frame_number}...")
+            log.info("gui.file_processing_loop.progress", frame=frame_number)
 
             if not show_preview and total_frames > 0:
                 progress_percent = int((frame_number / total_frames) * 100)
-                video_name = os.path.basename(self.controller.currently_processing_video)
+                video_name = os.path.basename(
+                    self.controller.currently_processing_video
+                )
                 status_msg = f"Processing: {video_name} ({progress_percent}%)"
                 self.root.after(0, self.status_var.set, status_msg)
 
-            detections, _ = self.controller.detector.process_frame(frame, "pre-recorded")
+            detections, _ = self.controller.detector.process_frame(
+                frame, "pre-recorded"
+            )
             if detections:
                 props = video_source.get_properties()
                 timestamp = frame_number / props["fps"] if props["fps"] > 0 else 0
-                self.controller.recorder.write_detection_data(timestamp, frame_number, detections)
+                self.controller.recorder.write_detection_data(
+                    timestamp, frame_number, detections
+                )
 
             if show_preview:
                 draw_overlay(frame, detections, self.controller.detector)
-                # ... (drawing logic remains the same)
                 cv2.imshow("File Processing", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self.controller.program_exit_event.set()
@@ -330,13 +371,18 @@ class ApplicationGUI:
         if not base_path:
             return
 
-        project_name = self.ask_string("Project Name", "Enter a name for the new project:")
+        project_name = self.ask_string(
+            "Project Name", "Enter a name for the new project:"
+        )
         if not project_name:
             return
 
         project_path = os.path.join(base_path, project_name)
         if os.path.exists(project_path) and os.listdir(project_path):
-            self.show_error("Error", "A project folder with this name already exists and is not empty.")
+            self.show_error(
+                "Error",
+                "A project folder with this name already exists and is not empty.",
+            )
             return
 
         type_window = Toplevel(self.root)
@@ -349,10 +395,14 @@ class ApplicationGUI:
             variable=self.use_openvino_var,
         ).pack(padx=20, pady=5)
         Button(
-            type_window, text="Live Analysis", command=lambda: [type_var.set("live"), type_window.destroy()]
+            type_window,
+            text="Live Analysis",
+            command=lambda: [type_var.set("live"), type_window.destroy()],
         ).pack(fill="x", padx=20, pady=5)
         Button(
-            type_window, text="Pre-recorded Analysis", command=lambda: [type_var.set("pre-recorded"), type_window.destroy()]
+            type_window,
+            text="Pre-recorded Analysis",
+            command=lambda: [type_var.set("pre-recorded"), type_window.destroy()],
         ).pack(fill="x", padx=20, pady=5)
         self.root.wait_window(type_window)
         project_type = type_var.get()
@@ -362,14 +412,18 @@ class ApplicationGUI:
 
         video_files = []
         if project_type == "pre-recorded":
-            video_files = self.ask_open_filenames(title="Select Video Files", filetypes=[("Video files", "*.mp4 *.avi")])
+            video_files = self.ask_open_filenames(
+                title="Select Video Files",
+                filetypes=[("Video files", "*.mp4 *.avi")],
+            )
             if not video_files:
                 return
 
         use_openvino = self.use_openvino_var.get()
 
-        # Delegate the logic to the controller
-        self.controller.create_project_workflow(project_path, project_type, use_openvino, video_files)
+        self.controller.create_project_workflow(
+            project_path, project_type, use_openvino, video_files
+        )
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
@@ -377,22 +431,30 @@ class ApplicationGUI:
         if not project_path:
             return
 
-        # Delegate the logic to the controller
         self.controller.open_project_workflow(project_path)
 
     def _define_groups(self):
         """Permite que o usuário defina nomes para os grupos de tratamento."""
-        group_count = self.ask_string("Number of Groups", "Enter the total number of groups:")
+        group_count = self.ask_string(
+            "Number of Groups", "Enter the total number of groups:"
+        )
         if group_count is not None:
-            group_names = []
-            for i in range(int(group_count)):
-                name = self.ask_string("Group Name", f"Enter name for group {i + 1}:")
-                if name:
-                    group_names.append(name)
-            self.controller.project_manager.project_data["groups"] = group_names
-            self.controller.project_manager.save_project()
-            self.show_info("Success", "Group names have been updated.")
-
+            try:
+                num_groups = int(group_count)
+                group_names = []
+                for i in range(num_groups):
+                    name = self.ask_string(
+                        "Group Name", f"Enter name for group {i + 1}:"
+                    )
+                    if name:
+                        group_names.append(name)
+                self.controller.project_manager.project_data["groups"] = group_names
+                self.controller.project_manager.save_project()
+                self.show_info("Success", "Group names have been updated.")
+            except (ValueError, TypeError):
+                self.show_error(
+                    "Invalid Input", "Please enter a valid number for the group count."
+                )
 
     def _on_close(self):
         """Delegates the close action to the controller."""
@@ -402,7 +464,6 @@ class ApplicationGUI:
         """Delegates thread joining to the controller."""
         self.controller.join_threads()
 
-    # --- View Helper Methods ---
     def set_status(self, text):
         """Updates the UI status bar."""
         self.status_var.set(text)
@@ -437,11 +498,11 @@ class ApplicationGUI:
 
     def update_button_state(self, button_name, state):
         """Updates the state of a button ('normal' or 'disabled')."""
-        if button_name == "start_rec":
+        if button_name == "start_rec" and hasattr(self, 'start_rec_btn'):
             self.start_rec_btn.config(state=state)
-        elif button_name == "stop_rec":
+        elif button_name == "stop_rec" and hasattr(self, 'stop_rec_btn'):
             self.stop_rec_btn.config(state=state)
-        elif button_name == "process_video":
+        elif button_name == "process_video" and hasattr(self, 'process_video_btn'):
             self.process_video_btn.config(state=state)
 
     def ask_recording_details(self, group_names):
@@ -473,5 +534,6 @@ class ApplicationGUI:
 
 
 if __name__ == "__main__":
+    # Using print is fine here as it's for direct execution feedback
     print("This file is intended to be imported, not run directly.")
-    print("Run main.py to start the application.")
+    print("Run the main application script to start Zebtrack.")

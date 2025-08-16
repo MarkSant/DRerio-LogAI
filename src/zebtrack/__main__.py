@@ -1,6 +1,8 @@
 import logging
 import tkinter as tk
 
+import structlog
+
 from zebtrack.core.controller import AppController
 from zebtrack.settings import settings
 from zebtrack.utils import set_seed
@@ -10,30 +12,53 @@ def main():
     """
     Initializes and runs the application.
     """
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(threadName)s - %(name)s - %(levelname)s - %(message)s",
-        filename="analysis.log",
-        filemode="w",  # Overwrite log file on each run
+    # Configure logging with structlog
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer()
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
     )
 
-    # Set seed for reproducibility before anything else
-    if settings and settings.reproducibility:
-        set_seed(settings.reproducibility.seed)
+    # Route standard library logs to structlog
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        handlers=[logging.FileHandler("analysis.log", mode="w")],
+    )
 
-    logging.info("Application starting.")
+    log = structlog.get_logger()
+
+    # Set seed for reproducibility before anything else
+    if settings and settings.reproducibility and settings.reproducibility.seed:
+        set_seed(settings.reproducibility.seed)
+        log.info("reproducibility.seed.set", seed=settings.reproducibility.seed)
+
+    log.info("application.starting", component="main")
 
     try:
         root = tk.Tk()
         controller = AppController(root)
         controller.run()
-    except Exception as e:
-        logging.critical("An unhandled exception occurred.", exc_info=True)
+    except Exception:
+        log.critical("unhandled.exception", exc_info=True)
         # Optionally, show a message to the user
-        # messagebox.showerror("Fatal Error", f"A fatal error occurred: {e}\nSee analysis.log for details.")
+        # import tkinter.messagebox as messagebox
+        # messagebox.showerror(
+        #     "Fatal Error",
+        #     "A fatal error occurred. See analysis.log for details."
+        # )
     finally:
-        logging.info("Application finished.")
+        log.info("application.finished", component="main")
 
 
 if __name__ == "__main__":

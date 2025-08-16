@@ -3,12 +3,14 @@ This module defines the Pydantic models for application settings and provides
 a loader function to read and validate the configuration from a YAML file.
 """
 
-import logging
 from pathlib import Path
 from typing import List, Tuple
 
+import structlog
 import yaml
 from pydantic import BaseModel, Field, ValidationError
+
+log = structlog.get_logger()
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -30,7 +32,10 @@ class ArduinoSettings(BaseModel):
 
     port: str = Field(
         ...,
-        description="The serial port the Arduino is connected to (e.g., 'COM5' or '/dev/ttyACM0').",
+        description=(
+            "The serial port the Arduino is connected to (e.g., 'COM5' or "
+            "'/dev/ttyACM0')."
+        ),
     )
     baud_rate: int = Field(..., description="The baud rate for serial communication.")
 
@@ -51,20 +56,28 @@ class YOLOModelSettings(BaseModel):
         ...,
         gt=0,
         lt=1,
-        description="Non-Maximum Suppression threshold for filtering overlapping bounding boxes.",
+        description=(
+            "Non-Maximum Suppression threshold for filtering overlapping bounding "
+            "boxes."
+        ),
     )
 
 
 class VideoProcessingSettings(BaseModel):
     """Settings for processing video files or live streams."""
 
-    fps: int = Field(..., description="Frames Per Second (FPS) for saving output videos.")
+    fps: int = Field(
+        ..., description="Frames Per Second (FPS) for saving output videos."
+    )
     processing_interval: int = Field(
         ..., description="Process 1 frame every N frames to optimize performance."
     )
     processing_offset: int = Field(
         ...,
-        description="Frame offset for processing. E.g., offset=1 and interval=10 processes frames 1, 11, 21, ...",
+        description=(
+            "Frame offset for processing. E.g., offset=1 and interval=10 processes "
+            "frames 1, 11, 21, ..."
+        ),
     )
 
 
@@ -76,18 +89,25 @@ class DetectionZonesSettings(BaseModel):
     )
     squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = Field(
         ...,
-        description="A list of rectangular zones, each defined by top-left and bottom-right points.",
+        description=(
+            "A list of rectangular zones, each defined by top-left and "
+            "bottom-right points."
+        ),
     )
     colors: List[Tuple[int, int, int]] = Field(
         ..., description="The BGR colors for drawing each square on the overlay."
     )
     enter_commands: List[int] = Field(
         ...,
-        description="List of commands to send to Arduino when an object enters a square.",
+        description=(
+            "List of commands to send to Arduino when an object enters a square."
+        ),
     )
     exit_commands: List[int] = Field(
         ...,
-        description="List of commands to send to Arduino when an object exits a square.",
+        description=(
+            "List of commands to send to Arduino when an object exits a square."
+        ),
     )
 
 
@@ -96,7 +116,10 @@ class ReproducibilitySettings(BaseModel):
 
     seed: int = Field(
         42,
-        description="Seed for random number generators (numpy, torch) to ensure consistent results.",
+        description=(
+            "Seed for random number generators (numpy, torch) to ensure consistent "
+            "results."
+        ),
     )
 
 
@@ -146,31 +169,31 @@ def load_settings(
         ValueError: If there are validation or parsing errors.
     """
     if not default_config_path.is_file():
-        logging.error(f"Default configuration file not found at: {default_config_path}")
+        log.error("settings.load.file_not_found", path=str(default_config_path))
         raise FileNotFoundError(
             f"Default configuration file not found at: {default_config_path}"
         )
 
-    logging.info(f"Loading base settings from {default_config_path}...")
+    log.info("settings.load.start", path=str(default_config_path))
     try:
         with open(default_config_path, "r") as f:
             config_data = yaml.safe_load(f)
 
         if override_config_path.is_file():
-            logging.info(f"Loading override settings from {override_config_path}...")
+            log.info("settings.load.override", path=str(override_config_path))
             with open(override_config_path, "r") as f:
                 override_data = yaml.safe_load(f)
             if override_data:
                 config_data = _merge_configs(config_data, override_data)
 
         settings = Settings.model_validate(config_data)
-        logging.info("Settings loaded and validated successfully.")
+        log.info("settings.load.success")
         return settings
     except yaml.YAMLError as e:
-        logging.error(f"Error parsing YAML file: {e}")
+        log.error("settings.load.yaml_error", error=str(e))
         raise ValueError(f"Error parsing YAML file: {e}")
     except ValidationError as e:
-        logging.error(f"Configuration validation error: {e}")
+        log.error("settings.load.validation_error", error=str(e))
         raise ValueError(f"Configuration validation error: {e}")
 
 
@@ -178,6 +201,6 @@ def load_settings(
 try:
     settings = load_settings()
 except (FileNotFoundError, ValueError) as e:
-    logging.critical(f"Failed to load application settings: {e}")
+    log.critical("settings.load.failed", error=str(e))
     # In a real app, you might want to exit or use default settings
     settings = None

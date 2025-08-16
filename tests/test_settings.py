@@ -1,8 +1,6 @@
 import unittest
 from unittest.mock import mock_open, patch
 
-import yaml
-
 from zebtrack.settings import Settings, load_settings
 
 

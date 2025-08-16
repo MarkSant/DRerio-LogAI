@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from src.zebtrack.core.controller import AppController
 
+
 class TestAppController(unittest.TestCase):
 
     @patch('src.zebtrack.core.controller.Arduino')
@@ -72,8 +73,10 @@ class TestAppController(unittest.TestCase):
         )
 
         # --- Assert ---
-        self.mock_view.show_error.assert_called_once_with("Error", "Failed to create the new project.")
+        self.mock_view.show_error.assert_called_once_with(
+            "Error", "Failed to create the new project."
+        )
         self.mock_view._load_project_view.assert_not_called()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
