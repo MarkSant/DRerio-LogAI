@@ -14,34 +14,90 @@ from pydantic import BaseModel, Field, ValidationError
 
 
 class CameraSettings(BaseModel):
-    index: int
-    desired_width: int
-    desired_height: int
+    """Settings related to the camera source."""
+
+    index: int = Field(..., description="The index of the camera device (e.g., 0, 1).")
+    desired_width: int = Field(
+        ..., description="The width (pixels) used for defining detection zones."
+    )
+    desired_height: int = Field(
+        ..., description="The height (pixels) used for defining detection zones."
+    )
 
 
 class ArduinoSettings(BaseModel):
-    port: str
-    baud_rate: int
+    """Settings for connecting to an Arduino device."""
+
+    port: str = Field(
+        ...,
+        description="The serial port the Arduino is connected to (e.g., 'COM5' or '/dev/ttyACM0').",
+    )
+    baud_rate: int = Field(..., description="The baud rate for serial communication.")
 
 
 class YOLOModelSettings(BaseModel):
-    path: str
-    confidence_threshold: float = Field(..., gt=0, lt=1)
-    nms_threshold: float = Field(..., gt=0, lt=1)
+    """Settings for the YOLO object detection model."""
+
+    path: str = Field(
+        ..., description="Path to the YOLO model weights file (e.g., 'model.pt')."
+    )
+    confidence_threshold: float = Field(
+        ...,
+        gt=0,
+        lt=1,
+        description="Minimum confidence score for a detection to be considered valid.",
+    )
+    nms_threshold: float = Field(
+        ...,
+        gt=0,
+        lt=1,
+        description="Non-Maximum Suppression threshold for filtering overlapping bounding boxes.",
+    )
 
 
 class VideoProcessingSettings(BaseModel):
-    fps: int
-    processing_interval: int
-    processing_offset: int
+    """Settings for processing video files or live streams."""
+
+    fps: int = Field(..., description="Frames Per Second (FPS) for saving output videos.")
+    processing_interval: int = Field(
+        ..., description="Process 1 frame every N frames to optimize performance."
+    )
+    processing_offset: int = Field(
+        ...,
+        description="Frame offset for processing. E.g., offset=1 and interval=10 processes frames 1, 11, 21, ...",
+    )
 
 
 class DetectionZonesSettings(BaseModel):
-    polygon: List[List[int]]
-    squares: List[Tuple[Tuple[int, int], Tuple[int, int]]]
-    colors: List[Tuple[int, int, int]]
-    enter_commands: List[int]
-    exit_commands: List[int]
+    """Defines the coordinates for areas of interest in the camera frame."""
+
+    polygon: List[List[int]] = Field(
+        ..., description="A list of [x, y] points defining the main detection polygon."
+    )
+    squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = Field(
+        ...,
+        description="A list of rectangular zones, each defined by top-left and bottom-right points.",
+    )
+    colors: List[Tuple[int, int, int]] = Field(
+        ..., description="The BGR colors for drawing each square on the overlay."
+    )
+    enter_commands: List[int] = Field(
+        ...,
+        description="List of commands to send to Arduino when an object enters a square.",
+    )
+    exit_commands: List[int] = Field(
+        ...,
+        description="List of commands to send to Arduino when an object exits a square.",
+    )
+
+
+class ReproducibilitySettings(BaseModel):
+    """Settings related to ensuring reproducible results."""
+
+    seed: int = Field(
+        42,
+        description="Seed for random number generators (numpy, torch) to ensure consistent results.",
+    )
 
 
 class Settings(BaseModel):
@@ -52,31 +108,60 @@ class Settings(BaseModel):
     yolo_model: YOLOModelSettings
     video_processing: VideoProcessingSettings
     detection_zones: DetectionZonesSettings
+    reproducibility: ReproducibilitySettings
 
 
-def load_settings(config_path: Path = Path("config.yaml")) -> Settings:
+def _merge_configs(base: dict, override: dict) -> dict:
+    """Recursively merge two dictionaries."""
+    for key, value in override.items():
+        if isinstance(value, dict) and key in base and isinstance(base[key], dict):
+            base[key] = _merge_configs(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def load_settings(
+    default_config_path: Path = Path("config.yaml"),
+    override_config_path: Path = Path("config.local.yaml"),
+) -> Settings:
     """
-    Loads, validates, and returns the application settings from a YAML file.
+    Loads settings from YAML files, validates them, and returns a Settings object.
+
+    This function implements a hierarchical configuration system:
+    1. It loads the base configuration from `default_config_path`.
+    2. If `override_config_path` exists, it loads it and recursively merges its
+       values on top of the base configuration. This allows users to maintain
+       local settings (e.g., camera index) without modifying the main config file.
 
     Args:
-        config_path (Path): The path to the configuration file.
-                            Defaults to 'config.yaml' in the current directory.
+        default_config_path (Path): The path to the base configuration file.
+        override_config_path (Path): The path to the local override file.
 
     Returns:
         Settings: A validated Pydantic settings object.
 
     Raises:
-        FileNotFoundError: If the config file does not exist.
-        ValueError: If the config file has validation errors.
+        FileNotFoundError: If the default config file does not exist.
+        ValueError: If there are validation or parsing errors.
     """
-    if not config_path.is_file():
-        logging.error(f"Configuration file not found at: {config_path}")
-        raise FileNotFoundError(f"Configuration file not found at: {config_path}")
+    if not default_config_path.is_file():
+        logging.error(f"Default configuration file not found at: {default_config_path}")
+        raise FileNotFoundError(
+            f"Default configuration file not found at: {default_config_path}"
+        )
 
-    logging.info(f"Loading settings from {config_path}...")
+    logging.info(f"Loading base settings from {default_config_path}...")
     try:
-        with open(config_path, "r") as f:
+        with open(default_config_path, "r") as f:
             config_data = yaml.safe_load(f)
+
+        if override_config_path.is_file():
+            logging.info(f"Loading override settings from {override_config_path}...")
+            with open(override_config_path, "r") as f:
+                override_data = yaml.safe_load(f)
+            if override_data:
+                config_data = _merge_configs(config_data, override_data)
 
         settings = Settings.model_validate(config_data)
         logging.info("Settings loaded and validated successfully.")

@@ -72,3 +72,8 @@ detection_zones:
   enter_commands: [1, 3, 5, 7]
   # Commands to send when an object exits a square.
   exit_commands: [2, 4, 6, 8]
+
+reproducibility:
+  # Seed for random number generators to ensure that repeated runs with the
+  # same video and settings produce identical results.
+  seed: 42
