@@ -153,7 +153,7 @@ class AppController:
 
         self.project_manager = ProjectManager()
 
-        self.view.create_welcome_frame()
+        self.view._create_welcome_frame()
         log.info("project.close.finished")
 
     def create_project_workflow(
@@ -297,6 +297,7 @@ class AppController:
 
             self.view.update_button_state("process_video", "disabled")
             self.view.set_status(f"Processing: {os.path.basename(video_path)}")
+            self.view.update_progress(0)
         else:
             self.view.show_error(
                 "Error", "Failed to start recorder for video processing."
@@ -342,6 +343,9 @@ class AppController:
                 progress_percent = int((frame_number / total_frames) * 100)
                 video_name = os.path.basename(self.currently_processing_video)
                 status_msg = f"Processing: {video_name} ({progress_percent}%)"
+                self.root.after(
+                    0, self.view.update_progress, progress_percent
+                )
                 self.root.after(0, self.view.set_status, status_msg)
             detections, _ = self.detector.process_frame(frame, "pre-recorded")
             if detections:
@@ -374,6 +378,7 @@ class AppController:
 
         self.currently_processing_video = None
         self.view.update_button_state("process_video", "normal")
+        self.view.hide_progress_bar()
 
         next_video = self.project_manager.get_next_video()
         if next_video:
