@@ -152,6 +152,9 @@ class Recorder:
                         int(confidence * 100),
                     ]
                 )
+            # Flush the buffer to ensure data is written to disk immediately,
+            # reducing the risk of data loss in case of a crash.
+            self.csv_file.flush()
             logging.info(f"Wrote {len(detections)} detections for frame {frame_number}")
 
     def _save_area_definitions(self, folder_path):
