@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from src.zebtrack.core.controller import AppController
 
+
 class TestAppController(unittest.TestCase):
 
     @patch('src.zebtrack.core.controller.Arduino')

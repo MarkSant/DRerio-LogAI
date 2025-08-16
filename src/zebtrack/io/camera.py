@@ -1,11 +1,15 @@
-from typing import Any, Dict, Tuple
-import cv2
-import numpy as np
 import threading
 import time
+from typing import Any, Dict, Tuple
+
+import cv2
+import numpy as np
+import structlog
 
 from zebtrack.io.frame_source import FrameSource
 from zebtrack.settings import settings
+
+log = structlog.get_logger()
 
 
 class Camera(FrameSource):
@@ -13,7 +17,6 @@ class Camera(FrameSource):
         self._camera_index = settings.camera.index
         self.cap = cv2.VideoCapture(self._camera_index)
         if not self.cap.isOpened():
-            # This is a hard failure on startup, so we raise an exception
             raise IOError(f"Cannot open camera at index {self._camera_index}")
 
         self._desired_width = settings.camera.desired_width
@@ -23,12 +26,13 @@ class Camera(FrameSource):
 
         self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print(
-            f"Camera initialized with resolution: "
-            f"{self.actual_width}x{self.actual_height}"
+        log.info(
+            "camera.initialized",
+            index=self._camera_index,
+            width=self.actual_width,
+            height=self.actual_height,
         )
 
-        # Threading attributes
         self._lock = threading.Lock()
         self._latest_frame: Tuple[bool, np.ndarray | None] = (False, None)
         self._stopped = threading.Event()
@@ -42,39 +46,36 @@ class Camera(FrameSource):
         """
         while not self._stopped.is_set():
             if not self.cap.isOpened():
-                print("Camera connection lost. Attempting to reconnect...")
+                log.warning("camera.reconnect.start")
                 self.cap.open(self._camera_index)
                 if self.cap.isOpened():
-                    print("Camera reconnected successfully.")
+                    log.info("camera.reconnect.success")
                     self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
                 else:
                     with self._lock:
                         self._latest_frame = (False, None)
-                    time.sleep(2)  # Wait before next attempt
+                    time.sleep(2)
                     continue
 
             ret, frame = self.cap.read()
 
             if not ret:
-                # Frame read failed, likely due to a disconnect
                 self.cap.release()
-                print("Frame read failed. Assuming disconnect, will try to reconnect.")
+                log.warning("camera.frame_read.failed")
                 with self._lock:
                     self._latest_frame = (False, None)
-                continue  # Let the next loop iteration handle reconnection
+                continue
 
             with self._lock:
                 self._latest_frame = (ret, frame)
-        print("Reader thread stopped.")
+        log.info("camera.reader_thread.stopped")
 
     def get_frame(self) -> Tuple[bool, np.ndarray | None]:
         """
         Returns the most recent frame read by the background thread.
-        This method is non-blocking.
         """
         with self._lock:
-            # Return a copy to prevent race conditions if the consumer modifies the frame
             ret, frame = self._latest_frame
             return ret, frame.copy() if ret else None
 
@@ -83,10 +84,10 @@ class Camera(FrameSource):
         Signals the reader thread to stop and releases the camera resource.
         """
         self._stopped.set()
-        self._thread.join(timeout=2)  # Wait for the thread to finish
+        self._thread.join(timeout=2)
         if self.cap.isOpened():
             self.cap.release()
-            print("Camera released.")
+            log.info("camera.released")
 
     def get_properties(self) -> Dict[str, Any]:
         """
@@ -106,14 +107,13 @@ if __name__ == "__main__":
         camera = Camera()
         print("Camera properties:", camera.get_properties())
 
-        # Give the reader thread a moment to start and grab the first frame
         time.sleep(1)
 
         while True:
             ret, frame = camera.get_frame()
             if not ret:
                 print("Failed to grab frame, waiting...")
-                time.sleep(0.5)  # Wait a bit before trying again
+                time.sleep(0.5)
                 continue
 
             cv2.imshow("Camera Test", frame)

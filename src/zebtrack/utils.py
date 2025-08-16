@@ -1,8 +1,10 @@
-import logging
 import random
 
 import numpy as np
+import structlog
 import torch
+
+log = structlog.get_logger()
 
 
 def set_seed(seed: int):
@@ -24,4 +26,4 @@ def set_seed(seed: int):
         # consistency is more important than performance.
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-    logging.info(f"Set random seed to {seed} for reproducibility.")
+    log.info("reproducibility.seed.set", seed=seed)

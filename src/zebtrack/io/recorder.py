@@ -1,25 +1,23 @@
 import csv
-import logging
 import os
 import time
 
 import cv2
 import numpy as np
+import structlog
 
 from zebtrack.settings import settings
+
+log = structlog.get_logger()
 
 
 class Recorder:
     """
-    Gerencia a gravação dos dados da análise, incluindo arquivos de vídeo e CSV.
-
-    Esta classe lida com a criação de arquivos de saída, escrita de dados de
-    detecção e de quadros de vídeo, e o fechamento adequado dos arquivos ao
-    final da gravação.
+    Manages the recording of analysis data, including video and CSV files.
     """
 
     def __init__(self):
-        """Inicializa o gravador com seu estado padrão."""
+        """Initializes the recorder with its default state."""
         self.is_recording = False
         self.video_writer = None
         self.csv_writer = None
@@ -33,29 +31,27 @@ class Recorder:
         self, output_folder, frame_width, frame_height, is_video_file=False
     ):
         """
-        Prepara e inicia uma nova sessão de gravação.
-
-        Cria o diretório de saída e inicializa os escritores de CSV e,
-        opcionalmente, de vídeo. Salva também os arquivos de definição de área.
+        Prepares and starts a new recording session.
 
         Args:
-            output_folder (str): A pasta onde os arquivos serão salvos.
-            frame_width (int): A largura dos quadros de vídeo.
-            frame_height (int): A altura dos quadros de vídeo.
-            is_video_file (bool): Se True, pula a criação do arquivo de vídeo,
-                                  usado para análises de vídeos pré-gravados.
+            output_folder (str): The folder where files will be saved.
+            frame_width (int): The width of the video frames.
+            frame_height (int): The height of the video frames.
+            is_video_file (bool): If True, skips video file creation.
 
         Returns:
-            bool: True se a gravação começou com sucesso, False caso contrário.
+            bool: True if recording started successfully, False otherwise.
         """
         if self.is_recording:
-            logging.warning("Attempted to start recording while already recording.")
+            log.warning("recorder.start.already_recording")
             return False
 
         os.makedirs(output_folder, exist_ok=True)
         self.base_name = os.path.basename(output_folder)
+        log_context = log.bind(
+            output_folder=output_folder, base_name=self.base_name
+        )
 
-        # 1. Configura o VideoWriter, se não for uma análise de arquivo de vídeo.
         if not is_video_file:
             video_filename = os.path.join(output_folder, f"{self.base_name}.mp4")
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -66,18 +62,11 @@ class Recorder:
                 (frame_width, frame_height),
             )
             if not self.video_writer.isOpened():
-                logging.error(
-                    f"Error: Could not open video writer for {video_filename}"
-                )
+                log.error("recorder.video_writer.open_error", path=video_filename)
                 return False
         else:
-            self.video_writer = (
-                None  # Garante que o writer seja None para análises de arquivos
-            )
+            self.video_writer = None
 
-        # 2. Configura o CSVWriter para os dados de detecção.
-        # Este arquivo registra cada detecção com seu timestamp, número de quadro
-        # e coordenadas.
         csv_filename = os.path.join(
             output_folder, f"3_CoordMovimento_{self.base_name}.csv"
         )
@@ -89,21 +78,20 @@ class Recorder:
             )
             self.csv_file.flush()
         except IOError as e:
-            logging.error(f"Error: Could not open CSV file {csv_filename}. {e}")
+            log.error("recorder.csv.open_error", path=csv_filename, exc_info=e)
             if self.video_writer:
                 self.video_writer.release()
             return False
 
-        # 3. Salva os arquivos CSV de definição de área.
         self._save_area_definitions(output_folder)
 
         self.is_recording = True
         self.start_time = time.time()
-        logging.info(f"Started recording. Output folder: {output_folder}")
+        log_context.info("recorder.start.success")
         return True
 
     def stop_recording(self):
-        """Para a gravação e libera todos os manipuladores de arquivo."""
+        """Stops the recording and releases all file handlers."""
         if not self.is_recording:
             return
 
@@ -117,28 +105,15 @@ class Recorder:
             self.csv_writer = None
 
         self.is_recording = False
-        logging.info(f"Stopped recording for {self.base_name}.")
+        log.info("recorder.stop.success", base_name=self.base_name)
 
     def write_video_frame(self, frame):
-        """
-        Escreve um único quadro no arquivo de vídeo, se o VideoWriter estiver ativo.
-
-        Args:
-            frame: O quadro de vídeo (array numpy) a ser escrito.
-        """
+        """Writes a single frame to the video file."""
         if self.is_recording and self.video_writer:
             self.video_writer.write(frame)
 
     def write_detection_data(self, timestamp, frame_number, detections):
-        """
-        Escreve os dados de uma ou mais detecções no arquivo CSV.
-
-        Args:
-            timestamp (float): O timestamp da detecção em segundos.
-            frame_number (int): O número do quadro em que a detecção ocorreu.
-            detections (list): Uma lista de tuplas, onde cada tupla representa
-                               uma detecção (x1, y1, x2, y2, confidence).
-        """
+        """Writes detection data to the CSV file."""
         if self.is_recording and self.csv_writer:
             for x1, y1, x2, y2, confidence in detections:
                 self.csv_writer.writerow(
@@ -152,24 +127,15 @@ class Recorder:
                         int(confidence * 100),
                     ]
                 )
-            # Flush the buffer to ensure data is written to disk immediately,
-            # reducing the risk of data loss in case of a crash.
             self.csv_file.flush()
-            logging.info(f"Wrote {len(detections)} detections for frame {frame_number}")
+            log.debug(
+                "recorder.detections.wrote",
+                count=len(detections),
+                frame=frame_number,
+            )
 
     def _save_area_definitions(self, folder_path):
-        """
-        Salva as definições de área de processamento e de interesse em CSVs.
-
-        - `1_ProcessingArea_...csv`: Salva as coordenadas do polígono que define
-          a área total onde a detecção de objetos é realizada.
-        - `2_AreasOfInterest_...csv`: Salva as coordenadas dos quadrados
-          (retângulos) que definem as áreas de interesse específicas.
-
-        Args:
-            folder_path (str): A pasta onde os arquivos CSV serão salvos.
-        """
-        # Salva a Área de Processamento (Polígono)
+        """Saves processing and interest area definitions to CSVs."""
         processing_area_filename = os.path.join(
             folder_path, f"1_ProcessingArea_{self.base_name}.csv"
         )
@@ -180,7 +146,6 @@ class Recorder:
             f.flush()
             os.fsync(f.fileno())
 
-        # Salva as Áreas de Interesse (Quadrados)
         areas_of_interest_filename = os.path.join(
             folder_path, f"2_AreasOfInterest_{self.base_name}.csv"
         )
@@ -192,7 +157,7 @@ class Recorder:
             f.flush()
             os.fsync(f.fileno())
 
-        logging.info(f"Saved area definitions to {folder_path}")
+        log.info("recorder.area_definitions.saved", path=folder_path)
 
 
 if __name__ == "__main__":
@@ -215,10 +180,9 @@ if __name__ == "__main__":
         print("\nRecording started successfully.")
 
         # Test writing data
-        recorder.recording_start_frame = 100  # Simulate starting mid-stream
-        for i in range(10):  # Simulate 10 frames
+        recorder.recording_start_frame = 100
+        for i in range(10):
             frame_num = 100 + i
-            # Add some changing element to the frame
             cv2.putText(
                 dummy_frame,
                 f"Frame {frame_num}",
@@ -230,10 +194,9 @@ if __name__ == "__main__":
             )
             recorder.write_video_frame(dummy_frame)
 
-            # Simulate a detection
             if i % 2 == 0:
                 detections = [(100 + i, 150, 200 + i, 250, 0.95)]
-                recorder.write_detection_data(frame_num, detections)
+                recorder.write_detection_data(time.time(), frame_num, detections)
 
             time.sleep(0.1)
 

@@ -115,7 +115,7 @@ def test_create_source_file_wrong_kwarg_type():
 # --- Tests for Camera class ---
 
 import time
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 from zebtrack.io import Camera
 

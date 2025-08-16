@@ -1,7 +1,6 @@
 import csv
 import os
 import shutil
-import sys
 import unittest
 
 import numpy as np

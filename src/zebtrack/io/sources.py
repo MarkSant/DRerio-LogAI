@@ -38,5 +38,6 @@ def create_source(source_type: str, **kwargs: Any) -> FrameSource:
         return VideoFileSource(video_path=video_path)
     else:
         raise ValueError(
-            f"Unsupported source type: {source_type}. Supported types are 'camera', 'file'."
+            f"Unsupported source type: {source_type}. "
+            "Supported types are 'camera', 'file'."
         )
