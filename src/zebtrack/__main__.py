@@ -1,7 +1,9 @@
 import logging
 import tkinter as tk
 
+from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.utils import set_seed
 
 
 def main():
@@ -15,6 +17,11 @@ def main():
         filename="analysis.log",
         filemode="w",  # Overwrite log file on each run
     )
+
+    # Set seed for reproducibility before anything else
+    if settings and settings.reproducibility:
+        set_seed(settings.reproducibility.seed)
+
     logging.info("Application starting.")
 
     root = tk.Tk()

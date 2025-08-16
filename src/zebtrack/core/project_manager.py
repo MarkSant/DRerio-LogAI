@@ -4,17 +4,37 @@ import os
 import shutil
 from tkinter import messagebox
 
+import yaml
 from ultralytics import YOLO
 
 from zebtrack.settings import settings
 
 CONFIG_FILE_NAME = "project_config.json"
+SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 
 
 class ProjectManager:
     def __init__(self):
         self.project_path = None
         self.project_data = {}
+
+    def _save_settings_snapshot(self):
+        """Saves a snapshot of the current settings to the project directory."""
+        if not self.project_path:
+            return False
+
+        snapshot_path = os.path.join(self.project_path, SETTINGS_SNAPSHOT_FILE_NAME)
+        try:
+            # Convert Pydantic settings to a dict and save as YAML
+            settings_dict = settings.model_dump(mode="json")
+            with open(snapshot_path, "w") as f:
+                yaml.dump(settings_dict, f, indent=4, sort_keys=False)
+            logging.info(f"Settings snapshot saved to {snapshot_path}")
+            return True
+        except (IOError, TypeError) as e:
+            # Log the error but don't block project creation
+            logging.error(f"Could not save settings snapshot: {e}")
+            return False
 
     def create_new_project(
         self, project_path, project_type, use_openvino=False, video_files=None
@@ -35,6 +55,9 @@ class ProjectManager:
                 "Creation Error", f"Could not create project directory: {e}"
             )
             return False
+
+        # Save a snapshot of the settings for reproducibility
+        self._save_settings_snapshot()
 
         # Export the model if requested, checking for a cached version first.
         openvino_model_path = ""

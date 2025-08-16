@@ -90,5 +90,82 @@ class TestDetector(unittest.TestCase):
             self.assertEqual(detections[0], (10, 10, 50, 50, 0.9))
             self.assertIsNone(command)
 
+    def test_initialization_with_model_path_override(self):
+        """Test that model_path argument overrides the settings."""
+        override_path = "some/other/model.pt"
+        detector = Detector(project_manager=self.mock_project_manager, model_path=override_path)
+        self.mock_yolo.assert_called_with(override_path)
+
+    def test_initialization_yolo_load_fails(self):
+        """Test graceful failure when YOLO model loading raises an exception."""
+        self.mock_yolo.side_effect = Exception("Model file is corrupted")
+        # The __init__ should catch the exception and not crash
+        detector = Detector(project_manager=self.mock_project_manager)
+        self.assertIsNone(detector.model)
+
+    def test_is_inside_square(self):
+        """Test the _is_inside_square helper method."""
+        square = ((100, 100), (200, 200))
+        # Bbox completely inside
+        self.assertTrue(self.detector._is_inside_square(110, 110, 190, 190, square))
+        # Bbox overlapping
+        self.assertTrue(self.detector._is_inside_square(150, 150, 250, 250, square))
+        # Bbox outside
+        self.assertFalse(self.detector._is_inside_square(300, 300, 400, 400, square))
+        # Bbox touching edge
+        self.assertTrue(self.detector._is_inside_square(90, 90, 100, 100, square))
+
+    def test_is_inside_polygon(self):
+        """Test the _is_inside_polygon helper method."""
+        # A simple square polygon for testing
+        polygon = np.array([[100, 100], [200, 100], [200, 200], [100, 200]], dtype=np.int32)
+        # Point inside
+        self.assertTrue(self.detector._is_inside_polygon(150, 150, 160, 160, polygon))
+        # Point outside
+        self.assertFalse(self.detector._is_inside_polygon(300, 300, 310, 310, polygon))
+        # Point on edge
+        self.assertTrue(self.detector._is_inside_polygon(100, 100, 110, 110, polygon))
+
+    def test_state_machine_logic(self):
+        """Test the command generation logic based on state."""
+        # Setup: A detection inside the first configured square
+        square = settings.detection_zones.squares[0]  # e.g., ((150, 490), (360, 660))
+        x_c = (square[0][0] + square[1][0]) // 2
+        y_c = (square[0][1] + square[1][1]) // 2
+
+        mock_results = MagicMock()
+        # A detection right in the middle of the first square
+        fake_detection = np.array([[x_c - 5, y_c - 5, x_c + 5, y_c + 5, 0.9, 0]])
+        mock_results[0].boxes.data.cpu.return_value.numpy.return_value = fake_detection
+        self.detector.model.return_value = mock_results
+
+        dummy_frame = np.zeros((settings.camera.desired_height, settings.camera.desired_width, 3), dtype=np.uint8)
+
+        # --- Step 1: Object enters a square, should generate ENTER command ---
+        # Ensure polygon check passes for this test
+        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+            detections, command = self.detector.process_frame(dummy_frame, "live")
+
+        self.assertEqual(self.detector.flag, 1, "Flag should be 1 (waiting for exit)")
+        self.assertEqual(self.detector.current_square, 1, "Should register entering square 1")
+        self.assertEqual(command, settings.detection_zones.enter_commands[0])
+
+        # --- Step 2: Object is still inside a square, should generate NO command ---
+        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+            detections, command = self.detector.process_frame(dummy_frame, "live")
+
+        self.assertIsNone(command, "No command should be sent if object is still inside")
+
+        # --- Step 3: Object moves outside all squares, should generate EXIT command ---
+        # New detection is outside all squares
+        mock_results[0].boxes.data.cpu.return_value.numpy.return_value = np.array([[10, 10, 20, 20, 0.9, 0]])
+
+        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+            detections, command = self.detector.process_frame(dummy_frame, "live")
+
+        self.assertEqual(self.detector.flag, 0, "Flag should reset to 0 (waiting for entry)")
+        self.assertEqual(self.detector.current_square, 0, "Current square should be reset")
+        self.assertEqual(command, settings.detection_zones.exit_commands[0])
+
 if __name__ == "__main__":
     unittest.main()

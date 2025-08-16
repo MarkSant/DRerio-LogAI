@@ -5,7 +5,9 @@ a entrada e saída de áreas de interesse.
 """
 
 import glob
+import logging
 import os
+import time
 
 import cv2
 import numpy as np
@@ -28,7 +30,7 @@ class Detector:
     baseado na movimentação do objeto detectado entre as áreas.
     """
 
-    def __init__(self, project_manager=None):
+    def __init__(self, project_manager=None, model_path: str = None):
         """
         Inicializa o detector de objetos.
 
@@ -36,6 +38,11 @@ class Detector:
         - Define os limiares de confiança e Non-Maximum Suppression (NMS).
         - Inicializa variáveis de estado para rastrear a movimentação do objeto.
         - Define as coordenadas das áreas de interesse com base na resolução padrão.
+
+        Args:
+            project_manager: O gerenciador de projetos para configurações.
+            model_path (str, optional): Caminho para o modelo a ser carregado,
+                                        substituindo o padrão dos settings.
         """
         self.model = None
         self.is_openvino = False
@@ -50,11 +57,18 @@ class Detector:
             use_openvino = project_manager.project_data.get("use_openvino", False)
             openvino_path = project_manager.project_data.get("openvino_model_path", "")
 
-        if use_openvino and openvino_path:
-            self._load_openvino_model(openvino_path)
-            self.is_openvino = True
-        else:
-            self.model = YOLO(settings.yolo_model.path)
+        try:
+            if use_openvino and openvino_path:
+                self._load_openvino_model(openvino_path)
+                self.is_openvino = True
+            else:
+                # Usa o model_path fornecido ou o caminho dos settings
+                path_to_load = model_path or settings.yolo_model.path
+                logging.info(f"Loading YOLO model from: {path_to_load}")
+                self.model = YOLO(path_to_load)
+        except Exception as e:
+            logging.critical(f"Failed to load detection model: {e}")
+            # As variáveis de modelo permanecem None, desativando o detector
 
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
@@ -116,7 +130,7 @@ class Detector:
             scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
             self.scaled_squares.append((scaled_p1, scaled_p2))
 
-        print(
+        logging.info(
             f"Detector coordinates scaled for resolution "
             f"{actual_width}x{actual_height}"
         )
@@ -145,7 +159,7 @@ class Detector:
             )
 
         model_xml_path = xml_files[0]
-        print(f"Found OpenVINO model file: {model_xml_path}")
+        logging.info(f"Found OpenVINO model file: {model_xml_path}")
 
         core = ov.Core()
         model = core.read_model(model_xml_path)
@@ -228,6 +242,12 @@ class Detector:
         """
         Processa um único quadro para detecção de objetos e rastreamento de estado.
         """
+        # Se o modelo não foi carregado com sucesso, não faz nada.
+        if self.model is None and self.compiled_model is None:
+            return [], None
+
+        start_time = time.perf_counter()
+
         if self.is_openvino:
             # --- OpenVINO Inference Path ---
             input_tensor = self._preprocess_openvino(frame)
@@ -287,6 +307,9 @@ class Detector:
                                 ]
                                 self.current_square = 0
                                 found_object_for_state_change = True
+
+        end_time = time.perf_counter()
+        logging.debug(f"Frame processing time: {(end_time - start_time) * 1000:.2f} ms")
 
         return detections_in_polygon, command_to_send
 
