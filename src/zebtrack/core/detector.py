@@ -108,11 +108,13 @@ class Detector:
 
         if len(predictions) > 0:
             for det in predictions:
-                x1, y1, x2, y2, confidence = det
+                x1, y1, x2, y2, confidence, track_id = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
-                    detections_in_polygon.append((x1, y1, x2, y2, confidence))
+                    detections_in_polygon.append(
+                        (x1, y1, x2, y2, confidence, track_id)
+                    )
 
                     if project_type == "live" and not found_object_for_state_change:
                         if self.flag == 0:  # Looking for entry
@@ -170,11 +172,12 @@ def draw_overlay(frame, detections, detector_instance):
     )
 
     # Draw the bounding boxes for detections
-    for x1, y1, x2, y2, confidence in detections:
+    for x1, y1, x2, y2, confidence, track_id in detections:
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
+        label = f"ID: {track_id} ({int(confidence * 100)}%)"
         cv2.putText(
             frame,
-            f"{int(confidence * 100)}%",
+            label,
             (x1, y1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,

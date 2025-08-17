@@ -4,6 +4,7 @@ import shutil
 import unittest
 
 import numpy as np
+import pandas as pd
 
 from zebtrack.io.recorder import Recorder
 from zebtrack.settings import settings
@@ -25,7 +26,7 @@ class TestRecorder(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_start_recording_creates_files(self):
-        """Test that start_recording creates all necessary directories and files."""
+        """Test that start_recording creates metadata CSVs and video file."""
         success = self.recorder.start_recording(
             self.output_folder, self.frame_width, self.frame_height
         )
@@ -33,7 +34,7 @@ class TestRecorder(unittest.TestCase):
 
         base_name = os.path.basename(self.output_folder)
 
-        # Check if all expected files were created
+        # Check if metadata files were created
         video_file = os.path.join(self.output_folder, f"{base_name}.mp4")
         processing_area_csv = os.path.join(
             self.output_folder, f"1_ProcessingArea_{base_name}.csv"
@@ -41,19 +42,20 @@ class TestRecorder(unittest.TestCase):
         areas_of_interest_csv = os.path.join(
             self.output_folder, f"2_AreasOfInterest_{base_name}.csv"
         )
-        coord_movimento_csv = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{base_name}.csv"
+        # The detection data file is now Parquet and only created on stop_recording
+        coord_movimento_file = os.path.join(
+            self.output_folder, f"3_CoordMovimento_{base_name}.parquet"
         )
 
         self.assertTrue(os.path.exists(video_file))
         self.assertTrue(os.path.exists(processing_area_csv))
         self.assertTrue(os.path.exists(areas_of_interest_csv))
-        self.assertTrue(os.path.exists(coord_movimento_csv))
+        self.assertFalse(os.path.exists(coord_movimento_file))
 
         self.recorder.stop_recording()
 
-    def test_csv_headers_and_content(self):
-        """Test that the CSV files have the correct headers and initial content."""
+    def test_metadata_csv_headers(self):
+        """Test that the metadata CSV files have the correct headers."""
         self.recorder.start_recording(
             self.output_folder, self.frame_width, self.frame_height
         )
@@ -81,21 +83,10 @@ class TestRecorder(unittest.TestCase):
             content = list(reader)
             self.assertEqual(len(content), len(settings.detection_zones.squares))
 
-        # Test Movement Coordinates CSV
-        coord_movimento_csv = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{base_name}.csv"
-        )
-        with open(coord_movimento_csv, "r") as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            self.assertEqual(
-                header, ["timestamp", "frame", "x1", "y1", "x2", "y2", "confidence"]
-            )
-
         self.recorder.stop_recording()
 
-    def test_write_detection_data(self):
-        """Test that detection data is written correctly to the CSV."""
+    def test_write_detection_data_saves_parquet(self):
+        """Test that detection data is written correctly to a Parquet file."""
         self.recorder.start_recording(
             self.output_folder, self.frame_width, self.frame_height
         )
@@ -103,23 +94,31 @@ class TestRecorder(unittest.TestCase):
         # Write some data
         timestamp = 1.23456
         frame_number = 101
-        detections = [(10, 20, 30, 40, 0.987)]
+        detections = [(10, 20, 30, 40, 0.987, 1)]  # Added track_id
         self.recorder.write_detection_data(timestamp, frame_number, detections)
 
-        # Stop recording to ensure file is flushed and closed
+        # Stop recording to trigger Parquet file save
         self.recorder.stop_recording()
 
-        # Check the content of the CSV
+        # Check the content of the Parquet file
         base_name = os.path.basename(self.output_folder)
-        coord_movimento_csv = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{base_name}.csv"
+        coord_movimento_parquet = os.path.join(
+            self.output_folder, f"3_CoordMovimento_{base_name}.parquet"
         )
-        with open(coord_movimento_csv, "r") as f:
-            reader = csv.reader(f)
-            next(reader)  # Skip header
-            rows = list(reader)
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0], ["1.2346", "101", "10", "20", "30", "40", "98"])
+        self.assertTrue(os.path.exists(coord_movimento_parquet))
+
+        df = pd.read_parquet(coord_movimento_parquet)
+        self.assertEqual(len(df), 1)
+        row = df.iloc[0]
+
+        self.assertEqual(row["timestamp"], timestamp)
+        self.assertEqual(row["frame"], frame_number)
+        self.assertEqual(row["track_id"], 1)
+        self.assertEqual(row["x1"], 10)
+        self.assertEqual(row["y1"], 20)
+        self.assertEqual(row["x2"], 30)
+        self.assertEqual(row["y2"], 40)
+        self.assertAlmostEqual(row["confidence"], 0.987, places=5)
 
     def test_video_writing(self):
         """Test that writing video frames increases file size."""

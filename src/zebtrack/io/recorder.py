@@ -4,7 +4,10 @@ import time
 
 import cv2
 import numpy as np
+import pandas as pd
+import pyarrow as pa
 import structlog
+from pyarrow import parquet as pq
 
 from zebtrack.settings import settings
 
@@ -13,19 +16,19 @@ log = structlog.get_logger()
 
 class Recorder:
     """
-    Manages the recording of analysis data, including video and CSV files.
+    Manages the recording of analysis data, including video and Parquet files.
     """
 
     def __init__(self):
         """Initializes the recorder with its default state."""
         self.is_recording = False
         self.video_writer = None
-        self.csv_writer = None
-        self.csv_file = None
         self.base_name = ""
+        self.output_folder = ""
         self.start_time = 0
         self.frame_count = 0
         self.recording_start_frame = 0
+        self.detection_data = []
 
     def start_recording(
         self, output_folder, frame_width, frame_height, is_video_file=False
@@ -47,7 +50,9 @@ class Recorder:
             return False
 
         os.makedirs(output_folder, exist_ok=True)
+        self.output_folder = output_folder
         self.base_name = os.path.basename(output_folder)
+        self.detection_data = []
         log_context = log.bind(
             output_folder=output_folder, base_name=self.base_name
         )
@@ -67,22 +72,6 @@ class Recorder:
         else:
             self.video_writer = None
 
-        csv_filename = os.path.join(
-            output_folder, f"3_CoordMovimento_{self.base_name}.csv"
-        )
-        try:
-            self.csv_file = open(csv_filename, "w", newline="")
-            self.csv_writer = csv.writer(self.csv_file)
-            self.csv_writer.writerow(
-                ["timestamp", "frame", "x1", "y1", "x2", "y2", "confidence"]
-            )
-            self.csv_file.flush()
-        except IOError as e:
-            log.error("recorder.csv.open_error", path=csv_filename, exc_info=e)
-            if self.video_writer:
-                self.video_writer.release()
-            return False
-
         self._save_area_definitions(output_folder)
 
         self.is_recording = True
@@ -91,7 +80,7 @@ class Recorder:
         return True
 
     def stop_recording(self):
-        """Stops the recording and releases all file handlers."""
+        """Stops the recording, releases file handlers, and saves tracking data."""
         if not self.is_recording:
             return
 
@@ -99,10 +88,7 @@ class Recorder:
             self.video_writer.release()
             self.video_writer = None
 
-        if self.csv_file:
-            self.csv_file.close()
-            self.csv_file = None
-            self.csv_writer = None
+        self._save_detection_data()
 
         self.is_recording = False
         log.info("recorder.stop.success", base_name=self.base_name)
@@ -113,26 +99,45 @@ class Recorder:
             self.video_writer.write(frame)
 
     def write_detection_data(self, timestamp, frame_number, detections):
-        """Writes detection data to the CSV file."""
-        if self.is_recording and self.csv_writer:
-            for x1, y1, x2, y2, confidence in detections:
-                self.csv_writer.writerow(
-                    [
-                        f"{timestamp:.4f}",
-                        frame_number,
-                        x1,
-                        y1,
-                        x2,
-                        y2,
-                        int(confidence * 100),
-                    ]
-                )
-            self.csv_file.flush()
-            log.debug(
-                "recorder.detections.wrote",
-                count=len(detections),
-                frame=frame_number,
+        """Appends detection data to an in-memory list."""
+        if not self.is_recording:
+            return
+
+        for x1, y1, x2, y2, confidence, track_id in detections:
+            self.detection_data.append(
+                {
+                    "timestamp": timestamp,
+                    "frame": frame_number,
+                    "track_id": track_id,
+                    "x1": x1,
+                    "y1": y1,
+                    "x2": x2,
+                    "y2": y2,
+                    "confidence": confidence,
+                }
             )
+        log.debug(
+            "recorder.detections.appended",
+            count=len(detections),
+            frame=frame_number,
+        )
+
+    def _save_detection_data(self):
+        """Saves the collected detection data to a Parquet file."""
+        if not self.detection_data:
+            log.info("recorder.save_parquet.no_data")
+            return
+
+        parquet_filename = os.path.join(
+            self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
+        )
+        try:
+            df = pd.DataFrame(self.detection_data)
+            table = pa.Table.from_pandas(df)
+            pq.write_table(table, parquet_filename)
+            log.info("recorder.save_parquet.success", path=parquet_filename)
+        except Exception as e:
+            log.error("recorder.save_parquet.error", path=parquet_filename, exc_info=e)
 
     def _save_area_definitions(self, folder_path):
         """Saves processing and interest area definitions to CSVs."""
@@ -195,7 +200,8 @@ if __name__ == "__main__":
             recorder.write_video_frame(dummy_frame)
 
             if i % 2 == 0:
-                detections = [(100 + i, 150, 200 + i, 250, 0.95)]
+                # Add a dummy track_id for testing purposes
+                detections = [(100 + i, 150, 200 + i, 250, 0.95, 1)]
                 recorder.write_detection_data(time.time(), frame_num, detections)
 
             time.sleep(0.1)
