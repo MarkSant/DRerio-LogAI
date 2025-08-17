@@ -255,11 +255,11 @@ class AppController:
 
         # If all videos were previously complete and user restarts, optionally reset.
         # (Only reset if user confirms.)
-        completed_only = all(
-            v.get("status") == "complete" for v in self.project_manager.project_data.get("videos", [])
-        )
+        videos = self.project_manager.project_data.get("videos", [])
+        completed_only = all(v.get("status") == "complete" for v in videos)
         if completed_only:
-            # Non-blocking gentle reset without popup for now; comment out if not desired.
+            # Non-blocking gentle reset without popup for now;
+            # comment out if not desired.
             self.project_manager.reset_all_video_statuses("pending")
             video_path = self.project_manager.get_next_video()
             if not video_path:
@@ -284,7 +284,11 @@ class AppController:
             video_source = VideoFileSource(video_path)
             video_props = video_source.get_properties()
             self.detector.update_scaling(video_props["width"], video_props["height"])
-            log.info("process_next_video.video_opened", path=video_path, props=video_props)
+            log.info(
+                "process_next_video.video_opened",
+                path=video_path,
+                props=video_props,
+            )
         except (IOError, FileNotFoundError) as e:
             self.view.show_error("Error", f"Could not open video file: {e}")
             log.error("process_next_video.video_open_fail", error=str(e))
@@ -300,7 +304,10 @@ class AppController:
             output_path, video_props["width"], video_props["height"], is_video_file=True
         )
         if not success:
-            log.error("process_next_video.recorder_start_failed", output_path=output_path)
+            log.error(
+                "process_next_video.recorder_start_failed",
+                output_path=output_path,
+            )
             self.view.show_error(
                 "Error", "Failed to start recorder for video processing."
             )
@@ -356,6 +363,7 @@ class AppController:
     def _file_processing_loop(self):
         """Worker thread: processes a pre-recorded video file frame-by-frame."""
         import cv2
+
         from zebtrack.core.detector import draw_overlay
         from zebtrack.settings import settings
 
@@ -389,7 +397,9 @@ class AppController:
                 break
             frame_number = target_frame
 
-            progress_percent = (frame_number / total_frames) * 100 if total_frames > 0 else 0
+            progress_percent = (
+                (frame_number / total_frames) * 100 if total_frames > 0 else 0
+            )
             video_name = os.path.basename(self.currently_processing_video or "")
             status_msg = f"Processing: {video_name} ({progress_percent:.1f}%)"
             self.root.after(0, self.view.update_progress, progress_percent)
@@ -405,11 +415,16 @@ class AppController:
             remaining = max(total_frames - frame_number, 0)
             fps_est = (frame_number / elapsed) if elapsed > 0 else 0
             eta = (remaining / fps_est) if fps_est > 0 else -1
+            stats = {
+                "total": total_frames,
+                "processed": frame_number,
+                "detected": detected_frames,
+                "percent": progress_percent,
+                "elapsed": elapsed,
+                "eta": eta,
+            }
             self.root.after(
-                0,
-                lambda tf=total_frames, pf=frame_number, df=detected_frames, pp=progress_percent, el=elapsed, et=eta: self.view.update_progress_stats(
-                    total=tf, processed=pf, detected=df, percent=pp, elapsed=el, eta=et
-                ),
+                0, lambda s=stats: self.view.update_progress_stats(**s)
             )
 
             if show_preview:
@@ -465,13 +480,19 @@ class AppController:
         if self.currently_processing_video:
             # Only update if not cancelled earlier
             for v in self.project_manager.project_data.get("videos", []):
-                if v.get("path") == self.currently_processing_video and v.get("status") == "processing":
+                if (
+                    v.get("path") == self.currently_processing_video
+                    and v.get("status") == "processing"
+                ):
                     self.project_manager.update_video_status(
                         self.currently_processing_video, "complete"
                     )
                     break
 
-        finished_video = os.path.basename(self.currently_processing_video) if self.currently_processing_video else "?"
+        if self.currently_processing_video:
+            finished_video = os.path.basename(self.currently_processing_video)
+        else:
+            finished_video = "?"
         self.currently_processing_video = None
         self.is_recording = False
 
@@ -489,7 +510,8 @@ class AppController:
             f"Project: {self.project_manager.get_project_name()} - {msg}"
         )
 
-        # Optionally hide progress bar after completion (comment out if you want it to stay)
+        # Optionally hide progress bar after completion
+        # (comment out if you want it to stay)
         self.view.hide_progress_bar()
 
         log.info("processing.cleanup.done", next_pending=bool(next_video))
