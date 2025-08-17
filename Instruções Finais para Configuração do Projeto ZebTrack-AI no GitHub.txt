@@ -1,0 +1,143 @@
+﻿Instruções para Configuração do Projeto ZebTrack-AI no GitHub
+Visão Geral do Projeto
+Este projeto visa unificar os repositórios PyZebArdYolo e ZebAdapt em uma única aplicação Python robusta e de código aberto para análise de comportamento de zebrafish, chamada ZebTrack-AI. A gestão será centralizada em um Projeto global que conecta os três repositórios para garantir a rastreabilidade.
+1. Projeto Global (GitHub Project)
+* Ação: Crie um novo "Projeto" no nível do usuário.
+* Nome do Projeto: ZebTrack-AI Unification
+* Template: Board (Kanban).
+* Colunas: Backlog, To Do, In Progress, Done.
+* Repositórios Vinculados: Adicione os seguintes repositórios ao projeto:
+   1. marksant/ZebTrack-AI
+   2. marksant/ZebAdapt
+   3. marksant/PyZebArdYolo
+2. Milestones (no repositório ZebTrack-AI)
+Crie os seguintes milestones no repositório marksant/ZebTrack-AI:
+1. M1: Fundamentação e Rastreamento Avançado
+2. M2: Módulo de Análise Comportamental
+3. M3: GUI e Usabilidade
+4. M4: Inovação com IA Generativa
+5. M5: Lançamento v1.0
+3. Labels (em todos os 3 repositórios)
+Crie as seguintes labels em cada um dos três repositórios (ZebTrack-AI, ZebAdapt, PyZebArdYolo):
+* Type: Bug - Cor: #d73a4a
+* Type: Enhancement - Cor: #a2eeef
+* Type: Documentation - Cor: #0075ca
+* Type: Testing - Cor: #f29a2e
+* Type: Analysis - Cor: #5319e7 (Label nova para issues de referência)
+* Priority: Critical - Cor: #b60205
+* Priority: High - Cor: #d93f0b
+* Priority: Medium - Cor: #fbca04
+* Module: Backend - Cor: #1d76db
+* Module: GUI - Cor: #c5def5
+* Module: Analysis - Cor: #3e4e88
+* Module: AI - Cor: #5319e7
+4. Issues de Referência (Repositórios Originais)
+Crie as seguintes issues nos repositórios originais para rastreabilidade.
+No repositório ZebAdapt:
+* Title: [Análise] Lógica de cálculo de Distância em track.m
+* Description: Detalhar a lógica matemática e o algoritmo implementado no arquivo track.m para calcular a distância percorrida.
+* Labels: Type: Analysis, Type: Documentation
+* Title: [Análise] Lógica de cálculo de Velocidade em track.m
+* Description: Detalhar como a velocidade (média e instantânea) é calculada a partir dos dados de posição no arquivo track.m.
+* Labels: Type: Analysis, Type: Documentation
+* Title: [Análise] Lógica de detecção de Freezing em track.m
+* Description: Documentar o limiar e o algoritmo usados para identificar episódios de "freezing" (congelamento) no arquivo track.m.
+* Labels: Type: Analysis, Type: Documentation
+* Title: [Análise] Lógica de cálculo de Movimento Errático em track.m
+* Description: Detalhar como o movimento errático é quantificado, incluindo os cálculos de aceleração ou mudança de ângulo, conforme implementado em track.m.
+* Labels: Type: Analysis, Type: Documentation
+* Title: [Análise] Lógica de cálculo de Thigmotaxis em track.m
+* Description: Documentar como a proximidade com as bordas do aquário é definida e como o tempo de thigmotaxis é calculado em track.m.
+* Labels: Type: Analysis, Type: Documentation
+No repositório PyZebArdYolo:
+* Title: [Análise] Estrutura de Gravação de Dados em recorder.py
+* Description: Documentar a implementação atual da classe Recorder em src/zebtrack/io/recorder.py, focando em como os dados são capturados e salvos em CSV. Esta issue servirá de base para a migração para o formato Parquet.
+* Labels: Type: Analysis, Type: Documentation
+5. Issues de Implementação (Repositório ZebTrack-AI)
+Crie as seguintes issues no repositório marksant/ZebTrack-AI.
+Milestone 1: Fundamentação
+* Title: [M1] Estabelecer a base de código inicial a partir do PyZebArdYolo
+* Description: Copiar a estrutura de arquivos e diretórios do repositório PyZebArdYolo para ZebTrack-AI. Esta ação cria o esqueleto arquitetônico para todo o desenvolvimento futuro.
+* Milestone: M1: Fundamentação e Rastreamento Avançado
+* Labels: Type: Enhancement, Priority: Critical, Module: Backend
+* Title: [M1] Integrar rastreador ByteTrack ao YOLOv8Plugin
+* Description: Modificar src/zebtrack/plugins/yolo_detector.py para usar self.model.track(frame, persist=True, tracker="bytetrack.yaml"). Essencial para manter a identidade dos animais.
+* Milestone: M1: Fundamentação e Rastreamento Avançado
+* Labels: Type: Enhancement, Priority: Critical, Module: Backend
+* Title: [M1] Migrar armazenamento de dados de CSV para Apache Parquet
+* Description: Refatorar a classe Recorder em src/zebtrack/io/recorder.py para acumular dados em um DataFrame Pandas e salvar em formato .parquet. Referência da Estrutura Original: PyZebArdYolo#1.
+* Milestone: M1: Fundamentação e Rastreamento Avançado
+* Labels: Type: Enhancement, Priority: High, Module: Backend
+* Title: [M1] Implementar módulo de calibração de distância (pixel para cm)
+* Description: Criar um novo arquivo src/zebtrack/core/calibration.py. Desenvolver uma classe que permita ao usuário definir uma escala (ex: 10 cm) no vídeo para converter pixels em unidades métricas.
+* Milestone: M1: Fundamentação e Rastreamento Avançado
+* Labels: Type: Enhancement, Priority: High, Module: Backend
+Milestone 2: Análise Comportamental
+* Title: [M2] Criar a classe base BehavioralAnalyzer
+* Description: Criar src/zebtrack/analysis/analyzer.py. A classe deve ser inicializada com um caminho de projeto e carregar os dados .parquet e as configurações.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: Critical, Module: Analysis
+* Title: [M2] Implementar cálculo de distância total percorrida
+* Description: Adicionar um método ao BehavioralAnalyzer para calcular a distância euclidiana total percorrida por cada track_id. Referência da Lógica: ZebAdapt#1.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar cálculo de velocidade (média e instantânea)
+* Description: Adicionar um método ao BehavioralAnalyzer para calcular a velocidade de cada animal. Referência da Lógica: ZebAdapt#2.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar detecção de 'freezing'
+* Description: Adicionar um método ao BehavioralAnalyzer para identificar e quantificar episódios de "freezing" (congelamento) com base em um limiar de velocidade. Referência da Lógica: ZebAdapt#3.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar cálculo de thigmotaxis
+* Description: Adicionar um método ao BehavioralAnalyzer para calcular o tempo gasto próximo às bordas do aquário (thigmotaxis). Referência da Lógica: ZebAdapt#5.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: Medium, Module: Analysis
+* Title: [M2] Implementar cálculo de movimento errático
+* Description: Adicionar um método ao BehavioralAnalyzer para identificar picos de aceleração ou mudanças de direção que caracterizam movimento errático. Referência da Lógica: ZebAdapt#4.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: Medium, Module: Analysis
+* Title: [M2] Implementar cálculo de tempo total em cada ROI
+* Description: Adicionar um método ao BehavioralAnalyzer que, para cada track_id, calcule o tempo total gasto dentro de cada ROI definida.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar cálculo de latência para primeira entrada em ROI
+* Description: Adicionar um método ao BehavioralAnalyzer para determinar o tempo (ou número do frame) em que cada animal entra pela primeira vez em cada ROI.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: Medium, Module: Analysis
+* Title: [M2] Criar a classe base Reporter para exportação de dados
+* Description: Criar o novo arquivo src/zebtrack/analysis/reporter.py. A classe Reporter será responsável por pegar os dados analisados e gerar os arquivos de saída.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar exportação de resumo de análise para Excel/CSV
+* Description: Na classe Reporter, criar um método que gere um arquivo Excel/CSV com o resumo das métricas comportamentais por animal.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: High, Module: Analysis
+* Title: [M2] Implementar geração de gráficos de trajetória
+* Description: Na classe Reporter, criar um método que use matplotlib para gerar e salvar uma imagem da trajetória de cada animal.
+* Milestone: M2: Módulo de Análise Comportamental
+* Labels: Type: Enhancement, Priority: Medium, Module: Analysis
+Milestone 3: GUI e Usabilidade
+* Title: [M3] Implementar desenho interativo de ROIs na GUI
+* Description: Em src/zebtrack/ui/gui.py, adicionar um "modo de desenho" para criar ROIs poligonais. As coordenadas devem ser salvas na configuração do projeto.
+* Milestone: M3: GUI e Usabilidade
+* Labels: Type: Enhancement, Priority: Critical, Module: GUI
+* Title: [M3] Criar aba de 'Análise' na GUI
+* Description: Em src/zebtrack/ui/gui.py, adicionar uma nova aba ou janela que permita carregar um projeto existente, exibir parâmetros e ter um botão para "Executar Análise".
+* Milestone: M3: GUI e Usabilidade
+* Labels: Type: Enhancement, Priority: High, Module: GUI
+* Title: [M3] Integrar visualização de trajetórias e heatmaps na GUI
+* Description: Usar matplotlib.backends.backend_tkagg para embutir gráficos gerados diretamente na aba de "Análise" da GUI.
+* Milestone: M3: GUI e Usabilidade
+* Labels: Type: Enhancement, Priority: High, Module: GUI
+Milestone 5: Lançamento
+* Title: [M5] Escrever testes unitários para o módulo de análise
+* Description: Criar tests/test_analyzer.py. Usar pytest para criar casos de teste com dados de entrada conhecidos e verificar se as métricas são calculadas corretamente.
+* Milestone: M5: Lançamento v1.0
+* Labels: Type: Testing, Priority: High, Module: Analysis
+* Title: [M5] Configurar e testar o empacotamento com PyInstaller
+* Description: Criar e refinar o arquivo .spec para incluir todos os modelos, assets e dependências. Gerar o executável e testá-lo em um ambiente limpo.
+* Milestone: M5: Lançamento v1.0
+* Labels: Type: Enhancement, Priority: Critical
+6. Adicionar Tudo ao Projeto Global
+* Ação Final: Adicione todas as issues criadas nos três repositórios ao projeto ZebTrack-AI Unification. Coloque todas as issues na coluna To Do para iniciar o planejamento.
