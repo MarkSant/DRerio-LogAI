@@ -22,23 +22,47 @@ class YOLOv8Plugin(DetectorPlugin):
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float]]:
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, int]]:
         """
-        Performs inference using the YOLOv8 model.
+        Performs object tracking using the YOLOv8 model with ByteTrack.
+
+        Returns:
+            A list of tuples, where each tuple contains:
+            (x1, y1, x2, y2, confidence, track_id).
         """
-        use_half = torch.cuda.is_available()
-        results = self.model(
+        results = self.model.track(
             frame,
+            persist=True,
+            tracker="bytetrack.yaml",
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
-            half=use_half,
         )
 
         predictions = []
-        for det in results[0].boxes.data.cpu().numpy():
-            x1, y1, x2, y2, confidence, _ = det
-            predictions.append((int(x1), int(y1), int(x2), int(y2), float(confidence)))
+        # Check if tracking IDs are available
+        if results[0].boxes.id is not None:
+            boxes = results[0].boxes
+            xyxys = boxes.xyxy.cpu().numpy()
+            confs = boxes.conf.cpu().numpy()
+            track_ids = boxes.id.cpu().numpy()
+
+            for i in range(len(xyxys)):
+                x1, y1, x2, y2 = xyxys[i]
+                confidence = confs[i]
+                track_id = track_ids[i]
+                predictions.append(
+                    (
+                        int(x1),
+                        int(y1),
+                        int(x2),
+                        int(y2),
+                        float(confidence),
+                        int(track_id),
+                    )
+                )
 
         return predictions
 

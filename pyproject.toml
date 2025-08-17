@@ -18,6 +18,8 @@ pyyaml = "^6.0.2"
 pydantic = "^2.11.7"
 structlog = "^25.4.0"
 Pillow = "^10.4.0"
+pyarrow = "^21.0.0"
+pandas = "^2.3.1"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.9"
@@ -32,3 +34,8 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "src"
+]
