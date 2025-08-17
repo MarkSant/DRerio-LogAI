@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "generated_at": "2025-08-17T14:48:30Z",
+  "labels": [
+    {"name": "Type: Bug", "color": "d73a4a", "description": "Problemas, erros ou comportamento inesperado."},
+    {"name": "Type: Enhancement", "color": "a2eeef", "description": "Novas funcionalidades ou melhorias."},
+    {"name": "Type: Documentation", "color": "0075ca", "description": "Atualizações ou criação de documentação."},
+    {"name": "Type: Testing", "color": "bfdadc", "description": "Criação ou melhoria de testes automatizados."},
+    {"name": "Type: Analysis", "color": "5319e7", "description": "Tarefas de análise de código ou comportamento."},
+    {"name": "Priority: Critical", "color": "b60205", "description": "Necessário antes do próximo marco; bloqueia release."},
+    {"name": "Priority: High", "color": "d93f0b", "description": "Alta prioridade para o ciclo corrente."},
+    {"name": "Priority: Medium", "color": "fbca04", "description": "Prioridade padrão."},
+    {"name": "Module: Backend", "color": "1d76db", "description": "Código núcleo, ingestão, tracking e infraestrutura."},
+    {"name": "Module: GUI", "color": "cfd3d7", "description": "Interface gráfica e usabilidade."},
+    {"name": "Module: Analysis", "color": "0e8a16", "description": "Cálculos e pipeline de análise comportamental."},
+    {"name": "Module: AI", "color": "5319e7", "description": "Funcionalidades de IA / generativa."}
+  ],
+  "notes": "Manifesto consolidado de labels. Fonte: alinhamento em 2025-08-17."
+}
