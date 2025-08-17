@@ -1,1 +1,5 @@
-{ "name": "Type: Documentation", "color": "0075ca", "description": "Atualizações ou criação de documentação." }
+{
+  "color": "0075ca",
+  "description": "Atualizações ou criação de documentação",
+  "name": "Type: Documentation"
+}

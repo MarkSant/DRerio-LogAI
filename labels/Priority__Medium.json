@@ -1,1 +1,5 @@
-{ "name": "Priority: Medium", "color": "fbca04", "description": "Prioridade padrão." }
+{
+  "color": "fbca04",
+  "description": "Prioridade padrão.",
+  "name": "Priority: Medium"
+}

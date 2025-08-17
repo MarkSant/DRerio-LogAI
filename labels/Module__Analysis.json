@@ -1,1 +1,5 @@
-{ "name": "Module: Analysis", "color": "0e8a16", "description": "Cálculos e pipeline de análise comportamental." }
+{
+  "color": "0e8a16",
+  "description": "Cálculos e pipeline de análise comportamental",
+  "name": "Module: Analysis"
+}
