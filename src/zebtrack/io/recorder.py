@@ -140,27 +140,52 @@ class Recorder:
             log.error("recorder.save_parquet.error", path=parquet_filename, exc_info=e)
 
     def _save_area_definitions(self, folder_path):
-        """Saves processing and interest area definitions to CSVs."""
+        """Saves processing and interest area definitions to Parquet files."""
+        # Save processing area
         processing_area_filename = os.path.join(
-            folder_path, f"1_ProcessingArea_{self.base_name}.csv"
+            folder_path, f"1_ProcessingArea_{self.base_name}.parquet"
         )
-        with open(processing_area_filename, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["x", "y"])
-            writer.writerows(settings.detection_zones.polygon)
-            f.flush()
-            os.fsync(f.fileno())
+        try:
+            processing_df = pd.DataFrame(
+                settings.detection_zones.polygon, columns=["x", "y"]
+            )
+            table = pa.Table.from_pandas(processing_df)
+            pq.write_table(table, processing_area_filename)
+            log.info(
+                "recorder.save_processing_area.success", path=processing_area_filename
+            )
+        except Exception as e:
+            log.error(
+                "recorder.save_processing_area.error",
+                path=processing_area_filename,
+                exc_info=e,
+            )
 
+        # Save areas of interest
         areas_of_interest_filename = os.path.join(
-            folder_path, f"2_AreasOfInterest_{self.base_name}.csv"
+            folder_path, f"2_AreasOfInterest_{self.base_name}.parquet"
         )
-        with open(areas_of_interest_filename, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["area", "x1", "y1", "x2", "y2"])
-            for i, ((x1, y1), (x2, y2)) in enumerate(settings.detection_zones.squares):
-                writer.writerow([f"Area {i + 1}", x1, y1, x2, y2])
-            f.flush()
-            os.fsync(f.fileno())
+        try:
+            areas_data = []
+            for i, ((x1, y1), (x2, y2)) in enumerate(
+                settings.detection_zones.squares
+            ):
+                areas_data.append([f"Area {i + 1}", x1, y1, x2, y2])
+            areas_df = pd.DataFrame(
+                areas_data, columns=["area", "x1", "y1", "x2", "y2"]
+            )
+            table = pa.Table.from_pandas(areas_df)
+            pq.write_table(table, areas_of_interest_filename)
+            log.info(
+                "recorder.save_areas_of_interest.success",
+                path=areas_of_interest_filename,
+            )
+        except Exception as e:
+            log.error(
+                "recorder.save_areas_of_interest.error",
+                path=areas_of_interest_filename,
+                exc_info=e,
+            )
 
         log.info("recorder.area_definitions.saved", path=folder_path)
 
