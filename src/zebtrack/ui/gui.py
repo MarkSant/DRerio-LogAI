@@ -236,7 +236,7 @@ class ApplicationGUI:
                 if not model_path or not os.path.exists(model_path):
                     raise ValueError("OpenVINO model path not found or invalid.")
             else:
-                plugin_name = "YOLOv8 (Ultralytics)"
+                plugin_name = "YOLO (Ultralytics)"
                 model_path = settings.yolo_model.path
 
             plugin_class = DETECTOR_PLUGINS.get(plugin_name)

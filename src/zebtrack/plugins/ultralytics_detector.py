@@ -8,12 +8,12 @@ from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
 
 
-class YOLOv8Plugin(DetectorPlugin):
-    """A detector plugin that uses the ultralytics YOLOv8 model."""
+class UltralyticsDetectorPlugin(DetectorPlugin):
+    """A detector plugin that uses the ultralytics YOLO model."""
 
     def __init__(self, model_path: str):
         """
-        Initializes the YOLOv8 model.
+        Initializes the YOLO model.
 
         Args:
             model_path (str): The path to the .pt model file.
@@ -68,7 +68,7 @@ class YOLOv8Plugin(DetectorPlugin):
 
     @staticmethod
     def get_name() -> str:
-        return "YOLOv8 (Ultralytics)"
+        return "YOLO (Ultralytics)"
 
     @property
     def model_input_shape(self) -> Tuple[int, int]:

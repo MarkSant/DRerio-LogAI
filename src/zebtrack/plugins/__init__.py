@@ -1,9 +1,9 @@
 from .openvino_detector import OpenVINOPlugin
-from .yolo_detector import YOLOv8Plugin
+from .ultralytics_detector import UltralyticsDetectorPlugin
 
 # A simple plugin registry. The keys are the user-facing names.
 # The main application can use this to discover and instantiate plugins.
 DETECTOR_PLUGINS = {
-    YOLOv8Plugin.get_name(): YOLOv8Plugin,
+    UltralyticsDetectorPlugin.get_name(): UltralyticsDetectorPlugin,
     OpenVINOPlugin.get_name(): OpenVINOPlugin,
 }
