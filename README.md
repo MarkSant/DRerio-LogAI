@@ -76,6 +76,17 @@ graph TD
 *   **Arduino**: Manages communication with an Arduino board for hardware I/O.
 *   **Settings**: Loads and manages application settings from configuration files.
 
+## Data Output
+
+When a recording session is active, the application generates the following output files in the project's output directory:
+
+*   **`{base_name}.mp4`**: The recorded video of the session.
+*   **`1_ProcessingArea_{base_name}.parquet`**: A Parquet file containing the coordinates (`x`, `y`) of the defined processing area polygon.
+*   **`2_AreasOfInterest_{base_name}.parquet`**: A Parquet file listing the defined rectangular areas of interest (`area`, `x1`, `y1`, `x2`, `y2`).
+*   **`3_CoordMovimento_{base_name}.parquet`**: A Parquet file with the core tracking data for each detected object, including `timestamp`, `frame`, `track_id`, bounding box coordinates (`x1`, `y1`, `x2`, `y2`), and `confidence`.
+
+All tabular data is stored in the **Apache Parquet** format. This columnar storage format is highly efficient, offering both excellent compression and faster query performance, which is ideal for analytical workloads.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

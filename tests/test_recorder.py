@@ -26,7 +26,7 @@ class TestRecorder(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_start_recording_creates_files(self):
-        """Test that start_recording creates metadata CSVs and video file."""
+        """Test that start_recording creates metadata Parquet files and video file."""
         success = self.recorder.start_recording(
             self.output_folder, self.frame_width, self.frame_height
         )
@@ -36,52 +36,50 @@ class TestRecorder(unittest.TestCase):
 
         # Check if metadata files were created
         video_file = os.path.join(self.output_folder, f"{base_name}.mp4")
-        processing_area_csv = os.path.join(
-            self.output_folder, f"1_ProcessingArea_{base_name}.csv"
+        processing_area_parquet = os.path.join(
+            self.output_folder, f"1_ProcessingArea_{base_name}.parquet"
         )
-        areas_of_interest_csv = os.path.join(
-            self.output_folder, f"2_AreasOfInterest_{base_name}.csv"
+        areas_of_interest_parquet = os.path.join(
+            self.output_folder, f"2_AreasOfInterest_{base_name}.parquet"
         )
-        # The detection data file is now Parquet and only created on stop_recording
+        # The detection data file is only created on stop_recording
         coord_movimento_file = os.path.join(
             self.output_folder, f"3_CoordMovimento_{base_name}.parquet"
         )
 
         self.assertTrue(os.path.exists(video_file))
-        self.assertTrue(os.path.exists(processing_area_csv))
-        self.assertTrue(os.path.exists(areas_of_interest_csv))
+        self.assertTrue(os.path.exists(processing_area_parquet))
+        self.assertTrue(os.path.exists(areas_of_interest_parquet))
         self.assertFalse(os.path.exists(coord_movimento_file))
 
         self.recorder.stop_recording()
 
-    def test_metadata_csv_headers(self):
-        """Test that the metadata CSV files have the correct headers."""
+    def test_metadata_parquet_content(self):
+        """Test that the metadata Parquet files have the correct content."""
         self.recorder.start_recording(
             self.output_folder, self.frame_width, self.frame_height
         )
         base_name = os.path.basename(self.output_folder)
 
-        # Test Processing Area CSV
-        processing_area_csv = os.path.join(
-            self.output_folder, f"1_ProcessingArea_{base_name}.csv"
+        # Test Processing Area Parquet
+        processing_area_parquet = os.path.join(
+            self.output_folder, f"1_ProcessingArea_{base_name}.parquet"
         )
-        with open(processing_area_csv, "r") as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            self.assertEqual(header, ["x", "y"])
-            content = list(reader)
-            self.assertEqual(len(content), len(settings.detection_zones.polygon))
+        self.assertTrue(os.path.exists(processing_area_parquet))
+        df_proc = pd.read_parquet(processing_area_parquet)
+        self.assertEqual(list(df_proc.columns), ["x", "y"])
+        self.assertEqual(len(df_proc), len(settings.detection_zones.polygon))
+        # Optional: More detailed content check if necessary
 
-        # Test Areas of Interest CSV
-        areas_of_interest_csv = os.path.join(
-            self.output_folder, f"2_AreasOfInterest_{base_name}.csv"
+        # Test Areas of Interest Parquet
+        areas_of_interest_parquet = os.path.join(
+            self.output_folder, f"2_AreasOfInterest_{base_name}.parquet"
         )
-        with open(areas_of_interest_csv, "r") as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            self.assertEqual(header, ["area", "x1", "y1", "x2", "y2"])
-            content = list(reader)
-            self.assertEqual(len(content), len(settings.detection_zones.squares))
+        self.assertTrue(os.path.exists(areas_of_interest_parquet))
+        df_areas = pd.read_parquet(areas_of_interest_parquet)
+        self.assertEqual(list(df_areas.columns), ["area", "x1", "y1", "x2", "y2"])
+        self.assertEqual(len(df_areas), len(settings.detection_zones.squares))
+        # Optional: More detailed content check if necessary
 
         self.recorder.stop_recording()
 
