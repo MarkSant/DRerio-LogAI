@@ -1,143 +1,171 @@
 import os
 import shutil
-import unittest
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from zebtrack.io.recorder import Recorder
 from zebtrack.settings import settings
 
 
-class TestRecorder(unittest.TestCase):
-    def setUp(self):
-        """Set up a temporary directory for test outputs."""
-        self.test_dir = "temp_recorder_test_dir"
-        os.makedirs(self.test_dir, exist_ok=True)
-        self.recorder = Recorder()
-        self.output_folder = os.path.join(self.test_dir, "test_run_1")
-        self.frame_width = 100
-        self.frame_height = 100
+@pytest.fixture
+def recorder_setup():
+    """Set up a temporary directory and a Recorder instance for testing."""
+    test_dir = "temp_recorder_test_dir"
+    os.makedirs(test_dir, exist_ok=True)
+    recorder = Recorder()
+    output_folder = os.path.join(test_dir, "test_run_1")
+    frame_width = 100
+    frame_height = 100
 
-    def tearDown(self):
-        """Clean up the temporary directory."""
-        if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+    # Yield the necessary objects to the tests
+    yield recorder, output_folder, frame_width, frame_height
 
-    def test_start_recording_creates_files(self):
-        """Test that start_recording creates metadata Parquet files and video file."""
-        success = self.recorder.start_recording(
-            self.output_folder, self.frame_width, self.frame_height
-        )
-        self.assertTrue(success)
-
-        base_name = os.path.basename(self.output_folder)
-
-        # Check if metadata files were created
-        video_file = os.path.join(self.output_folder, f"{base_name}.mp4")
-        processing_area_parquet = os.path.join(
-            self.output_folder, f"1_ProcessingArea_{base_name}.parquet"
-        )
-        areas_of_interest_parquet = os.path.join(
-            self.output_folder, f"2_AreasOfInterest_{base_name}.parquet"
-        )
-        # The detection data file is only created on stop_recording
-        coord_movimento_file = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{base_name}.parquet"
-        )
-
-        self.assertTrue(os.path.exists(video_file))
-        self.assertTrue(os.path.exists(processing_area_parquet))
-        self.assertTrue(os.path.exists(areas_of_interest_parquet))
-        self.assertFalse(os.path.exists(coord_movimento_file))
-
-        self.recorder.stop_recording()
-
-    def test_metadata_parquet_content(self):
-        """Test that the metadata Parquet files have the correct content."""
-        self.recorder.start_recording(
-            self.output_folder, self.frame_width, self.frame_height
-        )
-        base_name = os.path.basename(self.output_folder)
-
-        # Test Processing Area Parquet
-        processing_area_parquet = os.path.join(
-            self.output_folder, f"1_ProcessingArea_{base_name}.parquet"
-        )
-        self.assertTrue(os.path.exists(processing_area_parquet))
-        df_proc = pd.read_parquet(processing_area_parquet)
-        self.assertEqual(list(df_proc.columns), ["x", "y"])
-        self.assertEqual(len(df_proc), len(settings.detection_zones.polygon))
-        # Optional: More detailed content check if necessary
-
-        # Test Areas of Interest Parquet
-        areas_of_interest_parquet = os.path.join(
-            self.output_folder, f"2_AreasOfInterest_{base_name}.parquet"
-        )
-        self.assertTrue(os.path.exists(areas_of_interest_parquet))
-        df_areas = pd.read_parquet(areas_of_interest_parquet)
-        self.assertEqual(list(df_areas.columns), ["area", "x1", "y1", "x2", "y2"])
-        self.assertEqual(len(df_areas), len(settings.detection_zones.squares))
-        # Optional: More detailed content check if necessary
-
-        self.recorder.stop_recording()
-
-    def test_write_detection_data_saves_parquet(self):
-        """Test that detection data is written correctly to a Parquet file."""
-        self.recorder.start_recording(
-            self.output_folder, self.frame_width, self.frame_height
-        )
-
-        # Write some data
-        timestamp = 1.23456
-        frame_number = 101
-        detections = [(10, 20, 30, 40, 0.987, 1)]  # Added track_id
-        self.recorder.write_detection_data(timestamp, frame_number, detections)
-
-        # Stop recording to trigger Parquet file save
-        self.recorder.stop_recording()
-
-        # Check the content of the Parquet file
-        base_name = os.path.basename(self.output_folder)
-        coord_movimento_parquet = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{base_name}.parquet"
-        )
-        self.assertTrue(os.path.exists(coord_movimento_parquet))
-
-        df = pd.read_parquet(coord_movimento_parquet)
-        self.assertEqual(len(df), 1)
-        row = df.iloc[0]
-
-        self.assertEqual(row["timestamp"], timestamp)
-        self.assertEqual(row["frame"], frame_number)
-        self.assertEqual(row["track_id"], 1)
-        self.assertEqual(row["x1"], 10)
-        self.assertEqual(row["y1"], 20)
-        self.assertEqual(row["x2"], 30)
-        self.assertEqual(row["y2"], 40)
-        self.assertAlmostEqual(row["confidence"], 0.987, places=5)
-
-    def test_video_writing(self):
-        """Test that writing video frames increases file size."""
-        self.recorder.start_recording(
-            self.output_folder, self.frame_width, self.frame_height
-        )
-        base_name = os.path.basename(self.output_folder)
-        video_file = os.path.join(self.output_folder, f"{base_name}.mp4")
-
-        initial_size = os.path.getsize(video_file)
-
-        # Create a dummy frame and write it
-        dummy_frame = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.uint8)
-        self.recorder.write_video_frame(dummy_frame)
-        self.recorder.write_video_frame(dummy_frame)
-
-        # Stop recording to flush the writer
-        self.recorder.stop_recording()
-
-        final_size = os.path.getsize(video_file)
-        self.assertGreater(final_size, initial_size)
+    # Teardown: clean up the temporary directory
+    if os.path.exists(test_dir):
+        shutil.rmtree(test_dir)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_start_recording_creates_files(recorder_setup):
+    """Test that start_recording creates metadata Parquet files and video file."""
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    success = recorder.start_recording(output_folder, frame_width, frame_height)
+    assert success
+
+    base_name = os.path.basename(output_folder)
+
+    # Check if metadata files were created
+    video_file = os.path.join(output_folder, f"{base_name}.mp4")
+    processing_area_parquet = os.path.join(
+        output_folder, f"1_ProcessingArea_{base_name}.parquet"
+    )
+    areas_of_interest_parquet = os.path.join(
+        output_folder, f"2_AreasOfInterest_{base_name}.parquet"
+    )
+    # The detection data file is only created on stop_recording
+    coord_movimento_file = os.path.join(
+        output_folder, f"3_CoordMovimento_{base_name}.parquet"
+    )
+
+    assert os.path.exists(video_file)
+    assert os.path.exists(processing_area_parquet)
+    assert os.path.exists(areas_of_interest_parquet)
+    assert not os.path.exists(coord_movimento_file)
+
+    recorder.stop_recording()
+
+
+def test_metadata_parquet_content(recorder_setup):
+    """Test that the metadata Parquet files have the correct content."""
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder.start_recording(output_folder, frame_width, frame_height)
+    base_name = os.path.basename(output_folder)
+
+    # Test Processing Area Parquet
+    processing_area_parquet = os.path.join(
+        output_folder, f"1_ProcessingArea_{base_name}.parquet"
+    )
+    assert os.path.exists(processing_area_parquet)
+    df_proc = pd.read_parquet(processing_area_parquet)
+    assert list(df_proc.columns) == ["x", "y"]
+    assert len(df_proc) == len(settings.detection_zones.polygon)
+
+    # Test Areas of Interest Parquet
+    areas_of_interest_parquet = os.path.join(
+        output_folder, f"2_AreasOfInterest_{base_name}.parquet"
+    )
+    assert os.path.exists(areas_of_interest_parquet)
+    df_areas = pd.read_parquet(areas_of_interest_parquet)
+    assert list(df_areas.columns) == ["area", "x1", "y1", "x2", "y2"]
+    assert len(df_areas) == len(settings.detection_zones.squares)
+
+    recorder.stop_recording()
+
+
+def test_write_detection_data_saves_parquet(recorder_setup):
+    """
+    Test that writing multiple frames of detection data is saved correctly
+    to a Parquet file, including calculated center points.
+    """
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    # Provide a mock pixel-to-cm ratio to enable center point calculation
+    mock_pixel_ratio = (10.0, 10.0)  # 10 pixels per cm
+    recorder.start_recording(
+        output_folder, frame_width, frame_height, pixel_per_cm_ratio=mock_pixel_ratio
+    )
+
+    # Write a few frames of data
+    detections_data = [
+        (1.23, 101, [(10, 20, 30, 40, 0.98, 1)]),
+        (1.26, 102, [(11, 21, 31, 41, 0.99, 1)]),
+    ]
+    for ts, fn, dets in detections_data:
+        recorder.write_detection_data(ts, fn, dets)
+
+    # Stop recording to trigger Parquet file save
+    recorder.stop_recording()
+
+    # Check that the Parquet file was created
+    base_name = os.path.basename(output_folder)
+    coord_movimento_parquet = os.path.join(
+        output_folder, f"3_CoordMovimento_{base_name}.parquet"
+    )
+    assert os.path.exists(coord_movimento_parquet)
+
+    # Check the content of the Parquet file
+    df = pd.read_parquet(coord_movimento_parquet)
+
+    # 1. Check the number of records
+    assert len(df) == 2
+
+    # 2. Check the column names explicitly
+    expected_columns = [
+        "timestamp",
+        "frame",
+        "track_id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "confidence",
+        "x_center_px",
+        "y_center_px",
+        "x_cm",
+        "y_cm",
+    ]
+    assert list(df.columns) == expected_columns
+
+    # 3. Check the data in the first row
+    row1 = df.iloc[0]
+    assert row1["timestamp"] == 1.23
+    assert row1["frame"] == 101
+    assert row1["track_id"] == 1
+    assert row1["x1"] == 10
+    assert row1["y1"] == 20
+    assert row1["confidence"] == pytest.approx(0.98)
+    assert row1["x_center_px"] == 20.0  # (10+30)/2
+    assert row1["y_center_px"] == 30.0  # (20+40)/2
+    assert row1["x_cm"] == pytest.approx(2.0)  # 20.0 / 10.0
+    assert row1["y_cm"] == pytest.approx(3.0)  # 30.0 / 10.0
+
+
+def test_video_writing(recorder_setup):
+    """Test that writing video frames increases file size."""
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder.start_recording(output_folder, frame_width, frame_height)
+    base_name = os.path.basename(output_folder)
+    video_file = os.path.join(output_folder, f"{base_name}.mp4")
+
+    initial_size = os.path.getsize(video_file)
+
+    # Create a dummy frame and write it
+    dummy_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+    recorder.write_video_frame(dummy_frame)
+    recorder.write_video_frame(dummy_frame)
+
+    # Stop recording to flush the writer
+    recorder.stop_recording()
+
+    final_size = os.path.getsize(video_file)
+    assert final_size > initial_size

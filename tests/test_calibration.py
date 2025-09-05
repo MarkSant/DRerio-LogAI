@@ -1,88 +1,116 @@
-import unittest
-
 import numpy as np
+import pytest
 
 from src.zebtrack.core.calibration import Calibration
 
 
-class TestCalibration(unittest.TestCase):
-    def setUp(self):
-        """Set up a sample polygon and dimensions for testing."""
-        # A simple, slightly distorted rectangle as a sample polygon
-        self.polygon = np.array(
-            [[105, 105], [495, 100], [505, 395], [100, 405]], dtype=np.int32
-        )
-        self.real_width_cm = 20.0
-        self.real_height_cm = 15.0
-
-    def test_calibration_initialization_and_processing(self):
-        """
-        Test if the Calibration class initializes correctly and calculates
-        the homography matrix and pixel ratio.
-        """
-        calibration = Calibration(self.polygon, self.real_width_cm, self.real_height_cm)
-
-        # 1. Test if homography matrix is calculated and has the correct shape
-        self.assertIsNotNone(calibration.homography_matrix)
-        self.assertEqual(calibration.homography_matrix.shape, (3, 3))
-
-        # 2. Test if the pixel-to-cm ratio is calculated correctly
-        # Based on the hardcoded target width of 600px in Calibration class
-        target_width_px = 600
-        aspect_ratio = self.real_height_cm / self.real_width_cm
-        target_height_px = int(target_width_px * aspect_ratio)
-
-        expected_ratio_x = target_width_px / self.real_width_cm
-        expected_ratio_y = target_height_px / self.real_height_cm
-
-        self.assertAlmostEqual(calibration.pixel_per_cm_ratio[0], expected_ratio_x)
-        self.assertAlmostEqual(calibration.pixel_per_cm_ratio[1], expected_ratio_y)
-        self.assertEqual(
-            calibration.target_dims_px, (target_width_px, target_height_px)
-        )
-
-    def test_warp_frame(self):
-        """
-        Test if the warp_frame method returns a frame with the correct dimensions.
-        """
-        calibration = Calibration(self.polygon, self.real_width_cm, self.real_height_cm)
-
-        # Create a dummy frame
-        original_frame = np.zeros((600, 800, 3), dtype=np.uint8)
-
-        warped_frame = calibration.warp_frame(original_frame)
-
-        # The warped frame should have the target dimensions calculated during
-        # calibration
-        expected_height, expected_width = (
-            calibration.target_dims_px[1],
-            calibration.target_dims_px[0],
-        )
-
-        self.assertEqual(warped_frame.shape[0], expected_height)
-        self.assertEqual(warped_frame.shape[1], expected_width)
-
-    def test_order_points(self):
-        """
-        Test the _order_points static method to ensure it sorts corners correctly.
-        """
-        pts = np.array(
-            [
-                (0, 100),  # bottom-left
-                (100, 0),  # top-right
-                (100, 100),  # bottom-right
-                (0, 0),  # top-left
-            ],
-            dtype="float32",
-        )
-
-        ordered = Calibration._order_points(pts)
-
-        # Expected order: top-left, top-right, bottom-right, bottom-left
-        expected = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype="float32")
-
-        np.testing.assert_array_equal(ordered, expected)
+@pytest.fixture
+def calibration_setup():
+    """Provides a sample polygon and dimensions for testing."""
+    polygon = np.array(
+        [[105, 105], [495, 100], [505, 395], [100, 405]], dtype=np.int32
+    )
+    real_width_cm = 20.0
+    real_height_cm = 15.0
+    return polygon, real_width_cm, real_height_cm
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_calibration_initialization_and_processing(calibration_setup):
+    """
+    Test if the Calibration class initializes correctly and calculates
+    the homography matrix and pixel ratio.
+    """
+    polygon, real_width_cm, real_height_cm = calibration_setup
+    calibration = Calibration(polygon, real_width_cm, real_height_cm)
+
+    # 1. Test if homography matrix is calculated and has the correct shape
+    assert calibration.homography_matrix is not None
+    assert calibration.homography_matrix.shape == (3, 3)
+
+    # 2. Test if the pixel-to-cm ratio is calculated correctly
+    # Based on the hardcoded target width of 600px in Calibration class
+    target_width_px = 600
+    aspect_ratio = real_height_cm / real_width_cm
+    target_height_px = int(target_width_px * aspect_ratio)
+
+    expected_ratio_x = target_width_px / real_width_cm
+    expected_ratio_y = target_height_px / real_height_cm
+
+    assert calibration.pixel_per_cm_ratio[0] == pytest.approx(expected_ratio_x)
+    assert calibration.pixel_per_cm_ratio[1] == pytest.approx(expected_ratio_y)
+    assert calibration.target_dims_px == (target_width_px, target_height_px)
+
+
+def test_warp_frame(calibration_setup):
+    """
+    Test if the warp_frame method returns a frame with the correct dimensions.
+    """
+    polygon, real_width_cm, real_height_cm = calibration_setup
+    calibration = Calibration(polygon, real_width_cm, real_height_cm)
+
+    # Create a dummy frame
+    original_frame = np.zeros((600, 800, 3), dtype=np.uint8)
+
+    warped_frame = calibration.warp_frame(original_frame)
+
+    # The warped frame should have the target dimensions calculated during
+    # calibration
+    expected_height, expected_width = (
+        calibration.target_dims_px[1],
+        calibration.target_dims_px[0],
+    )
+
+    assert warped_frame.shape[0] == expected_height
+    assert warped_frame.shape[1] == expected_width
+
+
+def test_order_points():
+    """
+    Test the _order_points static method to ensure it sorts corners correctly.
+    """
+    pts = np.array(
+        [
+            (0, 100),  # bottom-left
+            (100, 0),  # top-right
+            (100, 100),  # bottom-right
+            (0, 0),  # top-left
+        ],
+        dtype="float32",
+    )
+
+    ordered = Calibration._order_points(pts)
+
+    # Expected order: top-left, top-right, bottom-right, bottom-left
+    expected = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype="float32")
+
+    np.testing.assert_array_equal(ordered, expected)
+
+
+def test_pixel_to_cm_conversion():
+    """
+    Test that the pixel-to-cm conversion logic is correct based on the
+    calculated ratio.
+    """
+    # This polygon is not important for the ratio calculation itself, but the
+    # class requires it for initialization.
+    dummy_polygon = np.array(
+        [[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32
+    )
+    # If the real-world width is 30cm, and the target warped width is 600px,
+    # the ratio should be 20 pixels per cm.
+    calibration = Calibration(
+        polygon=dummy_polygon, real_width_cm=30.0, real_height_cm=20.0
+    )
+
+    # 1. Check if the ratio is calculated as expected
+    px_per_cm_x, _ = calibration.pixel_per_cm_ratio
+    assert px_per_cm_x == pytest.approx(20.0)  # 600px / 30cm
+
+    # 2. Test the conversion as specified in the task description
+    # If 100 pixels = 5 cm, then the ratio is 20 px/cm.
+    # A value of 200 pixels should convert to 10 cm.
+    pixel_value = 200
+    expected_cm_value = 10.0
+    calculated_cm_value = pixel_value / px_per_cm_x
+
+    assert calculated_cm_value == pytest.approx(expected_cm_value)

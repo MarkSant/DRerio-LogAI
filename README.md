@@ -1,91 +1,48 @@
-# Zebtrack Controller
+# ZebTrack-AI: High-Throughput Animal Tracking and Behavioral Analysis
 
-Zebtrack Controller is a graphical application designed for object tracking in video streams, with integration for hardware control via Arduino. It is intended for scientific research and can be used with both live camera feeds and pre-recorded videos.
+ZebTrack-AI is a user-friendly desktop application designed for researchers to perform high-throughput tracking and behavioral analysis of animals in video recordings. Built for scientific rigor, it provides a complete workflow from video processing to data analysis and visualization, all within an intuitive graphical interface. Whether you are studying zebrafish larvae or other organisms, ZebTrack-AI helps you extract meaningful data with ease and precision.
 
-## Installation
+[Placeholder for a GIF or screenshot of the ZebTrack-AI interface in action]
 
-This project is managed with [Poetry](https://python-poetry.org/).
+## Key Features
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/zebtrack-controller.git
-    cd zebtrack-controller
-    ```
+*   **Multi-Animal Tracking:** Utilizes state-of-the-art models (YOLOv8) to reliably track multiple animals simultaneously.
+*   **Automated Behavioral Analysis:** Automatically calculates a wide range of behavioral metrics, including:
+    *   Total distance traveled and velocity
+    *   Freezing episodes (time spent immobile)
+    *   Thigmotaxis (wall-hugging behavior)
+    *   Tortuosity (path complexity)
+*   **Interactive ROI Definition:** Easily define custom regions of interest (ROIs) to analyze location-specific behaviors.
+*   **User-Friendly Interface:** A simple, point-and-click interface that guides you through creating projects, running analyses, and exploring results. No programming required.
+*   **Comprehensive Data Export:** Exports all data into easy-to-use formats like Excel (`.xlsx`) and Parquet (`.parquet`), along with high-quality plots for publication.
 
-2.  **Install Poetry:**
-    Follow the official instructions at [python-poetry.org](https://python-poetry.org/docs/#installation) to install Poetry on your system.
+---
 
-3.  **Install dependencies:**
-    Once Poetry is installed, run the following command in the project root to create a virtual environment and install the required dependencies:
-    ```bash
-    poetry install
-    ```
+## How to Get Started (Quick Start)
 
-## Usage
+Getting your research underway with ZebTrack-AI is simple.
 
-To run the application, use the following command from the project's root directory:
+1.  **Download the Application:**
+    *   [Link to Windows Executable (coming soon)]
+    *   [Link to macOS Application (coming soon)]
+    *   [Link to Linux Executable (coming soon)]
 
-```bash
-poetry run python -m zebtrack
-```
+2.  **Launch the Program:**
+    *   Open the downloaded application. You will be greeted by the main project window.
 
-This will launch the main graphical user interface.
+3.  **Create a New Project:**
+    *   Click on **"New Project"** and select the folder containing your video files.
 
-## Architecture
+4.  **Run the Analysis:**
+    *   Once your project is loaded, click **"Run Batch Analysis"** to process all videos and generate your results. It's that simple!
 
-The application is designed with a separation of concerns, loosely following a Model-View-Controller (MVC) pattern.
-
-```mermaid
-graph TD
-    subgraph "User Interface (View)"
-        GUI["GUI (Tkinter)"]
-    end
-
-    subgraph "Core Logic (Controller & Model)"
-        AppController
-        ProjectManager
-        Detector["Detector (Ultralytics/OpenVINO)"]
-        Settings
-    end
-
-    subgraph "I/O Subsystem"
-        FrameSource["FrameSource (Camera/Video)"]
-        Recorder
-        Arduino
-    end
-
-    GUI -- User Actions --> AppController
-    AppController -- Updates --> GUI
-
-    AppController -- Manages --> ProjectManager
-    AppController -- Uses --> Settings
-    AppController -- Controls --> Detector
-    AppController -- Controls --> Recorder
-    AppController -- Controls --> Arduino
-    AppController -- Gets Frames --> FrameSource
-
-    Detector -- Processes frames provided by --> AppController
-```
-
-*   **GUI**: The user interface, built with Tkinter.
-*   **AppController**: The central component that handles user input from the GUI and coordinates all other components.
-*   **ProjectManager**: Manages the creation, loading, and saving of project files and configurations.
-*   **Detector**: Performs object detection on video frames using models from `ultralytics` or `OpenVINO`.
-*   **FrameSource**: Provides video frames, either from a live camera feed or a video file.
-*   **Recorder**: Handles the saving of output video and tracking data.
-*   **Arduino**: Manages communication with an Arduino board for hardware I/O.
-*   **Settings**: Loads and manages application settings from configuration files.
+---
 
 ## Data Output
 
-When a recording session is active, the application generates the following output files in the project's output directory:
+When you run an analysis, ZebTrack-AI organizes the results into a subfolder for each video. The primary data file is `3_CoordMovimento_{video_name}.parquet`, which contains the core tracking data for each detected animal, including its timestamp, frame number, track ID, and bounding box coordinates.
 
-*   **`{base_name}.mp4`**: The recorded video of the session.
-*   **`1_ProcessingArea_{base_name}.parquet`**: A Parquet file containing the coordinates (`x`, `y`) of the defined processing area polygon.
-*   **`2_AreasOfInterest_{base_name}.parquet`**: A Parquet file listing the defined rectangular areas of interest (`area`, `x1`, `y1`, `x2`, `y2`).
-*   **`3_CoordMovimento_{base_name}.parquet`**: A Parquet file with the core tracking data for each detected object, including `timestamp`, `frame`, `track_id`, bounding box coordinates (`x1`, `y1`, `x2`, `y2`), and `confidence`.
-
-All tabular data is stored in the **Apache Parquet** format. This columnar storage format is highly efficient, offering both excellent compression and faster query performance, which is ideal for analytical workloads.
+All summary data is aggregated into a `project_summary.xlsx` file at the root of your project, which is perfect for importing into statistical software like R, SPSS, or Prism.
 
 ## License
 
