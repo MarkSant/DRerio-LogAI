@@ -25,17 +25,15 @@ class TestAppController(unittest.TestCase):
         """Clean up after each test."""
         pass
 
-    @patch("src.zebtrack.core.controller.AppController.setup_detector")
-    def test_create_project_workflow_success(self, mock_setup_detector):
+    def test_create_project_workflow_success(self):
         """
         Test the successful creation of a new project through the controller.
         """
         # --- Arrange ---
         self.mock_pm.create_new_project.return_value = True
-        mock_setup_detector.return_value = True
-
-        # --- Act ---
-        self.controller.create_project_workflow(
+        with patch.object(self.controller, "setup_detector", return_value=True):
+            # --- Act ---
+            self.controller.create_project_workflow(
             project_path="/fake/parent/fake_project",
             project_type="live",
             use_openvino=False,

@@ -17,8 +17,7 @@ class BehavioralAnalyzer:
         Returns:
             A dictionary containing the calculated behavioral metrics.
         """
-        # Seeding based on the filename ensures some consistency, while still
-        # being random
+        # Seeding based on the filename ensures some consistency, while still being random
         seed = hash(video_path)
         random.seed(seed)
 

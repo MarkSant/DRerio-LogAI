@@ -185,7 +185,7 @@ class Detector:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.zones.colors[i], 2)
 
         # Draw the processing area polygon
-        if self.scaled_polygon.any():
+        if self.scaled_polygon.size > 0:
             cv2.polylines(
                 frame,
                 [self.scaled_polygon],
