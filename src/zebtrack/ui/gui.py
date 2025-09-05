@@ -192,8 +192,14 @@ class ApplicationGUI:
 
         # Dynamic widgets / state variables
         self.welcome_frame = None
+        self.notebook = None
         self.main_controls_frame = None
         self.status_var = StringVar()
+
+        # ROI Tab Widgets
+        self.roi_listbox = None
+        self.run_analysis_btn = None
+
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
         self.progress_bar = None
@@ -211,8 +217,12 @@ class ApplicationGUI:
 
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection."""
+        if self.notebook:
+            self.notebook.destroy()
+            self.notebook = None
         if self.main_controls_frame:
             self.main_controls_frame.destroy()
+            self.main_controls_frame = None
 
         self.root.geometry("400x150")
         self.welcome_frame = Frame(self.root)
@@ -235,13 +245,35 @@ class ApplicationGUI:
         ).pack(side="left", padx=10)
 
     def _create_main_control_frame(self):
-        """Creates the main UI for controlling the app after a project is loaded."""
+        """Creates the main UI with tabs for controlling the app."""
         if self.welcome_frame:
             self.welcome_frame.destroy()
+        self.root.geometry("")  # Let it resize
 
-        self.root.geometry("")
-        self.main_controls_frame = Frame(self.root)
-        self.main_controls_frame.pack(padx=10, pady=10)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
+
+        # Create the two tabs
+        self._create_main_controls_tab()
+        self._create_roi_analysis_tab()
+
+        # Status frame below the notebook
+        status_text = (
+            f"Project: {self.controller.project_manager.get_project_name()} "
+            f"({self.controller.project_manager.get_project_type()})"
+        )
+        self.status_var.set(status_text)
+        status_frame = Frame(self.root)
+        status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
+        Label(status_frame, textvariable=self.status_var).pack()
+
+        # Progress + video frame (hidden until needed)
+        self._build_progress_frame()
+
+    def _create_main_controls_tab(self):
+        """Creates the tab with the main project controls."""
+        self.main_controls_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.main_controls_frame, text="Controle Principal")
 
         project_type = self.controller.project_manager.get_project_type()
 
@@ -303,18 +335,427 @@ class ApplicationGUI:
             command=self.controller.close_project,
         ).pack(side="left", padx=5)
 
-        status_text = (
-            f"Project: {self.controller.project_manager.get_project_name()} "
-            f"({project_type})"
+    def _create_roi_analysis_tab(self):
+        """Creates the tab for ROI definition and analysis."""
+        from tkinter import Canvas
+
+        self.roi_data = {}  # Changed to a dict {arena_id: [roi_list]}
+        self.drawing_mode = None
+        self.current_polygon_points = []
+        self.current_circle_center = None
+        self._canvas_bg_image = None # Keep a reference to the image
+
+        roi_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(roi_tab_frame, text="Análise de Zonas de Interesse")
+
+        main_pane = ttk.PanedWindow(roi_tab_frame, orient="horizontal")
+        main_pane.pack(expand=True, fill="both")
+
+        controls_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
+        main_pane.add(controls_frame, weight=1)
+
+        # --- Aquarium & Animal Setup ---
+        setup_frame = ttk.LabelFrame(controls_frame, text="Configuração da Análise", padding=5)
+        setup_frame.pack(fill="x", pady=5)
+
+        ttk.Label(setup_frame, text="Aquário Ativo:").grid(row=0, column=0, sticky="w", pady=2)
+        self.arena_selector_var = StringVar()
+        self.arena_selector = ttk.Combobox(setup_frame, textvariable=self.arena_selector_var, state="readonly")
+        self.arena_selector.grid(row=0, column=1, sticky="ew", padx=5)
+        self.arena_selector.bind("<<ComboboxSelected>>", self._on_arena_select)
+
+        ttk.Label(setup_frame, text="Animais por Aquário:").grid(row=1, column=0, sticky="w", pady=2)
+        self.num_animals_var = StringVar(value="1")
+        ttk.Entry(setup_frame, textvariable=self.num_animals_var, width=5).grid(row=1, column=1, sticky="w", padx=5)
+
+        ttk.Label(setup_frame, text="Raio Social (cm):").grid(row=2, column=0, sticky="w", pady=2)
+        self.social_radius_var = StringVar(value="1.0")
+        ttk.Entry(setup_frame, textvariable=self.social_radius_var, width=5).grid(row=2, column=1, sticky="w", padx=5)
+
+        ttk.Button(controls_frame, text="Carregar Dados de Trajetória", command=self._load_roi_data).pack(fill="x", pady=5)
+
+        ttk.Label(controls_frame, text="Zonas de Interesse (ROIs):").pack(pady=(5, 2))
+        list_frame = ttk.Frame(controls_frame)
+        list_frame.pack(fill="both", expand=True)
+        self.roi_listbox = ttk.Treeview(list_frame, columns=("name",), show="headings")
+        self.roi_listbox.heading("name", text="Nome da ROI")
+        self.roi_listbox.pack(side="left", fill="both", expand=True)
+
+        btn_list_frame = ttk.Frame(controls_frame)
+        btn_list_frame.pack(fill="x", pady=2)
+        ttk.Button(btn_list_frame, text="Editar Nome").pack(side="left", expand=True, fill="x")
+        ttk.Button(btn_list_frame, text="Remover", command=self._remove_selected_roi).pack(side="left", expand=True, fill="x")
+
+        creation_frame = ttk.LabelFrame(controls_frame, text="Criar ROIs", padding=10)
+        creation_frame.pack(fill="x", pady=10)
+        ttk.Button(creation_frame, text="Desenhar Polígono", command=self._start_polygon_drawing).pack(fill="x", pady=2)
+        ttk.Button(creation_frame, text="Desenhar Círculo", command=self._start_circle_drawing).pack(fill="x", pady=2)
+        ttk.Button(creation_frame, text="Usar Template", command=self._create_template_rois).pack(fill="x", pady=2)
+
+        # Flutter parameter
+        flutter_frame = ttk.Frame(controls_frame)
+        flutter_frame.pack(fill="x", pady=5)
+        ttk.Label(flutter_frame, text="Filtro de Flutter (quadros):").pack(side="left")
+        self.flutter_n_var = StringVar(value="3")
+        ttk.Entry(flutter_frame, textvariable=self.flutter_n_var, width=5).pack(side="left", padx=5)
+
+        self.run_analysis_btn = ttk.Button(
+            controls_frame, text="Executar Análise de ROIs", command=self._run_analysis_clicked, state="disabled"
         )
-        self.status_var.set(status_text)
+        self.run_analysis_btn.pack(fill="x", pady=5)
 
-        status_frame = Frame(self.root)
-        status_frame.pack(pady=5, fill="x", padx=10)
-        Label(status_frame, textvariable=self.status_var).pack()
+        ttk.Button(controls_frame, text="Análise Centro/Periferia", command=self._run_center_periphery_analysis).pack(fill="x", pady=5)
 
-        # Progress + video frame (hidden until needed)
-        self._build_progress_frame()
+        viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
+        main_pane.add(viz_frame, weight=4)
+        self.roi_canvas = Canvas(viz_frame, bg="gray")
+        self.roi_canvas.pack(expand=True, fill="both")
+
+        results_frame = ttk.LabelFrame(roi_tab_frame, text="Resultados", padding=10)
+        results_frame.pack(expand=True, fill="both", pady=(10, 0), side="bottom")
+
+        from tkinter import Text, Scrollbar
+        self.results_text = Text(results_frame, wrap="word", height=10)
+        scrollbar = Scrollbar(results_frame, command=self.results_text.yview)
+        self.results_text.config(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        self.results_text.pack(expand=True, fill="both")
+        self.results_text.insert("1.0", "Os resultados da análise aparecerão aqui.")
+        self.results_text.config(state="disabled")
+
+
+    def _load_roi_data(self):
+        """Opens a parquet file and tells the controller to load it."""
+        parquet_path = self.ask_open_filenames(
+            "Selecione o arquivo de dados (.parquet)", [("Parquet files", "*.parquet")]
+        )
+        if not parquet_path:
+            return
+
+        # This now calls the controller, which will call back to populate the UI
+        self.controller.load_data_for_roi_analysis(parquet_path[0])
+
+    def update_arena_selector(self, arena_ids: list):
+        """Populates the arena selector combobox."""
+        self.arena_selector['values'] = arena_ids
+        if arena_ids:
+            self.arena_selector_var.set(arena_ids[0])
+            self.arena_selector.event_generate("<<ComboboxSelected>>")
+        # Enable analysis button only when data and arenas are loaded
+        self.run_analysis_btn.config(state="normal" if arena_ids else "disabled")
+
+    def _on_arena_select(self, event=None):
+        """Handles switching between arenas, updating the ROI list and canvas."""
+        # Clear current listbox
+        for item in self.roi_listbox.get_children():
+            self.roi_listbox.delete(item)
+
+        # Clear canvas drawings (but not the background image)
+        self.roi_canvas.delete("all")
+        if self._canvas_bg_image:
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+
+        # Repopulate with ROIs for the selected arena
+        selected_arena_id = self.arena_selector_var.get()
+        if selected_arena_id and selected_arena_id in self.roi_data:
+            for roi in self.roi_data[selected_arena_id]:
+                self.roi_listbox.insert("", "end", values=(roi['name'],))
+                # Redraw the finalized polygon
+                self.roi_canvas.create_polygon(
+                    roi['coords'], fill="cyan", outline="blue", stipple="gray25", width=2
+                )
+
+    def display_roi_video_frame(self, video_path: str):
+        """Receives a video path from the controller and displays its first frame."""
+        try:
+            from PIL import Image, ImageTk
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                self.show_error("Erro", "Não foi possível abrir o arquivo de vídeo associado.")
+                return
+            ret, frame = cap.read()
+            cap.release()
+            if not ret:
+                self.show_error("Erro", "Não foi possível ler o quadro do vídeo associado.")
+                return
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame_rgb)
+
+            canvas_w, canvas_h = self.roi_canvas.winfo_width(), self.roi_canvas.winfo_height()
+            if canvas_w < 2 or canvas_h < 2:
+                self.root.update_idletasks()
+                canvas_w, canvas_h = self.roi_canvas.winfo_width(), self.roi_canvas.winfo_height()
+
+            img.thumbnail((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+
+            self._canvas_bg_image = ImageTk.PhotoImage(image=img)
+            self._on_arena_select() # Redraw canvas and ROIs
+
+        except Exception as e:
+            self.show_error("Erro de Processamento", f"Ocorreu um erro ao exibir o quadro do vídeo: {e}")
+
+    def _run_analysis_clicked(self):
+        """Gathers UI data and tells the controller to run the analysis."""
+        try:
+            flutter_n = int(self.flutter_n_var.get())
+            num_animals = int(self.num_animals_var.get())
+            social_radius = float(self.social_radius_var.get())
+            arena_id = self.arena_selector_var.get()
+        except (ValueError, TypeError):
+            self.show_error("Entrada Inválida", "Os valores de configuração devem ser números válidos.")
+            return
+
+        if not arena_id:
+            self.show_error("Seleção Necessária", "Por favor, selecione um aquário ativo para a análise.")
+            return
+
+        rois_for_arena = self.roi_data.get(arena_id, [])
+        self.controller.run_roi_analysis(
+            rois_for_arena=rois_for_arena,
+            flutter_n=flutter_n,
+            num_animals=num_animals,
+            social_radius_cm=social_radius,
+            arena_id=arena_id
+        )
+
+    def display_roi_results(self, report_text: str):
+        """Displays the analysis report in the results text widget."""
+        self.results_text.config(state="normal")
+        self.results_text.delete("1.0", "end")
+        self.results_text.insert("1.0", report_text)
+        self.results_text.config(state="disabled")
+
+    def _start_polygon_drawing(self):
+        """Activates polygon drawing mode."""
+        self._stop_drawing() # Ensure clean state
+        self.drawing_mode = "polygon"
+        self.current_polygon_points = []
+        self.roi_canvas.config(cursor="crosshair")
+        self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
+        self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
+        self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
+        self.set_status("Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para finalizar.")
+
+    def _stop_drawing(self):
+        """Deactivates any drawing mode and unbinds all associated events."""
+        self.drawing_mode = None
+        self.roi_canvas.config(cursor="")
+        # Unbind all possible drawing events
+        self.roi_canvas.unbind("<Button-1>")
+        self.roi_canvas.unbind("<Double-Button-1>")
+        self.roi_canvas.unbind("<Motion>")
+        self.roi_canvas.unbind("<ButtonPress-1>")
+        self.roi_canvas.unbind("<B1-Motion>")
+        self.roi_canvas.unbind("<ButtonRelease-1>")
+
+        self.roi_canvas.delete("elastic_line")
+        self.roi_canvas.delete("temp_vertex")
+        self.set_status("Pronto.")
+
+    def _on_canvas_click(self, event):
+        """Handles single clicks on the canvas during polygon drawing."""
+        if self.drawing_mode != "polygon":
+            return
+
+        self.current_polygon_points.append((event.x, event.y))
+        # Draw a small circle to mark the vertex
+        self.roi_canvas.create_oval(event.x-2, event.y-2, event.x+2, event.y+2, fill="red", outline="red", tags="temp_vertex")
+
+    def _on_canvas_motion(self, event):
+        """Handles mouse movement for drawing elastic lines."""
+        if self.drawing_mode != "polygon" or not self.current_polygon_points:
+            return
+
+        self.roi_canvas.delete("elastic_line")
+        last_point = self.current_polygon_points[-1]
+        first_point = self.current_polygon_points[0]
+
+        # Line from last vertex to cursor
+        self.roi_canvas.create_line(last_point[0], last_point[1], event.x, event.y, fill="yellow", dash=(4, 4), tags="elastic_line")
+        # Line from cursor to first vertex (if more than one point exists)
+        if len(self.current_polygon_points) > 1:
+            self.roi_canvas.create_line(event.x, event.y, first_point[0], first_point[1], fill="yellow", dash=(4, 4), tags="elastic_line")
+
+    def _on_canvas_double_click(self, event):
+        """Finalizes the polygon drawing."""
+        if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
+            self._stop_drawing()
+            return
+
+        # Ask for a name
+        roi_name = self.ask_string("Nome da ROI", "Digite um nome para esta nova Zona de Interesse:")
+        if not roi_name:
+            self.current_polygon_points = []
+            self._stop_drawing()
+            return
+
+        # Save and draw the final polygon
+        current_arena_id = self.arena_selector_var.get()
+        if not current_arena_id:
+            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
+            self._stop_drawing()
+            return
+
+        new_roi = {"name": roi_name, "type": "polygon", "coords": self.current_polygon_points}
+        self.roi_data.setdefault(current_arena_id, []).append(new_roi)
+
+        self.roi_canvas.create_polygon(self.current_polygon_points, fill="cyan", outline="blue", stipple="gray25", width=2)
+
+        # Update the listbox
+        self.roi_listbox.insert("", "end", values=(roi_name,))
+
+        self.current_polygon_points = []
+        self._stop_drawing()
+
+    def _remove_selected_roi(self):
+        """Removes the ROI selected in the listbox."""
+        selected_items = self.roi_listbox.selection()
+        if not selected_items:
+            self.show_warning("Nenhuma Seleção", "Por favor, selecione uma ROI na lista para remover.")
+            return
+
+        selected_arena_id = self.arena_selector_var.get()
+        if not selected_arena_id or selected_arena_id not in self.roi_data:
+            return # Should not happen if an item is selected
+
+        # Find the index and name of the item to remove
+        selected_item = selected_items[0]
+        item_index = self.roi_listbox.index(selected_item)
+
+        # Remove from data source
+        del self.roi_data[selected_arena_id][item_index]
+
+        # Refresh the view
+        self._on_arena_select()
+
+    def _run_center_periphery_analysis(self):
+        """Runs the center-periphery analysis."""
+        current_arena_id = self.arena_selector_var.get()
+        if not current_arena_id:
+            self.show_error("Erro", "Selecione um aquário ativo e carregue os dados primeiro.")
+            return
+
+        dialog = CenterPeripheryDialog(self.root)
+        if not dialog.result:
+            return
+
+        self.controller.run_center_periphery_analysis(
+            arena_id=current_arena_id,
+            method=dialog.result['method'],
+            value=dialog.result['value']
+        )
+
+    def _create_template_rois(self):
+        """Opens a dialog to create ROIs from a template."""
+        current_arena_id = self.arena_selector_var.get()
+        if not current_arena_id:
+            self.show_error("Erro", "Selecione um aquário ativo primeiro.")
+            return
+
+        # Get the arena polygon bounds from the controller
+        arena_data = self.controller.get_arena_data(current_arena_id)
+        if not arena_data or 'polygon_px' not in arena_data:
+            self.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
+            return
+
+        import numpy as np
+        poly_points = np.array(arena_data['polygon_px'])
+        x_min, y_min = poly_points.min(axis=0)
+        x_max, y_max = poly_points.max(axis=0)
+        width = x_max - x_min
+        height = y_max - y_min
+
+        dialog = TemplateDialog(self.root)
+        if not dialog.result:
+            return
+
+        rois_to_add = []
+        template = dialog.result
+        if template['type'] == 'vertical':
+            lane_width = width / template['lanes']
+            for i in range(template['lanes']):
+                x1 = x_min + i * lane_width
+                x2 = x1 + lane_width
+                coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
+                rois_to_add.append({"name": f"Faixa_V_{i+1}", "type": "polygon", "coords": coords})
+        elif template['type'] == 'horizontal':
+            lane_height = height / template['lanes']
+            for i in range(template['lanes']):
+                y1 = y_min + i * lane_height
+                y2 = y1 + lane_height
+                coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
+                rois_to_add.append({"name": f"Faixa_H_{i+1}", "type": "polygon", "coords": coords})
+        elif template['type'] == 'grid':
+            col_width = width / template['cols']
+            row_height = height / template['rows']
+            for r in range(template['rows']):
+                for c in range(template['cols']):
+                    x1 = x_min + c * col_width
+                    y1 = y_min + r * row_height
+                    x2 = x1 + col_width
+                    y2 = y1 + row_height
+                    coords = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                    rois_to_add.append({"name": f"Grade_{r+1}-{c+1}", "type": "polygon", "coords": coords})
+
+        self.roi_data.setdefault(current_arena_id, []).extend(rois_to_add)
+        self._on_arena_select()
+
+    def _start_circle_drawing(self):
+        """Activates circle drawing mode."""
+        self._stop_drawing() # Ensure clean state
+        self.drawing_mode = "circle"
+        self.current_circle_center = None
+        self.roi_canvas.config(cursor="crosshair")
+        self.roi_canvas.bind("<ButtonPress-1>", self._on_canvas_press_circle)
+        self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
+        self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
+        self.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
+
+    def _on_canvas_press_circle(self, event):
+        if self.drawing_mode != "circle":
+            return
+        self.current_circle_center = (event.x, event.y)
+
+    def _on_canvas_drag_circle(self, event):
+        if self.drawing_mode != "circle" or not self.current_circle_center:
+            return
+
+        self.roi_canvas.delete("elastic_line")
+        cx, cy = self.current_circle_center
+        radius = ((event.x - cx)**2 + (event.y - cy)**2)**0.5
+        self.roi_canvas.create_oval(cx-radius, cy-radius, cx+radius, cy+radius, outline="yellow", dash=(4, 4), tags="elastic_line")
+
+    def _on_canvas_release_circle(self, event):
+        if self.drawing_mode != "circle" or not self.current_circle_center:
+            return
+
+        cx, cy = self.current_circle_center
+        radius = ((event.x - cx)**2 + (event.y - cy)**2)**0.5
+
+        if radius < 2: # Ignore tiny circles
+            self._stop_drawing()
+            return
+
+        roi_name = self.ask_string("Nome da ROI", "Digite um nome para esta nova Zona de Interesse (Círculo):")
+        if not roi_name:
+            self._stop_drawing()
+            return
+
+        current_arena_id = self.arena_selector_var.get()
+        if not current_arena_id:
+            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
+            self._stop_drawing()
+            return
+
+        new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
+        self.roi_data.setdefault(current_arena_id, []).append(new_roi)
+
+        self.roi_canvas.create_oval(cx-radius, cy-radius, cx+radius, cy+radius, outline="blue", fill="cyan", stipple="gray25", width=2)
+        self.roi_listbox.insert("", "end", values=(roi_name,))
+
+        self._stop_drawing()
+
 
     def _build_progress_frame(self):
         if self.progress_frame:
@@ -779,6 +1220,63 @@ class ApplicationGUI:
             return result["group"], result["cobaia"]
         return None
 
+
+class TemplateDialog(simpledialog.Dialog):
+    """Dialog to create ROI templates."""
+    def body(self, master):
+        self.template_type = StringVar(value="vertical")
+        self.num_lanes = StringVar(value="3")
+        self.num_rows = StringVar(value="2")
+        self.num_cols = StringVar(value="2")
+
+        ttk.Radiobutton(master, text="Faixas Verticais", variable=self.template_type, value="vertical").pack(anchor="w")
+        ttk.Radiobutton(master, text="Faixas Horizontais", variable=self.template_type, value="horizontal").pack(anchor="w")
+        ttk.Radiobutton(master, text="Grade", variable=self.template_type, value="grid").pack(anchor="w")
+
+        ttk.Label(master, text="Nº de Faixas:").pack(anchor="w", pady=(5,0))
+        ttk.Entry(master, textvariable=self.num_lanes).pack(anchor="w")
+
+        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(anchor="w", pady=(5,0))
+        grid_frame = ttk.Frame(master)
+        grid_frame.pack(anchor="w")
+        ttk.Entry(grid_frame, textvariable=self.num_rows, width=5).pack(side="left")
+        ttk.Label(grid_frame, text="x").pack(side="left")
+        ttk.Entry(grid_frame, textvariable=self.num_cols, width=5).pack(side="left")
+        return master
+
+    def apply(self):
+        try:
+            self.result = {
+                "type": self.template_type.get(),
+                "lanes": int(self.num_lanes.get()),
+                "rows": int(self.num_rows.get()),
+                "cols": int(self.num_cols.get()),
+            }
+        except (ValueError, TypeError):
+            self.result = None
+
+class CenterPeripheryDialog(simpledialog.Dialog):
+    """Dialog for center-periphery analysis settings."""
+    def body(self, master):
+        self.method = StringVar(value="distance")
+        self.value = StringVar(value="5.0")
+
+        ttk.Label(master, text="Método:").pack(anchor="w")
+        ttk.Radiobutton(master, text="Distância da Borda (cm)", variable=self.method, value="distance").pack(anchor="w")
+        ttk.Radiobutton(master, text="Proporção da Área (0.0-1.0)", variable=self.method, value="area_ratio").pack(anchor="w")
+
+        ttk.Label(master, text="Valor:").pack(anchor="w", pady=(5,0))
+        ttk.Entry(master, textvariable=self.value).pack(anchor="w")
+        return master
+
+    def apply(self):
+        try:
+            self.result = {
+                "method": self.method.get(),
+                "value": float(self.value.get()),
+            }
+        except (ValueError, TypeError):
+            self.result = None
 
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
