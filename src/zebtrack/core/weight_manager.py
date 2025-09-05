@@ -141,7 +141,10 @@ class WeightManager:
         # Delete the OpenVINO cache if it exists
         if details.get("openvino_path") and os.path.exists(details["openvino_path"]):
             shutil.rmtree(details["openvino_path"], ignore_errors=True)
-            log.info("weights.delete.openvino_cache_removed", path=details["openvino_path"])
+            log.info(
+                "weights.delete.openvino_cache_removed",
+                path=details["openvino_path"],
+            )
 
         # We don't delete the .pt file itself, just the entry from our config
 
@@ -198,7 +201,8 @@ class WeightManager:
 
         except Exception as e:
             log.error("openvino.export.failed", exc_info=e)
-            shutil.rmtree(cached_model_dir, ignore_errors=True) # Clean up partial export
+            # Clean up partial export directory if it exists
+            shutil.rmtree(cached_model_dir, ignore_errors=True)
             messagebox.showerror(
                 "OpenVINO Export Error",
                 f"Failed to convert '{name}' to OpenVINO format.\n\nError: {e}",

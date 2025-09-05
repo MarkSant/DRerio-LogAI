@@ -7,7 +7,6 @@ from tkinter import messagebox
 import pandas as pd
 import structlog
 import yaml
-from ultralytics import YOLO
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings

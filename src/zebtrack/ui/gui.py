@@ -89,7 +89,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             self.controller.weight_manager.set_default_weight(name)
             self.populate_list()
             # Also update the main GUI dropdown
-            self.master.master.set_active_weight_in_dropdown(name)
+            self.controller.view.set_active_weight_in_dropdown(name)
 
     def delete(self):
         name = self.get_selected_item_name()
@@ -417,7 +417,8 @@ class LiveConfigDialog(simpledialog.Dialog):
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
                 "Error",
-                "Arduino is enabled, but no serial port was found. Please check the connection or disable the 'Use Arduino' option.",
+                "Arduino is enabled, but no serial port was found. Please check "
+                "the connection or disable the 'Use Arduino' option.",
             )
             return 0
         return 1
@@ -1519,7 +1520,8 @@ class ApplicationGUI:
                 if not self.controller.arduino.connect():
                     self.show_warning(
                         "Arduino Warning",
-                        f"Could not connect to Arduino on port {settings.arduino.port}. Running in offline mode.",
+                        f"Could not connect to Arduino on port "
+                        f"{settings.arduino.port}. Running in offline mode.",
                     )
             try:
                 self.controller.camera = Camera()

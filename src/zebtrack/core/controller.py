@@ -44,6 +44,9 @@ class AppController:
 
         # New state variables for model management
         self.active_weight_name, _ = self.weight_manager.get_default_weight()
+        if self.active_weight_name is None:
+            self.active_weight_name = ""
+            log.warning("controller.init.no_default_weight")
         self.use_openvino = False  # Default to not using OpenVINO
 
     def run(self):
