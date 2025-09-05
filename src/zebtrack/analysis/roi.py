@@ -1,0 +1,451 @@
+# -*- coding: utf-8 -*-
+"""
+This module defines the ROIAnalyzer class for detailed behavioral analysis
+within specific regions of interest (ROIs).
+"""
+
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+from shapely.geometry import Point, Polygon, box
+
+from zebtrack.analysis.behavior import BehavioralAnalyzer
+
+
+class ROI:
+    """A simple class to hold ROI data (name and geometry)."""
+
+    def __init__(self, name: str, geometry: Polygon):
+        self.name = name
+        self.geometry = geometry
+
+
+class ROIAnalyzer:
+    """
+    Performs spatial and behavioral analysis based on defined ROIs.
+    """
+
+    def __init__(
+        self,
+        behavior_analyzer: BehavioralAnalyzer,
+        rois: List[ROI],
+        flutter_n_frames: int = 3,
+    ):
+        """
+        Initializes the ROIAnalyzer.
+
+        Args:
+            behavior_analyzer (BehavioralAnalyzer): An instance of
+                BehavioralAnalyzer containing the full trajectory data.
+            rois (List[ROI]): A list of ROI objects to be analyzed.
+            flutter_n_frames (int): The number of consecutive frames an animal
+                must be inside/outside an ROI to confirm an entry/exit event.
+        """
+        self._b_analyzer = behavior_analyzer
+        self._rois = {roi.name: roi for roi in rois}
+        self._trajectory = self._b_analyzer._trajectory_data.copy()
+        self._flutter_n = flutter_n_frames
+        self._validate_rois()
+        self._calculate_presence_in_rois()
+
+    def _validate_rois(self):
+        """Checks for empty or invalid ROIs."""
+        if not self._rois:
+            raise ValueError("ROI list cannot be empty.")
+        for name, roi in self._rois.items():
+            if not isinstance(roi.geometry, Polygon) or roi.geometry.is_empty:
+                raise ValueError(f"ROI '{name}' has invalid geometry.")
+
+    def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
+        """
+        Applies a flutter filter to a boolean series of presence data.
+
+        An entry is confirmed after N consecutive `True` frames.
+        An exit is confirmed after N consecutive `False` frames.
+        The state during the transition period is maintained until confirmation.
+
+        Args:
+            raw_presence (pd.Series): The raw boolean series of presence.
+
+        Returns:
+            pd.Series: The stabilized boolean series.
+        """
+        if self._flutter_n <= 1:
+            return raw_presence
+
+        # True if the last N frames were all True (confirms entry)
+        stable_true = raw_presence.rolling(self._flutter_n, min_periods=1).min() == 1
+        # True if the last N frames were all False (confirms exit)
+        stable_false = raw_presence.rolling(self._flutter_n, min_periods=1).max() == 0
+
+        stable_presence = pd.Series(np.nan, index=raw_presence.index)
+        stable_presence[stable_true] = True
+        stable_presence[stable_false] = False
+
+        # Forward-fill the NaN values during transition periods
+        stable_presence = stable_presence.ffill().fillna(False)
+
+        return stable_presence.astype(bool)
+
+    def _calculate_presence_in_rois(self):
+        """
+        Calculates raw and stable presence for each ROI and adds it to the
+        trajectory DataFrame. Also creates a single column with the current
+        stable ROI name.
+        """
+        # Calculate time delta between frames for later use
+        self._trajectory["dt"] = self._trajectory.index.to_series().diff()
+
+        for name, roi in self._rois.items():
+            # Create a Shapely box for each detection's bounding box
+            bboxes = self._trajectory.apply(
+                lambda row: box(row["x1"], row["y1"], row["x2"], row["y2"]), axis=1
+            )
+            # Check for intersection with the ROI geometry
+            raw_presence = bboxes.intersects(roi.geometry)
+            self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
+                raw_presence
+            )
+
+        # Create a single column with the name of the ROI the animal is in
+        self._trajectory["stable_roi"] = "Outside"
+        for name in self._rois:
+            stable_col = f"in_{name}_stable"
+            self._trajectory.loc[self._trajectory[stable_col], "stable_roi"] = name
+
+    def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:
+        """
+        Calculates the total time (seconds and percentage) spent in each ROI.
+        """
+        results = {}
+        total_time = self._trajectory["dt"].sum()
+        if total_time == 0:
+            return {name: {"seconds": 0.0, "percentage": 0.0} for name in self._rois}
+
+        for name in self._rois:
+            time_in_roi = self._trajectory.loc[
+                self._trajectory[f"in_{name}_stable"], "dt"
+            ].sum()
+            results[name] = {
+                "seconds": time_in_roi,
+                "percentage": (time_in_roi / total_time) * 100,
+            }
+        return results
+
+    def get_latency_to_first_entry(self) -> Dict[str, Optional[float]]:
+        """
+        Calculates the latency to the first entry into each ROI.
+        Returns None for a given ROI if the animal never enters it.
+        """
+        results = {}
+        start_time = self._trajectory.index[0]
+
+        for name in self._rois:
+            entries = self._trajectory[f"in_{name}_stable"].diff() == 1
+            first_entry_time = entries.idxmax() if entries.any() else None
+
+            if (
+                first_entry_time
+                and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]
+            ):
+                results[name] = first_entry_time - start_time
+            else:
+                results[name] = None
+        return results
+
+    def get_entry_counts(self) -> Dict[str, int]:
+        """Counts the number of entries into each ROI."""
+        results = {}
+        for name in self._rois:
+            # An entry is a transition from False to True
+            entries = (self._trajectory[f"in_{name}_stable"].diff() == 1).sum()
+            results[name] = entries
+        return results
+
+    def get_inter_visit_latencies(self) -> Dict[str, List[float]]:
+        """
+        Calculates latencies for re-entries into each ROI.
+        A re-entry latency is the time from the last exit from ANY ROI to the
+        next entry into the specified ROI.
+        """
+        results = {}
+
+        # Get all timestamps where the animal exits ANY ROI to 'Outside'
+        exited_any_roi = (self._trajectory["stable_roi"] != "Outside") & (
+            self._trajectory["stable_roi"].shift(-1) == "Outside"
+        )
+        all_exit_times = self._trajectory[exited_any_roi].index
+
+        for name in self._rois:
+            latencies = []
+            # Get all entry timestamps for the current ROI
+            entries = self._trajectory[f"in_{name}_stable"].diff() == 1
+            entry_times = self._trajectory[entries].index
+
+            # For each entry, find the most recent prior exit from any ROI
+            for entry_time in entry_times:
+                # Find the index of the exit that would be just before this entry
+                # 'right' means if timestamps are equal, exit is considered after
+                idx = all_exit_times.searchsorted(entry_time, side="right")
+                if idx > 0:
+                    # The most recent exit is at the previous index
+                    last_exit_time = all_exit_times[idx - 1]
+                    latencies.append(entry_time - last_exit_time)
+
+            results[name] = latencies
+        return results
+
+    def get_roi_transitions(self) -> pd.DataFrame:
+        """
+        Calculates a transition matrix showing the count of direct movements
+        between ROIs (and 'Outside').
+        """
+        states = self._trajectory["stable_roi"]
+        # Compare current state with the state in the previous frame
+        transitions = pd.crosstab(states, states.shift(-1), dropna=False)
+        # Rename for clarity
+        transitions.index.name = "From"
+        transitions.columns.name = "To"
+        return transitions
+
+    def _get_filtered_trajectory(self, roi_name: str) -> pd.DataFrame:
+        """Helper to get trajectory segments only within a specific ROI."""
+        if f"in_{roi_name}_stable" not in self._trajectory.columns:
+            raise ValueError(f"Invalid ROI name: {roi_name}")
+        return self._trajectory[self._trajectory[f"in_{roi_name}_stable"]]
+
+    def get_distance_in_rois(self) -> Dict[str, float]:
+        """Calculates the total distance traveled within each ROI."""
+        results = {}
+        for name in self._rois:
+            roi_traj = self._get_filtered_trajectory(name)
+            if len(roi_traj) < 2:
+                results[name] = 0.0
+                continue
+
+            # Calculate segment distances using smoothed coordinates
+            distances = np.sqrt(
+                roi_traj["x_cm_smoothed"].diff() ** 2
+                + roi_traj["y_cm_smoothed"].diff() ** 2
+            )
+            results[name] = distances.sum()
+        return results
+
+    def get_velocity_stats_in_rois(self) -> Dict[str, Optional[Dict[str, float]]]:
+        """Calculates velocity statistics within each ROI."""
+        results = {}
+        # Ensure velocity is calculated on the base analyzer
+        if "v_mag" not in self._b_analyzer._trajectory_data.columns:
+            self._b_analyzer.calculate_velocity_timeseries()
+
+        for name in self._rois:
+            roi_traj = self._get_filtered_trajectory(name)
+            if roi_traj.empty:
+                results[name] = None
+                continue
+
+            v_mag = roi_traj["v_mag"].dropna()
+            results[name] = {
+                "mean": v_mag.mean(),
+                "median": v_mag.median(),
+                "std_dev": v_mag.std(),
+            }
+        return results
+
+    def get_freezing_in_rois(
+        self, vel_threshold: float, min_duration: float
+    ) -> Dict[str, Dict[str, Any]]:
+        """Calculates freezing episodes that occur within each ROI."""
+        results = {}
+        # Ensure freezing episodes are detected on the base analyzer
+        freezing_episodes = self._b_analyzer.detect_freezing_episodes(
+            vel_threshold, min_duration
+        )
+
+        for name in self._rois:
+            roi_episodes = []
+            for episode in freezing_episodes:
+                # Check if the episode occurred inside the ROI
+                # We can check the start, mid, or end point. Let's use the start.
+                start_t = episode["start_time"]
+                if start_t in self._trajectory.index:
+                    traj_at_start = self._trajectory.loc[start_t]
+                    if traj_at_start[f"in_{name}_stable"]:
+                        roi_episodes.append(episode)
+
+            results[name] = {
+                "count": len(roi_episodes),
+                "total_duration": sum(e["duration"] for e in roi_episodes),
+                "episodes": roi_episodes,
+            }
+        return results
+
+    def get_tortuosity_in_rois(self) -> Dict[str, Optional[float]]:
+        """Calculates trajectory tortuosity within each ROI."""
+        results = {}
+        for name in self._rois:
+            roi_traj = self._get_filtered_trajectory(name)
+            if len(roi_traj) < 2:
+                results[name] = None
+                continue
+
+            # Path distance is the sum of segment lengths
+            path_distance = np.sqrt(
+                roi_traj["x_cm_smoothed"].diff() ** 2
+                + roi_traj["y_cm_smoothed"].diff() ** 2
+            ).sum()
+
+            # Straight-line distance from start to end point
+            start_point = roi_traj.iloc[0]
+            end_point = roi_traj.iloc[-1]
+            straight_dist = np.sqrt(
+                (end_point["x_cm_smoothed"] - start_point["x_cm_smoothed"]) ** 2
+                + (end_point["y_cm_smoothed"] - start_point["y_cm_smoothed"]) ** 2
+            )
+
+            if straight_dist > 0:
+                results[name] = path_distance / straight_dist
+            else:
+                results[name] = np.inf if path_distance > 0 else 1.0
+        return results
+
+    def analyze_center_vs_periphery(self, method: str, value: float) -> Dict[str, Any]:
+        """
+        Generates center and periphery ROIs and runs a full analysis on them.
+
+        Args:
+            method (str): The method to define the center zone,
+                          either 'distance' (cm) or 'area_ratio' (0.0-1.0).
+            value (float): The corresponding value for the method.
+
+        Returns:
+            A dictionary with analysis results for 'Center' and 'Periphery'.
+        """
+        from shapely.affinity import scale
+
+        arena = self._b_analyzer._arena_polygon_cm
+        if method == "distance":
+            center_poly = arena.buffer(-value)
+        elif method == "area_ratio":
+            if not 0 < value < 1:
+                raise ValueError("Area ratio must be between 0 and 1.")
+            # Scale the polygon's geometry around its centroid
+            center_poly = scale(arena, xfact=np.sqrt(value), yfact=np.sqrt(value))
+        else:
+            raise ValueError("Method must be 'distance' or 'area_ratio'.")
+
+        if not center_poly.is_valid or center_poly.is_empty:
+            raise ValueError(
+                "Could not generate a valid center zone with the given parameters."
+            )
+
+        periphery_poly = arena.difference(center_poly)
+
+        # Create temporary ROIs
+        center_roi = ROI(name="Center", geometry=center_poly)
+        periphery_roi = ROI(name="Periphery", geometry=periphery_poly)
+
+        # Create a temporary analyzer instance to run the analysis
+        temp_analyzer = ROIAnalyzer(
+            self._b_analyzer, [center_roi, periphery_roi], self._flutter_n
+        )
+
+        # Gather all results
+        results = {
+            "time_spent": temp_analyzer.get_time_spent_in_rois(),
+            "latency_first_entry": temp_analyzer.get_latency_to_first_entry(),
+            "entry_counts": temp_analyzer.get_entry_counts(),
+            "inter_visit_latencies": temp_analyzer.get_inter_visit_latencies(),
+            "distance": temp_analyzer.get_distance_in_rois(),
+            "velocity_stats": temp_analyzer.get_velocity_stats_in_rois(),
+            "tortuosity": temp_analyzer.get_tortuosity_in_rois(),
+            "transitions": temp_analyzer.get_roi_transitions().to_dict("index"),
+        }
+        return results
+
+    @staticmethod
+    def analyze_social_proximity(
+        full_trajectory_df: pd.DataFrame,
+        radius_cm: float,
+        pixelcm_x: float,
+        pixelcm_y: float,
+    ) -> Dict[str, Any]:
+        """
+        Performs social proximity analysis on a multi-animal trajectory DataFrame.
+
+        Args:
+            full_trajectory_df (pd.DataFrame): DataFrame with all animal tracks.
+            radius_cm (float): The radius of the circular dynamic ROI.
+            pixelcm_x (float): Pixel-to-cm conversion factor for x-axis.
+            pixelcm_y (float): Pixel-to-cm conversion factor for y-axis.
+
+        Returns:
+            A dictionary with social metrics per animal.
+        """
+        try:
+            import networkx as nx
+        except ImportError:
+            raise ImportError(
+                "Please install 'networkx' to use social proximity analysis."
+            )
+
+        if "track_id" not in full_trajectory_df.columns:
+            raise ValueError("Input DataFrame must contain a 'track_id' column.")
+
+        # Use geometric mean for radius in pixels for more accuracy
+        radius_px = radius_cm * np.sqrt(pixelcm_x * pixelcm_y)
+
+        df = full_trajectory_df.copy()
+        df["is_in_group"] = False
+        df["group_id"] = -1
+
+        # Group by frame number to process each time step
+        grouped_by_frame = df.groupby("frame")
+
+        for frame_id, frame_df in grouped_by_frame:
+            if len(frame_df) < 2:
+                continue
+
+            animals = frame_df.index
+            positions = {
+                idx: (r["x_center_px"], r["y_center_px"])
+                for idx, r in frame_df.iterrows()
+            }
+
+            # Create dynamic circular ROIs
+            rois = {idx: Point(pos).buffer(radius_px) for idx, pos in positions.items()}
+
+            # Build graph of interactions
+            G = nx.Graph()
+            G.add_nodes_from(animals)
+
+            from itertools import combinations
+
+            for animal1, animal2 in combinations(animals, 2):
+                if rois[animal1].intersects(rois[animal2]):
+                    G.add_edge(animal1, animal2)
+
+            # Find social groups (connected components)
+            social_groups = list(nx.connected_components(G))
+
+            for group_idx, group in enumerate(social_groups):
+                if len(group) > 1:
+                    # Mark all animals in this group
+                    member_indices = list(group)
+                    df.loc[member_indices, "is_in_group"] = True
+                    df.loc[member_indices, "group_id"] = f"{frame_id}-{group_idx}"
+
+        # Calculate total time in social group for each animal
+        df["dt"] = df.index.to_series().diff()  # first element remains NaN
+
+        social_time = df[df["is_in_group"]].groupby("track_id")["dt"].sum()
+        total_time = df.groupby("track_id")["dt"].sum()
+
+        social_time_percent = (social_time / total_time * 100).fillna(0)
+
+        results = {
+            "social_time_seconds": social_time.to_dict(),
+            "social_time_percentage": social_time_percent.to_dict(),
+        }
+        return results

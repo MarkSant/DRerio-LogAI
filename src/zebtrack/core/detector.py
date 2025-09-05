@@ -37,9 +37,7 @@ class Detector:
         self.current_square = 0
 
         # Zone coordinates are defined in settings and scaled for the video resolution.
-        self.base_polygon = np.array(
-            settings.detection_zones.polygon, dtype=np.int32
-        )
+        self.base_polygon = np.array(settings.detection_zones.polygon, dtype=np.int32)
         self.base_squares = settings.detection_zones.squares
         self.scaled_polygon = self.base_polygon
         self.scaled_squares = self.base_squares
@@ -63,9 +61,7 @@ class Detector:
         scale_x = actual_width / base_width
         scale_y = actual_height / base_height
 
-        self.scaled_polygon = (self.base_polygon * [scale_x, scale_y]).astype(
-            np.int32
-        )
+        self.scaled_polygon = (self.base_polygon * [scale_x, scale_y]).astype(np.int32)
         self.scaled_squares = []
         for p1, p2 in self.base_squares:
             x1, y1 = p1
@@ -112,9 +108,7 @@ class Detector:
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
-                    detections_in_polygon.append(
-                        (x1, y1, x2, y2, confidence, track_id)
-                    )
+                    detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id))
 
                     if project_type == "live" and not found_object_for_state_change:
                         if self.flag == 0:  # Looking for entry

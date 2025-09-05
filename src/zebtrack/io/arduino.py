@@ -47,9 +47,7 @@ class Arduino:
                 self.ser = None
                 return False
         except (serial.SerialException, OSError) as e:
-            log.warning(
-                "arduino.connect.failed", port=self.port, exc_info=e
-            )
+            log.warning("arduino.connect.failed", port=self.port, exc_info=e)
             self.ser = None
             return False
 

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Polygon
 
 
 class BehavioralAnalyzer(ABC):
@@ -31,9 +31,7 @@ class BehavioralAnalyzer(ABC):
 
     def __init__(
         self,
-        timestamps: List[float],
-        px: List[float],
-        py: List[float],
+        trajectory_df: pd.DataFrame,
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
@@ -45,9 +43,9 @@ class BehavioralAnalyzer(ABC):
         Initializes the BehavioralAnalyzer and performs preprocessing.
 
         Args:
-            timestamps (List[float]): A list of timestamps in seconds.
-            px (List[float]): A list of x-coordinates in pixels.
-            py (List[float]): A list of y-coordinates in pixels.
+            trajectory_df (pd.DataFrame): DataFrame containing raw trajectory
+                data. Must include 'timestamp', 'x_center_px', 'y_center_px',
+                and bounding box columns ('x1', 'y1', 'x2', 'y2').
             pixelcm_x (float): The conversion factor for pixels to cm (x-axis).
             pixelcm_y (float): The conversion factor for pixels to cm (y-axis).
             video_height_px (int): The total height of the video in pixels,
@@ -75,25 +73,26 @@ class BehavioralAnalyzer(ABC):
 
         # Create and preprocess the trajectory DataFrame
         self._trajectory_data = self._preprocess_data(
-            timestamps, px, py, video_height_px, window_length, polyorder
+            trajectory_df, video_height_px, window_length, polyorder
         )
 
     def _preprocess_data(
         self,
-        timestamps: List[float],
-        px: List[float],
-        py: List[float],
+        df: pd.DataFrame,
         video_height_px: int,
         window_length: int,
         polyorder: int,
     ) -> pd.DataFrame:
         """Performs data conversion, cleaning, and smoothing."""
-        df = pd.DataFrame({"timestamp": timestamps, "px": px, "py": py})
+        if "timestamp" not in df.columns:
+            raise ValueError(
+                "Input DataFrame must include a 'timestamp' column for proper temporal analysis."
+            )
         df.set_index("timestamp", inplace=True)
 
-        # Convert units from pixels to cm and invert Y-axis
-        df["x_cm"] = df["px"] / self._pixelcm_x
-        df["y_cm"] = (video_height_px - df["py"]) / self._pixelcm_y
+        # Convert units from pixels to cm and invert Y-axis for the centroid
+        df["x_cm"] = df["x_center_px"] / self._pixelcm_x
+        df["y_cm"] = (video_height_px - df["y_center_px"]) / self._pixelcm_y
 
         # Drop any rows with missing data before smoothing
         df.dropna(subset=["x_cm", "y_cm"], inplace=True)
@@ -104,12 +103,8 @@ class BehavioralAnalyzer(ABC):
             df["y_cm_smoothed"] = df["y_cm"]
         else:
             # Apply Savitzky-Golay filter for smoothing
-            df["x_cm_smoothed"] = savgol_filter(
-                df["x_cm"], window_length, polyorder
-            )
-            df["y_cm_smoothed"] = savgol_filter(
-                df["y_cm"], window_length, polyorder
-            )
+            df["x_cm_smoothed"] = savgol_filter(df["x_cm"], window_length, polyorder)
+            df["y_cm_smoothed"] = savgol_filter(df["y_cm"], window_length, polyorder)
 
         return df
 
@@ -295,10 +290,103 @@ class BehavioralAnalyzer(ABC):
             if total_time == 0:
                 return 0.0
 
-            # Time near wall is the sum of deltas for intervals where the animal was near the wall
-            # The state is defined by the end of the interval (the current row)
+            # Time near wall is the sum of deltas for intervals where the animal was
+            # near the wall
             time_near = df.loc[df["is_near_wall"], "dt"].sum()
 
             return (time_near / total_time) * 100
 
         raise ValueError(f"Unsupported method for thigmotaxis index: {method}")
+
+
+class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
+    """
+    A concrete implementation of BehavioralAnalyzer providing basic analysis methods.
+    """
+
+    def calculate_total_distance(self, max_time_gap: Optional[float] = None) -> float:
+        df = self._trajectory_data
+        if max_time_gap:
+            time_diffs = df.index.to_series().diff()
+            valid_segments = time_diffs <= max_time_gap
+            df = df[valid_segments]
+
+        distances = np.sqrt(
+            df["x_cm_smoothed"].diff() ** 2 + df["y_cm_smoothed"].diff() ** 2
+        )
+        return distances.sum()
+
+    def calculate_velocity_timeseries(self) -> pd.DataFrame:
+        df = self._trajectory_data
+        if "v_mag" in df.columns:
+            return df
+
+        dt = df.index.to_series().diff()
+        dx = df["x_cm_smoothed"].diff()
+        dy = df["y_cm_smoothed"].diff()
+
+        df["vx"] = dx / dt
+        df["vy"] = dy / dt
+        df["v_mag"] = np.sqrt(df["vx"] ** 2 + df["vy"] ** 2)
+        return df
+
+    def detect_freezing_episodes(
+        self, vel_threshold: float, min_duration: float
+    ) -> List[Dict[str, float]]:
+        self.calculate_velocity_timeseries()
+        is_freezing = self._trajectory_data["v_mag"] < vel_threshold
+
+        blocks = (is_freezing.diff() != 0).cumsum()
+        freezing_blocks = self._trajectory_data[is_freezing].groupby(blocks)
+
+        episodes = []
+        for _, block in freezing_blocks:
+            if not block.empty:
+                start_time = block.index[0]
+                end_time = block.index[-1]
+                duration = end_time - start_time
+                if duration >= min_duration:
+                    episodes.append(
+                        {
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "duration": duration,
+                        }
+                    )
+        return episodes
+
+    def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
+        # Simplified implementation
+        dx = self._trajectory_data["x_cm_smoothed"].diff()
+        dy = self._trajectory_data["y_cm_smoothed"].diff()
+        angles = np.arctan2(dy, dx)
+        dt = self._trajectory_data.index.to_series().diff()
+        angular_vel = np.diff(angles) / dt[1:]
+        if unit == "degrees":
+            angular_vel = np.degrees(angular_vel)
+        return pd.Series(angular_vel, index=self._trajectory_data.index[1:])
+
+    def get_tortuosity(
+        self, window_size: Optional[float] = None, step: Optional[float] = None
+    ) -> Union[float, pd.Series]:
+        # Implementation for the entire trajectory
+        if window_size is not None:
+            # Sliding window not implemented for this concrete class
+            raise NotImplementedError("Sliding window tortuosity is not implemented.")
+
+        path_distance = self.calculate_total_distance()
+
+        start_point = self._trajectory_data.iloc[0]
+        end_point = self._trajectory_data.iloc[-1]
+        straight_dist = np.sqrt(
+            (end_point["x_cm_smoothed"] - start_point["x_cm_smoothed"]) ** 2
+            + (end_point["y_cm_smoothed"] - start_point["y_cm_smoothed"]) ** 2
+        )
+
+        if straight_dist > 0:
+            return path_distance / straight_dist
+        return np.inf if path_distance > 0 else 1.0
+
+    def get_thigmotaxis_timeseries(self) -> pd.Series:
+        # Not implemented for this concrete class
+        raise NotImplementedError("Thigmotaxis is not implemented in this class.")

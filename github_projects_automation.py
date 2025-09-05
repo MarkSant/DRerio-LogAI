@@ -8,10 +8,7 @@ load_dotenv()
 TOKEN = os.getenv("GITHUB_TOKEN")
 API_URL = "https://api.github.com/graphql"
 
-headers = {
-    "Authorization": f"Bearer {TOKEN}",
-    "Content-Type": "application/json"
-}
+headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
 # Exemplo de consulta GraphQL (substitua pelos dados do seu projeto)
 query = """

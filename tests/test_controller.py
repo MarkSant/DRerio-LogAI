@@ -5,11 +5,10 @@ from src.zebtrack.core.controller import AppController
 
 
 class TestAppController(unittest.TestCase):
-
-    @patch('src.zebtrack.core.controller.Arduino')
-    @patch('src.zebtrack.core.controller.Recorder')
-    @patch('src.zebtrack.core.controller.ProjectManager')
-    @patch('src.zebtrack.core.controller.ApplicationGUI')
+    @patch("src.zebtrack.core.controller.Arduino")
+    @patch("src.zebtrack.core.controller.Recorder")
+    @patch("src.zebtrack.core.controller.ProjectManager")
+    @patch("src.zebtrack.core.controller.ApplicationGUI")
     def setUp(self, mock_gui, mock_pm, mock_recorder, mock_arduino):
         """Set up a test environment before each test."""
         self.root = MagicMock()
@@ -27,7 +26,6 @@ class TestAppController(unittest.TestCase):
         self.controller.recorder = self.mock_recorder
         self.controller.arduino = self.mock_arduino
         self.controller.view = self.mock_view
-
 
     def tearDown(self):
         """Clean up after each test."""
@@ -86,6 +84,7 @@ class TestAppController(unittest.TestCase):
             "Error", "Failed to create the new project."
         )
         self.mock_view._load_project_view.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

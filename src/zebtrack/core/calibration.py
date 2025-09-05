@@ -50,24 +50,33 @@ class Calibration:
         target_height_px = int(target_width_px * aspect_ratio)
         self.target_dims_px = (target_width_px, target_height_px)
 
-        destination_points = np.array([
-            [0, 0],
-            [target_width_px - 1, 0],
-            [target_width_px - 1, target_height_px - 1],
-            [0, target_height_px - 1]
-        ], dtype="float32")
+        destination_points = np.array(
+            [
+                [0, 0],
+                [target_width_px - 1, 0],
+                [target_width_px - 1, target_height_px - 1],
+                [0, target_height_px - 1],
+            ],
+            dtype="float32",
+        )
 
         # 3. Calculate the homography matrix.
         # The source points (corners) must be in a consistent order.
         ordered_corners = self._order_points(corners)
-        self.homography_matrix = cv2.getPerspectiveTransform(ordered_corners, destination_points)
+        self.homography_matrix = cv2.getPerspectiveTransform(
+            ordered_corners, destination_points
+        )
 
         # 4. Calculate the final pixel-to-cm ratio based on the warped dimensions.
         px_per_cm_x = target_width_px / self.real_width_cm
         px_per_cm_y = target_height_px / self.real_height_cm
         self.pixel_per_cm_ratio = (px_per_cm_x, px_per_cm_y)
 
-        log.info("calibration.process.success", ratio=self.pixel_per_cm_ratio, target_dims=self.target_dims_px)
+        log.info(
+            "calibration.process.success",
+            ratio=self.pixel_per_cm_ratio,
+            target_dims=self.target_dims_px,
+        )
 
     @staticmethod
     def _find_corners(polygon: np.ndarray) -> np.ndarray | None:

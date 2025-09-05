@@ -52,9 +52,7 @@ reproducibility:
                 self.assertIsInstance(settings, Settings)
                 self.assertEqual(settings.camera.index, 1)
                 self.assertEqual(settings.yolo_model.path, "test.pt")
-                self.assertEqual(
-                    settings.detection_zones.squares[0], ((0, 0), (1, 1))
-                )
+                self.assertEqual(settings.detection_zones.squares[0], ((0, 0), (1, 1)))
                 # Should check for both default and override files
                 self.assertEqual(mock_is_file.call_count, 2)
                 # Should only open the default file
