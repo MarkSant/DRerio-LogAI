@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from zebtrack.core.detector import ZoneData
 from zebtrack.io.recorder import Recorder
 
 
@@ -106,10 +107,12 @@ def test_full_pipeline_integration(integration_test_setup):
     recorder = Recorder()
     # Mock calibration ratio for the recorder
     mock_pixel_ratio = (10.0, 10.0)
+    mock_zones = ZoneData(polygon=[[0, 0], [frame_width, frame_height]])
     recorder.start_recording(
         output_folder,
         frame_width,
         frame_height,
+        zones=mock_zones,
         pixel_per_cm_ratio=mock_pixel_ratio,
     )
 

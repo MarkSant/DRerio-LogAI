@@ -14,17 +14,28 @@ import structlog
 from zebtrack.analysis.behavioral_analyzer import BehavioralAnalyzer
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi_analyzer import ROIAnalyzer
+import tempfile
+
+import cv2
+
+from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.project_manager import ProjectManager
+from zebtrack.io.recorder import Recorder
+from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
 
 log = structlog.get_logger()
+
 
 class AppController:
     def __init__(self, root):
         self.root = root
         self.view = ApplicationGUI(root, self)
         self.project_manager = ProjectManager()
+        self.recorder = Recorder()
         self.report_results_paths = {}
+        self.is_recording = False
+        self.timed_recording_job = None
         # Other initializations...
         self.program_exit_event = threading.Event()
 
@@ -53,6 +64,188 @@ class AppController:
             self.view._load_project_view()
             # CRITICAL FIX: Auto-load results when project is opened
             self.load_project_results_for_gui()
+
+            # After loading, check if zones are defined.
+            self.setup_detector_zones()
+
+    def setup_detector_zones(self):
+        """Loads zone data from project and sets it on the detector instance."""
+        if not self.view.detector:
+            log.warning("detector.setup_zones.no_detector")
+            return
+
+        zone_data = self.project_manager.get_zone_data()
+
+        # For now, we need to know the actual width/height of the source.
+        # This logic will be improved when the workflows are implemented.
+        # We'll default to the camera settings for now.
+        width = settings.camera.desired_width
+        height = settings.camera.desired_height
+
+        self.view.detector.set_zones(zone_data, width, height)
+        log.info("controller.setup_zones.success")
+
+        if not zone_data.polygon:
+            if self.project_manager.get_project_type() == "pre-recorded":
+                self.view.notebook.select(self.view.zone_tab_frame)
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    self.view.display_roi_video_frame(first_video)
+                self.view.show_info(
+                    "Configuração Necessária",
+                    "Por favor, defina a área de processamento principal (polígono) antes de continuar.",
+                )
+
+    def run_aquarium_detection(self):
+        """Runs the aquarium detection model on the first video of the project."""
+        log.info("controller.aquarium_detection.start")
+        video_path = self.project_manager.get_next_video()
+        if not video_path:
+            self.view.show_warning("Aviso", "Nenhum vídeo pendente encontrado no projeto.")
+            return
+
+        try:
+            model_path = settings.yolo_model.path
+            detector = AquariumDetector(model_path=model_path)
+            polygons = detector.detect_aquariums(video_path)
+
+            if not polygons:
+                self.view.show_warning(
+                    "Detecção Falhou",
+                    "Nenhum aquário foi detectado no vídeo. Por favor, desenhe a área manualmente.",
+                )
+                return
+
+            main_polygon = polygons[0]
+            log.info("controller.aquarium_detection.success", polygon_points=len(main_polygon))
+            # The view will handle drawing this polygon
+            self.view.display_suggested_polygon(main_polygon)
+
+        except Exception as e:
+            log.error("controller.aquarium_detection.error", exc_info=True)
+            self.view.show_error(
+                "Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}"
+            )
+
+    def run_live_calibration(self):
+        """Records a short clip from the live camera and runs aquarium detection."""
+        log.info("controller.live_calibration.start")
+        if not self.view.camera or not self.view.camera.is_opened():
+            self.view.show_error("Erro", "A câmera não está disponível ou aberta.")
+            return
+
+        temp_video_path = None
+        try:
+            # 1. Create a temporary file for the calibration video
+            temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            temp_video_path = temp_video_file.name
+            temp_video_file.close()
+
+            # 2. Record a short clip
+            w, h = self.view.camera.actual_width, self.view.camera.actual_height
+            fps = settings.video_processing.fps
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
+
+            self.view.set_status("Calibrando... Gravando um pequeno clipe.")
+            self.root.update()
+
+            start_time = time.time()
+            while time.time() - start_time < 5:  # Record for 5 seconds
+                ret, frame = self.view.camera.get_frame()
+                if not ret:
+                    break
+                writer.write(frame)
+            writer.release()
+            self.view.set_status("Calibração: Analisando o clipe...")
+            self.root.update()
+
+            # 3. Run detection on the clip
+            model_path = settings.yolo_model.path
+            detector = AquariumDetector(model_path=model_path)
+            polygons = detector.detect_aquariums(temp_video_path)
+
+            if not polygons:
+                self.view.show_warning(
+                    "Detecção Falhou",
+                    "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",
+                )
+                return
+
+            main_polygon = polygons[0]
+            self.view.display_suggested_polygon(main_polygon)
+
+        except Exception as e:
+            log.error("controller.live_calibration.error", exc_info=True)
+            self.view.show_error("Erro na Calibração", f"Ocorreu um erro: {e}")
+        finally:
+            # 4. Clean up the temporary file
+            if temp_video_path and os.path.exists(temp_video_path):
+                os.remove(temp_video_path)
+            self.view.set_status("Pronto.")
+
+    def start_recording(self):
+        """Starts a recording session (live mode)."""
+        log.info("controller.recording.start")
+        # 1. Get recording details from user
+        group, cobaia = self.view.ask_recording_details(
+            self.project_manager.project_data.get("groups", ["default"])
+        )
+        if not group or not cobaia:
+            log.warning("controller.recording.cancelled_by_user")
+            return
+
+        # 2. Create output folder
+        output_folder = os.path.join(
+            self.project_manager.project_path, f"{group}_{cobaia}"
+        )
+        os.makedirs(output_folder, exist_ok=True)
+
+        # 3. Start the recorder
+        zone_data = self.project_manager.get_zone_data()
+        self.is_recording = self.recorder.start_recording(
+            output_folder,
+            self.view.camera.actual_width,
+            self.view.camera.actual_height,
+            zones=zone_data,
+        )
+
+        if not self.is_recording:
+            self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
+            return
+
+        # 4. Update UI
+        self.view.update_button_state("start_rec", "disabled")
+        self.view.update_button_state("stop_rec", "normal")
+
+        # 5. Handle timed recording if enabled
+        project_data = self.project_manager.project_data
+        if project_data.get("use_timed_recording"):
+            duration_s = project_data.get("recording_duration_s", 0)
+            if duration_s > 0:
+                duration_ms = int(duration_s * 1000)
+                self.timed_recording_job = self.root.after(
+                    duration_ms, self.stop_recording
+                )
+                log.info("controller.recording.timed_start", duration_s=duration_s)
+
+    def stop_recording(self):
+        """Stops the current recording session."""
+        log.info("controller.recording.stop")
+        # 1. Cancel any pending timed recording job
+        if self.timed_recording_job:
+            self.root.after_cancel(self.timed_recording_job)
+            self.timed_recording_job = None
+            log.info("controller.recording.timed_cancelled")
+
+        # 2. Stop the recorder
+        if self.is_recording:
+            self.recorder.stop_recording()
+            self.is_recording = False
+
+        # 3. Update UI
+        self.view.update_button_state("start_rec", "normal")
+        self.view.update_button_state("stop_rec", "disabled")
 
     def run_batch_analysis(self):
         log.info("batch_analysis.run.start")

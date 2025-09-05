@@ -29,8 +29,13 @@ def recorder_setup():
 
 def test_start_recording_creates_files(recorder_setup):
     """Test that start_recording creates metadata Parquet files and video file."""
+    from zebtrack.core.detector import ZoneData
+
     recorder, output_folder, frame_width, frame_height = recorder_setup
-    success = recorder.start_recording(output_folder, frame_width, frame_height)
+    mock_zones = ZoneData()  # Pass empty zones for this test
+    success = recorder.start_recording(
+        output_folder, frame_width, frame_height, zones=mock_zones
+    )
     assert success
 
     base_name = os.path.basename(output_folder)
@@ -58,8 +63,14 @@ def test_start_recording_creates_files(recorder_setup):
 
 def test_metadata_parquet_content(recorder_setup):
     """Test that the metadata Parquet files have the correct content."""
+    from zebtrack.core.detector import ZoneData
+
     recorder, output_folder, frame_width, frame_height = recorder_setup
-    recorder.start_recording(output_folder, frame_width, frame_height)
+    mock_zones = ZoneData(
+        polygon=[[0, 0], [1, 1], [0, 1]],
+        squares=[((10, 10), (20, 20)), ((30, 30), (40, 40))],
+    )
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)
     base_name = os.path.basename(output_folder)
 
     # Test Processing Area Parquet
@@ -69,7 +80,7 @@ def test_metadata_parquet_content(recorder_setup):
     assert os.path.exists(processing_area_parquet)
     df_proc = pd.read_parquet(processing_area_parquet)
     assert list(df_proc.columns) == ["x", "y"]
-    assert len(df_proc) == len(settings.detection_zones.polygon)
+    assert len(df_proc) == len(mock_zones.polygon)
 
     # Test Areas of Interest Parquet
     areas_of_interest_parquet = os.path.join(
@@ -78,7 +89,8 @@ def test_metadata_parquet_content(recorder_setup):
     assert os.path.exists(areas_of_interest_parquet)
     df_areas = pd.read_parquet(areas_of_interest_parquet)
     assert list(df_areas.columns) == ["area", "x1", "y1", "x2", "y2"]
-    assert len(df_areas) == len(settings.detection_zones.squares)
+    assert len(df_areas) == len(mock_zones.squares)
+    assert df_areas.iloc[0]["x1"] == 10
 
     recorder.stop_recording()
 
@@ -89,10 +101,17 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     to a Parquet file, including calculated center points.
     """
     recorder, output_folder, frame_width, frame_height = recorder_setup
+    from zebtrack.core.detector import ZoneData
+
+    mock_zones = ZoneData()
     # Provide a mock pixel-to-cm ratio to enable center point calculation
     mock_pixel_ratio = (10.0, 10.0)  # 10 pixels per cm
     recorder.start_recording(
-        output_folder, frame_width, frame_height, pixel_per_cm_ratio=mock_pixel_ratio
+        output_folder,
+        frame_width,
+        frame_height,
+        zones=mock_zones,
+        pixel_per_cm_ratio=mock_pixel_ratio,
     )
 
     # Write a few frames of data
@@ -152,8 +171,11 @@ def test_write_detection_data_saves_parquet(recorder_setup):
 
 def test_video_writing(recorder_setup):
     """Test that writing video frames increases file size."""
+    from zebtrack.core.detector import ZoneData
+
     recorder, output_folder, frame_width, frame_height = recorder_setup
-    recorder.start_recording(output_folder, frame_width, frame_height)
+    mock_zones = ZoneData()
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)
     base_name = os.path.basename(output_folder)
     video_file = os.path.join(output_folder, f"{base_name}.mp4")
 

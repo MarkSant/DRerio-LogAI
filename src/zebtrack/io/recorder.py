@@ -8,6 +8,7 @@ import pyarrow as pa
 import structlog
 from pyarrow import parquet as pq
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
 
 log = structlog.get_logger()
@@ -35,6 +36,7 @@ class Recorder:
         output_folder,
         frame_width,
         frame_height,
+        zones: ZoneData,
         is_video_file=False,
         pixel_per_cm_ratio=None,
     ):
@@ -45,6 +47,7 @@ class Recorder:
             output_folder (str): The folder where files will be saved.
             frame_width (int): The width of the video frames.
             frame_height (int): The height of the video frames.
+            zones (ZoneData): The zone definitions to save.
             is_video_file (bool): If True, skips video file creation.
             pixel_per_cm_ratio (tuple, optional): Tuple containing (x_ratio, y_ratio).
 
@@ -77,7 +80,7 @@ class Recorder:
         else:
             self.video_writer = None
 
-        self._save_area_definitions(output_folder)
+        self._save_area_definitions(output_folder, zones)
 
         self.is_recording = True
         self.start_time = time.time()
@@ -152,16 +155,14 @@ class Recorder:
         except Exception as e:
             log.error("recorder.save_parquet.error", path=parquet_filename, exc_info=e)
 
-    def _save_area_definitions(self, folder_path):
+    def _save_area_definitions(self, folder_path: str, zones: ZoneData):
         """Saves processing and interest area definitions to Parquet files."""
         # Save processing area
         processing_area_filename = os.path.join(
             folder_path, f"1_ProcessingArea_{self.base_name}.parquet"
         )
         try:
-            processing_df = pd.DataFrame(
-                settings.detection_zones.polygon, columns=["x", "y"]
-            )
+            processing_df = pd.DataFrame(zones.polygon, columns=["x", "y"])
             table = pa.Table.from_pandas(processing_df)
             pq.write_table(table, processing_area_filename)
             log.info(
@@ -180,7 +181,7 @@ class Recorder:
         )
         try:
             areas_data = []
-            for i, ((x1, y1), (x2, y2)) in enumerate(settings.detection_zones.squares):
+            for i, ((x1, y1), (x2, y2)) in enumerate(zones.squares):
                 areas_data.append([f"Area {i + 1}", x1, y1, x2, y2])
             areas_df = pd.DataFrame(
                 areas_data, columns=["area", "x1", "y1", "x2", "y2"]
