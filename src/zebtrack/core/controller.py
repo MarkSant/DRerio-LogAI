@@ -2,25 +2,25 @@ from __future__ import annotations
 
 import glob
 import os
+import tempfile
 import threading
+import time
 from tkinter import filedialog
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import structlog
 
-# Correctly import from sibling packages
 from zebtrack.analysis.behavioral_analyzer import BehavioralAnalyzer
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi_analyzer import ROIAnalyzer
-import tempfile
-
-import cv2
-
 from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.detector import Detector
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.io.recorder import Recorder
+from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
 
@@ -32,6 +32,7 @@ class AppController:
         self.root = root
         self.view = ApplicationGUI(root, self)
         self.project_manager = ProjectManager()
+        self.detector = None
         self.recorder = Recorder()
         self.report_results_paths = {}
         self.is_recording = False
@@ -55,18 +56,51 @@ class AppController:
 
     def create_project_workflow(self, **kwargs):
         if self.project_manager.create_new_project(**kwargs):
-            self.view._load_project_view()
+            if self.setup_detector():
+                self.view._load_project_view()
         else:
             self.view.show_error("Error", "Failed to create the new project.")
 
     def open_project_workflow(self, project_path):
         if self.project_manager.load_project(project_path):
-            self.view._load_project_view()
-            # CRITICAL FIX: Auto-load results when project is opened
-            self.load_project_results_for_gui()
+            if self.setup_detector():
+                self.view._load_project_view()
+                self.load_project_results_for_gui()
 
             # After loading, check if zones are defined.
             self.setup_detector_zones()
+
+    def setup_detector(self) -> bool:
+        """Initializes the detector instance based on project settings."""
+        pm = self.project_manager
+        use_openvino = pm.project_data.get("use_openvino", False)
+        try:
+            if use_openvino:
+                plugin_name = "OpenVINO"
+                model_path = pm.project_data.get("openvino_model_path")
+                if not model_path or not os.path.exists(model_path):
+                    raise ValueError("OpenVINO model path not found or invalid.")
+            else:
+                plugin_name = "YOLO (Ultralytics)"
+                model_path = settings.yolo_model.path
+
+            plugin_class = DETECTOR_PLUGINS.get(plugin_name)
+            if not plugin_class:
+                raise ValueError(f"Detector plugin '{plugin_name}' not found.")
+
+            plugin_instance = plugin_class(model_path=model_path)
+            self.detector = Detector(
+                plugin=plugin_instance,
+                base_width=settings.camera.desired_width,
+                base_height=settings.camera.desired_height,
+            )
+            return True
+        except (ValueError, FileNotFoundError) as e:
+            log.error("detector.init.failed", error=str(e), exc_info=True)
+            self.view.show_error(
+                "Detector Error", f"Failed to initialize the detector: {e}"
+            )
+            return False
 
     def setup_detector_zones(self):
         """Loads zone data from project and sets it on the detector instance."""
@@ -93,7 +127,8 @@ class AppController:
                     self.view.display_roi_video_frame(first_video)
                 self.view.show_info(
                     "Configuração Necessária",
-                    "Por favor, defina a área de processamento principal (polígono) antes de continuar.",
+                    "Por favor, defina a área de processamento principal (polígono) "
+                    "antes de continuar.",
                 )
 
     def run_aquarium_detection(self):
@@ -101,7 +136,9 @@ class AppController:
         log.info("controller.aquarium_detection.start")
         video_path = self.project_manager.get_next_video()
         if not video_path:
-            self.view.show_warning("Aviso", "Nenhum vídeo pendente encontrado no projeto.")
+            self.view.show_warning(
+                "Aviso", "Nenhum vídeo pendente encontrado no projeto."
+            )
             return
 
         try:
@@ -112,12 +149,16 @@ class AppController:
             if not polygons:
                 self.view.show_warning(
                     "Detecção Falhou",
-                    "Nenhum aquário foi detectado no vídeo. Por favor, desenhe a área manualmente.",
+                    "Nenhum aquário foi detectado no vídeo. "
+                    "Por favor, desenhe a área manualmente.",
                 )
                 return
 
             main_polygon = polygons[0]
-            log.info("controller.aquarium_detection.success", polygon_points=len(main_polygon))
+            log.info(
+                "controller.aquarium_detection.success",
+                polygon_points=len(main_polygon),
+            )
             # The view will handle drawing this polygon
             self.view.display_suggested_polygon(main_polygon)
 
@@ -168,7 +209,8 @@ class AppController:
             if not polygons:
                 self.view.show_warning(
                     "Detecção Falhou",
-                    "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",
+                    "Nenhum aquário foi detectado. "
+                    "Por favor, desenhe a área manualmente.",
                 )
                 return
 
@@ -188,12 +230,13 @@ class AppController:
         """Starts a recording session (live mode)."""
         log.info("controller.recording.start")
         # 1. Get recording details from user
-        group, cobaia = self.view.ask_recording_details(
+        details = self.view.ask_recording_details(
             self.project_manager.project_data.get("groups", ["default"])
         )
-        if not group or not cobaia:
+        if not details:
             log.warning("controller.recording.cancelled_by_user")
             return
+        group, cobaia = details
 
         # 2. Create output folder
         output_folder = os.path.join(

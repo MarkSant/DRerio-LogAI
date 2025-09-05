@@ -18,7 +18,8 @@ class ROIAnalyzer:
         Returns:
             A nested dictionary with metrics for each ROI.
         """
-        # Seeding based on the filename ensures some consistency, while still being random
+        # Seeding based on the filename ensures some consistency, while still
+        # being random
         seed = hash(video_path)
         random.seed(seed)
 

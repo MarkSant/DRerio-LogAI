@@ -15,9 +15,7 @@ from tkinter import (
     Frame,
     Label,
     OptionMenu,
-    Scrollbar,
     StringVar,
-    Text,
     Toplevel,
     filedialog,
     messagebox,
@@ -357,7 +355,8 @@ class LiveConfigDialog(simpledialog.Dialog):
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
                 "Error",
-                "Arduino is enabled, but no serial port was found. Please check the connection or disable the 'Use Arduino' option.",
+                "Arduino is enabled, but no serial port was found. "
+                "Please check the connection or disable the 'Use Arduino' option.",
             )
             return 0
         return 1
@@ -561,7 +560,7 @@ class ApplicationGUI:
         self.notebook.add(self.zone_tab_frame, text="Configuração de Zonas")
 
         # 2. Create the PanedWindow for side-by-side panels
-        main_pane = ttk.PanedWindow(zone_tab_frame, orient="horizontal")
+        main_pane = ttk.PanedWindow(self.zone_tab_frame, orient="horizontal")
         main_pane.pack(expand=True, fill="both")
 
         # 3. Create the control panel on the left
@@ -688,14 +687,15 @@ class ApplicationGUI:
         self.prop_widgets["placeholder_label"].pack(pady=10)
 
     def _on_zone_select(self, event=None):
-        """Handles showing and populating the properties panel when a zone is selected."""
+        """Shows and populates the properties panel when a zone is selected."""
         selected_items = self.zone_listbox.selection()
 
         # Hide all property widgets first
         for widget in self.prop_widgets.values():
-            if "pack_info" in widget.tk.call("pack", "info"):
+            manager = widget.winfo_manager()
+            if manager == "pack":
                 widget.pack_forget()
-            if "grid_info" in widget.tk.call("grid", "info"):
+            elif manager == "grid":
                 widget.grid_forget()
 
         if not selected_items:
@@ -854,7 +854,10 @@ class ApplicationGUI:
         format_frame = ttk.Frame(export_frame)
         format_frame.grid(row=1, column=1, columnspan=2, sticky="w")
         ttk.Radiobutton(
-            format_frame, text="Excel", variable=self.export_data_format_var, value="excel"
+            format_frame,
+            text="Excel",
+            variable=self.export_data_format_var,
+            value="excel",
         ).pack(side="left")
         ttk.Radiobutton(
             format_frame, text="CSV", variable=self.export_data_format_var, value="csv"
@@ -1381,33 +1384,6 @@ class ApplicationGUI:
                 except Exception:  # noqa: BLE001
                     pass
 
-        try:
-            if use_openvino:
-                plugin_name = "OpenVINO"
-                model_path = pm.project_data.get("openvino_model_path")
-                if not model_path or not os.path.exists(model_path):
-                    raise ValueError("OpenVINO model path not found or invalid.")
-            else:
-                plugin_name = "YOLO (Ultralytics)"
-                model_path = settings.yolo_model.path
-
-            plugin_class = DETECTOR_PLUGINS.get(plugin_name)
-            if not plugin_class:
-                raise ValueError(f"Detector plugin '{plugin_name}' not found.")
-
-            plugin_instance = plugin_class(model_path=model_path)
-            self.controller.detector = Detector(
-                plugin=plugin_instance,
-                base_width=settings.camera.desired_width,
-                base_height=settings.camera.desired_height,
-            )
-
-        except (ValueError, FileNotFoundError) as e:
-            log.error("detector.init.failed", error=str(e), exc_info=True)
-            self.show_error("Detector Error", f"Failed to initialize the detector: {e}")
-            self._create_welcome_frame()
-            return
-
         self._create_main_control_frame()
 
         project_type = pm.get_project_type()
@@ -1417,8 +1393,8 @@ class ApplicationGUI:
                 if not self.controller.arduino.connect():
                     self.show_warning(
                         "Arduino Warning",
-                        f"Could not connect to Arduino on port {settings.arduino.port}. "
-                        "Running in offline mode.",
+                        f"Could not connect to Arduino on port "
+                        f"{settings.arduino.port}. Running in offline mode.",
                     )
             try:
                 self.controller.camera = Camera()

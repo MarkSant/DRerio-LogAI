@@ -7,7 +7,6 @@ import numpy as np
 import structlog
 
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 
 log = structlog.get_logger()
 

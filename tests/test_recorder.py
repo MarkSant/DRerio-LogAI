@@ -6,7 +6,6 @@ import pandas as pd
 import pytest
 
 from zebtrack.io.recorder import Recorder
-from zebtrack.settings import settings
 
 
 @pytest.fixture

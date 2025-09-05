@@ -4,7 +4,7 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import structlog
 import yaml
@@ -133,7 +133,9 @@ class Settings(BaseModel):
     arduino: ArduinoSettings
     yolo_model: YOLOModelSettings
     video_processing: VideoProcessingSettings
-    detection_zones: DetectionZonesSettings = Field(default_factory=DetectionZonesSettings)
+    detection_zones: DetectionZonesSettings = Field(
+        default_factory=DetectionZonesSettings
+    )
     reproducibility: ReproducibilitySettings
 
 

@@ -5,7 +5,6 @@ import numpy as np
 
 from zebtrack.core.detector import Detector
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 
 
 class MockDetectorPlugin(DetectorPlugin):

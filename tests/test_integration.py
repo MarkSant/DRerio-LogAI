@@ -11,7 +11,6 @@ from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.core.detector import ZoneData
 from zebtrack.io.recorder import Recorder
 
-
 # -- Mocks and Test Data Generators --
 
 def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
@@ -151,7 +150,12 @@ def test_full_pipeline_integration(integration_test_setup):
         pixelcm_x=mock_pixel_ratio[0],
         pixelcm_y=mock_pixel_ratio[1],
         video_height_px=frame_height,
-        arena_polygon_px=[(0, 0), (frame_width, 0), (frame_width, frame_height), (0, frame_height)],
+        arena_polygon_px=[
+            (0, 0),
+            (frame_width, 0),
+            (frame_width, frame_height),
+            (0, frame_height),
+        ],
     )
 
     # -- 4. Final Assertion --

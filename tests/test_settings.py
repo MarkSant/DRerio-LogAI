@@ -82,7 +82,9 @@ reproducibility:
             with patch("builtins.open", mock_open(read_data=yaml_with_zones)):
                 settings = load_settings()
                 self.assertEqual(len(settings.detection_zones.polygon), 2)
-                self.assertEqual(settings.detection_zones.squares[0], ((10, 20), (30, 40)))
+                self.assertEqual(
+                    settings.detection_zones.squares[0], ((10, 20), (30, 40))
+                )
                 self.assertEqual(settings.detection_zones.enter_commands, [1, "A"])
 
     def test_load_settings_file_not_found(self):
