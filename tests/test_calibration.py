@@ -52,7 +52,8 @@ class TestCalibration(unittest.TestCase):
 
         warped_frame = calibration.warp_frame(original_frame)
 
-        # The warped frame should have the target dimensions calculated during calibration
+        # The warped frame should have the target dimensions calculated
+        # during calibration
         expected_height, expected_width = (
             calibration.target_dims_px[1],
             calibration.target_dims_px[0],

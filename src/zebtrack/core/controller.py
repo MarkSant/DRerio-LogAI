@@ -1,31 +1,25 @@
 from __future__ import annotations
-import os
-import queue
-import threading
-import time
-import glob
-from tkinter import filedialog
-import structlog
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
-# Correctly import from sibling packages
+import glob
+import os
+import threading
+from tkinter import filedialog
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import structlog
+
 from zebtrack.analysis.behavioral_analyzer import BehavioralAnalyzer
 from zebtrack.analysis.roi_analyzer import ROIAnalyzer
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.core.project_manager import ProjectManager
-from zebtrack.ui.gui import ApplicationGUI
-# Correct, original imports that were replaced by stubs
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
-from zebtrack.analysis.roi import ROI, ROIAnalyzer as ConcreteROIAnalyzer
-from zebtrack.core.aquarium_detector import AquariumDetector
-from zebtrack.core.calibration import Calibration
 from zebtrack.io.arduino import Arduino
-from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
+from zebtrack.ui.gui import ApplicationGUI
 
 log = structlog.get_logger()
+
 
 class AppController:
     def __init__(self, root):
@@ -35,13 +29,12 @@ class AppController:
         self.report_results_paths = {}
         # Other initializations...
         self.program_exit_event = threading.Event()
-        self.arduino = Arduino() # Simplified instantiation
+        self.arduino = Arduino()  # Simplified instantiation
         self.camera = None
         self.recorder = Recorder()
         self.detector = None
         self.active_frame_source = None
         self.currently_processing_video = None
-
 
     def run(self):
         self.root.mainloop()
@@ -51,8 +44,11 @@ class AppController:
             self.program_exit_event.set()
             self.root.destroy()
 
-    def join_threads(self): pass
-    def close_project(self): pass
+    def join_threads(self):
+        pass
+
+    def close_project(self):
+        pass
 
     def create_project_workflow(self, **kwargs):
         if self.project_manager.create_new_project(**kwargs):
@@ -67,13 +63,17 @@ class AppController:
         log.info("batch_analysis.run.start")
         self.view.set_status("Iniciando análise em lote...")
         if self.project_manager.metadata is None:
-            self.view.show_warning("Metadados Ausentes", "'metadata.csv' não encontrado.")
+            self.view.show_warning(
+                "Metadados Ausentes", "'metadata.csv' não encontrado."
+            )
             return
 
         project_path = self.project_manager.project_path
         videos_to_process = self.project_manager.project_data.get("videos", [])
         if not videos_to_process:
-            self.view.show_warning("Nenhum Vídeo", "Nenhum arquivo de vídeo no projeto.")
+            self.view.show_warning(
+                "Nenhum Vídeo", "Nenhum arquivo de vídeo no projeto."
+            )
             return
 
         all_tidy_data = []
@@ -83,7 +83,8 @@ class AppController:
         for i, video_info in enumerate(videos_to_process):
             video_path = video_info["path"]
             experiment_id = os.path.splitext(os.path.basename(video_path))[0]
-            self.view.set_status(f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}")
+            status = f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
+            self.view.set_status(status)
             self.root.update_idletasks()
 
             metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
@@ -100,10 +101,11 @@ class AppController:
             results_dir = os.path.join(project_path, f"{experiment_id}_results")
             os.makedirs(results_dir, exist_ok=True)
 
-            reporter.tidy_data.to_parquet(os.path.join(results_dir, "summary.parquet"))
+            reporter.tidy_data.to_parquet(
+                os.path.join(results_dir, "summary.parquet")
+            )
             np.save(os.path.join(results_dir, "tracking.npy"), reporter.tracking_data)
 
-            # FIX: Split multi-statement lines
             traj_fig = reporter.generate_trajectory_plot()
             traj_fig.savefig(os.path.join(results_dir, "trajectory.png"))
             plt.close(traj_fig)
@@ -117,8 +119,12 @@ class AppController:
             return
 
         aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
-        aggregated_df.to_excel(os.path.join(project_path, "project_summary.xlsx"), index=False)
-        Reporter.export_project_report(aggregated_df, os.path.join(project_path, "project_report"))
+        aggregated_df.to_excel(
+            os.path.join(project_path, "project_summary.xlsx"), index=False
+        )
+        Reporter.export_project_report(
+            aggregated_df, os.path.join(project_path, "project_report")
+        )
 
         self.view.set_status("Análise em lote concluída!")
         self.view.show_info("Sucesso", "Análise concluída. Recarregue os resultados.")
@@ -139,9 +145,12 @@ class AppController:
             tracking_path = os.path.join(folder, "tracking.npy")
             if os.path.exists(summary_path) and os.path.exists(tracking_path):
                 exp_ids.append(exp_id)
-                self.report_results_paths[exp_id] = {"summary": summary_path, "tracking": tracking_path}
+                self.report_results_paths[exp_id] = {
+                    "summary": summary_path,
+                    "tracking": tracking_path,
+                }
 
-        self.view.report_experiment_selector['values'] = sorted(exp_ids)
+        self.view.report_experiment_selector["values"] = sorted(exp_ids)
         if exp_ids:
             self.view.report_experiment_var.set(sorted(exp_ids)[0])
         self.view.set_status(f"{len(exp_ids)} resultados carregados.")
@@ -154,8 +163,8 @@ class AppController:
 
         paths = self.report_results_paths[exp_id]
         try:
-            summary_df = pd.read_parquet(paths['summary'])
-            tracking_data = np.load(paths['tracking'])
+            summary_df = pd.read_parquet(paths["summary"])
+            tracking_data = np.load(paths["tracking"])
 
             b_results = {
                 k: v
@@ -175,9 +184,9 @@ class AppController:
         if not reporter:
             return
         ax = self.view.report_ax
-        if plot_type == 'trajectory':
+        if plot_type == "trajectory":
             reporter.generate_trajectory_plot(ax=ax)
-        elif plot_type == 'heatmap':
+        elif plot_type == "heatmap":
             reporter.generate_heatmap(ax=ax)
         self.view.report_canvas_widget.draw()
 
@@ -188,7 +197,9 @@ class AppController:
         file_format = self.view.export_data_format_var.get()
         filepath = filedialog.asksaveasfilename(defaultextension=f".{file_format}")
         if filepath:
-            reporter.export_summary_data(os.path.splitext(filepath)[0], format=file_format)
+            reporter.export_summary_data(
+                os.path.splitext(filepath)[0], format=file_format
+            )
             self.view.show_info("Sucesso", f"Dados exportados para:\n{filepath}")
 
     def export_visual_report(self):

@@ -291,10 +291,12 @@ class ProjectManager:
                 log.info("project.metadata.loaded", path=metadata_path)
             except Exception as e:
                 self.metadata = None
-                log.error("project.metadata.load_error", path=metadata_path, error=str(e))
+                log.error(
+                    "project.metadata.load_error", path=metadata_path, error=str(e)
+                )
                 messagebox.showwarning(
                     "Metadata Warning",
-                    f"Could not load or parse 'metadata.csv'.\n\nError: {e}"
+                    f"Could not load or parse 'metadata.csv'.\n\nError: {e}",
                 )
         else:
             self.metadata = None

@@ -127,20 +127,19 @@ class AquariumSegmentationModelSettings(BaseModel):
     """Settings for the YOLO aquarium segmentation model."""
 
     path: str = Field(
-        ...,
-        description="Path to the segmentation model weights file (e.g., 'aquarium.pt').",
+        ..., description="Path to the segmentation model weights file."
     )
     confidence_threshold: float = Field(
         ...,
         gt=0,
         lt=1,
-        description="Minimum confidence score for a detection to be considered valid.",
+        description="Minimum confidence score for a valid detection.",
     )
     nms_threshold: float = Field(
         ...,
         gt=0,
         lt=1,
-        description="Non-Maximum Suppression threshold for filtering overlapping masks.",
+        description="NMS threshold for filtering overlapping masks.",
     )
 
 

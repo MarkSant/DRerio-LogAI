@@ -501,15 +501,12 @@ class ApplicationGUI:
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(reports_tab_frame, text="Relatórios e Visualização")
 
-        # Top section with main view and controls
         top_pane = ttk.PanedWindow(reports_tab_frame, orient="horizontal")
         top_pane.pack(expand=True, fill="both", pady=5)
 
-        # --- Central Visualization Panel (Left) ---
         viz_frame = ttk.LabelFrame(top_pane, text="Visualização", padding=5)
         top_pane.add(viz_frame, weight=3)
 
-        # Matplotlib Canvas
         try:
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
             from matplotlib.figure import Figure
@@ -518,62 +515,49 @@ class ApplicationGUI:
             self.report_canvas_widget = FigureCanvasTkAgg(
                 self.report_figure, master=viz_frame
             )
-            self.report_canvas_widget.get_tk_widget().pack(
-                side="top", fill="both", expand=True
-            )
+            tk_widget = self.report_canvas_widget.get_tk_widget()
+            tk_widget.pack(side="top", fill="both", expand=True)
             self.report_ax = self.report_figure.add_subplot(111)
             self.report_ax.set_title("Gráfico de Análise")
             self.report_ax.set_xlabel("X")
             self.report_ax.set_ylabel("Y")
         except ImportError:
-            fallback_text = (
-                "Matplotlib não encontrado. A visualização está desativada."
-            )
-            self.report_canvas_widget_fallback = Label(
-                viz_frame, text=fallback_text
-            )
+            fallback_text = "Matplotlib não encontrado. Visualização desativada."
+            self.report_canvas_widget_fallback = Label(viz_frame, text=fallback_text)
             self.report_canvas_widget_fallback.pack()
 
-        # --- Side Control Panel (Right) ---
         controls_frame = ttk.LabelFrame(top_pane, text="Controles", padding=10)
         top_pane.add(controls_frame, weight=1)
 
-        # Experiment selection
-        load_btn_cmd = self.controller.load_project_results_for_gui
         ttk.Button(
             controls_frame,
             text="Carregar Resultados do Projeto",
-            command=load_btn_cmd,
+            command=self._on_load_report_results,
         ).pack(fill="x", pady=5, padx=5)
-
-        ttk.Label(controls_frame, text="Selecionar Experimento:").pack(
-            fill="x", pady=2
-        )
+        ttk.Label(controls_frame, text="Selecionar Experimento:").pack(fill="x", pady=2)
         self.report_experiment_var = StringVar()
         self.report_experiment_selector = ttk.Combobox(
             controls_frame, textvariable=self.report_experiment_var, state="readonly"
         )
         self.report_experiment_selector.pack(fill="x", pady=2, padx=5)
 
-        # Action Buttons
-        traj_cmd = lambda: self.controller.generate_report_plot("trajectory")
-        ttk.Button(controls_frame, text="Gerar Trajetória", command=traj_cmd).pack(
-            fill="x", pady=5, padx=5
-        )
+        ttk.Button(
+            controls_frame,
+            text="Gerar Trajetória",
+            command=self._on_generate_trajectory,
+        ).pack(fill="x", pady=5, padx=5)
+        ttk.Button(
+            controls_frame,
+            text="Gerar Mapa de Calor",
+            command=self._on_generate_heatmap,
+        ).pack(fill="x", pady=5, padx=5)
 
-        heatmap_cmd = lambda: self.controller.generate_report_plot("heatmap")
-        ttk.Button(controls_frame, text="Gerar Mapa de Calor", command=heatmap_cmd).pack(
-            fill="x", pady=5, padx=5
-        )
-
-        # Customization Checkboxes
         self.report_overlay_rois_var = BooleanVar(value=True)
         ttk.Checkbutton(
             controls_frame,
             text="Sobrepor ROIs",
             variable=self.report_overlay_rois_var,
         ).pack(anchor="w", pady=5, padx=5)
-
         self.report_use_background_var = BooleanVar(value=False)
         ttk.Checkbutton(
             controls_frame,
@@ -581,27 +565,25 @@ class ApplicationGUI:
             variable=self.report_use_background_var,
         ).pack(anchor="w", pady=5, padx=5)
 
-        # --- Bottom Export Panel ---
         export_frame = ttk.LabelFrame(reports_tab_frame, text="Exportação", padding=10)
         export_frame.pack(fill="x", pady=10)
 
-        # Buttons
-        export_data_cmd = self.controller.export_report_data
         ttk.Button(
-            export_frame, text="Exportar Dados (Resumo)", command=export_data_cmd
+            export_frame,
+            text="Exportar Dados (Resumo)",
+            command=self._on_export_data,
         ).grid(row=0, column=0, padx=5, pady=5)
-
-        export_report_cmd = self.controller.export_visual_report
         ttk.Button(
-            export_frame, text="Exportar Relatório Visual", command=export_report_cmd
+            export_frame,
+            text="Exportar Relatório Visual",
+            command=self._on_export_visual_report,
         ).grid(row=0, column=1, padx=5, pady=5)
-
-        save_plot_cmd = self.controller.save_current_plot
         ttk.Button(
-            export_frame, text="Salvar Gráfico Atual (PNG)", command=save_plot_cmd
+            export_frame,
+            text="Salvar Gráfico Atual (PNG)",
+            command=self._on_save_plot,
         ).grid(row=0, column=2, padx=5, pady=5)
 
-        # Format Options
         self.export_data_format_var = StringVar(value="excel")
         ttk.Label(export_frame, text="Formato Dados:").grid(
             row=1, column=0, sticky="w", padx=5
@@ -615,10 +597,7 @@ class ApplicationGUI:
             value="excel",
         ).pack(side="left")
         ttk.Radiobutton(
-            format_frame,
-            text="CSV",
-            variable=self.export_data_format_var,
-            value="csv",
+            format_frame, text="CSV", variable=self.export_data_format_var, value="csv"
         ).pack(side="left", padx=5)
         ttk.Radiobutton(
             format_frame,
@@ -644,6 +623,26 @@ class ApplicationGUI:
             value="pdf",
             state="disabled",
         ).grid(row=2, column=1, sticky="w")
+
+    # --- Reports Tab Command Methods ---
+
+    def _on_load_report_results(self):
+        self.controller.load_project_results_for_gui()
+
+    def _on_generate_trajectory(self):
+        self.controller.generate_report_plot("trajectory")
+
+    def _on_generate_heatmap(self):
+        self.controller.generate_report_plot("heatmap")
+
+    def _on_export_data(self):
+        self.controller.export_report_data()
+
+    def _on_export_visual_report(self):
+        self.controller.export_visual_report()
+
+    def _on_save_plot(self):
+        self.controller.save_current_plot()
 
     def _load_roi_data(self):
         """Opens a parquet file and tells the controller to load it."""
