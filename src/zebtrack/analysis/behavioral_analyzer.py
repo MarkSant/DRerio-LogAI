@@ -1,22 +1,34 @@
 import random
 
+
 class BehavioralAnalyzer:
     """
-    A classe para analisar o comportamento geral de um animal a partir de dados de trajetória.
-    Esta implementação retorna dados aleatórios para simular uma análise real.
+    Analyzes the general behavior of an animal from trajectory data.
+    This implementation returns random data to simulate a real analysis.
     """
+
+    METRIC_KEYS = [
+        "distancia_total_cm",
+        "velocidade_media_cm_s",
+        "velocidade_maxima_cm_s",
+        "tempo_total_congelamento_s",
+        "contagem_congelamentos",
+        "tortuosidade_total",
+        "indice_thigmotaxis_percentual",
+        "distancia_media_parede_cm",
+    ]
 
     def analyze(self, video_path: str) -> dict:
         """
-        Executa uma análise comportamental simulada.
+        Executes a simulated behavioral analysis.
 
         Args:
-            video_path: O caminho para o arquivo de vídeo (usado para adicionar variabilidade).
+            video_path: The path to the video file, used to seed variability.
 
         Returns:
-            Um dicionário contendo as métricas comportamentais calculadas.
+            A dictionary containing the calculated behavioral metrics.
         """
-        # A semente baseada no nome do arquivo garante alguma consistência, mas ainda aleatória
+        # Seeding based on the filename ensures some consistency, yet is random.
         seed = hash(video_path)
         random.seed(seed)
 
