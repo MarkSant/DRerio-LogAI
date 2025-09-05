@@ -19,10 +19,6 @@ yolo_model:
   path: 'test.pt'
   confidence_threshold: 0.5
   nms_threshold: 0.5
-aquarium_segmentation_model:
-  path: 'aquarium_model.pt'
-  confidence_threshold: 0.3
-  nms_threshold: 0.3
 video_processing:
   fps: 30
   processing_interval: 10
