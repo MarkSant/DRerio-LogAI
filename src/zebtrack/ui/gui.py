@@ -26,6 +26,7 @@ from tkinter import (
 )
 
 import cv2
+import serial.tools.list_ports
 import structlog
 from PIL import Image, ImageTk
 
@@ -203,6 +204,126 @@ class CreateProjectDialog(simpledialog.Dialog):
             "num_aquariums": int(self.num_aquariums_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
+        }
+
+
+class LiveConfigDialog(simpledialog.Dialog):
+    """A dialog to configure live analysis settings (camera and Arduino)."""
+
+    def __init__(self, parent):
+        self.result = None
+        self.available_cameras = {}
+        self.available_ports = {}
+        super().__init__(parent, "Live Analysis Configuration")
+
+    def body(self, master):
+        # --- Detect devices first ---
+        self._detect_devices()
+
+        # --- Tkinter Variables ---
+        self.camera_var = StringVar()
+        self.use_arduino_var = BooleanVar(value=True)
+        self.arduino_port_var = StringVar()
+
+        # --- Camera Selection ---
+        Label(master, text="Select Camera:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=5
+        )
+        camera_names = list(self.available_cameras.keys())
+        if not camera_names:
+            camera_names = ["No cameras found"]
+        self.camera_menu = OptionMenu(master, self.camera_var, *camera_names)
+        self.camera_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+
+        if self.available_cameras:
+            self.camera_var.set(list(self.available_cameras.keys())[0])
+        else:
+            self.camera_menu.config(state="disabled")
+
+        # --- Arduino Selection ---
+        self.arduino_check = Checkbutton(
+            master,
+            text="Use Arduino",
+            variable=self.use_arduino_var,
+            command=self._toggle_arduino_menu,
+        )
+        self.arduino_check.grid(
+            row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5
+        )
+
+        Label(master, text="Arduino Port:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
+        port_names = list(self.available_ports.keys())
+        if not port_names:
+            port_names = ["No ports found"]
+        self.arduino_menu = OptionMenu(master, self.arduino_port_var, *port_names)
+        self.arduino_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
+
+        if self.available_ports:
+            self.arduino_port_var.set(list(self.available_ports.keys())[0])
+
+        self._toggle_arduino_menu()  # Set initial state
+        return self.camera_menu  # Initial focus
+
+    def _detect_devices(self):
+        """Detects available cameras and serial ports."""
+        # Detect cameras
+        log.info("device_detection.camera.start")
+        for i in range(10):  # Check up to 10 indices
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+            if cap.isOpened():
+                self.available_cameras[f"Camera {i}"] = i
+                cap.release()
+        log.info("device_detection.camera.found", cameras=self.available_cameras)
+
+        # Detect serial ports
+        try:
+            log.info("device_detection.ports.start")
+            ports = serial.tools.list_ports.comports()
+            for port in ports:
+                # Use description for user-friendliness, device for connection
+                self.available_ports[f"{port.description}"] = port.device
+            log.info("device_detection.ports.found", ports=self.available_ports)
+        except Exception as e:
+            log.warning("device_detection.ports.error", error=str(e))
+            self.available_ports = {}
+
+    def _toggle_arduino_menu(self):
+        """Enable or disable the Arduino port dropdown based on the checkbox."""
+        if self.use_arduino_var.get() and self.available_ports:
+            self.arduino_menu.config(state="normal")
+        else:
+            self.arduino_menu.config(state="disabled")
+            if not self.available_ports:
+                self.use_arduino_var.set(False)
+
+
+    def validate(self):
+        """Validate the inputs before closing the dialog."""
+        if not self.available_cameras:
+            messagebox.showerror(
+                "Error", "No camera detected. Cannot start a live session."
+            )
+            return 0
+        if self.use_arduino_var.get() and not self.available_ports:
+            messagebox.showerror(
+                "Error",
+                "Arduino is enabled, but no serial port was found. Please check the connection or disable the 'Use Arduino' option.",
+            )
+            return 0
+        return 1
+
+    def apply(self):
+        """Process the data and set the result."""
+        use_arduino = self.use_arduino_var.get()
+        selected_port_key = self.arduino_port_var.get()
+        self.result = {
+            "camera_index": self.available_cameras.get(self.camera_var.get()),
+            "use_arduino": use_arduino,
+            "arduino_port": self.available_ports.get(selected_port_key)
+            if use_arduino
+            else None,
         }
 
 
@@ -1156,11 +1277,14 @@ class ApplicationGUI:
 
         project_type = pm.get_project_type()
         if project_type == "live":
-            if not self.controller.arduino.connect():
-                self.show_warning(
-                    "Arduino Warning",
-                    "Could not connect to Arduino. Running in offline mode.",
-                )
+            # Only attempt to connect if a port is configured from the dialog
+            if settings.arduino.port:
+                if not self.controller.arduino.connect():
+                    self.show_warning(
+                        "Arduino Warning",
+                        f"Could not connect to Arduino on port {settings.arduino.port}. "
+                        "Running in offline mode.",
+                    )
             try:
                 self.controller.camera = Camera()
                 self.controller.active_frame_source = self.controller.camera
@@ -1348,16 +1472,34 @@ class ApplicationGUI:
         then calls the controller with the collected data.
         """
         dialog = CreateProjectDialog(self.root)
-        if dialog.result:
-            self.controller.create_project_workflow(
-                project_path=dialog.result["project_path"],
-                project_type=dialog.result["project_type"],
-                use_openvino=dialog.result["use_openvino"],
-                video_files=dialog.result["video_files"],
-                num_aquariums=dialog.result["num_aquariums"],
-                aquarium_width_cm=dialog.result["aquarium_width_cm"],
-                aquarium_height_cm=dialog.result["aquarium_height_cm"],
-            )
+        if not dialog.result:
+            return  # User cancelled
+
+        # If live project, get device configuration
+        if dialog.result["project_type"] == "live":
+            live_config_dialog = LiveConfigDialog(self.root)
+            if not live_config_dialog.result:
+                return  # User cancelled live config
+
+            # Update global settings object before creating the project
+            live_config = live_config_dialog.result
+            settings.camera.index = live_config["camera_index"]
+            if live_config["use_arduino"] and live_config["arduino_port"]:
+                settings.arduino.port = live_config["arduino_port"]
+            else:
+                # Set port to empty string to prevent connection attempt
+                settings.arduino.port = ""
+
+        # Call controller as before
+        self.controller.create_project_workflow(
+            project_path=dialog.result["project_path"],
+            project_type=dialog.result["project_type"],
+            use_openvino=dialog.result["use_openvino"],
+            video_files=dialog.result["video_files"],
+            num_aquariums=dialog.result["num_aquariums"],
+            aquarium_width_cm=dialog.result["aquarium_width_cm"],
+            aquarium_height_cm=dialog.result["aquarium_height_cm"],
+        )
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
