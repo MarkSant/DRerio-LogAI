@@ -31,9 +31,9 @@ class TestAppController(unittest.TestCase):
         """
         # --- Arrange ---
         self.mock_pm.create_new_project.return_value = True
-
-        # --- Act ---
-        self.controller.create_project_workflow(
+        with patch.object(self.controller, "setup_detector", return_value=True):
+            # --- Act ---
+            self.controller.create_project_workflow(
             project_path="/fake/parent/fake_project",
             project_type="live",
             use_openvino=False,

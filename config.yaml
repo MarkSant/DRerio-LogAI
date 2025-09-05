@@ -32,47 +32,6 @@ video_processing:
   # frames 1, 11, 21, etc., will be processed.
   processing_offset: 1
 
-detection_zones:
-  # Defines the general processing area. Detections outside this polygon are ignored.
-  # Coordinates are based on the 'desired_width' and 'desired_height' above.
-  polygon:
-    - [150, 310]
-    - [385, 310]
-    - [385, 140]
-    - [550, 140]
-    - [550, 310]
-    - [850, 310]
-    - [850, 140]
-    - [1020, 140]
-    - [1020, 490]
-    - [765, 490]
-    - [765, 660]
-    - [630, 660]
-    - [630, 490]
-    - [360, 490]
-    - [360, 660]
-    - [150, 660]
-
-  # Defines rectangular areas of interest (entry/exit boxes).
-  squares:
-    - [[150, 490], [360, 660]]  # Bottom Left
-    - [[385, 140], [550, 310]]  # Top Left
-    - [[630, 490], [765, 660]]  # Bottom Right
-    - [[850, 140], [1020, 310]]  # Top Right
-
-  # Colors for drawing each square on the screen (B, G, R).
-  colors:
-    - [0, 0, 255]    # Red
-    - [255, 0, 0]    # Blue
-    - [0, 255, 0]    # Green
-    - [0, 0, 255]    # Red
-
-  # Commands to send to Arduino when an object enters a square.
-  # The order must correspond to the order of the squares.
-  enter_commands: [1, 3, 5, 7]
-  # Commands to send when an object exits a square.
-  exit_commands: [2, 4, 6, 8]
-
 reproducibility:
   # Seed for random number generators to ensure that repeated runs with the
   # same video and settings produce identical results.

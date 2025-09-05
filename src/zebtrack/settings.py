@@ -4,13 +4,14 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import structlog
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
 log = structlog.get_logger()
+
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -85,26 +86,28 @@ class DetectionZonesSettings(BaseModel):
     """Defines the coordinates for areas of interest in the camera frame."""
 
     polygon: List[List[int]] = Field(
-        ..., description="A list of [x, y] points defining the main detection polygon."
+        default_factory=list,
+        description="A list of [x, y] points defining the main detection polygon.",
     )
     squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = Field(
-        ...,
+        default_factory=list,
         description=(
             "A list of rectangular zones, each defined by top-left and "
             "bottom-right points."
         ),
     )
     colors: List[Tuple[int, int, int]] = Field(
-        ..., description="The BGR colors for drawing each square on the overlay."
+        default_factory=list,
+        description="The BGR colors for drawing each square on the overlay.",
     )
-    enter_commands: List[int] = Field(
-        ...,
+    enter_commands: List[Union[int, str]] = Field(
+        default_factory=list,
         description=(
             "List of commands to send to Arduino when an object enters a square."
         ),
     )
-    exit_commands: List[int] = Field(
-        ...,
+    exit_commands: List[Union[int, str]] = Field(
+        default_factory=list,
         description=(
             "List of commands to send to Arduino when an object exits a square."
         ),
@@ -130,7 +133,9 @@ class Settings(BaseModel):
     arduino: ArduinoSettings
     yolo_model: YOLOModelSettings
     video_processing: VideoProcessingSettings
-    detection_zones: DetectionZonesSettings
+    detection_zones: DetectionZonesSettings = Field(
+        default_factory=DetectionZonesSettings
+    )
     reproducibility: ReproducibilitySettings
 
 

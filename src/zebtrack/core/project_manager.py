@@ -9,6 +9,7 @@ import structlog
 import yaml
 from ultralytics import YOLO
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
 
 CONFIG_FILE_NAME = "project_config.json"
@@ -278,6 +279,16 @@ class ProjectManager:
 
     def get_project_type(self):
         return self.project_data.get("project_type")
+
+    def get_zone_data(self) -> ZoneData:
+        """
+        Retrieves zone data from the project configuration, returning a ZoneData object.
+        """
+        zone_dict = self.project_data.get("detection_zones", {})
+        if zone_dict:
+            # Pydantic dataclasses can be instantiated from dictionaries
+            return ZoneData(**zone_dict)
+        return ZoneData()
 
     def load_metadata(self):
         """Loads the metadata.csv file from the project root into a pandas DataFrame."""

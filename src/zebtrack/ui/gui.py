@@ -15,9 +15,7 @@ from tkinter import (
     Frame,
     Label,
     OptionMenu,
-    Scrollbar,
     StringVar,
-    Text,
     Toplevel,
     filedialog,
     messagebox,
@@ -26,15 +24,14 @@ from tkinter import (
 )
 
 import cv2
+import numpy as np
 import serial.tools.list_ports
 import structlog
 from PIL import Image, ImageTk
 
 # Import custom modules
-from zebtrack.core.detector import Detector, draw_overlay
 from zebtrack.io.camera import Camera
 from zebtrack.io.video_source import VideoFileSource
-from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 
 log = structlog.get_logger()
@@ -57,6 +54,8 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.use_openvino_var = BooleanVar(value=True)
         self.video_files = []
         self.video_list_var = StringVar(value="No videos selected.")
+        self.use_timed_recording_var = BooleanVar(value=False)
+        self.recording_duration_var = StringVar(value="5")
 
         # --- Project Name ---
         Label(master, text="Project Name:").grid(
@@ -132,7 +131,24 @@ class CreateProjectDialog(simpledialog.Dialog):
             variable=self.use_openvino_var,
         ).grid(row=7, column=0, columnspan=3, sticky="w", padx=5, pady=5)
 
-        self._toggle_video_button()  # Set initial state
+        # --- Live Recording Options ---
+        self.live_options_frame = Frame(master)
+        self.live_options_frame.grid(
+            row=8, column=0, columnspan=4, sticky="ew", padx=5
+        )
+        Checkbutton(
+            self.live_options_frame,
+            text="Use timed recording?",
+            variable=self.use_timed_recording_var,
+            command=self._update_project_type_options,
+        ).pack(side="left")
+        self.duration_entry = Entry(
+            self.live_options_frame, textvariable=self.recording_duration_var, width=5
+        )
+        self.duration_entry.pack(side="left", padx=5)
+        Label(self.live_options_frame, text="minutes").pack(side="left")
+
+        self._update_project_type_options()  # Set initial state
         return self.path_entry  # initial focus
 
     def _select_path(self):
@@ -152,12 +168,19 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.video_files = []
             self.video_list_var.set("No videos selected.")
 
-    def _toggle_video_button(self):
+    def _update_project_type_options(self):
+        """Shows/hides options based on the selected project type."""
         if self.project_type_var.get() == "pre-recorded":
             self.video_button.config(state="normal")
-        else:
+            self.live_options_frame.grid_remove()
+        else:  # Live
             self.video_button.config(state="disabled")
             self.video_list_var.set("Not applicable for live projects.")
+            self.live_options_frame.grid()
+            if self.use_timed_recording_var.get():
+                self.duration_entry.config(state="normal")
+            else:
+                self.duration_entry.config(state="disabled")
 
     def validate(self):
         base_path = self.path_entry.get()
@@ -193,9 +216,28 @@ class CreateProjectDialog(simpledialog.Dialog):
             messagebox.showerror("Error", "Aquarium dimensions must be valid numbers.")
             return 0
 
+        if self.project_type_var.get() == "live":
+            if self.use_timed_recording_var.get():
+                try:
+                    duration = float(self.recording_duration_var.get())
+                    if duration <= 0:
+                        raise ValueError("Duration must be positive.")
+                except ValueError:
+                    messagebox.showerror(
+                        "Error", "Recording duration must be a positive number."
+                    )
+                    return 0
         return 1
 
     def apply(self):
+        duration = 0
+        if self.use_timed_recording_var.get():
+            try:
+                # Duration in minutes, convert to seconds for internal use
+                duration = float(self.recording_duration_var.get()) * 60
+            except ValueError:
+                pass  # Should be caught by validate
+
         self.result = {
             "project_path": self.project_path,
             "project_type": self.project_type_var.get(),
@@ -204,6 +246,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             "num_aquariums": int(self.num_aquariums_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
+            "use_timed_recording": self.use_timed_recording_var.get(),
+            "recording_duration_s": duration,
         }
 
 
@@ -345,11 +389,16 @@ class ApplicationGUI:
         self.welcome_frame = None
         self.notebook = None
         self.main_controls_frame = None
+        self.zone_tab_frame = None
         self.status_var = StringVar()
 
         # ROI Tab Widgets
         self.roi_listbox = None
         self.run_analysis_btn = None
+        self.zone_prop_name_var = StringVar()
+        self.zone_prop_color_var = StringVar()
+        self.zone_prop_enter_cmd_var = StringVar()
+        self.zone_prop_exit_cmd_var = StringVar()
 
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
@@ -494,128 +543,209 @@ class ApplicationGUI:
         ).pack(side="left", padx=5)
 
     def _create_roi_analysis_tab(self):
-        """Creates the tab for ROI definition and analysis."""
-        self.roi_data = {}  # Changed to a dict {arena_id: [roi_list]}
+        """Creates the tab for ROI and detection zone configuration."""
+        # This tab is now for defining detection zones (polygon, squares)
+        # and will replace the old ROI analysis functionality.
+        self.roi_data = {}  # This will be repurposed for the new zone data
         self.drawing_mode = None
         self.current_polygon_points = []
         self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
 
-        roi_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(roi_tab_frame, text="ROI Analysis")
+        # 1. Create the main frame for the tab and rename it
+        self.zone_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.zone_tab_frame, text="Configuração de Zonas")
 
-        main_pane = ttk.PanedWindow(roi_tab_frame, orient="horizontal")
+        # 2. Create the PanedWindow for side-by-side panels
+        main_pane = ttk.PanedWindow(self.zone_tab_frame, orient="horizontal")
         main_pane.pack(expand=True, fill="both")
 
-        controls_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
-        main_pane.add(controls_frame, weight=1)
-
-        # --- Aquarium & Animal Setup ---
-        setup_frame = ttk.LabelFrame(
-            controls_frame, text="Analysis Setup", padding=5
+        # 3. Create the control panel on the left
+        self.zone_controls_frame = ttk.Frame(
+            main_pane, padding=5, relief="groove", borderwidth=2
         )
-        setup_frame.pack(fill="x", pady=5)
+        main_pane.add(self.zone_controls_frame, weight=1)
 
-        ttk.Label(setup_frame, text="Active Aquarium:").grid(
-            row=0, column=0, sticky="w", pady=2
-        )
-        self.arena_selector_var = StringVar()
-        self.arena_selector = ttk.Combobox(
-            setup_frame, textvariable=self.arena_selector_var, state="readonly"
-        )
-        self.arena_selector.grid(row=0, column=1, sticky="ew", padx=5)
-        self.arena_selector.bind("<<ComboboxSelected>>", self._on_arena_select)
-
-        ttk.Label(setup_frame, text="Animals per Aquarium:").grid(
-            row=1, column=0, sticky="w", pady=2
-        )
-        self.num_animals_var = StringVar(value="1")
-        ttk.Entry(setup_frame, textvariable=self.num_animals_var, width=5).grid(
-            row=1, column=1, sticky="w", padx=5
-        )
-
-        ttk.Label(setup_frame, text="Social Radius (cm):").grid(
-            row=2, column=0, sticky="w", pady=2
-        )
-        self.social_radius_var = StringVar(value="1.0")
-        ttk.Entry(setup_frame, textvariable=self.social_radius_var, width=5).grid(
-            row=2, column=1, sticky="w", padx=5
-        )
-
-        ttk.Button(
-            controls_frame,
-            text="Load Trajectory Data",
-            command=self._load_roi_data,
-        ).pack(fill="x", pady=5)
-
-        ttk.Label(controls_frame, text="Regions of Interest (ROIs):").pack(pady=(5, 2))
-        list_frame = ttk.Frame(controls_frame)
-        list_frame.pack(fill="both", expand=True)
-        self.roi_listbox = ttk.Treeview(list_frame, columns=("name",), show="headings")
-        self.roi_listbox.heading("name", text="ROI Name")
-        self.roi_listbox.pack(side="left", fill="both", expand=True)
-
-        btn_list_frame = ttk.Frame(controls_frame)
-        btn_list_frame.pack(fill="x", pady=2)
-        ttk.Button(btn_list_frame, text="Edit Name").pack(
-            side="left", expand=True, fill="x"
-        )
-        ttk.Button(
-            btn_list_frame, text="Remove", command=self._remove_selected_roi
-        ).pack(side="left", expand=True, fill="x")
-
-        creation_frame = ttk.LabelFrame(controls_frame, text="Create ROIs", padding=10)
-        creation_frame.pack(fill="x", pady=10)
-        ttk.Button(
-            creation_frame,
-            text="Draw Polygon",
-            command=self._start_polygon_drawing,
-        ).pack(fill="x", pady=2)
-        ttk.Button(
-            creation_frame, text="Draw Circle", command=self._start_circle_drawing
-        ).pack(fill="x", pady=2)
-        ttk.Button(
-            creation_frame, text="Use Template", command=self._create_template_rois
-        ).pack(fill="x", pady=2)
-
-        # Flutter parameter
-        flutter_frame = ttk.Frame(controls_frame)
-        flutter_frame.pack(fill="x", pady=5)
-        ttk.Label(flutter_frame, text="Flutter Filter (frames):").pack(side="left")
-        self.flutter_n_var = StringVar(value="3")
-        ttk.Entry(flutter_frame, textvariable=self.flutter_n_var, width=5).pack(
-            side="left", padx=5
-        )
-
-        self.run_analysis_btn = ttk.Button(
-            controls_frame,
-            text="Run ROI Analysis",
-            command=self._run_analysis_clicked,
-            state="disabled",
-        )
-        self.run_analysis_btn.pack(fill="x", pady=5)
-
-        ttk.Button(
-            controls_frame,
-            text="Center/Periphery Analysis",
-            command=self._run_center_periphery_analysis,
-        ).pack(fill="x", pady=5)
-
+        # 4. Create the visualization panel on the right
         viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
         main_pane.add(viz_frame, weight=4)
+
+        # 5. Create the canvas for drawing
         self.roi_canvas = Canvas(viz_frame, bg="gray")
         self.roi_canvas.pack(expand=True, fill="both")
 
-        results_frame = ttk.LabelFrame(roi_tab_frame, text="Results", padding=10)
-        results_frame.pack(expand=True, fill="both", pady=(10, 0), side="bottom")
+        # --- Drawing Actions ---
+        actions_frame = ttk.LabelFrame(
+            self.zone_controls_frame, text="Ações de Desenho", padding=10
+        )
+        actions_frame.pack(fill="x", pady=5)
 
-        self.results_text = Text(results_frame, wrap="word", height=10)
-        scrollbar = Scrollbar(results_frame, command=self.results_text.yview)
-        self.results_text.config(yscrollcommand=scrollbar.set)
+        if self.controller.project_manager.get_project_type() == "pre-recorded":
+            ttk.Button(
+                actions_frame,
+                text="Detectar Aquário (Auto)",
+                command=self.controller.run_aquarium_detection,
+            ).pack(fill="x", pady=2)
+        else:  # Live mode
+            ttk.Button(
+                actions_frame,
+                text="Iniciar Calibração",
+                command=self.controller.run_live_calibration,
+            ).pack(fill="x", pady=2)
+
+        ttk.Button(
+            actions_frame, text="Desenhar Polígono Principal", command=lambda: None
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            actions_frame, text="Desenhar Área de Interesse", command=lambda: None
+        ).pack(fill="x", pady=2)
+
+        # --- Zone List ---
+        zone_list_frame = ttk.LabelFrame(
+            self.zone_controls_frame, text="Zonas Definidas", padding=10
+        )
+        zone_list_frame.pack(fill="both", expand=True, pady=5)
+
+        self.zone_listbox = ttk.Treeview(
+            zone_list_frame, columns=("name", "type"), show="headings"
+        )
+        self.zone_listbox.heading("name", text="Nome")
+        self.zone_listbox.heading("type", text="Tipo")
+        self.zone_listbox.column("type", width=60)
+        self.zone_listbox.pack(side="left", fill="both", expand=True)
+
+        # Scrollbar for the listbox
+        scrollbar = ttk.Scrollbar(
+            zone_list_frame, orient="vertical", command=self.zone_listbox.yview
+        )
+        self.zone_listbox.configure(yscrollcommand=scrollbar.set)
+        self.zone_listbox.bind("<<TreeviewSelect>>", self._on_zone_select)
         scrollbar.pack(side="right", fill="y")
-        self.results_text.pack(expand=True, fill="both")
-        self.results_text.insert("1.0", "Analysis results will appear here.")
-        self.results_text.config(state="disabled")
+
+        # Buttons to manage the list
+        zone_list_buttons_frame = ttk.Frame(self.zone_controls_frame)
+        zone_list_buttons_frame.pack(fill="x", pady=(0, 5))
+        ttk.Button(
+            zone_list_buttons_frame, text="Salvar Propriedades", command=lambda: None
+        ).pack(side="left", expand=True, fill="x", padx=2)
+        ttk.Button(
+            zone_list_buttons_frame, text="Remover Selecionada", command=lambda: None
+        ).pack(side="left", expand=True, fill="x", padx=2)
+
+        # --- Properties Panel ---
+        self.zone_properties_frame = ttk.LabelFrame(
+            self.zone_controls_frame, text="Propriedades da Zona", padding=10
+        )
+        self.zone_properties_frame.pack(fill="x", pady=5)
+
+        # Create the widgets but don't show them initially
+        self.prop_widgets = {}
+        prop_grid_frame = ttk.Frame(self.zone_properties_frame)
+
+        # Name
+        self.prop_widgets["name_label"] = ttk.Label(prop_grid_frame, text="Nome:")
+        self.prop_widgets["name_entry"] = ttk.Entry(
+            prop_grid_frame, textvariable=self.zone_prop_name_var
+        )
+
+        # Color
+        self.prop_widgets["color_label"] = ttk.Label(prop_grid_frame, text="Cor:")
+        self.prop_widgets["color_combo"] = ttk.Combobox(
+            prop_grid_frame,
+            textvariable=self.zone_prop_color_var,
+            values=["Vermelho", "Verde", "Azul", "Amarelo", "Ciano", "Magenta"],
+            state="readonly",
+        )
+
+        # Arduino Commands Frame
+        self.prop_widgets["arduino_frame"] = ttk.LabelFrame(
+            prop_grid_frame, text="Comandos Arduino", padding=5
+        )
+        ttk.Label(self.prop_widgets["arduino_frame"], text="Entrada:").pack(
+            side="left", padx=2
+        )
+        ttk.Entry(
+            self.prop_widgets["arduino_frame"],
+            textvariable=self.zone_prop_enter_cmd_var,
+            width=5,
+        ).pack(side="left", padx=2)
+        ttk.Label(self.prop_widgets["arduino_frame"], text="Saída:").pack(
+            side="left", padx=2
+        )
+        ttk.Entry(
+            self.prop_widgets["arduino_frame"],
+            textvariable=self.zone_prop_exit_cmd_var,
+            width=5,
+        ).pack(side="left", padx=2)
+
+        self.prop_widgets["placeholder_label"] = ttk.Label(
+            self.zone_properties_frame, text="Selecione uma zona para editar..."
+        )
+        self.prop_widgets["placeholder_label"].pack(pady=10)
+
+    def _on_zone_select(self, event=None):
+        """Shows and populates the properties panel when a zone is selected."""
+        selected_items = self.zone_listbox.selection()
+
+        # Hide all property widgets first
+        for widget in self.prop_widgets.values():
+            manager = widget.winfo_manager()
+            if manager == "pack":
+                widget.pack_forget()
+            elif manager == "grid":
+                widget.grid_forget()
+            elif manager == "place":
+                widget.place_forget()
+
+        if not selected_items:
+            # No item selected, show placeholder
+            self.prop_widgets["placeholder_label"].pack(pady=10)
+            return
+
+        # An item is selected, show the property grid
+        self.prop_widgets["name_label"].grid(row=0, column=0, sticky="w", pady=2)
+        self.prop_widgets["name_entry"].grid(row=0, column=1, sticky="ew", pady=2)
+        self.prop_widgets["color_label"].grid(row=1, column=0, sticky="w", pady=2)
+        self.prop_widgets["color_combo"].grid(row=1, column=1, sticky="ew", pady=2)
+
+        # Get data for the selected zone (mocked for now)
+        # In a future step, this will come from a real data source
+        item = self.zone_listbox.item(selected_items[0])
+        zone_type = item["values"][1]
+
+        # Mock data population
+        self.zone_prop_name_var.set(item["values"][0])
+        self.zone_prop_color_var.set("Vermelho")
+
+        # Show Arduino frame only for "Área de Interesse" and if Arduino is enabled
+        is_arduino_enabled = True  # Mock: This will be checked from project settings
+        if zone_type == "Área de Interesse" and is_arduino_enabled:
+            self.prop_widgets["arduino_frame"].grid(
+                row=2, column=0, columnspan=2, sticky="ew", pady=5
+            )
+            self.zone_prop_enter_cmd_var.set("1")
+            self.zone_prop_exit_cmd_var.set("2")
+
+    def display_suggested_polygon(self, polygon: np.ndarray):
+        """Draws a detected polygon on the canvas for user confirmation."""
+        # Clear any previously suggested polygon
+        self.roi_canvas.delete("suggested_polygon")
+
+        # Store the points for potential editing or saving
+        self.current_polygon_points = polygon.tolist()
+
+        # Draw the new polygon with a distinct style
+        self.roi_canvas.create_polygon(
+            self.current_polygon_points,
+            fill="",  # No fill
+            outline="yellow",
+            dash=(4, 4),
+            width=2,
+            tags="suggested_polygon",
+        )
+        self.set_status(
+            "Detecção automática concluída. Aceite, edite ou desenhe manualmente."
+        )
 
     def _create_reports_tab(self):
         """Creates the tab for generating reports and visualizations."""
@@ -723,7 +853,10 @@ class ApplicationGUI:
         format_frame = ttk.Frame(export_frame)
         format_frame.grid(row=1, column=1, columnspan=2, sticky="w")
         ttk.Radiobutton(
-            format_frame, text="Excel", variable=self.export_data_format_var, value="excel"
+            format_frame,
+            text="Excel",
+            variable=self.export_data_format_var,
+            value="excel",
         ).pack(side="left")
         ttk.Radiobutton(
             format_frame, text="CSV", variable=self.export_data_format_var, value="csv"
@@ -1231,7 +1364,6 @@ class ApplicationGUI:
         initializes the detector with the appropriate plugin.
         """
         pm = self.controller.project_manager
-        use_openvino = pm.project_data.get("use_openvino", False)
 
         # Load persisted user preferences if present
         if pm.get_project_type() == "pre-recorded":
@@ -1250,29 +1382,6 @@ class ApplicationGUI:
                 except Exception:  # noqa: BLE001
                     pass
 
-        try:
-            if use_openvino:
-                plugin_name = "OpenVINO"
-                model_path = pm.project_data.get("openvino_model_path")
-                if not model_path or not os.path.exists(model_path):
-                    raise ValueError("OpenVINO model path not found or invalid.")
-            else:
-                plugin_name = "YOLO (Ultralytics)"
-                model_path = settings.yolo_model.path
-
-            plugin_class = DETECTOR_PLUGINS.get(plugin_name)
-            if not plugin_class:
-                raise ValueError(f"Detector plugin '{plugin_name}' not found.")
-
-            plugin_instance = plugin_class(model_path=model_path)
-            self.controller.detector = Detector(plugin=plugin_instance)
-
-        except (ValueError, FileNotFoundError) as e:
-            log.error("detector.init.failed", error=str(e), exc_info=True)
-            self.show_error("Detector Error", f"Failed to initialize the detector: {e}")
-            self._create_welcome_frame()
-            return
-
         self._create_main_control_frame()
 
         project_type = pm.get_project_type()
@@ -1282,8 +1391,7 @@ class ApplicationGUI:
                 if not self.controller.arduino.connect():
                     self.show_warning(
                         "Arduino Warning",
-                        f"Could not connect to Arduino on port {settings.arduino.port}. "
-                        "Running in offline mode.",
+                        f"Could not connect to Arduino on port {settings.arduino.port}. Running in offline mode.",
                     )
             try:
                 self.controller.camera = Camera()
@@ -1381,7 +1489,7 @@ class ApplicationGUI:
                     self.controller.recorder.write_detection_data(
                         timestamp, frame_number, detections
                     )
-                draw_overlay(frame, detections, self.controller.detector)
+                self.controller.detector.draw_overlay(frame, detections)
 
             cv2.imshow("Live View", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -1457,7 +1565,7 @@ class ApplicationGUI:
                 )
 
             if show_preview:
-                draw_overlay(frame, detections, self.controller.detector)
+                self.controller.detector.draw_overlay(frame, detections)
                 cv2.imshow("File Processing", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self.controller.program_exit_event.set()

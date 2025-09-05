@@ -5,7 +5,6 @@ import numpy as np
 
 from zebtrack.core.detector import Detector
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 
 
 class MockDetectorPlugin(DetectorPlugin):
@@ -36,7 +35,9 @@ class TestDetector(unittest.TestCase):
     def setUp(self):
         """Set up a detector instance with a mock plugin for tests."""
         self.mock_plugin = MockDetectorPlugin()
-        self.detector = Detector(plugin=self.mock_plugin)
+        self.detector = Detector(
+            plugin=self.mock_plugin, base_width=1280, base_height=720
+        )
 
     def test_initialization(self):
         """Test that the detector initializes correctly with a plugin."""
@@ -47,20 +48,27 @@ class TestDetector(unittest.TestCase):
     def test_initialization_fails_without_plugin(self):
         """Test that Detector raises an error if no plugin is provided."""
         with self.assertRaises(ValueError):
-            Detector(plugin=None)
+            Detector(plugin=None, base_width=1280, base_height=720)
 
     def test_update_scaling(self):
         """Test the logic for scaling detection zones."""
-        base_width = settings.camera.desired_width
-        base_height = settings.camera.desired_height
+        from zebtrack.core.detector import ZoneData
+
+        mock_zones = ZoneData(polygon=[[10, 20], [100, 200]])
         test_width, test_height = 640, 360
-        self.detector.update_scaling(test_width, test_height)
-        scale_x = test_width / base_width
-        scale_y = test_height / base_height
-        original_point = self.detector.base_polygon[0]
+
+        self.detector.set_zones(
+            zones=mock_zones, actual_width=test_width, actual_height=test_height
+        )
+
+        scale_x = test_width / self.detector.base_width
+        scale_y = test_height / self.detector.base_height
+
+        original_point = mock_zones.polygon[0]
         scaled_point = self.detector.scaled_polygon[0]
         expected_x = int(original_point[0] * scale_x)
         expected_y = int(original_point[1] * scale_y)
+
         self.assertEqual(scaled_point[0], expected_x)
         self.assertEqual(scaled_point[1], expected_y)
 
@@ -101,17 +109,26 @@ class TestDetector(unittest.TestCase):
 
     def test_state_machine_logic(self):
         """Test the command generation logic based on state."""
-        # Setup: A detection inside the first configured square
-        square = settings.detection_zones.squares[0]
-        x_c = (square[0][0] + square[1][0]) // 2
-        y_c = (square[0][1] + square[1][1]) // 2
-        dummy_frame = np.zeros(
-            (settings.camera.desired_height, settings.camera.desired_width, 3),
-            dtype=np.uint8,
+        from zebtrack.core.detector import ZoneData
+
+        # Setup: A detection inside a mock square
+        mock_square = ((100, 100), (200, 200))
+        mock_zones = ZoneData(
+            squares=[mock_square], enter_commands=[1], exit_commands=[2]
+        )
+        frame_dims = (720, 1280)
+        dummy_frame = np.zeros((frame_dims[0], frame_dims[1], 3), dtype=np.uint8)
+
+        # Set the zones on the detector instance. Since frame dims match base
+        # dims, no scaling will occur.
+        self.detector.set_zones(
+            zones=mock_zones, actual_width=frame_dims[1], actual_height=frame_dims[0]
         )
 
+        x_c = (mock_square[0][0] + mock_square[1][0]) // 2
+        y_c = (mock_square[0][1] + mock_square[1][1]) // 2
+
         # --- Step 1: Object enters a square, should generate ENTER command ---
-        # Detection now includes a track_id
         fake_detection = [(x_c - 5, y_c - 5, x_c + 5, y_c + 5, 0.9, 1)]
         self.mock_plugin.set_detect_return_value(fake_detection)
 
@@ -120,27 +137,25 @@ class TestDetector(unittest.TestCase):
 
         self.assertEqual(self.detector.flag, 1, "Flag should be 1 (waiting for exit)")
         self.assertEqual(self.detector.current_square, 1)
-        self.assertEqual(command, settings.detection_zones.enter_commands[0])
-        # Also check that the returned detection includes the track_id
+        self.assertEqual(command, mock_zones.enter_commands[0])
         self.assertEqual(len(detections), 1)
         self.assertEqual(detections[0][-1], 1)
 
         # --- Step 2: Object is still inside, should generate NO command ---
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            detections, command = self.detector.process_frame(dummy_frame, "live")
+            _, command = self.detector.process_frame(dummy_frame, "live")
         self.assertIsNone(
             command, "No command should be sent if object is still inside"
         )
 
         # --- Step 3: Object moves outside all squares, should generate EXIT command ---
-        # Detection now includes a track_id
         self.mock_plugin.set_detect_return_value([(10, 10, 20, 20, 0.9, 2)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, command = self.detector.process_frame(dummy_frame, "live")
 
         self.assertEqual(self.detector.flag, 0, "Flag should reset to 0")
         self.assertEqual(self.detector.current_square, 0)
-        self.assertEqual(command, settings.detection_zones.exit_commands[0])
+        self.assertEqual(command, mock_zones.exit_commands[0])
         self.assertEqual(detections[0][-1], 2)
 
 

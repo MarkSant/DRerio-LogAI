@@ -23,22 +23,12 @@ video_processing:
   fps: 30
   processing_interval: 10
   processing_offset: 1
-detection_zones:
-  polygon:
-    - [0, 0]
-    - [1, 1]
-  squares:
-    - [[0, 0], [1, 1]]
-  colors:
-    - [255, 0, 0]
-  enter_commands: [1]
-  exit_commands: [2]
 reproducibility:
   seed: 123
 """
 
-    def test_load_settings_success(self):
-        """Test that settings are loaded correctly from a single valid YAML file."""
+    def test_load_settings_success_without_zones(self):
+        """Test that settings load with default empty zones if section is missing."""
         # Simulate only config.yaml existing
         with patch("pathlib.Path.is_file", side_effect=[True, False]) as mock_is_file:
             with patch(
@@ -48,11 +38,54 @@ reproducibility:
                 self.assertIsInstance(settings, Settings)
                 self.assertEqual(settings.camera.index, 1)
                 self.assertEqual(settings.yolo_model.path, "test.pt")
-                self.assertEqual(settings.detection_zones.squares[0], ((0, 0), (1, 1)))
+                # Check that default empty values are created
+                self.assertEqual(settings.detection_zones.polygon, [])
+                self.assertEqual(settings.detection_zones.squares, [])
+                self.assertEqual(settings.detection_zones.colors, [])
                 # Should check for both default and override files
                 self.assertEqual(mock_is_file.call_count, 2)
                 # Should only open the default file
                 mock_file.assert_called_once()
+
+    def test_load_settings_with_zones(self):
+        """Test that settings are loaded correctly when zones are present."""
+        yaml_with_zones = """
+camera:
+  index: 1
+  desired_width: 1280
+  desired_height: 720
+arduino:
+  port: 'COM5'
+  baud_rate: 9600
+yolo_model:
+  path: 'test.pt'
+  confidence_threshold: 0.5
+  nms_threshold: 0.5
+video_processing:
+  fps: 30
+  processing_interval: 10
+  processing_offset: 1
+detection_zones:
+  polygon:
+    - [0, 0]
+    - [1, 1]
+  squares:
+    - [[10, 20], [30, 40]]
+  colors:
+    - [255, 0, 0]
+  enter_commands: [1, "A"]
+  exit_commands: [2, "B"]
+reproducibility:
+  seed: 123
+"""
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=yaml_with_zones)):
+                settings = load_settings()
+                self.assertEqual(len(settings.detection_zones.polygon), 2)
+                self.assertEqual(
+                    settings.detection_zones.squares[0], ((10, 20), (30, 40))
+                )
+                self.assertEqual(settings.detection_zones.enter_commands, [1, "A"])
 
     def test_load_settings_file_not_found(self):
         """Test that a FileNotFoundError is raised if the default config is missing."""
