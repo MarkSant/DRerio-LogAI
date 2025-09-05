@@ -7,7 +7,6 @@ from tkinter import messagebox
 import pandas as pd
 import structlog
 import yaml
-from ultralytics import YOLO
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
@@ -58,6 +57,7 @@ class ProjectManager:
         project_path,
         project_type,
         use_openvino=False,
+        active_weight=None,
         video_files=None,
         num_aquariums: int = 1,
         aquarium_width_cm: float = 0.0,
@@ -65,13 +65,14 @@ class ProjectManager:
     ):
         """
         Initializes a new project, creating its directory and config file.
-        If use_openvino is True, it also converts the model to OpenVINO format.
+        It no longer handles OpenVINO conversion, just records the settings.
         """
         self.project_path = project_path
         log_context = log.bind(
             project_path=project_path,
             project_type=project_type,
             use_openvino=use_openvino,
+            active_weight=active_weight,
             num_aquariums=num_aquariums,
         )
         log_context.info("project.create.start")
@@ -94,63 +95,6 @@ class ProjectManager:
 
         self._save_settings_snapshot()
 
-        openvino_model_path = ""
-        if use_openvino:
-            cache_dir = "openvino_model_cache"
-            base_model_name = os.path.splitext(
-                os.path.basename(settings.yolo_model.path)
-            )[0]
-            cached_model_dir_name = f"{base_model_name}_openvino_model"
-            cached_model_dir = os.path.join(cache_dir, cached_model_dir_name)
-
-            if os.path.exists(cached_model_dir):
-                log.info(
-                    "openvino.cache.found",
-                    path=cached_model_dir,
-                )
-                openvino_model_path = os.path.abspath(cached_model_dir)
-            else:
-                log.info("openvino.export.start")
-                try:
-                    model = YOLO(settings.yolo_model.path)
-                    exported_path = model.export(format="openvino", half=True)
-                    os.makedirs(cache_dir, exist_ok=True)
-                    shutil.rmtree(cached_model_dir, ignore_errors=True)
-
-                    try:
-                        shutil.move(exported_path, cached_model_dir)
-                        openvino_model_path = os.path.abspath(cached_model_dir)
-                        log.info(
-                            "openvino.export.success",
-                            path=openvino_model_path,
-                        )
-                    except Exception as move_exc:
-                        log.error(
-                            "openvino.export.move_error",
-                            exc_info=move_exc,
-                        )
-                        messagebox.showerror(
-                            "OpenVINO Export Error",
-                            (
-                                "Failed to move the exported OpenVINO model to the "
-                                "cache directory.\nPlease check permissions.\n\n"
-                                f"Error: {move_exc}"
-                            ),
-                        )
-                        return False
-                except Exception as e:
-                    log.error("openvino.export.failed", exc_info=e)
-                    messagebox.showerror(
-                        "OpenVINO Export Error",
-                        (
-                            "An unexpected error occurred during OpenVINO model "
-                            "export.\nEnsure all dependencies are installed "
-                            "correctly and the model path is valid.\n\n"
-                            f"Error: {e}"
-                        ),
-                    )
-                    return False
-
         self.project_data = {
             "project_name": os.path.basename(project_path),
             "project_type": project_type,
@@ -160,7 +104,7 @@ class ProjectManager:
                 "aquarium_height_cm": aquarium_height_cm,
             },
             "use_openvino": use_openvino,
-            "openvino_model_path": openvino_model_path,
+            "active_weight": active_weight,
             "videos": [],
         }
 

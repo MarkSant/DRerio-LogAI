@@ -37,6 +37,79 @@ from zebtrack.settings import settings
 log = structlog.get_logger()
 
 
+class ManageWeightsDialog(simpledialog.Dialog):
+    """Dialog to manage the available weights."""
+
+    def __init__(self, parent, controller):
+        self.controller = controller
+        super().__init__(parent, "Manage Detection Weights")
+
+    def body(self, master):
+        self.listbox = ttk.Treeview(
+            master, columns=("name", "is_default"), show="headings", height=5
+        )
+        self.listbox.heading("name", text="Weight Name")
+        self.listbox.heading("is_default", text="Default")
+        self.listbox.column("is_default", width=60, anchor="center")
+        self.listbox.pack(padx=5, pady=5, fill="both", expand=True)
+
+        self.populate_list()
+
+        button_frame = ttk.Frame(master)
+        button_frame.pack(pady=5)
+
+        ttk.Button(button_frame, text="Set as Default", command=self.set_default).pack(
+            side="left", padx=5
+        )
+        ttk.Button(button_frame, text="Delete Selected", command=self.delete).pack(
+            side="left", padx=5
+        )
+
+    def populate_list(self):
+        for item in self.listbox.get_children():
+            self.listbox.delete(item)
+
+        weights = self.controller.get_all_weight_names()
+        default_name, _ = self.controller.weight_manager.get_default_weight()
+
+        for name in sorted(weights):
+            is_default_str = "Yes" if name == default_name else ""
+            self.listbox.insert("", "end", values=(name, is_default_str))
+
+    def get_selected_item_name(self):
+        selected = self.listbox.selection()
+        if not selected:
+            messagebox.showwarning("No Selection", "Please select a weight first.")
+            return None
+        return self.listbox.item(selected[0])["values"][0]
+
+    def set_default(self):
+        name = self.get_selected_item_name()
+        if name:
+            self.controller.weight_manager.set_default_weight(name)
+            self.populate_list()
+            # Also update the main GUI dropdown
+            self.controller.view.set_active_weight_in_dropdown(name)
+
+    def delete(self):
+        name = self.get_selected_item_name()
+        if name:
+            if messagebox.askyesno(
+                "Confirm Deletion", f"Are you sure you want to delete '{name}'?"
+            ):
+                self.controller.delete_weight(name)
+                self.populate_list()
+
+    def buttonbox(self):
+        # Override to have only a close button
+        box = ttk.Frame(self)
+        w = ttk.Button(box, text="Close", width=10, command=self.ok, default="active")
+        w.pack(side="left", padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
+
 class CreateProjectDialog(simpledialog.Dialog):
     """A custom dialog to gather all new project information."""
 
@@ -51,7 +124,6 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
         self.project_type_var = StringVar(value="pre-recorded")
-        self.use_openvino_var = BooleanVar(value=True)
         self.video_files = []
         self.video_list_var = StringVar(value="No videos selected.")
         self.use_timed_recording_var = BooleanVar(value=False)
@@ -124,17 +196,10 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=6, column=1, columnspan=3, sticky="w", padx=5
         )
 
-        # --- Options ---
-        Checkbutton(
-            master,
-            text="Optimize with OpenVINO (for Intel GPUs)",
-            variable=self.use_openvino_var,
-        ).grid(row=7, column=0, columnspan=3, sticky="w", padx=5, pady=5)
-
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
         self.live_options_frame.grid(
-            row=8, column=0, columnspan=4, sticky="ew", padx=5
+            row=7, column=0, columnspan=4, sticky="ew", padx=5
         )
         Checkbutton(
             self.live_options_frame,
@@ -241,7 +306,6 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.result = {
             "project_path": self.project_path,
             "project_type": self.project_type_var.get(),
-            "use_openvino": self.use_openvino_var.get(),
             "video_files": self.video_files,
             "num_aquariums": int(self.num_aquariums_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
@@ -353,7 +417,8 @@ class LiveConfigDialog(simpledialog.Dialog):
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
                 "Error",
-                "Arduino is enabled, but no serial port was found. Please check the connection or disable the 'Use Arduino' option.",
+                "Arduino is enabled, but no serial port was found. Please check "
+                "the connection or disable the 'Use Arduino' option.",
             )
             return 0
         return 1
@@ -411,12 +476,16 @@ class ApplicationGUI:
             value=str(settings.video_processing.processing_interval)
         )
         self.show_preview_var = BooleanVar(value=True)
-        self.use_openvino_var = BooleanVar(value=True)
+
+        # Model management variables
+        self.active_weight_var = StringVar()
+        self.use_openvino_var = BooleanVar(value=False)
+        self.openvino_status_var = StringVar(value="Initializing...")
 
         self._create_welcome_frame()
 
     def _create_welcome_frame(self):
-        """Creates the initial UI for project selection."""
+        """Creates the initial UI for project selection and model configuration."""
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
@@ -424,25 +493,85 @@ class ApplicationGUI:
             self.main_controls_frame.destroy()
             self.main_controls_frame = None
 
-        self.root.geometry("400x150")
-        self.welcome_frame = Frame(self.root)
-        self.welcome_frame.pack(expand=True)
+        self.root.geometry("")  # Let it resize
+        self.welcome_frame = ttk.Frame(self.root, padding="10")
+        self.welcome_frame.pack(expand=True, fill="both")
 
-        Label(
+        # --- Title ---
+        ttk.Label(
             self.welcome_frame,
             text="Welcome to Zebtrack Controller",
             font=("Helvetica", 16),
-        ).pack(pady=10)
+        ).pack(pady=(0, 15))
 
-        btn_frame = Frame(self.welcome_frame)
-        btn_frame.pack(pady=10)
+        # --- Model Configuration ---
+        self._create_model_config_frame()
 
-        Button(
-            btn_frame, text="Create New Project", command=self._create_project_workflow
-        ).pack(side="left", padx=10)
-        Button(
-            btn_frame, text="Open Existing Project", command=self._open_project_workflow
-        ).pack(side="left", padx=10)
+        # --- Project Actions ---
+        project_actions_frame = ttk.LabelFrame(
+            self.welcome_frame, text="Project Actions", padding=10
+        )
+        project_actions_frame.pack(fill="x", pady=10, expand=True)
+
+        ttk.Button(
+            project_actions_frame,
+            text="Create New Project",
+            command=self._create_project_workflow,
+        ).pack(side="left", padx=10, expand=True, fill="x")
+        ttk.Button(
+            project_actions_frame,
+            text="Open Existing Project",
+            command=self._open_project_workflow,
+        ).pack(side="left", padx=10, expand=True, fill="x")
+
+    def _create_model_config_frame(self):
+        """Builds the UI for model and OpenVINO configuration."""
+        model_frame = ttk.LabelFrame(
+            self.welcome_frame, text="Model Configuration", padding=10
+        )
+        model_frame.pack(fill="x", pady=5)
+        model_frame.columnconfigure(1, weight=1)
+
+        # --- Row 0: Weight Selection ---
+        ttk.Label(model_frame, text="Active Weight:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=3
+        )
+        self.weights_dropdown = ttk.Combobox(
+            model_frame, textvariable=self.active_weight_var, state="readonly"
+        )
+        self.weights_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=3)
+        self.weights_dropdown.bind(
+            "<<ComboboxSelected>>", self._on_weight_selected
+        )
+
+        # --- Row 1: Weight Management Buttons ---
+        btn_frame = ttk.Frame(model_frame)
+        btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
+        ttk.Button(
+            btn_frame, text="Load New Weight...", command=self._load_new_weight_clicked
+        ).pack(side="left", padx=(0, 5))
+        ttk.Button(
+            btn_frame, text="Manage Weights...", command=self._manage_weights_clicked
+        ).pack(side="left")
+
+        # --- Row 2: OpenVINO Toggle ---
+        self.openvino_checkbox = ttk.Checkbutton(
+            model_frame,
+            text="Optimize with OpenVINO (for Intel hardware)",
+            variable=self.use_openvino_var,
+            command=self._on_openvino_toggled,
+        )
+        self.openvino_checkbox.grid(
+            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2)
+        )
+
+        # --- Row 3: OpenVINO Status ---
+        self.openvino_status_label = ttk.Label(
+            model_frame, textvariable=self.openvino_status_var, font=("Segoe UI", 8)
+        )
+        self.openvino_status_label.grid(
+            row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5)
+        )
 
     def _create_main_control_frame(self):
         """Creates the main UI with tabs for controlling the app."""
@@ -1391,7 +1520,8 @@ class ApplicationGUI:
                 if not self.controller.arduino.connect():
                     self.show_warning(
                         "Arduino Warning",
-                        f"Could not connect to Arduino on port {settings.arduino.port}. Running in offline mode.",
+                        f"Could not connect to Arduino on port "
+                        f"{settings.arduino.port}. Running in offline mode.",
                     )
             try:
                 self.controller.camera = Camera()
@@ -1574,6 +1704,70 @@ class ApplicationGUI:
             cv2.destroyAllWindows()
         self.root.after(0, self._cleanup_after_processing)
 
+    # --- New UI Methods for Model Management ---
+
+    def update_weights_dropdown(self, weights_list: list):
+        """Clears and repopulates the weights dropdown."""
+        self.weights_dropdown["values"] = weights_list
+        if not weights_list:
+            self.active_weight_var.set("No weights found.")
+            self.weights_dropdown.config(state="disabled")
+        else:
+            self.weights_dropdown.config(state="readonly")
+
+    def set_active_weight_in_dropdown(self, weight_name: str | None):
+        """Sets the currently selected value in the dropdown."""
+        if weight_name:
+            self.active_weight_var.set(weight_name)
+
+    def update_openvino_status_label(self, status_text: str):
+        """Updates the text of the OpenVINO status label."""
+        self.openvino_status_var.set(status_text)
+
+    def update_openvino_checkbox(self, is_checked: bool):
+        """Sets the state of the OpenVINO checkbox."""
+        self.use_openvino_var.set(is_checked)
+
+    def _on_weight_selected(self, event=None):
+        """Callback when user selects a new weight from the dropdown."""
+        selected_weight = self.active_weight_var.get()
+        self.controller.set_active_weight(selected_weight)
+
+    def _on_openvino_toggled(self):
+        """Callback when user toggles the OpenVINO checkbox."""
+        self.controller.set_openvino_usage(self.use_openvino_var.get())
+
+    def _load_new_weight_clicked(self):
+        """Handles the 'Load New Weight' button click."""
+        filepath = filedialog.askopenfilename(
+            title="Select a .pt Weight File",
+            filetypes=[("PyTorch Weights", "*.pt")],
+        )
+        if not filepath:
+            return
+
+        # Ask user what to do with the new weight
+        # The 'type' option creates custom buttons
+        choice = messagebox.askquestion(
+            "Add Weight",
+            "Do you want to set this new weight as the default for all projects?",
+            icon="question",
+            type="yesnocancel",
+        )
+
+        if choice == "cancel":
+            return
+        elif choice == "yes":
+            # Add as new default
+            self.controller.add_new_weight(filepath, set_as_default=True)
+        else:  # 'no'
+            # Add as an alternative
+            self.controller.add_new_weight(filepath, set_as_default=False)
+
+    def _manage_weights_clicked(self):
+        """Opens the weight management dialog."""
+        ManageWeightsDialog(self.root, self.controller)
+
     def _create_project_workflow(self):
         """
         Handles the UI part of creating a new project by opening a comprehensive dialog,
@@ -1598,11 +1792,10 @@ class ApplicationGUI:
                 # Set port to empty string to prevent connection attempt
                 settings.arduino.port = ""
 
-        # Call controller as before
+        # Call controller, which will now pass the model info automatically
         self.controller.create_project_workflow(
             project_path=dialog.result["project_path"],
             project_type=dialog.result["project_type"],
-            use_openvino=dialog.result["use_openvino"],
             video_files=dialog.result["video_files"],
             num_aquariums=dialog.result["num_aquariums"],
             aquarium_width_cm=dialog.result["aquarium_width_cm"],
