@@ -16,7 +16,7 @@ arduino:
 
 yolo_model:
   # Path to the trained model weights file (.pt) for animal tracking.
-  path: 'best12.pt'
+  path: 'best_seg.pt'
   # Confidence threshold: detections below this value are ignored.
   confidence_threshold: 0.3
   # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.
