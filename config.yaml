@@ -15,8 +15,16 @@ arduino:
   baud_rate: 9600
 
 yolo_model:
-  # Path to the trained model weights file (.pt).
+  # Path to the trained model weights file (.pt) for animal tracking.
   path: 'best12.pt'
+  # Confidence threshold: detections below this value are ignored.
+  confidence_threshold: 0.3
+  # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.
+  nms_threshold: 0.3
+
+aquarium_segmentation_model:
+  # Path to the trained segmentation model weights file (.pt) for aquarium detection.
+  path: 'aquarium_model.pt'
   # Confidence threshold: detections below this value are ignored.
   confidence_threshold: 0.3
   # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.

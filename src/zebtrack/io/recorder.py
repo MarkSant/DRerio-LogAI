@@ -29,9 +29,15 @@ class Recorder:
         self.frame_count = 0
         self.recording_start_frame = 0
         self.detection_data = []
+        self.pixel_per_cm_ratio = None
 
     def start_recording(
-        self, output_folder, frame_width, frame_height, is_video_file=False
+        self,
+        output_folder,
+        frame_width,
+        frame_height,
+        is_video_file=False,
+        pixel_per_cm_ratio=None,
     ):
         """
         Prepares and starts a new recording session.
@@ -41,10 +47,12 @@ class Recorder:
             frame_width (int): The width of the video frames.
             frame_height (int): The height of the video frames.
             is_video_file (bool): If True, skips video file creation.
+            pixel_per_cm_ratio (tuple, optional): Tuple containing (x_ratio, y_ratio).
 
         Returns:
             bool: True if recording started successfully, False otherwise.
         """
+        self.pixel_per_cm_ratio = pixel_per_cm_ratio
         if self.is_recording:
             log.warning("recorder.start.already_recording")
             return False
@@ -104,18 +112,26 @@ class Recorder:
             return
 
         for x1, y1, x2, y2, confidence, track_id in detections:
-            self.detection_data.append(
-                {
-                    "timestamp": timestamp,
-                    "frame": frame_number,
-                    "track_id": track_id,
-                    "x1": x1,
-                    "y1": y1,
-                    "x2": x2,
-                    "y2": y2,
-                    "confidence": confidence,
-                }
-            )
+            data_point = {
+                "timestamp": timestamp,
+                "frame": frame_number,
+                "track_id": track_id,
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "confidence": confidence,
+            }
+            # Calculate center point and add cm conversion if ratio is available
+            if self.pixel_per_cm_ratio:
+                x_center = (x1 + x2) / 2
+                y_center = (y1 + y2) / 2
+                data_point["x_center_px"] = x_center
+                data_point["y_center_px"] = y_center
+                data_point["x_cm"] = x_center / self.pixel_per_cm_ratio[0]
+                data_point["y_cm"] = y_center / self.pixel_per_cm_ratio[1]
+
+            self.detection_data.append(data_point)
         log.debug(
             "recorder.detections.appended",
             count=len(detections),

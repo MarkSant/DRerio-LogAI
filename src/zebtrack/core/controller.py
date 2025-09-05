@@ -18,6 +18,8 @@ except ImportError:  # Fallback lightweight logger so code still runs
     structlog.get_logger = lambda *a, **k: structlog.getLogger("zebtrack")
 
 from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.calibration import Calibration
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
@@ -157,16 +159,27 @@ class AppController:
         log.info("project.close.finished")
 
     def create_project_workflow(
-        self, project_path, project_type, use_openvino, video_files
+        self,
+        project_path,
+        project_type,
+        use_openvino,
+        video_files,
+        num_aquariums,
+        aquarium_width_cm,
+        aquarium_height_cm,
     ):
         """Handles the logic of creating a new project."""
         success = self.project_manager.create_new_project(
-            project_path,
-            project_type,
+            project_path=project_path,
+            project_type=project_type,
             use_openvino=use_openvino,
             video_files=video_files,
+            num_aquariums=num_aquariums,
+            aquarium_width_cm=aquarium_width_cm,
+            aquarium_height_cm=aquarium_height_cm,
         )
         if success:
+            self._run_automatic_calibration()
             self.view._load_project_view()
         else:
             self.view.show_error("Error", "Failed to create the new project.")
@@ -174,12 +187,90 @@ class AppController:
     def open_project_workflow(self, project_path):
         """Handles the logic of opening an existing project."""
         if self.project_manager.load_project(project_path):
+            self._run_automatic_calibration()
             self.view._load_project_view()
         else:
             self.view.show_error(
                 "Error",
                 "Failed to load the project. Check if it's a valid project folder.",
             )
+
+    def _run_automatic_calibration(self):
+        """
+        Runs the automatic aquarium detection and calibration process.
+        This is intended to be called after a project is created or loaded.
+        """
+        from zebtrack.settings import settings
+
+        log.info("calibration.auto.start")
+        pm = self.project_manager
+
+        # Check if calibration data already exists
+        if pm.project_data.get("calibration", {}).get("homography_matrix"):
+            log.info("calibration.auto.skip_already_done")
+            return
+
+        # Get the first video for analysis
+        video_path = pm.get_next_video()
+        if not video_path:
+            log.warning("calibration.auto.no_video_found")
+            if pm.get_project_type() == "pre-recorded":
+                self.view.show_warning(
+                    "Calibration Warning",
+                    "Could not run automatic calibration: no video files found in project.",
+                )
+            return
+
+        try:
+            # 1. Detect aquariums
+            model_path = settings.aquarium_segmentation_model.path
+            detector = AquariumDetector(model_path)
+            polygons = detector.detect_aquariums(video_path)
+
+            if not polygons:
+                self.view.show_warning(
+                    "Calibration Failed",
+                    "Could not automatically detect any aquariums in the video.",
+                )
+                return
+
+            # 2. Run calibration on the first detected polygon
+            # TODO: Add logic to handle multiple aquariums
+            calib_settings = pm.project_data.get("calibration", {})
+            num_expected = calib_settings.get("num_aquariums", 1)
+            if len(polygons) != num_expected:
+                self.view.show_warning(
+                    "Calibration Warning",
+                    f"Detected {len(polygons)} aquariums, but expected {num_expected}. "
+                    "Proceeding with the first one found.",
+                )
+
+            calibration = Calibration(
+                polygon=polygons[0],
+                real_width_cm=calib_settings.get("aquarium_width_cm", 0),
+                real_height_cm=calib_settings.get("aquarium_height_cm", 0),
+            )
+
+            if calibration.homography_matrix is not None:
+                # 3. Save results to project file
+                pm.project_data["calibration"]["homography_matrix"] = calibration.homography_matrix.tolist()
+                pm.project_data["calibration"]["pixel_per_cm_ratio"] = calibration.pixel_per_cm_ratio
+                pm.project_data["calibration"]["target_dims_px"] = calibration.target_dims_px
+                pm.save_project()
+                self.view.show_info(
+                    "Calibration Complete",
+                    "Automatic aquarium calibration was successful.",
+                )
+            else:
+                self.view.show_error(
+                    "Calibration Failed",
+                    "Detected an aquarium, but could not create a valid calibration matrix.",
+                )
+
+        except Exception as e:
+            log.error("calibration.auto.failed", error=str(e), exc_info=True)
+            self.view.show_error("Calibration Error", f"An unexpected error occurred during calibration: {e}")
+
 
     def start_recording(self):
         """Handles the business logic for starting a recording session."""
@@ -201,8 +292,16 @@ class AppController:
         )
 
         cam_props = self.camera.get_properties()
+
+        # Get calibration data
+        calib_data = self.project_manager.project_data.get("calibration", {})
+        ratio = calib_data.get("pixel_per_cm_ratio")
+
         success = self.recorder.start_recording(
-            output_folder, cam_props["width"], cam_props["height"]
+            output_folder,
+            cam_props["width"],
+            cam_props["height"],
+            pixel_per_cm_ratio=ratio,
         )
 
         if success:
@@ -300,8 +399,16 @@ class AppController:
             self.project_manager.project_path, output_folder_name
         )
 
+        # Get calibration data
+        calib_data = self.project_manager.project_data.get("calibration", {})
+        ratio = calib_data.get("pixel_per_cm_ratio")
+
         success = self.recorder.start_recording(
-            output_path, video_props["width"], video_props["height"], is_video_file=True
+            output_path,
+            video_props["width"],
+            video_props["height"],
+            is_video_file=True,
+            pixel_per_cm_ratio=ratio,
         )
         if not success:
             log.error(
@@ -396,6 +503,16 @@ class AppController:
             if not ret:
                 break
             frame_number = target_frame
+
+            # Apply perspective warp if calibration data is available
+            calib_data = self.project_manager.project_data.get("calibration", {})
+            h_matrix = calib_data.get("homography_matrix")
+            target_dims = calib_data.get("target_dims_px")
+
+            if h_matrix and target_dims:
+                import numpy as np
+                h_matrix = np.array(h_matrix)
+                frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
 
             progress_percent = (
                 (frame_number / total_frames) * 100 if total_frames > 0 else 0
