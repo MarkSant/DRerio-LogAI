@@ -283,9 +283,10 @@ class ApplicationGUI:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
-        # Create the two tabs
+        # Create the tabs
         self._create_main_controls_tab()
         self._create_roi_analysis_tab()
+        self._create_reports_tab()
 
         # Status frame below the notebook
         status_text = (
@@ -341,6 +342,12 @@ class ApplicationGUI:
                 command=self.controller.process_next_video,
             )
             self.process_video_btn.pack(side="left", padx=5)
+            self.batch_analysis_btn = Button(
+                button_frame,
+                text="Executar Análise em Lote",
+                command=self.controller.run_batch_analysis,
+            )
+            self.batch_analysis_btn.pack(side="left", padx=5)
             self.cancel_proc_btn = Button(
                 button_frame,
                 text="Cancel",
@@ -488,6 +495,90 @@ class ApplicationGUI:
         self.results_text.pack(expand=True, fill="both")
         self.results_text.insert("1.0", "Os resultados da análise aparecerão aqui.")
         self.results_text.config(state="disabled")
+
+    def _create_reports_tab(self):
+        """Creates the tab for generating reports and visualizations."""
+        reports_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(reports_tab_frame, text="Relatórios e Visualização")
+
+        # Top section with main view and controls
+        top_pane = ttk.PanedWindow(reports_tab_frame, orient="horizontal")
+        top_pane.pack(expand=True, fill="both", pady=5)
+
+        # --- Central Visualization Panel (Left) ---
+        viz_frame = ttk.LabelFrame(top_pane, text="Visualização", padding=5)
+        top_pane.add(viz_frame, weight=3)
+
+        # Matplotlib Canvas
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            self.report_figure = Figure(figsize=(5, 4), dpi=100)
+            self.report_canvas_widget = FigureCanvasTkAgg(self.report_figure, master=viz_frame)
+            self.report_canvas_widget.get_tk_widget().pack(side="top", fill="both", expand=True)
+            self.report_ax = self.report_figure.add_subplot(111)
+            self.report_ax.set_title("Gráfico de Análise")
+            self.report_ax.set_xlabel("X")
+            self.report_ax.set_ylabel("Y")
+        except ImportError:
+            Label(viz_frame, text="Matplotlib não encontrado. A visualização está desativada.").pack()
+
+
+        # --- Side Control Panel (Right) ---
+        controls_frame = ttk.LabelFrame(top_pane, text="Controles", padding=10)
+        top_pane.add(controls_frame, weight=1)
+
+        # Experiment selection
+        ttk.Button(controls_frame, text="Carregar Resultados do Projeto", command=self.controller.load_project_results_for_gui).pack(fill="x", pady=5, padx=5)
+        ttk.Label(controls_frame, text="Selecionar Experimento:").pack(fill="x", pady=2)
+        self.report_experiment_var = StringVar()
+        self.report_experiment_selector = ttk.Combobox(
+            controls_frame, textvariable=self.report_experiment_var, state="readonly"
+        )
+        self.report_experiment_selector.pack(fill="x", pady=2, padx=5)
+
+        # Action Buttons
+        ttk.Button(
+            controls_frame, text="Gerar Trajetória", command=lambda: self.controller.generate_report_plot('trajectory')
+        ).pack(fill="x", pady=5, padx=5)
+
+        ttk.Button(
+            controls_frame, text="Gerar Mapa de Calor", command=lambda: self.controller.generate_report_plot('heatmap')
+        ).pack(fill="x", pady=5, padx=5)
+
+        # Customization Checkboxes
+        self.report_overlay_rois_var = BooleanVar(value=True)
+        ttk.Checkbutton(
+            controls_frame, text="Sobrepor ROIs", variable=self.report_overlay_rois_var
+        ).pack(anchor="w", pady=5, padx=5)
+
+        self.report_use_background_var = BooleanVar(value=False)
+        ttk.Checkbutton(
+            controls_frame, text="Usar Fundo do Vídeo", variable=self.report_use_background_var
+        ).pack(anchor="w", pady=5, padx=5)
+
+        # --- Bottom Export Panel ---
+        export_frame = ttk.LabelFrame(reports_tab_frame, text="Exportação", padding=10)
+        export_frame.pack(fill="x", pady=10)
+
+        # Buttons
+        ttk.Button(export_frame, text="Exportar Dados (Resumo)", command=lambda: self.controller.export_report_data()).grid(row=0, column=0, padx=5, pady=5)
+        ttk.Button(export_frame, text="Exportar Relatório Visual", command=lambda: self.controller.export_visual_report()).grid(row=0, column=1, padx=5, pady=5)
+        ttk.Button(export_frame, text="Salvar Gráfico Atual (PNG)", command=lambda: self.controller.save_current_plot()).grid(row=0, column=2, padx=5, pady=5)
+
+        # Format Options
+        self.export_data_format_var = StringVar(value="excel")
+        ttk.Label(export_frame, text="Formato Dados:").grid(row=1, column=0, sticky="w", padx=5)
+        format_frame = ttk.Frame(export_frame)
+        format_frame.grid(row=1, column=1, columnspan=2, sticky="w")
+        ttk.Radiobutton(format_frame, text="Excel", variable=self.export_data_format_var, value="excel").pack(side="left")
+        ttk.Radiobutton(format_frame, text="CSV", variable=self.export_data_format_var, value="csv").pack(side="left", padx=5)
+        ttk.Radiobutton(format_frame, text="Parquet", variable=self.export_data_format_var, value="parquet").pack(side="left")
+
+        self.export_report_format_var = StringVar(value="word")
+        ttk.Label(export_frame, text="Formato Relatório:").grid(row=2, column=0, sticky="w", padx=5)
+        ttk.Radiobutton(export_frame, text="Word", variable=self.export_report_format_var, value="word").grid(row=2, column=0, sticky="e", padx=5)
+        ttk.Radiobutton(export_frame, text="PDF", variable=self.export_report_format_var, value="pdf", state="disabled").grid(row=2, column=1, sticky="w")
 
     def _load_roi_data(self):
         """Opens a parquet file and tells the controller to load it."""
