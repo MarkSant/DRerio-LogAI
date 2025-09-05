@@ -51,7 +51,14 @@ class ProjectManager:
             return False
 
     def create_new_project(
-        self, project_path, project_type, use_openvino=False, video_files=None
+        self,
+        project_path,
+        project_type,
+        use_openvino=False,
+        video_files=None,
+        num_aquariums: int = 1,
+        aquarium_width_cm: float = 0.0,
+        aquarium_height_cm: float = 0.0,
     ):
         """
         Initializes a new project, creating its directory and config file.
@@ -62,6 +69,7 @@ class ProjectManager:
             project_path=project_path,
             project_type=project_type,
             use_openvino=use_openvino,
+            num_aquariums=num_aquariums,
         )
         log_context.info("project.create.start")
 
@@ -143,6 +151,11 @@ class ProjectManager:
         self.project_data = {
             "project_name": os.path.basename(project_path),
             "project_type": project_type,
+            "calibration": {
+                "num_aquariums": num_aquariums,
+                "aquarium_width_cm": aquarium_width_cm,
+                "aquarium_height_cm": aquarium_height_cm,
+            },
             "use_openvino": use_openvino,
             "openvino_model_path": openvino_model_path,
             "videos": [],

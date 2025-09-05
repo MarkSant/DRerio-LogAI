@@ -35,6 +35,147 @@ from zebtrack.settings import settings
 log = structlog.get_logger()
 
 
+class CreateProjectDialog(simpledialog.Dialog):
+    """A custom dialog to gather all new project information."""
+
+    def __init__(self, parent):
+        self.project_path = None
+        self.result = None
+        super().__init__(parent, "Create New Project")
+
+    def body(self, master):
+        self.project_name_var = StringVar()
+        self.num_aquariums_var = StringVar(value="1")
+        self.aquarium_width_var = StringVar(value="10.0")
+        self.aquarium_height_var = StringVar(value="10.0")
+        self.project_type_var = StringVar(value="pre-recorded")
+        self.use_openvino_var = BooleanVar(value=True)
+        self.video_files = []
+        self.video_list_var = StringVar(value="No videos selected.")
+
+        # --- Project Name ---
+        Label(master, text="Project Name:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        Entry(master, textvariable=self.project_name_var, width=40).grid(
+            row=0, column=1, columnspan=2, sticky="ew", padx=5
+        )
+
+        # --- Base Path ---
+        Label(master, text="Project Folder:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        self.path_entry = Entry(master, text="", width=40)
+        self.path_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
+        Button(master, text="Browse...", command=self._select_path).grid(
+            row=1, column=3, padx=5
+        )
+
+        # --- Calibration ---
+        Label(master, text="Number of Aquariums:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        Entry(master, textvariable=self.num_aquariums_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=5
+        )
+
+        Label(master, text="Aquarium Width (cm):").grid(row=3, column=0, sticky="w", padx=5, pady=2)
+        Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
+            row=3, column=1, sticky="w", padx=5
+        )
+
+        Label(master, text="Aquarium Height (cm):").grid(row=4, column=0, sticky="w", padx=5, pady=2)
+        Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
+            row=4, column=1, sticky="w", padx=5
+        )
+
+        # --- Project Type & Videos ---
+        Label(master, text="Project Type:").grid(row=5, column=0, sticky="w", padx=5, pady=2)
+        ttk.Radiobutton(
+            master, text="Pre-recorded", variable=self.project_type_var, value="pre-recorded", command=self._toggle_video_button
+        ).grid(row=5, column=1, sticky="w", padx=5)
+        ttk.Radiobutton(
+            master, text="Live", variable=self.project_type_var, value="live", command=self._toggle_video_button
+        ).grid(row=5, column=2, sticky="w", padx=5)
+
+        self.video_button = Button(master, text="Select Videos...", command=self._select_videos)
+        self.video_button.grid(row=6, column=0, padx=5, pady=5)
+        Label(master, textvariable=self.video_list_var, wraplength=300).grid(row=6, column=1, columnspan=3, sticky="w", padx=5)
+
+        # --- Options ---
+        Checkbutton(
+            master,
+            text="Optimize with OpenVINO (for Intel GPUs)",
+            variable=self.use_openvino_var,
+        ).grid(row=7, column=0, columnspan=3, sticky="w", padx=5, pady=5)
+
+        self._toggle_video_button() # Set initial state
+        return self.path_entry  # initial focus
+
+    def _select_path(self):
+        path = filedialog.askdirectory(title="Select a Parent Folder for the Project")
+        if path:
+            self.path_entry.delete(0, "end")
+            self.path_entry.insert(0, path)
+
+    def _select_videos(self):
+        files = filedialog.askopenfilenames(
+            title="Select Video Files", filetypes=[("Video files", "*.mp4 *.avi")]
+        )
+        if files:
+            self.video_files = files
+            self.video_list_var.set(f"{len(files)} video(s) selected.")
+        else:
+            self.video_files = []
+            self.video_list_var.set("No videos selected.")
+
+    def _toggle_video_button(self):
+        if self.project_type_var.get() == "pre-recorded":
+            self.video_button.config(state="normal")
+        else:
+            self.video_button.config(state="disabled")
+            self.video_list_var.set("Not applicable for live projects.")
+
+
+    def validate(self):
+        base_path = self.path_entry.get()
+        if not base_path or not os.path.isdir(base_path):
+            messagebox.showerror("Error", "Please select a valid parent folder.")
+            return 0
+
+        project_name = self.project_name_var.get()
+        if not project_name.strip():
+            messagebox.showerror("Error", "Project name cannot be empty.")
+            return 0
+
+        self.project_path = os.path.join(base_path, project_name)
+        if os.path.exists(self.project_path) and os.listdir(self.project_path):
+            messagebox.showerror(
+                "Error",
+                "A project folder with this name already exists and is not empty.",
+            )
+            return 0
+
+        if self.project_type_var.get() == "pre-recorded" and not self.video_files:
+            messagebox.showerror("Error", "Please select at least one video file for pre-recorded analysis.")
+            return 0
+
+        try:
+            int(self.num_aquariums_var.get())
+            float(self.aquarium_width_var.get())
+            float(self.aquarium_height_var.get())
+        except ValueError:
+            messagebox.showerror("Error", "Aquarium dimensions must be valid numbers.")
+            return 0
+
+        return 1
+
+    def apply(self):
+        self.result = {
+            "project_path": self.project_path,
+            "project_type": self.project_type_var.get(),
+            "use_openvino": self.use_openvino_var.get(),
+            "video_files": self.video_files,
+            "num_aquariums": int(self.num_aquariums_var.get()),
+            "aquarium_width_cm": float(self.aquarium_width_var.get()),
+            "aquarium_height_cm": float(self.aquarium_height_var.get()),
+        }
+
+
 class ApplicationGUI:
     """
     A classe principal que gerencia a interface gráfica (a "Visão").
@@ -336,6 +477,16 @@ class ApplicationGUI:
                 continue
 
             if self.controller.is_processing:
+                # Apply perspective warp if calibration data is available
+                calib_data = self.controller.project_manager.project_data.get("calibration", {})
+                h_matrix = calib_data.get("homography_matrix")
+                target_dims = calib_data.get("target_dims_px")
+
+                if h_matrix and target_dims:
+                    import numpy as np
+                    h_matrix = np.array(h_matrix)
+                    frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
+
                 detections, command = self.controller.detector.process_frame(
                     frame, "live"
                 )
@@ -433,65 +584,20 @@ class ApplicationGUI:
 
     def _create_project_workflow(self):
         """
-        Handles the UI part of creating a new project, then calls the controller.
+        Handles the UI part of creating a new project by opening a comprehensive dialog,
+        then calls the controller with the collected data.
         """
-        base_path = self.ask_directory(title="Select a Parent Folder for the Project")
-        if not base_path:
-            return
-
-        project_name = self.ask_string(
-            "Project Name", "Enter a name for the new project:"
-        )
-        if not project_name:
-            return
-
-        project_path = os.path.join(base_path, project_name)
-        if os.path.exists(project_path) and os.listdir(project_path):
-            self.show_error(
-                "Error",
-                "A project folder with this name already exists and is not empty.",
+        dialog = CreateProjectDialog(self.root)
+        if dialog.result:
+            self.controller.create_project_workflow(
+                project_path=dialog.result["project_path"],
+                project_type=dialog.result["project_type"],
+                use_openvino=dialog.result["use_openvino"],
+                video_files=dialog.result["video_files"],
+                num_aquariums=dialog.result["num_aquariums"],
+                aquarium_width_cm=dialog.result["aquarium_width_cm"],
+                aquarium_height_cm=dialog.result["aquarium_height_cm"],
             )
-            return
-
-        type_window = Toplevel(self.root)
-        type_window.title("Project Type")
-        type_var = StringVar()
-        Label(type_window, text="Choose the project type:").pack(padx=20, pady=10)
-        Checkbutton(
-            type_window,
-            text="Optimize with OpenVINO (for Intel GPUs)",
-            variable=self.use_openvino_var,
-        ).pack(padx=20, pady=5)
-        Button(
-            type_window,
-            text="Live Analysis",
-            command=lambda: [type_var.set("live"), type_window.destroy()],
-        ).pack(fill="x", padx=20, pady=5)
-        Button(
-            type_window,
-            text="Pre-recorded Analysis",
-            command=lambda: [type_var.set("pre-recorded"), type_window.destroy()],
-        ).pack(fill="x", padx=20, pady=5)
-        self.root.wait_window(type_window)
-        project_type = type_var.get()
-
-        if not project_type:
-            return
-
-        video_files = []
-        if project_type == "pre-recorded":
-            video_files = self.ask_open_filenames(
-                title="Select Video Files",
-                filetypes=[("Video files", "*.mp4 *.avi")],
-            )
-            if not video_files:
-                return
-
-        use_openvino = self.use_openvino_var.get()
-
-        self.controller.create_project_workflow(
-            project_path, project_type, use_openvino, video_files
-        )
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""

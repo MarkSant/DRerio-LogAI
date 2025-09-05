@@ -45,15 +45,21 @@ class TestAppController(unittest.TestCase):
             project_path="/fake/parent/fake_project",
             project_type="live",
             use_openvino=False,
-            video_files=[]
+            video_files=[],
+            num_aquariums=1,
+            aquarium_width_cm=10.0,
+            aquarium_height_cm=10.0,
         )
 
         # --- Assert ---
         self.mock_pm.create_new_project.assert_called_once_with(
-            "/fake/parent/fake_project",
-            "live",
+            project_path="/fake/parent/fake_project",
+            project_type="live",
             use_openvino=False,
-            video_files=[]
+            video_files=[],
+            num_aquariums=1,
+            aquarium_width_cm=10.0,
+            aquarium_height_cm=10.0,
         )
         self.mock_view._load_project_view.assert_called_once()
 
@@ -69,7 +75,10 @@ class TestAppController(unittest.TestCase):
             project_path="/fake/parent/fake_project",
             project_type="live",
             use_openvino=False,
-            video_files=[]
+            video_files=[],
+            num_aquariums=1,
+            aquarium_width_cm=10.0,
+            aquarium_height_cm=10.0,
         )
 
         # --- Assert ---
