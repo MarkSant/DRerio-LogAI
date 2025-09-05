@@ -65,7 +65,8 @@ class AquariumDetector:
 
                 # Extract polygons if masks are found
                 if results and results[0].masks and results[0].masks.xy:
-                    # .xy gives a list of (N, 2) numpy arrays, one for each detected object
+                    # .xy gives a list of (N, 2) numpy arrays,
+                    # one for each detected object
                     polygons = results[0].masks.xy
                     detected_polygons = [p.astype(np.int32) for p in polygons]
                     log.info(

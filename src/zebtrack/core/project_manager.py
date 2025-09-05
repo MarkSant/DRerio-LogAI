@@ -4,6 +4,7 @@ import os
 import shutil
 from tkinter import messagebox
 
+import pandas as pd
 import structlog
 import yaml
 from ultralytics import YOLO
@@ -33,6 +34,7 @@ class ProjectManager:
     def __init__(self):
         self.project_path = None
         self.project_data = {}
+        self.metadata = None  # Will hold the DataFrame for metadata.csv
 
     def _save_settings_snapshot(self):
         """Saves a snapshot of the current settings to the project directory."""
@@ -198,6 +200,7 @@ class ProjectManager:
             with open(config_path, "r") as f:
                 self.project_data = json.load(f)
             self.project_path = project_path
+            self.load_metadata()  # Load metadata right after loading the project
             log_context.info(
                 "project.load.success",
                 project_name=self.project_data.get("project_name"),
@@ -275,6 +278,53 @@ class ProjectManager:
 
     def get_project_type(self):
         return self.project_data.get("project_type")
+
+    def load_metadata(self):
+        """Loads the metadata.csv file from the project root into a pandas DataFrame."""
+        if not self.project_path:
+            return
+
+        metadata_path = os.path.join(self.project_path, "metadata.csv")
+        if os.path.exists(metadata_path):
+            try:
+                self.metadata = pd.read_csv(metadata_path)
+                log.info("project.metadata.loaded", path=metadata_path)
+            except Exception as e:
+                self.metadata = None
+                log.error(
+                    "project.metadata.load_error", path=metadata_path, error=str(e)
+                )
+                messagebox.showwarning(
+                    "Metadata Warning",
+                    f"Could not load or parse 'metadata.csv'.\n\nError: {e}"
+                )
+        else:
+            self.metadata = None
+            log.info("project.metadata.not_found", path=metadata_path)
+
+    def get_metadata_for_experiment(self, experiment_id: str) -> dict:
+        """
+        Retrieves a dictionary of metadata for a given experiment ID.
+
+        Args:
+            experiment_id: The ID of the experiment, typically the subfolder name.
+
+        Returns:
+            A dictionary of metadata for that experiment, or an empty dict if not found.
+        """
+        if self.metadata is None:
+            return {}
+
+        # Ensure 'experiment_id' column exists
+        if 'experiment_id' not in self.metadata.columns:
+            log.warning("project.metadata.no_id_column")
+            return {}
+
+        row = self.metadata[self.metadata['experiment_id'] == experiment_id]
+        if not row.empty:
+            return row.iloc[0].to_dict()
+
+        return {}
 
 
 if __name__ == "__main__":
