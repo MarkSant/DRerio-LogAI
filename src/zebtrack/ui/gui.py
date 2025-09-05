@@ -30,10 +30,8 @@ import structlog
 from PIL import Image, ImageTk
 
 # Import custom modules
-from zebtrack.core.detector import Detector
 from zebtrack.io.camera import Camera
 from zebtrack.io.video_source import VideoFileSource
-from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 
 log = structlog.get_logger()
@@ -697,6 +695,8 @@ class ApplicationGUI:
                 widget.pack_forget()
             elif manager == "grid":
                 widget.grid_forget()
+            elif manager == "place":
+                widget.place_forget()
 
         if not selected_items:
             # No item selected, show placeholder
@@ -1365,7 +1365,6 @@ class ApplicationGUI:
         initializes the detector with the appropriate plugin.
         """
         pm = self.controller.project_manager
-        use_openvino = pm.project_data.get("use_openvino", False)
 
         # Load persisted user preferences if present
         if pm.get_project_type() == "pre-recorded":

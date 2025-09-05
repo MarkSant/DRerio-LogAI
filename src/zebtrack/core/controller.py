@@ -104,7 +104,7 @@ class AppController:
 
     def setup_detector_zones(self):
         """Loads zone data from project and sets it on the detector instance."""
-        if not self.view.detector:
+        if not self.detector:
             log.warning("detector.setup_zones.no_detector")
             return
 
@@ -116,7 +116,7 @@ class AppController:
         width = settings.camera.desired_width
         height = settings.camera.desired_height
 
-        self.view.detector.set_zones(zone_data, width, height)
+        self.detector.set_zones(zone_data, width, height)
         log.info("controller.setup_zones.success")
 
         if not zone_data.polygon:
