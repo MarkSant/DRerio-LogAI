@@ -19,6 +19,7 @@ from zebtrack.analysis.roi_analyzer import ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.detector import Detector
 from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
@@ -32,6 +33,7 @@ class AppController:
         self.root = root
         self.view = ApplicationGUI(root, self)
         self.project_manager = ProjectManager()
+        self.weight_manager = WeightManager()
         self.detector = None
         self.recorder = Recorder()
         self.report_results_paths = {}
@@ -40,7 +42,15 @@ class AppController:
         # Other initializations...
         self.program_exit_event = threading.Event()
 
+        # New state variables for model management
+        self.active_weight_name, _ = self.weight_manager.get_default_weight()
+        self.use_openvino = False  # Default to not using OpenVINO
+
     def run(self):
+        # Populate the GUI with initial model info before starting the main loop
+        self.view.update_weights_dropdown(self.weight_manager.get_all_weights())
+        self.view.set_active_weight_in_dropdown(self.active_weight_name)
+        self.update_openvino_status()
         self.root.mainloop()
 
     def on_close(self):
@@ -55,6 +65,9 @@ class AppController:
         pass
 
     def create_project_workflow(self, **kwargs):
+        # Add the currently selected model info to the project data
+        kwargs["active_weight"] = self.active_weight_name
+        kwargs["use_openvino"] = self.use_openvino
         if self.project_manager.create_new_project(**kwargs):
             if self.setup_detector():
                 self.view._load_project_view()
@@ -63,6 +76,17 @@ class AppController:
 
     def open_project_workflow(self, project_path):
         if self.project_manager.load_project(project_path):
+            # When loading a project, reflect its settings in the controller
+            self.use_openvino = self.project_manager.project_data.get(
+                "use_openvino", False
+            )
+            self.active_weight_name = self.project_manager.project_data.get(
+                "active_weight"
+            )
+            self.view.update_openvino_checkbox(self.use_openvino)
+            self.view.set_active_weight_in_dropdown(self.active_weight_name)
+            self.update_openvino_status()
+
             if self.setup_detector():
                 self.view._load_project_view()
                 self.load_project_results_for_gui()
@@ -71,29 +95,51 @@ class AppController:
             self.setup_detector_zones()
 
     def setup_detector(self) -> bool:
-        """Initializes the detector instance based on project settings."""
-        pm = self.project_manager
-        use_openvino = pm.project_data.get("use_openvino", False)
+        """Initializes the detector instance based on the globally selected model."""
+        log.info(
+            "detector.setup.start",
+            active_weight=self.active_weight_name,
+            use_openvino=self.use_openvino,
+        )
+        if not self.active_weight_name:
+            self.view.show_error("Detector Error", "No active weight is selected.")
+            return False
+
+        weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
+        if not weight_details:
+            self.view.show_error(
+                "Detector Error",
+                f"Could not find details for weight: {self.active_weight_name}",
+            )
+            return False
+
         try:
-            if use_openvino:
+            if self.use_openvino:
                 plugin_name = "OpenVINO"
-                model_path = pm.project_data.get("openvino_model_path")
+                model_path = weight_details.get("openvino_path")
                 if not model_path or not os.path.exists(model_path):
-                    raise ValueError("OpenVINO model path not found or invalid.")
+                    raise ValueError(
+                        "OpenVINO model path not found or invalid. "
+                        "Please convert the model first."
+                    )
             else:
                 plugin_name = "YOLO (Ultralytics)"
-                model_path = settings.yolo_model.path
+                model_path = weight_details.get("path")
+                if not model_path or not os.path.exists(model_path):
+                    raise ValueError("YOLO .pt model path not found or invalid.")
 
             plugin_class = DETECTOR_PLUGINS.get(plugin_name)
             if not plugin_class:
                 raise ValueError(f"Detector plugin '{plugin_name}' not found.")
 
+            log.info("detector.load.start", plugin=plugin_name, path=model_path)
             plugin_instance = plugin_class(model_path=model_path)
             self.detector = Detector(
                 plugin=plugin_instance,
                 base_width=settings.camera.desired_width,
                 base_height=settings.camera.desired_height,
             )
+            log.info("detector.setup.success")
             return True
         except (ValueError, FileNotFoundError) as e:
             log.error("detector.init.failed", error=str(e), exc_info=True)
@@ -131,6 +177,77 @@ class AppController:
                     "antes de continuar.",
                 )
 
+    # --- New Methods for Weight Management ---
+
+    def get_all_weight_names(self) -> list:
+        return self.weight_manager.get_all_weights()
+
+    def add_new_weight(self, path: str, set_as_default: bool):
+        self.weight_manager.add_weight(path, set_as_default)
+        new_name = os.path.basename(path)
+        # Refresh UI
+        self.view.update_weights_dropdown(self.get_all_weight_names())
+        self.view.set_active_weight_in_dropdown(new_name)
+        self.set_active_weight(new_name)  # This will also trigger conversion check
+
+    def delete_weight(self, name: str):
+        self.weight_manager.delete_weight(name)
+        # Refresh UI
+        self.view.update_weights_dropdown(self.get_all_weight_names())
+        name, _ = self.weight_manager.get_default_weight()
+        self.view.set_active_weight_in_dropdown(name)
+        self.set_active_weight(name)
+
+    def set_active_weight(self, name: str):
+        if name and name in self.get_all_weight_names():
+            self.active_weight_name = name
+            log.info("controller.active_weight.set", name=name)
+            self.update_openvino_status()
+            if self.use_openvino:
+                self.convert_active_weight_to_openvino()
+        else:
+            log.warning("controller.active_weight.not_found", name=name)
+            self.active_weight_name = None
+
+    def set_openvino_usage(self, use_openvino: bool):
+        self.use_openvino = use_openvino
+        log.info("controller.openvino_usage.set", enabled=use_openvino)
+        if use_openvino and self.active_weight_name:
+            # Trigger conversion if switching to OpenVINO and model isn't converted
+            self.convert_active_weight_to_openvino()
+        self.update_openvino_status()
+
+    def convert_active_weight_to_openvino(self):
+        if not self.active_weight_name:
+            return
+        self.view.set_status(f"Converting {self.active_weight_name} to OpenVINO...")
+        self.root.update()
+        self.weight_manager.convert_to_openvino(self.active_weight_name)
+        self.update_openvino_status()
+        self.view.set_status("Conversion check complete. Ready.")
+
+    def update_openvino_status(self):
+        """Updates the status label in the GUI based on the current state."""
+        if not self.active_weight_name:
+            self.view.update_openvino_status_label("No weight selected.")
+            return
+
+        details = self.weight_manager.get_weight_details(self.active_weight_name)
+        if not details:
+            return
+
+        if self.use_openvino:
+            if details.get("openvino_path") and os.path.exists(
+                details.get("openvino_path")
+            ):
+                self.view.update_openvino_status_label("OpenVINO model is ready.")
+            else:
+                self.view.update_openvino_status_label(
+                    "Needs conversion to OpenVINO."
+                )
+        else:
+            self.view.update_openvino_status_label("OpenVINO is disabled.")
+
     def run_aquarium_detection(self):
         """Runs the aquarium detection model on the first video of the project."""
         log.info("controller.aquarium_detection.start")
@@ -142,7 +259,14 @@ class AppController:
             return
 
         try:
-            model_path = settings.yolo_model.path
+            # Use the globally selected .pt model for this, not OpenVINO
+            weight_details = self.weight_manager.get_weight_details(
+                self.active_weight_name
+            )
+            if not weight_details or not weight_details.get("path"):
+                self.view.show_error("Error", "Could not find a valid .pt model path.")
+                return
+            model_path = weight_details["path"]
             detector = AquariumDetector(model_path=model_path)
             polygons = detector.detect_aquariums(video_path)
 
@@ -202,7 +326,14 @@ class AppController:
             self.root.update()
 
             # 3. Run detection on the clip
-            model_path = settings.yolo_model.path
+            # Use the globally selected .pt model for this, not OpenVINO
+            weight_details = self.weight_manager.get_weight_details(
+                self.active_weight_name
+            )
+            if not weight_details or not weight_details.get("path"):
+                self.view.show_error("Error", "Could not find a valid .pt model path.")
+                return
+            model_path = weight_details["path"]
             detector = AquariumDetector(model_path=model_path)
             polygons = detector.detect_aquariums(temp_video_path)
 
