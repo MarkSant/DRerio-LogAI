@@ -127,7 +127,8 @@ class AquariumSegmentationModelSettings(BaseModel):
     """Settings for the YOLO aquarium segmentation model."""
 
     path: str = Field(
-        ..., description="Path to the segmentation model weights file (e.g., 'aquarium.pt')."
+        ...,
+        description="Path to the segmentation model weights file (e.g., 'aquarium.pt').",
     )
     confidence_threshold: float = Field(
         ...,

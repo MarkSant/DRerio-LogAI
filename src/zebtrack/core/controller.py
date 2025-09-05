@@ -15,15 +15,16 @@ try:
     import structlog  # type: ignore
 except ImportError:  # Fallback lightweight logger so code still runs
     import logging as structlog  # type: ignore
+
     structlog.get_logger = lambda *a, **k: structlog.getLogger("zebtrack")
 
 import pandas as pd
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
+from zebtrack.core.project_manager import ProjectManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
@@ -261,13 +262,15 @@ class AppController:
                     real_height_cm=calib_settings.get("aquarium_height_cm", 0),
                 )
                 if calibration.homography_matrix is not None:
-                    arenas_data.append({
-                        "id": i + 1,
-                        "polygon_px": [p.tolist() for p in polygon],
-                        "homography_matrix": calibration.homography_matrix.tolist(),
-                        "pixel_per_cm_ratio": calibration.pixel_per_cm_ratio,
-                        "target_dims_px": calibration.target_dims_px,
-                    })
+                    arenas_data.append(
+                        {
+                            "id": i + 1,
+                            "polygon_px": [p.tolist() for p in polygon],
+                            "homography_matrix": calibration.homography_matrix.tolist(),
+                            "pixel_per_cm_ratio": calibration.pixel_per_cm_ratio,
+                            "target_dims_px": calibration.target_dims_px,
+                        }
+                    )
                     successful_calibrations += 1
 
             if successful_calibrations > 0:
@@ -278,12 +281,17 @@ class AppController:
                     f"Successfully calibrated {successful_calibrations}/{len(polygons)} detected aquariums.",
                 )
             else:
-                self.view.show_error("Calibration Failed", "Could not create a valid calibration for any detected aquarium.")
+                self.view.show_error(
+                    "Calibration Failed",
+                    "Could not create a valid calibration for any detected aquarium.",
+                )
 
         except Exception as e:
             log.error("calibration.auto.failed", error=str(e), exc_info=True)
-            self.view.show_error("Calibration Error", f"An unexpected error occurred during calibration: {e}")
-
+            self.view.show_error(
+                "Calibration Error",
+                f"An unexpected error occurred during calibration: {e}",
+            )
 
     def start_recording(self):
         """Handles the business logic for starting a recording session."""
@@ -524,6 +532,7 @@ class AppController:
 
             if h_matrix and target_dims:
                 import numpy as np
+
                 h_matrix = np.array(h_matrix)
                 frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
 
@@ -553,9 +562,7 @@ class AppController:
                 "elapsed": elapsed,
                 "eta": eta,
             }
-            self.root.after(
-                0, lambda s=stats: self.view.update_progress_stats(**s)
-            )
+            self.root.after(0, lambda s=stats: self.view.update_progress_stats(**s))
 
             if show_preview:
                 draw_overlay(frame, detections, self.detector)
@@ -596,7 +603,9 @@ class AppController:
             self.roi_analysis_df = pd.read_parquet(parquet_path)
 
             # Populate arena selector
-            arenas = self.project_manager.project_data.get("calibration", {}).get("arenas", [])
+            arenas = self.project_manager.project_data.get("calibration", {}).get(
+                "arenas", []
+            )
             arena_ids = [f"Aquário {a['id']}" for a in arenas]
             self.view.update_arena_selector(arena_ids)
 
@@ -606,26 +615,39 @@ class AppController:
 
             video_file_found = None
             for v in self.project_manager.project_data.get("videos", []):
-                if video_name_part in os.path.basename(v['path']):
-                    video_file_found = v['path']
+                if video_name_part in os.path.basename(v["path"]):
+                    video_file_found = v["path"]
                     break
 
             if not video_file_found:
                 self.roi_video_path = None
-                self.view.show_warning("Aviso", "Não foi possível encontrar o vídeo associado.")
+                self.view.show_warning(
+                    "Aviso", "Não foi possível encontrar o vídeo associado."
+                )
             else:
                 self.roi_video_path = video_file_found
                 self.view.display_roi_video_frame(video_file_found)
 
-            self.view.set_status(f"Pronto para definir ROIs em: {os.path.basename(parquet_path)}")
+            self.view.set_status(
+                f"Pronto para definir ROIs em: {os.path.basename(parquet_path)}"
+            )
 
         except Exception as e:
             log.error("roi_analysis.load_data.failed", error=str(e))
-            self.view.show_error("Erro ao Carregar Dados", f"Falha ao carregar {parquet_path}: {e}")
+            self.view.show_error(
+                "Erro ao Carregar Dados", f"Falha ao carregar {parquet_path}: {e}"
+            )
             self.roi_analysis_df = None
             self.roi_analysis_parquet_path = None
 
-    def run_roi_analysis(self, rois_for_arena: list, flutter_n: int, num_animals: int, social_radius_cm: float, arena_id: str):
+    def run_roi_analysis(
+        self,
+        rois_for_arena: list,
+        flutter_n: int,
+        num_animals: int,
+        social_radius_cm: float,
+        arena_id: str,
+    ):
         """Executes the full ROI analysis pipeline for a specific arena."""
         if self.roi_analysis_df is None:
             self.view.show_error("Erro", "Nenhum dado de trajetória carregado.")
@@ -638,15 +660,19 @@ class AppController:
             # --- 1. Create ROI objects from GUI definitions ---
             rois = []
             for d in rois_for_arena:
-                if d['type'] == 'polygon':
-                    rois.append(ROI(name=d['name'], geometry=Polygon(d['coords'])))
-                elif d['type'] == 'circle':
-                    cx, cy, radius = d['coords']
-                    rois.append(ROI(name=d['name'], geometry=Point(cx, cy).buffer(radius)))
+                if d["type"] == "polygon":
+                    rois.append(ROI(name=d["name"], geometry=Polygon(d["coords"])))
+                elif d["type"] == "circle":
+                    cx, cy, radius = d["coords"]
+                    rois.append(
+                        ROI(name=d["name"], geometry=Point(cx, cy).buffer(radius))
+                    )
 
             # --- 2. Get Arena-specific Data ---
             arena_idx = int(arena_id.split(" ")[-1]) - 1
-            arenas_data = self.project_manager.project_data.get("calibration", {}).get("arenas", [])
+            arenas_data = self.project_manager.project_data.get("calibration", {}).get(
+                "arenas", []
+            )
             if arena_idx >= len(arenas_data):
                 self.view.show_error("Erro", "ID de aquário selecionado inválido.")
                 return
@@ -657,31 +683,46 @@ class AppController:
 
             # --- 2. Filter trajectory data for the selected arena ---
             def is_in_arena(row):
-                return Point(row["x_center_px"], row["y_center_px"]).within(arena_poly_px)
+                return Point(row["x_center_px"], row["y_center_px"]).within(
+                    arena_poly_px
+                )
 
-            arena_df = self.roi_analysis_df[self.roi_analysis_df.apply(is_in_arena, axis=1)].copy()
+            arena_df = self.roi_analysis_df[
+                self.roi_analysis_df.apply(is_in_arena, axis=1)
+            ].copy()
             if arena_df.empty:
-                self.view.show_warning("Aviso", "Nenhuma trajetória detectada dentro do polígono do aquário selecionado.")
+                self.view.show_warning(
+                    "Aviso",
+                    "Nenhuma trajetória detectada dentro do polígono do aquário selecionado.",
+                )
                 return
 
             # --- 3. Perform Analysis ---
-            rois = [ROI(name=d['name'], geometry=Polygon(d['coords'])) for d in rois_for_arena]
+            rois = []
+            for d in rois_for_arena:
+                if d["type"] == "polygon":
+                    rois.append(ROI(name=d["name"], geometry=Polygon(d["coords"])))
+                elif d["type"] == "circle":
+                    cx, cy, radius = d["coords"]
+                    rois.append(
+                        ROI(name=d["name"], geometry=Point(cx, cy).buffer(radius))
+                    )
             report = f"### Relatório de Análise: {arena_id} ###\n"
             all_summaries = []
 
-            track_ids = arena_df['track_id'].unique()
+            track_ids = arena_df["track_id"].unique()
 
             # --- 3a. Single-Animal Metrics (run for each animal) ---
             for track_id in track_ids:
-                animal_df = arena_df[arena_df['track_id'] == track_id]
+                animal_df = arena_df[arena_df["track_id"] == track_id]
                 report += f"\n--- Animal ID: {track_id} ---\n"
 
                 b_analyzer = ConcreteBehavioralAnalyzer(
                     trajectory_df=animal_df.copy(),
                     pixelcm_x=pixel_cm_x,
                     pixelcm_y=pixel_cm_y,
-                    video_height_px=arena_data['target_dims_px'][1],
-                    arena_polygon_px=arena_data['polygon_px']
+                    video_height_px=arena_data["target_dims_px"][1],
+                    arena_polygon_px=arena_data["polygon_px"],
                 )
                 roi_analyzer = ROIAnalyzer(b_analyzer, rois, flutter_n_frames=flutter_n)
 
@@ -691,7 +732,13 @@ class AppController:
                 for roi in rois:
                     roi_name = roi.name
                     report += f"  ROI: {roi_name} -> Tempo: {time_spent[roi_name]['seconds']:.2f}s\n"
-                    all_summaries.append({'animal_id': track_id, 'roi_name': roi_name, **time_spent[roi_name]})
+                    all_summaries.append(
+                        {
+                            "animal_id": track_id,
+                            "roi_name": roi_name,
+                            **time_spent[roi_name],
+                        }
+                    )
 
             # --- 3b. Multi-Animal Metrics ---
             if num_animals > 1:
@@ -699,8 +746,8 @@ class AppController:
                 social_results = ROIAnalyzer.analyze_social_proximity(
                     arena_df, social_radius_cm, pixel_cm_x, pixel_cm_y
                 )
-                for track_id, seconds in social_results['social_time_seconds'].items():
-                    percent = social_results['social_time_percentage'][track_id]
+                for track_id, seconds in social_results["social_time_seconds"].items():
+                    percent = social_results["social_time_percentage"][track_id]
                     report += f"  - Animal {track_id}: {seconds:.2f}s em grupo social ({percent:.1f}%)\n"
 
             # --- 4. Display and Save Results ---
@@ -708,7 +755,9 @@ class AppController:
 
             output_folder = os.path.dirname(self.roi_analysis_parquet_path)
             summary_df = pd.DataFrame(all_summaries)
-            filename = os.path.join(output_folder, f"6_ROI_Analysis_{arena_id.replace(' ', '_')}.parquet")
+            filename = os.path.join(
+                output_folder, f"6_ROI_Analysis_{arena_id.replace(' ', '_')}.parquet"
+            )
             summary_df.to_parquet(filename)
 
             self.view.show_info("Sucesso", f"Análise concluída e salva em:\n{filename}")
@@ -722,7 +771,9 @@ class AppController:
         """Returns the calibration data for a specific arena."""
         try:
             arena_idx = int(arena_id.split(" ")[-1]) - 1
-            arenas_data = self.project_manager.project_data.get("calibration", {}).get("arenas", [])
+            arenas_data = self.project_manager.project_data.get("calibration", {}).get(
+                "arenas", []
+            )
             if arena_idx < len(arenas_data):
                 return arenas_data[arena_idx]
         except (ValueError, IndexError):
@@ -734,44 +785,58 @@ class AppController:
         if self.roi_analysis_df is None:
             self.view.show_error("Erro", "Nenhum dado de trajetória carregado.")
             return
-        log.info("center_periphery.run.start", arena=arena_id, method=method, value=value)
+        log.info(
+            "center_periphery.run.start", arena=arena_id, method=method, value=value
+        )
         try:
             # This analysis runs on the first animal found in the arena
             arena_data = self.get_arena_data(arena_id)
             if not arena_data:
-                self.view.show_error("Erro", "Não foi possível encontrar dados para o aquário selecionado.")
+                self.view.show_error(
+                    "Erro",
+                    "Não foi possível encontrar dados para o aquário selecionado.",
+                )
                 return
 
             def is_in_arena(row):
                 from shapely.geometry import Point, Polygon
-                return Point(row["x_center_px"], row["y_center_px"]).within(Polygon(arena_data['polygon_px']))
 
-            arena_df = self.roi_analysis_df[self.roi_analysis_df.apply(is_in_arena, axis=1)].copy()
+                return Point(row["x_center_px"], row["y_center_px"]).within(
+                    Polygon(arena_data["polygon_px"])
+                )
+
+            arena_df = self.roi_analysis_df[
+                self.roi_analysis_df.apply(is_in_arena, axis=1)
+            ].copy()
             if arena_df.empty:
-                self.view.show_warning("Aviso", "Nenhuma trajetória detectada no aquário selecionado.")
+                self.view.show_warning(
+                    "Aviso", "Nenhuma trajetória detectada no aquário selecionado."
+                )
                 return
 
             # For simplicity, we run this on the first track ID found
-            track_id = arena_df['track_id'].unique()[0]
-            animal_df = arena_df[arena_df['track_id'] == track_id]
+            track_id = arena_df["track_id"].unique()[0]
+            animal_df = arena_df[arena_df["track_id"] == track_id]
 
             b_analyzer = ConcreteBehavioralAnalyzer(
                 trajectory_df=animal_df.copy(),
-                pixelcm_x=arena_data['pixel_per_cm_ratio'][0],
-                pixelcm_y=arena_data['pixel_per_cm_ratio'][1],
-                video_height_px=arena_data['target_dims_px'][1],
-                arena_polygon_px=arena_data['polygon_px']
+                pixelcm_x=arena_data["pixel_per_cm_ratio"][0],
+                pixelcm_y=arena_data["pixel_per_cm_ratio"][1],
+                video_height_px=arena_data["target_dims_px"][1],
+                arena_polygon_px=arena_data["polygon_px"],
             )
 
             # The ROIAnalyzer class has the method we need
             # We can instantiate it with no ROIs since we're calling a specific method
             temp_analyzer = ROIAnalyzer(b_analyzer, [], flutter_n_frames=1)
-            results = temp_analyzer.analyze_center_vs_periphery(method=method, value=value)
+            results = temp_analyzer.analyze_center_vs_periphery(
+                method=method, value=value
+            )
 
             # Format and display
             report = f"### Análise Centro vs. Periferia ({arena_id}) ###\n"
             report += f"Método: {method}, Valor: {value}\n\n"
-            for zone, metrics in results['time_spent'].items():
+            for zone, metrics in results["time_spent"].items():
                 report += f"--- Zona: {zone} ---\n"
                 report += f"  - Tempo Gasto: {metrics['seconds']:.2f}s ({metrics['percentage']:.1f}%)\n"
                 report += f"  - Distância: {results['distance'][zone]:.2f} cm\n"
@@ -782,7 +847,6 @@ class AppController:
         except Exception as e:
             log.error("center_periphery.run.failed", error=str(e), exc_info=True)
             self.view.show_error("Erro na Análise", f"Ocorreu um erro: {e}")
-
 
     def cleanup_after_processing(self):
         """Finalize state after a video finishes processing (success path)."""

@@ -3,7 +3,8 @@
 This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
-from typing import Dict, List, Any, Optional
+
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -110,7 +111,8 @@ class ROIAnalyzer:
         # Create a single column with the name of the ROI the animal is in
         self._trajectory["stable_roi"] = "Outside"
         for name in self._rois:
-            self._trajectory.loc[self._trajectory[f"in_{name}_stable"], "stable_roi"] = name
+            stable_col = f"in_{name}_stable"
+            self._trajectory.loc[self._trajectory[stable_col], "stable_roi"] = name
 
     def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:
         """
@@ -143,7 +145,10 @@ class ROIAnalyzer:
             entries = self._trajectory[f"in_{name}_stable"].diff() == 1
             first_entry_time = entries.idxmax() if entries.any() else None
 
-            if first_entry_time and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]:
+            if (
+                first_entry_time
+                and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]
+            ):
                 results[name] = first_entry_time - start_time
             else:
                 results[name] = None
@@ -188,9 +193,6 @@ class ROIAnalyzer:
                     last_exit_time = all_exit_times[idx - 1]
                     latencies.append(entry_time - last_exit_time)
 
-            # The requirement is for re-entries, so we could discard the first one
-            # if it corresponds to the very first entry of the trial.
-            # The current logic calculates latency for ALL entries after an exit.
             results[name] = latencies
         return results
 
@@ -224,7 +226,8 @@ class ROIAnalyzer:
 
             # Calculate segment distances using smoothed coordinates
             distances = np.sqrt(
-                roi_traj["x_cm_smoothed"].diff() ** 2 + roi_traj["y_cm_smoothed"].diff() ** 2
+                roi_traj["x_cm_smoothed"].diff() ** 2
+                + roi_traj["y_cm_smoothed"].diff() ** 2
             )
             results[name] = distances.sum()
         return results
@@ -250,19 +253,22 @@ class ROIAnalyzer:
             }
         return results
 
-    def get_freezing_in_rois(self, vel_threshold: float, min_duration: float) -> Dict[str, Dict[str, Any]]:
+    def get_freezing_in_rois(
+        self, vel_threshold: float, min_duration: float
+    ) -> Dict[str, Dict[str, Any]]:
         """Calculates freezing episodes that occur within each ROI."""
         results = {}
         # Ensure freezing episodes are detected on the base analyzer
-        freezing_episodes = self._b_analyzer.detect_freezing_episodes(vel_threshold, min_duration)
+        freezing_episodes = self._b_analyzer.detect_freezing_episodes(
+            vel_threshold, min_duration
+        )
 
         for name in self._rois:
             roi_episodes = []
-            roi_geometry = self._rois[name].geometry
             for episode in freezing_episodes:
                 # Check if the episode occurred inside the ROI
                 # We can check the start, mid, or end point. Let's use the start.
-                start_t = episode['start_time']
+                start_t = episode["start_time"]
                 if start_t in self._trajectory.index:
                     traj_at_start = self._trajectory.loc[start_t]
                     if traj_at_start[f"in_{name}_stable"]:
@@ -270,8 +276,8 @@ class ROIAnalyzer:
 
             results[name] = {
                 "count": len(roi_episodes),
-                "total_duration": sum(e['duration'] for e in roi_episodes),
-                "episodes": roi_episodes
+                "total_duration": sum(e["duration"] for e in roi_episodes),
+                "episodes": roi_episodes,
             }
         return results
 
@@ -286,15 +292,16 @@ class ROIAnalyzer:
 
             # Path distance is the sum of segment lengths
             path_distance = np.sqrt(
-                roi_traj["x_cm_smoothed"].diff() ** 2 + roi_traj["y_cm_smoothed"].diff() ** 2
+                roi_traj["x_cm_smoothed"].diff() ** 2
+                + roi_traj["y_cm_smoothed"].diff() ** 2
             ).sum()
 
             # Straight-line distance from start to end point
             start_point = roi_traj.iloc[0]
             end_point = roi_traj.iloc[-1]
             straight_dist = np.sqrt(
-                (end_point["x_cm_smoothed"] - start_point["x_cm_smoothed"]) ** 2 +
-                (end_point["y_cm_smoothed"] - start_point["y_cm_smoothed"]) ** 2
+                (end_point["x_cm_smoothed"] - start_point["x_cm_smoothed"]) ** 2
+                + (end_point["y_cm_smoothed"] - start_point["y_cm_smoothed"]) ** 2
             )
 
             if straight_dist > 0:
@@ -303,9 +310,7 @@ class ROIAnalyzer:
                 results[name] = np.inf if path_distance > 0 else 1.0
         return results
 
-    def analyze_center_vs_periphery(
-        self, method: str, value: float
-    ) -> Dict[str, Any]:
+    def analyze_center_vs_periphery(self, method: str, value: float) -> Dict[str, Any]:
         """
         Generates center and periphery ROIs and runs a full analysis on them.
 
@@ -315,7 +320,7 @@ class ROIAnalyzer:
             value (float): The corresponding value for the method.
 
         Returns:
-            A dictionary containing all analysis results for 'Center' and 'Periphery'.
+            A dictionary with analysis results for 'Center' and 'Periphery'.
         """
         from shapely.affinity import scale
 
@@ -331,7 +336,9 @@ class ROIAnalyzer:
             raise ValueError("Method must be 'distance' or 'area_ratio'.")
 
         if not center_poly.is_valid or center_poly.is_empty:
-            raise ValueError("Could not generate a valid center zone with the given parameters.")
+            raise ValueError(
+                "Could not generate a valid center zone with the given parameters."
+            )
 
         periphery_poly = arena.difference(center_poly)
 
@@ -368,9 +375,8 @@ class ROIAnalyzer:
         Performs social proximity analysis on a multi-animal trajectory DataFrame.
 
         Args:
-            full_trajectory_df (pd.DataFrame): DataFrame with all animal tracks,
-                must contain 'frame', 'track_id', 'x_center_px', 'y_center_px'.
-            radius_cm (float): The radius of the circular dynamic ROI around each animal.
+            full_trajectory_df (pd.DataFrame): DataFrame with all animal tracks.
+            radius_cm (float): The radius of the circular dynamic ROI.
             pixelcm_x (float): Pixel-to-cm conversion factor for x-axis.
             pixelcm_y (float): Pixel-to-cm conversion factor for y-axis.
 
@@ -380,13 +386,15 @@ class ROIAnalyzer:
         try:
             import networkx as nx
         except ImportError:
-            raise ImportError("Please install 'networkx' to use social proximity analysis.")
+            raise ImportError(
+                "Please install 'networkx' to use social proximity analysis."
+            )
 
         if "track_id" not in full_trajectory_df.columns:
             raise ValueError("Input DataFrame must contain a 'track_id' column.")
 
-        # Use an average radius in pixels
-        radius_px = radius_cm * (pixelcm_x + pixelcm_y) / 2.0
+        # Use geometric mean for radius in pixels for more accuracy
+        radius_px = radius_cm * np.sqrt(pixelcm_x * pixelcm_y)
 
         df = full_trajectory_df.copy()
         df["is_in_group"] = False
@@ -401,19 +409,19 @@ class ROIAnalyzer:
 
             animals = frame_df.index
             positions = {
-                idx: (r["x_center_px"], r["y_center_px"]) for idx, r in frame_df.iterrows()
+                idx: (r["x_center_px"], r["y_center_px"])
+                for idx, r in frame_df.iterrows()
             }
 
             # Create dynamic circular ROIs
-            rois = {
-                idx: Point(pos).buffer(radius_px) for idx, pos in positions.items()
-            }
+            rois = {idx: Point(pos).buffer(radius_px) for idx, pos in positions.items()}
 
             # Build graph of interactions
             G = nx.Graph()
             G.add_nodes_from(animals)
 
             from itertools import combinations
+
             for animal1, animal2 in combinations(animals, 2):
                 if rois[animal1].intersects(rois[animal2]):
                     G.add_edge(animal1, animal2)
@@ -429,7 +437,7 @@ class ROIAnalyzer:
                     df.loc[member_indices, "group_id"] = f"{frame_id}-{group_idx}"
 
         # Calculate total time in social group for each animal
-        df["dt"] = df.index.to_series().diff().bfill() # backfill first element
+        df["dt"] = df.index.to_series().diff()  # first element remains NaN
 
         social_time = df[df["is_in_group"]].groupby("track_id")["dt"].sum()
         total_time = df.groupby("track_id")["dt"].sum()

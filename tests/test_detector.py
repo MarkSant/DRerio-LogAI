@@ -92,7 +92,7 @@ class TestDetector(unittest.TestCase):
         self.mock_plugin.set_detect_return_value(fake_detection)
 
         # Mock the polygon check to always be true for this test
-        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, _ = self.detector.process_frame(dummy_frame, "pre-recorded")
 
         self.assertEqual(len(detections), 1)
@@ -115,7 +115,7 @@ class TestDetector(unittest.TestCase):
         fake_detection = [(x_c - 5, y_c - 5, x_c + 5, y_c + 5, 0.9, 1)]
         self.mock_plugin.set_detect_return_value(fake_detection)
 
-        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, command = self.detector.process_frame(dummy_frame, "live")
 
         self.assertEqual(self.detector.flag, 1, "Flag should be 1 (waiting for exit)")
@@ -124,7 +124,6 @@ class TestDetector(unittest.TestCase):
         # Also check that the returned detection includes the track_id
         self.assertEqual(len(detections), 1)
         self.assertEqual(detections[0][-1], 1)
-
 
         # --- Step 2: Object is still inside, should generate NO command ---
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
@@ -136,7 +135,7 @@ class TestDetector(unittest.TestCase):
         # --- Step 3: Object moves outside all squares, should generate EXIT command ---
         # Detection now includes a track_id
         self.mock_plugin.set_detect_return_value([(10, 10, 20, 20, 0.9, 2)])
-        with patch.object(self.detector, '_is_inside_polygon', return_value=True):
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, command = self.detector.process_frame(dummy_frame, "live")
 
         self.assertEqual(self.detector.flag, 0, "Flag should reset to 0")

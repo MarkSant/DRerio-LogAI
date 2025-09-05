@@ -1,4 +1,3 @@
-import csv
 import os
 import time
 
@@ -61,9 +60,7 @@ class Recorder:
         self.output_folder = output_folder
         self.base_name = os.path.basename(output_folder)
         self.detection_data = []
-        log_context = log.bind(
-            output_folder=output_folder, base_name=self.base_name
-        )
+        log_context = log.bind(output_folder=output_folder, base_name=self.base_name)
 
         if not is_video_file:
             video_filename = os.path.join(output_folder, f"{self.base_name}.mp4")
@@ -183,9 +180,7 @@ class Recorder:
         )
         try:
             areas_data = []
-            for i, ((x1, y1), (x2, y2)) in enumerate(
-                settings.detection_zones.squares
-            ):
+            for i, ((x1, y1), (x2, y2)) in enumerate(settings.detection_zones.squares):
                 areas_data.append([f"Area {i + 1}", x1, y1, x2, y2])
             areas_df = pd.DataFrame(
                 areas_data, columns=["area", "x1", "y1", "x2", "y2"]

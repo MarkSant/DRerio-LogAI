@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 import numpy as np
-import torch
 from ultralytics import YOLO
 
 from zebtrack.plugins.base import DetectorPlugin
@@ -22,9 +21,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 
-    def detect(
-        self, frame: np.ndarray
-    ) -> List[Tuple[int, int, int, int, float, int]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
         """
         Performs object tracking using the YOLOv8 model with ByteTrack.
 

@@ -1,6 +1,6 @@
 import unittest
+
 import numpy as np
-import cv2
 
 from src.zebtrack.core.calibration import Calibration
 
@@ -9,12 +9,9 @@ class TestCalibration(unittest.TestCase):
     def setUp(self):
         """Set up a sample polygon and dimensions for testing."""
         # A simple, slightly distorted rectangle as a sample polygon
-        self.polygon = np.array([
-            [105, 105],
-            [495, 100],
-            [505, 395],
-            [100, 405]
-        ], dtype=np.int32)
+        self.polygon = np.array(
+            [[105, 105], [495, 100], [505, 395], [100, 405]], dtype=np.int32
+        )
         self.real_width_cm = 20.0
         self.real_height_cm = 15.0
 
@@ -40,7 +37,9 @@ class TestCalibration(unittest.TestCase):
 
         self.assertAlmostEqual(calibration.pixel_per_cm_ratio[0], expected_ratio_x)
         self.assertAlmostEqual(calibration.pixel_per_cm_ratio[1], expected_ratio_y)
-        self.assertEqual(calibration.target_dims_px, (target_width_px, target_height_px))
+        self.assertEqual(
+            calibration.target_dims_px, (target_width_px, target_height_px)
+        )
 
     def test_warp_frame(self):
         """
@@ -54,7 +53,10 @@ class TestCalibration(unittest.TestCase):
         warped_frame = calibration.warp_frame(original_frame)
 
         # The warped frame should have the target dimensions calculated during calibration
-        expected_height, expected_width = calibration.target_dims_px[1], calibration.target_dims_px[0]
+        expected_height, expected_width = (
+            calibration.target_dims_px[1],
+            calibration.target_dims_px[0],
+        )
 
         self.assertEqual(warped_frame.shape[0], expected_height)
         self.assertEqual(warped_frame.shape[1], expected_width)
@@ -63,24 +65,23 @@ class TestCalibration(unittest.TestCase):
         """
         Test the _order_points static method to ensure it sorts corners correctly.
         """
-        pts = np.array([
-            (0, 100),  # bottom-left
-            (100, 0),  # top-right
-            (100, 100),# bottom-right
-            (0, 0)     # top-left
-        ], dtype="float32")
+        pts = np.array(
+            [
+                (0, 100),  # bottom-left
+                (100, 0),  # top-right
+                (100, 100),  # bottom-right
+                (0, 0),  # top-left
+            ],
+            dtype="float32",
+        )
 
         ordered = Calibration._order_points(pts)
 
         # Expected order: top-left, top-right, bottom-right, bottom-left
-        expected = np.array([
-            [0, 0],
-            [100, 0],
-            [100, 100],
-            [0, 100]
-        ], dtype="float32")
+        expected = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype="float32")
 
         np.testing.assert_array_equal(ordered, expected)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

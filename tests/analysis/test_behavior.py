@@ -3,16 +3,16 @@
 Tests for the BehavioralAnalyzer abstract base class and its concrete methods.
 """
 
-import pytest
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Union
+import pytest
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
 
 # -- Test Data and Fixtures --
-
 @pytest.fixture
 def sample_trajectory_data():
     """
@@ -34,8 +34,33 @@ def sample_trajectory_data():
     }
 
 
-# -- A Concrete Implementation for Testing --
+def prep_data_for_analyzer(data_dict: dict) -> dict:
+    """
+    Converts the old dict format into the new DataFrame-based format for the analyzer.
+    """
+    df = pd.DataFrame(
+        {
+            "timestamp": data_dict["timestamps"],
+            "x_center_px": data_dict["px"],
+            "y_center_px": data_dict["py"],
+            # Add dummy bbox data as it's expected by the new init docstring
+            "x1": [x - 1 for x in data_dict["px"]],
+            "y1": [y - 1 for y in data_dict["py"]],
+            "x2": [x + 1 for x in data_dict["px"]],
+            "y2": [y + 1 for y in data_dict["py"]],
+        }
+    )
 
+    return {
+        "trajectory_df": df,
+        "pixelcm_x": data_dict["pixelcm_x"],
+        "pixelcm_y": data_dict["pixelcm_y"],
+        "video_height_px": data_dict["video_height_px"],
+        "arena_polygon_px": data_dict["arena_polygon_px"],
+    }
+
+
+# -- A Concrete Implementation for Testing --
 class ConcreteAnalyzer(BehavioralAnalyzer):
     """
     A concrete implementation of BehavioralAnalyzer for testing purposes.
@@ -46,7 +71,10 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
         return 100.0
 
     def calculate_velocity_timeseries(self) -> pd.DataFrame:
-        v_mag = pd.Series(np.random.rand(101) * 5, index=self._trajectory_data.index)
+        v_mag = pd.Series(
+            np.random.rand(len(self._trajectory_data)),
+            index=self._trajectory_data.index,
+        )
         return pd.DataFrame({"v_mag": v_mag})
 
     def detect_freezing_episodes(
@@ -55,7 +83,10 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
         return [{"start_time": 1.0, "end_time": 2.5, "duration": 1.5}]
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
-        return pd.Series(np.random.rand(101) * 10, index=self._trajectory_data.index)
+        return pd.Series(
+            np.random.rand(len(self._trajectory_data)),
+            index=self._trajectory_data.index,
+        )
 
     def get_tortuosity(
         self, window_size: Optional[float] = None, step: Optional[float] = None
@@ -66,19 +97,19 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
 
     def get_thigmotaxis_timeseries(self) -> pd.Series:
         # Returns distance from wall, decreasing towards the middle of the trial
-        distances = np.abs(np.linspace(-5, 5, 101)) + 1
+        distances = np.abs(np.linspace(-5, 5, len(self._trajectory_data))) + 1
         return pd.Series(distances, index=self._trajectory_data.index)
 
 
 # -- Test Cases --
-
 def test_initialization_and_preprocessing(sample_trajectory_data):
     """
     Tests if the analyzer is initialized correctly and if preprocessing
     (unit conversion, smoothing) is applied.
     """
     # Use a lower polyorder to ensure the filter alters the quadratic data
-    analyzer = ConcreteAnalyzer(**sample_trajectory_data, polyorder=1)
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteAnalyzer(**analyzer_args, polyorder=1)
     df = analyzer._trajectory_data
 
     assert isinstance(df, pd.DataFrame)
@@ -96,11 +127,14 @@ def test_initialization_and_preprocessing(sample_trajectory_data):
 
 def test_get_velocity_stats(sample_trajectory_data):
     """Tests the concrete method `get_velocity_stats`."""
-    analyzer = ConcreteAnalyzer(**sample_trajectory_data)
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteAnalyzer(**analyzer_args)
 
     # Mock the velocity calculation to return predictable values
     velocity_data = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
-    analyzer.calculate_velocity_timeseries = lambda: pd.DataFrame({"v_mag": velocity_data})
+    analyzer.calculate_velocity_timeseries = lambda: pd.DataFrame(
+        {"v_mag": velocity_data}
+    )
 
     stats = analyzer.get_velocity_stats()
 
@@ -112,7 +146,8 @@ def test_get_velocity_stats(sample_trajectory_data):
 
 def test_calculate_thigmotaxis_index_average_distance(sample_trajectory_data):
     """Tests the 'average_distance' method of `calculate_thigmotaxis_index`."""
-    analyzer = ConcreteAnalyzer(**sample_trajectory_data)
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteAnalyzer(**analyzer_args)
 
     # Mock the thigmotaxis series to return predictable values
     distances = pd.Series([1.0, 2.0, 3.0])
@@ -137,7 +172,9 @@ def test_calculate_thigmotaxis_index_time_near_wall(sample_trajectory_data):
     # Ensure px and py have the same length as the new timestamps
     sample_trajectory_data["px"] = [0] * len(timestamps)
     sample_trajectory_data["py"] = [0] * len(timestamps)
-    analyzer = ConcreteAnalyzer(**sample_trajectory_data)
+
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteAnalyzer(**analyzer_args)
     analyzer.get_thigmotaxis_timeseries = lambda: distances
 
     # threshold = 3. The animal is near the wall at t=2, 3, 7, 8.
@@ -154,6 +191,7 @@ def test_calculate_thigmotaxis_index_time_near_wall(sample_trajectory_data):
 
 def test_calculate_thigmotaxis_index_raises_error(sample_trajectory_data):
     """Tests that a ValueError is raised if the threshold is missing."""
-    analyzer = ConcreteAnalyzer(**sample_trajectory_data)
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteAnalyzer(**analyzer_args)
     with pytest.raises(ValueError, match="'distance_threshold' is required"):
         analyzer.calculate_thigmotaxis_index(method="time_near_wall")

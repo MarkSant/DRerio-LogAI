@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Polygon
 
 
 class BehavioralAnalyzer(ABC):
@@ -84,8 +84,11 @@ class BehavioralAnalyzer(ABC):
         polyorder: int,
     ) -> pd.DataFrame:
         """Performs data conversion, cleaning, and smoothing."""
-        if "timestamp" in df.columns:
-            df.set_index("timestamp", inplace=True)
+        if "timestamp" not in df.columns:
+            raise ValueError(
+                "Input DataFrame must include a 'timestamp' column for proper temporal analysis."
+            )
+        df.set_index("timestamp", inplace=True)
 
         # Convert units from pixels to cm and invert Y-axis for the centroid
         df["x_cm"] = df["x_center_px"] / self._pixelcm_x
@@ -100,12 +103,8 @@ class BehavioralAnalyzer(ABC):
             df["y_cm_smoothed"] = df["y_cm"]
         else:
             # Apply Savitzky-Golay filter for smoothing
-            df["x_cm_smoothed"] = savgol_filter(
-                df["x_cm"], window_length, polyorder
-            )
-            df["y_cm_smoothed"] = savgol_filter(
-                df["y_cm"], window_length, polyorder
-            )
+            df["x_cm_smoothed"] = savgol_filter(df["x_cm"], window_length, polyorder)
+            df["y_cm_smoothed"] = savgol_filter(df["y_cm"], window_length, polyorder)
 
         return df
 
@@ -291,8 +290,8 @@ class BehavioralAnalyzer(ABC):
             if total_time == 0:
                 return 0.0
 
-            # Time near wall is the sum of deltas for intervals where the animal was near the wall
-            # The state is defined by the end of the interval (the current row)
+            # Time near wall is the sum of deltas for intervals where the animal was
+            # near the wall
             time_near = df.loc[df["is_near_wall"], "dt"].sum()
 
             return (time_near / total_time) * 100
@@ -347,11 +346,13 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 end_time = block.index[-1]
                 duration = end_time - start_time
                 if duration >= min_duration:
-                    episodes.append({
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "duration": duration,
-                    })
+                    episodes.append(
+                        {
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "duration": duration,
+                        }
+                    )
         return episodes
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
