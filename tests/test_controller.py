@@ -5,26 +5,20 @@ from src.zebtrack.core.controller import AppController
 
 
 class TestAppController(unittest.TestCase):
-    @patch("src.zebtrack.core.controller.Arduino")
-    @patch("src.zebtrack.core.controller.Recorder")
     @patch("src.zebtrack.core.controller.ProjectManager")
     @patch("src.zebtrack.core.controller.ApplicationGUI")
-    def setUp(self, mock_gui, mock_pm, mock_recorder, mock_arduino):
+    def setUp(self, mock_gui, mock_pm):
         """Set up a test environment before each test."""
         self.root = MagicMock()
 
         # The patched classes are passed as arguments to setUp
         self.mock_view = mock_gui.return_value
         self.mock_pm = mock_pm.return_value
-        self.mock_recorder = mock_recorder.return_value
-        self.mock_arduino = mock_arduino.return_value
 
         self.controller = AppController(self.root)
 
         # The controller now has MOCK instances for its dependencies
         self.controller.project_manager = self.mock_pm
-        self.controller.recorder = self.mock_recorder
-        self.controller.arduino = self.mock_arduino
         self.controller.view = self.mock_view
 
     def tearDown(self):

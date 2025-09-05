@@ -23,6 +23,8 @@ pandas = "^2.3.1"
 scipy = "^1.16.1"
 shapely = "^2.1.1"
 networkx = "^3.5"
+seaborn = "^0.13.2"
+python-docx = "^1.1.2"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.9"

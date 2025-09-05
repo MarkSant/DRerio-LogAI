@@ -304,7 +304,7 @@ class ApplicationGUI:
     def _create_main_controls_tab(self):
         """Creates the tab with the main project controls."""
         self.main_controls_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.main_controls_frame, text="Controle Principal")
+        self.notebook.add(self.main_controls_frame, text="Main Control")
 
         project_type = self.controller.project_manager.get_project_type()
 
@@ -344,7 +344,7 @@ class ApplicationGUI:
             self.process_video_btn.pack(side="left", padx=5)
             self.batch_analysis_btn = Button(
                 button_frame,
-                text="Executar Análise em Lote",
+                text="Run Batch Analysis",
                 command=self.controller.run_batch_analysis,
             )
             self.batch_analysis_btn.pack(side="left", padx=5)
@@ -381,7 +381,7 @@ class ApplicationGUI:
         self._canvas_bg_image = None  # Keep a reference to the image
 
         roi_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(roi_tab_frame, text="Análise de Zonas de Interesse")
+        self.notebook.add(roi_tab_frame, text="ROI Analysis")
 
         main_pane = ttk.PanedWindow(roi_tab_frame, orient="horizontal")
         main_pane.pack(expand=True, fill="both")
@@ -391,11 +391,11 @@ class ApplicationGUI:
 
         # --- Aquarium & Animal Setup ---
         setup_frame = ttk.LabelFrame(
-            controls_frame, text="Configuração da Análise", padding=5
+            controls_frame, text="Analysis Setup", padding=5
         )
         setup_frame.pack(fill="x", pady=5)
 
-        ttk.Label(setup_frame, text="Aquário Ativo:").grid(
+        ttk.Label(setup_frame, text="Active Aquarium:").grid(
             row=0, column=0, sticky="w", pady=2
         )
         self.arena_selector_var = StringVar()
@@ -405,7 +405,7 @@ class ApplicationGUI:
         self.arena_selector.grid(row=0, column=1, sticky="ew", padx=5)
         self.arena_selector.bind("<<ComboboxSelected>>", self._on_arena_select)
 
-        ttk.Label(setup_frame, text="Animais por Aquário:").grid(
+        ttk.Label(setup_frame, text="Animals per Aquarium:").grid(
             row=1, column=0, sticky="w", pady=2
         )
         self.num_animals_var = StringVar(value="1")
@@ -413,7 +413,7 @@ class ApplicationGUI:
             row=1, column=1, sticky="w", padx=5
         )
 
-        ttk.Label(setup_frame, text="Raio Social (cm):").grid(
+        ttk.Label(setup_frame, text="Social Radius (cm):").grid(
             row=2, column=0, sticky="w", pady=2
         )
         self.social_radius_var = StringVar(value="1.0")
@@ -423,44 +423,44 @@ class ApplicationGUI:
 
         ttk.Button(
             controls_frame,
-            text="Carregar Dados de Trajetória",
+            text="Load Trajectory Data",
             command=self._load_roi_data,
         ).pack(fill="x", pady=5)
 
-        ttk.Label(controls_frame, text="Zonas de Interesse (ROIs):").pack(pady=(5, 2))
+        ttk.Label(controls_frame, text="Regions of Interest (ROIs):").pack(pady=(5, 2))
         list_frame = ttk.Frame(controls_frame)
         list_frame.pack(fill="both", expand=True)
         self.roi_listbox = ttk.Treeview(list_frame, columns=("name",), show="headings")
-        self.roi_listbox.heading("name", text="Nome da ROI")
+        self.roi_listbox.heading("name", text="ROI Name")
         self.roi_listbox.pack(side="left", fill="both", expand=True)
 
         btn_list_frame = ttk.Frame(controls_frame)
         btn_list_frame.pack(fill="x", pady=2)
-        ttk.Button(btn_list_frame, text="Editar Nome").pack(
+        ttk.Button(btn_list_frame, text="Edit Name").pack(
             side="left", expand=True, fill="x"
         )
         ttk.Button(
-            btn_list_frame, text="Remover", command=self._remove_selected_roi
+            btn_list_frame, text="Remove", command=self._remove_selected_roi
         ).pack(side="left", expand=True, fill="x")
 
-        creation_frame = ttk.LabelFrame(controls_frame, text="Criar ROIs", padding=10)
+        creation_frame = ttk.LabelFrame(controls_frame, text="Create ROIs", padding=10)
         creation_frame.pack(fill="x", pady=10)
         ttk.Button(
             creation_frame,
-            text="Desenhar Polígono",
+            text="Draw Polygon",
             command=self._start_polygon_drawing,
         ).pack(fill="x", pady=2)
         ttk.Button(
-            creation_frame, text="Desenhar Círculo", command=self._start_circle_drawing
+            creation_frame, text="Draw Circle", command=self._start_circle_drawing
         ).pack(fill="x", pady=2)
         ttk.Button(
-            creation_frame, text="Usar Template", command=self._create_template_rois
+            creation_frame, text="Use Template", command=self._create_template_rois
         ).pack(fill="x", pady=2)
 
         # Flutter parameter
         flutter_frame = ttk.Frame(controls_frame)
         flutter_frame.pack(fill="x", pady=5)
-        ttk.Label(flutter_frame, text="Filtro de Flutter (quadros):").pack(side="left")
+        ttk.Label(flutter_frame, text="Flutter Filter (frames):").pack(side="left")
         self.flutter_n_var = StringVar(value="3")
         ttk.Entry(flutter_frame, textvariable=self.flutter_n_var, width=5).pack(
             side="left", padx=5
@@ -468,7 +468,7 @@ class ApplicationGUI:
 
         self.run_analysis_btn = ttk.Button(
             controls_frame,
-            text="Executar Análise de ROIs",
+            text="Run ROI Analysis",
             command=self._run_analysis_clicked,
             state="disabled",
         )
@@ -476,7 +476,7 @@ class ApplicationGUI:
 
         ttk.Button(
             controls_frame,
-            text="Análise Centro/Periferia",
+            text="Center/Periphery Analysis",
             command=self._run_center_periphery_analysis,
         ).pack(fill="x", pady=5)
 
@@ -485,7 +485,7 @@ class ApplicationGUI:
         self.roi_canvas = Canvas(viz_frame, bg="gray")
         self.roi_canvas.pack(expand=True, fill="both")
 
-        results_frame = ttk.LabelFrame(roi_tab_frame, text="Resultados", padding=10)
+        results_frame = ttk.LabelFrame(roi_tab_frame, text="Results", padding=10)
         results_frame.pack(expand=True, fill="both", pady=(10, 0), side="bottom")
 
         self.results_text = Text(results_frame, wrap="word", height=10)
@@ -493,44 +493,54 @@ class ApplicationGUI:
         self.results_text.config(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.results_text.pack(expand=True, fill="both")
-        self.results_text.insert("1.0", "Os resultados da análise aparecerão aqui.")
+        self.results_text.insert("1.0", "Analysis results will appear here.")
         self.results_text.config(state="disabled")
 
     def _create_reports_tab(self):
         """Creates the tab for generating reports and visualizations."""
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(reports_tab_frame, text="Relatórios e Visualização")
+        self.notebook.add(reports_tab_frame, text="Reports and Visualization")
 
         # Top section with main view and controls
         top_pane = ttk.PanedWindow(reports_tab_frame, orient="horizontal")
         top_pane.pack(expand=True, fill="both", pady=5)
 
         # --- Central Visualization Panel (Left) ---
-        viz_frame = ttk.LabelFrame(top_pane, text="Visualização", padding=5)
+        viz_frame = ttk.LabelFrame(top_pane, text="Visualization", padding=5)
         top_pane.add(viz_frame, weight=3)
 
         # Matplotlib Canvas
         try:
-            from matplotlib.figure import Figure
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            from matplotlib.figure import Figure
             self.report_figure = Figure(figsize=(5, 4), dpi=100)
-            self.report_canvas_widget = FigureCanvasTkAgg(self.report_figure, master=viz_frame)
-            self.report_canvas_widget.get_tk_widget().pack(side="top", fill="both", expand=True)
+            self.report_canvas_widget = FigureCanvasTkAgg(
+                self.report_figure, master=viz_frame
+            )
+            self.report_canvas_widget.get_tk_widget().pack(
+                side="top", fill="both", expand=True
+            )
             self.report_ax = self.report_figure.add_subplot(111)
-            self.report_ax.set_title("Gráfico de Análise")
+            self.report_ax.set_title("Analysis Plot")
             self.report_ax.set_xlabel("X")
             self.report_ax.set_ylabel("Y")
         except ImportError:
-            Label(viz_frame, text="Matplotlib não encontrado. A visualização está desativada.").pack()
+            Label(
+                viz_frame, text="Matplotlib not found. Visualization is disabled."
+            ).pack()
 
 
         # --- Side Control Panel (Right) ---
-        controls_frame = ttk.LabelFrame(top_pane, text="Controles", padding=10)
+        controls_frame = ttk.LabelFrame(top_pane, text="Controls", padding=10)
         top_pane.add(controls_frame, weight=1)
 
         # Experiment selection
-        ttk.Button(controls_frame, text="Carregar Resultados do Projeto", command=self.controller.load_project_results_for_gui).pack(fill="x", pady=5, padx=5)
-        ttk.Label(controls_frame, text="Selecionar Experimento:").pack(fill="x", pady=2)
+        ttk.Button(
+            controls_frame,
+            text="Load Project Results",
+            command=self.controller.load_project_results_for_gui,
+        ).pack(fill="x", pady=5, padx=5)
+        ttk.Label(controls_frame, text="Select Experiment:").pack(fill="x", pady=2)
         self.report_experiment_var = StringVar()
         self.report_experiment_selector = ttk.Combobox(
             controls_frame, textvariable=self.report_experiment_var, state="readonly"
@@ -539,51 +549,93 @@ class ApplicationGUI:
 
         # Action Buttons
         ttk.Button(
-            controls_frame, text="Gerar Trajetória", command=lambda: self.controller.generate_report_plot('trajectory')
+            controls_frame,
+            text="Generate Trajectory",
+            command=lambda: self.controller.generate_report_plot("trajectory"),
         ).pack(fill="x", pady=5, padx=5)
 
         ttk.Button(
-            controls_frame, text="Gerar Mapa de Calor", command=lambda: self.controller.generate_report_plot('heatmap')
+            controls_frame,
+            text="Generate Heatmap",
+            command=lambda: self.controller.generate_report_plot("heatmap"),
         ).pack(fill="x", pady=5, padx=5)
 
         # Customization Checkboxes
         self.report_overlay_rois_var = BooleanVar(value=True)
         ttk.Checkbutton(
-            controls_frame, text="Sobrepor ROIs", variable=self.report_overlay_rois_var
+            controls_frame, text="Overlay ROIs", variable=self.report_overlay_rois_var
         ).pack(anchor="w", pady=5, padx=5)
 
         self.report_use_background_var = BooleanVar(value=False)
         ttk.Checkbutton(
-            controls_frame, text="Usar Fundo do Vídeo", variable=self.report_use_background_var
+            controls_frame,
+            text="Use Video Background",
+            variable=self.report_use_background_var,
         ).pack(anchor="w", pady=5, padx=5)
 
         # --- Bottom Export Panel ---
-        export_frame = ttk.LabelFrame(reports_tab_frame, text="Exportação", padding=10)
+        export_frame = ttk.LabelFrame(reports_tab_frame, text="Export", padding=10)
         export_frame.pack(fill="x", pady=10)
 
         # Buttons
-        ttk.Button(export_frame, text="Exportar Dados (Resumo)", command=lambda: self.controller.export_report_data()).grid(row=0, column=0, padx=5, pady=5)
-        ttk.Button(export_frame, text="Exportar Relatório Visual", command=lambda: self.controller.export_visual_report()).grid(row=0, column=1, padx=5, pady=5)
-        ttk.Button(export_frame, text="Salvar Gráfico Atual (PNG)", command=lambda: self.controller.save_current_plot()).grid(row=0, column=2, padx=5, pady=5)
+        ttk.Button(
+            export_frame,
+            text="Export Data (Summary)",
+            command=lambda: self.controller.export_report_data(),
+        ).grid(row=0, column=0, padx=5, pady=5)
+        ttk.Button(
+            export_frame,
+            text="Export Visual Report",
+            command=lambda: self.controller.export_visual_report(),
+        ).grid(row=0, column=1, padx=5, pady=5)
+        ttk.Button(
+            export_frame,
+            text="Save Current Plot (PNG)",
+            command=lambda: self.controller.save_current_plot(),
+        ).grid(row=0, column=2, padx=5, pady=5)
 
         # Format Options
         self.export_data_format_var = StringVar(value="excel")
-        ttk.Label(export_frame, text="Formato Dados:").grid(row=1, column=0, sticky="w", padx=5)
+        ttk.Label(export_frame, text="Data Format:").grid(
+            row=1, column=0, sticky="w", padx=5
+        )
         format_frame = ttk.Frame(export_frame)
         format_frame.grid(row=1, column=1, columnspan=2, sticky="w")
-        ttk.Radiobutton(format_frame, text="Excel", variable=self.export_data_format_var, value="excel").pack(side="left")
-        ttk.Radiobutton(format_frame, text="CSV", variable=self.export_data_format_var, value="csv").pack(side="left", padx=5)
-        ttk.Radiobutton(format_frame, text="Parquet", variable=self.export_data_format_var, value="parquet").pack(side="left")
+        ttk.Radiobutton(
+            format_frame, text="Excel", variable=self.export_data_format_var, value="excel"
+        ).pack(side="left")
+        ttk.Radiobutton(
+            format_frame, text="CSV", variable=self.export_data_format_var, value="csv"
+        ).pack(side="left", padx=5)
+        ttk.Radiobutton(
+            format_frame,
+            text="Parquet",
+            variable=self.export_data_format_var,
+            value="parquet",
+        ).pack(side="left")
 
         self.export_report_format_var = StringVar(value="word")
-        ttk.Label(export_frame, text="Formato Relatório:").grid(row=2, column=0, sticky="w", padx=5)
-        ttk.Radiobutton(export_frame, text="Word", variable=self.export_report_format_var, value="word").grid(row=2, column=0, sticky="e", padx=5)
-        ttk.Radiobutton(export_frame, text="PDF", variable=self.export_report_format_var, value="pdf", state="disabled").grid(row=2, column=1, sticky="w")
+        ttk.Label(export_frame, text="Report Format:").grid(
+            row=2, column=0, sticky="w", padx=5
+        )
+        ttk.Radiobutton(
+            export_frame,
+            text="Word",
+            variable=self.export_report_format_var,
+            value="word",
+        ).grid(row=2, column=0, sticky="e", padx=5)
+        ttk.Radiobutton(
+            export_frame,
+            text="PDF",
+            variable=self.export_report_format_var,
+            value="pdf",
+            state="disabled",
+        ).grid(row=2, column=1, sticky="w")
 
     def _load_roi_data(self):
         """Opens a parquet file and tells the controller to load it."""
         parquet_path = self.ask_open_filenames(
-            "Selecione o arquivo de dados (.parquet)", [("Parquet files", "*.parquet")]
+            "Select data file (.parquet)", [("Parquet files", "*.parquet")]
         )
         if not parquet_path:
             return
@@ -644,14 +696,14 @@ class ApplicationGUI:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 self.show_error(
-                    "Erro", "Não foi possível abrir o arquivo de vídeo associado."
+                    "Error", "Could not open the associated video file."
                 )
                 return
             ret, frame = cap.read()
             cap.release()
             if not ret:
                 self.show_error(
-                    "Erro", "Não foi possível ler o quadro do vídeo associado."
+                    "Error", "Could not read the frame from the associated video."
                 )
                 return
 
@@ -676,8 +728,8 @@ class ApplicationGUI:
 
         except Exception as e:
             self.show_error(
-                "Erro de Processamento",
-                f"Ocorreu um erro ao exibir o quadro do vídeo: {e}",
+                "Processing Error",
+                f"An error occurred while displaying the video frame: {e}",
             )
 
     def _run_analysis_clicked(self):
@@ -689,15 +741,15 @@ class ApplicationGUI:
             arena_id = self.arena_selector_var.get()
         except (ValueError, TypeError):
             self.show_error(
-                "Entrada Inválida",
-                "Os valores de configuração devem ser números válidos.",
+                "Invalid Input",
+                "Configuration values must be valid numbers.",
             )
             return
 
         if not arena_id:
             self.show_error(
-                "Seleção Necessária",
-                "Por favor, selecione um aquário ativo para a análise.",
+                "Selection Required",
+                "Please select an active aquarium for the analysis.",
             )
             return
 
@@ -727,8 +779,7 @@ class ApplicationGUI:
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
         self.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, "
-            "clique duplo para finalizar."
+            "Drawing Mode (Polygon): Click to add points, double-click to finish."
         )
 
     def _stop_drawing(self):
@@ -745,7 +796,7 @@ class ApplicationGUI:
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("temp_vertex")
-        self.set_status("Pronto.")
+        self.set_status("Ready.")
 
     def _on_canvas_click(self, event):
         """Handles single clicks on the canvas during polygon drawing."""
@@ -803,7 +854,7 @@ class ApplicationGUI:
 
         # Ask for a name
         roi_name = self.ask_string(
-            "Nome da ROI", "Digite um nome para esta nova Zona de Interesse:"
+            "ROI Name", "Enter a name for this new Region of Interest:"
         )
         if not roi_name:
             self.current_polygon_points = []
@@ -813,7 +864,7 @@ class ApplicationGUI:
         # Save and draw the final polygon
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
+            self.show_error("Error", "No active aquarium selected.")
             self._stop_drawing()
             return
 
@@ -843,7 +894,7 @@ class ApplicationGUI:
         selected_items = self.roi_listbox.selection()
         if not selected_items:
             self.show_warning(
-                "Nenhuma Seleção", "Por favor, selecione uma ROI na lista para remover."
+                "No Selection", "Please select an ROI from the list to remove."
             )
             return
 
@@ -866,7 +917,7 @@ class ApplicationGUI:
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
             self.show_error(
-                "Erro", "Selecione um aquário ativo e carregue os dados primeiro."
+                "Error", "Select an active aquarium and load the data first."
             )
             return
 
@@ -884,14 +935,14 @@ class ApplicationGUI:
         """Opens a dialog to create ROIs from a template."""
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Erro", "Selecione um aquário ativo primeiro.")
+            self.show_error("Error", "Select an active aquarium first.")
             return
 
         # Get the arena polygon bounds from the controller
         arena_data = self.controller.get_arena_data(current_arena_id)
         if not arena_data or "polygon_px" not in arena_data:
             self.show_error(
-                "Erro", "Não foi possível obter os dados do polígono do aquário."
+                "Error", "Could not get the aquarium polygon data."
             )
             return
 
@@ -916,7 +967,7 @@ class ApplicationGUI:
                 x2 = x1 + lane_width
                 coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
                 rois_to_add.append(
-                    {"name": f"Faixa_V_{i + 1}", "type": "polygon", "coords": coords}
+                    {"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords}
                 )
         elif template["type"] == "horizontal":
             lane_height = height / template["lanes"]
@@ -925,7 +976,7 @@ class ApplicationGUI:
                 y2 = y1 + lane_height
                 coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
                 rois_to_add.append(
-                    {"name": f"Faixa_H_{i + 1}", "type": "polygon", "coords": coords}
+                    {"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords}
                 )
         elif template["type"] == "grid":
             col_width = width / template["cols"]
@@ -939,7 +990,7 @@ class ApplicationGUI:
                     coords = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
                     rois_to_add.append(
                         {
-                            "name": f"Grade_{r + 1}-{c + 1}",
+                            "name": f"Grid_{r + 1}-{c + 1}",
                             "type": "polygon",
                             "coords": coords,
                         }
@@ -958,7 +1009,7 @@ class ApplicationGUI:
         self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
         self.set_status(
-            "Modo de Desenho (Círculo): Clique e arraste para definir o raio."
+            "Drawing Mode (Circle): Click and drag to define the radius."
         )
 
     def _on_canvas_press_circle(self, event):
@@ -995,7 +1046,7 @@ class ApplicationGUI:
             return
 
         roi_name = self.ask_string(
-            "Nome da ROI", "Digite um nome para esta nova Zona de Interesse (Círculo):"
+            "ROI Name", "Enter a name for this new Region of Interest (Circle):"
         )
         if not roi_name:
             self._stop_drawing()
@@ -1003,7 +1054,7 @@ class ApplicationGUI:
 
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
+            self.show_error("Error", "No active aquarium selected.")
             self._stop_drawing()
             return
 
@@ -1146,7 +1197,7 @@ class ApplicationGUI:
 
     def _live_frame_capture_loop(self):
         """
-        Loop para capturar quadros de uma fonte AO VIVO (câmera).
+        Loop to capture frames from a LIVE source (camera).
         """
         live_frame_count = 0
         while not self.controller.program_exit_event.is_set():
@@ -1174,7 +1225,7 @@ class ApplicationGUI:
 
     def _live_processing_loop(self):
         """
-        Loop para processar quadros de uma fonte AO VIVO.
+        Loop to process frames from a LIVE source.
         """
         while not self.controller.program_exit_event.is_set():
             try:
@@ -1217,7 +1268,7 @@ class ApplicationGUI:
 
     def _file_processing_loop(self):
         """
-        Loop para processar um ARQUIVO de vídeo de forma eficiente.
+        Loop to efficiently process a video FILE.
         """
         if not self.controller.is_recording or not isinstance(
             self.controller.active_frame_source, VideoFileSource
@@ -1317,7 +1368,7 @@ class ApplicationGUI:
         self.controller.open_project_workflow(project_path)
 
     def _define_groups(self):
-        """Permite que o usuário defina nomes para os grupos de tratamento."""
+        """Allows the user to define names for the treatment groups."""
         group_count = self.ask_string(
             "Number of Groups", "Enter the total number of groups:"
         )
@@ -1470,7 +1521,9 @@ class ApplicationGUI:
         result = {}
 
         def on_confirm():
-            cobaia_number = self.ask_string("Cobaia Number", "Enter the cobaia number:")
+            cobaia_number = self.ask_string(
+                "Subject Number", "Enter the subject number:"
+            )
             if not cobaia_number:
                 result["group"] = None
                 result["cobaia"] = None
@@ -1498,24 +1551,24 @@ class TemplateDialog(simpledialog.Dialog):
 
         ttk.Radiobutton(
             master,
-            text="Faixas Verticais",
+            text="Vertical Lanes",
             variable=self.template_type,
             value="vertical",
         ).pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Faixas Horizontais",
+            text="Horizontal Lanes",
             variable=self.template_type,
             value="horizontal",
         ).pack(anchor="w")
         ttk.Radiobutton(
-            master, text="Grade", variable=self.template_type, value="grid"
+            master, text="Grid", variable=self.template_type, value="grid"
         ).pack(anchor="w")
 
-        ttk.Label(master, text="Nº de Faixas:").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text="# of Lanes:").pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.num_lanes).pack(anchor="w")
 
-        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(
+        ttk.Label(master, text="Grid (Rows x Columns):").pack(
             anchor="w", pady=(5, 0)
         )
         grid_frame = ttk.Frame(master)
@@ -1544,21 +1597,21 @@ class CenterPeripheryDialog(simpledialog.Dialog):
         self.method = StringVar(value="distance")
         self.value = StringVar(value="5.0")
 
-        ttk.Label(master, text="Método:").pack(anchor="w")
+        ttk.Label(master, text="Method:").pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Distância da Borda (cm)",
+            text="Distance from Edge (cm)",
             variable=self.method,
             value="distance",
         ).pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Proporção da Área (0.0-1.0)",
+            text="Area Ratio (0.0-1.0)",
             variable=self.method,
             value="area_ratio",
         ).pack(anchor="w")
 
-        ttk.Label(master, text="Valor:").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text="Value:").pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.value).pack(anchor="w")
         return master
 

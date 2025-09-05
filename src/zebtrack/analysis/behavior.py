@@ -86,7 +86,8 @@ class BehavioralAnalyzer(ABC):
         """Performs data conversion, cleaning, and smoothing."""
         if "timestamp" not in df.columns:
             raise ValueError(
-                "Input DataFrame must include a 'timestamp' column for proper temporal analysis."
+                "Input DataFrame must include a 'timestamp' column for proper "
+                "temporal analysis."
             )
         df.set_index("timestamp", inplace=True)
 

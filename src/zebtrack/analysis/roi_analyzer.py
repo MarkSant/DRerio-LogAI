@@ -1,23 +1,24 @@
 import random
 
+
 class ROIAnalyzer:
     """
-    A classe para analisar o comportamento em relação a Regiões de Interesse (ROIs).
-    Esta implementação retorna dados aleatórios para simular uma análise real.
+    A class for analyzing behavior in relation to Regions of Interest (ROIs).
+    This implementation returns random data to simulate a real analysis.
     """
 
     def analyze(self, video_path: str, rois: dict = None) -> dict:
         """
-        Executa uma análise de ROI simulada.
+        Runs a simulated ROI analysis.
 
         Args:
-            video_path: O caminho para o arquivo de vídeo (usado para adicionar variabilidade).
-            rois: Definições de ROI (não utilizado na simulação).
+            video_path: The path to the video file (used to add variability).
+            rois: ROI definitions (not used in the simulation).
 
         Returns:
-            Um dicionário aninhado com métricas para cada ROI.
+            A nested dictionary with metrics for each ROI.
         """
-        # A semente baseada no nome do arquivo garante alguma consistência, mas ainda aleatória
+        # Seeding based on the filename ensures some consistency, while still being random
         seed = hash(video_path)
         random.seed(seed)
 

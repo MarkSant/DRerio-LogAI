@@ -128,7 +128,9 @@ class AquariumSegmentationModelSettings(BaseModel):
 
     path: str = Field(
         ...,
-        description="Path to the segmentation model weights file (e.g., 'aquarium.pt').",
+        description=(
+            "Path to the segmentation model weights file (e.g., 'aquarium.pt')."
+        ),
     )
     confidence_threshold: float = Field(
         ...,
@@ -140,7 +142,9 @@ class AquariumSegmentationModelSettings(BaseModel):
         ...,
         gt=0,
         lt=1,
-        description="Non-Maximum Suppression threshold for filtering overlapping masks.",
+        description=(
+            "Non-Maximum Suppression threshold for filtering overlapping masks."
+        ),
     )
 
 
