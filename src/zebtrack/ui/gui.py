@@ -129,6 +129,12 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.use_timed_recording_var = BooleanVar(value=False)
         self.recording_duration_var = StringVar(value="5")
 
+        # Vars for live project experimental design
+        self.total_days_var = StringVar(value="1")
+        self.subjects_per_group_var = StringVar(value="1")
+        self.num_groups_var = StringVar(value="1")
+        self.group_name_vars = [StringVar() for _ in range(6)]
+
         # --- Project Name ---
         Label(master, text="Project Name:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
@@ -178,14 +184,14 @@ class CreateProjectDialog(simpledialog.Dialog):
             text="Pre-recorded",
             variable=self.project_type_var,
             value="pre-recorded",
-            command=self._toggle_video_button,
+            command=self._update_project_type_options,
         ).grid(row=5, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
             text="Live",
             variable=self.project_type_var,
             value="live",
-            command=self._toggle_video_button,
+            command=self._update_project_type_options,
         ).grid(row=5, column=2, sticky="w", padx=5)
 
         self.video_button = Button(
@@ -213,7 +219,54 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.duration_entry.pack(side="left", padx=5)
         Label(self.live_options_frame, text="minutes").pack(side="left")
 
+        # --- Live Project Experimental Design ---
+        self.live_project_frame = ttk.LabelFrame(
+            master, text="Experimental Design (Live Project)", padding=10
+        )
+        self.live_project_frame.grid(
+            row=8, column=0, columnspan=4, sticky="ew", padx=5, pady=5
+        )
+        # Widgets inside live_project_frame
+        ttk.Label(self.live_project_frame, text="Total Experiment Days:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(self.live_project_frame, textvariable=self.total_days_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
+        ttk.Label(self.live_project_frame, text="Subjects per Group:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            self.live_project_frame, textvariable=self.subjects_per_group_var, width=10
+        ).grid(row=1, column=1, sticky="w", padx=5)
+        ttk.Label(self.live_project_frame, text="Number of Groups:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        num_groups_entry = ttk.Entry(
+            self.live_project_frame, textvariable=self.num_groups_var, width=10
+        )
+        num_groups_entry.grid(row=2, column=1, sticky="w", padx=5)
+        self.num_groups_var.trace_add("write", self._on_num_groups_change)
+        self.group_names_frame = ttk.LabelFrame(
+            self.live_project_frame, text="Group Names", padding=5
+        )
+        self.group_names_frame.grid(
+            row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5
+        )
+        self.group_name_entries = []
+        for i in range(6):
+            row, col = divmod(i, 2)
+            ttk.Label(self.group_names_frame, text=f"Group {i+1}:").grid(
+                row=row, column=col * 2, sticky="w", padx=5, pady=2
+            )
+            entry = ttk.Entry(
+                self.group_names_frame, textvariable=self.group_name_vars[i], width=20
+            )
+            entry.grid(row=row, column=col * 2 + 1, sticky="ew", padx=5)
+            self.group_name_entries.append(entry)
+
         self._update_project_type_options()  # Set initial state
+        self._on_num_groups_change()  # Set initial state for group names
         return self.path_entry  # initial focus
 
     def _select_path(self):
@@ -233,15 +286,32 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.video_files = []
             self.video_list_var.set("No videos selected.")
 
+    def _on_num_groups_change(self, *args):
+        try:
+            num_groups = int(self.num_groups_var.get())
+        except (ValueError, TypeError):
+            num_groups = 0
+        if not 0 <= num_groups <= 6:
+            num_groups = 0  # Treat invalid numbers as 0
+            # Optionally show a warning or clear the field
+        for i, entry in enumerate(self.group_name_entries):
+            if i < num_groups:
+                entry.config(state="normal")
+            else:
+                entry.config(state="disabled")
+                self.group_name_vars[i].set("")  # Clear disabled fields
+
     def _update_project_type_options(self):
         """Shows/hides options based on the selected project type."""
         if self.project_type_var.get() == "pre-recorded":
             self.video_button.config(state="normal")
             self.live_options_frame.grid_remove()
+            self.live_project_frame.grid_remove()
         else:  # Live
             self.video_button.config(state="disabled")
             self.video_list_var.set("Not applicable for live projects.")
             self.live_options_frame.grid()
+            self.live_project_frame.grid()  # Show the new frame
             if self.use_timed_recording_var.get():
                 self.duration_entry.config(state="normal")
             else:
@@ -282,6 +352,28 @@ class CreateProjectDialog(simpledialog.Dialog):
             return 0
 
         if self.project_type_var.get() == "live":
+            try:
+                total_days = int(self.total_days_var.get())
+                subjects_per_group = int(self.subjects_per_group_var.get())
+                num_groups = int(self.num_groups_var.get())
+                if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
+                    raise ValueError("Values must be positive.")
+                if not 1 <= num_groups <= 6:
+                    messagebox.showerror("Error", "Number of groups must be between 1 and 6.")
+                    return 0
+                # Check that required group names are not empty
+                for i in range(num_groups):
+                    if not self.group_name_vars[i].get().strip():
+                        messagebox.showerror(
+                            "Error", f"Group {i + 1} name cannot be empty."
+                        )
+                        return 0
+            except (ValueError, TypeError):
+                messagebox.showerror(
+                    "Error",
+                    "Experimental design parameters must be valid positive numbers.",
+                )
+                return 0
             if self.use_timed_recording_var.get():
                 try:
                     duration = float(self.recording_duration_var.get())
@@ -312,7 +404,23 @@ class CreateProjectDialog(simpledialog.Dialog):
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "use_timed_recording": self.use_timed_recording_var.get(),
             "recording_duration_s": duration,
+            # Initialize new keys to None
+            "experiment_days": None,
+            "subjects_per_group": None,
+            "num_groups": None,
+            "group_names": None,
         }
+
+        if self.project_type_var.get() == "live":
+            num_groups = int(self.num_groups_var.get())
+            self.result["experiment_days"] = int(self.total_days_var.get())
+            self.result["subjects_per_group"] = int(
+                self.subjects_per_group_var.get()
+            )
+            self.result["num_groups"] = num_groups
+            self.result["group_names"] = [
+                self.group_name_vars[i].get().strip() for i in range(num_groups)
+            ]
 
 
 class LiveConfigDialog(simpledialog.Dialog):
@@ -584,6 +692,8 @@ class ApplicationGUI:
 
         # Create the tabs
         self._create_main_controls_tab()
+        if self.controller.project_manager.get_project_type() == "live":
+            self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
         self._create_reports_tab()
 
@@ -608,11 +718,6 @@ class ApplicationGUI:
         project_type = self.controller.project_manager.get_project_type()
 
         if project_type == "live":
-            Button(
-                self.main_controls_frame,
-                text="Define Groups",
-                command=self._define_groups,
-            ).pack(side="left", padx=5)
             self.start_rec_btn = Button(
                 self.main_controls_frame,
                 text="Start Recording",
@@ -632,9 +737,6 @@ class ApplicationGUI:
 
             button_frame = Frame(prerecorded_controls_frame)
             button_frame.pack(fill="x", padx=5, pady=2)
-            Button(
-                button_frame, text="Define Groups", command=self._define_groups
-            ).pack(side="left")
             self.process_video_btn = Button(
                 button_frame,
                 text="Process Next Video",
@@ -1515,6 +1617,9 @@ class ApplicationGUI:
 
         project_type = pm.get_project_type()
         if project_type == "live":
+            # Initial rendering of the progress grid
+            self.root.after(100, self._render_progress_grid)
+
             # Only attempt to connect if a port is configured from the dialog
             if settings.arduino.port:
                 if not self.controller.arduino.connect():
@@ -1556,6 +1661,118 @@ class ApplicationGUI:
             )
             self.controller.capture_thread.start()
             self.controller.processing_thread.start()
+
+    def _create_progress_grid_tab(self):
+        """Creates the tab for viewing the experimental progress grid."""
+        self.progress_grid_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.progress_grid_frame, text="Progresso do Experimento")
+
+        # This frame will hold the actual grid of buttons, which is rendered later
+        self.grid_container = ttk.Frame(self.progress_grid_frame)
+        self.grid_container.pack(expand=True, fill="both")
+
+        # Add a refresh button
+        refresh_button = ttk.Button(
+            self.progress_grid_frame,
+            text="Refresh Grid",
+            command=self._render_progress_grid,
+        )
+        refresh_button.pack(side="bottom", pady=10)
+
+    def _render_progress_grid(self):
+        """Clears and redraws the experimental progress grid based on project data."""
+        # 1. Clear existing widgets
+        for widget in self.grid_container.winfo_children():
+            widget.destroy()
+
+        # 2. Get project data from controller/project_manager
+        pm = self.controller.project_manager
+        if not pm or pm.get_project_type() != "live":
+            return
+
+        days = pm.project_data.get("experiment_days", 0)
+        groups = pm.project_data.get("groups", [])
+        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+
+        if not all([days, groups, subjects_per_group]):
+            ttk.Label(
+                self.grid_container, text="Experimental design not fully configured."
+            ).pack()
+            return
+
+        completed_sessions = pm.get_completed_sessions()
+
+        # 3. Create headers
+        ttk.Label(
+            self.grid_container, text="Day/Group", font=("Helvetica", 10, "bold")
+        ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        for j, group_name in enumerate(groups):
+            ttk.Label(
+                self.grid_container,
+                text=group_name,
+                font=("Helvetica", 10, "bold"),
+                anchor="center",
+            ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
+
+        # 4. Create grid cells
+        for i in range(days):
+            day = i + 1
+            ttk.Label(
+                self.grid_container, text=f"Day {day}", font=("Helvetica", 10, "bold")
+            ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
+
+            for j, group_name in enumerate(groups):
+                completed_count = sum(
+                    1
+                    for (d, g, s) in completed_sessions
+                    if d == day and g == group_name
+                )
+
+                status_text = f"{completed_count}/{subjects_per_group}"
+
+                if completed_count == 0:
+                    color = "#E0E0E0"  # Grey - Pending
+                elif completed_count < subjects_per_group:
+                    color = "#FFFACD"  # LemonChiffon - In progress
+                else:
+                    color = "#90EE90"  # LightGreen - Completed
+
+                cell_btn = Button(
+                    self.grid_container,
+                    text=status_text,
+                    background=color,
+                    width=15,
+                    height=3,
+                    command=lambda d=day, g=group_name: self._on_grid_cell_clicked(
+                        d, g
+                    ),
+                )
+                cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
+
+        for col_index in range(len(groups) + 1):
+            self.grid_container.columnconfigure(col_index, weight=1)
+        for row_index in range(days + 1):
+            self.grid_container.rowconfigure(row_index, weight=1)
+
+    def _on_grid_cell_clicked(self, day, group_name):
+        pm = self.controller.project_manager
+        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+        completed_sessions = pm.get_completed_sessions()
+
+        completed_subjects = {
+            s for (d, g, s) in completed_sessions if d == day and g == group_name
+        }
+
+        dialog = SubjectSelectionDialog(
+            self.root, day, group_name, subjects_per_group, completed_subjects
+        )
+
+        if dialog.result:
+            subject_id = dialog.result
+            self.controller.start_recording(
+                day=day, group=group_name, cobaia=str(subject_id)
+            )
+            self._render_progress_grid()  # Refresh grid after starting a recording
 
     def _live_frame_capture_loop(self):
         """
@@ -1810,29 +2027,6 @@ class ApplicationGUI:
 
         self.controller.open_project_workflow(project_path)
 
-    def _define_groups(self):
-        """Allows the user to define names for the treatment groups."""
-        group_count = self.ask_string(
-            "Number of Groups", "Enter the total number of groups:"
-        )
-        if group_count is not None:
-            try:
-                num_groups = int(group_count)
-                group_names = []
-                for i in range(num_groups):
-                    name = self.ask_string(
-                        "Group Name", f"Enter name for group {i + 1}:"
-                    )
-                    if name:
-                        group_names.append(name)
-                self.controller.project_manager.project_data["groups"] = group_names
-                self.controller.project_manager.save_project()
-                self.show_info("Success", "Group names have been updated.")
-            except (ValueError, TypeError):
-                self.show_error(
-                    "Invalid Input", "Please enter a valid number for the group count."
-                )
-
     def _on_close(self):
         """Delegates the close action to the controller."""
         self.controller.on_close()
@@ -1953,34 +2147,128 @@ class ApplicationGUI:
         elif button_name == "cancel_processing" and hasattr(self, "cancel_proc_btn"):
             self.cancel_proc_btn.config(state=state)
 
-    def ask_recording_details(self, group_names):
-        """Shows a dialog to get group and cobaia number from the user."""
-        selection_window = Toplevel(self.root)
-        selection_window.title("Select Group")
-        group_var = StringVar(value=group_names[0])
-        Label(selection_window, text="Select Group:").pack(padx=10, pady=5)
-        OptionMenu(selection_window, group_var, *group_names).pack(padx=10, pady=5)
-
-        result = {}
-
-        def on_confirm():
-            cobaia_number = self.ask_string(
-                "Subject Number", "Enter the subject number:"
+    def ask_recording_details_unified(self):
+        """Shows a unified dialog to get day, group, and subject."""
+        # Check if it's a live project with the necessary config
+        pm = self.controller.project_manager
+        if not pm.project_data.get("experiment_days"):
+            self.show_error(
+                "Error", "This project is not configured for live experimental tracking."
             )
-            if not cobaia_number:
-                result["group"] = None
-                result["cobaia"] = None
-            else:
-                result["group"] = group_var.get()
-                result["cobaia"] = cobaia_number
-            selection_window.destroy()
+            return None
 
-        Button(selection_window, text="Confirm", command=on_confirm).pack(pady=10)
-        self.root.wait_window(selection_window)
+        dialog = StartRecordingDialog(self.root, pm)
+        return dialog.result
 
-        if result.get("cobaia"):
-            return result["group"], result["cobaia"]
-        return None
+
+class StartRecordingDialog(simpledialog.Dialog):
+    def __init__(self, parent, project_manager):
+        self.pm = project_manager
+        self.result = None
+        super().__init__(parent, "Start New Recording Session")
+
+    def body(self, master):
+        # Get data from project manager
+        days = self.pm.project_data.get("experiment_days", 1)
+        groups = self.pm.project_data.get("groups", [])
+        subjects = self.pm.project_data.get("subjects_per_group", 1)
+        last_day, last_group = self.pm.get_last_session_details()
+
+        # Create variables
+        self.day_var = StringVar()
+        self.group_var = StringVar()
+        self.subject_var = StringVar()
+
+        # Set initial values for smart state retention
+        day_opts = [str(d) for d in range(1, days + 1)]
+        if last_day and str(last_day) in day_opts:
+            self.day_var.set(str(last_day))
+        elif day_opts:
+            self.day_var.set(day_opts[0])
+
+        if last_group and last_group in groups:
+            self.group_var.set(last_group)
+        elif groups:
+            self.group_var.set(groups[0])
+
+        # --- Layout ---
+        # Day Dropdown
+        Label(master, text="Select Day:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        day_menu = OptionMenu(master, self.day_var, *day_opts)
+        day_menu.grid(row=0, column=1, sticky="ew", padx=5)
+
+        # Group Dropdown
+        Label(master, text="Select Group:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=5
+        )
+        group_menu = OptionMenu(master, self.group_var, *groups)
+        group_menu.grid(row=1, column=1, sticky="ew", padx=5)
+
+        # Subject Dropdown
+        Label(master, text="Select Subject:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
+        subject_opts = [str(s) for s in range(1, subjects + 1)]
+        subject_menu = OptionMenu(master, self.subject_var, *subject_opts)
+        subject_menu.grid(row=2, column=1, sticky="ew", padx=5)
+        if subject_opts:
+            self.subject_var.set(subject_opts[0])
+
+        return subject_menu  # Initial focus
+
+    def validate(self):
+        if not all([self.day_var.get(), self.group_var.get(), self.subject_var.get()]):
+            messagebox.showerror("Error", "All fields are required.")
+            return 0
+        return 1
+
+    def apply(self):
+        self.result = {
+            "day": int(self.day_var.get()),
+            "group": self.group_var.get(),
+            "cobaia": self.subject_var.get(),
+        }
+
+
+class SubjectSelectionDialog(simpledialog.Dialog):
+    def __init__(self, parent, day, group_name, subjects_per_group, completed_subjects):
+        self.day = day
+        self.group_name = group_name
+        self.subjects_per_group = subjects_per_group
+        self.completed_subjects = completed_subjects
+        self.result = None  # This will be the selected subject_id
+        super().__init__(parent, f"Select Subject for Day {day} - {group_name}")
+
+    def body(self, master):
+        master.config(padx=10, pady=10)
+        for i in range(self.subjects_per_group):
+            subject_id = i + 1
+            is_completed = subject_id in self.completed_subjects
+
+            status_text = f"Subject {subject_id}: {'Completed' if is_completed else 'Pending'}"
+            status_color = "darkgreen" if is_completed else "black"
+
+            label = ttk.Label(
+                master, text=status_text, foreground=status_color, font=("Helvetica", 10)
+            )
+            label.pack(anchor="w", pady=3)
+
+            if not is_completed:
+                label.config(cursor="hand2")
+                label.bind("<Button-1>", lambda e, s=subject_id: self.select_subject(s))
+        return None  # No initial focus
+
+    def select_subject(self, subject_id):
+        self.result = subject_id
+        self.ok()  # Close the dialog
+
+    def buttonbox(self):
+        # Override to have only a cancel button, since selection closes the dialog
+        box = ttk.Frame(self)
+        w = ttk.Button(box, text="Cancel", width=10, command=self.cancel)
+        w.pack(side="left", padx=5, pady=5)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
 
 
 class TemplateDialog(simpledialog.Dialog):

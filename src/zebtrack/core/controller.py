@@ -360,25 +360,39 @@ class AppController:
                 os.remove(temp_video_path)
             self.view.set_status("Pronto.")
 
-    def start_recording(self):
+    def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
         """Starts a recording session (live mode)."""
         log.info("controller.recording.start")
-        # 1. Get recording details from user
-        details = self.view.ask_recording_details(
-            self.project_manager.project_data.get("groups", ["default"])
-        )
-        if not details:
-            log.warning("controller.recording.cancelled_by_user")
-            return
-        group, cobaia = details
 
-        # 2. Create output folder
-        output_folder = os.path.join(
-            self.project_manager.project_path, f"{group}_{cobaia}"
-        )
+        # 1. Get recording details
+        if not all((day, group, cobaia)):
+            # Details not provided, ask user with the new unified dialog
+            details = self.view.ask_recording_details_unified()
+            if not details:
+                log.warning("controller.recording.cancelled_by_user")
+                return
+            day, group, cobaia = (
+                details["day"],
+                details["group"],
+                details["cobaia"],
+            )
+        else:
+            log.info(
+                "controller.recording.details_from_grid",
+                day=day,
+                group=group,
+                cobaia=cobaia,
+            )
+
+        # 2. Save the selected day and group for "Smart State Retention"
+        self.project_manager.save_last_session_details(day, group)
+
+        # 3. Create output folder with the new naming convention
+        folder_name = f"D{day}_G{group}_S{cobaia}"
+        output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
-        # 3. Start the recorder
+        # 4. Start the recorder
         zone_data = self.project_manager.get_zone_data()
         self.is_recording = self.recorder.start_recording(
             output_folder,
@@ -391,11 +405,12 @@ class AppController:
             self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
             return
 
-        # 4. Update UI
+        # 5. Update UI
         self.view.update_button_state("start_rec", "disabled")
         self.view.update_button_state("stop_rec", "normal")
+        self.view.set_status(f"Recording session: {folder_name}")
 
-        # 5. Handle timed recording if enabled
+        # 6. Handle timed recording if enabled
         project_data = self.project_manager.project_data
         if project_data.get("use_timed_recording"):
             duration_s = project_data.get("recording_duration_s", 0)
