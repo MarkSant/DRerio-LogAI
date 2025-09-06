@@ -1,6 +1,8 @@
+import glob
 import hashlib
 import json
 import os
+import re
 import shutil
 from tkinter import messagebox
 
@@ -62,6 +64,10 @@ class ProjectManager:
         num_aquariums: int = 1,
         aquarium_width_cm: float = 0.0,
         aquarium_height_cm: float = 0.0,
+        # New live project params
+        experiment_days: int | None = None,
+        subjects_per_group: int | None = None,
+        group_names: list[str] | None = None,
     ):
         """
         Initializes a new project, creating its directory and config file.
@@ -106,6 +112,13 @@ class ProjectManager:
             "use_openvino": use_openvino,
             "active_weight": active_weight,
             "videos": [],
+            "groups": group_names if project_type == "live" else [],
+            "experiment_days": experiment_days if project_type == "live" else None,
+            "subjects_per_group": subjects_per_group
+            if project_type == "live"
+            else None,
+            "last_selected_day": 1,
+            "last_selected_group": group_names[0] if group_names else None,
         }
 
         if video_files:
@@ -280,6 +293,53 @@ class ProjectManager:
             return row.iloc[0].to_dict()
 
         return {}
+
+    def get_completed_sessions(self) -> set[tuple[int, str, int]]:
+        """
+        Scans the project directory for completed session folders and returns them.
+        A session is a tuple of (day, group_name, subject_id).
+        """
+        if not self.project_path:
+            return set()
+
+        completed = set()
+        # Regex to capture day, group name, and subject ID from folder names
+        # like "D1_GControl_S3" or "D12_GGroup Name with spaces_S15"
+        pattern = re.compile(r"^D(\d+)_G(.+)_S(\d+)$")
+
+        for item in os.scandir(self.project_path):
+            if not item.is_dir():
+                continue
+
+            match = pattern.match(item.name)
+            if match:
+                try:
+                    day = int(match.group(1))
+                    group_name = match.group(2)
+                    subject_id = int(match.group(3))
+                    completed.add((day, group_name, subject_id))
+                except (ValueError, IndexError):
+                    log.warning("project.scan.invalid_folder_name", name=item.name)
+                    continue
+
+        return completed
+
+    def save_last_session_details(self, day: int, group: str):
+        """Saves the last selected day and group to the project config."""
+        if not self.project_path:
+            return
+        self.project_data["last_selected_day"] = day
+        self.project_data["last_selected_group"] = group
+        self.save_project()
+
+    def get_last_session_details(self) -> tuple[int | None, str | None]:
+        """Retrieves the last selected day and group from the project config."""
+        if not self.project_data:
+            return None, None
+
+        day = self.project_data.get("last_selected_day")
+        group = self.project_data.get("last_selected_group")
+        return day, group
 
 
 if __name__ == "__main__":
