@@ -1708,7 +1708,7 @@ class ApplicationGUI:
 
     def _file_processing_loop(self):
         """
-        Loop to efficiently process a video FILE.
+        Loop to efficiently process a video FILE with adaptive frame skipping.
         """
         if not self.controller.is_recording or not isinstance(
             self.controller.active_frame_source, VideoFileSource
@@ -1717,22 +1717,28 @@ class ApplicationGUI:
             return
 
         show_preview = self.show_preview_var.get()
-        try:
-            processing_interval = int(self.processing_interval_var.get())
-        except ValueError:
-            processing_interval = 1
-
-        if processing_interval < 1:
-            processing_interval = 1
+        # For adaptive skipping, we ignore the UI var and start at 1
+        processing_interval = 1
 
         video_source = self.controller.active_frame_source
-        total_frames = video_source.get_properties()["frame_count"]
+        props = video_source.get_properties()
+        total_frames = props["frame_count"]
+        fps = props.get("fps", 30.0)
+        if fps <= 0:  # Avoid division by zero or invalid intervals
+            fps = 30.0
+        frame_duration = 1.0 / fps
         frame_number = -1
+
+        # Use a deque for an efficient moving average of processing times
+        from collections import deque
+
+        processing_times = deque(maxlen=5)
 
         while (
             not self.controller.program_exit_event.is_set()
             and frame_number < total_frames
         ):
+            # --- Frame Selection ---
             target_frame = (
                 (
                     settings.video_processing.processing_offset
@@ -1750,33 +1756,57 @@ class ApplicationGUI:
             ret, frame = video_source.get_frame()
             if not ret:
                 break
+            frame_number = int(target_frame)
 
-            frame_number = target_frame
-            log.info("gui.file_processing_loop.progress", frame=frame_number)
-
-            if not show_preview and total_frames > 0:
-                progress_percent = int((frame_number / total_frames) * 100)
-                video_name = os.path.basename(
-                    self.controller.currently_processing_video
-                )
-                status_msg = f"Processing: {video_name} ({progress_percent}%)"
-                self.root.after(0, self.status_var.set, status_msg)
-
+            # --- Processing and Timing ---
+            start_time = time.perf_counter()
             detections, _ = self.controller.detector.process_frame(
                 frame, "pre-recorded"
             )
+            end_time = time.perf_counter()
+            processing_time = end_time - start_time
+
+            # --- Update UI ---
+            log.info(
+                "gui.file_processing_loop.progress",
+                frame=frame_number,
+                interval=processing_interval,
+                proc_time_ms=processing_time * 1000,
+            )
+            if not show_preview and total_frames > 0:
+                progress_percent = int((frame_number / total_frames) * 100)
+                video_name = os.path.basename(video_source.video_path)
+                status_msg = f"Processing: {video_name} ({progress_percent}%)"
+                self.root.after(0, self.status_var.set, status_msg)
+
+            # --- Data Recording ---
             if detections:
-                props = video_source.get_properties()
-                timestamp = frame_number / props["fps"] if props["fps"] > 0 else 0
+                timestamp = frame_number / fps
                 self.controller.recorder.write_detection_data(
                     timestamp, frame_number, detections
                 )
 
+            # --- Preview ---
             if show_preview:
                 self.controller.detector.draw_overlay(frame, detections)
                 cv2.imshow("File Processing", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self.controller.program_exit_event.set()
+
+            # --- Adaptive Interval Adjustment ---
+            processing_times.append(processing_time)
+            avg_processing_time = sum(processing_times) / len(processing_times)
+
+            # Adjust interval based on load (aim for 80% utilization)
+            if avg_processing_time > (frame_duration * 0.9):  # Lagging
+                processing_interval += 1
+            elif avg_processing_time < (frame_duration * 0.7):  # Well ahead
+                processing_interval = max(1, processing_interval - 1)
+
+            # Cap the interval to a reasonable maximum (e.g., half the framerate)
+            processing_interval = min(processing_interval, int(fps / 2) if fps > 2 else 1)
+            processing_interval = max(1, processing_interval)
+
 
         if show_preview:
             cv2.destroyAllWindows()

@@ -61,6 +61,7 @@ class Detector:
         self.zones: ZoneData = ZoneData()
         self.scaled_polygon: np.ndarray = np.array([])
         self.scaled_squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+        self._scaling_cache: dict = {}
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
@@ -72,14 +73,24 @@ class Detector:
             actual_height (int): The height of the video/camera frame to scale to.
         """
         self.zones = zones
+        # Clear cache if zones are redefined, as scaling depends on zone data
+        self._scaling_cache.clear()
         self._update_scaling(actual_width, actual_height)
         log.info("detector.zones.set", count=len(self.zones.squares))
 
     def _update_scaling(self, actual_width: int, actual_height: int):
         """
         Updates the coordinates of the polygon and squares based on the actual
-        video resolution.
+        video resolution, using a cache to avoid redundant calculations.
         """
+        cache_key = (actual_width, actual_height)
+        if cache_key in self._scaling_cache:
+            cached_data = self._scaling_cache[cache_key]
+            self.scaled_polygon = cached_data["polygon"]
+            self.scaled_squares = cached_data["squares"]
+            log.debug("detector.scaling.cache.hit", key=cache_key)
+            return
+
         # Convert base polygon to numpy array for scaling
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
         base_squares = self.zones.squares
@@ -87,22 +98,25 @@ class Detector:
         if actual_width == self.base_width and actual_height == self.base_height:
             self.scaled_polygon = base_polygon
             self.scaled_squares = base_squares
-            return
+        else:
+            scale_x = actual_width / self.base_width
+            scale_y = actual_height / self.base_height
+            self.scaled_polygon = (base_polygon * [scale_x, scale_y]).astype(np.int32)
+            self.scaled_squares = []
+            for p1, p2 in base_squares:
+                x1, y1 = p1
+                x2, y2 = p2
+                scaled_p1 = (int(x1 * scale_x), int(y1 * scale_y))
+                scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
+                self.scaled_squares.append((scaled_p1, scaled_p2))
 
-        scale_x = actual_width / self.base_width
-        scale_y = actual_height / self.base_height
-
-        self.scaled_polygon = (base_polygon * [scale_x, scale_y]).astype(np.int32)
-        self.scaled_squares = []
-        for p1, p2 in base_squares:
-            x1, y1 = p1
-            x2, y2 = p2
-            scaled_p1 = (int(x1 * scale_x), int(y1 * scale_y))
-            scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
-            self.scaled_squares.append((scaled_p1, scaled_p2))
-
+        # Store the newly calculated values in the cache
+        self._scaling_cache[cache_key] = {
+            "polygon": self.scaled_polygon,
+            "squares": self.scaled_squares,
+        }
         log.info(
-            "detector.scaling.updated",
+            "detector.scaling.updated_and_cached",
             width=actual_width,
             height=actual_height,
         )

@@ -8,7 +8,9 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import shapely
 from shapely.geometry import Point, Polygon
+from shapely import prepare
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
@@ -92,20 +94,30 @@ class ROIAnalyzer:
         """
         Calculates raw and stable presence for each ROI and adds it to the
         trajectory DataFrame. Also creates a single column with the current
-        stable ROI name.
+        stable ROI name. This version is optimized using vectorized operations.
         """
         # Calculate time delta between frames for later use
         self._trajectory["dt"] = self._trajectory.index.to_series().diff()
 
-        for name, roi in self._rois.items():
-            # Use the smoothed, cm-based centroid for presence detection
-            points = self._trajectory.apply(
-                lambda row: Point(row["x_cm_smoothed"], row["y_cm_smoothed"]),
-                axis=1,
-            )
+        # Extract coordinate arrays once to avoid repeated access
+        x_coords = self._trajectory["x_cm_smoothed"].to_numpy()
+        y_coords = self._trajectory["y_cm_smoothed"].to_numpy()
 
-            # Check if the centroid point is within the ROI geometry
-            raw_presence = points.apply(lambda p: roi.geometry.contains(p))
+        for name, roi in self._rois.items():
+            # Prepare the geometry for significant performance gain.
+            # This modifies the geometry in-place.
+            prepare(roi.geometry)
+
+            # Vectorized check for presence, much faster than .apply()
+            # This requires Shapely >= 2.0. It will automatically use the
+            # prepared geometry if available.
+            points = shapely.points(x_coords, y_coords)
+            raw_presence_np = shapely.contains(roi.geometry, points)
+
+            # Convert boolean numpy array back to a pandas Series with the correct index
+            raw_presence = pd.Series(
+                raw_presence_np, index=self._trajectory.index, name=f"in_{name}_raw"
+            )
 
             self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
                 raw_presence
