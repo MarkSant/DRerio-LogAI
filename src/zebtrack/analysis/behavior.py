@@ -112,14 +112,28 @@ class BehavioralAnalyzer(ABC):
         # Drop any rows with missing data before smoothing
         df.dropna(subset=["x_cm", "y_cm"], inplace=True)
 
-        if len(df) < window_length:
-            # Not enough data to apply the filter, use unsmoothed data
+        # Adaptive Savitzky-Golay filter
+        n_points = len(df)
+        # Determine the largest possible odd window length
+        adaptive_window = min(window_length, n_points)
+        if adaptive_window % 2 == 0:
+            adaptive_window -= 1
+
+        # Ensure polyorder is less than the (potentially smaller) window
+        adaptive_polyorder = min(polyorder, adaptive_window - 1)
+
+        # Only apply filter if the window is large enough for the polynomial
+        if adaptive_window > adaptive_polyorder and adaptive_window >= 3:
+            df["x_cm_smoothed"] = savgol_filter(
+                df["x_cm"], adaptive_window, adaptive_polyorder
+            )
+            df["y_cm_smoothed"] = savgol_filter(
+                df["y_cm"], adaptive_window, adaptive_polyorder
+            )
+        else:
+            # Fallback for very short data series
             df["x_cm_smoothed"] = df["x_cm"]
             df["y_cm_smoothed"] = df["y_cm"]
-        else:
-            # Apply Savitzky-Golay filter for smoothing
-            df["x_cm_smoothed"] = savgol_filter(df["x_cm"], window_length, polyorder)
-            df["y_cm_smoothed"] = savgol_filter(df["y_cm"], window_length, polyorder)
 
         return df
 
