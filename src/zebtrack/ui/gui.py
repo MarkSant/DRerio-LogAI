@@ -16,7 +16,6 @@ from tkinter import (
     Label,
     OptionMenu,
     StringVar,
-    Toplevel,
     filedialog,
     messagebox,
     simpledialog,
@@ -230,9 +229,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         ttk.Label(self.live_project_frame, text="Total Experiment Days:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(self.live_project_frame, textvariable=self.total_days_var, width=10).grid(
-            row=0, column=1, sticky="w", padx=5
-        )
+        ttk.Entry(
+            self.live_project_frame, textvariable=self.total_days_var, width=10
+        ).grid(row=0, column=1, sticky="w", padx=5)
         ttk.Label(self.live_project_frame, text="Subjects per Group:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
@@ -359,7 +358,9 @@ class CreateProjectDialog(simpledialog.Dialog):
                 if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
                     raise ValueError("Values must be positive.")
                 if not 1 <= num_groups <= 6:
-                    messagebox.showerror("Error", "Number of groups must be between 1 and 6.")
+                    messagebox.showerror(
+                        "Error", "Number of groups must be between 1 and 6."
+                    )
                     return 0
                 # Check that required group names are not empty
                 for i in range(num_groups):
@@ -624,7 +625,7 @@ class ApplicationGUI:
         ttk.Button(
             project_actions_frame,
             text="Analyze Single Video",
-            command=self.controller.start_single_video_workflow,
+            command=self._on_analyze_single_video_clicked,
         ).pack(fill="x", padx=10, pady=5)
         ttk.Button(
             project_actions_frame,
@@ -1038,7 +1039,9 @@ class ApplicationGUI:
             self.generate_partial_report_btn.config(state="disabled")
 
     def _generate_partial_report(self):
-        """Gathers selected videos and tells the controller to generate a partial report."""
+        """
+        Gathers selected videos and tells the controller to generate a partial report.
+        """
         selected_items = self.reports_tree.selection()
         if not selected_items:
             return
@@ -1066,7 +1069,9 @@ class ApplicationGUI:
         """Tells the controller to generate a unified report of all project videos."""
         all_videos = self.controller.project_manager.get_all_videos()
         if not all_videos:
-            self.show_warning("No Data", "There are no processed videos in this project to report on.")
+            self.show_warning(
+                "No Data", "There are no processed videos in this project to report on."
+            )
             return
         self.controller.generate_report(all_videos, report_type="unified")
 
@@ -1836,7 +1841,7 @@ class ApplicationGUI:
 
         self.controller.open_project_workflow(project_path)
 
-    def _start_single_video_workflow(self):
+    def _on_analyze_single_video_clicked(self):
         """Handles the UI part of the single video workflow."""
         dialog = SingleVideoConfigDialog(self.root)
         if not dialog.result:
@@ -1872,7 +1877,11 @@ class ApplicationGUI:
             if not self.progress_frame.winfo_viewable():
                 self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = value
-            self.root.update_idletasks()
+            self.update_idletasks()
+
+    def update_idletasks(self):
+        """Force the GUI to update, processing pending events."""
+        self.root.update_idletasks()
 
     def update_progress_stats(
         self,
@@ -1963,6 +1972,10 @@ class ApplicationGUI:
         """Shows a dialog to select one or more files."""
         return filedialog.askopenfilenames(title=title, filetypes=filetypes)
 
+    def ask_save_filename(self, **options):
+        """Shows a dialog to select a save file path."""
+        return filedialog.asksaveasfilename(**options)
+
     def update_button_state(self, button_name, state):
         """Updates the state of a button ('normal' or 'disabled')."""
         if button_name == "start_rec" and hasattr(self, "start_rec_btn"):
@@ -1980,7 +1993,8 @@ class ApplicationGUI:
         pm = self.controller.project_manager
         if not pm.project_data.get("experiment_days"):
             self.show_error(
-                "Error", "This project is not configured for live experimental tracking."
+                "Error",
+                "This project is not configured for live experimental tracking.",
             )
             return None
 
@@ -2064,7 +2078,9 @@ class StartRecordingDialog(simpledialog.Dialog):
 
         # --- Layout ---
         # Day Dropdown
-        Label(master, text="Select Day:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        Label(master, text="Select Day:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=5
+        )
         day_menu = OptionMenu(master, self.day_var, *day_opts)
         day_menu.grid(row=0, column=1, sticky="ew", padx=5)
 
@@ -2116,11 +2132,16 @@ class SubjectSelectionDialog(simpledialog.Dialog):
             subject_id = i + 1
             is_completed = subject_id in self.completed_subjects
 
-            status_text = f"Subject {subject_id}: {'Completed' if is_completed else 'Pending'}"
+            status_text = (
+                f"Subject {subject_id}: {'Completed' if is_completed else 'Pending'}"
+            )
             status_color = "darkgreen" if is_completed else "black"
 
             label = ttk.Label(
-                master, text=status_text, foreground=status_color, font=("Helvetica", 10)
+                master,
+                text=status_text,
+                foreground=status_color,
+                font=("Helvetica", 10),
             )
             label.pack(anchor="w", pady=3)
 

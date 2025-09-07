@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import glob
 import os
 import tempfile
 import threading
 import time
-from tkinter import filedialog
 
 import cv2
 import matplotlib.pyplot as plt
@@ -226,7 +224,7 @@ class AppController:
         if not self.active_weight_name:
             return
         self.view.set_status(f"Converting {self.active_weight_name} to OpenVINO...")
-        self.root.update()
+        self.view.update_idletasks()
         self.weight_manager.convert_to_openvino(self.active_weight_name)
         self.update_openvino_status()
         self.view.set_status("Conversion check complete. Ready.")
@@ -318,7 +316,7 @@ class AppController:
             writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
 
             self.view.set_status("Calibrando... Gravando um pequeno clipe.")
-            self.root.update()
+            self.view.update_idletasks()
 
             start_time = time.time()
             while time.time() - start_time < 5:  # Record for 5 seconds
@@ -328,7 +326,7 @@ class AppController:
                 writer.write(frame)
             writer.release()
             self.view.set_status("Calibração: Analisando o clipe...")
-            self.root.update()
+            self.view.update_idletasks()
 
             # 3. Run detection on the clip
             # Use the globally selected .pt model for this, not OpenVINO
@@ -450,7 +448,11 @@ class AppController:
         # 1. Ensure the detector is set up
         if not self.detector:
             if not self.setup_detector():
-                self.view.show_error("Error", "Could not set up the detector. Please configure a model on the main screen.")
+                self.view.show_error(
+                    "Error",
+                    "Could not set up the detector. "
+                    "Please configure a model on the main screen.",
+                )
                 return
 
         # 2. Scan the single video
@@ -504,7 +506,10 @@ class AppController:
         # 2. Scan the inputs
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
-            self.view.show_warning("No Videos Found", "No new video files were found in the selected paths.")
+            self.view.show_warning(
+                "No Videos Found",
+                "No new video files were found in the selected paths.",
+            )
             return
 
         # 3. Handle mixed data scenario
@@ -569,7 +574,7 @@ class AppController:
         """
         log.info("controller.processing.start", count=len(videos_to_process))
         self.view.set_status(f"Starting processing for {len(videos_to_process)} videos...")
-        self.root.update_idletasks()
+        self.view.update_idletasks()
 
         b_analyzer = BehavioralAnalyzer()
         r_analyzer = ROIAnalyzer()
@@ -580,7 +585,7 @@ class AppController:
             self.view.set_status(
                 f"Processing {i+1}/{len(videos_to_process)}: {experiment_id}"
             )
-            self.root.update_idletasks()
+            self.view.update_idletasks()
 
             if single_video_config:
                 # Use the provided config as metadata
@@ -603,11 +608,18 @@ class AppController:
             os.makedirs(results_dir, exist_ok=True)
 
             # Save all results
-            reporter.tidy_data.to_parquet(os.path.join(results_dir, f"{experiment_id}_summary.parquet"))
+            summary_path = os.path.join(
+                results_dir, f"{experiment_id}_summary.parquet"
+            )
+            reporter.tidy_data.to_parquet(summary_path)
+
             # We need a placeholder for tracking data for now
             tracking_data_placeholder = np.array([[0, 0]])
-            np.save(os.path.join(results_dir, f"{experiment_id}_tracking.npy"), tracking_data_placeholder)
-            reporter.export_individual_report(os.path.join(results_dir, f"{experiment_id}_report"))
+            tracking_path = os.path.join(results_dir, f"{experiment_id}_tracking.npy")
+            np.save(tracking_path, tracking_data_placeholder)
+
+            report_path = os.path.join(results_dir, f"{experiment_id}_report")
+            reporter.export_individual_report(report_path)
 
         self.view.set_status("Processing complete!")
 
@@ -621,7 +633,10 @@ class AppController:
             return
 
         all_tidy_data = []
-        project_path = self.project_manager.project_path or os.path.dirname(videos[0]['path'])
+        if self.project_manager.project_path:
+            project_path = self.project_manager.project_path
+        else:
+            project_path = os.path.dirname(videos[0]["path"])
 
         for video_info in videos:
             experiment_id = os.path.splitext(os.path.basename(video_info['path']))[0]
@@ -638,14 +653,17 @@ class AppController:
                 log.warning("reports.load.not_found", path=summary_path)
 
         if not all_tidy_data:
-            self.view.show_error("Report Error", "Could not find any summary data for the selected videos.")
+            self.view.show_error(
+                "Report Error",
+                "Could not find any summary data for the selected videos.",
+            )
             return
 
         aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
-        save_path = filedialog.asksaveasfilename(
+        save_path = self.view.ask_save_filename(
             title=f"Save {report_type.capitalize()} Report",
             defaultextension=".xlsx",
-            initialfile=f"{report_type}_report.xlsx"
+            initialfile=f"{report_type}_report.xlsx",
         )
         if not save_path:
             return

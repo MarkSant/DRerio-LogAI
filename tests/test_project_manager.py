@@ -59,7 +59,9 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["project_type"], "pre-recorded")
             self.assertEqual(len(data["batches"]), 1)
             self.assertEqual(len(data["batches"][0]["videos"]), 2)
-            self.assertEqual(data["batches"][0]["videos"][0]["path"], video_files[0]["path"])
+            self.assertEqual(
+                data["batches"][0]["videos"][0]["path"], video_files[0]["path"]
+            )
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
