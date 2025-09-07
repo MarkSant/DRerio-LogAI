@@ -362,15 +362,38 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return episodes
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
-        # Simplified implementation
-        dx = self._trajectory_data["x_cm_smoothed"].diff()
-        dy = self._trajectory_data["y_cm_smoothed"].diff()
-        angles = np.arctan2(dy, dx)
-        dt = self._trajectory_data.index.to_series().diff()
-        angular_vel = np.diff(angles) / dt[1:]
-        if unit == "degrees":
-            angular_vel = np.degrees(angular_vel)
-        return pd.Series(angular_vel, index=self._trajectory_data.index[1:])
+        """
+        Calculates the angular velocity of the trajectory using the detailed method.
+        """
+        if unit != "degrees":
+            raise NotImplementedError(
+                "Only 'degrees' unit is supported for this detailed implementation."
+            )
+
+        df = self._trajectory_data
+        if len(df) < 3:
+            return pd.Series(dtype=np.float64, name="angular_velocity_deg_s")
+
+        # Use smoothed trajectory
+        x = df["x_cm_smoothed"]
+        y = df["y_cm_smoothed"]
+        # Calculate displacements
+        dx = x.diff()
+        dy = y.diff()
+        # Calculate angle
+        angle_rad = np.arctan2(dy, dx)
+        # Calculate change in angle
+        d_theta = angle_rad.diff()
+        # Correct for wraparound from -pi to +pi
+        d_theta_normalized = (d_theta + np.pi) % (2 * np.pi) - np.pi
+        # Convert to degrees
+        d_theta_deg = np.degrees(d_theta_normalized)
+        # Calculate time interval in seconds
+        dt = 1.0 / self.fps
+        # Calculate angular velocity
+        angular_velocity_deg_s = d_theta_deg / dt
+        angular_velocity_deg_s.name = "angular_velocity_deg_s"
+        return angular_velocity_deg_s
 
     def get_tortuosity(
         self, window_size: Optional[float] = None, step: Optional[float] = None
@@ -399,7 +422,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_sharp_turns(
         self, threshold_deg_s: float, cooldown_s: float = 0.5
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[float, pd.Index]]:
         """
         Calculates the number of sharp turns based on angular velocity.
 
@@ -410,60 +433,49 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 sharp turn can be detected.
 
         Returns:
-            A dictionary with the count of sharp turns and the rate per minute.
+            A dictionary with the count of sharp turns, the rate per minute,
+            and the timestamps of the turns.
         """
-        df = self._trajectory_data
-        if len(df) < 2:
-            return {"sharp_turns_count": 0, "sharp_turns_per_minute": 0.0}
+        angular_velocity_deg_s = self.get_angular_velocity()
 
-        # 1. Use smoothed trajectory
-        x = df["x_cm_smoothed"]
-        y = df["y_cm_smoothed"]
+        if angular_velocity_deg_s.empty or angular_velocity_deg_s.isna().all():
+            return {
+                "sharp_turns_count": 0,
+                "sharp_turns_per_minute": 0.0,
+                "sharp_turns_timestamps": pd.Index([]),
+            }
 
-        # 2. Calculate displacements
-        dx = x.diff()
-        dy = y.diff()
-
-        # 3. Calculate angle
-        angle_rad = np.arctan2(dy, dx)
-
-        # 4. Calculate change in angle
-        d_theta = angle_rad.diff()
-
-        # 5. Correct for wraparound from -pi to +pi
-        d_theta = (d_theta + np.pi) % (2 * np.pi) - np.pi
-
-        # 6. Convert to degrees
-        d_theta_deg = np.degrees(d_theta)
-
-        # 7. Calculate time interval in seconds
-        dt = 1.0 / self.fps
-
-        # 8. Calculate angular velocity
-        angular_velocity_deg_s = d_theta_deg / dt
-
-        # 9. Identify sharp turns
+        # Identify sharp turns
         potential_turns = angular_velocity_deg_s[
             angular_velocity_deg_s.abs() > threshold_deg_s
         ]
 
         if potential_turns.empty:
-            return {"sharp_turns_count": 0, "sharp_turns_per_minute": 0.0}
+            return {
+                "sharp_turns_count": 0,
+                "sharp_turns_per_minute": 0.0,
+                "sharp_turns_timestamps": pd.Index([]),
+            }
 
         # Handle the first turn, then iterate and apply cooldown
         turn_times = potential_turns.index
         last_turn_time = turn_times[0]
-        sharp_turns_count = 1
+        sharp_turn_timestamps = [last_turn_time]
         cooldown_td = pd.to_timedelta(cooldown_s, unit="s")
 
         for timestamp in turn_times[1:]:
             if timestamp - last_turn_time > cooldown_td:
-                sharp_turns_count += 1
+                sharp_turn_timestamps.append(timestamp)
                 last_turn_time = timestamp
 
+        sharp_turns_count = len(sharp_turn_timestamps)
+
         # Calculate total duration for per-minute metric
+        df = self._trajectory_data
         total_duration_s = (df.index[-1] - df.index[0]).total_seconds()
-        total_duration_minutes = total_duration_s / 60.0
+        total_duration_minutes = (
+            total_duration_s / 60.0 if total_duration_s > 0 else 0
+        )
 
         if total_duration_minutes > 0:
             sharp_turns_per_minute = sharp_turns_count / total_duration_minutes
@@ -473,4 +485,5 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return {
             "sharp_turns_count": sharp_turns_count,
             "sharp_turns_per_minute": sharp_turns_per_minute,
+            "sharp_turns_timestamps": pd.Index(sharp_turn_timestamps),
         }
