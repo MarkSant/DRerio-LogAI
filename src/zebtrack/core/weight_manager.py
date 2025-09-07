@@ -16,7 +16,8 @@ log = structlog.get_logger()
 
 class WeightManager:
     def __init__(self, config_dir="."):
-        self.config_path = os.path.join(config_dir, WEIGHTS_CONFIG_FILE)
+        self.config_dir = config_dir
+        self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
         self.weights = {}
         self._load_weights()
 
@@ -172,10 +173,14 @@ class WeightManager:
         pt_path = details["path"]
         base_model_name = os.path.splitext(os.path.basename(pt_path))[0]
         cached_model_dir_name = f"{base_model_name}_openvino_model"
-        cached_model_dir = os.path.join(OPENVINO_CACHE_DIR, cached_model_dir_name)
+
+        # The cache should be relative to the manager's config directory
+        openvino_base_cache_dir = os.path.join(self.config_dir, OPENVINO_CACHE_DIR)
+        cached_model_dir = os.path.join(openvino_base_cache_dir, cached_model_dir_name)
 
         if os.path.exists(cached_model_dir):
             log.info("openvino.cache.found", path=cached_model_dir)
+            # Ensure the path is absolute for consistency
             details["openvino_path"] = os.path.abspath(cached_model_dir)
             self.save_weights()
             return details["openvino_path"]
@@ -188,7 +193,7 @@ class WeightManager:
             # The export will create a directory named e.g., 'yolov8n_openvino_model'.
             temp_export_path = model.export(format="openvino", half=True)
 
-            os.makedirs(OPENVINO_CACHE_DIR, exist_ok=True)
+            os.makedirs(openvino_base_cache_dir, exist_ok=True)
 
             # In case of a previous failed attempt, remove the destination first.
             if os.path.exists(cached_model_dir):
