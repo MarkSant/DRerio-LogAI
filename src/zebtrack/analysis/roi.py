@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, Polygon
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
@@ -98,12 +98,15 @@ class ROIAnalyzer:
         self._trajectory["dt"] = self._trajectory.index.to_series().diff()
 
         for name, roi in self._rois.items():
-            # Create a Shapely box for each detection's bounding box
-            bboxes = self._trajectory.apply(
-                lambda row: box(row["x1"], row["y1"], row["x2"], row["y2"]), axis=1
+            # Use the smoothed, cm-based centroid for presence detection
+            points = self._trajectory.apply(
+                lambda row: Point(row["x_cm_smoothed"], row["y_cm_smoothed"]),
+                axis=1,
             )
-            # Check for intersection with the ROI geometry
-            raw_presence = bboxes.intersects(roi.geometry)
+
+            # Check if the centroid point is within the ROI geometry
+            raw_presence = points.apply(lambda p: roi.geometry.contains(p))
+
             self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
                 raw_presence
             )
@@ -209,6 +212,64 @@ class ROIAnalyzer:
         transitions.columns.name = "To"
         return transitions
 
+    def get_event_log(self) -> pd.DataFrame:
+        """
+        Generates a sequential log of all entry and exit events for all ROIs.
+
+        Returns:
+            A pandas DataFrame with columns for timestamp, event type, and ROI name,
+            sorted chronologically.
+        """
+        states = self._trajectory["stable_roi"]
+        # Find points where the state changes by comparing with the previous state
+        state_changes = states[states != states.shift(1)]
+
+        events = []
+        # The initial state is an "entry" into wherever the animal starts
+        initial_state = states.iloc[0]
+        if initial_state != "Outside":
+            events.append(
+                {
+                    "timestamp": states.index[0],
+                    "event": "enter",
+                    "roi_name": initial_state,
+                }
+            )
+
+        # Iterate through the changes to log entries and exits
+        for timestamp, current_roi in state_changes.items():
+            # Skip the very first timestamp, as it's handled by the initial state
+            if timestamp == states.index[0]:
+                continue
+
+            previous_roi = states.shift(1)[timestamp]
+
+            # Log the exit from the previous ROI
+            if previous_roi != "Outside":
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "exit",
+                        "roi_name": previous_roi,
+                    }
+                )
+            # Log the entry into the current ROI
+            if current_roi != "Outside":
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "enter",
+                        "roi_name": current_roi,
+                    }
+                )
+
+        if not events:
+            return pd.DataFrame(columns=["timestamp", "event", "roi_name"])
+
+        event_df = pd.DataFrame(events).drop_duplicates()
+        event_df.sort_values(by="timestamp", inplace=True)
+        return event_df
+
     def _get_filtered_trajectory(self, roi_name: str) -> pd.DataFrame:
         """Helper to get trajectory segments only within a specific ROI."""
         if f"in_{roi_name}_stable" not in self._trajectory.columns:
@@ -218,18 +279,20 @@ class ROIAnalyzer:
     def get_distance_in_rois(self) -> Dict[str, float]:
         """Calculates the total distance traveled within each ROI."""
         results = {}
-        for name in self._rois:
-            roi_traj = self._get_filtered_trajectory(name)
-            if len(roi_traj) < 2:
-                results[name] = 0.0
-                continue
-
-            # Calculate segment distances using smoothed coordinates
-            distances = np.sqrt(
-                roi_traj["x_cm_smoothed"].diff() ** 2
-                + roi_traj["y_cm_smoothed"].diff() ** 2
+        # Calculate distance for all segments first
+        if "segment_dist" not in self._trajectory.columns:
+            self._trajectory["segment_dist"] = np.sqrt(
+                self._trajectory["x_cm_smoothed"].diff() ** 2
+                + self._trajectory["y_cm_smoothed"].diff() ** 2
             )
-            results[name] = distances.sum()
+
+        for name in self._rois:
+            # Sum the segment distances only for points within the ROI
+            # We consider the distance for a segment to be "in" the ROI if the
+            # endpoint of the segment is in the ROI.
+            is_in_roi = self._trajectory[f"in_{name}_stable"]
+            total_dist_in_roi = self._trajectory.loc[is_in_roi, "segment_dist"].sum()
+            results[name] = total_dist_in_roi
         return results
 
     def get_velocity_stats_in_rois(self) -> Dict[str, Optional[Dict[str, float]]]:

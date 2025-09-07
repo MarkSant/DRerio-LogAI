@@ -13,42 +13,93 @@ from docx import Document
 from docx.shared import Inches
 from scipy.ndimage import gaussian_filter
 
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from zebtrack.analysis.roi import ROIAnalyzer
+
 
 class Reporter:
     def __init__(
         self,
-        behavioral_results: dict,
-        roi_results: dict,
+        b_analyzer: ConcreteBehavioralAnalyzer,
+        r_analyzer: ROIAnalyzer,
         metadata: dict,
-        tracking_data: np.ndarray = None,
+        roi_colors: dict | None = None,
+        sharp_turn_threshold: float = 90.0,
+        freezing_threshold: float = 2.0,
+        freezing_duration: float = 1.0,
     ):
-        self.behavioral_results = behavioral_results
-        self.roi_results = roi_results
+        self.b_analyzer = b_analyzer
+        self.r_analyzer = r_analyzer
         self.metadata = metadata
-        self.tracking_data = (
-            tracking_data
-            if tracking_data is not None
-            else self._generate_mock_tracking_data()
-        )
+        self.roi_colors = roi_colors if roi_colors else {}
+        self.sharp_turn_threshold = sharp_turn_threshold
+        self.freezing_threshold = freezing_threshold
+        self.freezing_duration = freezing_duration
         self.tidy_data = self._create_tidy_dataframe()
 
-    def _flatten_roi_results(self) -> dict:
-        flat_results = {}
-        for roi_name, metrics in self.roi_results.items():
-            for metric_name, value in metrics.items():
-                clean_metric_name = (
-                    metric_name.replace("_roi", "").replace("_s", "").replace("_n", "")
-                )
-                column_name = f"{clean_metric_name}_roi_{roi_name}_{metric_name[-1]}"
-                flat_results[column_name] = value
-        return flat_results
-
     def _create_tidy_dataframe(self) -> pd.DataFrame:
-        combined_data = {
-            **self.metadata,
-            **self.behavioral_results,
-            **self._flatten_roi_results(),
-        }
+        # Start with metadata
+        combined_data = {**self.metadata}
+
+        # --- General Behavioral Metrics ---
+        combined_data["total_distance_cm"] = self.b_analyzer.calculate_total_distance()
+        velocity_stats = self.b_analyzer.get_velocity_stats()
+        combined_data["mean_velocity_cm_s"] = velocity_stats.get("mean")
+        combined_data["median_velocity_cm_s"] = velocity_stats.get("median")
+        combined_data["std_dev_velocity_cm_s"] = velocity_stats.get("std_dev")
+        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(
+            self.sharp_turn_threshold
+        )
+        combined_data["sharp_turns_count"] = sharp_turn_results.get("sharp_turns_count")
+        combined_data["sharp_turns_per_minute"] = sharp_turn_results.get(
+            "sharp_turns_per_minute"
+        )
+
+        # --- ROI-Specific Metrics ---
+        time_spent = self.r_analyzer.get_time_spent_in_rois()
+        entry_counts = self.r_analyzer.get_entry_counts()
+        latencies = self.r_analyzer.get_latency_to_first_entry()
+        distances = self.r_analyzer.get_distance_in_rois()
+        velocities = self.r_analyzer.get_velocity_stats_in_rois()
+        freezing = self.r_analyzer.get_freezing_in_rois(
+            self.freezing_threshold, self.freezing_duration
+        )
+
+        total_roi_entries = 0
+        for roi_name in self.r_analyzer._rois:
+            # Time spent
+            combined_data[f"time_in_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
+                "seconds"
+            )
+            combined_data[
+                f"time_in_{roi_name}_percent"
+            ] = time_spent.get(roi_name, {}).get("percentage")
+            # Entry counts
+            entries = entry_counts.get(roi_name, 0)
+            combined_data[f"entries_in_{roi_name}"] = entries
+            total_roi_entries += entries
+            # Latency
+            combined_data[f"latency_to_{roi_name}_s"] = latencies.get(roi_name)
+            # Intra-ROI Distance
+            combined_data[f"distance_in_{roi_name}_cm"] = distances.get(roi_name)
+            # Intra-ROI Velocity
+            roi_vel = velocities.get(roi_name)
+            if roi_vel:
+                combined_data[f"mean_velocity_in_{roi_name}_cm_s"] = roi_vel.get("mean")
+            # Intra-ROI Freezing
+            roi_freeze = freezing.get(roi_name)
+            if roi_freeze:
+                combined_data[f"freezing_episodes_in_{roi_name}"] = roi_freeze.get(
+                    "count"
+                )
+                combined_data[
+                    f"total_freezing_duration_in_{roi_name}_s"
+                ] = roi_freeze.get("total_duration")
+            # ROI Color
+            if roi_name in self.roi_colors:
+                combined_data[f"cor_roi_{roi_name}"] = str(self.roi_colors[roi_name])
+
+        combined_data["total_roi_entries"] = total_roi_entries
         combined_data["date_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return pd.DataFrame([combined_data])
 
@@ -56,42 +107,45 @@ class Reporter:
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         if format == "excel":
-            self.tidy_data.to_excel(
-                f"{output_path}.xlsx", index=False, engine="openpyxl"
-            )
+            self.tidy_data.to_excel(output_path, index=False, engine="openpyxl")
         elif format == "csv":
-            self.tidy_data.to_csv(f"{output_path}.csv", index=False)
+            self.tidy_data.to_csv(output_path, index=False)
         elif format == "parquet":
-            self.tidy_data.to_parquet(f"{output_path}.parquet", index=False)
+            self.tidy_data.to_parquet(output_path, index=False)
         else:
             raise ValueError(f"Unsupported file format: {format}")
-
-    def _generate_mock_tracking_data(self, num_points=500):
-        start_pos = np.array([512, 512])
-        steps = np.random.randn(num_points, 2) * 15
-        return np.clip(np.cumsum(steps, axis=0) + start_pos, 0, 1024)
 
     def generate_trajectory_plot(self, ax: plt.Axes = None) -> plt.Figure:
         fig = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
         ax = ax or fig.add_subplot(111)
         ax.clear()
-        x, y = self.tracking_data[:, 0], self.tracking_data[:, 1]
+
+        # Use real trajectory data in cm
+        traj_data = self.b_analyzer._trajectory_data
+        x = traj_data["x_cm_smoothed"]
+        y = traj_data["y_cm_smoothed"]
+
+        # Get arena polygon in cm
+        arena_poly_cm = self.b_analyzer._arena_polygon_cm
+
         ax.set_facecolor("lightgray")
         ax.add_patch(
-            patches.Rectangle(
-                (0, 0), 1024, 1024, fill=False, edgecolor="black", lw=2
+            patches.Polygon(
+                arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2
             )
         )
         from matplotlib.collections import LineCollection
 
         points = np.array([x, y]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        lc = LineCollection(segments, cmap='viridis', norm=plt.Normalize(0, len(x)))
+        lc = LineCollection(segments, cmap="viridis", norm=plt.Normalize(0, len(x)))
         lc.set_array(np.arange(len(x)))
         ax.add_collection(lc)
         ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'N/A')}")
-        ax.set_xlim(0, 1024)
-        ax.set_ylim(0, 1024)
+
+        min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+        ax.set_xlim(min_x - 1, max_x + 1)
+        ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
         return fig
 
@@ -99,9 +153,16 @@ class Reporter:
         fig = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
         ax = ax or fig.add_subplot(111)
         ax.clear()
-        x, y = self.tracking_data[:, 0], self.tracking_data[:, 1]
+
+        # Use real trajectory data in cm
+        traj_data = self.b_analyzer._trajectory_data
+        x = traj_data["x_cm_smoothed"]
+        y = traj_data["y_cm_smoothed"]
+        arena_poly_cm = self.b_analyzer._arena_polygon_cm
+        min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+
         heatmap, xedges, yedges = np.histogram2d(
-            x, y, bins=50, range=[[0, 1024], [0, 1024]]
+            x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
         )
         heatmap = gaussian_filter(heatmap.T, sigma=2)
         im = ax.imshow(
@@ -154,7 +215,34 @@ class Reporter:
             document.add_paragraph(f"Chart: {name}:")
             document.add_picture(memfile, width=Inches(6.0))
             plt.close(fig)
-        file_path = f"{output_path}.docx"
+
+        # Add Event Log Appendix
+        document.add_page_break()
+        document.add_heading("Appendix: ROI Event Log", level=2)
+        event_log_df = self.r_analyzer.get_event_log()
+
+        if not event_log_df.empty:
+            document.add_paragraph(
+                "Chronological log of all entries and exits from defined ROIs."
+            )
+            table = document.add_table(rows=1, cols=len(event_log_df.columns))
+            table.style = "Table Grid"
+            # Add header row
+            for i, col_name in enumerate(event_log_df.columns):
+                table.cell(0, i).text = str(col_name)
+            # Add data rows
+            for _, row in event_log_df.iterrows():
+                cells = table.add_row().cells
+                for i, value in enumerate(row):
+                    # Format timestamp for readability
+                    if isinstance(value, pd.Timestamp):
+                        cells[i].text = value.strftime("%H:%M:%S.%f")[:-3]
+                    else:
+                        cells[i].text = str(value)
+        else:
+            document.add_paragraph("No ROI entry or exit events were recorded.")
+
+        file_path = f"{output_path}"
         document.save(file_path)
         print(f"Individual report saved to: {file_path}")
 

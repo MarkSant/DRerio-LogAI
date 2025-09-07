@@ -127,6 +127,8 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.video_list_var = StringVar(value="No videos selected.")
         self.use_timed_recording_var = BooleanVar(value=False)
         self.recording_duration_var = StringVar(value="5")
+        self.use_countdown_var = BooleanVar(value=False)
+        self.countdown_duration_var = StringVar(value="5")
 
         # Vars for live project experimental design
         self.total_days_var = StringVar(value="1")
@@ -216,7 +218,20 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.live_options_frame, textvariable=self.recording_duration_var, width=5
         )
         self.duration_entry.pack(side="left", padx=5)
-        Label(self.live_options_frame, text="minutes").pack(side="left")
+        Label(self.live_options_frame, text="minutes").pack(side="left", padx=(0, 10))
+
+        # Countdown options
+        Checkbutton(
+            self.live_options_frame,
+            text="Use countdown?",
+            variable=self.use_countdown_var,
+            command=self._update_project_type_options,
+        ).pack(side="left")
+        self.countdown_entry = Entry(
+            self.live_options_frame, textvariable=self.countdown_duration_var, width=5
+        )
+        self.countdown_entry.pack(side="left", padx=5)
+        Label(self.live_options_frame, text="seconds").pack(side="left")
 
         # --- Live Project Experimental Design ---
         self.live_project_frame = ttk.LabelFrame(
@@ -316,6 +331,11 @@ class CreateProjectDialog(simpledialog.Dialog):
             else:
                 self.duration_entry.config(state="disabled")
 
+            if self.use_countdown_var.get():
+                self.countdown_entry.config(state="normal")
+            else:
+                self.countdown_entry.config(state="disabled")
+
     def validate(self):
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
@@ -385,6 +405,16 @@ class CreateProjectDialog(simpledialog.Dialog):
                         "Error", "Recording duration must be a positive number."
                     )
                     return 0
+            if self.use_countdown_var.get():
+                try:
+                    countdown = int(self.countdown_duration_var.get())
+                    if countdown <= 0:
+                        raise ValueError("Countdown must be a positive integer.")
+                except ValueError:
+                    messagebox.showerror(
+                        "Error", "Countdown duration must be a positive integer."
+                    )
+                    return 0
         return 1
 
     def apply(self):
@@ -396,6 +426,13 @@ class CreateProjectDialog(simpledialog.Dialog):
             except ValueError:
                 pass  # Should be caught by validate
 
+        countdown_duration = 0
+        if self.use_countdown_var.get():
+            try:
+                countdown_duration = int(self.countdown_duration_var.get())
+            except ValueError:
+                pass
+
         self.result = {
             "project_path": self.project_path,
             "project_type": self.project_type_var.get(),
@@ -405,6 +442,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "use_timed_recording": self.use_timed_recording_var.get(),
             "recording_duration_s": duration,
+            "use_countdown": self.use_countdown_var.get(),
+            "countdown_duration_s": countdown_duration,
             # Initialize new keys to None
             "experiment_days": None,
             "subjects_per_group": None,

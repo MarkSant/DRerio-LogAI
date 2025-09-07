@@ -36,6 +36,7 @@ class BehavioralAnalyzer(ABC):
         pixelcm_y: float,
         video_height_px: int,
         arena_polygon_px: List[Tuple[float, float]],
+        fps: float = 30.0,
         window_length: int = 7,
         polyorder: int = 3,
     ):
@@ -52,6 +53,8 @@ class BehavioralAnalyzer(ABC):
                 used for inverting the Y-axis.
             arena_polygon_px (List[Tuple[float, float]]): A list of (x, y)
                 tuples defining the arena's vertices in pixels.
+            fps (float, optional): Frames per second of the source video.
+                Defaults to 30.0.
             window_length (int, optional): The window length for the
                 Savitzky-Golay filter. Must be an odd integer. Defaults to 7.
             polyorder (int, optional): The polynomial order for the
@@ -63,6 +66,8 @@ class BehavioralAnalyzer(ABC):
 
         self._pixelcm_x = pixelcm_x
         self._pixelcm_y = pixelcm_y
+        self._video_height_px = video_height_px
+        self.fps = fps
 
         # Store arena geometry in cm
         arena_coords_cm = [
@@ -391,3 +396,81 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     def get_thigmotaxis_timeseries(self) -> pd.Series:
         # Not implemented for this concrete class
         raise NotImplementedError("Thigmotaxis is not implemented in this class.")
+
+    def calculate_sharp_turns(
+        self, threshold_deg_s: float, cooldown_s: float = 0.5
+    ) -> Dict[str, float]:
+        """
+        Calculates the number of sharp turns based on angular velocity.
+
+        Args:
+            threshold_deg_s (float): The threshold in degrees per second to
+                define a sharp turn.
+            cooldown_s (float): The minimum time in seconds before another
+                sharp turn can be detected.
+
+        Returns:
+            A dictionary with the count of sharp turns and the rate per minute.
+        """
+        df = self._trajectory_data
+        if len(df) < 2:
+            return {"sharp_turns_count": 0, "sharp_turns_per_minute": 0.0}
+
+        # 1. Use smoothed trajectory
+        x = df["x_cm_smoothed"]
+        y = df["y_cm_smoothed"]
+
+        # 2. Calculate displacements
+        dx = x.diff()
+        dy = y.diff()
+
+        # 3. Calculate angle
+        angle_rad = np.arctan2(dy, dx)
+
+        # 4. Calculate change in angle
+        d_theta = angle_rad.diff()
+
+        # 5. Correct for wraparound from -pi to +pi
+        d_theta = (d_theta + np.pi) % (2 * np.pi) - np.pi
+
+        # 6. Convert to degrees
+        d_theta_deg = np.degrees(d_theta)
+
+        # 7. Calculate time interval in seconds
+        dt = 1.0 / self.fps
+
+        # 8. Calculate angular velocity
+        angular_velocity_deg_s = d_theta_deg / dt
+
+        # 9. Identify sharp turns
+        potential_turns = angular_velocity_deg_s[
+            angular_velocity_deg_s.abs() > threshold_deg_s
+        ]
+
+        if potential_turns.empty:
+            return {"sharp_turns_count": 0, "sharp_turns_per_minute": 0.0}
+
+        # Handle the first turn, then iterate and apply cooldown
+        turn_times = potential_turns.index
+        last_turn_time = turn_times[0]
+        sharp_turns_count = 1
+        cooldown_td = pd.to_timedelta(cooldown_s, unit="s")
+
+        for timestamp in turn_times[1:]:
+            if timestamp - last_turn_time > cooldown_td:
+                sharp_turns_count += 1
+                last_turn_time = timestamp
+
+        # Calculate total duration for per-minute metric
+        total_duration_s = (df.index[-1] - df.index[0]).total_seconds()
+        total_duration_minutes = total_duration_s / 60.0
+
+        if total_duration_minutes > 0:
+            sharp_turns_per_minute = sharp_turns_count / total_duration_minutes
+        else:
+            sharp_turns_per_minute = 0.0
+
+        return {
+            "sharp_turns_count": sharp_turns_count,
+            "sharp_turns_per_minute": sharp_turns_per_minute,
+        }

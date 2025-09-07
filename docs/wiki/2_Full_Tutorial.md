@@ -8,73 +8,80 @@ This tutorial will guide you through a complete analysis workflow in ZebTrack-AI
 
 ### Step 1: Create a New Project
 
-A "Project" in ZebTrack-AI is a folder that contains your videos and all the results and settings associated with them.
+A "Project" in ZebTrack-AI is a folder that contains your videos, configuration, and all generated results.
 
 1.  **Start a New Project:**
-    *   Click the **"New Project"** button on the main screen.
-    *   A dialog box will ask you to select a folder. Choose the folder that contains the video files you want to analyze. It's best to have all videos for one experiment in a single folder.
+    *   Click the **"Create New Project"** button on the main screen.
+    *   The project creation dialog will appear.
 
-2.  **Project View:**
-    *   After selecting a folder, the application will switch to the "Project View".
-    *   On the left, you will see a list of all the video files found in your project folder.
-    *   On the right, you will see a panel for defining your experimental setup.
+2.  **Configure Your Project:**
+    *   **Project Name & Folder:** Give your project a name and select a parent directory where the project folder will be created.
+    *   **Project Type:**
+        *   **Pre-recorded:** Choose this if you have existing video files to analyze.
+        *   **Live:** Choose this for real-time tracking and recording from a camera.
+    *   **Calibration:** Enter the real-world width and height of your arena in centimeters. This is crucial for accurate measurements.
+    *   **Live Options (for Live projects):**
+        *   **Timed Recording:** Set a fixed duration for your recordings.
+        *   **Countdown:** Enable a countdown timer that will appear on screen before a recording starts, ensuring you are ready.
+    *   **Experimental Design (for Live projects):** Define the structure of your experiment by specifying the number of days, groups, and subjects per group.
 
-    [Screenshot of the Project View, showing the video list and settings panel]
+    [Screenshot of the new Create Project Dialog]
 
----
-
-### Step 2: Define Your Arena and Regions of Interest (ROIs)
-
-Before tracking, you must tell ZebTrack-AI where to look for animals and define any specific zones you are interested in.
-
-1.  **Draw the Processing Area:**
-    *   Click the **"Draw Processing Area"** button.
-    *   Your mouse cursor will change. Click on the corners of the fish tank or arena in the video preview. This tells the software the boundaries of the area where tracking should occur.
-    *   Right-click to finish drawing. The area will be highlighted.
-
-2.  **Define a Scale for Calibration:**
-    *   Click the **"Set Scale"** button.
-    *   Draw a line across a known distance in the video (e.g., the width of the tank).
-    *   A dialog will appear asking for the real-world length of this line in centimeters. This step is crucial for converting pixel measurements into meaningful real-world units (cm).
-
-3.  **Draw Regions of Interest (Optional):**
-    *   If you want to measure time spent in specific zones (e.g., the center vs. the edges of the tank), click the **"Add ROI"** button.
-    *   Draw a rectangle over an area of interest and give it a name when prompted (e.g., "Center Zone"). You can add multiple ROIs.
-
-    [Screenshot showing a video preview with the processing area, scale line, and a few ROIs drawn on it]
+3.  **Load the Project:**
+    *   Once created, the project will load, and you will be taken to the main control view.
 
 ---
 
-### Step 3: Run the Analysis
+### Step 2: Define Detection Zones
 
-With your project set up, you are ready to run the tracking and analysis.
+Before analysis, you must tell ZebTrack-AI where to look for animals (the main processing area) and define any specific Regions of Interest (ROIs).
 
-1.  **Start the Batch Process:**
-    *   Click the **"Run Batch Analysis"** button in the main control panel.
-    *   ZebTrack-AI will now go through each video in your project list, one by one.
-    *   The status bar at the bottom of the window will show the progress.
+1.  **Navigate to the "Configuração de Zonas" Tab.**
+2.  **Define the Main Arena:**
+    *   Click **"Detectar Aquário (Auto)"** to let the AI find the main arena boundary automatically.
+    *   Alternatively, manually draw the boundary using the **"Desenhar Polígono Principal"** button. Click to add points and right-click to finish.
+3.  **Define Regions of Interest (ROIs):**
+    *   Click **"Desenhar Área de Interesse"** to draw rectangular ROIs inside your main arena. These are the zones for which detailed intra-ROI metrics will be calculated.
+    *   Give each ROI a unique name and assign it a color.
 
-2.  **Wait for Completion:**
-    *   This process may take some time, depending on the number and length of your videos.
-    *   Once finished, a "Batch analysis complete!" message will appear.
+    [Screenshot showing the Zone Configuration tab with a video, a main polygon, and several colored ROIs.]
+
+---
+
+### Step 3: Process Videos and Generate Reports
+
+1.  **Add and Process Videos (for Pre-recorded projects):**
+    *   In the "Main Control" tab, click **"Add and Process New Videos/Folders..."**.
+    *   Select your video files. The application will first run detection and tracking, and then immediately perform the behavioral analysis.
+
+2.  **Start Recording (for Live projects):**
+    *   Go to the "Progresso do Experimento" tab to see your experimental grid.
+    *   Click on a cell to select a specific subject for a session.
+    *   Click **"Start Recording"** in the "Main Control" tab. If you enabled the countdown, it will appear now.
+    *   After recording, the analysis is run automatically.
 
 ---
 
 ### Step 4: Explore and Interpret Your Results
 
-After the analysis is complete, the "Reports" tab will become active. This is where you can visualize and export your data.
+The "Reporting" tab is your hub for results.
 
-1.  **Select an Experiment:**
-    *   Use the dropdown menu at the top of the "Reports" tab to select the specific video (experiment) you want to view.
+1.  **View Processed Videos:**
+    *   The list shows all videos that have been processed. You can select one or more videos to include in a report.
 
-2.  **View Trajectory and Heatmap:**
-    *   Click **"Generate Trajectory Plot"** to see the path the animal took during the trial.
-    *   Click **"Generate Heatmap"** to see a visual representation of where the animal spent the most time.
+2.  **Generate Reports:**
+    *   **Generate Report for Selected:** Creates a report for only the videos you have highlighted in the list.
+    *   **Generate Unified Report (All):** Creates a single report containing data from all videos in the project.
 
-    [Screenshot of the Reports tab, showing a trajectory plot on the left and the control buttons on the right]
+3.  **Export Formats:**
+    *   When saving, you can choose from several formats:
+        *   **Excel (`.xlsx`):** A tidy spreadsheet with all calculated metrics.
+        *   **CSV (`,csv`):** A simple comma-separated file for maximum compatibility.
+        *   **Parquet (`.parquet`):** A highly efficient, column-oriented format ideal for large datasets and analysis in Python or R.
+    *   A detailed **Word (`.docx`)** report is also generated alongside Excel/CSV exports, containing summary tables, plots, and an **Event Appendix**—a chronological log of every time the animal entered or exited an ROI.
 
-3.  **Export Your Data:**
-    *   **For a single experiment:** Use the "Export Data" or "Export Visual Report" buttons to save the plots and summary data for the currently selected experiment.
-    *   **For the entire project:** In your project folder, you will find a file named **`project_summary.xlsx`**. This Excel file contains all the key behavioral metrics for every video in your project, ready for statistical analysis.
+4.  **New Metrics to Explore:**
+    *   **Sharp Turns:** The number of times the animal exceeded a turning-rate threshold (e.g., 90 degrees/sec). Useful for measuring anxiety or startle responses.
+    *   **Intra-ROI Metrics:** For each ROI you defined, you now get specific metrics like distance traveled, average velocity, and time spent freezing *only within that zone*.
 
 Congratulations! You have successfully completed a full analysis in ZebTrack-AI.
