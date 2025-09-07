@@ -31,6 +31,12 @@ video_processing:
   # Frame offset for processing. With an offset of 1 and interval of 10,
   # frames 1, 11, 21, etc., will be processed.
   processing_offset: 1
+  # Threshold for detecting a "sharp turn" in degrees per second.
+  sharp_turn_threshold_deg_s: 90.0
+  # Velocity threshold for freezing detection (cm/s).
+  freezing_velocity_threshold: 2.0
+  # Minimum duration for a freezing episode (seconds).
+  freezing_min_duration_s: 1.0
 
 reproducibility:
   # Seed for random number generators to ensure that repeated runs with the

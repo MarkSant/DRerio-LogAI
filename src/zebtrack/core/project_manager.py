@@ -106,6 +106,10 @@ class ProjectManager:
         num_aquariums: int = 1,
         aquarium_width_cm: float = 0.0,
         aquarium_height_cm: float = 0.0,
+        use_timed_recording: bool = False,
+        recording_duration_s: int = 0,
+        use_countdown: bool = False,
+        countdown_duration_s: int = 0,
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
@@ -153,6 +157,10 @@ class ProjectManager:
             },
             "use_openvino": use_openvino,
             "active_weight": active_weight,
+            "use_timed_recording": use_timed_recording,
+            "recording_duration_s": recording_duration_s,
+            "use_countdown": use_countdown,
+            "countdown_duration_s": countdown_duration_s,
             "batches": [],  # Changed from "videos" to "batches"
             "groups": group_names if project_type == "live" else [],
             "experiment_days": experiment_days if project_type == "live" else None,
@@ -350,25 +358,47 @@ class ProjectManager:
     def get_metadata_for_experiment(self, experiment_id: str) -> dict:
         """
         Retrieves a dictionary of metadata for a given experiment ID.
+        It first checks the loaded metadata.csv file. If the experiment is not
+        found, it attempts to parse the experiment_id using a regex as a fallback.
 
         Args:
-            experiment_id: The ID of the experiment, typically the subfolder name.
+            experiment_id: The ID of the experiment (e.g., the video file stem).
 
         Returns:
-            A dictionary of metadata for that experiment, or an empty dict if not found.
+            A dictionary of metadata for that experiment.
         """
-        if self.metadata is None:
-            return {}
+        # First, try to find the data in the metadata.csv file
+        if self.metadata is not None and "experiment_id" in self.metadata.columns:
+            row = self.metadata[self.metadata["experiment_id"] == experiment_id]
+            if not row.empty:
+                return row.iloc[0].to_dict()
 
-        # Ensure 'experiment_id' column exists
-        if 'experiment_id' not in self.metadata.columns:
-            log.warning("project.metadata.no_id_column")
-            return {}
+        # Fallback: Try to extract from experiment_id using regex
+        log.info(
+            "metadata.fallback.attempt",
+            experiment_id=experiment_id,
+            reason="Not found in metadata.csv",
+        )
+        pattern = re.compile(r"D(\d+)_G(.+)_S(\d+)")
+        match = pattern.match(experiment_id)
+        if match:
+            try:
+                day = int(match.group(1))
+                group = match.group(2)
+                subject = int(match.group(3))
+                log.info(
+                    "metadata.fallback.success",
+                    day=day,
+                    group=group,
+                    subject=subject,
+                )
+                return {"day": day, "group": group, "subject": subject}
+            except (ValueError, IndexError):
+                log.warning(
+                    "metadata.fallback.parse_error", experiment_id=experiment_id
+                )
 
-        row = self.metadata[self.metadata['experiment_id'] == experiment_id]
-        if not row.empty:
-            return row.iloc[0].to_dict()
-
+        # If neither method works, return an empty dictionary
         return {}
 
     def get_completed_sessions(self) -> set[tuple[int, str, int]]:

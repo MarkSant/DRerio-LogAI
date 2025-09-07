@@ -9,12 +9,19 @@ ZebTrack-AI is a user-friendly desktop application designed for researchers to p
 *   **Multi-Animal Tracking:** Utilizes state-of-the-art models (YOLOv8) to reliably track multiple animals simultaneously.
 *   **Automated Behavioral Analysis:** Automatically calculates a wide range of behavioral metrics, including:
     *   Total distance traveled and velocity
+    *   **Sharp Turns:** Identifies and counts rapid changes in direction based on angular velocity.
+    *   **Intra-ROI Metrics:** Detailed statistics for behavior *within* each defined region, including distance, velocity, and freezing.
     *   Freezing episodes (time spent immobile)
     *   Thigmotaxis (wall-hugging behavior)
     *   Tortuosity (path complexity)
+*   **Flexible Live Recording:**
+    *   **Countdown Timer:** An optional on-screen countdown to ensure experiments start precisely when you're ready.
+    *   **Timed Recording:** Set a specific duration for your live recordings.
 *   **Interactive ROI Definition:** Easily define custom regions of interest (ROIs) to analyze location-specific behaviors.
 *   **User-Friendly Interface:** A simple, point-and-click interface that guides you through creating projects, running analyses, and exploring results. No programming required.
-*   **Comprehensive Data Export:** Exports all data into easy-to-use formats like Excel (`.xlsx`) and Parquet (`.parquet`), along with high-quality plots for publication.
+*   **Comprehensive Data Export:**
+    *   **Multiple Formats:** Exports summary data into tidy formats ready for analysis in R, Python, or SPSS: Excel (`.xlsx`), CSV (`,csv`), and Parquet (`.parquet`).
+    *   **Detailed Word Reports:** Generates `.docx` reports with summary tables, plots, and a chronological **Event Appendix** logging every ROI entry and exit.
 
 ---
 

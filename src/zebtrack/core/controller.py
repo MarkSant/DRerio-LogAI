@@ -9,11 +9,13 @@ import cv2
 import numpy as np
 import pandas as pd
 import structlog
+from shapely.geometry import box
 
-from zebtrack.analysis.behavioral_analyzer import BehavioralAnalyzer
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.reporter import Reporter
-from zebtrack.analysis.roi_analyzer import ROIAnalyzer
+from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
@@ -359,6 +361,33 @@ class AppController:
                 os.remove(temp_video_path)
             self.view.set_status("Pronto.")
 
+    def _run_countdown(self, duration_s: int, callback):
+        """Displays a countdown window and then executes a callback."""
+        from tkinter import Toplevel, Label
+
+        countdown_window = Toplevel(self.root)
+        countdown_window.overrideredirect(True)  # Remove title bar
+        countdown_label = Label(
+            countdown_window, font=("Helvetica", 150, "bold"), bg="black", fg="white"
+        )
+        countdown_label.pack(expand=True, fill="both")
+
+        # Center the window
+        win_w, win_h = 200, 200
+        pos_x = (self.root.winfo_screenwidth() // 2) - (win_w // 2)
+        pos_y = (self.root.winfo_screenheight() // 2) - (win_h // 2)
+        countdown_window.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+
+        def update_timer(seconds_left):
+            if seconds_left > 0:
+                countdown_label.config(text=str(seconds_left))
+                self.root.after(1000, lambda: update_timer(seconds_left - 1))
+            else:
+                countdown_window.destroy()
+                callback()
+
+        update_timer(duration_s)
+
     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
         """Starts a recording session (live mode)."""
         log.info("controller.recording.start")
@@ -391,34 +420,48 @@ class AppController:
         output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
-        # 4. Start the recorder
-        zone_data = self.project_manager.get_zone_data()
-        self.is_recording = self.recorder.start_recording(
-            output_folder,
-            self.view.camera.actual_width,
-            self.view.camera.actual_height,
-            zones=zone_data,
-        )
+        # 4. Define the core recording logic as a callable
+        def _do_record():
+            zone_data = self.project_manager.get_zone_data()
+            self.is_recording = self.recorder.start_recording(
+                output_folder,
+                self.view.camera.actual_width,
+                self.view.camera.actual_height,
+                zones=zone_data,
+            )
 
-        if not self.is_recording:
-            self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
-            return
+            if not self.is_recording:
+                self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
+                return
 
-        # 5. Update UI
-        self.view.update_button_state("start_rec", "disabled")
-        self.view.update_button_state("stop_rec", "normal")
-        self.view.set_status(f"Recording session: {folder_name}")
+            # Update UI
+            self.view.update_button_state("start_rec", "disabled")
+            self.view.update_button_state("stop_rec", "normal")
+            self.view.set_status(f"Recording session: {folder_name}")
 
-        # 6. Handle timed recording if enabled
+            # Handle timed recording if enabled
+            project_data = self.project_manager.project_data
+            if project_data.get("use_timed_recording"):
+                duration_s = project_data.get("recording_duration_s", 0)
+                if duration_s > 0:
+                    duration_ms = int(duration_s * 1000)
+                    self.timed_recording_job = self.root.after(
+                        duration_ms, self.stop_recording
+                    )
+                    log.info(
+                        "controller.recording.timed_start", duration_s=duration_s
+                    )
+
+        # 5. Check for countdown and execute recording logic
         project_data = self.project_manager.project_data
-        if project_data.get("use_timed_recording"):
-            duration_s = project_data.get("recording_duration_s", 0)
-            if duration_s > 0:
-                duration_ms = int(duration_s * 1000)
-                self.timed_recording_job = self.root.after(
-                    duration_ms, self.stop_recording
-                )
-                log.info("controller.recording.timed_start", duration_s=duration_s)
+        if project_data.get("use_countdown"):
+            countdown_s = project_data.get("countdown_duration_s", 0)
+            if countdown_s > 0:
+                self._run_countdown(countdown_s, _do_record)
+            else:
+                _do_record()  # Countdown enabled but duration is 0, record immediately
+        else:
+            _do_record()  # No countdown, record immediately
 
     def stop_recording(self):
         """Stops the current recording session."""
@@ -576,16 +619,14 @@ class AppController:
         single_video_config: dict | None = None,
     ):
         """
-        Private helper to process a list of videos and save results.
+        Private helper to process a list of videos and save results using the
+        new concrete analysis classes.
         """
         log.info("controller.processing.start", count=len(videos_to_process))
         self.view.set_status(
             f"Starting processing for {len(videos_to_process)} videos..."
         )
         self.view.update_idletasks()
-
-        b_analyzer = BehavioralAnalyzer()
-        r_analyzer = ROIAnalyzer()
 
         for i, video_info in enumerate(videos_to_process):
             video_path = video_info["path"]
@@ -595,42 +636,127 @@ class AppController:
             )
             self.view.update_idletasks()
 
-            if single_video_config:
-                # Use the provided config as metadata
-                metadata = single_video_config
-            else:
-                # Get metadata from the project file
-                metadata = self.project_manager.get_metadata_for_experiment(
-                    experiment_id
-                )
-
-            # Perform analysis
-            b_results = b_analyzer.analyze(video_path)
-            r_results = r_analyzer.analyze(video_path)
-            reporter = Reporter(b_results, r_results, metadata)
-
             # Define where to save results for this video
-            # In project mode, it's a sub-folder. In single mode, it's the main
-            # output dir.
             if self.project_manager.project_path:
                 results_dir = os.path.join(output_base_dir, f"{experiment_id}_results")
             else:
                 results_dir = output_base_dir
             os.makedirs(results_dir, exist_ok=True)
 
-            # Save all results
-            reporter.tidy_data.to_parquet(
-                os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-            )
-            # We need a placeholder for tracking data for now
-            tracking_data_placeholder = np.array([[0, 0]])
-            np.save(
-                os.path.join(results_dir, f"{experiment_id}_tracking.npy"),
-                tracking_data_placeholder,
-            )
-            reporter.export_individual_report(
-                os.path.join(results_dir, f"{experiment_id}_report")
-            )
+            try:
+                # 1. Load trajectory data
+                trajectory_path = os.path.join(
+                    results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
+                )
+                if not os.path.exists(trajectory_path):
+                    log.error(
+                        "controller.processing.no_trajectory", path=trajectory_path
+                    )
+                    self.view.show_error(
+                        "Processing Error",
+                        f"Trajectory file not found for {experiment_id}. "
+                        "Please ensure detection/tracking was run first.",
+                    )
+                    continue  # Skip to the next video
+
+                trajectory_df = pd.read_parquet(trajectory_path)
+
+                # 2. Get calibration and geometry data
+                proj_data = self.project_manager.project_data
+                calib_data = proj_data.get("calibration", {})
+                width_cm = calib_data.get("aquarium_width_cm")
+                height_cm = calib_data.get("aquarium_height_cm")
+
+                zone_data = self.project_manager.get_zone_data()
+                arena_polygon_px = zone_data.polygon
+                video_height_px = settings.camera.desired_height
+
+                if not all([width_cm, height_cm, arena_polygon_px]):
+                    log.error("controller.processing.no_calibration")
+                    self.view.show_error(
+                        "Processing Error",
+                        "Project calibration data (dimensions, arena) is incomplete.",
+                    )
+                    continue
+
+                # 3. Instantiate Calibration to get pixel/cm ratios
+                cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
+                pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
+                if not all([pixelcm_x, pixelcm_y]):
+                    log.error("controller.processing.bad_calibration_ratio")
+                    self.view.show_error(
+                        "Processing Error",
+                        "Could not calculate pixel-to-cm ratio. Check arena polygon.",
+                    )
+                    continue
+
+                # 4. Instantiate the real analyzers
+                b_analyzer = ConcreteBehavioralAnalyzer(
+                    trajectory_df=trajectory_df,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height_px,
+                    arena_polygon_px=arena_polygon_px,
+                    fps=settings.video_processing.fps,
+                )
+
+                rois = []
+                roi_colors = {}
+                # Assuming square names are just "ROI 1", "ROI 2", etc.
+                for j, square_coords in enumerate(zone_data.squares):
+                    name = f"ROI {j+1}"
+                    # Create a shapely box from the two corner points
+                    geom = box(
+                        square_coords[0][0],
+                        square_coords[0][1],
+                        square_coords[1][0],
+                        square_coords[1][1],
+                    )
+                    rois.append(ROI(name=name, geometry=geom))
+                    # Store color for the reporter
+                    if j < len(zone_data.colors):
+                        roi_colors[name] = zone_data.colors[j]
+
+                r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=rois)
+
+                # 5. Get metadata
+                if single_video_config:
+                    metadata = single_video_config
+                else:
+                    metadata = self.project_manager.get_metadata_for_experiment(
+                        experiment_id
+                    )
+
+                # 6. Generate and save reports
+                reporter = Reporter(
+                    b_analyzer,
+                    r_analyzer,
+                    metadata,
+                    roi_colors,
+                    sharp_turn_threshold=settings.video_processing.sharp_turn_threshold_deg_s,
+                    freezing_threshold=settings.video_processing.freezing_velocity_threshold,
+                    freezing_duration=settings.video_processing.freezing_min_duration_s,
+                )
+                reporter.export_summary_data(
+                    os.path.join(results_dir, f"{experiment_id}_summary.xlsx"),
+                    format="excel",
+                )
+                reporter.export_individual_report(
+                    os.path.join(results_dir, f"{experiment_id}_report.docx")
+                )
+
+            except Exception as e:
+                log.error(
+                    "controller.processing.error",
+                    video=experiment_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                self.view.show_error(
+                    "Analysis Error",
+                    f"An unexpected error occurred while processing {experiment_id}:\n{e}",
+                )
+                continue
 
         self.view.set_status("Processing complete!")
 
@@ -676,12 +802,33 @@ class AppController:
             title=f"Save {report_type.capitalize()} Report",
             defaultextension=".xlsx",
             initialfile=f"{report_type}_report.xlsx",
+            filetypes=[
+                ("Excel Workbook", "*.xlsx"),
+                ("CSV File", "*.csv"),
+                ("Parquet File", "*.parquet"),
+                ("All files", "*.*"),
+            ],
         )
         if not save_path:
             return
 
-        # Export to Excel and a combined visual report
-        aggregated_df.to_excel(save_path, index=False)
-        Reporter.export_project_report(aggregated_df, os.path.splitext(save_path)[0])
+        # Determine format from extension and export data
+        file_extension = os.path.splitext(save_path)[1].lower()
+        if file_extension == ".xlsx":
+            aggregated_df.to_excel(save_path, index=False)
+        elif file_extension == ".csv":
+            aggregated_df.to_csv(save_path, index=False)
+        elif file_extension == ".parquet":
+            aggregated_df.to_parquet(save_path, index=False)
+        else:
+            # Default to Excel if extension is unknown or missing
+            if not file_extension:
+                save_path += ".xlsx"
+            aggregated_df.to_excel(save_path, index=False)
+
+        # Also generate the visual .docx report, except for parquet
+        if file_extension != ".parquet":
+            docx_path = os.path.splitext(save_path)[0] + "_report.docx"
+            Reporter.export_project_report(aggregated_df, docx_path)
 
         self.view.show_info("Report Generated", f"Report saved to:\n{save_path}")

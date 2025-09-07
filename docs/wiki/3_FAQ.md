@@ -46,8 +46,26 @@ Click the **"Load Project Results"** button in the main control panel. This will
 
 ---
 
+### **Q: What do the 'Sharp Turns' or 'Intra-ROI' metrics mean?**
+
+**A:** These are new, advanced metrics designed to provide deeper insight into behavior:
+
+*   **Sharp Turns:** This metric counts how many times the animal's turning speed exceeds a set threshold (e.g., 90 degrees per second). It's a useful indicator of anxiety, stress, or startle responses, where an animal might suddenly and rapidly change direction.
+*   **Intra-ROI Metrics:** While older versions could tell you how much time was spent in a zone, the new version goes deeper. It calculates metrics like *total distance traveled*, *average speed*, and *time spent freezing* specifically and only *within each Region of Interest (ROI)* you define. This allows you to answer more complex questions, such as "Is the animal moving faster in the center of the tank compared to the edges?"
+
+---
+
+### **Q: What is Parquet format and why should I use it?**
+
+**A:** Parquet is a modern, highly efficient file format for storing data. When you export your project summary, you now have the option to save as `.parquet` in addition to `.xlsx` (Excel) and `.csv`.
+
+*   **Why choose Parquet?** If you have a very large dataset (e.g., hundreds of videos), Parquet files will be much smaller and significantly faster to load into analysis software like Python (with pandas) or R (with the `arrow` package).
+*   **When to stick with Excel?** If you prefer to view your data directly or work primarily in Excel, the `.xlsx` format is still the best choice for you.
+
+---
+
 ### **Q: Where are my final data files saved?**
 
 **A:** All of your data is saved inside your Project Folder. For each video you analyze, a new subfolder named `{video_name}_results` is created. Inside, you will find plots and raw data for that specific trial.
 
-For a summary of your entire experiment, look for the **`project_summary.xlsx`** file in the main root of your Project Folder. This single Excel file contains the most important behavioral metrics for all the videos you processed.
+For a summary of your entire experiment, you can now choose your export format. Look for the file you saved (e.g., `project_summary.xlsx`, `project_summary.csv`, or `project_summary.parquet`) in the location you chose in the save dialog.
