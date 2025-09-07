@@ -1767,7 +1767,7 @@ class ApplicationGUI:
             processing_time = end_time - start_time
 
             # --- Update UI ---
-            log.info(
+            log.debug(
                 "gui.file_processing_loop.progress",
                 frame=frame_number,
                 interval=processing_interval,

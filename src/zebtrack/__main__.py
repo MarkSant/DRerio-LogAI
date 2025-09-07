@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import sys
 import tkinter as tk
 from tkinter import messagebox
@@ -10,11 +11,13 @@ from zebtrack.settings import settings
 from zebtrack.utils import set_seed
 
 
-def main():
+def configure_logging():
     """
-    Initializes and runs the application.
+    Configures logging for the application.
+
+    This function sets up structlog to process logs and configures handlers
+    for both console and file output.
     """
-    # Configure logging with structlog
     structlog.configure(
         processors=[
             structlog.stdlib.add_log_level,
@@ -31,13 +34,26 @@ def main():
         cache_logger_on_first_use=True,
     )
 
-    # Route standard library logs to structlog
+    # File handler with rotation
+    file_handler = logging.handlers.RotatingFileHandler(
+        "analysis.log", maxBytes=5 * 1024 * 1024, backupCount=5, mode="a"
+    )
+    # Console handler for development
+    console_handler = logging.StreamHandler(sys.stdout)
+
+    # Basic config for routing standard logs to structlog
     logging.basicConfig(
         level=logging.INFO,
         format="%(message)s",
-        handlers=[logging.FileHandler("analysis.log", mode="w")],
+        handlers=[file_handler, console_handler],
     )
 
+
+def main():
+    """
+    Initializes and runs the application.
+    """
+    configure_logging()
     log = structlog.get_logger()
 
     # --- Critical Check for Settings ---
