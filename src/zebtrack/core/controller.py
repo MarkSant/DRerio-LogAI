@@ -728,6 +728,21 @@ class AppController:
                     metadata = self.project_manager.get_metadata_for_experiment(
                         experiment_id
                     )
+                if not metadata:
+                    log.warning("metadata.not_found", experiment_id=experiment_id)
+                    # Ask user for input
+                    metadata = self.view.ask_missing_metadata(experiment_id)
+                    if not metadata:
+                        log.error(
+                            "metadata.user_cancelled", experiment_id=experiment_id
+                        )
+                        self.view.show_warning(
+                            "Processing Skipped",
+                            f"Metadata was not provided for {experiment_id}. Skipping video.",
+                        )
+                        continue  # Skip to next video
+                    # Add experiment_id to user-provided metadata
+                    metadata["experiment_id"] = experiment_id
 
                 # 6. Generate and save reports
                 reporter = Reporter(
@@ -735,6 +750,7 @@ class AppController:
                     r_analyzer,
                     metadata,
                     roi_colors,
+                    video_path=video_path,
                     sharp_turn_threshold=settings.video_processing.sharp_turn_threshold_deg_s,
                     freezing_threshold=settings.video_processing.freezing_velocity_threshold,
                     freezing_duration=settings.video_processing.freezing_min_duration_s,

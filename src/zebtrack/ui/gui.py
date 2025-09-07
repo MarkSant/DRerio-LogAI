@@ -2040,6 +2040,11 @@ class ApplicationGUI:
         dialog = StartRecordingDialog(self.root, pm)
         return dialog.result
 
+    def ask_missing_metadata(self, experiment_id):
+        """Shows a dialog to get missing metadata from the user."""
+        dialog = MissingMetadataDialog(self.root, experiment_id)
+        return dialog.result
+
 
 class SingleVideoConfigDialog(simpledialog.Dialog):
     """A simplified dialog to get configuration for a single video analysis."""
@@ -2153,6 +2158,71 @@ class StartRecordingDialog(simpledialog.Dialog):
             "day": int(self.day_var.get()),
             "group": self.group_var.get(),
             "cobaia": self.subject_var.get(),
+        }
+
+
+class MissingMetadataDialog(simpledialog.Dialog):
+    def __init__(self, parent, experiment_id):
+        self.experiment_id = experiment_id
+        self.result = None
+        super().__init__(parent, "Missing Metadata")
+
+    def body(self, master):
+        Label(master, text=f"Could not automatically find metadata for:").pack(pady=5)
+        Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
+            pady=(0, 10)
+        )
+        Label(master, text="Please enter the details manually:").pack(pady=5)
+
+        self.day_var = StringVar()
+        self.group_var = StringVar()
+        self.cobaia_var = StringVar()
+
+        form_frame = Frame(master)
+        form_frame.pack(padx=10, pady=10)
+
+        Label(form_frame, text="Day:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        Entry(form_frame, textvariable=self.day_var).grid(
+            row=0, column=1, sticky="ew", padx=5
+        )
+
+        Label(form_frame, text="Group:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(form_frame, textvariable=self.group_var).grid(
+            row=1, column=1, sticky="ew", padx=5
+        )
+
+        Label(form_frame, text="Cobaia (Subject ID):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(form_frame, textvariable=self.cobaia_var).grid(
+            row=2, column=1, sticky="ew", padx=5
+        )
+
+        return form_frame
+
+    def validate(self):
+        try:
+            int(self.day_var.get())
+            int(self.cobaia_var.get())
+        except ValueError:
+            messagebox.showerror(
+                "Validation Error", "Day and Cobaia (Subject ID) must be integers."
+            )
+            return 0
+
+        if not self.group_var.get().strip():
+            messagebox.showerror("Validation Error", "Group name cannot be empty.")
+            return 0
+
+        return 1
+
+    def apply(self):
+        self.result = {
+            "day": int(self.day_var.get()),
+            "group": self.group_var.get().strip(),
+            "cobaia": int(self.cobaia_var.get()),
         }
 
 

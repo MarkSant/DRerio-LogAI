@@ -8,20 +8,28 @@ ZebTrack-AI is a user-friendly desktop application designed for researchers to p
 
 *   **Multi-Animal Tracking:** Utilizes state-of-the-art models (YOLOv8) to reliably track multiple animals simultaneously.
 *   **Automated Behavioral Analysis:** Automatically calculates a wide range of behavioral metrics, including:
-    *   Total distance traveled and velocity
-    *   **Sharp Turns:** Identifies and counts rapid changes in direction based on angular velocity.
-    *   **Intra-ROI Metrics:** Detailed statistics for behavior *within* each defined region, including distance, velocity, and freezing.
-    *   Freezing episodes (time spent immobile)
-    *   Thigmotaxis (wall-hugging behavior)
-    *   Tortuosity (path complexity)
+    *   **Core Metrics:** Total distance traveled, velocity statistics (mean, median, std dev), and path tortuosity.
+    *   **Sharp Turns:** Identifies and counts rapid changes in direction using a configurable angular velocity threshold (default: 90°/s).
+    *   **Freezing Episodes:** Detects periods of immobility based on velocity and duration thresholds.
+    *   **Thigmotaxis:** Calculates wall-hugging behavior.
+*   **Advanced ROI Analysis:**
+    *   **Interactive ROI Definition:** Easily draw custom polygonal regions of interest (ROIs) directly on a frame from your video.
+    *   **Intra-ROI Metrics:** Get detailed statistics for behavior *within* each defined region, including distance traveled, velocity, freezing episodes, entry/exit counts, and time spent.
+    *   **ROI Reference Map:** Automatically generate a numbered and colored map of your ROIs in reports for easy reference.
 *   **Flexible Live Recording:**
     *   **Countdown Timer:** An optional on-screen countdown to ensure experiments start precisely when you're ready.
     *   **Timed Recording:** Set a specific duration for your live recordings.
-*   **Interactive ROI Definition:** Easily define custom regions of interest (ROIs) to analyze location-specific behaviors.
-*   **User-Friendly Interface:** A simple, point-and-click interface that guides you through creating projects, running analyses, and exploring results. No programming required.
+*   **Rich Visualizations:**
+    *   **Advanced Plotting Suite:** Generates a comprehensive set of plots for each experiment:
+        *   Trajectory plot (with optional video frame background)
+        *   Positional Heatmap
+        *   Position (X/Y) vs. Time
+        *   Cumulative Distance vs. Time
+        *   Angular Velocity vs. Time (with sharp turns highlighted)
 *   **Comprehensive Data Export:**
-    *   **Multiple Formats:** Exports summary data into tidy formats ready for analysis in R, Python, or SPSS: Excel (`.xlsx`), CSV (`,csv`), and Parquet (`.parquet`).
-    *   **Detailed Word Reports:** Generates `.docx` reports with summary tables, plots, and a chronological **Event Appendix** logging every ROI entry and exit.
+    *   **Multiple Formats:** Export aggregated project data into tidy formats ready for analysis in R, Python, or SPSS: **Excel (`.xlsx`)**, **CSV (`,csv`)**, and **Apache Parquet (`.parquet`)**.
+    *   **Structured Excel Reports:** Exports a comprehensive Excel file with all global and ROI-specific metrics in a single, tidy sheet.
+    *   **Detailed Word Reports:** Generates detailed `.docx` reports for individual experiments and unified project summaries, complete with summary tables, all generated plots, and an event log.
 
 ---
 
@@ -38,18 +46,22 @@ Getting your research underway with ZebTrack-AI is simple.
     *   Open the downloaded application. You will be greeted by the main project window.
 
 3.  **Create a New Project:**
-    *   Click on **"New Project"** and select the folder containing your video files.
+    *   Click on **"New Project"** and select the folder where your project will be saved.
+    *   For pre-recorded analysis, select your video files.
 
 4.  **Run the Analysis:**
-    *   Once your project is loaded, click **"Run Batch Analysis"** to process all videos and generate your results. It's that simple!
+    *   Once your project is loaded, click **"Add and Process New Videos/Folders"** to start the analysis.
 
 ---
 
 ## Data Output
 
-When you run an analysis, ZebTrack-AI organizes the results into a subfolder for each video. The primary data file is `3_CoordMovimento_{video_name}.parquet`, which contains the core tracking data for each detected animal, including its timestamp, frame number, track ID, and bounding box coordinates.
+When you run an analysis, ZebTrack-AI organizes the results into a subfolder for each video (e.g., `MyVideo_results/`). This folder contains:
+-   `3_CoordMovimento_{video_name}.parquet`: The core trajectory data.
+-   `{video_name}_summary.xlsx`: A multi-sheet Excel file with global and ROI-specific metrics.
+-   `{video_name}_report.docx`: A full report with metadata, tables, and all generated plots.
 
-All summary data is aggregated into a `project_summary.xlsx` file at the root of your project, which is perfect for importing into statistical software like R, SPSS, or Prism.
+For project-wide analysis, you can generate a unified report in `.xlsx`, `.csv`, or `.parquet` format from the "Reporting" tab.
 
 ## License
 
