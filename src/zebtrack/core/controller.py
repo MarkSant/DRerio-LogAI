@@ -4,6 +4,7 @@ import os
 import tempfile
 import threading
 import time
+from tkinter import Label, Toplevel
 
 import cv2
 import numpy as np
@@ -363,8 +364,6 @@ class AppController:
 
     def _run_countdown(self, duration_s: int, callback):
         """Displays a countdown window and then executes a callback."""
-        from tkinter import Toplevel, Label
-
         countdown_window = Toplevel(self.root)
         countdown_window.overrideredirect(True)  # Remove title bar
         countdown_label = Label(
@@ -552,7 +551,8 @@ class AppController:
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
             self.view.show_warning(
-                "No Videos Found", "No new video files were found in the selected paths."
+                "No Videos Found",
+                "No new video files were found in the selected paths.",
             )
             return
 
@@ -609,7 +609,8 @@ class AppController:
 
         self.view.show_info(
             "Success",
-            f"{len(videos_to_process)} video(s) were processed and added to the project.",
+            f"{len(videos_to_process)} video(s) were processed and added to the "
+            "project.",
         )
 
     def _process_videos(
@@ -702,7 +703,8 @@ class AppController:
 
                 rois = []
                 roi_colors = {}
-                # Assuming square names are just "ROI 1", "ROI 2", etc.
+                # ROI names are generated based on the square's index,
+                # following the convention "ROI 1", "ROI 2", etc.
                 for j, square_coords in enumerate(zone_data.squares):
                     name = f"ROI {j+1}"
                     # Create a shapely box from the two corner points
@@ -754,7 +756,8 @@ class AppController:
                 )
                 self.view.show_error(
                     "Analysis Error",
-                    f"An unexpected error occurred while processing {experiment_id}:\n{e}",
+                    f"An unexpected error occurred while processing "
+                    f"{experiment_id}:\n{e}",
                 )
                 continue
 
@@ -793,7 +796,8 @@ class AppController:
 
         if not all_tidy_data:
             self.view.show_error(
-                "Report Error", "Could not find any summary data for the selected videos."
+                "Report Error",
+                "Could not find any summary data for the selected videos.",
             )
             return
 

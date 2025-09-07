@@ -5,7 +5,6 @@ from shapely.geometry import box
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.analysis.reporter import Reporter
 from zebtrack.core.project_manager import ProjectManager
 
 
@@ -36,8 +35,10 @@ def sharp_turn_trajectory():
             "timestamp": timestamps,
             "x_center_px": x_coords_px,
             "y_center_px": y_coords_px,
-            "x1": x_coords_px - 1, "y1": y_coords_px - 1,
-            "x2": x_coords_px + 1, "y2": y_coords_px + 1,
+            "x1": x_coords_px - 1,
+            "y1": y_coords_px - 1,
+            "x2": x_coords_px + 1,
+            "y2": y_coords_px + 1,
         }
     )
     metadata = {
@@ -48,6 +49,7 @@ def sharp_turn_trajectory():
         "arena_polygon_px": [(0, 0), (200, 0), (200, 200), (0, 200)],
         "window_length": 5,
         "polyorder": 2,
+        "fps": 10.0,
     }
     return metadata
 
@@ -58,12 +60,13 @@ def test_calculate_sharp_turns(sharp_turn_trajectory):
     """
     analyzer = ConcreteBehavioralAnalyzer(**sharp_turn_trajectory)
 
-    # The turn is 90 degrees over one time step (0.1s), so angular velocity is ~900 deg/s.
+    # The turn is ~90 deg over 0.1s, so angular velocity is ~900 deg/s.
     # A threshold of 400 deg/s should easily catch this.
     results = analyzer.calculate_sharp_turns(threshold_deg_s=400.0)
 
     assert results["sharp_turns_count"] == 1
-    assert results["sharp_turns_per_minute"] == pytest.approx(6.0) # 1 turn in 10s = 6 turns/min
+    # 1 turn in 10s = 6 turns/min
+    assert results["sharp_turns_per_minute"] == pytest.approx(6.0)
 
 
 @pytest.fixture
@@ -87,8 +90,10 @@ def roi_crossing_trajectory():
             "timestamp": timestamps,
             "x_center_px": x_coords_px,
             "y_center_px": y_coords_px,
-            "x1": x_coords_px - 1, "y1": y_coords_px - 1,
-            "x2": x_coords_px + 1, "y2": y_coords_px + 1,
+            "x1": x_coords_px - 1,
+            "y1": y_coords_px - 1,
+            "x2": x_coords_px + 1,
+            "y2": y_coords_px + 1,
         }
     )
 
@@ -112,8 +117,12 @@ def test_get_distance_in_roi(roi_crossing_trajectory):
     """
     Tests that distance traveled *inside* an ROI is calculated correctly.
     """
-    b_analyzer = ConcreteBehavioralAnalyzer(**{k: v for k, v in roi_crossing_trajectory.items() if k != 'rois'})
-    r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=roi_crossing_trajectory["rois"])
+    b_analyzer = ConcreteBehavioralAnalyzer(
+        **{k: v for k, v in roi_crossing_trajectory.items() if k != "rois"}
+    )
+    r_analyzer = ROIAnalyzer(
+        behavior_analyzer=b_analyzer, rois=roi_crossing_trajectory["rois"]
+    )
 
     distances = r_analyzer.get_distance_in_rois()
 
@@ -130,8 +139,14 @@ def test_get_event_log(roi_crossing_trajectory):
     """
     Tests that the event log correctly identifies entry and exit events.
     """
-    b_analyzer = ConcreteBehavioralAnalyzer(**{k: v for k, v in roi_crossing_trajectory.items() if k != 'rois'})
-    r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=roi_crossing_trajectory["rois"], flutter_n_frames=3)
+    b_analyzer = ConcreteBehavioralAnalyzer(
+        **{k: v for k, v in roi_crossing_trajectory.items() if k != "rois"}
+    )
+    r_analyzer = ROIAnalyzer(
+        behavior_analyzer=b_analyzer,
+        rois=roi_crossing_trajectory["rois"],
+        flutter_n_frames=3,
+    )
 
     event_log = r_analyzer.get_event_log()
 
@@ -141,8 +156,12 @@ def test_get_event_log(roi_crossing_trajectory):
     assert event_log.iloc[1]["event"] == "exit"
     assert event_log.iloc[1]["roi_name"] == "TestZone"
 
-    entry_time = (event_log.iloc[0]['timestamp'] - pd.Timestamp("1970-01-01")).total_seconds()
-    exit_time = (event_log.iloc[1]['timestamp'] - pd.Timestamp("1970-01-01")).total_seconds()
+    entry_time = (
+        event_log.iloc[0]["timestamp"] - pd.Timestamp("1970-01-01")
+    ).total_seconds()
+    exit_time = (
+        event_log.iloc[1]["timestamp"] - pd.Timestamp("1970-01-01")
+    ).total_seconds()
 
     # With flutter filter of 3, entry is confirmed at t=2.7s, exit at t=7.7s
     assert entry_time == pytest.approx(2.7, abs=0.1)

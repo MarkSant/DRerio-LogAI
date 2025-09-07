@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, Polygon
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
@@ -238,7 +238,7 @@ class ROIAnalyzer:
 
         # Iterate through the changes to log entries and exits
         for timestamp, current_roi in state_changes.items():
-            # Skip the very first timestamp if it's there, as it's handled by the initial state
+            # Skip the very first timestamp, as it's handled by the initial state
             if timestamp == states.index[0]:
                 continue
 
@@ -281,7 +281,7 @@ class ROIAnalyzer:
         results = {}
         # Calculate distance for all segments first
         if "segment_dist" not in self._trajectory.columns:
-             self._trajectory["segment_dist"] = np.sqrt(
+            self._trajectory["segment_dist"] = np.sqrt(
                 self._trajectory["x_cm_smoothed"].diff() ** 2
                 + self._trajectory["y_cm_smoothed"].diff() ** 2
             )
