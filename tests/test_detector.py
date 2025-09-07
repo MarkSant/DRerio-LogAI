@@ -159,5 +159,30 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(detections[0][-1], 2)
 
 
+    def test_process_frame_with_empty_polygon(self):
+        """
+        Tests that process_frame runs without error and returns no detections
+        if the detection polygon is empty.
+        """
+        from zebtrack.core.detector import ZoneData
+
+        # Setup detector with a zone config that has an empty polygon
+        empty_polygon_zones = ZoneData(polygon=[])
+        self.detector.set_zones(empty_polygon_zones, 1280, 720)
+
+        # Simulate the plugin finding one object
+        dummy_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        fake_detection = [(150, 150, 160, 160, 0.9, 123)]
+        self.mock_plugin.set_detect_return_value(fake_detection)
+
+        # Process the frame. This should not raise an exception.
+        detections, command = self.detector.process_frame(dummy_frame, "pre-recorded")
+
+        # Assert that no detections are returned because none can be "inside"
+        # the empty polygon.
+        self.assertEqual(len(detections), 0)
+        self.assertIsNone(command)
+
+
 if __name__ == "__main__":
     unittest.main()

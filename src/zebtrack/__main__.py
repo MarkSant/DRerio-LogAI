@@ -2,6 +2,7 @@ import logging
 import logging.handlers
 import sys
 import tkinter as tk
+from tkinter import messagebox
 
 import structlog
 
@@ -55,8 +56,23 @@ def main():
     configure_logging()
     log = structlog.get_logger()
 
+    # --- Critical Check for Settings ---
+    # If settings failed to load, the `settings` object will be None.
+    # We must handle this case gracefully before attempting to start the GUI.
+    if settings is None:
+        log.critical("settings.load.fatal")
+        # Hide the blank root window that can sometimes appear
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(
+            "Fatal Configuration Error",
+            "Could not load or validate 'config.yaml'. The application cannot start.\n\n"
+            "Please ensure the file exists and is correctly formatted.",
+        )
+        sys.exit(1)
+
     # Set seed for reproducibility before anything else
-    if settings and settings.reproducibility and settings.reproducibility.seed:
+    if settings.reproducibility and settings.reproducibility.seed:
         set_seed(settings.reproducibility.seed)
         log.info("reproducibility.seed.set", seed=settings.reproducibility.seed)
 
