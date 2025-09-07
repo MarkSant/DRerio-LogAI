@@ -58,11 +58,29 @@ class AppController:
 
     def on_close(self):
         if self.view.ask_ok_cancel("Quit", "Do you want to exit?"):
-            self.program_exit_event.set()
+            self.join_threads()
             self.root.destroy()
 
     def join_threads(self):
-        pass
+        """Signals all threads to stop and waits for them to finish."""
+        log.info("controller.shutdown.start")
+        self.program_exit_event.set()
+
+        # Join background threads
+        if hasattr(self, "capture_thread") and self.capture_thread.is_alive():
+            log.info("controller.shutdown.join_capture_thread")
+            self.capture_thread.join()
+
+        if hasattr(self, "processing_thread") and self.processing_thread.is_alive():
+            log.info("controller.shutdown.join_processing_thread")
+            self.processing_thread.join()
+
+        # Release camera resources
+        if hasattr(self, "camera") and self.camera:
+            log.info("controller.shutdown.release_camera")
+            self.camera.release()
+
+        log.info("controller.shutdown.complete")
 
     def close_project(self):
         self.project_manager = ProjectManager()

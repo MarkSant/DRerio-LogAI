@@ -181,17 +181,24 @@ class WeightManager:
             return details["openvino_path"]
 
         log.info("openvino.export.start", model=name)
+        temp_export_path = None
         try:
             model = YOLO(pt_path)
-            # The 'half=True' argument enables FP16 quantization
-            exported_path = model.export(format="openvino", half=True)
+            # The 'half=True' argument enables FP16 quantization.
+            # The export will create a directory named e.g., 'yolov8n_openvino_model'.
+            temp_export_path = model.export(format="openvino", half=True)
+
             os.makedirs(OPENVINO_CACHE_DIR, exist_ok=True)
 
-            # In case of a previous failed attempt, remove the destination first
-            shutil.rmtree(cached_model_dir, ignore_errors=True)
+            # In case of a previous failed attempt, remove the destination first.
+            if os.path.exists(cached_model_dir):
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
 
-            shutil.move(exported_path, cached_model_dir)
+            # Atomically move the exported model to its final destination.
+            shutil.move(temp_export_path, cached_model_dir)
+            temp_export_path = None  # The move was successful
 
+            # Now that the model is in place, update and save the configuration.
             openvino_model_path = os.path.abspath(cached_model_dir)
             details["openvino_path"] = openvino_model_path
             self.save_weights()
@@ -201,10 +208,16 @@ class WeightManager:
 
         except Exception as e:
             log.error("openvino.export.failed", exc_info=e)
-            # Clean up partial export directory if it exists
-            shutil.rmtree(cached_model_dir, ignore_errors=True)
+            # Clean up any partial export directory if it exists
+            if os.path.exists(cached_model_dir):
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
             messagebox.showerror(
                 "Erro na Exportação OpenVINO",
                 f"Falha ao converter '{name}' para o formato OpenVINO.\n\nErro: {e}",
             )
             return None
+        finally:
+            # Clean up the temporary export directory if the move failed
+            if temp_export_path and os.path.exists(temp_export_path):
+                shutil.rmtree(temp_export_path, ignore_errors=True)
+                log.info("openvino.export.cleanup", path=temp_export_path)
