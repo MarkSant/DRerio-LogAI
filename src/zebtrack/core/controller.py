@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import glob
 import os
 import tempfile
 import threading
 import time
-from tkinter import filedialog
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import structlog
@@ -65,7 +62,9 @@ class AppController:
         pass
 
     def close_project(self):
-        pass
+        # TODO: Implement project closing logic, e.g., asking to save changes
+        self.project_manager = ProjectManager()
+        self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
         # Add the currently selected model info to the project data
@@ -92,7 +91,7 @@ class AppController:
 
             if self.setup_detector():
                 self.view._load_project_view()
-                self.load_project_results_for_gui()
+                # self.load_project_results_for_gui() # This is now handled in the UI
 
             # After loading, check if zones are defined.
             self.setup_detector_zones()
@@ -224,7 +223,7 @@ class AppController:
         if not self.active_weight_name:
             return
         self.view.set_status(f"Converting {self.active_weight_name} to OpenVINO...")
-        self.root.update()
+        self.view.update_idletasks()
         self.weight_manager.convert_to_openvino(self.active_weight_name)
         self.update_openvino_status()
         self.view.set_status("Conversion check complete. Ready.")
@@ -316,7 +315,7 @@ class AppController:
             writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
 
             self.view.set_status("Calibrando... Gravando um pequeno clipe.")
-            self.root.update()
+            self.view.update_idletasks()
 
             start_time = time.time()
             while time.time() - start_time < 5:  # Record for 5 seconds
@@ -326,7 +325,7 @@ class AppController:
                 writer.write(frame)
             writer.release()
             self.view.set_status("Calibração: Analisando o clipe...")
-            self.root.update()
+            self.view.update_idletasks()
 
             # 3. Run detection on the clip
             # Use the globally selected .pt model for this, not OpenVINO
@@ -439,26 +438,152 @@ class AppController:
         self.view.update_button_state("start_rec", "normal")
         self.view.update_button_state("stop_rec", "disabled")
 
-    def run_batch_analysis(self):
-        log.info("batch_analysis.run.start")
-        self.view.set_status("Starting batch analysis...")
-        if self.project_manager.metadata is None:
+    # --- New Refactored Workflows ---
+
+    def start_single_video_workflow(self, video_path: str, config: dict):
+        """Handles the 'Analyze Single Video' workflow."""
+        log.info("workflow.single_video.start", video=video_path)
+
+        # 1. Ensure the detector is set up
+        if not self.detector:
+            if not self.setup_detector():
+                self.view.show_error(
+                    "Error",
+                    "Could not set up the detector. "
+                    "Please configure a model on the main screen.",
+                )
+                return
+
+        # 2. Scan the single video
+        scanned_files = ProjectManager.scan_input_paths([video_path])
+        if not scanned_files:
+            self.view.show_error("Error", "Could not identify a valid video file.")
+            return
+
+        video_to_process = scanned_files[0]
+
+        # 3. Check for existing data
+        if video_to_process["has_data"]:
+            if not self.view.ask_ok_cancel(
+                "Data Found",
+                "Existing analysis data (.parquet) found for this video. "
+                "Do you want to overwrite it by re-processing the video?",
+            ):
+                self.view.show_info("Cancelled", "Single video analysis cancelled.")
+                return
+
+        # 4. Create a "mini-project" folder for the results
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_Results")
+        os.makedirs(output_dir, exist_ok=True)
+
+        # 5. Process the video, passing the config as temporary metadata
+        self._process_videos(
+            [video_to_process], output_dir, single_video_config=config
+        )
+        self.view.show_info(
+            "Success",
+            f"Single video analysis complete. Results saved in:\n{output_dir}",
+        )
+
+    def start_project_processing_workflow(self):
+        """Handles adding and processing a new batch of videos in a project."""
+        log.info("workflow.project_processing.start")
+        if not self.project_manager.project_path:
+            self.view.show_error("Error", "No project is currently open.")
+            return
+
+        # 1. Ask user to select files or folders
+        paths = self.view.ask_open_filenames(
+            "Select Videos or Folders to Add to Project",
+            [
+                ("All files", "*.*"),
+                ("Video files", "*.mp4 *.avi *.mov"),
+                ("Folders", "*/"),
+            ],
+        )
+        if not paths:
+            return
+
+        # 2. Scan the inputs
+        scanned_videos = self.project_manager.scan_input_paths(paths)
+        if not scanned_videos:
             self.view.show_warning(
-                "Missing Metadata", "'metadata.csv' not found or not loaded."
+                "No Videos Found", "No new video files were found in the selected paths."
             )
             return
 
-        project_path = self.project_manager.project_path
-        # This is a simplification. A real implementation would map videos to folders.
-        # We will assume video file names match experiment_ids in metadata.csv.
-        videos_to_process = self.project_manager.project_data.get("videos", [])
+        # 3. Handle mixed data scenario
+        videos_to_process = []
+        with_data = [v for v in scanned_videos if v["has_data"]]
+        without_data = [v for v in scanned_videos if not v["has_data"]]
+
+        if with_data and without_data:
+            # The complex case: some have data, some don't
+            msg = (
+                f"{len(with_data)} video(s) already have analysis data.\n"
+                f"{len(without_data)} video(s) need to be processed.\n\n"
+                "Do you want to re-process the videos that already have data?"
+            )
+            if self.view.ask_ok_cancel("Mixed Data Found", msg):
+                # User wants to re-process everything
+                videos_to_process = scanned_videos
+            else:
+                # User wants to skip re-processing
+                videos_to_process = without_data
+        elif with_data and not without_data:
+            # All selected videos have data
+            if self.view.ask_ok_cancel(
+                "Data Found",
+                "All selected videos already have analysis data. "
+                "Do you want to re-process them all?",
+            ):
+                videos_to_process = with_data
+            else:
+                self.view.show_info(
+                    "Processing Skipped", "No new videos were processed."
+                )
+                # Still add them to the project for reporting purposes
+                self.project_manager.add_video_batch(scanned_videos)
+                return
+        else:
+            # No videos have data, process all of them
+            videos_to_process = without_data
+
         if not videos_to_process:
-            self.view.show_warning(
-                "No Videos Found", "No video files found in the project."
-            )
+            self.view.show_info("Processing Complete", "No new videos to process.")
             return
 
-        all_tidy_data = []
+        # 4. Add the batch to the project
+        self.project_manager.add_video_batch(scanned_videos)
+
+        # 5. Process the videos that need it
+        self._process_videos(videos_to_process, self.project_manager.project_path)
+
+        # 6. Update statuses in project file
+        for video in videos_to_process:
+            self.project_manager.update_video_status(video["path"], "complete")
+
+        self.view.show_info(
+            "Success",
+            f"{len(videos_to_process)} video(s) were processed and added to the project.",
+        )
+
+    def _process_videos(
+        self,
+        videos_to_process: list[dict],
+        output_base_dir: str,
+        single_video_config: dict | None = None,
+    ):
+        """
+        Private helper to process a list of videos and save results.
+        """
+        log.info("controller.processing.start", count=len(videos_to_process))
+        self.view.set_status(
+            f"Starting processing for {len(videos_to_process)} videos..."
+        )
+        self.view.update_idletasks()
+
         b_analyzer = BehavioralAnalyzer()
         r_analyzer = ROIAnalyzer()
 
@@ -468,147 +593,95 @@ class AppController:
             self.view.set_status(
                 f"Processing {i+1}/{len(videos_to_process)}: {experiment_id}"
             )
-            self.root.update_idletasks()
+            self.view.update_idletasks()
 
-            metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
-            if not metadata:
-                log.warning("batch_analysis.metadata.not_found", id=experiment_id)
-                continue
+            if single_video_config:
+                # Use the provided config as metadata
+                metadata = single_video_config
+            else:
+                # Get metadata from the project file
+                metadata = self.project_manager.get_metadata_for_experiment(
+                    experiment_id
+                )
 
-            # CRITICAL FIX: Call analyzers with video_path to get varied results
+            # Perform analysis
             b_results = b_analyzer.analyze(video_path)
             r_results = r_analyzer.analyze(video_path)
-
             reporter = Reporter(b_results, r_results, metadata)
-            all_tidy_data.append(reporter.tidy_data)
 
-            # Note: The original request implied subfolders per experiment.
-            # The existing ProjectManager works on a flat video list.
-            # We will create result folders based on experiment_id.
-            results_dir = os.path.join(project_path, f"{experiment_id}_results")
+            # Define where to save results for this video
+            # In project mode, it's a sub-folder. In single mode, it's the main
+            # output dir.
+            if self.project_manager.project_path:
+                results_dir = os.path.join(output_base_dir, f"{experiment_id}_results")
+            else:
+                results_dir = output_base_dir
             os.makedirs(results_dir, exist_ok=True)
 
-            reporter.tidy_data.to_parquet(os.path.join(results_dir, "summary.parquet"))
-            np.save(os.path.join(results_dir, "tracking.npy"), reporter.tracking_data)
+            # Save all results
+            reporter.tidy_data.to_parquet(
+                os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+            )
+            # We need a placeholder for tracking data for now
+            tracking_data_placeholder = np.array([[0, 0]])
+            np.save(
+                os.path.join(results_dir, f"{experiment_id}_tracking.npy"),
+                tracking_data_placeholder,
+            )
+            reporter.export_individual_report(
+                os.path.join(results_dir, f"{experiment_id}_report")
+            )
 
-            traj_fig = reporter.generate_trajectory_plot()
-            traj_fig.savefig(os.path.join(results_dir, "trajectory.png"))
-            plt.close(traj_fig)
-            heat_fig = reporter.generate_heatmap()
-            heat_fig.savefig(os.path.join(results_dir, "heatmap.png"))
-            plt.close(heat_fig)
+        self.view.set_status("Processing complete!")
+
+    def generate_report(self, videos: list[dict], report_type: str = "unified"):
+        """
+        Generates a report from a list of processed videos.
+        """
+        log.info("reports.generate.start", count=len(videos), type=report_type)
+        if not videos:
+            self.view.show_warning("No Videos", "No videos selected for the report.")
+            return
+
+        all_tidy_data = []
+        if self.project_manager.project_path:
+            project_path = self.project_manager.project_path
+        else:
+            project_path = os.path.dirname(videos[0]["path"])
+
+        for video_info in videos:
+            experiment_id = os.path.splitext(os.path.basename(video_info["path"]))[0]
+            results_dir = os.path.join(project_path, f"{experiment_id}_results")
+            summary_path = os.path.join(
+                results_dir, f"{experiment_id}_summary.parquet"
+            )
+
+            if os.path.exists(summary_path):
+                try:
+                    df = pd.read_parquet(summary_path)
+                    all_tidy_data.append(df)
+                except Exception as e:
+                    log.warning("reports.load.error", path=summary_path, error=e)
+            else:
+                log.warning("reports.load.not_found", path=summary_path)
 
         if not all_tidy_data:
-            self.view.show_error("Analysis Failed", "No data was generated.")
+            self.view.show_error(
+                "Report Error", "Could not find any summary data for the selected videos."
+            )
             return
 
         aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
-        aggregated_df.to_excel(
-            os.path.join(project_path, "project_summary.xlsx"), index=False
+        save_path = self.view.ask_save_filename(
+            title=f"Save {report_type.capitalize()} Report",
+            defaultextension=".xlsx",
+            initialfile=f"{report_type}_report.xlsx",
         )
-        Reporter.export_project_report(
-            aggregated_df, os.path.join(project_path, "project_report")
-        )
-
-        self.view.set_status("Batch analysis complete!")
-        self.view.show_info(
-            "Success", "Batch analysis complete. Reload results to view."
-        )
-        self.load_project_results_for_gui()
-
-    def load_project_results_for_gui(self):
-        log.info("reports.load_results.start")
-        self.report_results_paths.clear()
-        project_path = self.project_manager.project_path
-        if not project_path:
+        if not save_path:
             return
 
-        result_folders = glob.glob(os.path.join(project_path, "*_results"))
-        exp_ids = []
-        for folder in result_folders:
-            exp_id = os.path.basename(folder).replace("_results", "")
-            summary_path = os.path.join(folder, "summary.parquet")
-            tracking_path = os.path.join(folder, "tracking.npy")
-            if os.path.exists(summary_path) and os.path.exists(tracking_path):
-                exp_ids.append(exp_id)
-                self.report_results_paths[exp_id] = {
-                    "summary": summary_path,
-                    "tracking": tracking_path,
-                }
+        # Export to Excel and a combined visual report
+        aggregated_df.to_excel(save_path, index=False)
+        Reporter.export_project_report(aggregated_df, os.path.splitext(save_path)[0])
 
-        self.view.report_experiment_selector["values"] = sorted(exp_ids)
-        if exp_ids:
-            self.view.report_experiment_var.set(sorted(exp_ids)[0])
-        self.view.set_status(f"{len(exp_ids)} experiment results loaded.")
-
-    def _get_reporter_for_selected_experiment(self) -> Reporter | None:
-        exp_id = self.view.report_experiment_var.get()
-        if not exp_id or exp_id not in self.report_results_paths:
-            self.view.show_warning(
-                "Invalid Selection", "Please select a valid experiment."
-            )
-            return None
-
-        paths = self.report_results_paths[exp_id]
-        try:
-            summary_df = pd.read_parquet(paths['summary'])
-            tracking_data = np.load(paths['tracking'])
-
-            # Reconstruct data from the single row of the summary DataFrame
-            # This is still a simplification, but it uses the *saved* data.
-            b_keys = BehavioralAnalyzer("").analyze("").keys()
-            b_results = {
-                k: v
-                for k, v in summary_df.iloc[0].to_dict().items()
-                if k in b_keys
-            }
-            # This part (un-flattening) is complex, so we'll re-mock for simplicity
-            r_results = ROIAnalyzer().analyze(exp_id)
-            metadata = self.project_manager.get_metadata_for_experiment(exp_id)
-
-            return Reporter(b_results, r_results, metadata, tracking_data)
-        except Exception as e:
-            self.view.show_error(
-                "Error Loading Data", f"Failed to load data for {exp_id}: {e}"
-            )
-            return None
-
-    def generate_report_plot(self, plot_type: str):
-        reporter = self._get_reporter_for_selected_experiment()
-        if not reporter:
-            return
-        ax = self.view.report_ax
-        if plot_type == 'trajectory':
-            reporter.generate_trajectory_plot(ax=ax)
-        elif plot_type == 'heatmap':
-            reporter.generate_heatmap(ax=ax)
-        self.view.report_canvas_widget.draw()
-
-    def export_report_data(self):
-        reporter = self._get_reporter_for_selected_experiment()
-        if not reporter:
-            return
-        file_format = self.view.export_data_format_var.get()
-        filepath = filedialog.asksaveasfilename(
-            defaultextension=f".{file_format}"
-        )
-        if filepath:
-            reporter.export_summary_data(
-                os.path.splitext(filepath)[0], format=file_format
-            )
-            self.view.show_info("Success", f"Data exported to:\n{filepath}")
-
-    def export_visual_report(self):
-        reporter = self._get_reporter_for_selected_experiment()
-        if not reporter:
-            return
-        filepath = filedialog.asksaveasfilename(defaultextension=".docx")
-        if filepath:
-            reporter.export_individual_report(os.path.splitext(filepath)[0])
-            self.view.show_info("Success", f"Report saved to:\n{filepath}")
-
-    def save_current_plot(self):
-        filepath = filedialog.asksaveasfilename(defaultextension=".png")
-        if filepath:
-            self.view.report_figure.savefig(filepath, dpi=300)
-            self.view.show_info("Success", f"Plot saved to:\n{filepath}")
+        self.view.show_info("Report Generated", f"Report saved to:\n{save_path}")

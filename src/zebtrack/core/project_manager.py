@@ -1,9 +1,10 @@
-import glob
 import hashlib
 import json
 import os
 import re
 import shutil
+from datetime import datetime
+from pathlib import Path
 from tkinter import messagebox
 
 import pandas as pd
@@ -37,6 +38,47 @@ class ProjectManager:
         self.project_path = None
         self.project_data = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
+
+    @staticmethod
+    def scan_input_paths(paths: list[str]) -> list[dict]:
+        """
+        Scans a list of input paths (files or directories) and identifies video files.
+        For each video, it checks if corresponding parquet files exist.
+
+        Args:
+            paths: A list of file or directory paths.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a video and
+            contains its path and a flag indicating if it has existing data.
+            Example: [{'path': 'path/to/video.mp4', 'has_data': True}, ...]
+        """
+        video_files = []
+        video_extensions = {".mp4", ".avi", ".mov"}
+
+        for p_str in paths:
+            p = Path(p_str)
+            if p.is_dir():
+                # Recursively find all video files in the directory
+                for video_path in p.rglob("*"):
+                    if video_path.suffix.lower() in video_extensions:
+                        video_files.append(video_path)
+            elif p.is_file() and p.suffix.lower() in video_extensions:
+                video_files.append(p)
+
+        results = []
+        for video_path in sorted(list(set(video_files))):  # Sorted unique list
+            # A video has data if a parquet file with the same stem exists
+            # in the same directory.
+            # Example: for "video1.mp4", it checks for "video1.parquet".
+            # This is a simplification based on the expected output format.
+            # A more robust check might look for specific parquet files.
+            parent_dir = video_path.parent
+            base_name = video_path.stem
+            has_data = any(parent_dir.glob(f"{base_name}*.parquet"))
+            results.append({"path": str(video_path), "has_data": has_data})
+
+        return results
 
     def _save_settings_snapshot(self):
         """Saves a snapshot of the current settings to the project directory."""
@@ -111,7 +153,7 @@ class ProjectManager:
             },
             "use_openvino": use_openvino,
             "active_weight": active_weight,
-            "videos": [],
+            "batches": [],  # Changed from "videos" to "batches"
             "groups": group_names if project_type == "live" else [],
             "experiment_days": experiment_days if project_type == "live" else None,
             "subjects_per_group": subjects_per_group
@@ -122,17 +164,43 @@ class ProjectManager:
         }
 
         if video_files:
-            for video_path in video_files:
-                video_hash = _calculate_sha256(video_path)
-                self.project_data["videos"].append(
-                    {
-                        "path": video_path,
-                        "sha256": video_hash,
-                        "status": "pending",
-                    }
-                )
+            # The initial set of videos becomes the first batch
+            self.add_video_batch(video_files, save_project=False)
 
         return self.save_project()
+
+    def add_video_batch(self, video_files: list[dict], save_project: bool = True):
+        """
+        Adds a new batch of videos to the project.
+
+        Args:
+            video_files: A list of video dicts from scan_input_paths.
+            save_project: Whether to save the project file after adding.
+        """
+        if not video_files:
+            return
+
+        new_batch = {
+            "timestamp": datetime.now().isoformat(),
+            "videos": [],
+        }
+
+        for video_info in video_files:
+            video_path = video_info["path"]
+            video_hash = _calculate_sha256(video_path)
+            new_batch["videos"].append(
+                {
+                    "path": video_path,
+                    "sha256": video_hash,
+                    "status": "processed" if video_info["has_data"] else "pending",
+                }
+            )
+
+        self.project_data.setdefault("batches", []).append(new_batch)
+        log.info("project.batch.added", count=len(video_files))
+
+        if save_project:
+            self.save_project()
 
     def load_project(self, project_path):
         """
@@ -197,36 +265,45 @@ class ProjectManager:
 
     def update_video_status(self, video_path, new_status):
         """
-        Updates the status of a specific video and saves the project.
+        Updates the status of a specific video across all batches and saves the project.
         """
-        for video in self.project_data.get("videos", []):
-            if video["path"] == video_path:
-                video["status"] = new_status
-                log.info(
-                    "video.status.update",
-                    video_path=video_path,
-                    status=new_status,
-                )
-                return self.save_project()
+        for batch in self.project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                if video["path"] == video_path:
+                    video["status"] = new_status
+                    log.info(
+                        "video.status.update",
+                        video_path=video_path,
+                        status=new_status,
+                    )
+                    return self.save_project()
         return False
 
     def reset_all_video_statuses(self, to_status: str = "pending"):
         """Reset every video status to a given value (default 'pending')."""
         changed = False
-        for video in self.project_data.get("videos", []):
-            if video.get("status") != to_status:
-                video["status"] = to_status
-                changed = True
+        for batch in self.project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                if video.get("status") != to_status:
+                    video["status"] = to_status
+                    changed = True
         if changed:
             log.info("video.status.reset_all", to_status=to_status)
             self.save_project()
         return changed
 
+    def get_all_videos(self) -> list[dict]:
+        """Returns a flat list of all videos from all batches."""
+        all_vids = []
+        for batch in self.project_data.get("batches", []):
+            all_vids.extend(batch.get("videos", []))
+        return all_vids
+
     def get_next_video(self):
         """
-        Returns the path of the next video with 'pending' status.
+        Returns the path of the next video with 'pending' status from all batches.
         """
-        for video in self.project_data.get("videos", []):
+        for video in self.get_all_videos():
             if video["status"] == "pending":
                 return video["path"]
         return None
