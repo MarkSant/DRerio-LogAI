@@ -623,14 +623,19 @@ class ApplicationGUI:
 
         ttk.Button(
             project_actions_frame,
+            text="Analyze Single Video",
+            command=self.controller.start_single_video_workflow,
+        ).pack(fill="x", padx=10, pady=5)
+        ttk.Button(
+            project_actions_frame,
             text="Create New Project",
             command=self._create_project_workflow,
-        ).pack(side="left", padx=10, expand=True, fill="x")
+        ).pack(fill="x", padx=10, pady=5)
         ttk.Button(
             project_actions_frame,
             text="Open Existing Project",
             command=self._open_project_workflow,
-        ).pack(side="left", padx=10, expand=True, fill="x")
+        ).pack(fill="x", padx=10, pady=5)
 
     def _create_model_config_frame(self):
         """Builds the UI for model and OpenVINO configuration."""
@@ -732,40 +737,12 @@ class ApplicationGUI:
             )
             self.stop_rec_btn.pack(side="left", padx=5)
         elif project_type == "pre-recorded":
-            prerecorded_controls_frame = Frame(self.main_controls_frame)
-            prerecorded_controls_frame.pack(side="left")
-
-            button_frame = Frame(prerecorded_controls_frame)
-            button_frame.pack(fill="x", padx=5, pady=2)
-            self.process_video_btn = Button(
-                button_frame,
-                text="Process Next Video",
-                command=self.controller.process_next_video,
-            )
-            self.process_video_btn.pack(side="left", padx=5)
-            self.batch_analysis_btn = Button(
-                button_frame,
-                text="Run Batch Analysis",
-                command=self.controller.run_batch_analysis,
-            )
-            self.batch_analysis_btn.pack(side="left", padx=5)
-            self.cancel_proc_btn = Button(
-                button_frame,
-                text="Cancel",
-                state="disabled",
-                command=self.controller.cancel_processing,
-            )
-            self.cancel_proc_btn.pack(side="left", padx=5)
-
-            options_frame = Frame(prerecorded_controls_frame)
-            options_frame.pack(fill="x", padx=5, pady=2)
-            Label(options_frame, text="Frame Interval:").pack(side="left")
-            Entry(
-                options_frame, textvariable=self.processing_interval_var, width=5
-            ).pack(side="left")
-            Checkbutton(
-                options_frame, text="Show Preview", variable=self.show_preview_var
-            ).pack(side="left", padx=10)
+            # The main action in a pre-recorded project is to add more videos
+            ttk.Button(
+                self.main_controls_frame,
+                text="Add and Process New Videos/Folders...",
+                command=self.controller.start_project_processing_workflow,
+            ).pack(pady=10, padx=10, fill="x")
 
         Button(
             self.main_controls_frame,
@@ -979,280 +956,119 @@ class ApplicationGUI:
         )
 
     def _create_reports_tab(self):
-        """Creates the tab for generating reports and visualizations."""
+        """Creates the tab for viewing processed data and generating reports."""
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(reports_tab_frame, text="Reports and Visualization")
+        self.notebook.add(reports_tab_frame, text="Reporting")
 
-        # Top section with main view and controls
-        top_pane = ttk.PanedWindow(reports_tab_frame, orient="horizontal")
-        top_pane.pack(expand=True, fill="both", pady=5)
-
-        # --- Central Visualization Panel (Left) ---
-        viz_frame = ttk.LabelFrame(top_pane, text="Visualization", padding=5)
-        top_pane.add(viz_frame, weight=3)
-
-        # Matplotlib Canvas
-        try:
-            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-            from matplotlib.figure import Figure
-            self.report_figure = Figure(figsize=(5, 4), dpi=100)
-            self.report_canvas_widget = FigureCanvasTkAgg(
-                self.report_figure, master=viz_frame
-            )
-            self.report_canvas_widget.get_tk_widget().pack(
-                side="top", fill="both", expand=True
-            )
-            self.report_ax = self.report_figure.add_subplot(111)
-            self.report_ax.set_title("Analysis Plot")
-            self.report_ax.set_xlabel("X")
-            self.report_ax.set_ylabel("Y")
-        except ImportError:
-            Label(
-                viz_frame, text="Matplotlib not found. Visualization is disabled."
-            ).pack()
-
-
-        # --- Side Control Panel (Right) ---
-        controls_frame = ttk.LabelFrame(top_pane, text="Controls", padding=10)
-        top_pane.add(controls_frame, weight=1)
-
-        # Experiment selection
-        ttk.Button(
-            controls_frame,
-            text="Load Project Results",
-            command=self.controller.load_project_results_for_gui,
-        ).pack(fill="x", pady=5, padx=5)
-        ttk.Label(controls_frame, text="Select Experiment:").pack(fill="x", pady=2)
-        self.report_experiment_var = StringVar()
-        self.report_experiment_selector = ttk.Combobox(
-            controls_frame, textvariable=self.report_experiment_var, state="readonly"
+        # --- Video List (Master View) ---
+        list_frame = ttk.LabelFrame(
+            reports_tab_frame, text="Processed Videos", padding=10
         )
-        self.report_experiment_selector.pack(fill="x", pady=2, padx=5)
+        list_frame.pack(fill="both", expand=True, pady=5)
 
-        # Action Buttons
-        ttk.Button(
-            controls_frame,
-            text="Generate Trajectory",
-            command=lambda: self.controller.generate_report_plot("trajectory"),
-        ).pack(fill="x", pady=5, padx=5)
-
-        ttk.Button(
-            controls_frame,
-            text="Generate Heatmap",
-            command=lambda: self.controller.generate_report_plot("heatmap"),
-        ).pack(fill="x", pady=5, padx=5)
-
-        # Customization Checkboxes
-        self.report_overlay_rois_var = BooleanVar(value=True)
-        ttk.Checkbutton(
-            controls_frame, text="Overlay ROIs", variable=self.report_overlay_rois_var
-        ).pack(anchor="w", pady=5, padx=5)
-
-        self.report_use_background_var = BooleanVar(value=False)
-        ttk.Checkbutton(
-            controls_frame,
-            text="Use Video Background",
-            variable=self.report_use_background_var,
-        ).pack(anchor="w", pady=5, padx=5)
-
-        # --- Bottom Export Panel ---
-        export_frame = ttk.LabelFrame(reports_tab_frame, text="Export", padding=10)
-        export_frame.pack(fill="x", pady=10)
-
-        # Buttons
-        ttk.Button(
-            export_frame,
-            text="Export Data (Summary)",
-            command=lambda: self.controller.export_report_data(),
-        ).grid(row=0, column=0, padx=5, pady=5)
-        ttk.Button(
-            export_frame,
-            text="Export Visual Report",
-            command=lambda: self.controller.export_visual_report(),
-        ).grid(row=0, column=1, padx=5, pady=5)
-        ttk.Button(
-            export_frame,
-            text="Save Current Plot (PNG)",
-            command=lambda: self.controller.save_current_plot(),
-        ).grid(row=0, column=2, padx=5, pady=5)
-
-        # Format Options
-        self.export_data_format_var = StringVar(value="excel")
-        ttk.Label(export_frame, text="Data Format:").grid(
-            row=1, column=0, sticky="w", padx=5
+        self.reports_tree = ttk.Treeview(
+            list_frame, columns=("name", "batch", "status"), show="headings"
         )
-        format_frame = ttk.Frame(export_frame)
-        format_frame.grid(row=1, column=1, columnspan=2, sticky="w")
-        ttk.Radiobutton(
-            format_frame,
-            text="Excel",
-            variable=self.export_data_format_var,
-            value="excel",
-        ).pack(side="left")
-        ttk.Radiobutton(
-            format_frame, text="CSV", variable=self.export_data_format_var, value="csv"
-        ).pack(side="left", padx=5)
-        ttk.Radiobutton(
-            format_frame,
-            text="Parquet",
-            variable=self.export_data_format_var,
-            value="parquet",
-        ).pack(side="left")
+        self.reports_tree.heading("name", text="Video Name")
+        self.reports_tree.heading("batch", text="Batch Timestamp")
+        self.reports_tree.heading("status", text="Status")
+        self.reports_tree.pack(side="left", fill="both", expand=True)
 
-        self.export_report_format_var = StringVar(value="word")
-        ttk.Label(export_frame, text="Report Format:").grid(
-            row=2, column=0, sticky="w", padx=5
+        scrollbar = ttk.Scrollbar(
+            list_frame, orient="vertical", command=self.reports_tree.yview
         )
-        ttk.Radiobutton(
-            export_frame,
-            text="Word",
-            variable=self.export_report_format_var,
-            value="word",
-        ).grid(row=2, column=0, sticky="e", padx=5)
-        ttk.Radiobutton(
-            export_frame,
-            text="PDF",
-            variable=self.export_report_format_var,
-            value="pdf",
+        self.reports_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+
+        self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
+
+        # --- Actions Panel ---
+        actions_frame = ttk.LabelFrame(reports_tab_frame, text="Actions", padding=10)
+        actions_frame.pack(fill="x", pady=5)
+
+        self.generate_partial_report_btn = ttk.Button(
+            actions_frame,
+            text="Generate Report for Selected",
+            command=self._generate_partial_report,
             state="disabled",
-        ).grid(row=2, column=1, sticky="w")
-
-    def _load_roi_data(self):
-        """Opens a parquet file and tells the controller to load it."""
-        parquet_path = self.ask_open_filenames(
-            "Select data file (.parquet)", [("Parquet files", "*.parquet")]
         )
-        if not parquet_path:
-            return
+        self.generate_partial_report_btn.pack(side="left", padx=10)
 
-        # This now calls the controller, which will call back to populate the UI
-        self.controller.load_data_for_roi_analysis(parquet_path[0])
-
-    def update_arena_selector(self, arena_ids: list):
-        """Populates the arena selector combobox."""
-        self.arena_selector["values"] = arena_ids
-        if arena_ids:
-            self.arena_selector_var.set(arena_ids[0])
-            self.arena_selector.event_generate("<<ComboboxSelected>>")
-        # Enable analysis button only when data and arenas are loaded
-        self.run_analysis_btn.config(state="normal" if arena_ids else "disabled")
-
-    def _on_arena_select(self, event=None):
-        """Handles switching between arenas, updating the ROI list and canvas."""
-        # Clear current listbox
-        for item in self.roi_listbox.get_children():
-            self.roi_listbox.delete(item)
-
-        # Clear canvas drawings (but not the background image)
-        self.roi_canvas.delete("all")
-        if self._canvas_bg_image:
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
-
-        # Repopulate with ROIs for the selected arena
-        selected_arena_id = self.arena_selector_var.get()
-        if selected_arena_id and selected_arena_id in self.roi_data:
-            for roi in self.roi_data[selected_arena_id]:
-                self.roi_listbox.insert("", "end", values=(roi["name"],))
-                # Redraw the finalized polygon
-                if roi["type"] == "polygon":
-                    self.roi_canvas.create_polygon(
-                        roi["coords"],
-                        fill="cyan",
-                        outline="blue",
-                        stipple="gray25",
-                        width=2,
-                    )
-                elif roi["type"] == "circle":
-                    cx, cy, radius = roi["coords"]
-                    self.roi_canvas.create_oval(
-                        cx - radius,
-                        cy - radius,
-                        cx + radius,
-                        cy + radius,
-                        outline="blue",
-                        fill="cyan",
-                        stipple="gray25",
-                        width=2,
-                    )
-
-    def display_roi_video_frame(self, video_path: str):
-        """Receives a video path from the controller and displays its first frame."""
-        try:
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                self.show_error(
-                    "Error", "Could not open the associated video file."
-                )
-                return
-            ret, frame = cap.read()
-            cap.release()
-            if not ret:
-                self.show_error(
-                    "Error", "Could not read the frame from the associated video."
-                )
-                return
-
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb)
-
-            canvas_w, canvas_h = (
-                self.roi_canvas.winfo_width(),
-                self.roi_canvas.winfo_height(),
-            )
-            if canvas_w < 2 or canvas_h < 2:
-                self.root.update_idletasks()
-                canvas_w, canvas_h = (
-                    self.roi_canvas.winfo_width(),
-                    self.roi_canvas.winfo_height(),
-                )
-
-            img.thumbnail((canvas_w, canvas_h), Image.Resampling.LANCZOS)
-
-            self._canvas_bg_image = ImageTk.PhotoImage(image=img)
-            self._on_arena_select()  # Redraw canvas and ROIs
-
-        except Exception as e:
-            self.show_error(
-                "Processing Error",
-                f"An error occurred while displaying the video frame: {e}",
-            )
-
-    def _run_analysis_clicked(self):
-        """Gathers UI data and tells the controller to run the analysis."""
-        try:
-            flutter_n = int(self.flutter_n_var.get())
-            num_animals = int(self.num_animals_var.get())
-            social_radius = float(self.social_radius_var.get())
-            arena_id = self.arena_selector_var.get()
-        except (ValueError, TypeError):
-            self.show_error(
-                "Invalid Input",
-                "Configuration values must be valid numbers.",
-            )
-            return
-
-        if not arena_id:
-            self.show_error(
-                "Selection Required",
-                "Please select an active aquarium for the analysis.",
-            )
-            return
-
-        rois_for_arena = self.roi_data.get(arena_id, [])
-        self.controller.run_roi_analysis(
-            rois_for_arena=rois_for_arena,
-            flutter_n=flutter_n,
-            num_animals=num_animals,
-            social_radius_cm=social_radius,
-            arena_id=arena_id,
+        self.generate_unified_report_btn = ttk.Button(
+            actions_frame,
+            text="Generate Unified Report (All)",
+            command=self._generate_unified_report,
         )
+        self.generate_unified_report_btn.pack(side="left", padx=10)
 
-    def display_roi_results(self, report_text: str):
-        """Displays the analysis report in the results text widget."""
-        self.results_text.config(state="normal")
-        self.results_text.delete("1.0", "end")
-        self.results_text.insert("1.0", report_text)
-        self.results_text.config(state="disabled")
+    def update_reports_tree(self):
+        """Populates the reports Treeview with processed videos from the project."""
+        for item in self.reports_tree.get_children():
+            self.reports_tree.delete(item)
+
+        if not self.controller.project_manager.project_path:
+            return
+
+        batches = self.controller.project_manager.project_data.get("batches", [])
+        for i, batch in enumerate(batches):
+            batch_ts = batch.get('timestamp', f"Batch {i+1}")
+            # Insert parent item for the batch
+            batch_id = self.reports_tree.insert(
+                "", "end", text=batch_ts, open=True
+            )
+            for video in batch.get("videos", []):
+                video_name = os.path.basename(video.get("path", "Unknown Video"))
+                self.reports_tree.insert(
+                    batch_id,
+                    "end",
+                    values=(
+                        video_name,
+                        batch_ts,
+                        video.get("status", "N/A"),
+                    ),
+                    # Store the full video info in the item using tags
+                    tags=(video.get("path"),)
+                )
+
+    def _on_report_item_select(self, event=None):
+        """Enables or disables the partial report button based on selection."""
+        if self.reports_tree.selection():
+            self.generate_partial_report_btn.config(state="normal")
+        else:
+            self.generate_partial_report_btn.config(state="disabled")
+
+    def _generate_partial_report(self):
+        """Gathers selected videos and tells the controller to generate a partial report."""
+        selected_items = self.reports_tree.selection()
+        if not selected_items:
+            return
+
+        selected_videos = []
+        all_videos = self.controller.project_manager.get_all_videos()
+
+        for item_id in selected_items:
+            # The video path is stored as the first tag
+            if not self.reports_tree.exists(item_id):
+                continue
+            item_tags = self.reports_tree.item(item_id)["tags"]
+            if not item_tags:
+                continue
+            video_path = item_tags[0]
+            for video_data in all_videos:
+                if video_data["path"] == video_path:
+                    selected_videos.append(video_data)
+                    break
+
+        if selected_videos:
+            self.controller.generate_report(selected_videos, report_type="partial")
+
+    def _generate_unified_report(self):
+        """Tells the controller to generate a unified report of all project videos."""
+        all_videos = self.controller.project_manager.get_all_videos()
+        if not all_videos:
+            self.show_warning("No Data", "There are no processed videos in this project to report on.")
+            return
+        self.controller.generate_report(all_videos, report_type="unified")
 
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
@@ -1640,17 +1456,10 @@ class ApplicationGUI:
                 self._create_welcome_frame()
                 return
         elif project_type == "pre-recorded":
-            next_video = pm.get_next_video()
-            if next_video is None:
-                self.process_video_btn.config(state="disabled")
-                self.set_status(
-                    f"Project: {pm.get_project_name()} - All videos processed."
-                )
-            else:
-                video_name = os.path.basename(next_video)
-                self.set_status(
-                    f"Project: {pm.get_project_name()} - Ready to process: {video_name}"
-                )
+            self.update_reports_tree()
+            self.set_status(
+                f"Project: {pm.get_project_name()} - Ready."
+            )
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
@@ -2027,6 +1836,24 @@ class ApplicationGUI:
 
         self.controller.open_project_workflow(project_path)
 
+    def _start_single_video_workflow(self):
+        """Handles the UI part of the single video workflow."""
+        dialog = SingleVideoConfigDialog(self.root)
+        if not dialog.result:
+            return  # User cancelled
+
+        video_path = self.ask_open_filenames(
+            "Select a Single Video File", [("Video files", "*.mp4 *.avi *.mov")]
+        )
+        if not video_path:
+            return
+
+        # Pass both config and video path to the controller
+        self.controller.start_single_video_workflow(
+            video_path=video_path[0],
+            config=dialog.result,
+        )
+
     def _on_close(self):
         """Delegates the close action to the controller."""
         self.controller.on_close()
@@ -2159,6 +1986,50 @@ class ApplicationGUI:
 
         dialog = StartRecordingDialog(self.root, pm)
         return dialog.result
+
+
+class SingleVideoConfigDialog(simpledialog.Dialog):
+    """A simplified dialog to get configuration for a single video analysis."""
+
+    def __init__(self, parent):
+        self.result = None
+        super().__init__(parent, "Single Video Analysis Configuration")
+
+    def body(self, master):
+        self.aquarium_width_var = StringVar(value="10.0")
+        self.aquarium_height_var = StringVar(value="10.0")
+
+        # --- Aquarium Dimensions ---
+        Label(master, text="Aquarium Width (cm):").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
+
+        Label(master, text="Aquarium Height (cm):").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=5
+        )
+
+        return super().body(master)
+
+    def validate(self):
+        try:
+            float(self.aquarium_width_var.get())
+            float(self.aquarium_height_var.get())
+        except ValueError:
+            messagebox.showerror("Error", "Aquarium dimensions must be valid numbers.")
+            return 0
+        return 1
+
+    def apply(self):
+        self.result = {
+            "aquarium_width_cm": float(self.aquarium_width_var.get()),
+            "aquarium_height_cm": float(self.aquarium_height_var.get()),
+        }
 
 
 class StartRecordingDialog(simpledialog.Dialog):

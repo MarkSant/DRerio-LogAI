@@ -35,13 +35,17 @@ class TestProjectManager(unittest.TestCase):
             data = json.load(f)
             self.assertEqual(data["project_name"], "live_project")
             self.assertEqual(data["project_type"], "live")
-            self.assertEqual(data["videos"], [])
+            self.assertEqual(data["batches"], [])
 
     def test_create_new_prerecorded_project(self):
         """Test the creation of a new 'pre-recorded' project."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "prerecorded_project")
-        video_files = ["/path/to/video1.mp4", "/path/to/video2.mp4"]
+        # Mock the structure that scan_input_paths would create
+        video_files = [
+            {"path": "/path/to/video1.mp4", "has_data": False},
+            {"path": "/path/to/video2.mp4", "has_data": True},
+        ]
         success = pm.create_new_project(
             project_path, "pre-recorded", video_files=video_files
         )
@@ -53,15 +57,17 @@ class TestProjectManager(unittest.TestCase):
         with open(config_path, "r") as f:
             data = json.load(f)
             self.assertEqual(data["project_type"], "pre-recorded")
-            self.assertEqual(len(data["videos"]), 2)
-            self.assertEqual(data["videos"][0]["path"], video_files[0])
-            self.assertEqual(data["videos"][0]["status"], "pending")
+            self.assertEqual(len(data["batches"]), 1)
+            self.assertEqual(len(data["batches"][0]["videos"]), 2)
+            self.assertEqual(data["batches"][0]["videos"][0]["path"], video_files[0]["path"])
+            self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
+            self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
     def test_load_project(self):
         """Test loading an existing project configuration."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "load_test_project")
-        video_files = ["vid1.mp4"]
+        video_files = [{"path": "vid1.mp4", "has_data": False}]
         pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         loader_pm = ProjectManager()
@@ -70,7 +76,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(loader_pm.get_project_name(), "load_test_project")
         self.assertEqual(loader_pm.get_project_type(), "pre-recorded")
-        self.assertEqual(len(loader_pm.project_data["videos"]), 1)
+        self.assertEqual(len(loader_pm.get_all_videos()), 1)
 
     def test_load_nonexistent_project(self):
         """Test loading from a directory with no config file."""
@@ -85,7 +91,11 @@ class TestProjectManager(unittest.TestCase):
         """Test updating video status and getting the next pending video."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "status_project")
-        video_files = ["video1.mp4", "video2.mp4", "video3.mp4"]
+        video_files = [
+            {"path": "video1.mp4", "has_data": False},
+            {"path": "video2.mp4", "has_data": False},
+            {"path": "video3.mp4", "has_data": False},
+        ]
         pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         # First pending video should be video1.mp4
@@ -102,7 +112,8 @@ class TestProjectManager(unittest.TestCase):
         # Verify that the change was saved by loading it into a new instance
         loader_pm = ProjectManager()
         loader_pm.load_project(project_path)
-        self.assertEqual(loader_pm.project_data["videos"][0]["status"], "complete")
+        all_videos = loader_pm.get_all_videos()
+        self.assertEqual(all_videos[0]["status"], "complete")
         self.assertEqual(loader_pm.get_next_video(), "video2.mp4")
 
         # Mark all as complete
