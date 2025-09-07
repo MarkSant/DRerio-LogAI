@@ -65,6 +65,8 @@ class Camera(FrameSource):
                 log.warning("camera.frame_read.failed")
                 with self._lock:
                     self._latest_frame = (False, None)
+                # Add a short sleep to prevent a tight loop on continuous read errors
+                time.sleep(0.1)
                 continue
 
             with self._lock:
