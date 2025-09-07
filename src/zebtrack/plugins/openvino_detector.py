@@ -7,7 +7,7 @@ import numpy as np
 import openvino as ov
 import torch
 from ultralytics.utils.ops import scale_boxes
-from ultralytics.utils.nms import non_max_suppression
+from ultralytics.utils.ops import non_max_suppression
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
