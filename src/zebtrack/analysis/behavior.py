@@ -312,9 +312,10 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_total_distance(self, max_time_gap: Optional[float] = None) -> float:
         df = self._trajectory_data
-        if max_time_gap:
+        if max_time_gap is not None:
             time_diffs = df.index.to_series().diff()
-            valid_segments = time_diffs <= max_time_gap
+            # Compare Timedelta with a Timedelta
+            valid_segments = time_diffs <= pd.to_timedelta(max_time_gap, unit="s")
             df = df[valid_segments]
 
         distances = np.sqrt(
@@ -327,12 +328,17 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         if "v_mag" in df.columns:
             return df
 
-        dt = df.index.to_series().diff()
+        dt_td = df.index.to_series().diff()
+        dt_s = dt_td.dt.total_seconds()
+
+        # Prevent division by zero or NaN/Inf results
+        dt_s.replace(0, np.nan, inplace=True)
+
         dx = df["x_cm_smoothed"].diff()
         dy = df["y_cm_smoothed"].diff()
 
-        df["vx"] = dx / dt
-        df["vy"] = dy / dt
+        df["vx"] = dx / dt_s
+        df["vy"] = dy / dt_s
         df["v_mag"] = np.sqrt(df["vx"] ** 2 + df["vy"] ** 2)
         return df
 
