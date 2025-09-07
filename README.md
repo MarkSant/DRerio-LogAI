@@ -57,7 +57,9 @@ Getting your research underway with ZebTrack-AI is simple.
 ## Data Output
 
 When you run an analysis, ZebTrack-AI organizes the results into a subfolder for each video (e.g., `MyVideo_results/`). This folder contains:
+
 -   `3_CoordMovimento_{video_name}.parquet`: The core trajectory data.
+    -   **Note:** This specific naming convention is important. The analysis modules expect the trajectory data file to start with `3_CoordMovimento_` and end with the experiment name (derived from the video's filename) and the `.parquet` extension.
 -   `{video_name}_summary.xlsx`: A multi-sheet Excel file with global and ROI-specific metrics.
 -   `{video_name}_report.docx`: A full report with metadata, tables, and all generated plots.
 

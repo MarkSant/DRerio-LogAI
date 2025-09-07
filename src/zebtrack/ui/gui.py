@@ -41,14 +41,14 @@ class ManageWeightsDialog(simpledialog.Dialog):
 
     def __init__(self, parent, controller):
         self.controller = controller
-        super().__init__(parent, "Manage Detection Weights")
+        super().__init__(parent, "Gerenciar Pesos de Detecção")
 
     def body(self, master):
         self.listbox = ttk.Treeview(
             master, columns=("name", "is_default"), show="headings", height=5
         )
-        self.listbox.heading("name", text="Weight Name")
-        self.listbox.heading("is_default", text="Default")
+        self.listbox.heading("name", text="Nome do Peso")
+        self.listbox.heading("is_default", text="Padrão")
         self.listbox.column("is_default", width=60, anchor="center")
         self.listbox.pack(padx=5, pady=5, fill="both", expand=True)
 
@@ -57,12 +57,12 @@ class ManageWeightsDialog(simpledialog.Dialog):
         button_frame = ttk.Frame(master)
         button_frame.pack(pady=5)
 
-        ttk.Button(button_frame, text="Set as Default", command=self.set_default).pack(
-            side="left", padx=5
-        )
-        ttk.Button(button_frame, text="Delete Selected", command=self.delete).pack(
-            side="left", padx=5
-        )
+        ttk.Button(
+            button_frame, text="Definir como Padrão", command=self.set_default
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            button_frame, text="Excluir Selecionado", command=self.delete
+        ).pack(side="left", padx=5)
 
     def populate_list(self):
         for item in self.listbox.get_children():
@@ -72,13 +72,13 @@ class ManageWeightsDialog(simpledialog.Dialog):
         default_name, _ = self.controller.weight_manager.get_default_weight()
 
         for name in sorted(weights):
-            is_default_str = "Yes" if name == default_name else ""
+            is_default_str = "Sim" if name == default_name else ""
             self.listbox.insert("", "end", values=(name, is_default_str))
 
     def get_selected_item_name(self):
         selected = self.listbox.selection()
         if not selected:
-            messagebox.showwarning("No Selection", "Please select a weight first.")
+            messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione um peso primeiro.")
             return None
         return self.listbox.item(selected[0])["values"][0]
 
@@ -94,7 +94,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         name = self.get_selected_item_name()
         if name:
             if messagebox.askyesno(
-                "Confirm Deletion", f"Are you sure you want to delete '{name}'?"
+                "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
                 self.controller.delete_weight(name)
                 self.populate_list()
@@ -102,7 +102,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
     def buttonbox(self):
         # Override to have only a close button
         box = ttk.Frame(self)
-        w = ttk.Button(box, text="Close", width=10, command=self.ok, default="active")
+        w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
         w.pack(side="left", padx=5, pady=5)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
@@ -115,7 +115,7 @@ class CreateProjectDialog(simpledialog.Dialog):
     def __init__(self, parent):
         self.project_path = None
         self.result = None
-        super().__init__(parent, "Create New Project")
+        super().__init__(parent, "Criar Novo Projeto")
 
     def body(self, master):
         self.project_name_var = StringVar()
@@ -124,7 +124,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.aquarium_height_var = StringVar(value="10.0")
         self.project_type_var = StringVar(value="pre-recorded")
         self.video_files = []
-        self.video_list_var = StringVar(value="No videos selected.")
+        self.video_list_var = StringVar(value="Nenhum vídeo selecionado.")
         self.use_timed_recording_var = BooleanVar(value=False)
         self.recording_duration_var = StringVar(value="5")
         self.use_countdown_var = BooleanVar(value=False)
@@ -137,7 +137,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.group_name_vars = [StringVar() for _ in range(6)]
 
         # --- Project Name ---
-        Label(master, text="Project Name:").grid(
+        Label(master, text="Nome do Projeto:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.project_name_var, width=40).grid(
@@ -145,31 +145,31 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
 
         # --- Base Path ---
-        Label(master, text="Project Folder:").grid(
+        Label(master, text="Pasta do Projeto:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         self.path_entry = Entry(master, text="", width=40)
         self.path_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
-        Button(master, text="Browse...", command=self._select_path).grid(
+        Button(master, text="Procurar...", command=self._select_path).grid(
             row=1, column=3, padx=5
         )
 
         # --- Calibration ---
-        Label(master, text="Number of Aquariums:").grid(
+        Label(master, text="Número de Aquários:").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.num_aquariums_var, width=10).grid(
             row=2, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Aquarium Width (cm):").grid(
+        Label(master, text="Largura do Aquário (cm):").grid(
             row=3, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
             row=3, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Aquarium Height (cm):").grid(
+        Label(master, text="Altura do Aquário (cm):").grid(
             row=4, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
@@ -177,26 +177,26 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
 
         # --- Project Type & Videos ---
-        Label(master, text="Project Type:").grid(
+        Label(master, text="Tipo de Projeto:").grid(
             row=5, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Radiobutton(
             master,
-            text="Pre-recorded",
+            text="Pré-gravado",
             variable=self.project_type_var,
             value="pre-recorded",
             command=self._update_project_type_options,
         ).grid(row=5, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
-            text="Live",
+            text="Ao Vivo",
             variable=self.project_type_var,
             value="live",
             command=self._update_project_type_options,
         ).grid(row=5, column=2, sticky="w", padx=5)
 
         self.video_button = Button(
-            master, text="Select Videos...", command=self._select_videos
+            master, text="Selecionar Vídeos...", command=self._select_videos
         )
         self.video_button.grid(row=6, column=0, padx=5, pady=5)
         Label(master, textvariable=self.video_list_var, wraplength=300).grid(
@@ -210,7 +210,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
         Checkbutton(
             self.live_options_frame,
-            text="Use timed recording?",
+            text="Usar gravação com tempo?",
             variable=self.use_timed_recording_var,
             command=self._update_project_type_options,
         ).pack(side="left")
@@ -218,12 +218,12 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.live_options_frame, textvariable=self.recording_duration_var, width=5
         )
         self.duration_entry.pack(side="left", padx=5)
-        Label(self.live_options_frame, text="minutes").pack(side="left", padx=(0, 10))
+        Label(self.live_options_frame, text="minutos").pack(side="left", padx=(0, 10))
 
         # Countdown options
         Checkbutton(
             self.live_options_frame,
-            text="Use countdown?",
+            text="Usar contagem regressiva?",
             variable=self.use_countdown_var,
             command=self._update_project_type_options,
         ).pack(side="left")
@@ -231,29 +231,29 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.live_options_frame, textvariable=self.countdown_duration_var, width=5
         )
         self.countdown_entry.pack(side="left", padx=5)
-        Label(self.live_options_frame, text="seconds").pack(side="left")
+        Label(self.live_options_frame, text="segundos").pack(side="left")
 
         # --- Live Project Experimental Design ---
         self.live_project_frame = ttk.LabelFrame(
-            master, text="Experimental Design (Live Project)", padding=10
+            master, text="Design Experimental (Projeto ao Vivo)", padding=10
         )
         self.live_project_frame.grid(
             row=8, column=0, columnspan=4, sticky="ew", padx=5, pady=5
         )
         # Widgets inside live_project_frame
-        ttk.Label(self.live_project_frame, text="Total Experiment Days:").grid(
+        ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(
             self.live_project_frame, textvariable=self.total_days_var, width=10
         ).grid(row=0, column=1, sticky="w", padx=5)
-        ttk.Label(self.live_project_frame, text="Subjects per Group:").grid(
+        ttk.Label(self.live_project_frame, text="Cobaias por Grupo:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(
             self.live_project_frame, textvariable=self.subjects_per_group_var, width=10
         ).grid(row=1, column=1, sticky="w", padx=5)
-        ttk.Label(self.live_project_frame, text="Number of Groups:").grid(
+        ttk.Label(self.live_project_frame, text="Número de Grupos:").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
         num_groups_entry = ttk.Entry(
@@ -262,7 +262,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         num_groups_entry.grid(row=2, column=1, sticky="w", padx=5)
         self.num_groups_var.trace_add("write", self._on_num_groups_change)
         self.group_names_frame = ttk.LabelFrame(
-            self.live_project_frame, text="Group Names", padding=5
+            self.live_project_frame, text="Nomes dos Grupos", padding=5
         )
         self.group_names_frame.grid(
             row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5
@@ -270,7 +270,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.group_name_entries = []
         for i in range(6):
             row, col = divmod(i, 2)
-            ttk.Label(self.group_names_frame, text=f"Group {i+1}:").grid(
+            ttk.Label(self.group_names_frame, text=f"Grupo {i+1}:").grid(
                 row=row, column=col * 2, sticky="w", padx=5, pady=2
             )
             entry = ttk.Entry(
@@ -284,21 +284,21 @@ class CreateProjectDialog(simpledialog.Dialog):
         return self.path_entry  # initial focus
 
     def _select_path(self):
-        path = filedialog.askdirectory(title="Select a Parent Folder for the Project")
+        path = filedialog.askdirectory(title="Selecione uma Pasta Principal para o Projeto")
         if path:
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
 
     def _select_videos(self):
         files = filedialog.askopenfilenames(
-            title="Select Video Files", filetypes=[("Video files", "*.mp4 *.avi")]
+            title="Selecione os Arquivos de Vídeo", filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")]
         )
         if files:
             self.video_files = files
-            self.video_list_var.set(f"{len(files)} video(s) selected.")
+            self.video_list_var.set(f"{len(files)} vídeo(s) selecionado(s).")
         else:
             self.video_files = []
-            self.video_list_var.set("No videos selected.")
+            self.video_list_var.set("Nenhum vídeo selecionado.")
 
     def _on_num_groups_change(self, *args):
         try:
@@ -323,7 +323,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.live_project_frame.grid_remove()
         else:  # Live
             self.video_button.config(state="disabled")
-            self.video_list_var.set("Not applicable for live projects.")
+            self.video_list_var.set("Não aplicável para projetos ao vivo.")
             self.live_options_frame.grid()
             self.live_project_frame.grid()  # Show the new frame
             if self.use_timed_recording_var.get():
@@ -339,26 +339,26 @@ class CreateProjectDialog(simpledialog.Dialog):
     def validate(self):
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            messagebox.showerror("Error", "Please select a valid parent folder.")
+            messagebox.showerror("Erro", "Por favor, selecione uma pasta principal válida.")
             return 0
 
         project_name = self.project_name_var.get()
         if not project_name.strip():
-            messagebox.showerror("Error", "Project name cannot be empty.")
+            messagebox.showerror("Erro", "O nome do projeto não pode estar vazio.")
             return 0
 
         self.project_path = os.path.join(base_path, project_name)
         if os.path.exists(self.project_path) and os.listdir(self.project_path):
             messagebox.showerror(
-                "Error",
-                "A project folder with this name already exists and is not empty.",
+                "Erro",
+                "Uma pasta de projeto com este nome já existe e não está vazia.",
             )
             return 0
 
         if self.project_type_var.get() == "pre-recorded" and not self.video_files:
             messagebox.showerror(
-                "Error",
-                "Please select at least one video file for pre-recorded analysis.",
+                "Erro",
+                "Por favor, selecione pelo menos um arquivo de vídeo para análise pré-gravada.",
             )
             return 0
 
@@ -367,7 +367,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Error", "Aquarium dimensions must be valid numbers.")
+            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
             return 0
 
         if self.project_type_var.get() == "live":
@@ -376,43 +376,43 @@ class CreateProjectDialog(simpledialog.Dialog):
                 subjects_per_group = int(self.subjects_per_group_var.get())
                 num_groups = int(self.num_groups_var.get())
                 if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
-                    raise ValueError("Values must be positive.")
+                    raise ValueError("Os valores devem ser positivos.")
                 if not 1 <= num_groups <= 6:
                     messagebox.showerror(
-                        "Error", "Number of groups must be between 1 and 6."
+                        "Erro", "O número de grupos deve ser entre 1 e 6."
                     )
                     return 0
                 # Check that required group names are not empty
                 for i in range(num_groups):
                     if not self.group_name_vars[i].get().strip():
                         messagebox.showerror(
-                            "Error", f"Group {i + 1} name cannot be empty."
+                            "Erro", f"O nome do Grupo {i + 1} não pode estar vazio."
                         )
                         return 0
             except (ValueError, TypeError):
                 messagebox.showerror(
-                    "Error",
-                    "Experimental design parameters must be valid positive numbers.",
+                    "Erro",
+                    "Os parâmetros do design experimental devem ser números positivos válidos.",
                 )
                 return 0
             if self.use_timed_recording_var.get():
                 try:
                     duration = float(self.recording_duration_var.get())
                     if duration <= 0:
-                        raise ValueError("Duration must be positive.")
+                        raise ValueError("A duração deve ser positiva.")
                 except ValueError:
                     messagebox.showerror(
-                        "Error", "Recording duration must be a positive number."
+                        "Erro", "A duração da gravação deve ser um número positivo."
                     )
                     return 0
             if self.use_countdown_var.get():
                 try:
                     countdown = int(self.countdown_duration_var.get())
                     if countdown <= 0:
-                        raise ValueError("Countdown must be a positive integer.")
+                        raise ValueError("A contagem regressiva deve ser um inteiro positivo.")
                 except ValueError:
                     messagebox.showerror(
-                        "Error", "Countdown duration must be a positive integer."
+                        "Erro", "A duração da contagem regressiva deve ser um inteiro positivo."
                     )
                     return 0
         return 1
@@ -470,7 +470,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.result = None
         self.available_cameras = {}
         self.available_ports = {}
-        super().__init__(parent, "Live Analysis Configuration")
+        super().__init__(parent, "Configuração da Análise ao Vivo")
 
     def body(self, master):
         # --- Detect devices first ---
@@ -482,12 +482,12 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.arduino_port_var = StringVar()
 
         # --- Camera Selection ---
-        Label(master, text="Select Camera:").grid(
+        Label(master, text="Selecionar Câmera:").grid(
             row=0, column=0, sticky="w", padx=5, pady=5
         )
         camera_names = list(self.available_cameras.keys())
         if not camera_names:
-            camera_names = ["No cameras found"]
+            camera_names = ["Nenhuma câmera encontrada"]
         self.camera_menu = OptionMenu(master, self.camera_var, *camera_names)
         self.camera_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
 
@@ -499,7 +499,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         # --- Arduino Selection ---
         self.arduino_check = Checkbutton(
             master,
-            text="Use Arduino",
+            text="Usar Arduino",
             variable=self.use_arduino_var,
             command=self._toggle_arduino_menu,
         )
@@ -507,12 +507,12 @@ class LiveConfigDialog(simpledialog.Dialog):
             row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5
         )
 
-        Label(master, text="Arduino Port:").grid(
+        Label(master, text="Porta Arduino:").grid(
             row=2, column=0, sticky="w", padx=5, pady=5
         )
         port_names = list(self.available_ports.keys())
         if not port_names:
-            port_names = ["No ports found"]
+            port_names = ["Nenhuma porta encontrada"]
         self.arduino_menu = OptionMenu(master, self.arduino_port_var, *port_names)
         self.arduino_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
 
@@ -529,7 +529,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         for i in range(10):  # Check up to 10 indices
             cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
             if cap.isOpened():
-                self.available_cameras[f"Camera {i}"] = i
+                self.available_cameras[f"Câmera {i}"] = i
                 cap.release()
         log.info("device_detection.camera.found", cameras=self.available_cameras)
 
@@ -559,14 +559,14 @@ class LiveConfigDialog(simpledialog.Dialog):
         """Validate the inputs before closing the dialog."""
         if not self.available_cameras:
             messagebox.showerror(
-                "Error", "No camera detected. Cannot start a live session."
+                "Erro", "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo."
             )
             return 0
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
-                "Error",
-                "Arduino is enabled, but no serial port was found. Please check "
-                "the connection or disable the 'Use Arduino' option.",
+                "Erro",
+                "O Arduino está ativado, mas nenhuma porta serial foi encontrada. Por favor, verifique "
+                "a conexão ou desative a opção 'Usar Arduino'.",
             )
             return 0
         return 1
@@ -595,7 +595,7 @@ class ApplicationGUI:
         """
         self.root = root
         self.controller = controller
-        self.root.title("Zebtrack Controller")
+        self.root.title("Controlador Zebtrack")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
         # Dynamic widgets / state variables
@@ -628,7 +628,7 @@ class ApplicationGUI:
         # Model management variables
         self.active_weight_var = StringVar()
         self.use_openvino_var = BooleanVar(value=False)
-        self.openvino_status_var = StringVar(value="Initializing...")
+        self.openvino_status_var = StringVar(value="Inicializando...")
 
         self._create_welcome_frame()
 
@@ -648,7 +648,7 @@ class ApplicationGUI:
         # --- Title ---
         ttk.Label(
             self.welcome_frame,
-            text="Welcome to Zebtrack Controller",
+            text="Bem-vindo ao Controlador Zebtrack",
             font=("Helvetica", 16),
         ).pack(pady=(0, 15))
 
@@ -657,36 +657,36 @@ class ApplicationGUI:
 
         # --- Project Actions ---
         project_actions_frame = ttk.LabelFrame(
-            self.welcome_frame, text="Project Actions", padding=10
+            self.welcome_frame, text="Ações do Projeto", padding=10
         )
         project_actions_frame.pack(fill="x", pady=10, expand=True)
 
         ttk.Button(
             project_actions_frame,
-            text="Analyze Single Video",
+            text="Analisar Vídeo Único",
             command=self._on_analyze_single_video_clicked,
         ).pack(fill="x", padx=10, pady=5)
         ttk.Button(
             project_actions_frame,
-            text="Create New Project",
+            text="Criar Novo Projeto",
             command=self._create_project_workflow,
         ).pack(fill="x", padx=10, pady=5)
         ttk.Button(
             project_actions_frame,
-            text="Open Existing Project",
+            text="Abrir Projeto Existente",
             command=self._open_project_workflow,
         ).pack(fill="x", padx=10, pady=5)
 
     def _create_model_config_frame(self):
         """Builds the UI for model and OpenVINO configuration."""
         model_frame = ttk.LabelFrame(
-            self.welcome_frame, text="Model Configuration", padding=10
+            self.welcome_frame, text="Configuração do Modelo", padding=10
         )
         model_frame.pack(fill="x", pady=5)
         model_frame.columnconfigure(1, weight=1)
 
         # --- Row 0: Weight Selection ---
-        ttk.Label(model_frame, text="Active Weight:").grid(
+        ttk.Label(model_frame, text="Peso Ativo:").grid(
             row=0, column=0, sticky="w", padx=5, pady=3
         )
         self.weights_dropdown = ttk.Combobox(
@@ -701,16 +701,16 @@ class ApplicationGUI:
         btn_frame = ttk.Frame(model_frame)
         btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
         ttk.Button(
-            btn_frame, text="Load New Weight...", command=self._load_new_weight_clicked
+            btn_frame, text="Carregar Novo Peso...", command=self._load_new_weight_clicked
         ).pack(side="left", padx=(0, 5))
         ttk.Button(
-            btn_frame, text="Manage Weights...", command=self._manage_weights_clicked
+            btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_clicked
         ).pack(side="left")
 
         # --- Row 2: OpenVINO Toggle ---
         self.openvino_checkbox = ttk.Checkbutton(
             model_frame,
-            text="Optimize with OpenVINO (for Intel hardware)",
+            text="Otimizar com OpenVINO (para hardware Intel)",
             variable=self.use_openvino_var,
             command=self._on_openvino_toggled,
         )
@@ -743,9 +743,17 @@ class ApplicationGUI:
         self._create_reports_tab()
 
         # Status frame below the notebook
+        project_type_str = self.controller.project_manager.get_project_type()
+        if project_type_str == "live":
+            project_type_display = "Ao Vivo"
+        elif project_type_str == "pre-recorded":
+            project_type_display = "Pré-gravado"
+        else:
+            project_type_display = project_type_str
+
         status_text = (
-            f"Project: {self.controller.project_manager.get_project_name()} "
-            f"({self.controller.project_manager.get_project_type()})"
+            f"Projeto: {self.controller.project_manager.get_project_name()} "
+            f"({project_type_display})"
         )
         self.status_var.set(status_text)
         status_frame = Frame(self.root)
@@ -758,20 +766,20 @@ class ApplicationGUI:
     def _create_main_controls_tab(self):
         """Creates the tab with the main project controls."""
         self.main_controls_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.main_controls_frame, text="Main Control")
+        self.notebook.add(self.main_controls_frame, text="Controle Principal")
 
         project_type = self.controller.project_manager.get_project_type()
 
         if project_type == "live":
             self.start_rec_btn = Button(
                 self.main_controls_frame,
-                text="Start Recording",
+                text="Iniciar Gravação",
                 command=self.controller.start_recording,
             )
             self.start_rec_btn.pack(side="left", padx=5)
             self.stop_rec_btn = Button(
                 self.main_controls_frame,
-                text="Stop Recording",
+                text="Parar Gravação",
                 command=self.controller.stop_recording,
                 state="disabled",
             )
@@ -780,13 +788,13 @@ class ApplicationGUI:
             # The main action in a pre-recorded project is to add more videos
             ttk.Button(
                 self.main_controls_frame,
-                text="Add and Process New Videos/Folders...",
+                text="Adicionar e Processar Novos Vídeos/Pastas...",
                 command=self.controller.start_project_processing_workflow,
             ).pack(pady=10, padx=10, fill="x")
 
         Button(
             self.main_controls_frame,
-            text="Close Project",
+            text="Fechar Projeto",
             command=self.controller.close_project,
         ).pack(side="left", padx=5)
 
@@ -998,19 +1006,19 @@ class ApplicationGUI:
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(reports_tab_frame, text="Reporting")
+        self.notebook.add(reports_tab_frame, text="Relatórios")
 
         # --- Video List (Master View) ---
         list_frame = ttk.LabelFrame(
-            reports_tab_frame, text="Processed Videos", padding=10
+            reports_tab_frame, text="Vídeos Processados", padding=10
         )
         list_frame.pack(fill="both", expand=True, pady=5)
 
         self.reports_tree = ttk.Treeview(
             list_frame, columns=("name", "batch", "status"), show="headings"
         )
-        self.reports_tree.heading("name", text="Video Name")
-        self.reports_tree.heading("batch", text="Batch Timestamp")
+        self.reports_tree.heading("name", text="Nome do Vídeo")
+        self.reports_tree.heading("batch", text="Lote (Timestamp)")
         self.reports_tree.heading("status", text="Status")
         self.reports_tree.pack(side="left", fill="both", expand=True)
 
@@ -1023,12 +1031,12 @@ class ApplicationGUI:
         self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
 
         # --- Actions Panel ---
-        actions_frame = ttk.LabelFrame(reports_tab_frame, text="Actions", padding=10)
+        actions_frame = ttk.LabelFrame(reports_tab_frame, text="Ações", padding=10)
         actions_frame.pack(fill="x", pady=5)
 
         self.generate_partial_report_btn = ttk.Button(
             actions_frame,
-            text="Generate Report for Selected",
+            text="Gerar Relatório para Selecionados",
             command=self._generate_partial_report,
             state="disabled",
         )
@@ -1036,7 +1044,7 @@ class ApplicationGUI:
 
         self.generate_unified_report_btn = ttk.Button(
             actions_frame,
-            text="Generate Unified Report (All)",
+            text="Gerar Relatório Unificado (Todos)",
             command=self._generate_unified_report,
         )
         self.generate_unified_report_btn.pack(side="left", padx=10)
@@ -1051,13 +1059,13 @@ class ApplicationGUI:
 
         batches = self.controller.project_manager.project_data.get("batches", [])
         for i, batch in enumerate(batches):
-            batch_ts = batch.get("timestamp", f"Batch {i+1}")
+            batch_ts = batch.get("timestamp", f"Lote {i+1}")
             # Insert parent item for the batch
             batch_id = self.reports_tree.insert(
                 "", "end", text=batch_ts, open=True
             )
             for video in batch.get("videos", []):
-                video_name = os.path.basename(video.get("path", "Unknown Video"))
+                video_name = os.path.basename(video.get("path", "Vídeo Desconhecido"))
                 self.reports_tree.insert(
                     batch_id,
                     "end",
@@ -1109,7 +1117,7 @@ class ApplicationGUI:
         all_videos = self.controller.project_manager.get_all_videos()
         if not all_videos:
             self.show_warning(
-                "No Data", "There are no processed videos in this project to report on."
+                "Sem Dados", "Não há vídeos processados neste projeto para gerar relatório."
             )
             return
         self.controller.generate_report(all_videos, report_type="unified")
@@ -2051,21 +2059,21 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
     def __init__(self, parent):
         self.result = None
-        super().__init__(parent, "Single Video Analysis Configuration")
+        super().__init__(parent, "Configuração de Análise de Vídeo Único")
 
     def body(self, master):
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
 
         # --- Aquarium Dimensions ---
-        Label(master, text="Aquarium Width (cm):").grid(
+        Label(master, text="Largura do Aquário (cm):").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Aquarium Height (cm):").grid(
+        Label(master, text="Altura do Aquário (cm):").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
@@ -2079,7 +2087,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Error", "Aquarium dimensions must be valid numbers.")
+            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
             return 0
         return 1
 
@@ -2094,7 +2102,7 @@ class StartRecordingDialog(simpledialog.Dialog):
     def __init__(self, parent, project_manager):
         self.pm = project_manager
         self.result = None
-        super().__init__(parent, "Start New Recording Session")
+        super().__init__(parent, "Iniciar Nova Sessão de Gravação")
 
     def body(self, master):
         # Get data from project manager
@@ -2122,21 +2130,21 @@ class StartRecordingDialog(simpledialog.Dialog):
 
         # --- Layout ---
         # Day Dropdown
-        Label(master, text="Select Day:").grid(
+        Label(master, text="Selecione o Dia:").grid(
             row=0, column=0, sticky="w", padx=5, pady=5
         )
         day_menu = OptionMenu(master, self.day_var, *day_opts)
         day_menu.grid(row=0, column=1, sticky="ew", padx=5)
 
         # Group Dropdown
-        Label(master, text="Select Group:").grid(
+        Label(master, text="Selecione o Grupo:").grid(
             row=1, column=0, sticky="w", padx=5, pady=5
         )
         group_menu = OptionMenu(master, self.group_var, *groups)
         group_menu.grid(row=1, column=1, sticky="ew", padx=5)
 
         # Subject Dropdown
-        Label(master, text="Select Subject:").grid(
+        Label(master, text="Selecione a Cobaia:").grid(
             row=2, column=0, sticky="w", padx=5, pady=5
         )
         subject_opts = [str(s) for s in range(1, subjects + 1)]
@@ -2149,7 +2157,7 @@ class StartRecordingDialog(simpledialog.Dialog):
 
     def validate(self):
         if not all([self.day_var.get(), self.group_var.get(), self.subject_var.get()]):
-            messagebox.showerror("Error", "All fields are required.")
+            messagebox.showerror("Erro", "Todos os campos são obrigatórios.")
             return 0
         return 1
 
@@ -2165,14 +2173,14 @@ class MissingMetadataDialog(simpledialog.Dialog):
     def __init__(self, parent, experiment_id):
         self.experiment_id = experiment_id
         self.result = None
-        super().__init__(parent, "Missing Metadata")
+        super().__init__(parent, "Metadados Ausentes")
 
     def body(self, master):
-        Label(master, text="Could not automatically find metadata for:").pack(pady=5)
+        Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(pady=5)
         Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
             pady=(0, 10)
         )
-        Label(master, text="Please enter the details manually:").pack(pady=5)
+        Label(master, text="Por favor, insira os detalhes manualmente:").pack(pady=5)
 
         self.day_var = StringVar()
         self.group_var = StringVar()
@@ -2181,19 +2189,19 @@ class MissingMetadataDialog(simpledialog.Dialog):
         form_frame = Frame(master)
         form_frame.pack(padx=10, pady=10)
 
-        Label(form_frame, text="Day:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        Label(form_frame, text="Dia:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
         Entry(form_frame, textvariable=self.day_var).grid(
             row=0, column=1, sticky="ew", padx=5
         )
 
-        Label(form_frame, text="Group:").grid(
+        Label(form_frame, text="Grupo:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         Entry(form_frame, textvariable=self.group_var).grid(
             row=1, column=1, sticky="ew", padx=5
         )
 
-        Label(form_frame, text="Cobaia (Subject ID):").grid(
+        Label(form_frame, text="Cobaia (ID):").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
         Entry(form_frame, textvariable=self.cobaia_var).grid(
@@ -2208,12 +2216,12 @@ class MissingMetadataDialog(simpledialog.Dialog):
             int(self.cobaia_var.get())
         except ValueError:
             messagebox.showerror(
-                "Validation Error", "Day and Cobaia (Subject ID) must be integers."
+                "Erro de Validação", "Dia e Cobaia (ID) devem ser números inteiros."
             )
             return 0
 
         if not self.group_var.get().strip():
-            messagebox.showerror("Validation Error", "Group name cannot be empty.")
+            messagebox.showerror("Erro de Validação", "O nome do grupo não pode estar vazio.")
             return 0
 
         return 1
@@ -2233,7 +2241,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         self.subjects_per_group = subjects_per_group
         self.completed_subjects = completed_subjects
         self.result = None  # This will be the selected subject_id
-        super().__init__(parent, f"Select Subject for Day {day} - {group_name}")
+        super().__init__(parent, f"Selecionar Cobaia para o Dia {day} - {group_name}")
 
     def body(self, master):
         master.config(padx=10, pady=10)
@@ -2242,7 +2250,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
             is_completed = subject_id in self.completed_subjects
 
             status_text = (
-                f"Subject {subject_id}: {'Completed' if is_completed else 'Pending'}"
+                f"Cobaia {subject_id}: {'Concluído' if is_completed else 'Pendente'}"
             )
             status_color = "darkgreen" if is_completed else "black"
 
@@ -2266,7 +2274,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
     def buttonbox(self):
         # Override to have only a cancel button, since selection closes the dialog
         box = ttk.Frame(self)
-        w = ttk.Button(box, text="Cancel", width=10, command=self.cancel)
+        w = ttk.Button(box, text="Cancelar", width=10, command=self.cancel)
         w.pack(side="left", padx=5, pady=5)
         self.bind("<Escape>", self.cancel)
         box.pack()
@@ -2283,24 +2291,24 @@ class TemplateDialog(simpledialog.Dialog):
 
         ttk.Radiobutton(
             master,
-            text="Vertical Lanes",
+            text="Faixas Verticais",
             variable=self.template_type,
             value="vertical",
         ).pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Horizontal Lanes",
+            text="Faixas Horizontais",
             variable=self.template_type,
             value="horizontal",
         ).pack(anchor="w")
         ttk.Radiobutton(
-            master, text="Grid", variable=self.template_type, value="grid"
+            master, text="Grade", variable=self.template_type, value="grid"
         ).pack(anchor="w")
 
-        ttk.Label(master, text="# of Lanes:").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text="Nº de Faixas:").pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.num_lanes).pack(anchor="w")
 
-        ttk.Label(master, text="Grid (Rows x Columns):").pack(
+        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(
             anchor="w", pady=(5, 0)
         )
         grid_frame = ttk.Frame(master)
@@ -2329,21 +2337,21 @@ class CenterPeripheryDialog(simpledialog.Dialog):
         self.method = StringVar(value="distance")
         self.value = StringVar(value="5.0")
 
-        ttk.Label(master, text="Method:").pack(anchor="w")
+        ttk.Label(master, text="Método:").pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Distance from Edge (cm)",
+            text="Distância da Borda (cm)",
             variable=self.method,
             value="distance",
         ).pack(anchor="w")
         ttk.Radiobutton(
             master,
-            text="Area Ratio (0.0-1.0)",
+            text="Razão da Área (0.0-1.0)",
             variable=self.method,
             value="area_ratio",
         ).pack(anchor="w")
 
-        ttk.Label(master, text="Value:").pack(anchor="w", pady=(5, 0))
+        ttk.Label(master, text="Valor:").pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.value).pack(anchor="w")
         return master
 

@@ -137,10 +137,10 @@ class ProjectManager:
         except OSError as e:
             log.error("project.create.dir_error", error=str(e))
             messagebox.showerror(
-                "Creation Error",
+                "Erro na Criação",
                 (
-                    f"Could not create project directory:\n{e}\n\n"
-                    "Please check folder permissions and ensure the path is valid."
+                    f"Não foi possível criar o diretório do projeto:\n{e}\n\n"
+                    "Por favor, verifique as permissões da pasta e se o caminho é válido."
                 ),
             )
             return False
@@ -221,11 +221,11 @@ class ProjectManager:
         if not os.path.exists(config_path):
             log_context.error("project.load.not_found")
             messagebox.showerror(
-                "Load Error",
+                "Erro ao Carregar",
                 (
-                    f"Project config file '{CONFIG_FILE_NAME}' not found in the "
-                    f"selected directory:\n{project_path}\n\nPlease ensure you have "
-                    "selected a valid project folder."
+                    f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não encontrado no "
+                    f"diretório selecionado:\n{project_path}\n\nPor favor, garanta que você "
+                    "selecionou uma pasta de projeto válida."
                 ),
             )
             return False
@@ -243,9 +243,9 @@ class ProjectManager:
         except (json.JSONDecodeError, IOError) as e:
             log_context.error("project.load.error", exc_info=e)
             messagebox.showerror(
-                "Load Error",
-                f"Failed to load or parse the project config file:\n{config_path}\n\n"
-                f"The file may be corrupted or unreadable.\n\nError: {e}",
+                "Erro ao Carregar",
+                f"Falha ao carregar ou analisar o arquivo de configuração do projeto:\n{config_path}\n\n"
+                f"O arquivo pode estar corrompido ou ilegível.\n\nErro: {e}",
             )
             return False
 
@@ -265,9 +265,9 @@ class ProjectManager:
         except IOError as e:
             log.error("project.save.error", path=config_path, exc_info=e)
             messagebox.showerror(
-                "Save Error",
-                f"Failed to save project config file:\n{config_path}\n\n"
-                f"Please check folder permissions.\n\nError: {e}",
+                "Erro ao Salvar",
+                f"Falha ao salvar o arquivo de configuração do projeto:\n{config_path}\n\n"
+                f"Por favor, verifique as permissões da pasta.\n\nErro: {e}",
             )
             return False
 
@@ -348,8 +348,8 @@ class ProjectManager:
                     "project.metadata.load_error", path=metadata_path, error=str(e)
                 )
                 messagebox.showwarning(
-                    "Metadata Warning",
-                    f"Could not load or parse 'metadata.csv'.\n\nError: {e}"
+                    "Aviso de Metadados",
+                    f"Não foi possível carregar ou analisar 'metadata.csv'.\n\nErro: {e}"
                 )
         else:
             self.metadata = None

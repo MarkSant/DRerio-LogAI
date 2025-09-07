@@ -94,6 +94,15 @@ class BehavioralAnalyzer(ABC):
                 "Input DataFrame must include a 'timestamp' column for proper "
                 "temporal analysis."
             )
+        # Ensure the timestamp column is a TimedeltaIndex for calculations
+        if pd.api.types.is_numeric_dtype(df["timestamp"]):
+            # If timestamps are numbers (e.g., seconds), convert to timedelta
+            df["timestamp"] = pd.to_timedelta(df["timestamp"], unit="s")
+        elif pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+            # If timestamps are datetimes, convert to time elapsed from start
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["timestamp"] = df["timestamp"] - df["timestamp"].iloc[0]
+
         df.set_index("timestamp", inplace=True)
 
         # Convert units from pixels to cm and invert Y-axis for the centroid
@@ -357,12 +366,12 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 start_time = block.index[0]
                 end_time = block.index[-1]
                 duration = end_time - start_time
-                if duration >= min_duration:
+                if duration.total_seconds() >= min_duration:
                     episodes.append(
                         {
                             "start_time": start_time,
                             "end_time": end_time,
-                            "duration": duration,
+                            "duration": duration.total_seconds(),
                         }
                     )
         return episodes

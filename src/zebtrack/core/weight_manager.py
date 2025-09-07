@@ -61,7 +61,7 @@ class WeightManager:
         except IOError as e:
             log.error("weights.config.save_error", error=str(e))
             messagebox.showerror(
-                "Error", "Could not save the weights configuration file."
+                "Erro", "Não foi possível salvar o arquivo de configuração de pesos."
             )
 
     def get_all_weights(self) -> list[str]:
@@ -105,7 +105,7 @@ class WeightManager:
         new_name = os.path.basename(new_path)
         if new_name in self.weights:
             messagebox.showinfo(
-                "Already Exists", f"A weight named '{new_name}' already exists."
+                "Já Existe", f"Um peso com o nome '{new_name}' já existe."
             )
             return
 
@@ -131,7 +131,7 @@ class WeightManager:
 
         if len(self.weights) <= 1:
             messagebox.showerror(
-                "Cannot Delete", "You cannot delete the last available weight."
+                "Não é Possível Excluir", "Você não pode excluir o último peso disponível."
             )
             return
 
@@ -204,7 +204,7 @@ class WeightManager:
             # Clean up partial export directory if it exists
             shutil.rmtree(cached_model_dir, ignore_errors=True)
             messagebox.showerror(
-                "OpenVINO Export Error",
-                f"Failed to convert '{name}' to OpenVINO format.\n\nError: {e}",
+                "Erro na Exportação OpenVINO",
+                f"Falha ao converter '{name}' para o formato OpenVINO.\n\nErro: {e}",
             )
             return None
