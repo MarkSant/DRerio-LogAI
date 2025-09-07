@@ -193,18 +193,27 @@ class BehavioralAnalyzer(ABC):
 
     @abstractmethod
     def detect_freezing_episodes(
-        self, vel_threshold: float, min_duration: float
+        self,
+        min_duration: float,
+        vel_threshold: Optional[float] = None,
+        threshold_method: str = "absolute",
+        quantile: float = 0.1,
     ) -> List[Dict[str, float]]:
         """
         Detects freezing episodes based on a velocity threshold.
 
-        A freezing episode starts when velocity drops below `vel_threshold`
+        A freezing episode starts when velocity drops below a threshold
         and lasts for at least `min_duration`.
 
         Args:
-            vel_threshold (float): The velocity threshold (in cm/s).
             min_duration (float): The minimum duration (in seconds) to be
                 considered a freezing episode.
+            vel_threshold (Optional[float]): The velocity threshold (in cm/s) for
+                the 'absolute' method.
+            threshold_method (str): 'absolute' or 'relative'. 'absolute' uses
+                `vel_threshold`. 'relative' calculates the threshold based on
+                the velocity distribution's quantile.
+            quantile (float): The quantile to use for the 'relative' method.
 
         Returns:
             List[Dict[str, float]]: A list of dictionaries, where each
@@ -366,12 +375,26 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return df
 
     def detect_freezing_episodes(
-        self, vel_threshold: float, min_duration: float
+        self,
+        min_duration: float,
+        vel_threshold: Optional[float] = None,
+        threshold_method: str = "absolute",
+        quantile: float = 0.1,
     ) -> List[Dict[str, float]]:
         self.calculate_velocity_timeseries()
-        is_freezing = self._trajectory_data["v_mag"] < vel_threshold
+        v_mag = self._trajectory_data["v_mag"]
 
-        blocks = (is_freezing.diff() != 0).cumsum()
+        if threshold_method == "relative":
+            threshold = v_mag.quantile(quantile)
+        elif threshold_method == "absolute":
+            if vel_threshold is None:
+                raise ValueError("vel_threshold must be set for 'absolute' method.")
+            threshold = vel_threshold
+        else:
+            raise ValueError(f"Unknown threshold_method: {threshold_method}")
+
+        is_freezing = v_mag <= threshold
+        blocks = is_freezing.diff().ne(0).cumsum()
         freezing_blocks = self._trajectory_data[is_freezing].groupby(blocks)
 
         episodes = []
@@ -418,9 +441,12 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         # Convert to degrees
         d_theta_deg = np.degrees(d_theta_normalized)
         # Calculate time interval in seconds
-        dt = 1.0 / self.fps
+        dt_td = df.index.to_series().diff()
+        dt_s = dt_td.dt.total_seconds()
+        # Prevent division by zero or NaN/Inf results
+        dt_s.replace(0, np.nan, inplace=True)
         # Calculate angular velocity
-        angular_velocity_deg_s = d_theta_deg / dt
+        angular_velocity_deg_s = d_theta_deg / dt_s
         angular_velocity_deg_s.name = "angular_velocity_deg_s"
         return angular_velocity_deg_s
 
@@ -443,7 +469,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
         if straight_dist > 0:
             return path_distance / straight_dist
-        return np.inf if path_distance > 0 else 1.0
+        return np.nan if path_distance > 0 else 1.0
 
     def get_thigmotaxis_timeseries(self) -> pd.Series:
         # Not implemented for this concrete class

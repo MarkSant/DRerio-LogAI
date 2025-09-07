@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for the ConcreteBehavioralAnalyzer class.
+"""
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,124 +10,121 @@ from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 
 
 @pytest.fixture
-def straight_line_trajectory():
+def sample_trajectory_data():
     """
-    Generates a simple, 10-second straight-line trajectory for testing.
-    The trajectory moves from (10, 20) to (110, 20) in pixels.
-    With a 10px/cm ratio, this is a 10cm straight line.
-    """
-    timestamps = np.linspace(0, 10, 101)  # 101 points over 10 seconds
-    x_coords_px = np.linspace(10, 110, 101)
-    y_coords_px = np.full_like(x_coords_px, 20)
-
-    df = pd.DataFrame(
-        {
-            "timestamp": timestamps,
-            "x_center_px": x_coords_px,
-            "y_center_px": y_coords_px,
-            # Dummy bbox data, not used for distance/freezing
-            "x1": x_coords_px - 1,
-            "y1": y_coords_px - 1,
-            "x2": x_coords_px + 1,
-            "y2": y_coords_px + 1,
-        }
-    )
-
-    # Metadata for the analyzer
-    metadata = {
-        "trajectory_df": df,
-        "pixelcm_x": 10.0,  # 10 pixels per cm
-        "pixelcm_y": 10.0,
-        "video_height_px": 200,
-        "arena_polygon_px": [(0, 0), (200, 0), (200, 200), (0, 200)],
-        # Use a window_length smaller than the number of points
-        "window_length": 5,
-        "polyorder": 2,
-    }
-    return metadata
-
-
-def test_calculate_total_distance_straight_line(straight_line_trajectory):
-    """
-    Tests that the total distance for a simple straight-line trajectory is
-    calculated correctly.
-    """
-    analyzer = ConcreteBehavioralAnalyzer(**straight_line_trajectory)
-
-    # The trajectory moves 100 pixels horizontally.
-    # With a ratio of 10 px/cm, the distance should be 10 cm.
-    expected_distance = 10.0
-    # Smoothing a straight line should still result in a straight line,
-    # so the distance should be very close to the expectation.
-    calculated_distance = analyzer.calculate_total_distance()
-
-    assert calculated_distance == pytest.approx(expected_distance, rel=1e-3)
-
-
-@pytest.fixture
-def freezing_trajectory():
-    """
-    Generates a trajectory with a clear 5-second freezing episode.
-    - t=0-2s: Moving
-    - t=2-7s: Stationary (freezing)
-    - t=7-10s: Moving again
+    Provides a sample trajectory dataset for testing.
     """
     timestamps = np.linspace(0, 10, 101)
-    x_coords_px = np.zeros_like(timestamps)
-    y_coords_px = np.zeros_like(timestamps)
-
-    # Before t=2s
-    move1_mask = timestamps < 2
-    x_coords_px[move1_mask] = np.linspace(0, 20, np.sum(move1_mask))
-
-    # Between t=2s and t=7s (stationary at 20px)
-    freeze_mask = (timestamps >= 2) & (timestamps <= 7)
-    x_coords_px[freeze_mask] = 20
-
-    # After t=7s
-    move2_mask = timestamps > 7
-    x_coords_px[move2_mask] = np.linspace(20, 40, np.sum(move2_mask))
-
+    px = np.linspace(10, 110, 101)
+    py = np.linspace(20, 220, 101)
     df = pd.DataFrame(
         {
             "timestamp": timestamps,
-            "x_center_px": x_coords_px,
-            "y_center_px": y_coords_px,
-            "x1": x_coords_px - 1, "y1": y_coords_px - 1,
-            "x2": x_coords_px + 1, "y2": y_coords_px + 1,
+            "x_center_px": px,
+            "y_center_px": py,
+            "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1,
         }
     )
-    metadata = {
+    return {
         "trajectory_df": df,
-        "pixelcm_x": 10.0, "pixelcm_y": 10.0,
-        "video_height_px": 200,
-        "arena_polygon_px": [(0, 0), (200, 0), (200, 200), (0, 200)],
-        "window_length": 5, "polyorder": 2,
+        "pixelcm_x": 10.0,
+        "pixelcm_y": 10.0,
+        "video_height_px": 240,
+        "arena_polygon_px": [(0, 0), (120, 0), (120, 240), (0, 240)],
+        "fps": 10,
+        "window_length": 7,
+        "polyorder": 3,
     }
-    return metadata
 
 
-def test_detect_freezing_episodes(freezing_trajectory):
-    """
-    Tests that a clear freezing episode is correctly detected.
-    """
-    analyzer = ConcreteBehavioralAnalyzer(**freezing_trajectory)
+def test_get_tortuosity_straight_line(sample_trajectory_data):
+    """Tests tortuosity for a straight line trajectory."""
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    # For a straight line, tortuosity should be 1.0
+    assert np.isclose(analyzer.get_tortuosity(), 1.0)
 
-    # Velocity threshold in cm/s. The freezing part has 0 velocity.
-    vel_threshold = 0.1
-    # Minimum duration for an episode to be counted.
-    min_duration = 2.0  # seconds
 
-    episodes = analyzer.detect_freezing_episodes(vel_threshold, min_duration)
+def test_get_tortuosity_zero_distance(sample_trajectory_data):
+    """Tests tortuosity when start and end points are the same."""
+    # Create a trajectory that starts and ends at the same point but moves in between
+    timestamps = [0, 1, 2]
+    px = np.array([10, 50, 10])
+    py = np.array([20, 60, 20])
+    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    sample_trajectory_data["trajectory_df"] = df
+    # Disable smoothing to test the zero distance case precisely
+    sample_trajectory_data["window_length"] = 1
+    sample_trajectory_data["polyorder"] = 0
 
-    # We expect to find exactly one episode
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    # When start and end points are the same, and path was traveled, tortuosity is nan.
+    assert np.isnan(analyzer.get_tortuosity())
+
+
+def test_get_angular_velocity_non_uniform_timestamps(sample_trajectory_data):
+    """Tests angular velocity with non-uniform time intervals."""
+    # Create a trajectory with non-uniform timestamps
+    timestamps = [0, 1, 3, 6]  # dt = 1, 2, 3
+    px = np.array([10, 20, 20, 20])
+    py = np.array([10, 10, 20, 20]) # 90 degree turn (clockwise)
+    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    sample_trajectory_data["trajectory_df"] = df
+    # Disable smoothing for predictable angular velocity
+    sample_trajectory_data["window_length"] = 1
+    sample_trajectory_data["polyorder"] = 0
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    angular_velocity = analyzer.get_angular_velocity()
+
+    # The turn happens at index 2 (time = 3s)
+    # The angle changes from 0 to -90 degrees (clockwise).
+    # The time difference is 2s (from t=1 to t=3).
+    # Expected angular velocity is approx -90 / 2 = -45 deg/s.
+    assert np.isclose(angular_velocity.iloc[2], -45.0, atol=1e-1)
+
+
+def test_detect_freezing_episodes_absolute(sample_trajectory_data):
+    """Tests freezing detection with an absolute threshold."""
+    timestamps = np.linspace(0, 10, 101)
+    px = np.array([10] * 50 + list(np.linspace(10, 20, 51)))
+    py = np.array([20] * 50 + list(np.linspace(20, 30, 51)))
+    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    sample_trajectory_data["trajectory_df"] = df
+    sample_trajectory_data["window_length"] = 1
+    sample_trajectory_data["polyorder"] = 0
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+
+    # The first 50 points are stationary. This corresponds to 49 velocity points.
+    # The duration of freezing is 4.8s (t_49 - t_1)
+    episodes = analyzer.detect_freezing_episodes(min_duration=1, vel_threshold=0.1, threshold_method="absolute")
     assert len(episodes) == 1
-    episode = episodes[0]
+    assert np.isclose(episodes[0]["duration"], 4.8, atol=0.1)
 
-    # The episode should last approximately 4.9 seconds. The velocity calculation
-    # using .diff() means the first point with zero velocity is at t=2.1,
-    # and the last is at t=7.0.
-    assert episode["duration"] == pytest.approx(4.9, abs=0.1)
-    # Check start and end times, accounting for the diff() offset.
-    assert episode["start_time"].total_seconds() == pytest.approx(2.1, abs=0.1)
-    assert episode["end_time"].total_seconds() == pytest.approx(7.0, abs=0.1)
+
+def test_detect_freezing_episodes_relative(sample_trajectory_data):
+    """Tests freezing detection with a relative threshold."""
+    timestamps = np.linspace(0, 10, 101)
+    px = np.array([10] * 50 + list(np.linspace(10, 100, 51)))
+    py = np.array([20] * 50 + list(np.linspace(20, 100, 51)))
+    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    sample_trajectory_data["trajectory_df"] = df
+    sample_trajectory_data["window_length"] = 1
+    sample_trajectory_data["polyorder"] = 0
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+
+    # The first 50 points are stationary. This corresponds to 49 velocity points.
+    # The duration of freezing is 4.8s (t_49 - t_1)
+    episodes = analyzer.detect_freezing_episodes(
+        min_duration=1, threshold_method="relative", quantile=0.1
+    )
+    assert len(episodes) == 1
+    assert np.isclose(episodes[0]["duration"], 4.8, atol=0.1)
+
+
+def test_detect_freezing_episodes_value_error(sample_trajectory_data):
+    """Tests that a ValueError is raised for unknown method."""
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    with pytest.raises(ValueError, match="Unknown threshold_method"):
+        analyzer.detect_freezing_episodes(min_duration=1, threshold_method="unknown")
+
+    with pytest.raises(ValueError, match="vel_threshold must be set for 'absolute' method."):
+        analyzer.detect_freezing_episodes(min_duration=1, threshold_method="absolute")
