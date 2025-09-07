@@ -1,17 +1,15 @@
 import io
 from datetime import datetime
 from pathlib import Path
-import cv2
 
-import matplotlib.patches as patches
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
-# Assume these are in the same directory for standalone testing
 from docx import Document
 from docx.shared import Inches
+from matplotlib import patches
 from scipy.ndimage import gaussian_filter
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
@@ -141,7 +139,7 @@ class Reporter:
                 ax.imshow(
                     cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
                     extent=(min_x, max_x, min_y, max_y),
-                    aspect='auto'
+                    aspect="auto",
                 )
 
         ax.set_facecolor("lightgray")
@@ -151,6 +149,7 @@ class Reporter:
             )
         )
         from matplotlib.collections import LineCollection
+
         points = np.array([x, y]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
         lc = LineCollection(segments, cmap="viridis", norm=plt.Normalize(0, len(x)))
@@ -184,8 +183,8 @@ class Reporter:
             extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
         )
         ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'N/A')}")
-        ax.set_xlim(min_x -1, max_x + 1)
-        ax.set_ylim(min_y-1, max_y+1)
+        ax.set_xlim(min_x - 1, max_x + 1)
+        ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
         if not any(isinstance(artist, plt.colorbar.Colorbar) for artist in fig.artists):
             fig.colorbar(im, ax=ax)
@@ -207,17 +206,29 @@ class Reporter:
         )
 
         for i, (roi_name, roi) in enumerate(self.r_analyzer._rois.items()):
-            roi_color = self.roi_colors.get(roi_name, 'blue')
+            roi_color = self.roi_colors.get(roi_name, "blue")
             ax.add_patch(
                 patches.Polygon(
-                    roi.geometry.exterior.coords, fill=True, color=roi_color, alpha=0.4
+                    roi.geometry.exterior.coords,
+                    fill=True,
+                    color=roi_color,
+                    alpha=0.4,
                 )
             )
             centroid = roi.geometry.centroid
-            ax.text(centroid.x, centroid.y, str(i + 1),
-                    color='white', ha='center', va='center',
-                    fontweight='bold', fontsize=12,
-                    bbox=dict(facecolor=roi_color, alpha=0.7, boxstyle='circle,pad=0.2', ec='none'))
+            ax.text(
+                centroid.x,
+                centroid.y,
+                str(i + 1),
+                color="white",
+                ha="center",
+                va="center",
+                fontweight="bold",
+                fontsize=12,
+                bbox=dict(
+                    facecolor=roi_color, alpha=0.7, boxstyle="circle,pad=0.2", ec="none"
+                ),
+            )
 
         ax.set_title(f"ROI Reference Map - {self.metadata.get('experiment_id', 'N/A')}")
         ax.set_xlim(min_x - 1, max_x + 1)
@@ -232,21 +243,39 @@ class Reporter:
 
         angular_velocity = self.b_analyzer.get_angular_velocity()
         if angular_velocity.empty or angular_velocity.isna().all():
-            ax.text(0.5, 0.5, "Not enough data for angular velocity.", ha='center', va='center')
+            ax.text(
+                0.5,
+                0.5,
+                "Not enough data for angular velocity.",
+                ha="center",
+                va="center",
+            )
             ax.set_title("Angular Velocity")
             return fig
 
-        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(self.sharp_turn_threshold)
+        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(
+            self.sharp_turn_threshold
+        )
         sharp_turn_times = sharp_turn_results["sharp_turns_timestamps"]
 
-        time_seconds = (angular_velocity.index - angular_velocity.index[0]).total_seconds()
+        time_seconds = (
+            angular_velocity.index - angular_velocity.index[0]
+        ).total_seconds()
 
         ax.plot(time_seconds, angular_velocity, label="Angular Velocity")
 
         if not sharp_turn_times.empty:
             sharp_turn_values = angular_velocity.loc[sharp_turn_times]
-            sharp_turn_time_seconds = (sharp_turn_times - angular_velocity.index[0]).total_seconds()
-            ax.plot(sharp_turn_time_seconds, sharp_turn_values, 'ro', markersize=5, label="Sharp Turns")
+            sharp_turn_time_seconds = (
+                sharp_turn_times - angular_velocity.index[0]
+            ).total_seconds()
+            ax.plot(
+                sharp_turn_time_seconds,
+                sharp_turn_values,
+                "ro",
+                markersize=5,
+                label="Sharp Turns",
+            )
 
         ax.set_title(f"Angular Velocity - {self.metadata.get('experiment_id', 'N/A')}")
         ax.set_xlabel("Time (s)")
@@ -262,7 +291,7 @@ class Reporter:
 
         traj_data = self.b_analyzer._trajectory_data
         if traj_data.empty:
-            ax.text(0.5, 0.5, "No trajectory data.", ha='center', va='center')
+            ax.text(0.5, 0.5, "No trajectory data.", ha="center", va="center")
             ax.set_title("Position vs. Time")
             return fig
 
@@ -285,18 +314,29 @@ class Reporter:
 
         traj_data = self.b_analyzer._trajectory_data
         if len(traj_data) < 2:
-            ax.text(0.5, 0.5, "Not enough data for distance calculation.", ha='center', va='center')
+            ax.text(
+                0.5,
+                0.5,
+                "Not enough data for distance calculation.",
+                ha="center",
+                va="center",
+            )
             ax.set_title("Cumulative Distance")
             return fig
 
         distances = np.sqrt(
-            traj_data["x_cm_smoothed"].diff() ** 2 + traj_data["y_cm_smoothed"].diff() ** 2
+            traj_data["x_cm_smoothed"].diff() ** 2
+            + traj_data["y_cm_smoothed"].diff() ** 2
         )
         cumulative_distance = distances.cumsum().fillna(0)
         time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
 
         ax.plot(time_seconds, cumulative_distance)
-        ax.set_title(f"Cumulative Distance vs. Time - {self.metadata.get('experiment_id', 'N/A')}")
+        title = (
+            f"Cumulative Distance vs. Time - "
+            f"{self.metadata.get('experiment_id', 'N/A')}"
+        )
+        ax.set_title(title)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Cumulative Distance (cm)")
         ax.grid(True)
@@ -315,7 +355,7 @@ class Reporter:
             columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
         )
         table = document.add_table(rows=1, cols=len(df.columns))
-        table.style = 'Table Grid'
+        table.style = "Table Grid"
         for i, column_name in enumerate(df.columns):
             table.cell(0, i).text = column_name
         for _, row in df.iterrows():
@@ -330,14 +370,17 @@ class Reporter:
         document.add_heading("ROI Reference Map", level=2)
         fig = self.generate_roi_reference_plot()
         memfile = io.BytesIO()
-        fig.savefig(memfile, format='png', dpi=300, bbox_inches='tight')
+        fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
         plt.close(fig)
         memfile.seek(0)
         document.add_picture(memfile, width=Inches(5.0))
 
         document.add_heading("Visualizations", level=2)
         plot_configs = [
-            (lambda ax: self.generate_trajectory_plot(ax, self.video_path), "Trajectory"),
+            (
+                lambda ax: self.generate_trajectory_plot(ax, self.video_path),
+                "Trajectory",
+            ),
             (self.generate_heatmap, "Heatmap"),
             (self.generate_position_vs_time_plot, "Position vs. Time"),
             (self.generate_cumulative_distance_plot, "Cumulative Distance"),
@@ -347,7 +390,7 @@ class Reporter:
             fig, ax = plt.subplots(figsize=(10, 6))
             plot_func(ax)
             memfile = io.BytesIO()
-            fig.savefig(memfile, format='png', dpi=300, bbox_inches='tight')
+            fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
             plt.close(fig)
             memfile.seek(0)
             document.add_paragraph(f"Chart: {name}:")
@@ -385,10 +428,10 @@ class Reporter:
     ) -> plt.Figure:
         fig, ax = plt.subplots(figsize=(8, 6))
         sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
-        sns.stripplot(x='group_id', y=metric, data=df, ax=ax, color=".25", size=6)
+        sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)
         ax.set_title(title, fontsize=16)
         ax.set_xlabel("Experimental Group", fontsize=12)
-        ax.set_ylabel(metric.replace('_', ' ').title(), fontsize=12)
+        ax.set_ylabel(metric.replace("_", " ").title(), fontsize=12)
         plt.tight_layout()
         return fig
 
@@ -402,7 +445,7 @@ class Reporter:
         )
         document.add_paragraph("Statistics for Total Distance Traveled (cm):")
         table = document.add_table(rows=1, cols=len(desc_stats.columns) + 1)
-        table.style = 'Table Grid'
+        table.style = "Table Grid"
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = "group_id"
         for i, col_name in enumerate(desc_stats.columns):
@@ -420,7 +463,7 @@ class Reporter:
             "mean_velocity_cm_s",
             "sharp_turns_count",
             "sharp_turns_per_minute",
-            "total_roi_entries"
+            "total_roi_entries",
         ]
 
         for metric in metrics_for_boxplot:
@@ -432,10 +475,10 @@ class Reporter:
                     title,
                 )
                 memfile = io.BytesIO()
-                boxplot_fig.savefig(memfile, format='png', dpi=300, bbox_inches='tight')
+                boxplot_fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
                 plt.close(boxplot_fig)
                 memfile.seek(0)
-                document.add_paragraph(title, style='Heading 3')
+                document.add_paragraph(title, style="Heading 3")
                 document.add_picture(memfile, width=Inches(6.0))
 
         file_path = f"{output_path}.docx"

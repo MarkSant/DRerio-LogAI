@@ -738,7 +738,8 @@ class AppController:
                         )
                         self.view.show_warning(
                             "Processing Skipped",
-                            f"Metadata was not provided for {experiment_id}. Skipping video.",
+                            f"Metadata was not provided for {experiment_id}. "
+                            "Skipping video.",
                         )
                         continue  # Skip to next video
                     # Add experiment_id to user-provided metadata

@@ -162,8 +162,8 @@ class ROIAnalyzer:
         results = {}
         for name in self._rois:
             # An entry is a transition from False to True
-            entries = (self._trajectory[f"in_{name}_stable"].astype(int).diff() == 1).sum()
-            results[name] = entries
+            is_entry = self._trajectory[f"in_{name}_stable"].astype(int).diff() == 1
+            results[name] = is_entry.sum()
         return results
 
     def get_exit_counts(self) -> Dict[str, int]:
@@ -171,8 +171,8 @@ class ROIAnalyzer:
         results = {}
         for name in self._rois:
             # An exit is a transition from True to False, which is a diff of -1.
-            exits = (self._trajectory[f"in_{name}_stable"].astype(int).diff() == -1).sum()
-            results[name] = exits
+            is_exit = self._trajectory[f"in_{name}_stable"].astype(int).diff() == -1
+            results[name] = is_exit.sum()
         return results
 
     def get_inter_visit_latencies(self) -> Dict[str, List[float]]:

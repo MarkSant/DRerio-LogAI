@@ -2168,7 +2168,7 @@ class MissingMetadataDialog(simpledialog.Dialog):
         super().__init__(parent, "Missing Metadata")
 
     def body(self, master):
-        Label(master, text=f"Could not automatically find metadata for:").pack(pady=5)
+        Label(master, text="Could not automatically find metadata for:").pack(pady=5)
         Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
             pady=(0, 10)
         )
