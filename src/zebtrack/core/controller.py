@@ -6,7 +6,6 @@ import threading
 import time
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import structlog
@@ -92,7 +91,7 @@ class AppController:
 
             if self.setup_detector():
                 self.view._load_project_view()
-                self.load_project_results_for_gui()
+                # self.load_project_results_for_gui() # This is now handled in the UI
 
             # After loading, check if zones are defined.
             self.setup_detector_zones()
@@ -479,9 +478,12 @@ class AppController:
         os.makedirs(output_dir, exist_ok=True)
 
         # 5. Process the video, passing the config as temporary metadata
-        self._process_videos([video_to_process], output_dir, single_video_config=config)
+        self._process_videos(
+            [video_to_process], output_dir, single_video_config=config
+        )
         self.view.show_info(
-            "Success", f"Single video analysis complete. Results saved in:\n{output_dir}"
+            "Success",
+            f"Single video analysis complete. Results saved in:\n{output_dir}",
         )
 
     def start_project_processing_workflow(self):
@@ -507,8 +509,7 @@ class AppController:
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
             self.view.show_warning(
-                "No Videos Found",
-                "No new video files were found in the selected paths.",
+                "No Videos Found", "No new video files were found in the selected paths."
             )
             return
 
@@ -539,7 +540,9 @@ class AppController:
             ):
                 videos_to_process = with_data
             else:
-                self.view.show_info("Processing Skipped", "No new videos were processed.")
+                self.view.show_info(
+                    "Processing Skipped", "No new videos were processed."
+                )
                 # Still add them to the project for reporting purposes
                 self.project_manager.add_video_batch(scanned_videos)
                 return
@@ -561,7 +564,10 @@ class AppController:
         for video in videos_to_process:
             self.project_manager.update_video_status(video["path"], "complete")
 
-        self.view.show_info("Success", f"{len(videos_to_process)} video(s) were processed and added to the project.")
+        self.view.show_info(
+            "Success",
+            f"{len(videos_to_process)} video(s) were processed and added to the project.",
+        )
 
     def _process_videos(
         self,
@@ -573,7 +579,9 @@ class AppController:
         Private helper to process a list of videos and save results.
         """
         log.info("controller.processing.start", count=len(videos_to_process))
-        self.view.set_status(f"Starting processing for {len(videos_to_process)} videos...")
+        self.view.set_status(
+            f"Starting processing for {len(videos_to_process)} videos..."
+        )
         self.view.update_idletasks()
 
         b_analyzer = BehavioralAnalyzer()
@@ -592,7 +600,9 @@ class AppController:
                 metadata = single_video_config
             else:
                 # Get metadata from the project file
-                metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
+                metadata = self.project_manager.get_metadata_for_experiment(
+                    experiment_id
+                )
 
             # Perform analysis
             b_results = b_analyzer.analyze(video_path)
@@ -600,7 +610,8 @@ class AppController:
             reporter = Reporter(b_results, r_results, metadata)
 
             # Define where to save results for this video
-            # In project mode, it's a sub-folder. In single mode, it's the main output dir.
+            # In project mode, it's a sub-folder. In single mode, it's the main
+            # output dir.
             if self.project_manager.project_path:
                 results_dir = os.path.join(output_base_dir, f"{experiment_id}_results")
             else:
@@ -608,18 +619,18 @@ class AppController:
             os.makedirs(results_dir, exist_ok=True)
 
             # Save all results
-            summary_path = os.path.join(
-                results_dir, f"{experiment_id}_summary.parquet"
+            reporter.tidy_data.to_parquet(
+                os.path.join(results_dir, f"{experiment_id}_summary.parquet")
             )
-            reporter.tidy_data.to_parquet(summary_path)
-
             # We need a placeholder for tracking data for now
             tracking_data_placeholder = np.array([[0, 0]])
-            tracking_path = os.path.join(results_dir, f"{experiment_id}_tracking.npy")
-            np.save(tracking_path, tracking_data_placeholder)
-
-            report_path = os.path.join(results_dir, f"{experiment_id}_report")
-            reporter.export_individual_report(report_path)
+            np.save(
+                os.path.join(results_dir, f"{experiment_id}_tracking.npy"),
+                tracking_data_placeholder,
+            )
+            reporter.export_individual_report(
+                os.path.join(results_dir, f"{experiment_id}_report")
+            )
 
         self.view.set_status("Processing complete!")
 
@@ -639,9 +650,11 @@ class AppController:
             project_path = os.path.dirname(videos[0]["path"])
 
         for video_info in videos:
-            experiment_id = os.path.splitext(os.path.basename(video_info['path']))[0]
+            experiment_id = os.path.splitext(os.path.basename(video_info["path"]))[0]
             results_dir = os.path.join(project_path, f"{experiment_id}_results")
-            summary_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+            summary_path = os.path.join(
+                results_dir, f"{experiment_id}_summary.parquet"
+            )
 
             if os.path.exists(summary_path):
                 try:
@@ -654,8 +667,7 @@ class AppController:
 
         if not all_tidy_data:
             self.view.show_error(
-                "Report Error",
-                "Could not find any summary data for the selected videos.",
+                "Report Error", "Could not find any summary data for the selected videos."
             )
             return
 

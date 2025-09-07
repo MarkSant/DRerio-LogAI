@@ -1012,7 +1012,7 @@ class ApplicationGUI:
 
         batches = self.controller.project_manager.project_data.get("batches", [])
         for i, batch in enumerate(batches):
-            batch_ts = batch.get('timestamp', f"Batch {i+1}")
+            batch_ts = batch.get("timestamp", f"Batch {i+1}")
             # Insert parent item for the batch
             batch_id = self.reports_tree.insert(
                 "", "end", text=batch_ts, open=True
