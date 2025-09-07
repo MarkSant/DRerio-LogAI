@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.zebtrack.core.controller import AppController
+from zebtrack.core.controller import AppController
 
 
 class TestAppController(unittest.TestCase):
-    @patch("src.zebtrack.core.controller.ProjectManager")
-    @patch("src.zebtrack.core.controller.ApplicationGUI")
+    @patch("zebtrack.core.controller.ProjectManager")
+    @patch("zebtrack.core.controller.ApplicationGUI")
     def setUp(self, mock_gui, mock_pm):
         """Set up a test environment before each test."""
         self.root = MagicMock()

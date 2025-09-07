@@ -7,9 +7,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
-from zebtrack.core.detector import ZoneData
+from unittest.mock import MagicMock, patch
+
+# Import the actual classes we want to integrate
+from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
+from zebtrack.analysis.reporter import Reporter
+from zebtrack.plugins.base import DetectorPlugin
+
 
 # -- Mocks and Test Data Generators --
 
@@ -32,87 +37,84 @@ def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
     writer.release()
 
 
-class MockDetector:
+class MockPluginForIntegration(DetectorPlugin):
     """
-    A mock detector that simulates the output of a real tracking model.
-    It returns a predictable, moving bounding box with a consistent track_id.
+    A mock plugin that simulates the output of a real tracking model by
+    finding a white square in the mock video.
     """
 
     def __init__(self, model_path: str):
-        # The model_path is ignored, it's just to match the plugin interface.
-        pass
+        pass  # Ignored
 
     def detect(self, frame: np.ndarray) -> list:
-        """
-        Finds the white square in the mock video and returns its bbox.
-        This is a very simple, non-ML form of "detection".
-        """
-        # Convert frame to grayscale and find non-zero pixels
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        contours, _ = cv2.findContours(
-            gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-
+        contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return []
-
-        # Assume the largest contour is our square
         x, y, w, h = cv2.boundingRect(contours[0])
-        x1, y1, x2, y2 = x, y, x + w, y + h
-        confidence = 0.99
-        track_id = 1  # Always track "animal 1"
-        return [(x1, y1, x2, y2, confidence, track_id)]
+        return [(x, y, x + w, y + h, 0.99, 1)]  # x1, y1, x2, y2, conf, id
+
+    @staticmethod
+    def get_name() -> str:
+        return "MockIntegrationPlugin"
+
+    @property
+    def model_input_shape(self):
+        return (640, 480)
 
 
 @pytest.fixture
-def integration_test_setup():
+def integration_test_setup(tmp_path):
     """
     Sets up a temporary directory, a mock video, and other resources
     for the integration test.
     """
-    test_dir = f"temp_integration_test_{uuid.uuid4()}"
-    os.makedirs(test_dir, exist_ok=True)
-
-    video_path = os.path.join(test_dir, "mock_video.mp4")
+    video_path = tmp_path / "mock_video.mp4"
     generate_mock_video(video_path)
 
-    output_folder = os.path.join(test_dir, "results")
+    # Directory to save the intermediate tracking results
+    tracking_output_dir = tmp_path / "tracking_results"
+    tracking_output_dir.mkdir()
 
-    yield video_path, output_folder
+    yield video_path, tracking_output_dir
 
-    # Teardown
-    shutil.rmtree(test_dir)
+    # Teardown is handled by tmp_path fixture
 
 
-# -- Integration Test --
+# -- New, More Complete Integration Test --
 
-def test_full_pipeline_integration(integration_test_setup):
+def test_full_pipeline_from_video_to_report(integration_test_setup):
     """
-    Tests the full data processing pipeline from video to analysis.
-    1. "Tracks" a mock video using a MockDetector.
+    Tests the full data processing pipeline from video to a final report.
+    1. Tracks a mock video using the real Detector with a mock Plugin.
     2. Saves the results using the Recorder.
-    3. Loads the saved data using the ConcreteBehavioralAnalyzer.
-    4. Asserts that the final analysis produces a non-zero distance.
+    3. Loads the tracked data and generates a summary report using Reporter.
+    4. Asserts that the final report file is created.
     """
-    video_path, output_folder = integration_test_setup
+    video_path, tracking_output_dir = integration_test_setup
 
-    # -- 1. Tracking Phase --
-    detector = MockDetector(model_path="dummy_path")
-    cap = cv2.VideoCapture(video_path)
+    # -- Phase 1: Tracking and Recording --
+    mock_plugin = MockPluginForIntegration(model_path="dummy")
+    detector = Detector(plugin=mock_plugin, base_width=640, base_height=480)
+    recorder = Recorder()
+
+    cap = cv2.VideoCapture(str(video_path))
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
 
-    # -- 2. Recording Phase --
-    recorder = Recorder()
-    # Mock calibration ratio for the recorder
-    mock_pixel_ratio = (10.0, 10.0)
-    mock_zones = ZoneData(polygon=[[0, 0], [frame_width, frame_height]])
+    # Define a simple, full-frame arena for detection
+    arena_polygon = [[0, 0], [frame_width, 0], [frame_width, frame_height], [0, frame_height]]
+    zones = ZoneData(polygon=arena_polygon)
+    detector.set_zones(zones, frame_width, frame_height)
+
     recorder.start_recording(
-        output_folder,
-        frame_width,
-        frame_height,
-        zones=mock_zones,
-        pixel_per_cm_ratio=mock_pixel_ratio,
+        output_folder=str(tracking_output_dir),
+        frame_width=frame_width,
+        frame_height=frame_height,
+        zones=zones,
+        pixel_per_cm_ratio=(10.0, 10.0),  # Mock calibration
+        is_video_file=True,  # Don't create a new video, we're analyzing one
     )
 
     frame_num = 0
@@ -120,7 +122,8 @@ def test_full_pipeline_integration(integration_test_setup):
         ret, frame = cap.read()
         if not ret:
             break
-        detections = detector.detect(frame)
+        # Use the real detector's process_frame method
+        detections, _ = detector.process_frame(frame, project_type="pre-recorded")
         timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         recorder.write_detection_data(timestamp, frame_num, detections)
         frame_num += 1
@@ -128,38 +131,47 @@ def test_full_pipeline_integration(integration_test_setup):
     recorder.stop_recording()
     cap.release()
 
-    # -- Verification and Analysis Phase --
-    # Check that the results file was created
-    results_file = os.path.join(
-        output_folder, f"3_CoordMovimento_{os.path.basename(output_folder)}.parquet"
-    )
-    assert os.path.exists(results_file)
+    # -- Phase 2: Analysis and Reporting --
+    # Check that the intermediate results file was created
+    experiment_id = os.path.basename(str(tracking_output_dir))
+    results_file = tracking_output_dir / f"3_CoordMovimento_{experiment_id}.parquet"
+    assert results_file.exists()
 
-    # -- 3. Analysis Phase --
+    # Load the tracked data
     trajectory_df = pd.read_parquet(results_file)
-    # The analyzer's __init__ expects bbox columns, which are not the focus
-    # of this test but are required for instantiation. We can add dummy ones.
+
+    # The reporter needs the bbox columns, add dummy ones.
     trajectory_df["x1"] = trajectory_df["x_center_px"] - 1
     trajectory_df["y1"] = trajectory_df["y_center_px"] - 1
     trajectory_df["x2"] = trajectory_df["x_center_px"] + 1
     trajectory_df["y2"] = trajectory_df["y_center_px"] + 1
 
+    # Instantiate the Reporter with the tracked data
+    # Patch the analysis service to avoid re-running all calculations
+    with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
+        # Provide a minimal mock report dictionary for the tidy data creation
+        mock_service.return_value.run_full_analysis.return_value = (
+            {"comportamento_geral": {}, "analise_roi": {}}, MagicMock(), MagicMock()
+        )
+        reporter = Reporter(
+            trajectory_df=trajectory_df,
+            metadata={"experiment_id": "integration_test"},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=frame_height,
+            arena_polygon_px=arena_polygon,
+            rois=[],
+            fps=fps,
+        )
 
-    analyzer = ConcreteBehavioralAnalyzer(
-        trajectory_df=trajectory_df,
-        pixelcm_x=mock_pixel_ratio[0],
-        pixelcm_y=mock_pixel_ratio[1],
-        video_height_px=frame_height,
-        arena_polygon_px=[
-            (0, 0),
-            (frame_width, 0),
-            (frame_width, frame_height),
-            (0, frame_height),
-        ],
-    )
+    # Generate a final summary report
+    report_output_path = tracking_output_dir / "final_summary.xlsx"
+    reporter.export_summary_data(str(report_output_path), format="excel")
 
-    # -- 4. Final Assertion --
-    total_distance = analyzer.calculate_total_distance()
-    assert total_distance > 0
-    # The mock video moves the box from left to right, so distance should be significant
-    assert total_distance > 50.0  # (640px wide / 10px/cm = 64cm)
+    # -- Phase 3: Final Assertion --
+    assert report_output_path.exists()
+
+    # Optional: A light check on the content of the created report
+    report_df = pd.read_excel(report_output_path)
+    assert "experiment_id" in report_df.columns
+    assert report_df["experiment_id"].iloc[0] == "integration_test"

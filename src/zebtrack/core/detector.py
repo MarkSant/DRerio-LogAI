@@ -127,7 +127,12 @@ class Detector:
         return not (x2 < sx1 or x1 > sx2 or y2 < sy1 or y1 > sy2)
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
-        """Checks if a corner of the bounding box is inside the polygon."""
+        """
+        Checks if a corner of the bounding box is inside the polygon.
+        Returns False if the polygon is empty or invalid.
+        """
+        if polygon.size == 0:
+            return False
         return (
             cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0
             or cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
