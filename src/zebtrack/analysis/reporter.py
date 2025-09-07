@@ -12,98 +12,123 @@ from docx.shared import Inches
 from matplotlib import patches
 from scipy.ndimage import gaussian_filter
 
+from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
-from zebtrack.analysis.roi import ROIAnalyzer
+from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
 
 class Reporter:
     def __init__(
         self,
-        b_analyzer: ConcreteBehavioralAnalyzer,
-        r_analyzer: ROIAnalyzer,
+        trajectory_df: pd.DataFrame,
         metadata: dict,
+        # Calibration and setup
+        pixelcm_x: float,
+        pixelcm_y: float,
+        video_height_px: int,
+        arena_polygon_px: list[tuple[float, float]],
+        rois: list[ROI],
+        fps: float,
+        # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,
+        # Analysis params
         sharp_turn_threshold: float = 90.0,
         freezing_threshold: float = 2.0,
         freezing_duration: float = 1.0,
     ):
-        self.b_analyzer = b_analyzer
-        self.r_analyzer = r_analyzer
         self.metadata = metadata
         self.roi_colors = roi_colors if roi_colors else {}
         self.video_path = video_path
+
+        # Run the unified analysis via the service
+        service = AnalysisService()
+        self.report, self.b_analyzer, self.r_analyzer = service.run_full_analysis(
+            trajectory_df=trajectory_df,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=video_height_px,
+            arena_polygon_px=arena_polygon_px,
+            rois=rois,
+            fps=fps,
+            freezing_vel_threshold=freezing_threshold,
+            freezing_min_duration=freezing_duration,
+        )
+
+        # Store for plotting methods that still need them
         self.sharp_turn_threshold = sharp_turn_threshold
         self.freezing_threshold = freezing_threshold
         self.freezing_duration = freezing_duration
+
+        # Generate the tidy dataframe from the report
         self.tidy_data = self._create_tidy_dataframe()
 
     def _create_tidy_dataframe(self) -> pd.DataFrame:
+        """Creates a flat, tidy DataFrame from the structured report dictionary."""
         # Start with metadata
         combined_data = {**self.metadata}
 
         # --- General Behavioral Metrics ---
-        combined_data["total_distance_cm"] = self.b_analyzer.calculate_total_distance()
-        velocity_stats = self.b_analyzer.get_velocity_stats()
-        combined_data["mean_velocity_cm_s"] = velocity_stats.get("mean")
-        combined_data["median_velocity_cm_s"] = velocity_stats.get("median")
-        combined_data["std_dev_velocity_cm_s"] = velocity_stats.get("std_dev")
-        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(
-            self.sharp_turn_threshold
-        )
-        combined_data["sharp_turns_count"] = sharp_turn_results.get("sharp_turns_count")
-        combined_data["sharp_turns_per_minute"] = sharp_turn_results.get(
+        general_behavior = self.report.get("comportamento_geral", {})
+        combined_data["distancia_total_cm"] = general_behavior.get("distancia_total_cm")
+        velocity_stats = general_behavior.get("estatisticas_velocidade", {})
+        combined_data["velocidade_media_cm_s"] = velocity_stats.get("mean")
+        combined_data["velocidade_mediana_cm_s"] = velocity_stats.get("median")
+        combined_data["desvio_padrao_velocidade_cm_s"] = velocity_stats.get("std_dev")
+
+        sharp_turns = general_behavior.get("curvas_acentuadas", {})
+        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get("sharp_turns_count")
+        combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get(
             "sharp_turns_per_minute"
         )
 
         # --- ROI-Specific Metrics ---
-        time_spent = self.r_analyzer.get_time_spent_in_rois()
-        entry_counts = self.r_analyzer.get_entry_counts()
-        exit_counts = self.r_analyzer.get_exit_counts()
-        latencies = self.r_analyzer.get_latency_to_first_entry()
-        distances = self.r_analyzer.get_distance_in_rois()
-        velocities = self.r_analyzer.get_velocity_stats_in_rois()
-        freezing = self.r_analyzer.get_freezing_in_rois(
-            self.freezing_threshold, self.freezing_duration
-        )
+        roi_analysis = self.report.get("analise_roi", {})
+        time_spent = roi_analysis.get("tempo_gasto_por_roi", {})
+        entry_counts = roi_analysis.get("contagem_entradas", {})
+        exit_counts = roi_analysis.get("contagem_saidas", {})
+        latencies = roi_analysis.get("latencia_primeira_entrada", {})
+        distances = roi_analysis.get("distancia_por_roi", {})
+        velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
+        freezing = roi_analysis.get("congelamento_por_roi", {})
 
         total_roi_entries = 0
         for roi_name in self.r_analyzer._rois:
             # Time spent
-            combined_data[f"time_in_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
+            combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
                 "seconds"
             )
             combined_data[
-                f"time_in_{roi_name}_percent"
+                f"percentual_tempo_no_{roi_name}"
             ] = time_spent.get(roi_name, {}).get("percentage")
             # Entry and Exit counts
             entries = entry_counts.get(roi_name, 0)
-            combined_data[f"entries_in_{roi_name}"] = entries
+            combined_data[f"entradas_no_{roi_name}"] = entries
             total_roi_entries += entries
-            combined_data[f"exits_from_{roi_name}"] = exit_counts.get(roi_name, 0)
+            combined_data[f"saidas_do_{roi_name}"] = exit_counts.get(roi_name, 0)
             # Latency
-            combined_data[f"latency_to_{roi_name}_s"] = latencies.get(roi_name)
+            combined_data[f"latencia_para_{roi_name}_s"] = latencies.get(roi_name)
             # Intra-ROI Distance
-            combined_data[f"distance_in_{roi_name}_cm"] = distances.get(roi_name)
+            combined_data[f"distancia_no_{roi_name}_cm"] = distances.get(roi_name)
             # Intra-ROI Velocity
             roi_vel = velocities.get(roi_name)
             if roi_vel:
-                combined_data[f"mean_velocity_in_{roi_name}_cm_s"] = roi_vel.get("mean")
+                combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
             # Intra-ROI Freezing
             roi_freeze = freezing.get(roi_name)
             if roi_freeze:
-                combined_data[f"freezing_episodes_in_{roi_name}"] = roi_freeze.get(
+                combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get(
                     "count"
                 )
                 combined_data[
-                    f"total_freezing_duration_in_{roi_name}_s"
+                    f"duracao_total_congelamento_no_{roi_name}_s"
                 ] = roi_freeze.get("total_duration")
             # ROI Color
             if roi_name in self.roi_colors:
                 combined_data[f"cor_roi_{roi_name}"] = str(self.roi_colors[roi_name])
 
-        combined_data["total_roi_entries"] = total_roi_entries
-        combined_data["date_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        combined_data["total_entradas_roi"] = total_roi_entries
+        combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return pd.DataFrame([combined_data])
 
     def export_summary_data(self, output_path: str, format: str = "excel"):

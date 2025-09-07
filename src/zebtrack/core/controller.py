@@ -691,23 +691,11 @@ class AppController:
                     )
                     continue
 
-                # 4. Instantiate the real analyzers
-                b_analyzer = ConcreteBehavioralAnalyzer(
-                    trajectory_df=trajectory_df,
-                    pixelcm_x=pixelcm_x,
-                    pixelcm_y=pixelcm_y,
-                    video_height_px=video_height_px,
-                    arena_polygon_px=arena_polygon_px,
-                    fps=settings.video_processing.fps,
-                )
-
+                # 4. Get ROI definitions
                 rois = []
                 roi_colors = {}
-                # ROI names are generated based on the square's index,
-                # following the convention "ROI 1", "ROI 2", etc.
                 for j, square_coords in enumerate(zone_data.squares):
                     name = f"ROI {j+1}"
-                    # Create a shapely box from the two corner points
                     geom = box(
                         square_coords[0][0],
                         square_coords[0][1],
@@ -715,11 +703,8 @@ class AppController:
                         square_coords[1][1],
                     )
                     rois.append(ROI(name=name, geometry=geom))
-                    # Store color for the reporter
                     if j < len(zone_data.colors):
                         roi_colors[name] = zone_data.colors[j]
-
-                r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=rois)
 
                 # 5. Get metadata
                 if single_video_config:
@@ -747,10 +732,15 @@ class AppController:
 
                 # 6. Generate and save reports
                 reporter = Reporter(
-                    b_analyzer,
-                    r_analyzer,
-                    metadata,
-                    roi_colors,
+                    trajectory_df=trajectory_df,
+                    metadata=metadata,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height_px,
+                    arena_polygon_px=arena_polygon_px,
+                    rois=rois,
+                    fps=settings.video_processing.fps,
+                    roi_colors=roi_colors,
                     video_path=video_path,
                     sharp_turn_threshold=settings.video_processing.sharp_turn_threshold_deg_s,
                     freezing_threshold=settings.video_processing.freezing_velocity_threshold,

@@ -164,17 +164,17 @@ def test_calculate_thigmotaxis_index_time_near_wall(sample_trajectory_data):
     """
     # Setup a 10-second trial with 1-second intervals
     timestamps = np.linspace(0, 10, 11)
-    # Distances: animal is near wall (dist < 3) at t=2, 3, 7, 8
-    distances = pd.Series([5, 5, 2, 2, 5, 5, 5, 2, 2, 5, 5], index=timestamps)
-
-    # Re-initialize analyzer with this specific data for accurate time calc
     sample_trajectory_data["timestamps"] = list(timestamps)
-    # Ensure px and py have the same length as the new timestamps
     sample_trajectory_data["px"] = [0] * len(timestamps)
     sample_trajectory_data["py"] = [0] * len(timestamps)
 
     analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
     analyzer = ConcreteAnalyzer(**analyzer_args)
+
+    # Create the mock series with the same TimedeltaIndex as the analyzer's data
+    # Distances: animal is near wall (dist < 3) at t=2, 3, 7, 8
+    distance_values = [5, 5, 2, 2, 5, 5, 5, 2, 2, 5, 5]
+    distances = pd.Series(distance_values, index=analyzer._trajectory_data.index)
     analyzer.get_thigmotaxis_timeseries = lambda: distances
 
     # threshold = 3. The animal is near the wall at t=2, 3, 7, 8.

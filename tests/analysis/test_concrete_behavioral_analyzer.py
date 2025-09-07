@@ -125,5 +125,5 @@ def test_detect_freezing_episodes(freezing_trajectory):
     # and the last is at t=7.0.
     assert episode["duration"] == pytest.approx(4.9, abs=0.1)
     # Check start and end times, accounting for the diff() offset.
-    assert episode["start_time"] == pytest.approx(2.1, abs=0.1)
-    assert episode["end_time"] == pytest.approx(7.0, abs=0.1)
+    assert episode["start_time"].total_seconds() == pytest.approx(2.1, abs=0.1)
+    assert episode["end_time"].total_seconds() == pytest.approx(7.0, abs=0.1)

@@ -156,12 +156,8 @@ def test_get_event_log(roi_crossing_trajectory):
     assert event_log.iloc[1]["event"] == "exit"
     assert event_log.iloc[1]["roi_name"] == "TestZone"
 
-    entry_time = (
-        event_log.iloc[0]["timestamp"] - pd.Timestamp("1970-01-01")
-    ).total_seconds()
-    exit_time = (
-        event_log.iloc[1]["timestamp"] - pd.Timestamp("1970-01-01")
-    ).total_seconds()
+    entry_time = event_log.iloc[0]["timestamp"].total_seconds()
+    exit_time = event_log.iloc[1]["timestamp"].total_seconds()
 
     # With flutter filter of 3, entry is confirmed at t=2.7s, exit at t=7.7s
     assert entry_time == pytest.approx(2.7, abs=0.1)
