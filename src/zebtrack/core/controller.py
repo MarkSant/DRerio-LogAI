@@ -65,7 +65,6 @@ class AppController:
         pass
 
     def close_project(self):
-        # TODO: Implement project closing logic, e.g., asking to save changes
         self.project_manager = ProjectManager()
         self.view._create_welcome_frame()
 

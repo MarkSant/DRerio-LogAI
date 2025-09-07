@@ -126,5 +126,43 @@ class TestProjectManager(unittest.TestCase):
         self.assertIsNone(pm.get_next_video())
 
 
+        # Now there should be no pending videos
+        self.assertIsNone(pm.get_next_video())
+
+    def test_project_manager_script(self):
+        """Test the ProjectManager using the original script-based test."""
+        # Setup test directory
+        test_dir = os.path.join(self.test_dir, "pm_test_project")
+        if not os.path.exists(test_dir):
+            os.makedirs(test_dir)
+
+        pm = ProjectManager()
+
+        # 1. Test creating a new pre-recorded project
+        # Using a platform-independent path for testing
+        video_files = [
+            {"path": os.path.join("C:", "videos", "vid1.mp4"), "has_data": False},
+            {"path": os.path.join("C:", "videos", "vid2.mp4"), "has_data": False},
+        ]
+        success = pm.create_new_project(
+            test_dir, "pre-recorded", video_files=video_files
+        )
+        self.assertTrue(success)
+
+        # 2. Test loading an existing project
+        pm_loader = ProjectManager()
+        success = pm_loader.load_project(test_dir)
+        self.assertTrue(success)
+
+        # 3. Test updating and getting next video
+        next_vid = pm_loader.get_next_video()
+        self.assertIsNotNone(next_vid)
+
+        pm_loader.update_video_status(next_vid, "complete")
+
+        next_vid_after_update = pm_loader.get_next_video()
+        self.assertNotEqual(next_vid, next_vid_after_update)
+
+
 if __name__ == "__main__":
     unittest.main()
