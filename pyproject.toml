@@ -9,10 +9,10 @@ packages = [{include = "zebtrack", from = "src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
-numpy = "==2.2.6"
-opencv-python = "==4.12.0.88"
-pyserial = "==3.5"
-openvino = "==2025.1.0"
+numpy = "~=2.2.6"
+opencv-python = "~=4.12.0"
+pyserial = "~=3.5"
+openvino = "~=2025.1"
 ultralytics = ">=8.3.179,<9.0.0"
 pyyaml = "^6.0.2"
 pydantic = "^2.11.7"
@@ -26,6 +26,9 @@ networkx = "^3.5"
 seaborn = "^0.13.2"
 python-docx = "^1.1.2"
 openpyxl = "^3.1.5"
+
+[tool.poetry.scripts]
+zebtrack = "zebtrack.__main__:main"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.9"
