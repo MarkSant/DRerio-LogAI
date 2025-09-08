@@ -1,48 +1,38 @@
-# Copilot Instructions for PyZebArdYolo
+## ZebTrack-AI – AI Contributor Guide (Concise)
+Purpose: Desktop Tkinter app for multi‑animal tracking (live camera or batch video) → trajectories (Parquet), behavioral & ROI metrics (Excel), rich per‑experiment / project reports (Word, Excel, CSV). Keep changes minimal, schema‑safe, and test‑backed.
 
-## Project Overview
-PyZebArdYolo is a modular Python application for controlling and tracking zebrafish experiments using video analysis (YOLO), Arduino hardware, and a Tkinter GUI. The codebase is organized by functional modules, each responsible for a distinct aspect of the workflow.
+### 1. Core Flow (Typical Pre‑Recorded Run)
+`python -m zebtrack` → GUI (`core/controller.AppController`) → project created (`core/project_manager.py`) → detector plugin chosen (`plugins/` via registry) → zones & calibration (optional pixel/cm via `core/calibration.py`) → frames from `io/video_source.py` → detections processed by `core/detector.py` (zone enter/exit state machine → optional Arduino commands) → rows streamed to `io/recorder.py` (Parquet + optional MP4) → analysis phase (`analysis/behavioral_analyzer.py`, `analysis/behavior.py`, `analysis/roi.py`) → reporting (`analysis/reporter.py`).
 
-## Architecture & Data Flow
-- **GUI (`gui.py`)**: Entry point for user interaction. Orchestrates project setup, video/camera selection, and controls experiment flow.
-- **Main (`main.py`)**: Launches the Tkinter GUI.
-- **Camera/Video Source (`camera.py`, `video_source.py`)**: Abstracts live camera and video file input. Both expose a `get_frame()` method for frame acquisition.
-- **Detection (`detector.py`)**: Uses YOLO (via `ultralytics`) to detect objects. Relies on config-defined zones and thresholds. Scales detection areas to match input resolution.
-- **Arduino (`arduino.py`)**: Handles serial communication with Arduino. Commands are mapped via config constants.
-- **Recorder (`recorder.py`)**: Records video and movement data (CSV) for each experiment run.
-- **Project Manager (`project_manager.py`)**: Manages project directories and metadata (JSON config per project).
-- **Config (`config.py`)**: Centralizes all settings (camera, Arduino, YOLO, detection zones, colors, commands).
+### 2. Configuration Contract
+Load order: `config.yaml` then optional `config.local.yaml` merged in `settings.load_settings()` → singleton `settings`. NEVER hardcode config—import `from zebtrack import settings`. Adding a field: edit Pydantic models in `settings.py`, update `config.yaml`, extend `tests/test_settings.py`.
 
-## Developer Workflows
-- **Run the App**: Execute `main.py` to launch the GUI.
-- **Testing**: Run unit tests in `tests/` using `python -m unittest discover tests`.
-- **Dependencies**: Install from `requirements.txt`. Note: `ultralytics` may require manual installation due to size.
-- **Debugging**: Most modules print errors to console. GUI errors may use Tkinter messageboxes.
+### 3. Critical Data Schemas
+Recorder Parquet strict column order: `timestamp, frame, track_id, x1, y1, x2, y2, confidence` (+ `x_center_px, y_center_px, x_cm, y_cm` only if pixel_per_cm provided). Do NOT reorder; extend only by appending and update tests.
+ZoneData (`core/detector.py`): polygon, squares list[((x1,y1),(x2,y2))], BGR colors, enter_commands, exit_commands. Always call `Detector.set_zones(zones, actual_w, actual_h)` after you know real capture size.
+Output naming stages: user-visible prefixes `1_`, `2_`, `3_` must remain stable (tests + docs rely on them).
 
-## Key Patterns & Conventions
-- **Config-driven**: All hardware, detection, and zone parameters are set in `config.py` and imported everywhere.
-- **Threading/Queues**: GUI uses threads and queues for video processing to keep UI responsive.
-- **Project Structure**: Each experiment/project gets its own directory and JSON config, managed by `ProjectManager`.
-- **Recording**: Video and CSV files are named after the project and stored in the project directory.
-- **Detection Zones**: Zones and polygons are defined as lists of coordinates in config; detection logic scales them to match input size.
-- **Arduino Commands**: Enter/exit commands are mapped to zone indices via config constants.
+### 4. Detector / Plugin Rules
+Plugins implement `DetectorPlugin` (see `plugins/base.py`) + `get_name()`. Register in `plugins/__init__.py: DETECTOR_PLUGINS`. Guard for missing track IDs (some models). Maintain non-blocking inference (no GUI thread stalls). OpenVINO path must contain paired `.xml` + `.bin`; conversion handled lazily by `core/weight_manager.py`.
 
-## Integration Points
-- **YOLO Model**: Path set in `config.py` (`best12.pt`).
-- **Arduino**: Port and baud rate set in config. Serial communication is robust to missing hardware (offline mode fallback).
-- **Tkinter GUI**: All user interaction flows through `ApplicationGUI` in `gui.py`.
+### 5. Behavioral & ROI Analysis
+Behavior metrics live in `analysis/behavior.py`; orchestration in `behavioral_analyzer.py`; ROI computations in `roi.py`; reporter aggregates & emits Excel/Docx (`reporter.py`). Adding a metric: implement function or extend analyzer, add to reporter export mapping, create synthetic trajectory test in `tests/analysis/`.
 
-## Example: Adding a New Detection Zone
-1. Update `SQUARES` and `COLORS` in `config.py`.
-2. Detection and GUI will automatically use new zones.
+### 6. Calibration & Units
+Calibration (`core/calibration.py`) yields pixel_per_cm ratio; only then `recorder` appends `x_cm,y_cm`. Code consuming cm coords must tolerate absence (fallback to px if columns missing).
 
-## Example: Customizing Arduino Commands
-- Edit `ENTER_COMMANDS` and `EXIT_COMMANDS` in `config.py` to match your hardware protocol.
+### 7. Logging & Events
+Use `structlog.get_logger()` with pattern `domain.action.result` (e.g. `recorder.save_parquet.success`, `detector.setup.error`). Preserve existing event names where referenced in tests.
 
-## References
-- See `config.py` for all global settings.
-- See `gui.py` for main application flow and integration.
-- See `tests/` for examples of project and recorder usage.
+### 8. Safe Modification Checklist
+Before change: locate corresponding test (mirrors module name). After change: run `poetry run pytest -q`. Adding dep: modify `[tool.poetry.dependencies]` then `poetry lock`. Never block the GUI loop (heavy work stays in worker threads / detector loop). Avoid silent schema drift—add test asserting new columns.
 
----
-For unclear or missing conventions, ask the user for clarification or examples from their workflow.
+### 9. Edge / Failure Cases
+Empty detection batches: recorder must no-op (don’t create Parquet prematurely). Missing settings or load failure: guard `settings is None`. Dimension mismatch: ALWAYS rescale zones. Optional Arduino: code must degrade gracefully if unavailable.
+
+### 10. Quick File Landmarks
+`core/controller.py` (workflow hub) | `core/detector.py` (zones + state) | `io/recorder.py` (Parquet/MP4 writer) | `plugins/` (detectors) | `analysis/*` (metrics + reporting) | `settings.py` (config models) | `tests/` (executable spec – read first when uncertain).
+
+Unsure? Read the nearest test, mirror the pattern, keep output names & column order stable. When adding something new, document briefly in this file only if it becomes a repeated pattern.
+
+End of concise guide – propose updates only after validating against tests.
