@@ -1,18 +1,15 @@
 import os
-import shutil
-import uuid
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
 import pandas as pd
 import pytest
 
-from unittest.mock import MagicMock, patch
-
 # Import the actual classes we want to integrate
+from zebtrack.analysis.reporter import Reporter
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
-from zebtrack.analysis.reporter import Reporter
 from zebtrack.plugins.base import DetectorPlugin
 
 
@@ -104,7 +101,12 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
     # Define a simple, full-frame arena for detection
-    arena_polygon = [[0, 0], [frame_width, 0], [frame_width, frame_height], [0, frame_height]]
+    arena_polygon = [
+        [0, 0],
+        [frame_width, 0],
+        [frame_width, frame_height],
+        [0, frame_height],
+    ]
     zones = ZoneData(polygon=arena_polygon)
     detector.set_zones(zones, frame_width, frame_height)
 

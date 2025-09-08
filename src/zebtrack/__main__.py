@@ -66,8 +66,8 @@ def main():
         root.withdraw()
         messagebox.showerror(
             "Fatal Configuration Error",
-            "Could not load or validate 'config.yaml'. The application cannot start.\n\n"
-            "Please ensure the file exists and is correctly formatted.",
+            "Could not load or validate 'config.yaml'. The application cannot start.\n"
+            "\nPlease ensure the file exists and is correctly formatted.",
         )
         sys.exit(1)
 

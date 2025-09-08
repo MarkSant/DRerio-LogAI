@@ -13,8 +13,7 @@ from matplotlib import patches
 from scipy.ndimage import gaussian_filter
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
-from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.roi import ROI
 
 
 class Reporter:
@@ -77,7 +76,9 @@ class Reporter:
         combined_data["desvio_padrao_velocidade_cm_s"] = velocity_stats.get("std_dev")
 
         sharp_turns = general_behavior.get("curvas_acentuadas", {})
-        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get("sharp_turns_count")
+        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get(
+            "sharp_turns_count"
+        )
         combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get(
             "sharp_turns_per_minute"
         )
@@ -113,7 +114,9 @@ class Reporter:
             # Intra-ROI Velocity
             roi_vel = velocities.get(roi_name)
             if roi_vel:
-                combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
+                combined_data[
+                    f"velocidade_media_no_{roi_name}_cm_s"
+                ] = roi_vel.get("mean")
             # Intra-ROI Freezing
             roi_freeze = freezing.get(roi_name)
             if roi_freeze:
@@ -128,7 +131,9 @@ class Reporter:
                 combined_data[f"cor_roi_{roi_name}"] = str(self.roi_colors[roi_name])
 
         combined_data["total_entradas_roi"] = total_roi_entries
-        combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        combined_data["data_hora_analise"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         return pd.DataFrame([combined_data])
 
     def export_summary_data(self, output_path: str, format: str = "excel"):
@@ -374,7 +379,9 @@ class Reporter:
         """
         self.export_individual_report_step_by_step(output_path, lambda p, s: None)
 
-    def export_individual_report_step_by_step(self, output_path: str, progress_callback):
+    def export_individual_report_step_by_step(
+        self, output_path: str, progress_callback
+    ):
         total_steps = 10
         document = Document()
 
@@ -418,7 +425,10 @@ class Reporter:
         # Step 4-8: Add visualization plots
         document.add_heading("Visualizations", level=2)
         plot_configs = [
-            (lambda ax: self.generate_trajectory_plot(ax, self.video_path), "Trajectory"),
+            (
+                lambda ax: self.generate_trajectory_plot(ax, self.video_path),
+                "Trajectory",
+            ),
             (self.generate_heatmap, "Heatmap"),
             (self.generate_position_vs_time_plot, "Position vs. Time"),
             (self.generate_cumulative_distance_plot, "Cumulative Distance"),

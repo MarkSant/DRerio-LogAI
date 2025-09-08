@@ -50,7 +50,17 @@ def test_get_tortuosity_zero_distance(sample_trajectory_data):
     timestamps = [0, 1, 2]
     px = np.array([10, 50, 10])
     py = np.array([20, 60, 20])
-    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": px,
+            "y_center_px": py,
+            "x1": px - 1,
+            "y1": py - 1,
+            "x2": px + 1,
+            "y2": py + 1,
+        }
+    )
     sample_trajectory_data["trajectory_df"] = df
     # Disable smoothing to test the zero distance case precisely
     sample_trajectory_data["window_length"] = 1
@@ -67,7 +77,17 @@ def test_get_angular_velocity_non_uniform_timestamps(sample_trajectory_data):
     timestamps = [0, 1, 3, 6]  # dt = 1, 2, 3
     px = np.array([10, 20, 20, 20])
     py = np.array([10, 10, 20, 20]) # 90 degree turn (clockwise)
-    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": px,
+            "y_center_px": py,
+            "x1": px - 1,
+            "y1": py - 1,
+            "x2": px + 1,
+            "y2": py + 1,
+        }
+    )
     sample_trajectory_data["trajectory_df"] = df
     # Disable smoothing for predictable angular velocity
     sample_trajectory_data["window_length"] = 1
@@ -87,7 +107,17 @@ def test_detect_freezing_episodes_absolute(sample_trajectory_data):
     timestamps = np.linspace(0, 10, 101)
     px = np.array([10] * 50 + list(np.linspace(10, 20, 51)))
     py = np.array([20] * 50 + list(np.linspace(20, 30, 51)))
-    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": px,
+            "y_center_px": py,
+            "x1": px - 1,
+            "y1": py - 1,
+            "x2": px + 1,
+            "y2": py + 1,
+        }
+    )
     sample_trajectory_data["trajectory_df"] = df
     sample_trajectory_data["window_length"] = 1
     sample_trajectory_data["polyorder"] = 0
@@ -95,7 +125,9 @@ def test_detect_freezing_episodes_absolute(sample_trajectory_data):
 
     # The first 50 points are stationary. This corresponds to 49 velocity points.
     # The duration of freezing is 4.8s (t_49 - t_1)
-    episodes = analyzer.detect_freezing_episodes(min_duration=1, vel_threshold=0.1, threshold_method="absolute")
+    episodes = analyzer.detect_freezing_episodes(
+        min_duration=1, vel_threshold=0.1, threshold_method="absolute"
+    )
     assert len(episodes) == 1
     assert np.isclose(episodes[0]["duration"], 4.8, atol=0.1)
 
@@ -105,7 +137,17 @@ def test_detect_freezing_episodes_relative(sample_trajectory_data):
     timestamps = np.linspace(0, 10, 101)
     px = np.array([10] * 50 + list(np.linspace(10, 100, 51)))
     py = np.array([20] * 50 + list(np.linspace(20, 100, 51)))
-    df = pd.DataFrame({"timestamp": timestamps, "x_center_px": px, "y_center_px": py, "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1})
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": px,
+            "y_center_px": py,
+            "x1": px - 1,
+            "y1": py - 1,
+            "x2": px + 1,
+            "y2": py + 1,
+        }
+    )
     sample_trajectory_data["trajectory_df"] = df
     sample_trajectory_data["window_length"] = 1
     sample_trajectory_data["polyorder"] = 0
@@ -126,5 +168,7 @@ def test_detect_freezing_episodes_value_error(sample_trajectory_data):
     with pytest.raises(ValueError, match="Unknown threshold_method"):
         analyzer.detect_freezing_episodes(min_duration=1, threshold_method="unknown")
 
-    with pytest.raises(ValueError, match="vel_threshold must be set for 'absolute' method."):
+    with pytest.raises(
+        ValueError, match="vel_threshold must be set for 'absolute' method."
+    ):
         analyzer.detect_freezing_episodes(min_duration=1, threshold_method="absolute")

@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
@@ -140,7 +139,8 @@ class ProjectManager:
                 "Erro na Criação",
                 (
                     f"Não foi possível criar o diretório do projeto:\n{e}\n\n"
-                    "Por favor, verifique as permissões da pasta e se o caminho é válido."
+                    "Por favor, verifique as permissões da pasta e se o "
+                    "caminho é válido."
                 ),
             )
             return False
@@ -223,9 +223,10 @@ class ProjectManager:
             messagebox.showerror(
                 "Erro ao Carregar",
                 (
-                    f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não encontrado no "
-                    f"diretório selecionado:\n{project_path}\n\nPor favor, garanta que você "
-                    "selecionou uma pasta de projeto válida."
+                    f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
+                    f"encontrado no diretório selecionado:\n{project_path}\n\n"
+                    "Por favor, garanta que você selecionou uma pasta de "
+                    "projeto válida."
                 ),
             )
             return False
@@ -244,8 +245,9 @@ class ProjectManager:
             log_context.error("project.load.error", exc_info=e)
             messagebox.showerror(
                 "Erro ao Carregar",
-                f"Falha ao carregar ou analisar o arquivo de configuração do projeto:\n{config_path}\n\n"
-                f"O arquivo pode estar corrompido ou ilegível.\n\nErro: {e}",
+                f"Falha ao carregar ou analisar o arquivo de configuração do "
+                f"projeto:\n{config_path}\n\nO arquivo pode estar corrompido ou "
+                f"ilegível.\n\nErro: {e}",
             )
             return False
 
@@ -266,8 +268,9 @@ class ProjectManager:
             log.error("project.save.error", path=config_path, exc_info=e)
             messagebox.showerror(
                 "Erro ao Salvar",
-                f"Falha ao salvar o arquivo de configuração do projeto:\n{config_path}\n\n"
-                f"Por favor, verifique as permissões da pasta.\n\nErro: {e}",
+                f"Falha ao salvar o arquivo de configuração do projeto:\n"
+                f"{config_path}\n\nPor favor, verifique as permissões da "
+                f"pasta.\n\nErro: {e}",
             )
             return False
 
@@ -349,7 +352,8 @@ class ProjectManager:
                 )
                 messagebox.showwarning(
                     "Aviso de Metadados",
-                    f"Não foi possível carregar ou analisar 'metadata.csv'.\n\nErro: {e}"
+                    "Não foi possível carregar ou analisar 'metadata.csv'.\n\n"
+                    f"Erro: {e}"
                 )
         else:
             self.metadata = None

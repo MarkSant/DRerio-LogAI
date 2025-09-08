@@ -12,9 +12,8 @@ import pandas as pd
 import structlog
 from shapely.geometry import box
 
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.reporter import Reporter
-from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector
@@ -124,10 +123,14 @@ class AppController:
             use_openvino=self.use_openvino,
         )
         if not self.active_weight_name:
-            self.view.show_error("Erro de Detector", "Nenhum peso ativo está selecionado.")
+            self.view.show_error(
+                "Erro de Detector", "Nenhum peso ativo está selecionado."
+            )
             return False
 
-        weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
+        weight_details = self.weight_manager.get_weight_details(
+            self.active_weight_name
+        )
         if not weight_details:
             self.view.show_error(
                 "Erro de Detector",
@@ -148,7 +151,9 @@ class AppController:
                 plugin_name = "YOLO (Ultralytics)"
                 model_path = weight_details.get("path")
                 if not model_path or not os.path.exists(model_path):
-                    raise ValueError("Caminho do modelo YOLO .pt não encontrado ou inválido.")
+                    raise ValueError(
+                        "Caminho do modelo YOLO .pt não encontrado ou inválido."
+                    )
 
             plugin_class = DETECTOR_PLUGINS.get(plugin_name)
             if not plugin_class:
@@ -195,8 +200,9 @@ class AppController:
                     self.view.display_roi_video_frame(first_video)
                 self.view.show_error(
                     "Configuração Necessária",
-                    "Erro: A área de processamento principal (aquário) não foi definida. "
-                    "Por favor, defina-a na aba 'Configuração de Zonas' antes de continuar.",
+                    "Erro: A área de processamento principal (aquário) não foi "
+                    "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
+                    "antes de continuar.",
                 )
 
     # --- New Methods for Weight Management ---
@@ -286,7 +292,9 @@ class AppController:
                 self.active_weight_name
             )
             if not weight_details or not weight_details.get("path"):
-                self.view.show_error("Erro", "Não foi possível encontrar um caminho de modelo .pt válido.")
+                self.view.show_error(
+                    "Erro", "Não foi possível encontrar um caminho de modelo .pt válido."
+                )
                 return
             model_path = weight_details["path"]
             detector = AquariumDetector(model_path=model_path)
@@ -516,7 +524,9 @@ class AppController:
         # 2. Scan the single video
         scanned_files = ProjectManager.scan_input_paths([video_path])
         if not scanned_files:
-            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
+            self.view.show_error(
+                "Erro", "Não foi possível identificar um arquivo de vídeo válido."
+            )
             return
 
         video_to_process = scanned_files[0]
@@ -561,7 +571,10 @@ class AppController:
                 "usando apenas a área total do aquário. Deseja continuar?",
             ):
                 log.info("workflow.project_processing.cancelled_by_user_no_roi")
-                self.view.show_info("Processamento Cancelado", "O processamento foi cancelado pelo usuário.")
+                self.view.show_info(
+                    "Processamento Cancelado",
+                    "O processamento foi cancelado pelo usuário.",
+                )
                 return
 
         # 1. Ask user to select files or folders
@@ -581,7 +594,8 @@ class AppController:
         if not scanned_videos:
             self.view.show_warning(
                 "Nenhum Vídeo Encontrado",
-                "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",
+                "Nenhum novo arquivo de vídeo foi encontrado "
+                "nos caminhos selecionados.",
             )
             return
 
@@ -623,7 +637,9 @@ class AppController:
             videos_to_process = without_data
 
         if not videos_to_process:
-            self.view.show_info("Processamento Concluído", "Nenhum novo vídeo para processar.")
+            self.view.show_info(
+                "Processamento Concluído", "Nenhum novo vídeo para processar."
+            )
             return
 
         # 4. Add the batch to the project
@@ -638,7 +654,8 @@ class AppController:
 
         self.view.show_info(
             "Sucesso",
-            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
+            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados "
+            "ao projeto.",
         )
 
     def _process_videos(
@@ -665,7 +682,9 @@ class AppController:
             # --- Progress Callback Definition ---
             def progress_callback(progress_fraction, status_message):
                 # Update main status bar
-                overall_progress = f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
+                overall_progress = (
+                    f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
+                )
                 step_status = f"Etapa: {status_message}"
                 self.view.set_status(f"{overall_progress} - {step_status}")
 
@@ -703,7 +722,8 @@ class AppController:
                     self.view.show_error(
                         "Erro de Processamento",
                         f"Arquivo de trajetória não encontrado para {experiment_id}. "
-                        "Por favor, garanta que a detecção/rastreamento foi executada primeiro.",
+                        "Por favor, garanta que a detecção/rastreamento foi "
+                        "executada primeiro.",
                     )
                     continue  # Skip to the next video
 
@@ -723,7 +743,8 @@ class AppController:
                     log.error("controller.processing.no_calibration")
                     self.view.show_error(
                         "Erro de Processamento",
-                        "Os dados de calibração do projeto (dimensões, arena) estão incompletos.",
+                        "Os dados de calibração do projeto (dimensões, arena) "
+                        "estão incompletos.",
                     )
                     continue
 
@@ -734,7 +755,8 @@ class AppController:
                     log.error("controller.processing.bad_calibration_ratio")
                     self.view.show_error(
                         "Erro de Processamento",
-                        "Não foi possível calcular a proporção de pixel para cm. Verifique o polígono da arena.",
+                        "Não foi possível calcular a proporção de pixel para cm. "
+                        "Verifique o polígono da arena.",
                     )
                     continue
 
@@ -770,7 +792,8 @@ class AppController:
                         )
                         self.view.show_warning(
                             "Processamento Ignorado",
-                            f"Metadados não fornecidos para {experiment_id}. Ignorando vídeo.",
+                            f"Metadados não fornecidos para {experiment_id}. "
+                            "Ignorando vídeo.",
                         )
                         continue  # Skip to next video
                     # Add experiment_id to user-provided metadata
@@ -824,7 +847,9 @@ class AppController:
         """
         log.info("reports.generate.start", count=len(videos), type=report_type)
         if not videos:
-            self.view.show_warning("Nenhum Vídeo", "Nenhum vídeo selecionado para o relatório.")
+            self.view.show_warning(
+                "Nenhum Vídeo", "Nenhum vídeo selecionado para o relatório."
+            )
             return
 
         all_tidy_data = []
@@ -852,7 +877,8 @@ class AppController:
         if not all_tidy_data:
             self.view.show_error(
                 "Erro no Relatório",
-                "Não foi possível encontrar dados de resumo para os vídeos selecionados.",
+                "Não foi possível encontrar dados de resumo para os vídeos "
+                "selecionados.",
             )
             return
 

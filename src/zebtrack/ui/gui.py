@@ -78,7 +78,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
     def get_selected_item_name(self):
         selected = self.listbox.selection()
         if not selected:
-            messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione um peso primeiro.")
+            messagebox.showwarning(
+                "Nenhuma Seleção", "Por favor, selecione um peso primeiro."
+            )
             return None
         return self.listbox.item(selected[0])["values"][0]
 
@@ -284,14 +286,17 @@ class CreateProjectDialog(simpledialog.Dialog):
         return self.path_entry  # initial focus
 
     def _select_path(self):
-        path = filedialog.askdirectory(title="Selecione uma Pasta Principal para o Projeto")
+        path = filedialog.askdirectory(
+            title="Selecione uma Pasta Principal para o Projeto"
+        )
         if path:
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
 
     def _select_videos(self):
         files = filedialog.askopenfilenames(
-            title="Selecione os Arquivos de Vídeo", filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")]
+            title="Selecione os Arquivos de Vídeo",
+            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")],
         )
         if files:
             self.video_files = files
@@ -339,7 +344,9 @@ class CreateProjectDialog(simpledialog.Dialog):
     def validate(self):
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            messagebox.showerror("Erro", "Por favor, selecione uma pasta principal válida.")
+            messagebox.showerror(
+                "Erro", "Por favor, selecione uma pasta principal válida."
+            )
             return 0
 
         project_name = self.project_name_var.get()
@@ -358,7 +365,8 @@ class CreateProjectDialog(simpledialog.Dialog):
         if self.project_type_var.get() == "pre-recorded" and not self.video_files:
             messagebox.showerror(
                 "Erro",
-                "Por favor, selecione pelo menos um arquivo de vídeo para análise pré-gravada.",
+                "Por favor, selecione pelo menos um arquivo de vídeo para "
+                "análise pré-gravada.",
             )
             return 0
 
@@ -367,7 +375,9 @@ class CreateProjectDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
+            messagebox.showerror(
+                "Erro", "As dimensões do aquário devem ser números válidos."
+            )
             return 0
 
         if self.project_type_var.get() == "live":
@@ -392,7 +402,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             except (ValueError, TypeError):
                 messagebox.showerror(
                     "Erro",
-                    "Os parâmetros do design experimental devem ser números positivos válidos.",
+                    "Os parâmetros do design experimental devem ser números "
+                    "positivos válidos.",
                 )
                 return 0
             if self.use_timed_recording_var.get():
@@ -409,10 +420,14 @@ class CreateProjectDialog(simpledialog.Dialog):
                 try:
                     countdown = int(self.countdown_duration_var.get())
                     if countdown <= 0:
-                        raise ValueError("A contagem regressiva deve ser um inteiro positivo.")
+                        raise ValueError(
+                            "A contagem regressiva deve ser um inteiro positivo."
+                        )
                 except ValueError:
                     messagebox.showerror(
-                        "Erro", "A duração da contagem regressiva deve ser um inteiro positivo."
+                        "Erro",
+                        "A duração da contagem regressiva deve ser um inteiro "
+                        "positivo.",
                     )
                     return 0
         return 1
@@ -559,14 +574,17 @@ class LiveConfigDialog(simpledialog.Dialog):
         """Validate the inputs before closing the dialog."""
         if not self.available_cameras:
             messagebox.showerror(
-                "Erro", "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo."
+                "Erro",
+                "Nenhuma câmera detectada. Não é possível iniciar uma sessão "
+                "ao vivo.",
             )
             return 0
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
                 "Erro",
-                "O Arduino está ativado, mas nenhuma porta serial foi encontrada. Por favor, verifique "
-                "a conexão ou desative a opção 'Usar Arduino'.",
+                "O Arduino está ativado, mas nenhuma porta serial foi "
+                "encontrada. Por favor, verifique a conexão ou desative a "
+                "opção 'Usar Arduino'.",
             )
             return 0
         return 1
@@ -701,7 +719,9 @@ class ApplicationGUI:
         btn_frame = ttk.Frame(model_frame)
         btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
         ttk.Button(
-            btn_frame, text="Carregar Novo Peso...", command=self._load_new_weight_clicked
+            btn_frame,
+            text="Carregar Novo Peso...",
+            command=self._load_new_weight_clicked,
         ).pack(side="left", padx=(0, 5))
         ttk.Button(
             btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_clicked
@@ -1117,7 +1137,8 @@ class ApplicationGUI:
         all_videos = self.controller.project_manager.get_all_videos()
         if not all_videos:
             self.show_warning(
-                "Sem Dados", "Não há vídeos processados neste projeto para gerar um relatório."
+                "Sem Dados",
+                "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
         self.controller.generate_report(all_videos, report_type="unified")
@@ -1132,7 +1153,8 @@ class ApplicationGUI:
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
         self.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para finalizar."
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique "
+            "duplo para finalizar."
         )
 
     def _stop_drawing(self):
@@ -1399,7 +1421,8 @@ class ApplicationGUI:
             return
 
         roi_name = self.ask_string(
-            "Nome da ROI", "Digite um nome para esta nova Região de Interesse (Círculo):"
+            "Nome da ROI",
+            "Digite um nome para esta nova Região de Interesse (Círculo):",
         )
         if not roi_name:
             self._stop_drawing()
@@ -1557,7 +1580,8 @@ class ApplicationGUI:
 
         if not all([days, groups, subjects_per_group]):
             ttk.Label(
-                self.grid_container, text="O design experimental não está totalmente configurado."
+                self.grid_container,
+                text="O design experimental não está totalmente configurado.",
             ).pack()
             return
 
@@ -1804,7 +1828,9 @@ class ApplicationGUI:
                 processing_interval = max(1, processing_interval - 1)
 
             # Cap the interval to a reasonable maximum (e.g., half the framerate)
-            processing_interval = min(processing_interval, int(fps / 2) if fps > 2 else 1)
+            processing_interval = min(
+                processing_interval, int(fps / 2) if fps > 2 else 1
+            )
             processing_interval = max(1, processing_interval)
 
 
@@ -1912,7 +1938,9 @@ class ApplicationGUI:
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
-        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
+        project_path = self.ask_directory(
+            title="Selecione uma Pasta de Projeto Existente"
+        )
         if not project_path:
             return
 
@@ -1925,7 +1953,8 @@ class ApplicationGUI:
             return  # User cancelled
 
         video_path = self.ask_open_filenames(
-            "Selecione um Único Arquivo de Vídeo", [("Arquivos de vídeo", "*.mp4 *.avi *.mov")]
+            "Selecione um Único Arquivo de Vídeo",
+            [("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
         )
         if not video_path:
             return
@@ -2122,7 +2151,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
+            messagebox.showerror(
+                "Erro", "As dimensões do aquário devem ser números válidos."
+            )
             return 0
         return 1
 
@@ -2211,7 +2242,9 @@ class MissingMetadataDialog(simpledialog.Dialog):
         super().__init__(parent, "Metadados Ausentes")
 
     def body(self, master):
-        Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(pady=5)
+        Label(
+            master, text="Não foi possível encontrar metadados automaticamente para:"
+        ).pack(pady=5)
         Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
             pady=(0, 10)
         )
@@ -2256,7 +2289,9 @@ class MissingMetadataDialog(simpledialog.Dialog):
             return 0
 
         if not self.group_var.get().strip():
-            messagebox.showerror("Erro de Validação", "O nome do grupo não pode estar vazio.")
+            messagebox.showerror(
+                "Erro de Validação", "O nome do grupo não pode estar vazio."
+            )
             return 0
 
         return 1

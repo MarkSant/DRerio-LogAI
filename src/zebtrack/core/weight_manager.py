@@ -132,7 +132,8 @@ class WeightManager:
 
         if len(self.weights) <= 1:
             messagebox.showerror(
-                "Não é Possível Excluir", "Você não pode excluir o último peso disponível."
+                "Não é Possível Excluir",
+                "Você não pode excluir o último peso disponível.",
             )
             return
 
