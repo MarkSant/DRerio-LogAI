@@ -81,6 +81,16 @@ class BehavioralAnalyzer(ABC):
             trajectory_df, video_height_px, window_length, polyorder
         )
 
+    @property
+    def trajectory_data(self) -> pd.DataFrame:
+        """Returns a copy of the preprocessed trajectory data."""
+        return self._trajectory_data.copy()
+
+    @property
+    def arena_polygon_cm(self) -> Polygon:
+        """Returns the arena geometry as a Shapely Polygon in cm."""
+        return self._arena_polygon_cm
+
     def _preprocess_data(
         self,
         df: pd.DataFrame,

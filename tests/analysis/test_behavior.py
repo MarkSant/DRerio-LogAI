@@ -72,8 +72,8 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
 
     def calculate_velocity_timeseries(self) -> pd.DataFrame:
         v_mag = pd.Series(
-            np.random.rand(len(self._trajectory_data)),
-            index=self._trajectory_data.index,
+            np.random.rand(len(self.trajectory_data)),
+            index=self.trajectory_data.index,
         )
         return pd.DataFrame({"v_mag": v_mag})
 
@@ -84,8 +84,8 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
         return pd.Series(
-            np.random.rand(len(self._trajectory_data)),
-            index=self._trajectory_data.index,
+            np.random.rand(len(self.trajectory_data)),
+            index=self.trajectory_data.index,
         )
 
     def get_tortuosity(
@@ -97,8 +97,8 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
 
     def get_thigmotaxis_timeseries(self) -> pd.Series:
         # Returns distance from wall, decreasing towards the middle of the trial
-        distances = np.abs(np.linspace(-5, 5, len(self._trajectory_data))) + 1
-        return pd.Series(distances, index=self._trajectory_data.index)
+        distances = np.abs(np.linspace(-5, 5, len(self.trajectory_data))) + 1
+        return pd.Series(distances, index=self.trajectory_data.index)
 
 
 # -- Test Cases --
@@ -110,7 +110,7 @@ def test_initialization_and_preprocessing(sample_trajectory_data):
     # Use a lower polyorder to ensure the filter alters the quadratic data
     analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
     analyzer = ConcreteAnalyzer(**analyzer_args, polyorder=1)
-    df = analyzer._trajectory_data
+    df = analyzer.trajectory_data
 
     assert isinstance(df, pd.DataFrame)
     assert "x_cm" in df.columns and "y_cm" in df.columns
@@ -174,7 +174,7 @@ def test_calculate_thigmotaxis_index_time_near_wall(sample_trajectory_data):
     # Create the mock series with the same TimedeltaIndex as the analyzer's data
     # Distances: animal is near wall (dist < 3) at t=2, 3, 7, 8
     distance_values = [5, 5, 2, 2, 5, 5, 5, 2, 2, 5, 5]
-    distances = pd.Series(distance_values, index=analyzer._trajectory_data.index)
+    distances = pd.Series(distance_values, index=analyzer.trajectory_data.index)
     analyzer.get_thigmotaxis_timeseries = lambda: distances
 
     # threshold = 3. The animal is near the wall at t=2, 3, 7, 8.

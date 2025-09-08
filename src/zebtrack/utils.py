@@ -1,3 +1,4 @@
+import hashlib
 import random
 
 import numpy as np
@@ -5,6 +6,34 @@ import structlog
 import torch
 
 log = structlog.get_logger()
+
+
+class IntegrityError(Exception):
+    """Custom exception for file integrity errors."""
+
+    pass
+
+
+def calculate_sha256(filepath: str) -> str:
+    """
+    Calculates the SHA256 hash of a file.
+
+    Args:
+        filepath: The path to the file.
+
+    Returns:
+        The hex digest of the hash, or an empty string if the file cannot be read.
+    """
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            # Read and update hash in chunks of 4K
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except IOError:
+        log.error("file.hash.read_error", filepath=filepath)
+        return ""
 
 
 def set_seed(seed: int):

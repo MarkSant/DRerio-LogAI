@@ -46,10 +46,15 @@ class ROIAnalyzer:
         """
         self._b_analyzer = behavior_analyzer
         self._rois = {roi.name: roi for roi in rois}
-        self._trajectory = self._b_analyzer._trajectory_data.copy()
+        self._trajectory = self._b_analyzer.trajectory_data.copy()
         self._flutter_n = flutter_n_frames
         self._validate_rois()
         self._calculate_presence_in_rois()
+
+    @property
+    def rois(self) -> Dict[str, ROI]:
+        """Returns the dictionary of ROI objects."""
+        return self._rois
 
     def _validate_rois(self):
         """Checks for empty or invalid ROIs."""
@@ -320,7 +325,7 @@ class ROIAnalyzer:
         """Calculates velocity statistics within each ROI."""
         results = {}
         # Ensure velocity is calculated on the base analyzer
-        if "v_mag" not in self._b_analyzer._trajectory_data.columns:
+        if "v_mag" not in self._b_analyzer.trajectory_data.columns:
             self._b_analyzer.calculate_velocity_timeseries()
 
         for name in self._rois:
@@ -408,7 +413,7 @@ class ROIAnalyzer:
         """
         from shapely.affinity import scale
 
-        arena = self._b_analyzer._arena_polygon_cm
+        arena = self._b_analyzer.arena_polygon_cm
         if method == "distance":
             center_poly = arena.buffer(-value)
         elif method == "area_ratio":

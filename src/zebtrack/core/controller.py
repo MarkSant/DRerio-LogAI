@@ -23,6 +23,7 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
@@ -134,7 +135,8 @@ class AppController:
         if not weight_details:
             self.view.show_error(
                 "Erro de Detector",
-                f"Não foi possível encontrar detalhes para o peso: {self.active_weight_name}",
+                "Não foi possível encontrar detalhes para o peso: "
+                f"{self.active_weight_name}",
             )
             return False
 
@@ -160,7 +162,15 @@ class AppController:
                 raise ValueError(f"Detector plugin '{plugin_name}' not found.")
 
             log.info("detector.load.start", plugin=plugin_name, path=model_path)
-            plugin_instance = plugin_class(model_path=model_path)
+            # Pass hash for OpenVINO models for integrity check
+            if self.use_openvino:
+                expected_hash = weight_details.get("openvino_hash")
+                plugin_instance = plugin_class(
+                    model_path=model_path, expected_hash=expected_hash
+                )
+            else:
+                plugin_instance = plugin_class(model_path=model_path)
+
             self.detector = Detector(
                 plugin=plugin_instance,
                 base_width=settings.camera.desired_width,
@@ -168,7 +178,7 @@ class AppController:
             )
             log.info("detector.setup.success")
             return True
-        except (ValueError, FileNotFoundError) as e:
+        except (ValueError, FileNotFoundError, IntegrityError) as e:
             log.error("detector.init.failed", error=str(e), exc_info=True)
             self.view.show_error(
                 "Erro de Detector", f"Falha ao inicializar o detector: {e}"
@@ -293,7 +303,8 @@ class AppController:
             )
             if not weight_details or not weight_details.get("path"):
                 self.view.show_error(
-                    "Erro", "Não foi possível encontrar um caminho de modelo .pt válido."
+                    "Erro",
+                    "Não foi possível encontrar um caminho de modelo .pt válido.",
                 )
                 return
             model_path = weight_details["path"]
