@@ -107,7 +107,8 @@ class WeightManager:
             # Resolve both paths to their absolute form to prevent symbolic link
             # tricks and ensure the file exists.
             project_dir = Path(self.config_dir).resolve()
-            model_path = Path(new_path).resolve(strict=True)  # strict=True checks existence
+            # strict=True checks existence
+            model_path = Path(new_path).resolve(strict=True)
 
             # Check if the model path is inside the project directory.
             # This is the primary defense against path traversal.

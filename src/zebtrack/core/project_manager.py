@@ -226,7 +226,9 @@ class ProjectManager:
             # --- Security Check: File Integrity ---
             expected_hash = loaded_data.pop("file_hash", None)
             if expected_hash:
-                canonical_string = json.dumps(loaded_data, sort_keys=True, separators=(",", ":"))
+                canonical_string = json.dumps(
+                    loaded_data, sort_keys=True, separators=(",", ":")
+                )
                 actual_hash = hashlib.sha256(
                     canonical_string.encode("utf-8")
                 ).hexdigest()
@@ -272,7 +274,9 @@ class ProjectManager:
 
             # Create a canonical JSON string (sorted keys, no extra whitespace)
             # to get a consistent hash.
-            canonical_string = json.dumps(data_to_save, sort_keys=True, separators=(",", ":"))
+            canonical_string = json.dumps(
+                data_to_save, sort_keys=True, separators=(",", ":")
+            )
             new_hash = hashlib.sha256(canonical_string.encode("utf-8")).hexdigest()
 
             # Add the new hash to the data to be saved

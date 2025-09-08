@@ -54,9 +54,9 @@ class OpenVINOPlugin(DetectorPlugin):
                     actual=actual_hash,
                 )
                 raise IntegrityError(
-                    f"A integridade do arquivo de modelo '{os.path.basename(model_xml_path)}' "
-                    f"não pôde ser verificada. O arquivo pode estar corrompido ou "
-                    f"ter sido adulterado."
+                    f"A integridade do arquivo de modelo "
+                    f"'{os.path.basename(model_xml_path)}' não pôde ser verificada. "
+                    f"O arquivo pode estar corrompido ou ter sido adulterado."
                 )
         # --- End Security Check ---
 

@@ -324,7 +324,7 @@ class BehavioralAnalyzer(ABC):
             is_near_wall = self.get_thigmotaxis_timeseries() < distance_threshold
 
             # Use the main trajectory dataframe to calculate time deltas
-            df = self.trajectory_data
+            df = self._trajectory_data.copy()
 
             # Align the 'is_near_wall' series with the main dataframe and fill NaNs
             df["is_near_wall"] = is_near_wall

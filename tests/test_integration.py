@@ -12,7 +12,6 @@ from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins.base import DetectorPlugin
 
-
 # -- Mocks and Test Data Generators --
 
 def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):

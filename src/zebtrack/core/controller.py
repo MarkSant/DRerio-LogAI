@@ -22,8 +22,8 @@ from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
-from zebtrack.utils import IntegrityError
 from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
@@ -135,7 +135,8 @@ class AppController:
         if not weight_details:
             self.view.show_error(
                 "Erro de Detector",
-                f"Não foi possível encontrar detalhes para o peso: {self.active_weight_name}",
+                "Não foi possível encontrar detalhes para o peso: "
+                f"{self.active_weight_name}",
             )
             return False
 
@@ -302,7 +303,8 @@ class AppController:
             )
             if not weight_details or not weight_details.get("path"):
                 self.view.show_error(
-                    "Erro", "Não foi possível encontrar um caminho de modelo .pt válido."
+                    "Erro",
+                    "Não foi possível encontrar um caminho de modelo .pt válido.",
                 )
                 return
             model_path = weight_details["path"]

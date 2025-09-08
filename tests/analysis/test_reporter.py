@@ -7,6 +7,7 @@ from shapely.geometry import box
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 
+
 @pytest.fixture
 def reporter_setup(tmp_path):
     """Provides a fully initialized Reporter instance for testing."""
