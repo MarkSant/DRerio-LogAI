@@ -57,7 +57,7 @@ class AppController:
         self.root.mainloop()
 
     def on_close(self):
-        if self.view.ask_ok_cancel("Quit", "Do you want to exit?"):
+        if self.view.ask_ok_cancel("Sair", "Deseja realmente sair?"):
             self.join_threads()
             self.root.destroy()
 
@@ -94,7 +94,7 @@ class AppController:
             if self.setup_detector():
                 self.view._load_project_view()
         else:
-            self.view.show_error("Error", "Failed to create the new project.")
+            self.view.show_error("Erro", "Falha ao criar o novo projeto.")
 
     def open_project_workflow(self, project_path):
         if self.project_manager.load_project(project_path):
@@ -124,14 +124,14 @@ class AppController:
             use_openvino=self.use_openvino,
         )
         if not self.active_weight_name:
-            self.view.show_error("Detector Error", "No active weight is selected.")
+            self.view.show_error("Erro de Detector", "Nenhum peso ativo está selecionado.")
             return False
 
         weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
         if not weight_details:
             self.view.show_error(
-                "Detector Error",
-                f"Could not find details for weight: {self.active_weight_name}",
+                "Erro de Detector",
+                f"Não foi possível encontrar detalhes para o peso: {self.active_weight_name}",
             )
             return False
 
@@ -141,14 +141,14 @@ class AppController:
                 model_path = weight_details.get("openvino_path")
                 if not model_path or not os.path.exists(model_path):
                     raise ValueError(
-                        "OpenVINO model path not found or invalid. "
-                        "Please convert the model first."
+                        "Caminho do modelo OpenVINO não encontrado ou inválido. "
+                        "Por favor, converta o modelo primeiro."
                     )
             else:
                 plugin_name = "YOLO (Ultralytics)"
                 model_path = weight_details.get("path")
                 if not model_path or not os.path.exists(model_path):
-                    raise ValueError("YOLO .pt model path not found or invalid.")
+                    raise ValueError("Caminho do modelo YOLO .pt não encontrado ou inválido.")
 
             plugin_class = DETECTOR_PLUGINS.get(plugin_name)
             if not plugin_class:
@@ -166,7 +166,7 @@ class AppController:
         except (ValueError, FileNotFoundError) as e:
             log.error("detector.init.failed", error=str(e), exc_info=True)
             self.view.show_error(
-                "Detector Error", f"Failed to initialize the detector: {e}"
+                "Erro de Detector", f"Falha ao inicializar o detector: {e}"
             )
             return False
 
@@ -193,10 +193,10 @@ class AppController:
                 first_video = self.project_manager.get_next_video()
                 if first_video:
                     self.view.display_roi_video_frame(first_video)
-                self.view.show_info(
+                self.view.show_error(
                     "Configuração Necessária",
-                    "Por favor, defina a área de processamento principal (polígono) "
-                    "antes de continuar.",
+                    "Erro: A área de processamento principal (aquário) não foi definida. "
+                    "Por favor, defina-a na aba 'Configuração de Zonas' antes de continuar.",
                 )
 
     # --- New Methods for Weight Management ---
@@ -242,16 +242,16 @@ class AppController:
     def convert_active_weight_to_openvino(self):
         if not self.active_weight_name:
             return
-        self.view.set_status(f"Converting {self.active_weight_name} to OpenVINO...")
+        self.view.set_status(f"Convertendo {self.active_weight_name} para OpenVINO...")
         self.view.update_idletasks()
         self.weight_manager.convert_to_openvino(self.active_weight_name)
         self.update_openvino_status()
-        self.view.set_status("Conversion check complete. Ready.")
+        self.view.set_status("Verificação de conversão concluída. Pronto.")
 
     def update_openvino_status(self):
         """Updates the status label in the GUI based on the current state."""
         if not self.active_weight_name:
-            self.view.update_openvino_status_label("No weight selected.")
+            self.view.update_openvino_status_label("Nenhum peso selecionado.")
             return
 
         details = self.weight_manager.get_weight_details(self.active_weight_name)
@@ -262,13 +262,13 @@ class AppController:
             if details.get("openvino_path") and os.path.exists(
                 details.get("openvino_path")
             ):
-                self.view.update_openvino_status_label("OpenVINO model is ready.")
+                self.view.update_openvino_status_label("O modelo OpenVINO está pronto.")
             else:
                 self.view.update_openvino_status_label(
-                    "Needs conversion to OpenVINO."
+                    "Necessita de conversão para OpenVINO."
                 )
         else:
-            self.view.update_openvino_status_label("OpenVINO is disabled.")
+            self.view.update_openvino_status_label("O OpenVINO está desativado.")
 
     def run_aquarium_detection(self):
         """Runs the aquarium detection model on the first video of the project."""
@@ -286,7 +286,7 @@ class AppController:
                 self.active_weight_name
             )
             if not weight_details or not weight_details.get("path"):
-                self.view.show_error("Error", "Could not find a valid .pt model path.")
+                self.view.show_error("Erro", "Não foi possível encontrar um caminho de modelo .pt válido.")
                 return
             model_path = weight_details["path"]
             detector = AquariumDetector(model_path=model_path)
@@ -507,16 +507,16 @@ class AppController:
         if not self.detector:
             if not self.setup_detector():
                 self.view.show_error(
-                    "Error",
-                    "Could not set up the detector. "
-                    "Please configure a model on the main screen.",
+                    "Erro",
+                    "Não foi possível configurar o detector. "
+                    "Por favor, configure um modelo na tela principal.",
                 )
                 return
 
         # 2. Scan the single video
         scanned_files = ProjectManager.scan_input_paths([video_path])
         if not scanned_files:
-            self.view.show_error("Error", "Could not identify a valid video file.")
+            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
             return
 
         video_to_process = scanned_files[0]
@@ -524,11 +524,11 @@ class AppController:
         # 3. Check for existing data
         if video_to_process["has_data"]:
             if not self.view.ask_ok_cancel(
-                "Data Found",
-                "Existing analysis data (.parquet) found for this video. "
-                "Do you want to overwrite it by re-processing the video?",
+                "Dados Encontrados",
+                "Dados de análise existentes (.parquet) encontrados para este vídeo. "
+                "Deseja substituí-los reprocessando o vídeo?",
             ):
-                self.view.show_info("Cancelled", "Single video analysis cancelled.")
+                self.view.show_info("Cancelado", "Análise de vídeo único cancelada.")
                 return
 
         # 4. Create a "mini-project" folder for the results
@@ -541,8 +541,8 @@ class AppController:
             [video_to_process], output_dir, single_video_config=config
         )
         self.view.show_info(
-            "Success",
-            f"Single video analysis complete. Results saved in:\n{output_dir}",
+            "Sucesso",
+            f"Análise de vídeo único concluída. Resultados salvos em:\n{output_dir}",
         )
 
     def start_project_processing_workflow(self):
@@ -552,13 +552,25 @@ class AppController:
             self.view.show_error("Error", "No project is currently open.")
             return
 
+        # Check for ROIs and ask for confirmation if none are defined
+        zone_data = self.project_manager.get_zone_data()
+        if not zone_data.squares:  # .squares holds the ROIs
+            if not self.view.ask_ok_cancel(
+                "Nenhuma ROI Definida",
+                "Nenhuma Área de Interesse (ROI) foi definida. A análise prosseguirá "
+                "usando apenas a área total do aquário. Deseja continuar?",
+            ):
+                log.info("workflow.project_processing.cancelled_by_user_no_roi")
+                self.view.show_info("Processamento Cancelado", "O processamento foi cancelado pelo usuário.")
+                return
+
         # 1. Ask user to select files or folders
         paths = self.view.ask_open_filenames(
-            "Select Videos or Folders to Add to Project",
+            "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
             [
-                ("All files", "*.*"),
-                ("Video files", "*.mp4 *.avi *.mov"),
-                ("Folders", "*/"),
+                ("Todos os arquivos", "*.*"),
+                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
+                ("Pastas", "*/"),
             ],
         )
         if not paths:
@@ -568,8 +580,8 @@ class AppController:
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
             self.view.show_warning(
-                "No Videos Found",
-                "No new video files were found in the selected paths.",
+                "Nenhum Vídeo Encontrado",
+                "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",
             )
             return
 
@@ -581,11 +593,11 @@ class AppController:
         if with_data and without_data:
             # The complex case: some have data, some don't
             msg = (
-                f"{len(with_data)} video(s) already have analysis data.\n"
-                f"{len(without_data)} video(s) need to be processed.\n\n"
-                "Do you want to re-process the videos that already have data?"
+                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
+                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
+                "Deseja reprocessar os vídeos que já possuem dados?"
             )
-            if self.view.ask_ok_cancel("Mixed Data Found", msg):
+            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
                 # User wants to re-process everything
                 videos_to_process = scanned_videos
             else:
@@ -594,14 +606,14 @@ class AppController:
         elif with_data and not without_data:
             # All selected videos have data
             if self.view.ask_ok_cancel(
-                "Data Found",
-                "All selected videos already have analysis data. "
-                "Do you want to re-process them all?",
+                "Dados Encontrados",
+                "Todos os vídeos selecionados já possuem dados de análise. "
+                "Deseja reprocessá-los todos?",
             ):
                 videos_to_process = with_data
             else:
                 self.view.show_info(
-                    "Processing Skipped", "No new videos were processed."
+                    "Processamento Ignorado", "Nenhum novo vídeo foi processado."
                 )
                 # Still add them to the project for reporting purposes
                 self.project_manager.add_video_batch(scanned_videos)
@@ -611,7 +623,7 @@ class AppController:
             videos_to_process = without_data
 
         if not videos_to_process:
-            self.view.show_info("Processing Complete", "No new videos to process.")
+            self.view.show_info("Processamento Concluído", "Nenhum novo vídeo para processar.")
             return
 
         # 4. Add the batch to the project
@@ -625,9 +637,8 @@ class AppController:
             self.project_manager.update_video_status(video["path"], "complete")
 
         self.view.show_info(
-            "Success",
-            f"{len(videos_to_process)} video(s) were processed and added to the "
-            "project.",
+            "Sucesso",
+            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
         )
 
     def _process_videos(
@@ -642,17 +653,36 @@ class AppController:
         """
         log.info("controller.processing.start", count=len(videos_to_process))
         self.view.set_status(
-            f"Starting processing for {len(videos_to_process)} videos..."
+            f"Iniciando processamento para {len(videos_to_process)} vídeos..."
         )
+        self.view.show_progress_bar()
         self.view.update_idletasks()
 
         for i, video_info in enumerate(videos_to_process):
             video_path = video_info["path"]
             experiment_id = os.path.splitext(os.path.basename(video_path))[0]
-            self.view.set_status(
-                f"Processing {i+1}/{len(videos_to_process)}: {experiment_id}"
-            )
-            self.view.update_idletasks()
+
+            # --- Progress Callback Definition ---
+            def progress_callback(progress_fraction, status_message):
+                # Update main status bar
+                overall_progress = f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
+                step_status = f"Etapa: {status_message}"
+                self.view.set_status(f"{overall_progress} - {step_status}")
+
+                # Update individual progress bar
+                self.view.update_progress(progress_fraction)
+                self.view.update_idletasks()
+
+            # --- Display Video Frame ---
+            try:
+                cap = cv2.VideoCapture(video_path)
+                ret, frame = cap.read()
+                if ret:
+                    self.view.display_frame(frame)
+                cap.release()
+            except Exception as e:
+                log.warning("controller.progress.frame_display_error", error=str(e))
+
 
             # Define where to save results for this video
             if self.project_manager.project_path:
@@ -671,9 +701,9 @@ class AppController:
                         "controller.processing.no_trajectory", path=trajectory_path
                     )
                     self.view.show_error(
-                        "Processing Error",
-                        f"Trajectory file not found for {experiment_id}. "
-                        "Please ensure detection/tracking was run first.",
+                        "Erro de Processamento",
+                        f"Arquivo de trajetória não encontrado para {experiment_id}. "
+                        "Por favor, garanta que a detecção/rastreamento foi executada primeiro.",
                     )
                     continue  # Skip to the next video
 
@@ -692,8 +722,8 @@ class AppController:
                 if not all([width_cm, height_cm, arena_polygon_px]):
                     log.error("controller.processing.no_calibration")
                     self.view.show_error(
-                        "Processing Error",
-                        "Project calibration data (dimensions, arena) is incomplete.",
+                        "Erro de Processamento",
+                        "Os dados de calibração do projeto (dimensões, arena) estão incompletos.",
                     )
                     continue
 
@@ -703,8 +733,8 @@ class AppController:
                 if not all([pixelcm_x, pixelcm_y]):
                     log.error("controller.processing.bad_calibration_ratio")
                     self.view.show_error(
-                        "Processing Error",
-                        "Could not calculate pixel-to-cm ratio. Check arena polygon.",
+                        "Erro de Processamento",
+                        "Não foi possível calcular a proporção de pixel para cm. Verifique o polígono da arena.",
                     )
                     continue
 
@@ -739,9 +769,8 @@ class AppController:
                             "metadata.user_cancelled", experiment_id=experiment_id
                         )
                         self.view.show_warning(
-                            "Processing Skipped",
-                            f"Metadata was not provided for {experiment_id}. "
-                            "Skipping video.",
+                            "Processamento Ignorado",
+                            f"Metadados não fornecidos para {experiment_id}. Ignorando vídeo.",
                         )
                         continue  # Skip to next video
                     # Add experiment_id to user-provided metadata
@@ -767,8 +796,9 @@ class AppController:
                     os.path.join(results_dir, f"{experiment_id}_summary.xlsx"),
                     format="excel",
                 )
-                reporter.export_individual_report(
-                    os.path.join(results_dir, f"{experiment_id}_report.docx")
+                reporter.export_individual_report_step_by_step(
+                    os.path.join(results_dir, f"{experiment_id}_report.docx"),
+                    progress_callback,
                 )
 
             except Exception as e:
@@ -779,13 +809,14 @@ class AppController:
                     exc_info=True,
                 )
                 self.view.show_error(
-                    "Analysis Error",
-                    f"An unexpected error occurred while processing "
+                    "Erro na Análise",
+                    f"Ocorreu um erro inesperado ao processar "
                     f"{experiment_id}:\n{e}",
                 )
                 continue
 
-        self.view.set_status("Processing complete!")
+        self.view.hide_progress_bar()
+        self.view.set_status("Processamento concluído!")
 
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
         """
@@ -793,7 +824,7 @@ class AppController:
         """
         log.info("reports.generate.start", count=len(videos), type=report_type)
         if not videos:
-            self.view.show_warning("No Videos", "No videos selected for the report.")
+            self.view.show_warning("Nenhum Vídeo", "Nenhum vídeo selecionado para o relatório.")
             return
 
         all_tidy_data = []
@@ -820,21 +851,21 @@ class AppController:
 
         if not all_tidy_data:
             self.view.show_error(
-                "Report Error",
-                "Could not find any summary data for the selected videos.",
+                "Erro no Relatório",
+                "Não foi possível encontrar dados de resumo para os vídeos selecionados.",
             )
             return
 
         aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
         save_path = self.view.ask_save_filename(
-            title=f"Save {report_type.capitalize()} Report",
+            title=f"Salvar Relatório {report_type.capitalize()}",
             defaultextension=".xlsx",
             initialfile=f"{report_type}_report.xlsx",
             filetypes=[
-                ("Excel Workbook", "*.xlsx"),
-                ("CSV File", "*.csv"),
-                ("Parquet File", "*.parquet"),
-                ("All files", "*.*"),
+                ("Pasta de Trabalho do Excel", "*.xlsx"),
+                ("Arquivo CSV", "*.csv"),
+                ("Arquivo Parquet", "*.parquet"),
+                ("Todos os arquivos", "*.*"),
             ],
         )
         if not save_path:
@@ -859,4 +890,4 @@ class AppController:
             docx_path = os.path.splitext(save_path)[0] + "_report.docx"
             Reporter.export_project_report(aggregated_df, docx_path)
 
-        self.view.show_info("Report Generated", f"Report saved to:\n{save_path}")
+        self.view.show_info("Relatório Gerado", f"Relatório salvo em:\n{save_path}")
