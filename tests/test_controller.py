@@ -76,7 +76,7 @@ class TestAppController(unittest.TestCase):
 
         # --- Assert ---
         self.mock_view.show_error.assert_called_once_with(
-            "Error", "Failed to create the new project."
+            "Erro", "Falha ao criar o novo projeto."
         )
         self.mock_view._load_project_view.assert_not_called()
 

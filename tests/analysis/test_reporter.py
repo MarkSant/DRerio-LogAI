@@ -1,10 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
+from shapely.geometry import box
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
-from shapely.geometry import box
 
 @pytest.fixture
 def reporter_setup(tmp_path):
@@ -39,8 +40,15 @@ def reporter_setup(tmp_path):
         mock_report_dict = {
             "comportamento_geral": {
                 "distancia_total_cm": 100.0,
-                "estatisticas_velocidade": {"mean": 10.0, "median": 10.0, "std_dev": 1.0},
-                "curvas_acentuadas": {"sharp_turns_count": 5, "sharp_turns_per_minute": 30.0},
+                "estatisticas_velocidade": {
+                    "mean": 10.0,
+                    "median": 10.0,
+                    "std_dev": 1.0,
+                },
+                "curvas_acentuadas": {
+                    "sharp_turns_count": 5,
+                    "sharp_turns_per_minute": 30.0,
+                },
             },
             "analise_roi": {
                 "tempo_gasto_por_roi": {"zone1": {"seconds": 5.0, "percentage": 50.0}},
@@ -92,7 +100,9 @@ def test_reporter_export_summary_excel(mock_to_excel, reporter_setup):
     reporter, tmp_path = reporter_setup
     output_path = tmp_path / "summary.xlsx"
     reporter.export_summary_data(str(output_path), format="excel")
-    mock_to_excel.assert_called_once_with(str(output_path), index=False, engine="openpyxl")
+    mock_to_excel.assert_called_once_with(
+        str(output_path), index=False, engine="openpyxl"
+    )
 
 @patch("pandas.DataFrame.to_csv")
 def test_reporter_export_summary_csv(mock_to_csv, reporter_setup):

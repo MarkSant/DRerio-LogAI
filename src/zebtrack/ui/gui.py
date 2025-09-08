@@ -78,7 +78,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
     def get_selected_item_name(self):
         selected = self.listbox.selection()
         if not selected:
-            messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione um peso primeiro.")
+            messagebox.showwarning(
+                "Nenhuma Seleção", "Por favor, selecione um peso primeiro."
+            )
             return None
         return self.listbox.item(selected[0])["values"][0]
 
@@ -284,14 +286,17 @@ class CreateProjectDialog(simpledialog.Dialog):
         return self.path_entry  # initial focus
 
     def _select_path(self):
-        path = filedialog.askdirectory(title="Selecione uma Pasta Principal para o Projeto")
+        path = filedialog.askdirectory(
+            title="Selecione uma Pasta Principal para o Projeto"
+        )
         if path:
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
 
     def _select_videos(self):
         files = filedialog.askopenfilenames(
-            title="Selecione os Arquivos de Vídeo", filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")]
+            title="Selecione os Arquivos de Vídeo",
+            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")],
         )
         if files:
             self.video_files = files
@@ -339,7 +344,9 @@ class CreateProjectDialog(simpledialog.Dialog):
     def validate(self):
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            messagebox.showerror("Erro", "Por favor, selecione uma pasta principal válida.")
+            messagebox.showerror(
+                "Erro", "Por favor, selecione uma pasta principal válida."
+            )
             return 0
 
         project_name = self.project_name_var.get()
@@ -358,7 +365,8 @@ class CreateProjectDialog(simpledialog.Dialog):
         if self.project_type_var.get() == "pre-recorded" and not self.video_files:
             messagebox.showerror(
                 "Erro",
-                "Por favor, selecione pelo menos um arquivo de vídeo para análise pré-gravada.",
+                "Por favor, selecione pelo menos um arquivo de vídeo para "
+                "análise pré-gravada.",
             )
             return 0
 
@@ -367,7 +375,9 @@ class CreateProjectDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
+            messagebox.showerror(
+                "Erro", "As dimensões do aquário devem ser números válidos."
+            )
             return 0
 
         if self.project_type_var.get() == "live":
@@ -392,7 +402,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             except (ValueError, TypeError):
                 messagebox.showerror(
                     "Erro",
-                    "Os parâmetros do design experimental devem ser números positivos válidos.",
+                    "Os parâmetros do design experimental devem ser números "
+                    "positivos válidos.",
                 )
                 return 0
             if self.use_timed_recording_var.get():
@@ -409,10 +420,14 @@ class CreateProjectDialog(simpledialog.Dialog):
                 try:
                     countdown = int(self.countdown_duration_var.get())
                     if countdown <= 0:
-                        raise ValueError("A contagem regressiva deve ser um inteiro positivo.")
+                        raise ValueError(
+                            "A contagem regressiva deve ser um inteiro positivo."
+                        )
                 except ValueError:
                     messagebox.showerror(
-                        "Erro", "A duração da contagem regressiva deve ser um inteiro positivo."
+                        "Erro",
+                        "A duração da contagem regressiva deve ser um inteiro "
+                        "positivo.",
                     )
                     return 0
         return 1
@@ -559,14 +574,17 @@ class LiveConfigDialog(simpledialog.Dialog):
         """Validate the inputs before closing the dialog."""
         if not self.available_cameras:
             messagebox.showerror(
-                "Erro", "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo."
+                "Erro",
+                "Nenhuma câmera detectada. Não é possível iniciar uma sessão "
+                "ao vivo.",
             )
             return 0
         if self.use_arduino_var.get() and not self.available_ports:
             messagebox.showerror(
                 "Erro",
-                "O Arduino está ativado, mas nenhuma porta serial foi encontrada. Por favor, verifique "
-                "a conexão ou desative a opção 'Usar Arduino'.",
+                "O Arduino está ativado, mas nenhuma porta serial foi "
+                "encontrada. Por favor, verifique a conexão ou desative a "
+                "opção 'Usar Arduino'.",
             )
             return 0
         return 1
@@ -701,7 +719,9 @@ class ApplicationGUI:
         btn_frame = ttk.Frame(model_frame)
         btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
         ttk.Button(
-            btn_frame, text="Carregar Novo Peso...", command=self._load_new_weight_clicked
+            btn_frame,
+            text="Carregar Novo Peso...",
+            command=self._load_new_weight_clicked,
         ).pack(side="left", padx=(0, 5))
         ttk.Button(
             btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_clicked
@@ -1018,7 +1038,7 @@ class ApplicationGUI:
             list_frame, columns=("name", "batch", "status"), show="headings"
         )
         self.reports_tree.heading("name", text="Nome do Vídeo")
-        self.reports_tree.heading("batch", text="Lote (Timestamp)")
+        self.reports_tree.heading("batch", text="Lote")
         self.reports_tree.heading("status", text="Status")
         self.reports_tree.pack(side="left", fill="both", expand=True)
 
@@ -1117,7 +1137,8 @@ class ApplicationGUI:
         all_videos = self.controller.project_manager.get_all_videos()
         if not all_videos:
             self.show_warning(
-                "Sem Dados", "Não há vídeos processados neste projeto para gerar relatório."
+                "Sem Dados",
+                "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
         self.controller.generate_report(all_videos, report_type="unified")
@@ -1132,7 +1153,8 @@ class ApplicationGUI:
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
         self.set_status(
-            "Drawing Mode (Polygon): Click to add points, double-click to finish."
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique "
+            "duplo para finalizar."
         )
 
     def _stop_drawing(self):
@@ -1149,7 +1171,7 @@ class ApplicationGUI:
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("temp_vertex")
-        self.set_status("Ready.")
+        self.set_status("Pronto.")
 
     def _on_canvas_click(self, event):
         """Handles single clicks on the canvas during polygon drawing."""
@@ -1207,7 +1229,7 @@ class ApplicationGUI:
 
         # Ask for a name
         roi_name = self.ask_string(
-            "ROI Name", "Enter a name for this new Region of Interest:"
+            "Nome da ROI", "Digite um nome para esta nova Região de Interesse:"
         )
         if not roi_name:
             self.current_polygon_points = []
@@ -1217,7 +1239,7 @@ class ApplicationGUI:
         # Save and draw the final polygon
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Error", "No active aquarium selected.")
+            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
             self._stop_drawing()
             return
 
@@ -1247,7 +1269,7 @@ class ApplicationGUI:
         selected_items = self.roi_listbox.selection()
         if not selected_items:
             self.show_warning(
-                "No Selection", "Please select an ROI from the list to remove."
+                "Nenhuma Seleção", "Por favor, selecione uma ROI da lista para remover."
             )
             return
 
@@ -1270,7 +1292,7 @@ class ApplicationGUI:
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
             self.show_error(
-                "Error", "Select an active aquarium and load the data first."
+                "Erro", "Selecione um aquário ativo e carregue os dados primeiro."
             )
             return
 
@@ -1288,14 +1310,14 @@ class ApplicationGUI:
         """Opens a dialog to create ROIs from a template."""
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Error", "Select an active aquarium first.")
+            self.show_error("Erro", "Selecione um aquário ativo primeiro.")
             return
 
         # Get the arena polygon bounds from the controller
         arena_data = self.controller.get_arena_data(current_arena_id)
         if not arena_data or "polygon_px" not in arena_data:
             self.show_error(
-                "Error", "Could not get the aquarium polygon data."
+                "Erro", "Não foi possível obter os dados do polígono do aquário."
             )
             return
 
@@ -1362,7 +1384,7 @@ class ApplicationGUI:
         self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
         self.set_status(
-            "Drawing Mode (Circle): Click and drag to define the radius."
+            "Modo de Desenho (Círculo): Clique e arraste para definir o raio."
         )
 
     def _on_canvas_press_circle(self, event):
@@ -1399,7 +1421,8 @@ class ApplicationGUI:
             return
 
         roi_name = self.ask_string(
-            "ROI Name", "Enter a name for this new Region of Interest (Circle):"
+            "Nome da ROI",
+            "Digite um nome para esta nova Região de Interesse (Círculo):",
         )
         if not roi_name:
             self._stop_drawing()
@@ -1407,7 +1430,7 @@ class ApplicationGUI:
 
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error("Error", "No active aquarium selected.")
+            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
             self._stop_drawing()
             return
 
@@ -1442,12 +1465,12 @@ class ApplicationGUI:
         stats_container = Frame(self.progress_frame)
         stats_container.pack(fill="x")
         for key, label_text in [
-            ("total", "Total Frames:"),
-            ("processed", "Processed:"),
-            ("detected", "Detected Frames:"),
-            ("percent", "Completed:"),
-            ("elapsed", "Elapsed:"),
-            ("eta", "ETA:"),
+            ("total", "Total de Frames:"),
+            ("processed", "Processados:"),
+            ("detected", "Frames Detectados:"),
+            ("percent", "Concluído:"),
+            ("elapsed", "Tempo Decorrido:"),
+            ("eta", "Tempo Estimado:"),
         ]:
             f = Frame(stats_container)
             f.pack(side="left", padx=5)
@@ -1492,9 +1515,9 @@ class ApplicationGUI:
             if settings.arduino.port:
                 if not self.controller.arduino.connect():
                     self.show_warning(
-                        "Arduino Warning",
-                        f"Could not connect to Arduino on port "
-                        f"{settings.arduino.port}. Running in offline mode.",
+                        "Aviso do Arduino",
+                        f"Não foi possível conectar ao Arduino na porta "
+                        f"{settings.arduino.port}. Executando em modo offline.",
                     )
             try:
                 self.controller.camera = Camera()
@@ -1504,13 +1527,13 @@ class ApplicationGUI:
                     self.controller.camera.actual_height,
                 )
             except IOError as e:
-                self.show_error("Camera Error", str(e))
+                self.show_error("Erro na Câmera", str(e))
                 self._create_welcome_frame()
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
             self.set_status(
-                f"Project: {pm.get_project_name()} - Ready."
+                f"Projeto: {pm.get_project_name()} - Pronto."
             )
 
         if project_type == "live":
@@ -1535,7 +1558,7 @@ class ApplicationGUI:
         # Add a refresh button
         refresh_button = ttk.Button(
             self.progress_grid_frame,
-            text="Refresh Grid",
+            text="Atualizar Grade",
             command=self._render_progress_grid,
         )
         refresh_button.pack(side="bottom", pady=10)
@@ -1557,7 +1580,8 @@ class ApplicationGUI:
 
         if not all([days, groups, subjects_per_group]):
             ttk.Label(
-                self.grid_container, text="Experimental design not fully configured."
+                self.grid_container,
+                text="O design experimental não está totalmente configurado.",
             ).pack()
             return
 
@@ -1565,7 +1589,7 @@ class ApplicationGUI:
 
         # 3. Create headers
         ttk.Label(
-            self.grid_container, text="Day/Group", font=("Helvetica", 10, "bold")
+            self.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
         ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         for j, group_name in enumerate(groups):
             ttk.Label(
@@ -1579,7 +1603,7 @@ class ApplicationGUI:
         for i in range(days):
             day = i + 1
             ttk.Label(
-                self.grid_container, text=f"Day {day}", font=("Helvetica", 10, "bold")
+                self.grid_container, text=f"Dia {day}", font=("Helvetica", 10, "bold")
             ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
 
             for j, group_name in enumerate(groups):
@@ -1804,7 +1828,9 @@ class ApplicationGUI:
                 processing_interval = max(1, processing_interval - 1)
 
             # Cap the interval to a reasonable maximum (e.g., half the framerate)
-            processing_interval = min(processing_interval, int(fps / 2) if fps > 2 else 1)
+            processing_interval = min(
+                processing_interval, int(fps / 2) if fps > 2 else 1
+            )
             processing_interval = max(1, processing_interval)
 
 
@@ -1818,7 +1844,7 @@ class ApplicationGUI:
         """Clears and repopulates the weights dropdown."""
         self.weights_dropdown["values"] = weights_list
         if not weights_list:
-            self.active_weight_var.set("No weights found.")
+            self.active_weight_var.set("Nenhum peso encontrado.")
             self.weights_dropdown.config(state="disabled")
         else:
             self.weights_dropdown.config(state="readonly")
@@ -1848,8 +1874,8 @@ class ApplicationGUI:
     def _load_new_weight_clicked(self):
         """Handles the 'Load New Weight' button click."""
         filepath = filedialog.askopenfilename(
-            title="Select a .pt Weight File",
-            filetypes=[("PyTorch Weights", "*.pt")],
+            title="Selecione um arquivo de peso .pt",
+            filetypes=[("Pesos PyTorch", "*.pt")],
         )
         if not filepath:
             return
@@ -1857,8 +1883,8 @@ class ApplicationGUI:
         # Ask user what to do with the new weight
         # The 'type' option creates custom buttons
         choice = messagebox.askquestion(
-            "Add Weight",
-            "Do you want to set this new weight as the default for all projects?",
+            "Adicionar Peso",
+            "Deseja definir este novo peso como padrão para todos os projetos?",
             icon="question",
             type="yesnocancel",
         )
@@ -1912,7 +1938,9 @@ class ApplicationGUI:
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
-        project_path = self.ask_directory(title="Select an Existing Project Folder")
+        project_path = self.ask_directory(
+            title="Selecione uma Pasta de Projeto Existente"
+        )
         if not project_path:
             return
 
@@ -1925,7 +1953,8 @@ class ApplicationGUI:
             return  # User cancelled
 
         video_path = self.ask_open_filenames(
-            "Select a Single Video File", [("Video files", "*.mp4 *.avi *.mov")]
+            "Selecione um Único Arquivo de Vídeo",
+            [("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
         )
         if not video_path:
             return
@@ -1948,12 +1977,16 @@ class ApplicationGUI:
         """Updates the UI status bar."""
         self.status_var.set(text)
 
+    def show_progress_bar(self):
+        """Shows the progress bar frame."""
+        if self.progress_frame and not self.progress_frame.winfo_viewable():
+            self.progress_frame.pack(pady=5, fill="x", padx=10)
+            self.progress_bar["value"] = 0
+
     def update_progress(self, value):
         """Updates the progress bar."""
         if self.progress_bar:
-            if not self.progress_frame.winfo_viewable():
-                self.progress_frame.pack(pady=5, fill="x", padx=10)
-            self.progress_bar["value"] = value
+            self.progress_bar["value"] = value * 100  # Convert fraction to percentage
             self.update_idletasks()
 
     def update_idletasks(self):
@@ -1987,9 +2020,10 @@ class ApplicationGUI:
             self.progress_labels["eta"].set(self._format_time(eta) if eta >= 0 else "-")
 
     def hide_progress_bar(self):
-        """Hides the progress bar."""
+        """Hides the progress bar and resets its value."""
         if self.progress_frame and self.progress_frame.winfo_viewable():
             self.progress_frame.pack_forget()
+            self.progress_bar["value"] = 0
 
     def display_frame(self, frame):
         """Display a video frame inside the GUI (used for preview)."""
@@ -2117,7 +2151,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
         except ValueError:
-            messagebox.showerror("Erro", "As dimensões do aquário devem ser números válidos.")
+            messagebox.showerror(
+                "Erro", "As dimensões do aquário devem ser números válidos."
+            )
             return 0
         return 1
 
@@ -2206,7 +2242,9 @@ class MissingMetadataDialog(simpledialog.Dialog):
         super().__init__(parent, "Metadados Ausentes")
 
     def body(self, master):
-        Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(pady=5)
+        Label(
+            master, text="Não foi possível encontrar metadados automaticamente para:"
+        ).pack(pady=5)
         Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
             pady=(0, 10)
         )
@@ -2251,7 +2289,9 @@ class MissingMetadataDialog(simpledialog.Dialog):
             return 0
 
         if not self.group_var.get().strip():
-            messagebox.showerror("Erro de Validação", "O nome do grupo não pode estar vazio.")
+            messagebox.showerror(
+                "Erro de Validação", "O nome do grupo não pode estar vazio."
+            )
             return 0
 
         return 1
@@ -2397,5 +2437,5 @@ class CenterPeripheryDialog(simpledialog.Dialog):
 
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
-    print("This file is intended to be imported, not run directly.")
-    print("Run the main application script to start Zebtrack.")
+    print("Este arquivo deve ser importado, não executado diretamente.")
+    print("Execute o script principal da aplicação para iniciar o Zebtrack.")

@@ -77,7 +77,9 @@ class AnalysisService:
                     min_duration=freezing_min_duration,
                 ),
                 "tortuosidade": b_analyzer.get_tortuosity(),
-                "curvas_acentuadas": b_analyzer.calculate_sharp_turns(90.0), # Assuming 90 as default
+                "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
+                    90.0
+                ),  # Assuming 90 as default
             },
             "analise_roi": {
                 "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
@@ -85,12 +87,16 @@ class AnalysisService:
                 "contagem_entradas": r_analyzer.get_entry_counts(),
                 "contagem_saidas": r_analyzer.get_exit_counts(),
                 "distancia_por_roi": r_analyzer.get_distance_in_rois(),
-                "estatisticas_velocidade_por_roi": r_analyzer.get_velocity_stats_in_rois(),
+                "estatisticas_velocidade_por_roi": (
+                    r_analyzer.get_velocity_stats_in_rois()
+                ),
                 "congelamento_por_roi": r_analyzer.get_freezing_in_rois(
                     vel_threshold=freezing_vel_threshold,
                     min_duration=freezing_min_duration,
                 ),
-                "transicoes_entre_rois": r_analyzer.get_roi_transitions().to_dict("index"),
+                "transicoes_entre_rois": (
+                    r_analyzer.get_roi_transitions().to_dict("index")
+                ),
             },
             "log_eventos": r_analyzer.get_event_log().to_dict("records"),
         }

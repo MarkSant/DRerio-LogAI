@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 import shapely
-from shapely.geometry import Point, Polygon
 from shapely import prepare
+from shapely.geometry import Point, Polygon
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 

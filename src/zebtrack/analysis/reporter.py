@@ -13,8 +13,7 @@ from matplotlib import patches
 from scipy.ndimage import gaussian_filter
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
-from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.roi import ROI
 
 
 class Reporter:
@@ -77,7 +76,9 @@ class Reporter:
         combined_data["desvio_padrao_velocidade_cm_s"] = velocity_stats.get("std_dev")
 
         sharp_turns = general_behavior.get("curvas_acentuadas", {})
-        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get("sharp_turns_count")
+        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get(
+            "sharp_turns_count"
+        )
         combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get(
             "sharp_turns_per_minute"
         )
@@ -113,7 +114,9 @@ class Reporter:
             # Intra-ROI Velocity
             roi_vel = velocities.get(roi_name)
             if roi_vel:
-                combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
+                combined_data[
+                    f"velocidade_media_no_{roi_name}_cm_s"
+                ] = roi_vel.get("mean")
             # Intra-ROI Freezing
             roi_freeze = freezing.get(roi_name)
             if roi_freeze:
@@ -128,7 +131,9 @@ class Reporter:
                 combined_data[f"cor_roi_{roi_name}"] = str(self.roi_colors[roi_name])
 
         combined_data["total_entradas_roi"] = total_roi_entries
-        combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        combined_data["data_hora_analise"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         return pd.DataFrame([combined_data])
 
     def export_summary_data(self, output_path: str, format: str = "excel"):
@@ -368,13 +373,28 @@ class Reporter:
         return fig
 
     def export_individual_report(self, output_path: str):
+        """
+        Exports a complete individual report. This is a convenience wrapper
+        around the step-by-step method for consumers who don't need progress updates.
+        """
+        self.export_individual_report_step_by_step(output_path, lambda p, s: None)
+
+    def export_individual_report_step_by_step(
+        self, output_path: str, progress_callback
+    ):
+        total_steps = 10
         document = Document()
+
+        # Step 1: Create document and add metadata
         document.add_heading(
             f"Analysis Report - {self.metadata.get('experiment_id', 'N/A')}", level=1
         )
         document.add_heading("Experiment Metadata", level=2)
         for key, value in self.metadata.items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
+        progress_callback(1 / total_steps, "Metadata added")
+
+        # Step 2: Add summary table
         document.add_heading("Metrics Summary Table", level=2)
         df = self.tidy_data.drop(
             columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
@@ -390,8 +410,9 @@ class Reporter:
                     f"{value:.2f}" if isinstance(value, (int, float)) else str(value)
                 )
         document.add_page_break()
+        progress_callback(2 / total_steps, "Summary table added")
 
-        # Add ROI Reference Map first
+        # Step 3: Add ROI Reference Map
         document.add_heading("ROI Reference Map", level=2)
         fig = self.generate_roi_reference_plot()
         memfile = io.BytesIO()
@@ -399,7 +420,9 @@ class Reporter:
         plt.close(fig)
         memfile.seek(0)
         document.add_picture(memfile, width=Inches(5.0))
+        progress_callback(3 / total_steps, "ROI map added")
 
+        # Step 4-8: Add visualization plots
         document.add_heading("Visualizations", level=2)
         plot_configs = [
             (
@@ -411,7 +434,7 @@ class Reporter:
             (self.generate_cumulative_distance_plot, "Cumulative Distance"),
             (self.generate_angular_velocity_plot, "Angular Velocity"),
         ]
-        for plot_func, name in plot_configs:
+        for i, (plot_func, name) in enumerate(plot_configs):
             fig, ax = plt.subplots(figsize=(10, 6))
             plot_func(ax)
             memfile = io.BytesIO()
@@ -420,11 +443,12 @@ class Reporter:
             memfile.seek(0)
             document.add_paragraph(f"Chart: {name}:")
             document.add_picture(memfile, width=Inches(6.0))
+            progress_callback((4 + i) / total_steps, f"{name} plot added")
 
+        # Step 9: Add ROI Event Log
         document.add_page_break()
         document.add_heading("Appendix: ROI Event Log", level=2)
         event_log_df = self.r_analyzer.get_event_log()
-
         if not event_log_df.empty:
             document.add_paragraph(
                 "Chronological log of all entries and exits from defined ROIs."
@@ -442,9 +466,12 @@ class Reporter:
                         cells[i].text = str(value)
         else:
             document.add_paragraph("No ROI entry or exit events were recorded.")
+        progress_callback(9 / total_steps, "Event log added")
 
+        # Step 10: Save the document
         file_path = f"{output_path}"
         document.save(file_path)
+        progress_callback(10 / total_steps, "Report saved")
         print(f"Individual report saved to: {file_path}")
 
     @staticmethod
