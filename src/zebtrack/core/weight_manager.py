@@ -1,12 +1,14 @@
 import json
 import os
 import shutil
+from pathlib import Path
 from tkinter import messagebox
 
 import structlog
 from ultralytics import YOLO
 
 from zebtrack.settings import settings
+from zebtrack.utils import calculate_sha256
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
 OPENVINO_CACHE_DIR = "openvino_model_cache"
@@ -46,6 +48,7 @@ class WeightManager:
                     "path": default_path,
                     "is_default": True,
                     "openvino_path": "",
+                    "openvino_hash": "",
                 }
             }
             self.save_weights()
@@ -93,15 +96,49 @@ class WeightManager:
 
     def add_weight(self, new_path: str, set_as_default: bool):
         """
-        Adds a new weight from a given path.
+        Adds a new weight from a given path after performing security checks.
 
         Args:
             new_path: The file path to the new .pt weight file.
             set_as_default: If True, this new weight will become the default.
         """
-        if not os.path.exists(new_path):
+        # --- Security Check: Path Traversal ---
+        try:
+            # Resolve both paths to their absolute form to prevent symbolic link
+            # tricks and ensure the file exists.
+            project_dir = Path(self.config_dir).resolve()
+            model_path = Path(new_path).resolve(strict=True)  # strict=True checks existence
+
+            # Check if the model path is inside the project directory.
+            # This is the primary defense against path traversal.
+            if not model_path.is_relative_to(project_dir):
+                log.error(
+                    "weights.add.path_traversal_attempt",
+                    model_path=str(model_path),
+                    project_dir=str(project_dir),
+                )
+                messagebox.showerror(
+                    "Caminho do Modelo Inválido",
+                    "O arquivo de modelo selecionado deve estar localizado dentro da "
+                    "pasta do projeto.",
+                )
+                return
+        except FileNotFoundError:
             log.error("weights.add.not_found", path=new_path)
+            messagebox.showerror(
+                "Arquivo não Encontrado",
+                f"O arquivo de modelo não foi encontrado:\n{new_path}",
+            )
             return
+        except Exception as e:
+            # This can catch issues like invalid path formats or permissions
+            log.error("weights.add.invalid_path", path=new_path, error=str(e))
+            messagebox.showerror(
+                "Caminho Inválido",
+                f"O caminho do modelo é inválido ou inacessível:\n{e}",
+            )
+            return
+        # --- End Security Check ---
 
         new_name = os.path.basename(new_path)
         if new_name in self.weights:
@@ -116,10 +153,12 @@ class WeightManager:
             if current_default:
                 current_default["is_default"] = False
 
+        # Store the original, user-provided path for display, but know it's safe.
         self.weights[new_name] = {
             "path": new_path,
             "is_default": set_as_default,
             "openvino_path": "",
+            "openvino_hash": "",
         }
         self.save_weights()
         log.info("weights.add.success", name=new_name, path=new_path)
@@ -204,12 +243,31 @@ class WeightManager:
             shutil.move(temp_export_path, cached_model_dir)
             temp_export_path = None  # The move was successful
 
-            # Now that the model is in place, update and save the configuration.
+            # Now that the model is in place, calculate its hash and save.
             openvino_model_path = os.path.abspath(cached_model_dir)
+            xml_files = list(Path(cached_model_dir).glob("*.xml"))
+            if not xml_files:
+                log.error("openvino.export.xml_not_found", path=cached_model_dir)
+                messagebox.showerror(
+                    "Erro na Exportação",
+                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão.",
+                )
+                # Clean up the corrupted cache dir
+                shutil.rmtree(cached_model_dir, ignore_errors=True)
+                return None
+
+            xml_path = xml_files[0]
+            model_hash = calculate_sha256(str(xml_path))
+
             details["openvino_path"] = openvino_model_path
+            details["openvino_hash"] = model_hash
             self.save_weights()
 
-            log.info("openvino.export.success", path=openvino_model_path)
+            log.info(
+                "openvino.export.success",
+                path=openvino_model_path,
+                hash=model_hash,
+            )
             return openvino_model_path
 
         except Exception as e:

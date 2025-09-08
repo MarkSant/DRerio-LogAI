@@ -12,24 +12,12 @@ import yaml
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
+from zebtrack.utils import IntegrityError, calculate_sha256
 
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 
 log = structlog.get_logger()
-
-
-def _calculate_sha256(filepath: str) -> str:
-    """Calculates the SHA256 hash of a file."""
-    sha256_hash = hashlib.sha256()
-    try:
-        with open(filepath, "rb") as f:
-            for byte_block in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(byte_block)
-        return sha256_hash.hexdigest()
-    except IOError:
-        log.error("file.hash.read_error", filepath=filepath)
-        return ""
 
 
 class ProjectManager:
@@ -195,7 +183,7 @@ class ProjectManager:
 
         for video_info in video_files:
             video_path = video_info["path"]
-            video_hash = _calculate_sha256(video_path)
+            video_hash = calculate_sha256(video_path)
             new_batch["videos"].append(
                 {
                     "path": video_path,
@@ -233,7 +221,23 @@ class ProjectManager:
 
         try:
             with open(config_path, "r") as f:
-                self.project_data = json.load(f)
+                loaded_data = json.load(f)
+
+            # --- Security Check: File Integrity ---
+            expected_hash = loaded_data.pop("file_hash", None)
+            if expected_hash:
+                canonical_string = json.dumps(loaded_data, sort_keys=True, separators=(",", ":"))
+                actual_hash = hashlib.sha256(
+                    canonical_string.encode("utf-8")
+                ).hexdigest()
+
+                if actual_hash != expected_hash:
+                    raise IntegrityError(
+                        "O arquivo de configuração do projeto está corrompido."
+                    )
+            # --- End Security Check ---
+
+            self.project_data = loaded_data
             self.project_path = project_path
             self.load_metadata()  # Load metadata right after loading the project
             log_context.info(
@@ -241,7 +245,7 @@ class ProjectManager:
                 project_name=self.project_data.get("project_name"),
             )
             return True
-        except (json.JSONDecodeError, IOError) as e:
+        except (json.JSONDecodeError, IOError, IntegrityError) as e:
             log_context.error("project.load.error", exc_info=e)
             messagebox.showerror(
                 "Erro ao Carregar",
@@ -253,16 +257,36 @@ class ProjectManager:
 
     def save_project(self):
         """
-        Saves the current project data to the config file.
+        Saves the current project data to the config file with an integrity hash.
         """
         if not self.project_path:
             return False
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
         try:
+            # Create a copy for hashing to avoid modifying the live object state
+            data_to_save = self.project_data.copy()
+
+            # Remove any old hash to ensure it's not part of the new hash
+            data_to_save.pop("file_hash", None)
+
+            # Create a canonical JSON string (sorted keys, no extra whitespace)
+            # to get a consistent hash.
+            canonical_string = json.dumps(data_to_save, sort_keys=True, separators=(",", ":"))
+            new_hash = hashlib.sha256(canonical_string.encode("utf-8")).hexdigest()
+
+            # Add the new hash to the data to be saved
+            data_to_save["file_hash"] = new_hash
+
             with open(config_path, "w") as f:
-                json.dump(self.project_data, f, indent=4)
-            log.info("project.save.success", path=config_path)
+                # Save with indentation for human readability, but hash was
+                # calculated on the canonical string.
+                json.dump(data_to_save, f, indent=4, sort_keys=True)
+
+            # Update the in-memory project data with the new hash as well
+            self.project_data = data_to_save
+
+            log.info("project.save.success", path=config_path, hash=new_hash)
             return True
         except IOError as e:
             log.error("project.save.error", path=config_path, exc_info=e)

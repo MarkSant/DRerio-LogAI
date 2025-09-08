@@ -94,7 +94,7 @@ class Reporter:
         freezing = roi_analysis.get("congelamento_por_roi", {})
 
         total_roi_entries = 0
-        for roi_name in self.r_analyzer._rois:
+        for roi_name in self.r_analyzer.rois:
             # Time spent
             combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
                 "seconds"
@@ -155,10 +155,10 @@ class Reporter:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
-        traj_data = self.b_analyzer._trajectory_data
+        traj_data = self.b_analyzer.trajectory_data
         x = traj_data["x_cm_smoothed"]
         y = traj_data["y_cm_smoothed"]
-        arena_poly_cm = self.b_analyzer._arena_polygon_cm
+        arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
         if video_path and Path(video_path).exists():
@@ -196,10 +196,10 @@ class Reporter:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
-        traj_data = self.b_analyzer._trajectory_data
+        traj_data = self.b_analyzer.trajectory_data
         x = traj_data["x_cm_smoothed"]
         y = traj_data["y_cm_smoothed"]
-        arena_poly_cm = self.b_analyzer._arena_polygon_cm
+        arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
         heatmap, xedges, yedges = np.histogram2d(
@@ -225,7 +225,7 @@ class Reporter:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
-        arena_poly_cm = self.b_analyzer._arena_polygon_cm
+        arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
         ax.set_facecolor("lightgray")
@@ -235,7 +235,7 @@ class Reporter:
             )
         )
 
-        for i, (roi_name, roi) in enumerate(self.r_analyzer._rois.items()):
+        for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
             roi_color = self.roi_colors.get(roi_name, "blue")
             ax.add_patch(
                 patches.Polygon(
@@ -319,7 +319,7 @@ class Reporter:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
-        traj_data = self.b_analyzer._trajectory_data
+        traj_data = self.b_analyzer.trajectory_data
         if traj_data.empty:
             ax.text(0.5, 0.5, "No trajectory data.", ha="center", va="center")
             ax.set_title("Position vs. Time")
@@ -342,7 +342,7 @@ class Reporter:
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
-        traj_data = self.b_analyzer._trajectory_data
+        traj_data = self.b_analyzer.trajectory_data
         if len(traj_data) < 2:
             ax.text(
                 0.5,

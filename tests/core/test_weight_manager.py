@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,8 +16,8 @@ def wm_setup(tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    # Create a dummy .pt file to act as the default
-    default_weight_path = tmp_path / "default_weight.pt"
+    # Create a dummy .pt file inside the config dir to act as the default
+    default_weight_path = config_dir / "default_weight.pt"
     default_weight_path.touch()
 
     # Patch the global settings to point to this dummy file for initialization
@@ -50,9 +51,9 @@ def test_wm_initialization_creates_default(wm_setup):
 
 def test_wm_add_weight(wm_setup):
     """Tests adding a new weight file."""
-    manager, _, tmp_path, _ = wm_setup
+    manager, config_dir, _, _ = wm_setup
 
-    new_weight_path = tmp_path / "new_model.pt"
+    new_weight_path = config_dir / "new_model.pt"
     new_weight_path.touch()
 
     manager.add_weight(str(new_weight_path), set_as_default=False)
@@ -66,14 +67,14 @@ def test_wm_add_weight(wm_setup):
 
 def test_wm_add_weight_as_default(wm_setup):
     """Tests that adding a weight as default correctly updates the old default."""
-    manager, _, tmp_path, _ = wm_setup
+    manager, config_dir, _, _ = wm_setup
 
     # Get the original default
     old_default_name, _ = manager.get_default_weight()
     assert old_default_name == "default_weight.pt"
 
     # Add a new one as default
-    new_weight_path = tmp_path / "new_default.pt"
+    new_weight_path = config_dir / "new_default.pt"
     new_weight_path.touch()
     manager.add_weight(str(new_weight_path), set_as_default=True)
 
@@ -88,9 +89,9 @@ def test_wm_add_weight_as_default(wm_setup):
 
 def test_wm_delete_weight(wm_setup):
     """Tests deleting a non-default weight."""
-    manager, _, tmp_path, _ = wm_setup
+    manager, config_dir, _, _ = wm_setup
     # Add a second weight to delete
-    new_weight_path = tmp_path / "to_delete.pt"
+    new_weight_path = config_dir / "to_delete.pt"
     new_weight_path.touch()
     manager.add_weight(str(new_weight_path), set_as_default=False)
     assert "to_delete.pt" in manager.get_all_weights()
@@ -103,9 +104,9 @@ def test_wm_delete_weight(wm_setup):
 
 def test_wm_delete_default_weight(wm_setup):
     """Tests that deleting the default weight assigns a new default."""
-    manager, _, tmp_path, _ = wm_setup
+    manager, config_dir, _, _ = wm_setup
     # Add a second weight
-    new_weight_path = tmp_path / "new_one.pt"
+    new_weight_path = config_dir / "new_one.pt"
     new_weight_path.touch()
     manager.add_weight(str(new_weight_path), set_as_default=False)
 
@@ -150,6 +151,19 @@ def test_wm_convert_to_openvino(mock_move, mock_yolo, wm_setup):
     # Create a dummy file inside to make it a valid directory
     (temp_export_dir / "dummy.xml").touch()
     mock_model_instance.export.return_value = str(temp_export_dir)
+
+    # --- Define a side effect for the mock that simulates the move ---
+    def move_side_effect(src, dst):
+        # In the test, we need to simulate that the move operation creates
+        # the destination directory and the file inside it.
+        dst_path = Path(dst)
+        if not dst_path.exists():
+            dst_path.mkdir(parents=True)
+        # The original temp file was named dummy.xml, so we create that here.
+        (dst_path / "dummy.xml").touch()
+        return str(dst_path)
+
+    mock_move.side_effect = move_side_effect
 
     # --- Run the conversion ---
     openvino_path = manager.convert_to_openvino(weight_name)

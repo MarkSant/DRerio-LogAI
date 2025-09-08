@@ -5,24 +5,32 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 import openvino as ov
+import structlog
 import torch
-
-from ultralytics.utils.nms import non_max_suppression
-from ultralytics.utils.ops import scale_boxes
+from ultralytics.utils.ops import non_max_suppression, scale_boxes
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
+from zebtrack.utils import IntegrityError, calculate_sha256
+
+log = structlog.get_logger()
 
 
 class OpenVINOPlugin(DetectorPlugin):
     """A detector plugin that uses an OpenVINO-optimized model."""
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, expected_hash: str | None = None):
         """
-        Initializes the plugin and loads the OpenVINO model.
+        Initializes the plugin, verifies model integrity, and loads the model.
 
         Args:
-            model_path (str): Path to the directory containing the .xml and .bin files.
+            model_path (str): Path to the directory containing .xml and .bin files.
+            expected_hash (str, optional): The expected SHA256 hash of the .xml file.
+                If provided, the file's integrity will be verified before loading.
+
+        Raises:
+            FileNotFoundError: If the model's .xml file cannot be found.
+            IntegrityError: If the model's hash does not match the expected hash.
         """
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
@@ -34,6 +42,24 @@ class OpenVINOPlugin(DetectorPlugin):
             )
 
         model_xml_path = xml_files[0]
+
+        # --- Security Check: File Integrity ---
+        if expected_hash:
+            actual_hash = calculate_sha256(model_xml_path)
+            if actual_hash != expected_hash:
+                log.error(
+                    "openvino.load.hash_mismatch",
+                    path=model_xml_path,
+                    expected=expected_hash,
+                    actual=actual_hash,
+                )
+                raise IntegrityError(
+                    f"A integridade do arquivo de modelo '{os.path.basename(model_xml_path)}' "
+                    f"não pôde ser verificada. O arquivo pode estar corrompido ou "
+                    f"ter sido adulterado."
+                )
+        # --- End Security Check ---
+
         core = ov.Core()
         model = core.read_model(model_xml_path)
         self.compiled_model = core.compile_model(model=model, device_name="AUTO")

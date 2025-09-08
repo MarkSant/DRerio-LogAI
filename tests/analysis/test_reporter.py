@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pandas as pd
 import pytest
@@ -33,9 +33,9 @@ def reporter_setup(tmp_path):
     # Reporter's own logic (tidy data creation, plotting, exporting).
     with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
         mock_analyzer = MagicMock()
-        # Mock the ROI analyzer to have a _rois attribute
+        # Mock the ROI analyzer to have a `rois` property
         mock_roi_analyzer = MagicMock()
-        mock_roi_analyzer._rois = {"zone1": rois[0]}
+        type(mock_roi_analyzer).rois = PropertyMock(return_value={"zone1": rois[0]})
 
         mock_report_dict = {
             "comportamento_geral": {
