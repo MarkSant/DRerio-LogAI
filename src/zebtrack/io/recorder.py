@@ -39,6 +39,7 @@ class Recorder:
         zones: ZoneData,
         is_video_file=False,
         pixel_per_cm_ratio=None,
+        base_name: str | None = None,
     ):
         """
         Prepares and starts a new recording session.
@@ -50,6 +51,8 @@ class Recorder:
             zones (ZoneData): The zone definitions to save.
             is_video_file (bool): If True, skips video file creation.
             pixel_per_cm_ratio (tuple, optional): Tuple containing (x_ratio, y_ratio).
+            base_name (str, optional): Explicit base name for output files.
+                If None, it's derived from the output_folder.
 
         Returns:
             bool: True if recording started successfully, False otherwise.
@@ -61,7 +64,7 @@ class Recorder:
 
         os.makedirs(output_folder, exist_ok=True)
         self.output_folder = output_folder
-        self.base_name = os.path.basename(output_folder)
+        self.base_name = base_name or os.path.basename(output_folder)
         self.detection_data = []
         log_context = log.bind(output_folder=output_folder, base_name=self.base_name)
 
