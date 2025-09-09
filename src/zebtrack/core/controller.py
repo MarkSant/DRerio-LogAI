@@ -685,6 +685,22 @@ class AppController:
             log.info("controller.tracking.exists", path=trajectory_path)
             return True
 
+        # Ask user for confirmation before generating data
+        if not self.view.ask_ok_cancel(
+            "Rastreamento Necessário",
+            f"O arquivo de coordenadas para '{experiment_id}' não foi encontrado.\n\n"
+            "Deseja gerá-lo agora através do rastreamento do vídeo? "
+            "Isso pode levar alguns minutos.",
+        ):
+            log.warning(
+                "controller.tracking.cancelled_by_user", video=experiment_id
+            )
+            self.view.show_warning(
+                "Rastreamento Cancelado",
+                f"O processamento para {experiment_id} foi cancelado pelo usuário.",
+            )
+            return False
+
         log.info("controller.tracking.generating", video=experiment_id)
         self.view.set_status(f"Gerando trajetória para {experiment_id}...")
         self.view.update_idletasks()

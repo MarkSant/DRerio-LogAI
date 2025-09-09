@@ -80,6 +80,32 @@ class VideoProcessingSettings(BaseModel):
             "frames 1, 11, 21, ..."
         ),
     )
+    sharp_turn_threshold_deg_s: float = Field(
+        200.0,
+        description="Threshold (degrees per second) to classify a turn as 'sharp'.",
+    )
+    freezing_velocity_threshold: float = Field(
+        0.5,
+        description="Maximum velocity (cm/s) to be considered 'freezing'.",
+    )
+    freezing_min_duration_s: float = Field(
+        2.0,
+        description="Minimum duration (seconds) for a freezing event to be recorded.",
+    )
+    tracker_max_age: int = Field(
+        20,
+        description="Maximum frames to keep a track alive without a new detection.",
+    )
+    tracker_min_hits: int = Field(
+        3, description="Minimum consecutive hits to start a track."
+    )
+    tracker_iou_threshold: float = Field(
+        0.3, description="IOU threshold for associating detections to trackers."
+    )
+    tracker_association_tolerance: int = Field(
+        2,
+        description="Pixel tolerance for associating a tracker's bbox with a detection's bbox.",
+    )
 
 
 class DetectionZonesSettings(BaseModel):
