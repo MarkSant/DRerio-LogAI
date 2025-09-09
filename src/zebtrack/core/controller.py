@@ -689,14 +689,14 @@ class AppController:
         self.view.set_status(f"Gerando trajetória para {experiment_id}...")
         self.view.update_idletasks()
 
+        recorder = Recorder()
+        cap = cv2.VideoCapture(video_path)
         try:
-            # This logic mirrors tests/test_integration.py
-            recorder = Recorder()
-            cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 log.error("controller.tracking.video_open_failed", path=video_path)
                 return False
 
+            # This logic mirrors tests/test_integration.py
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -737,7 +737,6 @@ class AppController:
                 frame_num += 1
 
             recorder.stop_recording()  # This saves the parquet file
-            cap.release()
             log.info("controller.tracking.success", path=trajectory_path)
             self.view.set_status(f"Trajetória para {experiment_id} gerada.")
             return True
@@ -755,6 +754,9 @@ class AppController:
                 f"para {experiment_id}:\n{e}",
             )
             return False
+        finally:
+            if cap.isOpened():
+                cap.release()
 
     def _process_videos(
         self,
@@ -827,7 +829,8 @@ class AppController:
                     )
                     self.view.show_error(
                         "Erro de Processamento",
-                        f"Falha ao gerar ou encontrar o arquivo de trajetória para {experiment_id}.",
+                        "Falha ao gerar ou encontrar o arquivo de trajetória para "
+                        f"{experiment_id}.",
                     )
                     continue
 
