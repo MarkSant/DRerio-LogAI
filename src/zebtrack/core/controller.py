@@ -554,7 +554,7 @@ class AppController:
 
         # 4. Create a "mini-project" folder for the results
         video_name = os.path.splitext(os.path.basename(video_path))[0]
-        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_Results")
+        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
         os.makedirs(output_dir, exist_ok=True)
 
         # 5. Process the video, passing the config as temporary metadata
@@ -669,6 +669,93 @@ class AppController:
             "ao projeto.",
         )
 
+    def _run_tracking_if_needed(
+        self, video_path: str, results_dir: str, experiment_id: str
+    ) -> bool:
+        """
+        Checks if a trajectory file exists. If not, runs the tracking process
+        to generate it. This is a blocking operation.
+        """
+        log.info("controller.tracking.check_or_run", video=experiment_id)
+        trajectory_path = os.path.join(
+            results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
+        )
+
+        if os.path.exists(trajectory_path):
+            log.info("controller.tracking.exists", path=trajectory_path)
+            return True
+
+        log.info("controller.tracking.generating", video=experiment_id)
+        self.view.set_status(f"Gerando trajetória para {experiment_id}...")
+        self.view.update_idletasks()
+
+        try:
+            # This logic mirrors tests/test_integration.py
+            recorder = Recorder()
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                log.error("controller.tracking.video_open_failed", path=video_path)
+                return False
+
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            # Use a default full-frame arena if none is defined in the project
+            # This is crucial for single-video analysis
+            zone_data = self.project_manager.get_zone_data()
+            if not zone_data.polygon:
+                log.warning("controller.tracking.no_arena_defined.using_default")
+                arena_polygon = [
+                    [0, 0],
+                    [frame_width, 0],
+                    [frame_width, frame_height],
+                    [0, frame_height],
+                ]
+                zone_data.polygon = arena_polygon
+            self.detector.set_zones(zone_data, frame_width, frame_height)
+
+            # The key change: pass the explicit base_name to the recorder
+            recorder.start_recording(
+                output_folder=results_dir,
+                frame_width=frame_width,
+                frame_height=frame_height,
+                zones=zone_data,
+                is_video_file=True,  # We are analyzing, not saving a new video
+                base_name=experiment_id,
+            )
+
+            frame_num = 0
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                detections, _ = self.detector.process_frame(
+                    frame, project_type="pre-recorded"
+                )
+                timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                recorder.write_detection_data(timestamp, frame_num, detections)
+                frame_num += 1
+
+            recorder.stop_recording()  # This saves the parquet file
+            cap.release()
+            log.info("controller.tracking.success", path=trajectory_path)
+            self.view.set_status(f"Trajetória para {experiment_id} gerada.")
+            return True
+
+        except Exception as e:
+            log.error(
+                "controller.tracking.error",
+                video=experiment_id,
+                error=str(e),
+                exc_info=True,
+            )
+            self.view.show_error(
+                "Erro de Rastreamento",
+                f"Ocorreu um erro inesperado ao gerar a trajetória "
+                f"para {experiment_id}:\n{e}",
+            )
+            return False
+
     def _process_videos(
         self,
         videos_to_process: list[dict],
@@ -722,21 +809,27 @@ class AppController:
             os.makedirs(results_dir, exist_ok=True)
 
             try:
-                # 1. Load trajectory data
+                # 1. Run tracking if trajectory data is missing
+                tracking_success = self._run_tracking_if_needed(
+                    video_path, results_dir, experiment_id
+                )
+                if not tracking_success:
+                    continue  # Skip to the next video if tracking fails
+
+                # 2. Load trajectory data
                 trajectory_path = os.path.join(
                     results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
                 )
                 if not os.path.exists(trajectory_path):
                     log.error(
-                        "controller.processing.no_trajectory", path=trajectory_path
+                        "controller.processing.no_trajectory_after_generation",
+                        path=trajectory_path,
                     )
                     self.view.show_error(
                         "Erro de Processamento",
-                        f"Arquivo de trajetória não encontrado para {experiment_id}. "
-                        "Por favor, garanta que a detecção/rastreamento foi "
-                        "executada primeiro.",
+                        f"Falha ao gerar ou encontrar o arquivo de trajetória para {experiment_id}.",
                     )
-                    continue  # Skip to the next video
+                    continue
 
                 trajectory_df = pd.read_parquet(trajectory_path)
 
