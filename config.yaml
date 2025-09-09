@@ -32,11 +32,18 @@ video_processing:
   # frames 1, 11, 21, etc., will be processed.
   processing_offset: 1
   # Threshold for detecting a "sharp turn" in degrees per second.
-  sharp_turn_threshold_deg_s: 90.0
+  sharp_turn_threshold_deg_s: 200.0
   # Velocity threshold for freezing detection (cm/s).
-  freezing_velocity_threshold: 2.0
+  freezing_velocity_threshold: 0.5
   # Minimum duration for a freezing episode (seconds).
-  freezing_min_duration_s: 1.0
+  freezing_min_duration_s: 2.0
+  # --- SORT Tracker Settings ---
+  # Max frames to keep a track alive without a new detection.
+  tracker_max_age: 20
+  # Min consecutive hits to start a track.
+  tracker_min_hits: 3
+  # IOU threshold for associating detections to trackers.
+  tracker_iou_threshold: 0.3
 
 reproducibility:
   # Seed for random number generators to ensure that repeated runs with the

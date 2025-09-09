@@ -9,6 +9,7 @@ import structlog
 import torch
 from ultralytics.utils.ops import non_max_suppression, scale_boxes
 
+from zebtrack.core.sort import Sort
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
@@ -34,6 +35,11 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
+        self.tracker = Sort(
+            max_age=settings.video_processing.tracker_max_age,
+            min_hits=settings.video_processing.tracker_min_hits,
+            iou_threshold=settings.video_processing.tracker_iou_threshold,
+        )
 
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
@@ -67,8 +73,12 @@ class OpenVINOPlugin(DetectorPlugin):
         self.output_layer = self.compiled_model.output(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float]]:
-        """Performs inference using the OpenVINO model."""
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, int]]:
+        """
+        Performs inference using the OpenVINO model and applies object tracking.
+        """
         input_tensor = self._preprocess(frame)
         self.infer_request.infer({self.input_layer.any_name: input_tensor})
         results = self.infer_request.results
@@ -85,7 +95,10 @@ class OpenVINOPlugin(DetectorPlugin):
         return input_tensor
 
     def _postprocess(self, result: dict, original_frame_shape: tuple) -> list:
-        """Postprocesses the OpenVINO model's output."""
+        """
+        Postprocesses the OpenVINO model's output, applies NMS, and then updates
+        the SORT tracker to get object IDs.
+        """
         output_tensor = result[self.output_layer]
         preds = non_max_suppression(
             prediction=torch.from_numpy(output_tensor),
@@ -95,17 +108,40 @@ class OpenVINOPlugin(DetectorPlugin):
         )
         detections = preds[0]
         if detections is None or len(detections) == 0:
+            # Still update the tracker with an empty array
+            self.tracker.update()
             return []
 
         detections[:, :4] = scale_boxes(
             self.model_input_shape, detections[:, :4], original_frame_shape
         ).round()
 
+        # Prepare detections for SORT: needs numpy array of [x1, y1, x2, y2, score]
+        dets_for_sort = detections[:, :5].cpu().numpy()
+
+        # Update tracker and get tracks with IDs
+        # The result is [[x1, y1, x2, y2, track_id], ...]
+        tracked_objects = self.tracker.update(dets_for_sort)
+
         final_detections = []
-        for *xyxy, conf, cls in detections:
-            final_detections.append(
-                (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
-            )
+        if tracked_objects is not None and len(tracked_objects) > 0:
+            for x1, y1, x2, y2, track_id in tracked_objects:
+                # Find the original detection to get the confidence score.
+                # This is a simple way to associate them back.
+                # A more robust method might involve IOU matching if needed.
+                conf = 0.0
+                for det in dets_for_sort:
+                    if (
+                        abs(det[0] - x1) < 2
+                        and abs(det[1] - y1) < 2
+                        and abs(det[2] - x2) < 2
+                        and abs(det[3] - y2) < 2
+                    ):
+                        conf = det[4]
+                        break
+                final_detections.append(
+                    (int(x1), int(y1), int(x2), int(y2), float(conf), int(track_id))
+                )
         return final_detections
 
     @staticmethod
