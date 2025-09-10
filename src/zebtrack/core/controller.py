@@ -852,10 +852,16 @@ class AppController:
                 trajectory_df = pd.read_parquet(trajectory_path)
 
                 # 2. Get calibration and geometry data
-                proj_data = self.project_manager.project_data
-                calib_data = proj_data.get("calibration", {})
-                width_cm = calib_data.get("aquarium_width_cm")
-                height_cm = calib_data.get("aquarium_height_cm")
+                if single_video_config:
+                    # For single video, calibration data comes from the config dict
+                    width_cm = single_video_config.get("aquarium_width_cm")
+                    height_cm = single_video_config.get("aquarium_height_cm")
+                else:
+                    # For a full project, it comes from the project data
+                    proj_data = self.project_manager.project_data
+                    calib_data = proj_data.get("calibration", {})
+                    width_cm = calib_data.get("aquarium_width_cm")
+                    height_cm = calib_data.get("aquarium_height_cm")
 
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon_px = zone_data.polygon
