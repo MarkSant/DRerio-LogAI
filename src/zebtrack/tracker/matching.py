@@ -57,7 +57,7 @@ def ious(atlbrs, btlbrs):
 
     :rtype: np.ndarray
     """
-    if not atlbrs or not btlbrs:
+    if len(atlbrs) == 0 or len(btlbrs) == 0:
         return np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
 
     _ious = bbox_ious(
