@@ -1,4 +1,3 @@
-
 import numpy as np
 from cython_bbox import bbox_overlaps as bbox_ious
 from scipy.optimize import linear_sum_assignment
@@ -58,16 +57,15 @@ def ious(atlbrs, btlbrs):
 
     :rtype: np.ndarray
     """
-    ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
-    if ious.size == 0:
-        return ious
+    if not atlbrs or not btlbrs:
+        return np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
 
-    ious = bbox_ious(
+    _ious = bbox_ious(
         np.ascontiguousarray(atlbrs, dtype=np.float64),
         np.ascontiguousarray(btlbrs, dtype=np.float64),
     )
 
-    return ious
+    return _ious
 
 
 def iou_distance(atracks, btracks):

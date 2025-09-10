@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from zebtrack.tracker import matching
@@ -140,7 +139,7 @@ class STrack(BaseTrack):
         return f"OT_{self.track_id}_({self.start_frame}-{self.end_frame})"
 
 
-class BYTETracker(object):
+class BYTETracker:
     def __init__(self, args, frame_rate=30):
         self.tracked_stracks = []
         self.lost_stracks = []
@@ -164,9 +163,12 @@ class BYTETracker(object):
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
+            # This is for YOLOX model which has score in a different format
+            # We are using a detector that provides 5 columns, so this part is not used
             output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
+
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
         bboxes /= scale

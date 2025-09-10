@@ -85,8 +85,10 @@ class OpenVINOPlugin(DetectorPlugin):
         Performs inference using the OpenVINO model and tracks objects with ByteTrack.
 
         Returns:
-            List[Tuple[int, int, int, int, float, int]]: Each tuple contains
-            (x1, y1, x2, y2, score, track_id).
+            List[Tuple[int, int, int, int, float, int]]: A list of tuples, where
+            each tuple contains (x1, y1, x2, y2, score, track_id).
+            Note: The inclusion of track_id is a change from older versions
+            and necessary for tracking functionality.
         """
         # 1. Preprocess and get detections from OpenVINO
         input_tensor = self._preprocess(frame)
