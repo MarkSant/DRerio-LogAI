@@ -1,5 +1,6 @@
 import glob
 import os
+from types import SimpleNamespace
 from typing import List, Tuple
 
 import cv2
@@ -11,6 +12,7 @@ from ultralytics.utils.ops import non_max_suppression, scale_boxes
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
+from zebtrack.tracker.byte_tracker import BYTETracker
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
@@ -67,12 +69,54 @@ class OpenVINOPlugin(DetectorPlugin):
         self.output_layer = self.compiled_model.output(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float]]:
-        """Performs inference using the OpenVINO model."""
+        # Initialize ByteTrack
+        tracker_args = SimpleNamespace(
+            track_thresh=0.5,
+            track_buffer=30,
+            match_thresh=0.8,
+            mot20=False,
+        )
+        self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
+
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, int]]:
+        """
+        Performs inference using the OpenVINO model and tracks objects with ByteTrack.
+        """
+        # 1. Preprocess and get detections from OpenVINO
         input_tensor = self._preprocess(frame)
         self.infer_request.infer({self.input_layer.any_name: input_tensor})
         results = self.infer_request.results
-        predictions = self._postprocess(results, frame.shape)
+        detections = self._postprocess(results, frame.shape)
+
+        # 2. Pass detections to ByteTrack for tracking
+        # Bytetrack expects a numpy array of shape (N, 5) with (x1, y1, x2, y2, score)
+        detections_np = np.array(detections) if detections else np.empty((0, 5))
+
+        # Bytetrack's update method needs image info and size
+        img_info = frame.shape[:2]  # (height, width)
+        img_size = self.model_input_shape  # (height, width)
+
+        online_targets = self.tracker.update(detections_np, img_info, img_size)
+
+        # 3. Format the tracked results
+        predictions = []
+        for t in online_targets:
+            tlbr = t.tlbr
+            tid = t.track_id
+            score = t.score
+            predictions.append(
+                (
+                    int(tlbr[0]),
+                    int(tlbr[1]),
+                    int(tlbr[2]),
+                    int(tlbr[3]),
+                    float(score),
+                    int(tid),
+                )
+            )
+
         return predictions
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
