@@ -131,7 +131,10 @@ class STrack(BaseTrack):
         """
         ret = np.asarray(tlwh).copy()
         ret[:2] += ret[2:] / 2
-        ret[2] /= ret[3]
+        if ret[3] > 0:
+            ret[2] /= ret[3]
+        else:
+            ret[2] = 1.0
         return ret
 
     def to_xyah(self):
