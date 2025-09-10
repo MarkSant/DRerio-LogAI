@@ -83,6 +83,10 @@ class OpenVINOPlugin(DetectorPlugin):
     ) -> List[Tuple[int, int, int, int, float, int]]:
         """
         Performs inference using the OpenVINO model and tracks objects with ByteTrack.
+
+        Returns:
+            List[Tuple[int, int, int, int, float, int]]: Each tuple contains
+            (x1, y1, x2, y2, score, track_id).
         """
         # 1. Preprocess and get detections from OpenVINO
         input_tensor = self._preprocess(frame)
@@ -96,7 +100,8 @@ class OpenVINOPlugin(DetectorPlugin):
 
         # Bytetrack's update method needs image info and size
         img_info = frame.shape[:2]  # (height, width)
-        img_size = self.model_input_shape  # (height, width)
+        # self.model_input_shape returns (height, width) as expected by ByteTrack
+        img_size = self.model_input_shape
 
         online_targets = self.tracker.update(detections_np, img_info, img_size)
 

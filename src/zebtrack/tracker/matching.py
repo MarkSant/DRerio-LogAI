@@ -1,3 +1,4 @@
+
 import numpy as np
 from cython_bbox import bbox_overlaps as bbox_ious
 from scipy.optimize import linear_sum_assignment
@@ -53,9 +54,9 @@ def ious(atlbrs, btlbrs):
     """
     Compute cost based on IoU
     :type atlbrs: list[tlbr] | np.ndarray
-    :type atlbrs: list[tlbr] | np.ndarray
+    :type btlbrs: list[tlbr] | np.ndarray
 
-    :rtype ious np.ndarray
+    :rtype: np.ndarray
     """
     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
     if ious.size == 0:
