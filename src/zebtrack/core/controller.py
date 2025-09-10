@@ -671,19 +671,27 @@ class AppController:
 
     def _run_tracking_if_needed(
         self, video_path: str, results_dir: str, experiment_id: str
-    ) -> bool:
+    ) -> tuple[bool, list | None]:
         """
         Checks if a trajectory file exists. If not, runs the tracking process
         to generate it. This is a blocking operation.
+
+        Returns:
+            A tuple containing:
+            - bool: True if tracking was successful or already existed, False otherwise.
+            - list | None: The arena polygon used for tracking, or None if tracking failed.
         """
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(
             results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
         )
+        # Try to get the arena from the project manager first
+        arena_polygon = self.project_manager.get_zone_data().polygon
 
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
-            return True
+            # If tracking exists, we still need to return the arena polygon if it's defined
+            return True, arena_polygon if arena_polygon else None
 
         log.info("controller.tracking.generating", video=experiment_id)
         self.view.set_status(f"Gerando trajetória para {experiment_id}...")
@@ -694,7 +702,7 @@ class AppController:
         try:
             if not cap.isOpened():
                 log.error("controller.tracking.video_open_failed", path=video_path)
-                return False
+                return False, None
 
             # This logic mirrors tests/test_integration.py
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -712,6 +720,10 @@ class AppController:
                     [0, frame_height],
                 ]
                 zone_data.polygon = arena_polygon
+            else:
+                # Ensure arena_polygon is up-to-date if it was loaded
+                arena_polygon = zone_data.polygon
+
             self.detector.set_zones(zone_data, frame_width, frame_height)
 
             # The key change: pass the explicit base_name to the recorder
@@ -739,7 +751,7 @@ class AppController:
             recorder.stop_recording()  # This saves the parquet file
             log.info("controller.tracking.success", path=trajectory_path)
             self.view.set_status(f"Trajetória para {experiment_id} gerada.")
-            return True
+            return True, arena_polygon
 
         except Exception as e:
             log.error(
@@ -753,7 +765,7 @@ class AppController:
                 f"Ocorreu um erro inesperado ao gerar a trajetória "
                 f"para {experiment_id}:\n{e}",
             )
-            return False
+            return False, None
         finally:
             if cap.isOpened():
                 cap.release()
@@ -812,11 +824,21 @@ class AppController:
 
             try:
                 # 1. Run tracking if trajectory data is missing
-                tracking_success = self._run_tracking_if_needed(
+                tracking_success, arena_polygon_px = self._run_tracking_if_needed(
                     video_path, results_dir, experiment_id
                 )
                 if not tracking_success:
                     continue  # Skip to the next video if tracking fails
+
+                # If tracking was skipped, the arena might be undefined. Define a default.
+                if not arena_polygon_px:
+                    log.warning("controller.processing.no_arena_from_tracking.using_default")
+                    cap = cv2.VideoCapture(video_path)
+                    if cap.isOpened():
+                        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        arena_polygon_px = [[0, 0], [w, 0], [w, h], [0, h]]
+                        cap.release()
 
                 # 2. Load trajectory data
                 trajectory_path = os.path.join(
@@ -837,13 +859,18 @@ class AppController:
                 trajectory_df = pd.read_parquet(trajectory_path)
 
                 # 2. Get calibration and geometry data
-                proj_data = self.project_manager.project_data
-                calib_data = proj_data.get("calibration", {})
-                width_cm = calib_data.get("aquarium_width_cm")
-                height_cm = calib_data.get("aquarium_height_cm")
+                if single_video_config:
+                    # For single video, calibration data comes from the config dict
+                    width_cm = single_video_config.get("aquarium_width_cm")
+                    height_cm = single_video_config.get("aquarium_height_cm")
+                else:
+                    # For a full project, it comes from the project data
+                    proj_data = self.project_manager.project_data
+                    calib_data = proj_data.get("calibration", {})
+                    width_cm = calib_data.get("aquarium_width_cm")
+                    height_cm = calib_data.get("aquarium_height_cm")
 
                 zone_data = self.project_manager.get_zone_data()
-                arena_polygon_px = zone_data.polygon
                 video_height_px = settings.camera.desired_height
 
                 if not all([width_cm, height_cm, arena_polygon_px]):
