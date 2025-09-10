@@ -725,15 +725,30 @@ class AppController:
             )
 
             frame_num = 0
+            log.info("controller.tracking.loop.start", video=experiment_id)
             while True:
+                if frame_num >= 10:
+                    log.info("controller.tracking.loop.limit_reached", video=experiment_id, frame_count=10)
+                    break
+
+                log.debug("controller.tracking.loop.reading_frame", frame=frame_num)
                 ret, frame = cap.read()
                 if not ret:
+                    log.info("controller.tracking.loop.end_of_video", frame=frame_num)
                     break
+                log.debug("controller.tracking.loop.frame_read.success", frame=frame_num)
+
+                log.debug("controller.tracking.loop.processing_frame", frame=frame_num)
                 detections, _ = self.detector.process_frame(
                     frame, project_type="pre-recorded"
                 )
+                log.debug("controller.tracking.loop.frame_processed", frame=frame_num, detection_count=len(detections))
+
                 timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                log.debug("controller.tracking.loop.writing_data", frame=frame_num)
                 recorder.write_detection_data(timestamp, frame_num, detections)
+                log.debug("controller.tracking.loop.data_written", frame=frame_num)
+
                 frame_num += 1
 
             recorder.stop_recording()  # This saves the parquet file
