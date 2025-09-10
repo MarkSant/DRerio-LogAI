@@ -1,4 +1,3 @@
-import numpy as np
 
 from zebtrack.tracker import matching
 from zebtrack.tracker.basetrack import BaseTrack, TrackState
@@ -11,6 +10,7 @@ class STrack(BaseTrack):
     def __init__(self, tlwh, score):
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
+
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -22,9 +22,11 @@ class STrack(BaseTrack):
         mean_state = self.mean.copy()
         if self.state != TrackState.Tracked:
             mean_state[7] = 0
+
         self.mean, self.covariance = self.kalman_filter.predict(
             mean_state, self.covariance
         )
+
 
     @staticmethod
     def multi_predict(stracks):
@@ -34,10 +36,12 @@ class STrack(BaseTrack):
             for i, st in enumerate(stracks):
                 if st.state != TrackState.Tracked:
                     multi_mean[i][7] = 0
+
             (
                 multi_mean,
                 multi_covariance,
             ) = STrack.shared_kalman.multi_predict(multi_mean, multi_covariance)
+
             for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance)):
                 stracks[i].mean = mean
                 stracks[i].covariance = cov
@@ -46,14 +50,18 @@ class STrack(BaseTrack):
         """Start a new tracklet"""
         self.kalman_filter = kalman_filter
         self.track_id = self.next_id()
+
         self.mean, self.covariance = self.kalman_filter.initiate(
             self.tlwh_to_xyah(self._tlwh)
         )
+
 
         self.tracklet_len = 0
         self.state = TrackState.Tracked
         if frame_id == 1:
             self.is_activated = True
+
+
         self.frame_id = frame_id
         self.start_frame = frame_id
 
@@ -82,14 +90,17 @@ class STrack(BaseTrack):
 
         new_tlwh = new_track.tlwh
         self.mean, self.covariance = self.kalman_filter.update(
+
             self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh)
         )
+
         self.state = TrackState.Tracked
         self.is_activated = True
 
         self.score = new_track.score
 
     @property
+
     def tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -102,6 +113,7 @@ class STrack(BaseTrack):
         return ret
 
     @property
+
     def tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
         `(top left, bottom right)`.
@@ -111,6 +123,7 @@ class STrack(BaseTrack):
         return ret
 
     @staticmethod
+
     def tlwh_to_xyah(tlwh):
         """Convert bounding box to format `(center x, center y, aspect ratio,
         height)`, where the aspect ratio is `width / height`.
@@ -124,18 +137,21 @@ class STrack(BaseTrack):
         return self.tlwh_to_xyah(self.tlwh)
 
     @staticmethod
+
     def tlbr_to_tlwh(tlbr):
         ret = np.asarray(tlbr).copy()
         ret[2:] -= ret[:2]
         return ret
 
     @staticmethod
+
     def tlwh_to_tlbr(tlwh):
         ret = np.asarray(tlwh).copy()
         ret[2:] += ret[:2]
         return ret
 
     def __repr__(self):
+
         return f"OT_{self.track_id}_({self.start_frame}-{self.end_frame})"
 
 
@@ -147,6 +163,7 @@ class BYTETracker:
 
         self.frame_id = 0
         self.args = args
+
         self.det_thresh = args.track_thresh + 0.1
         self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
         self.max_time_lost = self.buffer_size
@@ -163,11 +180,13 @@ class BYTETracker:
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
+
             # This is for YOLOX model which has score in a different format
             # We are using a detector that provides 5 columns, so this part is not used
             output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
+
 
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
@@ -184,6 +203,7 @@ class BYTETracker:
         scores_second = scores[inds_second]
 
         if len(dets) > 0:
+
             """Detections"""
             detections = [
                 STrack(STrack.tlbr_to_tlwh(tlbr), s)
@@ -195,22 +215,27 @@ class BYTETracker:
         """ Add newly detected tracklets to tracked_stracks"""
         unconfirmed = []
         tracked_stracks = []
+
         for track in self.tracked_stracks:
             if not track.is_activated:
                 unconfirmed.append(track)
             else:
                 tracked_stracks.append(track)
 
+
         """ Step 2: First association, with high score detection boxes"""
+
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
         STrack.multi_predict(strack_pool)
         dists = matching.iou_distance(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
+
         matches, u_track, u_detection = matching.linear_assignment(
             dists, thresh=self.args.match_thresh
         )
+
 
         for itracked, idet in matches:
             track = strack_pool[itracked]
@@ -221,6 +246,7 @@ class BYTETracker:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
+
 
         """ Step 3: Second association, with low score detection boxes"""
         # association the untrack to the low score detections
@@ -241,6 +267,7 @@ class BYTETracker:
         matches, u_track, u_detection_second = matching.linear_assignment(
             dists, thresh=0.5
         )
+
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
@@ -257,15 +284,19 @@ class BYTETracker:
                 track.mark_lost()
                 lost_stracks.append(track)
 
+
         """Deal with unconfirmed tracks, usually tracks with only one beginning
         frame"""
+
         detections = [detections[i] for i in u_detection]
         dists = matching.iou_distance(unconfirmed, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
+
         matches, u_unconfirmed, u_detection = matching.linear_assignment(
             dists, thresh=0.7
         )
+
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_starcks.append(unconfirmed[itracked])
@@ -287,21 +318,25 @@ class BYTETracker:
                 track.mark_removed()
                 removed_stracks.append(track)
 
+
         self.tracked_stracks = [
             t for t in self.tracked_stracks if t.state == TrackState.Tracked
         ]
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
+
         self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
         self.lost_stracks.extend(lost_stracks)
         self.lost_stracks = sub_stracks(self.lost_stracks, self.removed_stracks)
         self.removed_stracks.extend(removed_stracks)
+
         (
             self.tracked_stracks,
             self.lost_stracks,
         ) = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
         # get scores of lost tracks
         output_stracks = [track for track in self.tracked_stracks if track.is_activated]
+
 
         return output_stracks
 
@@ -342,6 +377,8 @@ def remove_duplicate_stracks(stracksa, stracksb):
             dupb.append(q)
         else:
             dupa.append(p)
+
     resa = [t for i, t in enumerate(stracksa) if i not in dupa]
     resb = [t for i, t in enumerate(stracksb) if i not in dupb]
+
     return resa, resb

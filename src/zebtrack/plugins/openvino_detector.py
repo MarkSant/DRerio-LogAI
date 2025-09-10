@@ -89,6 +89,7 @@ class OpenVINOPlugin(DetectorPlugin):
             each tuple contains (x1, y1, x2, y2, score, track_id).
             Note: The inclusion of track_id is a change from older versions
             and necessary for tracking functionality.
+
         """
         # 1. Preprocess and get detections from OpenVINO
         input_tensor = self._preprocess(frame)
@@ -104,6 +105,7 @@ class OpenVINOPlugin(DetectorPlugin):
         img_info = frame.shape[:2]  # (height, width)
         # self.model_input_shape returns (height, width) as expected by ByteTrack
         img_size = self.model_input_shape
+
 
         online_targets = self.tracker.update(detections_np, img_info, img_size)
 

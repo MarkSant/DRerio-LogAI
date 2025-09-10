@@ -1,9 +1,11 @@
+
 import numpy as np
 import scipy.linalg
 
 # Table for the 0.95 quantile of the chi-square distribution with N degrees of
 # freedom (contains values for N=1, ..., 9). Taken from MATLAB/Octave's chi2inv
 # function and used as Mahalanobis gating threshold.
+
 chi2inv95 = {
     1: 3.8415,
     2: 5.9915,
@@ -18,6 +20,7 @@ chi2inv95 = {
 
 
 class KalmanFilter:
+
     """
     A simple Kalman filter for tracking bounding boxes in image space.
 
@@ -31,10 +34,12 @@ class KalmanFilter:
     Object motion follows a constant velocity model. The bounding box location
     (x, y, a, h) is taken as direct observation of the state space (linear
     observation model).
+
     """
 
     def __init__(self):
         ndim, dt = 4, 1.0
+
 
         # Create Kalman filter model matrices.
         self._motion_mat = np.eye(2 * ndim, 2 * ndim)
@@ -47,6 +52,7 @@ class KalmanFilter:
         # the model. This is a bit hacky.
         self._std_weight_position = 1.0 / 20
         self._std_weight_velocity = 1.0 / 160
+
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.
@@ -78,6 +84,7 @@ class KalmanFilter:
             1e-5,
             10 * self._std_weight_velocity * measurement[3],
         ]
+
         covariance = np.diag(np.square(std))
         return mean, covariance
 
@@ -149,6 +156,7 @@ class KalmanFilter:
         covariance = np.linalg.multi_dot(
             (self._update_mat, covariance, self._update_mat.T)
         )
+
         return mean, covariance + innovation_cov
 
     def multi_predict(self, mean, covariance):
@@ -159,6 +167,7 @@ class KalmanFilter:
             The Nx8 dimensional mean matrix of the object states at the previous
             time step.
         covariance : ndarray
+
             The Nx8x8 dimensional covariance matrices of the object states at the
             previous time step.
         Returns
