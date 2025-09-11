@@ -573,6 +573,9 @@ class AppController:
     def start_single_video_workflow(self, video_path: str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
+        # The processing logic has been moved to a new method.
+        # This function now only delegates to the UI to prepare the drawing screen.
+        self.view.setup_zone_definition_for_single_video(video_path, config)
 
         # Ensure the detector is set up before showing the UI that needs it.
         # This is crucial for the single video flow.
