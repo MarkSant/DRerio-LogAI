@@ -1,5 +1,6 @@
 
 import numpy as np
+
 from zebtrack.tracker import matching
 from zebtrack.tracker.basetrack import BaseTrack, TrackState
 from zebtrack.tracker.kalman_filter import KalmanFilter

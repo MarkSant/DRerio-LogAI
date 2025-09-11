@@ -9,12 +9,12 @@ from zebtrack.tracker import kalman_filter
 
 
 def merge_matches(m1, m2, shape):
-    O, P, Q = shape
+    n_obs, P, Q = shape
     m1 = np.asarray(m1)
     m2 = np.asarray(m2)
 
-    M1 = coo_matrix((np.ones(len(m1)), (m1[:, 0], m1[:, 1])), shape=(O, P))
-    M2 = coo_matrix((np.ones(len(m2)), (m2[:, 0], m2[:, 1])), shape=(P, Q))
+    M1 = csc_matrix((np.ones(len(m1)), (m1[:, 0], m1[:, 1])), shape=(n_obs, P))
+    M2 = csc_matrix((np.ones(len(m2)), (m2[:, 0], m2[:, 1])), shape=(n_obs, Q))
 
     mask = M1 * M2
     match = mask.nonzero()

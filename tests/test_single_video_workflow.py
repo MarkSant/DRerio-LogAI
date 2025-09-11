@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -11,8 +10,6 @@ import pytest
 from zebtrack.core.controller import AppController
 from zebtrack.core.detector import Detector
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
-
 
 # --- Test Helpers (adapted from test_integration.py) ---
 

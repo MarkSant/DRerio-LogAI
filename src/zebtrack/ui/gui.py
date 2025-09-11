@@ -606,6 +606,8 @@ class ApplicationGUI:
     """
     A classe principal que gerencia a interface gráfica (a "Visão").
     """
+    DEFAULT_CANVAS_WIDTH = 800
+    DEFAULT_CANVAS_HEIGHT = 600
 
     def __init__(self, root, controller):
         """
@@ -651,10 +653,19 @@ class ApplicationGUI:
 
         self._create_welcome_frame()
 
+    def _cleanup_single_analysis_button(self):
+        """Destroys the single analysis button if it exists."""
+        if (
+            hasattr(self, "run_single_analysis_btn")
+            and self.run_single_analysis_btn is not None
+        ):
+            if self.run_single_analysis_btn.winfo_exists():
+                self.run_single_analysis_btn.destroy()
+            self.run_single_analysis_btn = None
+
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
-        if hasattr(self, 'run_single_analysis_btn') and self.run_single_analysis_btn.winfo_exists():
-            self.run_single_analysis_btn.destroy()
+        self._cleanup_single_analysis_button()
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
@@ -861,13 +872,17 @@ class ApplicationGUI:
 
         # --- Single Analysis Options ---
         self.single_analysis_options_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Opções de Análise de Vídeo Único", padding=10
+            self.zone_controls_frame,
+            text="Opções de Análise de Vídeo Único",
+            padding=10,
         )
         # This frame is packed on demand by setup_zone_configuration_for_video
 
         # ROI options
         self.roi_choice_var = StringVar(value="none")
-        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
+        ttk.Label(
+            self.single_analysis_options_frame, text="Opções de ROI:"
+        ).pack(anchor="w")
         ttk.Radiobutton(
             self.single_analysis_options_frame, text="Não usar ROIs",
             variable=self.roi_choice_var, value="none"
@@ -882,9 +897,15 @@ class ApplicationGUI:
         ).pack(anchor="w", padx=10)
 
         # Frame interval
-        ttk.Label(self.single_analysis_options_frame, text="Intervalo de feedback (frames):").pack(anchor="w", pady=(10,0))
+        ttk.Label(
+            self.single_analysis_options_frame, text="Intervalo de feedback (frames):"
+        ).pack(anchor="w", pady=(10, 0))
         self.feedback_interval_var = StringVar(value="10")
-        ttk.Entry(self.single_analysis_options_frame, textvariable=self.feedback_interval_var, width=10).pack(anchor="w", padx=10)
+        ttk.Entry(
+            self.single_analysis_options_frame,
+            textvariable=self.feedback_interval_var,
+            width=10,
+        ).pack(anchor="w", padx=10)
 
         if self.controller.project_manager.get_project_type() == "pre-recorded":
             ttk.Button(
@@ -1058,14 +1079,20 @@ class ApplicationGUI:
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                self.show_error("Erro de Vídeo", f"Não foi possível abrir o arquivo de vídeo:\n{video_path}")
+                self.show_error(
+                    "Erro de Vídeo",
+                    f"Não foi possível abrir o arquivo de vídeo:\n{video_path}",
+                )
                 return
 
             ret, frame = cap.read()
             cap.release()
 
             if not ret:
-                self.show_error("Erro de Vídeo", f"Não foi possível ler o primeiro frame do vídeo:\n{video_path}")
+                self.show_error(
+                    "Erro de Vídeo",
+                    f"Não foi possível ler o primeiro frame do vídeo:\n{video_path}",
+                )
                 return
 
             # Resize frame to fit canvas while maintaining aspect ratio
@@ -1074,7 +1101,7 @@ class ApplicationGUI:
 
             # This is a fallback in case the canvas size is not yet known
             if canvas_w < 2 or canvas_h < 2:
-                canvas_w, canvas_h = 800, 600 # Default size
+                canvas_w, canvas_h = self.DEFAULT_CANVAS_WIDTH, self.DEFAULT_CANVAS_HEIGHT
 
             h, w, _ = frame.shape
             aspect_ratio = w / h
@@ -1102,7 +1129,10 @@ class ApplicationGUI:
 
         except Exception as e:
             log.error("gui.display_roi_frame.error", exc_info=True)
-            self.show_error("Erro ao Exibir Frame", f"Ocorreu um erro ao exibir o frame do vídeo: {e}")
+            self.show_error(
+                "Erro ao Exibir Frame",
+                f"Ocorreu um erro ao exibir o frame do vídeo: {e}",
+            )
 
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
@@ -1346,7 +1376,10 @@ class ApplicationGUI:
         self._stop_drawing()
 
         # New logic to enable single analysis button
-        if hasattr(self, 'run_single_analysis_btn') and self.run_single_analysis_btn.winfo_exists():
+        if (
+            hasattr(self, "run_single_analysis_btn")
+            and self.run_single_analysis_btn.winfo_exists()
+        ):
             self.run_single_analysis_btn.config(state="normal")
 
     def _remove_selected_roi(self):
@@ -2066,11 +2099,18 @@ class ApplicationGUI:
         self.display_roi_video_frame(video_path)
 
         # Show the options frame, packed right after the drawing actions
-        self.single_analysis_options_frame.pack(fill="x", pady=5, after=self.zone_controls_frame.winfo_children()[0])
+        zone_children = self.zone_controls_frame.winfo_children()
+        if zone_children:
+            self.single_analysis_options_frame.pack(fill="x", pady=5, after=zone_children[0])
+        else:
+            self.single_analysis_options_frame.pack(fill="x", pady=5)
 
         self.show_info(
             "Configuração Necessária",
-            "Por favor, defina a área do aquário usando a 'Detecção Automática' ou desenhando o 'Polígono Principal'.\n\nApós definir a arena, clique em 'Iniciar Análise'."
+            "Configuração Necessária",
+            "Por favor, defina a área do aquário usando a 'Detecção Automática' "
+            "ou desenhando o 'Polígono Principal'.\n\n"
+            "Após definir a arena, clique em 'Iniciar Análise'.",
         )
         # Adicione um novo botão "Iniciar Análise" na aba de zonas
         self.run_single_analysis_btn = ttk.Button(
@@ -2151,10 +2191,14 @@ class ApplicationGUI:
         if zone_data.polygon:
             pts = np.array(zone_data.polygon, np.int32)
             pts = pts.reshape((-1, 1, 2))
-            cv2.polylines(frame, [pts], isClosed=True, color=(255, 255, 0), thickness=2) # Ciano para a arena
+            cv2.polylines(
+                frame, [pts], isClosed=True, color=(0, 255, 255), thickness=2
+            )  # Amarelo para a arena
 
         for i, square_coords in enumerate(zone_data.squares):
-            color = zone_data.colors[i] if i < len(zone_data.colors) else (0, 255, 0) # Verde padrão
+            color = (
+                zone_data.colors[i] if i < len(zone_data.colors) else (0, 255, 0)
+            )  # Verde padrão
             pt1 = (int(square_coords[0][0]), int(square_coords[0][1]))
             pt2 = (int(square_coords[1][0]), int(square_coords[1][1]))
             cv2.rectangle(frame, pt1, pt2, color, 2)
