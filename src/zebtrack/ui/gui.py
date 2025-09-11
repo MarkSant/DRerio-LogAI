@@ -2126,33 +2126,84 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
 
     def body(self, master):
+        # --- Tkinter Variables ---
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
 
+        # Pre-fill with defaults from settings
+        self.sharp_turn_var = StringVar(
+            value=str(settings.video_processing.sharp_turn_threshold_deg_s)
+        )
+        self.freeze_thresh_var = StringVar(
+            value=str(settings.video_processing.freezing_velocity_threshold)
+        )
+        self.freeze_dur_var = StringVar(
+            value=str(settings.video_processing.freezing_min_duration_s)
+        )
+
+        # --- Layout ---
+        main_frame = ttk.Frame(master, padding=10)
+        main_frame.pack(expand=True, fill="both")
+
         # --- Aquarium Dimensions ---
-        Label(master, text="Largura do Aquário (cm):").grid(
+        dim_frame = ttk.LabelFrame(main_frame, text="Calibração", padding=10)
+        dim_frame.pack(fill="x", pady=5)
+        dim_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(dim_frame, text="Largura do Aquário (cm):").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
+        ttk.Entry(dim_frame, textvariable=self.aquarium_width_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Altura do Aquário (cm):").grid(
+        ttk.Label(dim_frame, text="Altura do Aquário (cm):").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
+        ttk.Entry(dim_frame, textvariable=self.aquarium_height_var, width=10).grid(
             row=1, column=1, sticky="w", padx=5
         )
 
-        return super().body(master)
+        # --- Behavior Analysis Parameters ---
+        behavior_frame = ttk.LabelFrame(
+            main_frame, text="Parâmetros de Análise", padding=10
+        )
+        behavior_frame.pack(fill="x", pady=5)
+        behavior_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(behavior_frame, text="Limiar de Curva Acentuada (graus/s):").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(behavior_frame, textvariable=self.sharp_turn_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
+
+        ttk.Label(behavior_frame, text="Limiar de Congelamento (cm/s):").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(behavior_frame, textvariable=self.freeze_thresh_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=5
+        )
+
+        ttk.Label(behavior_frame, text="Duração Mín. de Congelamento (s):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(behavior_frame, textvariable=self.freeze_dur_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=5
+        )
+
+        return main_frame
 
     def validate(self):
         try:
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
+            float(self.sharp_turn_var.get())
+            float(self.freeze_thresh_var.get())
+            float(self.freeze_dur_var.get())
         except ValueError:
             messagebox.showerror(
-                "Erro", "As dimensões do aquário devem ser números válidos."
+                "Erro", "Todos os campos de configuração devem ser números válidos."
             )
             return 0
         return 1
@@ -2161,6 +2212,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.result = {
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
+            "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
+            "freezing_velocity_threshold": float(self.freeze_thresh_var.get()),
+            "freezing_min_duration_s": float(self.freeze_dur_var.get()),
         }
 
 

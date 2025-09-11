@@ -670,12 +670,15 @@ class AppController:
         )
 
     def _run_tracking_if_needed(
-        self, video_path: str, results_dir: str, experiment_id: str
+        self,
+        video_path: str,
+        results_dir: str,
+        experiment_id: str,
+        calibration_data: dict | None = None,
     ) -> tuple[bool, list | None]:
         """
         Checks if a trajectory file exists. If not, runs the tracking process
         to generate it. This is a blocking operation.
-
         Returns:
             A tuple containing:
             - bool: True if tracking was successful or already existed, False otherwise.
@@ -685,13 +688,10 @@ class AppController:
         trajectory_path = os.path.join(
             results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
         )
-        # Try to get the arena from the project manager first
         arena_polygon = self.project_manager.get_zone_data().polygon
-
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
-            # If tracking exists, we still need to return the arena polygon if it's defined
-            return True, arena_polygon if arena_polygon else None
+            return True, arena_polygon
 
         log.info("controller.tracking.generating", video=experiment_id)
         self.view.set_status(f"Gerando trajetória para {experiment_id}...")
@@ -704,12 +704,8 @@ class AppController:
                 log.error("controller.tracking.video_open_failed", path=video_path)
                 return False, None
 
-            # This logic mirrors tests/test_integration.py
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-            # Use a default full-frame arena if none is defined in the project
-            # This is crucial for single-video analysis
             zone_data = self.project_manager.get_zone_data()
             if not zone_data.polygon:
                 log.warning("controller.tracking.no_arena_defined.using_default")
@@ -721,19 +717,27 @@ class AppController:
                 ]
                 zone_data.polygon = arena_polygon
             else:
-                # Ensure arena_polygon is up-to-date if it was loaded
                 arena_polygon = zone_data.polygon
 
             self.detector.set_zones(zone_data, frame_width, frame_height)
 
-            # The key change: pass the explicit base_name to the recorder
+            # --- New: Calculate pixel/cm ratio before recording ---
+            pixel_per_cm_ratio = None
+            if calibration_data:
+                width_cm = calibration_data.get("aquarium_width_cm")
+                height_cm = calibration_data.get("aquarium_height_cm")
+                if width_cm and height_cm and arena_polygon:
+                    cal = Calibration(np.array(arena_polygon), width_cm, height_cm)
+                    pixel_per_cm_ratio = cal.pixel_per_cm_ratio
+
             recorder.start_recording(
                 output_folder=results_dir,
                 frame_width=frame_width,
                 frame_height=frame_height,
                 zones=zone_data,
-                is_video_file=True,  # We are analyzing, not saving a new video
+                is_video_file=True,
                 base_name=experiment_id,
+                pixel_per_cm_ratio=pixel_per_cm_ratio,
             )
 
             frame_num = 0
@@ -840,7 +844,10 @@ class AppController:
             try:
                 # 1. Run tracking if trajectory data is missing
                 tracking_success, arena_polygon_px = self._run_tracking_if_needed(
-                    video_path, results_dir, experiment_id
+                    video_path,
+                    results_dir,
+                    experiment_id,
+                    calibration_data=single_video_config,
                 )
                 if not tracking_success:
                     continue  # Skip to the next video if tracking fails
@@ -949,6 +956,25 @@ class AppController:
                     metadata["experiment_id"] = experiment_id
 
                 # 6. Generate and save reports
+                # For single video, use params from dialog; otherwise, use global settings
+                if single_video_config:
+                    st_thresh = single_video_config.get(
+                        "sharp_turn_threshold_deg_s",
+                        settings.video_processing.sharp_turn_threshold_deg_s,
+                    )
+                    fz_thresh = single_video_config.get(
+                        "freezing_velocity_threshold",
+                        settings.video_processing.freezing_velocity_threshold,
+                    )
+                    fz_dur = single_video_config.get(
+                        "freezing_min_duration_s",
+                        settings.video_processing.freezing_min_duration_s,
+                    )
+                else:
+                    st_thresh = settings.video_processing.sharp_turn_threshold_deg_s
+                    fz_thresh = settings.video_processing.freezing_velocity_threshold
+                    fz_dur = settings.video_processing.freezing_min_duration_s
+
                 reporter = Reporter(
                     trajectory_df=trajectory_df,
                     metadata=metadata,
@@ -960,9 +986,9 @@ class AppController:
                     fps=settings.video_processing.fps,
                     roi_colors=roi_colors,
                     video_path=video_path,
-                    sharp_turn_threshold=settings.video_processing.sharp_turn_threshold_deg_s,
-                    freezing_threshold=settings.video_processing.freezing_velocity_threshold,
-                    freezing_duration=settings.video_processing.freezing_min_duration_s,
+                    sharp_turn_threshold=st_thresh,
+                    freezing_threshold=fz_thresh,
+                    freezing_duration=fz_dur,
                 )
                 reporter.export_summary_data(
                     os.path.join(results_dir, f"{experiment_id}_summary.xlsx"),
