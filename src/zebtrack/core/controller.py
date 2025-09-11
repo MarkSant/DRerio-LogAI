@@ -775,9 +775,9 @@ class AppController:
             frame_num = 0
             log.info("controller.tracking.loop.start", video=experiment_id)
             while not self.cancel_event.is_set():
-                if frame_num >= 10:
-                    log.info("controller.tracking.loop.limit_reached", video=experiment_id, frame_count=10)
-                    break
+                #if frame_num >= 10:
+                #    log.info("controller.tracking.loop.limit_reached", video=experiment_id, frame_count=10)
+                #    break
 
                 log.debug("controller.tracking.loop.reading_frame", frame=frame_num)
                 ret, frame = cap.read()
