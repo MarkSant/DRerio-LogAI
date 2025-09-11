@@ -52,7 +52,7 @@ class TestAppController(unittest.TestCase):
             num_aquariums=1,
             aquarium_width_cm=10.0,
             aquarium_height_cm=10.0,
-            active_weight="",
+            active_weight="best_seg.pt",
         )
         self.mock_view._load_project_view.assert_called_once()
 
