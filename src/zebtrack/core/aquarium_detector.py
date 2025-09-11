@@ -28,7 +28,7 @@ class AquariumDetector:
             )
             raise
 
-    def detect_aquariums(self, video_path: str, stabilization_frames: int = 30) -> list:
+    def detect_aquariums(self, video_path: str, stabilization_frames: int = 90) -> list:
         """
         Analyzes initial frames of a video to find stable aquarium polygons.
 
