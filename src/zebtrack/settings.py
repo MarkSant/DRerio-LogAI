@@ -80,6 +80,9 @@ class VideoProcessingSettings(BaseModel):
             "frames 1, 11, 21, ..."
         ),
     )
+    sharp_turn_threshold_deg_s: float = 200.0
+    freezing_velocity_threshold: float = 0.5
+    freezing_min_duration_s: float = 1.0
 
 
 class DetectionZonesSettings(BaseModel):

@@ -83,54 +83,57 @@ class Reporter:
             "sharp_turns_per_minute"
         )
 
-        # --- ROI-Specific Metrics ---
-        roi_analysis = self.report.get("analise_roi", {})
-        time_spent = roi_analysis.get("tempo_gasto_por_roi", {})
-        entry_counts = roi_analysis.get("contagem_entradas", {})
-        exit_counts = roi_analysis.get("contagem_saidas", {})
-        latencies = roi_analysis.get("latencia_primeira_entrada", {})
-        distances = roi_analysis.get("distancia_por_roi", {})
-        velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
-        freezing = roi_analysis.get("congelamento_por_roi", {})
+        # --- ROI-Specific Metrics (only if ROI analysis was performed) ---
+        if self.r_analyzer:
+            roi_analysis = self.report.get("analise_roi", {})
+            time_spent = roi_analysis.get("tempo_gasto_por_roi", {})
+            entry_counts = roi_analysis.get("contagem_entradas", {})
+            exit_counts = roi_analysis.get("contagem_saidas", {})
+            latencies = roi_analysis.get("latencia_primeira_entrada", {})
+            distances = roi_analysis.get("distancia_por_roi", {})
+            velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
+            freezing = roi_analysis.get("congelamento_por_roi", {})
 
-        total_roi_entries = 0
-        for roi_name in self.r_analyzer.rois:
-            # Time spent
-            combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
-                "seconds"
-            )
-            combined_data[
-                f"percentual_tempo_no_{roi_name}"
-            ] = time_spent.get(roi_name, {}).get("percentage")
-            # Entry and Exit counts
-            entries = entry_counts.get(roi_name, 0)
-            combined_data[f"entradas_no_{roi_name}"] = entries
-            total_roi_entries += entries
-            combined_data[f"saidas_do_{roi_name}"] = exit_counts.get(roi_name, 0)
-            # Latency
-            combined_data[f"latencia_para_{roi_name}_s"] = latencies.get(roi_name)
-            # Intra-ROI Distance
-            combined_data[f"distancia_no_{roi_name}_cm"] = distances.get(roi_name)
-            # Intra-ROI Velocity
-            roi_vel = velocities.get(roi_name)
-            if roi_vel:
+            total_roi_entries = 0
+            for roi_name in self.r_analyzer.rois:
+                # Time spent
+                combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(
+                    roi_name, {}
+                ).get("seconds")
                 combined_data[
-                    f"velocidade_media_no_{roi_name}_cm_s"
-                ] = roi_vel.get("mean")
-            # Intra-ROI Freezing
-            roi_freeze = freezing.get(roi_name)
-            if roi_freeze:
-                combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get(
-                    "count"
-                )
-                combined_data[
-                    f"duracao_total_congelamento_no_{roi_name}_s"
-                ] = roi_freeze.get("total_duration")
-            # ROI Color
-            if roi_name in self.roi_colors:
-                combined_data[f"cor_roi_{roi_name}"] = str(self.roi_colors[roi_name])
+                    f"percentual_tempo_no_{roi_name}"
+                ] = time_spent.get(roi_name, {}).get("percentage")
+                # Entry and Exit counts
+                entries = entry_counts.get(roi_name, 0)
+                combined_data[f"entradas_no_{roi_name}"] = entries
+                total_roi_entries += entries
+                combined_data[f"saidas_do_{roi_name}"] = exit_counts.get(roi_name, 0)
+                # Latency
+                combined_data[f"latencia_para_{roi_name}_s"] = latencies.get(roi_name)
+                # Intra-ROI Distance
+                combined_data[f"distancia_no_{roi_name}_cm"] = distances.get(roi_name)
+                # Intra-ROI Velocity
+                roi_vel = velocities.get(roi_name)
+                if roi_vel:
+                    combined_data[
+                        f"velocidade_media_no_{roi_name}_cm_s"
+                    ] = roi_vel.get("mean")
+                # Intra-ROI Freezing
+                roi_freeze = freezing.get(roi_name)
+                if roi_freeze:
+                    combined_data[
+                        f"episodios_congelamento_no_{roi_name}"
+                    ] = roi_freeze.get("count")
+                    combined_data[
+                        f"duracao_total_congelamento_no_{roi_name}_s"
+                    ] = roi_freeze.get("total_duration")
+                # ROI Color
+                if roi_name in self.roi_colors:
+                    combined_data[f"cor_roi_{roi_name}"] = str(
+                        self.roi_colors[roi_name]
+                    )
 
-        combined_data["total_entradas_roi"] = total_roi_entries
+            combined_data["total_entradas_roi"] = total_roi_entries
         combined_data["data_hora_analise"] = datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         )
@@ -235,29 +238,42 @@ class Reporter:
             )
         )
 
-        for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
-            roi_color = self.roi_colors.get(roi_name, "blue")
-            ax.add_patch(
-                patches.Polygon(
-                    roi.geometry.exterior.coords,
-                    fill=True,
-                    color=roi_color,
-                    alpha=0.4,
+        if self.r_analyzer:
+            for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
+                roi_color = self.roi_colors.get(roi_name, "blue")
+                ax.add_patch(
+                    patches.Polygon(
+                        roi.geometry.exterior.coords,
+                        fill=True,
+                        color=roi_color,
+                        alpha=0.4,
+                    )
                 )
-            )
-            centroid = roi.geometry.centroid
+                centroid = roi.geometry.centroid
+                ax.text(
+                    centroid.x,
+                    centroid.y,
+                    str(i + 1),
+                    color="white",
+                    ha="center",
+                    va="center",
+                    fontweight="bold",
+                    fontsize=12,
+                    bbox=dict(
+                        facecolor=roi_color,
+                        alpha=0.7,
+                        boxstyle="circle,pad=0.2",
+                        ec="none",
+                    ),
+                )
+        else:
             ax.text(
-                centroid.x,
-                centroid.y,
-                str(i + 1),
-                color="white",
+                0.5,
+                0.5,
+                "No ROIs defined for this analysis.",
                 ha="center",
                 va="center",
-                fontweight="bold",
-                fontsize=12,
-                bbox=dict(
-                    facecolor=roi_color, alpha=0.7, boxstyle="circle,pad=0.2", ec="none"
-                ),
+                transform=ax.transAxes,
             )
 
         ax.set_title(f"ROI Reference Map - {self.metadata.get('experiment_id', 'N/A')}")
@@ -412,14 +428,15 @@ class Reporter:
         document.add_page_break()
         progress_callback(2 / total_steps, "Summary table added")
 
-        # Step 3: Add ROI Reference Map
-        document.add_heading("ROI Reference Map", level=2)
-        fig = self.generate_roi_reference_plot()
-        memfile = io.BytesIO()
-        fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        memfile.seek(0)
-        document.add_picture(memfile, width=Inches(5.0))
+        # Step 3: Add ROI Reference Map (if applicable)
+        if self.r_analyzer:
+            document.add_heading("ROI Reference Map", level=2)
+            fig = self.generate_roi_reference_plot()
+            memfile = io.BytesIO()
+            fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            memfile.seek(0)
+            document.add_picture(memfile, width=Inches(5.0))
         progress_callback(3 / total_steps, "ROI map added")
 
         # Step 4-8: Add visualization plots
@@ -446,26 +463,27 @@ class Reporter:
             progress_callback((4 + i) / total_steps, f"{name} plot added")
 
         # Step 9: Add ROI Event Log
-        document.add_page_break()
-        document.add_heading("Appendix: ROI Event Log", level=2)
-        event_log_df = self.r_analyzer.get_event_log()
-        if not event_log_df.empty:
-            document.add_paragraph(
-                "Chronological log of all entries and exits from defined ROIs."
-            )
-            table = document.add_table(rows=1, cols=len(event_log_df.columns))
-            table.style = "Table Grid"
-            for i, col_name in enumerate(event_log_df.columns):
-                table.cell(0, i).text = str(col_name)
-            for _, row in event_log_df.iterrows():
-                cells = table.add_row().cells
-                for i, value in enumerate(row):
-                    if isinstance(value, pd.Timestamp):
-                        cells[i].text = value.strftime("%H:%M:%S.%f")[:-3]
-                    else:
-                        cells[i].text = str(value)
-        else:
-            document.add_paragraph("No ROI entry or exit events were recorded.")
+        if self.r_analyzer:
+            document.add_page_break()
+            document.add_heading("Appendix: ROI Event Log", level=2)
+            event_log_df = self.r_analyzer.get_event_log()
+            if not event_log_df.empty:
+                document.add_paragraph(
+                    "Chronological log of all entries and exits from defined ROIs."
+                )
+                table = document.add_table(rows=1, cols=len(event_log_df.columns))
+                table.style = "Table Grid"
+                for i, col_name in enumerate(event_log_df.columns):
+                    table.cell(0, i).text = str(col_name)
+                for _, row in event_log_df.iterrows():
+                    cells = table.add_row().cells
+                    for i, value in enumerate(row):
+                        if isinstance(value, pd.Timestamp):
+                            cells[i].text = value.strftime("%H:%M:%S.%f")[:-3]
+                        else:
+                            cells[i].text = str(value)
+            else:
+                document.add_paragraph("No ROI entry or exit events were recorded.")
         progress_callback(9 / total_steps, "Event log added")
 
         # Step 10: Save the document

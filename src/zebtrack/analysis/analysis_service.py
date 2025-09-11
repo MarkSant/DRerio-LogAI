@@ -64,10 +64,7 @@ class AnalysisService:
             fps=fps,
         )
 
-        # 2. Initialize the ROI analyzer
-        r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=rois)
-
-        # 3. Calculate and compile all metrics
+        # 2. Initialize the behavioral report
         report = {
             "comportamento_geral": {
                 "distancia_total_cm": b_analyzer.calculate_total_distance(),
@@ -80,25 +77,29 @@ class AnalysisService:
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
                     90.0
                 ),  # Assuming 90 as default
-            },
-            "analise_roi": {
-                "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
-                "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),
-                "contagem_entradas": r_analyzer.get_entry_counts(),
-                "contagem_saidas": r_analyzer.get_exit_counts(),
-                "distancia_por_roi": r_analyzer.get_distance_in_rois(),
-                "estatisticas_velocidade_por_roi": (
-                    r_analyzer.get_velocity_stats_in_rois()
-                ),
-                "congelamento_por_roi": r_analyzer.get_freezing_in_rois(
-                    vel_threshold=freezing_vel_threshold,
-                    min_duration=freezing_min_duration,
-                ),
-                "transicoes_entre_rois": (
-                    r_analyzer.get_roi_transitions().to_dict("index")
-                ),
-            },
-            "log_eventos": r_analyzer.get_event_log().to_dict("records"),
+            }
         }
+
+        # 3. If ROIs are provided, perform ROI analysis and append to the report
+        if not rois:
+            return report, b_analyzer, None
+
+        r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=rois)
+        report["analise_roi"] = {
+            "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
+            "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),
+            "contagem_entradas": r_analyzer.get_entry_counts(),
+            "contagem_saidas": r_analyzer.get_exit_counts(),
+            "distancia_por_roi": r_analyzer.get_distance_in_rois(),
+            "estatisticas_velocidade_por_roi": (
+                r_analyzer.get_velocity_stats_in_rois()
+            ),
+            "congelamento_por_roi": r_analyzer.get_freezing_in_rois(
+                vel_threshold=freezing_vel_threshold,
+                min_duration=freezing_min_duration,
+            ),
+            "transicoes_entre_rois": r_analyzer.get_roi_transitions().to_dict("index"),
+        }
+        report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 
         return report, b_analyzer, r_analyzer
