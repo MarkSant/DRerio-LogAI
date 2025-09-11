@@ -16,7 +16,7 @@ from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import Detector
+from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.recorder import Recorder
@@ -289,13 +289,16 @@ class AppController:
         else:
             self.view.update_openvino_status_label("O OpenVINO está desativado.")
 
-    def run_aquarium_detection(self):
+    def run_aquarium_detection(self, video_path: str | None = None):
         """Runs the aquarium detection model on the first video of the project."""
         log.info("controller.aquarium_detection.start")
-        video_path = self.project_manager.get_next_video()
+        if video_path is None:
+            # Default behavior for project workflow
+            video_path = self.project_manager.get_next_video()
+
         if not video_path:
             self.view.show_warning(
-                "Aviso", "Nenhum vídeo pendente encontrado no projeto."
+                "Aviso", "Nenhum vídeo pendente ou especificado foi encontrado para a detecção."
             )
             return
 
@@ -335,6 +338,26 @@ class AppController:
             self.view.show_error(
                 "Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}"
             )
+
+    def update_main_arena(self, polygon_points: list[list[int]]):
+        """Updates the main arena polygon in the project's zone data."""
+        log.info("controller.zone.update_arena", points=len(polygon_points))
+
+        # Ensure the detection_zones dictionary exists
+        if "detection_zones" not in self.project_manager.project_data:
+            self.project_manager.project_data["detection_zones"] = {}
+
+        zone_data = self.project_manager.get_zone_data()
+        zone_data.polygon = polygon_points
+
+        # Convert dataclass to dict and save
+        from dataclasses import asdict
+        self.project_manager.project_data["detection_zones"] = asdict(zone_data)
+        self.project_manager.save_project()
+
+        # After updating, we need to reload the zones in the detector
+        self.setup_detector_zones()
+        log.info("controller.zone.update_arena.success")
 
     def run_live_calibration(self):
         """Records a short clip from the live camera and runs aquarium detection."""
@@ -528,65 +551,47 @@ class AppController:
             self.cancel_event.set()
 
     def start_single_video_workflow(self, video_path: str, config: dict):
-        """Prepares the GUI for a single video analysis workflow."""
+        """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
+        # The processing logic has been moved to a new method.
+        # This function now only delegates to the UI to prepare the drawing screen.
+        self.view.setup_zone_definition_for_single_video(video_path, config)
 
-        # If we are on the welcome screen, we need to transition to the main view.
-        if self.view.notebook is None:
-            # Create a temporary project context to build the main UI correctly.
-            self.project_manager.project_data = {
-                "project_name": "Análise de Vídeo Único",
-                "project_type": "pre-recorded",
-                "videos": [],
-                "batches": [],
-                "active_weight": self.active_weight_name,
-                "use_openvino": self.use_openvino,
-            }
-            if not self.setup_detector():
-                return  # Detector setup failed, stop workflow.
-            self.view._load_project_view()
+    def start_single_video_processing(self, video_path: str, config: dict, zone_data: 'ZoneData'):
+        """Starts the actual processing for a single video after zone setup."""
+        log.info("workflow.single_video.processing_start", video=video_path)
 
-        self.pending_single_video_analysis = {
-            "video_path": video_path,
-            "config": config,
-        }
-        # Now that the notebook is guaranteed to exist, this call is safe.
-        self.view.setup_zone_configuration_for_video(video_path)
-
-    def resume_single_video_analysis(self):
-        """Resumes the single video analysis after zones are configured."""
-        if not self.pending_single_video_analysis:
-            log.error("workflow.single_video.resume_no_pending_job")
+        # 1. Update the detector with the newly created zone data
+        # We need to know the video dimensions to set up the zones correctly
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            self.view.show_error("Erro", f"Não foi possível abrir o vídeo: {video_path}")
             return
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        self.detector.set_zones(zone_data, width, height)
+        log.info("controller.single_video.zones_set", count=len(zone_data.squares) + (1 if zone_data.polygon else 0))
 
-        # Verifique se a arena principal foi definida
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data.polygon:
-            self.view.show_error(
-                "Arena Faltando",
-            "Por favor, defina a área do aquário (polígono principal) antes de "
-            "iniciar a análise."
-            )
+        # 2. Prepare the environment for _process_videos
+        scanned_files = ProjectManager.scan_input_paths([video_path])
+        if not scanned_files:
+            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
             return
+        video_to_process = scanned_files[0]
 
-        video_info = self.pending_single_video_analysis
-        self.pending_single_video_analysis = None  # Limpar o estado
-
-        video_to_process = {"path": video_info["video_path"]}
-        video_name = os.path.splitext(os.path.basename(video_info["video_path"]))[0]
-        output_dir = os.path.join(
-            os.path.dirname(video_info["video_path"]), f"{video_name}_results"
-        )
+        output_dir = os.path.join(os.path.dirname(video_path), f"{os.path.splitext(os.path.basename(video_path))[0]}_results")
         os.makedirs(output_dir, exist_ok=True)
 
-        # Inicie o processamento real em uma thread separada para não bloquear a GUI
-        self.processing_thread = threading.Thread(
-            target=self._process_videos,
-            args=([video_to_process], output_dir),
-            kwargs={"single_video_config": video_info["config"]},
-            daemon=True,
+        # 3. Call the processing
+        self._process_videos([video_to_process], output_dir, single_video_config=config)
+
+        self.view.show_info(
+            "Sucesso",
+            f"Análise de vídeo único concluída. Resultados salvos em:\n{output_dir}",
         )
-        self.processing_thread.start()
+        # Optional: Return to the welcome screen after completion
+        self.view._create_welcome_frame()
 
     def start_project_processing_workflow(self):
         """Handles adding and processing a new batch of videos in a project."""

@@ -624,6 +624,9 @@ class ApplicationGUI:
         self.main_controls_frame = None
         self.zone_tab_frame = None
         self.status_var = StringVar()
+        self.pending_single_video_path = None
+        self.pending_single_video_config = None
+        self.start_single_analysis_btn = None
 
         # ROI Tab Widgets
         self.roi_listbox = None
@@ -656,12 +659,12 @@ class ApplicationGUI:
     def _cleanup_single_analysis_button(self):
         """Destroys the single analysis button if it exists."""
         if (
-            hasattr(self, "run_single_analysis_btn")
-            and self.run_single_analysis_btn is not None
+            hasattr(self, "start_single_analysis_btn")
+            and self.start_single_analysis_btn is not None
         ):
-            if self.run_single_analysis_btn.winfo_exists():
-                self.run_single_analysis_btn.destroy()
-            self.run_single_analysis_btn = None
+            if self.start_single_analysis_btn.winfo_exists():
+                self.start_single_analysis_btn.destroy()
+            self.start_single_analysis_btn = None
 
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
@@ -907,24 +910,19 @@ class ApplicationGUI:
             width=10,
         ).pack(anchor="w", padx=10)
 
-        if self.controller.project_manager.get_project_type() == "pre-recorded":
-            ttk.Button(
-                actions_frame,
-                text="Detectar Aquário (Auto)",
-                command=self.controller.run_aquarium_detection,
-            ).pack(fill="x", pady=2)
-        else:  # Live mode
-            ttk.Button(
-                actions_frame,
-                text="Iniciar Calibração",
-                command=self.controller.run_live_calibration,
-            ).pack(fill="x", pady=2)
-
+        # Button for automatic detection
         ttk.Button(
-            actions_frame, text="Desenhar Polígono Principal", command=lambda: None
+            actions_frame,
+            text="Detectar Aquário (Auto)",
+            command=self._on_auto_detect_clicked,  # Change to a new handler method
+        ).pack(fill="x", pady=2)
+
+        # Manual drawing buttons
+        ttk.Button(
+            actions_frame, text="Desenhar Polígono Principal", command=self._start_polygon_drawing
         ).pack(fill="x", pady=2)
         ttk.Button(
-            actions_frame, text="Desenhar Área de Interesse", command=lambda: None
+            actions_frame, text="Desenhar Área de Interesse", command=self._start_polygon_drawing
         ).pack(fill="x", pady=2)
 
         # --- Zone List ---
@@ -1054,85 +1052,56 @@ class ApplicationGUI:
             self.zone_prop_exit_cmd_var.set("2")
 
     def display_suggested_polygon(self, polygon: np.ndarray):
-        """Draws a detected polygon on the canvas for user confirmation."""
-        # Clear any previously suggested polygon
-        self.roi_canvas.delete("suggested_polygon")
+        """Draws a detected polygon and saves it as the main arena."""
+        polygon_points = polygon.tolist()
 
-        # Store the points for potential editing or saving
-        self.current_polygon_points = polygon.tolist()
+        # Save the detected polygon as the main arena
+        self.controller.update_main_arena(polygon_points)
 
-        # Draw the new polygon with a distinct style
+        # Clear any previously suggested polygon and draw the new one
+        self.roi_canvas.delete("suggested_polygon", "main_arena")
         self.roi_canvas.create_polygon(
-            self.current_polygon_points,
+            polygon_points,
             fill="",  # No fill
-            outline="yellow",
-            dash=(4, 4),
+            outline="yellow",  # Yellow to indicate it was auto-detected
             width=2,
-            tags="suggested_polygon",
+            tags="main_arena",
         )
         self.set_status(
-            "Detecção automática concluída. Aceite, edite ou desenhe manualmente."
+            "Detecção automática concluída. A arena foi definida."
         )
 
-    def display_roi_video_frame(self, video_path: str):
-        """Opens a video, reads the first frame, and displays it on the ROI canvas."""
+    def display_roi_video_frame(self, video_path):
+        """Loads the first frame of a video, displays it on the canvas, and adjusts the window size."""
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                self.show_error(
-                    "Erro de Vídeo",
-                    f"Não foi possível abrir o arquivo de vídeo:\n{video_path}",
-                )
+                self.show_error("Erro", "Não foi possível abrir o vídeo.")
                 return
-
             ret, frame = cap.read()
             cap.release()
-
             if not ret:
-                self.show_error(
-                    "Erro de Vídeo",
-                    f"Não foi possível ler o primeiro frame do vídeo:\n{video_path}",
-                )
+                self.show_error("Erro", "Não foi possível ler um frame do vídeo.")
                 return
 
-            # Resize frame to fit canvas while maintaining aspect ratio
-            canvas_w = self.roi_canvas.winfo_width()
-            canvas_h = self.roi_canvas.winfo_height()
-
-            # This is a fallback in case the canvas size is not yet known
-            if canvas_w < 2 or canvas_h < 2:
-                canvas_w, canvas_h = self.DEFAULT_CANVAS_WIDTH, self.DEFAULT_CANVAS_HEIGHT
-
+            # Logic to display on the canvas
             h, w, _ = frame.shape
-            aspect_ratio = w / h
+            # Adjust the main window to a proportional size
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+            win_w = min(int(screen_w * 0.8), w + 350) # Add space for controls
+            win_h = min(int(screen_h * 0.8), h + 100)
+            self.root.geometry(f"{win_w}x{win_h}")
+            self.root.update_idletasks()
 
-            if w > canvas_w or h > canvas_h:
-                if (canvas_w / aspect_ratio) < canvas_h:
-                    new_w = canvas_w
-                    new_h = int(new_w / aspect_ratio)
-                else:
-                    new_h = canvas_h
-                    new_w = int(new_h * aspect_ratio)
-                frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-            # Convert for Tkinter
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb)
-
-            # Store reference to avoid garbage collection
-            self._canvas_bg_image = ImageTk.PhotoImage(image=img)
-
-            # Clear previous drawings and display new image
-            self.roi_canvas.delete("all")
+            # Convert and display the image
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            self._canvas_bg_image = ImageTk.PhotoImage(img)
+            self.roi_canvas.config(width=w, height=h)
             self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
-            self.roi_canvas.config(scrollregion=self.roi_canvas.bbox("all"))
 
         except Exception as e:
-            log.error("gui.display_roi_frame.error", exc_info=True)
-            self.show_error(
-                "Erro ao Exibir Frame",
-                f"Ocorreu um erro ao exibir o frame do vídeo: {e}",
-            )
+            self.show_error("Erro ao Exibir Frame", str(e))
 
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
@@ -1333,54 +1302,27 @@ class ApplicationGUI:
             )
 
     def _on_canvas_double_click(self, event):
-        """Finalizes the polygon drawing."""
+        """Finalizes the polygon drawing, updating the main arena."""
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             self._stop_drawing()
             return
 
-        # Ask for a name
-        roi_name = self.ask_string(
-            "Nome da ROI", "Digite um nome para esta nova Região de Interesse:"
-        )
-        if not roi_name:
-            self.current_polygon_points = []
-            self._stop_drawing()
-            return
+        # The polygon is finalized, send it to the controller
+        self.controller.update_main_arena(self.current_polygon_points)
 
-        # Save and draw the final polygon
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
-            self._stop_drawing()
-            return
-
-        new_roi = {
-            "name": roi_name,
-            "type": "polygon",
-            "coords": self.current_polygon_points,
-        }
-        self.roi_data.setdefault(current_arena_id, []).append(new_roi)
-
+        # Draw the final polygon permanently on the canvas
         self.roi_canvas.create_polygon(
             self.current_polygon_points,
-            fill="cyan",
-            outline="blue",
-            stipple="gray25",
+            fill="",
+            outline="cyan",
             width=2,
+            tags="main_arena",
         )
 
-        # Update the listbox
-        self.roi_listbox.insert("", "end", values=(roi_name,))
-
+        # Clean up temporary drawing elements and state
         self.current_polygon_points = []
         self._stop_drawing()
-
-        # New logic to enable single analysis button
-        if (
-            hasattr(self, "run_single_analysis_btn")
-            and self.run_single_analysis_btn.winfo_exists()
-        ):
-            self.run_single_analysis_btn.config(state="normal")
+        self.set_status("Arena principal definida. Pronto para iniciar a análise.")
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
@@ -2093,33 +2035,61 @@ class ApplicationGUI:
             config=dialog.result,
         )
 
-    def setup_zone_configuration_for_video(self, video_path: str):
-        """Switches to the zone tab and loads a video frame for configuration."""
-        self.notebook.select(self.zone_tab_frame)
-        self.display_roi_video_frame(video_path)
+    def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
+        """Prepares and displays the zone configuration tab for a single video."""
+        self.pending_single_video_path = video_path
+        self.pending_single_video_config = config
 
-        # Show the options frame, packed right after the drawing actions
-        zone_children = self.zone_controls_frame.winfo_children()
-        if zone_children:
-            self.single_analysis_options_frame.pack(fill="x", pady=5, after=zone_children[0])
-        else:
-            self.single_analysis_options_frame.pack(fill="x", pady=5)
+        # Open the main project view if it is not already open
+        if not self.notebook:
+            self._create_main_control_frame()
+
+        self.display_roi_video_frame(video_path)
+        self.notebook.select(self.zone_tab_frame)
+
+        # Add a "Start Analysis" button specific to this flow
+        if not self.start_single_analysis_btn:
+            self.start_single_analysis_btn = ttk.Button(
+                self.zone_controls_frame, # Add to the left control panel
+                text="Iniciar Análise de Vídeo Único",
+                command=self._on_start_single_video_processing_clicked
+            )
+            self.start_single_analysis_btn.pack(side="bottom", fill="x", pady=10, padx=5)
+        self.start_single_analysis_btn.config(state="normal")
 
         self.show_info(
             "Configuração Necessária",
-            "Configuração Necessária",
-            "Por favor, defina a área do aquário usando a 'Detecção Automática' "
-            "ou desenhando o 'Polígono Principal'.\n\n"
-            "Após definir a arena, clique em 'Iniciar Análise'.",
+            "Defina a arena do aquário usando a detecção automática ou o desenho manual.\n\n"
+            "Após definir a arena principal, clique em 'Iniciar Análise de Vídeo Único'."
         )
-        # Adicione um novo botão "Iniciar Análise" na aba de zonas
-        self.run_single_analysis_btn = ttk.Button(
-            self.zone_controls_frame,
-            text="Iniciar Análise de Vídeo Único",
-            command=self.controller.resume_single_video_analysis,
-            state="disabled" # Initially disabled
+
+    def _on_auto_detect_clicked(self):
+        """Handler for the auto-detect button."""
+        if self.pending_single_video_path:
+            # Single video flow
+            self.controller.run_aquarium_detection(video_path=self.pending_single_video_path)
+        else:
+            # Project flow
+            self.controller.run_aquarium_detection()
+
+    def _on_start_single_video_processing_clicked(self):
+        """Handler for the 'Start Analysis' button in the single video flow."""
+        # 1. Get the zone data that the user drew
+        zone_data = self.controller.project_manager.get_zone_data() # Assuming the UI updates the PM
+        if not zone_data.polygon:
+            self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
+            return
+
+        # 2. Disable the button and call the controller to start processing
+        self.start_single_analysis_btn.config(state="disabled")
+        self.controller.start_single_video_processing(
+            self.pending_single_video_path,
+            self.pending_single_video_config,
+            zone_data
         )
-        self.run_single_analysis_btn.pack(fill="x", pady=10, padx=5)
+        # Clear the pending state
+        self.pending_single_video_path = None
+        self.pending_single_video_config = None
 
     def _on_close(self):
         """Delegates the close action to the controller."""
