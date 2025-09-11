@@ -195,3 +195,55 @@ def test_calculate_thigmotaxis_index_raises_error(sample_trajectory_data):
     analyzer = ConcreteAnalyzer(**analyzer_args)
     with pytest.raises(ValueError, match="'distance_threshold' is required"):
         analyzer.calculate_thigmotaxis_index(method="time_near_wall")
+
+
+def test_preprocess_data_handles_duplicate_timestamps():
+    """
+    Tests that the preprocessing step correctly handles duplicate timestamps
+    by aggregating them, which prevents downstream errors.
+    """
+    # 1. Create a DataFrame with a duplicate timestamp at t=1.0
+    data = {
+        "timestamp": [0.0, 1.0, 1.0, 2.0],
+        "x_center_px": [10, 20, 30, 40],  # mean should be 25
+        "y_center_px": [10, 20, 30, 40],
+        "confidence": [0.9, 0.8, 0.95, 0.9],  # max should be 0.95
+        "track_id": [1, 1, 2, 1],  # first should be 1
+        # Add dummy bbox data
+        "x1": [9, 19, 29, 39],
+        "y1": [9, 19, 29, 39],
+        "x2": [11, 21, 31, 41],
+        "y2": [11, 21, 31, 41],
+    }
+    test_df = pd.DataFrame(data)
+
+    # 2. Setup the analyzer
+    analyzer_args = {
+        "trajectory_df": test_df,
+        "pixelcm_x": 1.0,
+        "pixelcm_y": 1.0,
+        "video_height_px": 100,
+        "arena_polygon_px": [(0, 0), (100, 0), (100, 100), (0, 100)],
+    }
+    # Use the concrete implementation from this test file
+    analyzer = ConcreteAnalyzer(**analyzer_args)
+    processed_df = analyzer.trajectory_data
+
+    # 3. Perform assertions
+    # The primary assertion: no duplicate timestamps in the index
+    assert not processed_df.index.has_duplicates, "Index should be unique after preprocessing."
+
+    # Check that the number of rows is correct (3 unique timestamps)
+    assert len(processed_df) == 3
+
+    # Check the aggregated values for the consolidated row (at timestamp 1.0)
+    consolidated_row = processed_df.loc[pd.to_timedelta(1.0, unit="s")]
+    assert np.isclose(
+        consolidated_row["x_center_px"], 25.0
+    ), "x_center_px should be the mean of the duplicates."
+    assert np.isclose(
+        consolidated_row["confidence"], 0.95
+    ), "confidence should be the max of the duplicates."
+    assert (
+        consolidated_row["track_id"] == 1
+    ), "track_id should be the first of the duplicates."

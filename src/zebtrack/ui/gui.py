@@ -634,6 +634,7 @@ class ApplicationGUI:
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
         self.progress_bar = None
+        self.cancel_proc_btn: Button | None = None
         self.progress_labels: dict[str, StringVar] = {}
         self.video_label: Label | None = None
 
@@ -1455,13 +1456,15 @@ class ApplicationGUI:
         if self.progress_frame:
             self.progress_frame.destroy()
         self.progress_frame = Frame(self.root)
-        # Video preview area (placed above bar as requested: bar below video)
+        # Video preview area
         self.video_label = Label(self.progress_frame)
         self.video_label.pack(pady=3)
+        # Progress bar
         self.progress_bar = ttk.Progressbar(
             self.progress_frame, orient="horizontal", length=400, mode="determinate"
         )
-        self.progress_bar.pack(pady=3, fill="x")
+        self.progress_bar.pack(pady=3, fill="x", expand=True)
+        # Stats container
         stats_container = Frame(self.progress_frame)
         stats_container.pack(fill="x")
         for key, label_text in [
@@ -1478,6 +1481,14 @@ class ApplicationGUI:
             var = StringVar(value="-")
             Label(f, textvariable=var).pack(anchor="w")
             self.progress_labels[key] = var
+
+        # Cancel Button
+        self.cancel_proc_btn = ttk.Button(
+            self.progress_frame,
+            text="Cancelar Análise",
+            command=self.controller.cancel_current_analysis,
+        )
+        self.cancel_proc_btn.pack(pady=5)
         self.progress_frame.pack_forget()
 
     def _load_project_view(self):
@@ -1978,10 +1989,12 @@ class ApplicationGUI:
         self.status_var.set(text)
 
     def show_progress_bar(self):
-        """Shows the progress bar frame."""
+        """Shows the progress bar frame and cancel button."""
         if self.progress_frame and not self.progress_frame.winfo_viewable():
             self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = 0
+        if self.cancel_proc_btn:
+            self.cancel_proc_btn.config(state="normal")
 
     def update_progress(self, value):
         """Updates the progress bar."""
@@ -2020,10 +2033,12 @@ class ApplicationGUI:
             self.progress_labels["eta"].set(self._format_time(eta) if eta >= 0 else "-")
 
     def hide_progress_bar(self):
-        """Hides the progress bar and resets its value."""
+        """Hides the progress bar and cancel button, and resets its value."""
         if self.progress_frame and self.progress_frame.winfo_viewable():
             self.progress_frame.pack_forget()
             self.progress_bar["value"] = 0
+        if self.cancel_proc_btn:
+            self.cancel_proc_btn.config(state="disabled")
 
     def display_frame(self, frame):
         """Display a video frame inside the GUI (used for preview)."""
