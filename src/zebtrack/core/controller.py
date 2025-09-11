@@ -74,7 +74,7 @@ class AppController:
             log.info("controller.shutdown.join_capture_thread")
             self.capture_thread.join()
 
-        if hasattr(self, "processing_thread") and self.processing_thread.is_alive():
+        if self.processing_thread is not None and self.processing_thread.is_alive():
             log.info("controller.shutdown.join_processing_thread")
             self.processing_thread.join()
 
@@ -530,11 +530,27 @@ class AppController:
     def start_single_video_workflow(self, video_path: str, config: dict):
         """Prepares the GUI for a single video analysis workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
+
+        # If we are on the welcome screen, we need to transition to the main view.
+        if self.view.notebook is None:
+            # Create a temporary project context to build the main UI correctly.
+            self.project_manager.project_data = {
+                "project_name": "Análise de Vídeo Único",
+                "project_type": "pre-recorded",
+                "videos": [],
+                "batches": [],
+                "active_weight": self.active_weight_name,
+                "use_openvino": self.use_openvino,
+            }
+            if not self.setup_detector():
+                return  # Detector setup failed, stop workflow.
+            self.view._load_project_view()
+
         self.pending_single_video_analysis = {
             "video_path": video_path,
             "config": config,
         }
-        # Nova função a ser criada na GUI
+        # Now that the notebook is guaranteed to exist, this call is safe.
         self.view.setup_zone_configuration_for_video(video_path)
 
     def resume_single_video_analysis(self):
