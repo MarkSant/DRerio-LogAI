@@ -178,23 +178,27 @@ class Recorder:
                 exc_info=e,
             )
 
-        # Save areas of interest
+        # Save areas of interest (polygons)
         areas_of_interest_filename = os.path.join(
             folder_path, f"2_AreasOfInterest_{self.base_name}.parquet"
         )
         try:
-            areas_data = []
-            for i, ((x1, y1), (x2, y2)) in enumerate(zones.squares):
-                areas_data.append([f"Area {i + 1}", x1, y1, x2, y2])
-            areas_df = pd.DataFrame(
-                areas_data, columns=["area", "x1", "y1", "x2", "y2"]
-            )
-            table = pa.Table.from_pandas(areas_df)
-            pq.write_table(table, areas_of_interest_filename)
-            log.info(
-                "recorder.save_areas_of_interest.success",
-                path=areas_of_interest_filename,
-            )
+            poly_data = []
+            for i, polygon_points in enumerate(zones.roi_polygons):
+                roi_name = zones.roi_names[i] if i < len(zones.roi_names) else f"ROI_{i+1}"
+                for j, (x, y) in enumerate(polygon_points):
+                    poly_data.append([roi_name, j, x, y])
+
+            if poly_data:
+                areas_df = pd.DataFrame(
+                    poly_data, columns=["roi_name", "point_index", "x", "y"]
+                )
+                table = pa.Table.from_pandas(areas_df)
+                pq.write_table(table, areas_of_interest_filename)
+                log.info(
+                    "recorder.save_areas_of_interest.success",
+                    path=areas_of_interest_filename,
+                )
         except Exception as e:
             log.error(
                 "recorder.save_areas_of_interest.error",
