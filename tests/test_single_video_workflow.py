@@ -65,12 +65,12 @@ def single_video_test_setup(tmp_path: Path):
     generate_mock_video(str(video_path))
 
     # 2. Mock the controller and its UI
-    # We patch the __init__ to avoid it creating a real Tkinter root
-    with patch.object(AppController, "__init__", lambda *args, **kwargs: None):
-        controller = AppController(root=None)
-        controller.view = MagicMock()
-        controller.program_exit_event = MagicMock()
-        controller.program_exit_event.is_set.return_value = False
+    with patch("zebtrack.core.controller.ApplicationGUI") as mock_gui:
+        mock_root = MagicMock()
+        controller = AppController(root=mock_root)
+        # The real controller creates its own view, so we just use the one it created
+        # which is now a MagicMock thanks to the patch.
+        controller.view = mock_gui.return_value
 
     # 3. Setup a mock detector on the controller
     mock_plugin_instance = MockPlugin(model_path="dummy")
@@ -85,6 +85,7 @@ def single_video_test_setup(tmp_path: Path):
     controller.project_manager.get_zone_data.return_value = MagicMock(
         polygon=None, squares=[], colors=[]
     )
+    controller.project_manager.get_calibration_data.return_value = {} # Mock calibration data
 
 
     # 4. Define the configuration that the dialog would produce

@@ -43,6 +43,7 @@ class AppController:
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
         self.cancel_event = threading.Event()
+        self.pending_single_video_analysis = None
 
         # New state variables for model management
         self.active_weight_name, _ = self.weight_manager.get_default_weight()
@@ -527,61 +528,42 @@ class AppController:
             self.cancel_event.set()
 
     def start_single_video_workflow(self, video_path: str, config: dict):
-        """Handles the 'Analyze Single Video' workflow."""
-        log.info("workflow.single_video.start", video=video_path)
+        """Prepares the GUI for a single video analysis workflow."""
+        log.info("workflow.single_video.setup_start", video=video_path)
+        self.pending_single_video_analysis = {
+            "video_path": video_path,
+            "config": config,
+        }
+        # Nova função a ser criada na GUI
+        self.view.setup_zone_configuration_for_video(video_path)
 
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.view.show_warning(
-                "Análise em Andamento",
-                "Uma análise de vídeo já está em andamento. "
-                "Por favor, aguarde ou cancele a análise atual.",
-            )
+    def resume_single_video_analysis(self):
+        """Resumes the single video analysis after zones are configured."""
+        if not self.pending_single_video_analysis:
+            log.error("workflow.single_video.resume_no_pending_job")
             return
 
-        # 1. Ensure the detector is set up
-        if not self.detector:
-            if not self.setup_detector():
-                self.view.show_error(
-                    "Erro",
-                    "Não foi possível configurar o detector. "
-                    "Por favor, configure um modelo na tela principal.",
-                )
-                return
-
-        # 2. Scan the single video
-        scanned_files = ProjectManager.scan_input_paths([video_path])
-        if not scanned_files:
+        # Verifique se a arena principal foi definida
+        zone_data = self.project_manager.get_zone_data()
+        if not zone_data.polygon:
             self.view.show_error(
-                "Erro", "Não foi possível identificar um arquivo de vídeo válido."
+                "Arena Faltando",
+                "Por favor, defina a área do aquário (polígono principal) antes de iniciar a análise."
             )
             return
 
-        video_to_process = scanned_files[0]
+        video_info = self.pending_single_video_analysis
+        self.pending_single_video_analysis = None  # Limpar o estado
 
-        # 3. Check for existing data
-        if video_to_process["has_data"]:
-            if not self.view.ask_ok_cancel(
-                "Dados Encontrados",
-                "Dados de análise existentes (.parquet) encontrados para este vídeo. "
-                "Deseja substituí-los reprocessando o vídeo?",
-            ):
-                self.view.show_info("Cancelado", "Análise de vídeo único cancelada.")
-                return
-
-        # 4. Create a "mini-project" folder for the results
-        video_name = os.path.splitext(os.path.basename(video_path))[0]
-        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
+        video_to_process = {"path": video_info["video_path"]}
+        video_name = os.path.splitext(os.path.basename(video_info["video_path"]))[0]
+        output_dir = os.path.join(os.path.dirname(video_info["video_path"]), f"{video_name}_results")
         os.makedirs(output_dir, exist_ok=True)
 
-        # 5. Process the video in a background thread
-        self.cancel_event.clear()
-        self.processing_thread = threading.Thread(
-            target=self._process_videos,
-            args=([video_to_process], output_dir),
-            kwargs={"single_video_config": config},
-            daemon=True,
+        # Inicie o processamento real
+        self._process_videos(
+            [video_to_process], output_dir, single_video_config=video_info["config"]
         )
-        self.processing_thread.start()
 
     def start_project_processing_workflow(self):
         """Handles adding and processing a new batch of videos in a project."""
@@ -706,6 +688,7 @@ class AppController:
         video_path: str,
         results_dir: str,
         experiment_id: str,
+        progress_callback=None,
         calibration_data: dict | None = None,
     ) -> tuple[bool, list | None]:
         """
@@ -775,27 +758,27 @@ class AppController:
             frame_num = 0
             log.info("controller.tracking.loop.start", video=experiment_id)
             while not self.cancel_event.is_set():
-                #if frame_num >= 10:
-                #    log.info("controller.tracking.loop.limit_reached", video=experiment_id, frame_count=10)
-                #    break
-
-                log.debug("controller.tracking.loop.reading_frame", frame=frame_num)
                 ret, frame = cap.read()
                 if not ret:
                     log.info("controller.tracking.loop.end_of_video", frame=frame_num)
                     break
-                log.debug("controller.tracking.loop.frame_read.success", frame=frame_num)
 
-                log.debug("controller.tracking.loop.processing_frame", frame=frame_num)
                 detections, _ = self.detector.process_frame(
                     frame, project_type="pre-recorded"
                 )
-                log.debug("controller.tracking.loop.frame_processed", frame=frame_num, detection_count=len(detections))
 
                 timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-                log.debug("controller.tracking.loop.writing_data", frame=frame_num)
                 recorder.write_detection_data(timestamp, frame_num, detections)
-                log.debug("controller.tracking.loop.data_written", frame=frame_num)
+
+                # Desenha as detecções (bounding boxes)
+                self.detector.draw_overlay(frame, detections)
+
+                # Chama o callback para atualizar a GUI
+                if progress_callback:
+                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
+                    # A GUI usará o frame para exibição
+                    progress_callback(progress_fraction, "Gerando trajetória...", frame)
 
                 frame_num += 1
 
@@ -853,7 +836,7 @@ class AppController:
                 video_path = video_info["path"]
                 experiment_id = os.path.splitext(os.path.basename(video_path))[0]
 
-                def progress_callback(progress_fraction, status_message):
+                def progress_callback(progress_fraction, status_message, frame=None):
                     if self.cancel_event.is_set():
                         return
                     overall_progress = f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
@@ -864,7 +847,11 @@ class AppController:
                     self.root.after(
                         0, lambda p=progress_fraction: self.view.update_progress(p)
                     )
+                    if frame is not None:
+                        # A função display_frame agora vai desenhar as zonas automaticamente
+                        self.view.display_frame(frame)
 
+                # Display first frame before starting
                 try:
                     cap = cv2.VideoCapture(video_path)
                     ret, frame = cap.read()
@@ -883,6 +870,7 @@ class AppController:
                     video_path,
                     results_dir,
                     experiment_id,
+                    progress_callback,
                     calibration_data=single_video_config,
                 )
                 if self.cancel_event.is_set():

@@ -653,6 +653,8 @@ class ApplicationGUI:
 
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
+        if hasattr(self, 'run_single_analysis_btn') and self.run_single_analysis_btn.winfo_exists():
+            self.run_single_analysis_btn.destroy()
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
@@ -857,6 +859,33 @@ class ApplicationGUI:
         )
         actions_frame.pack(fill="x", pady=5)
 
+        # --- Single Analysis Options ---
+        self.single_analysis_options_frame = ttk.LabelFrame(
+            self.zone_controls_frame, text="Opções de Análise de Vídeo Único", padding=10
+        )
+        # This frame is packed on demand by setup_zone_configuration_for_video
+
+        # ROI options
+        self.roi_choice_var = StringVar(value="none")
+        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
+        ttk.Radiobutton(
+            self.single_analysis_options_frame, text="Não usar ROIs",
+            variable=self.roi_choice_var, value="none"
+        ).pack(anchor="w", padx=10)
+        ttk.Radiobutton(
+            self.single_analysis_options_frame, text="Desenhar ROIs manualmente",
+            variable=self.roi_choice_var, value="manual"
+        ).pack(anchor="w", padx=10)
+        ttk.Radiobutton(
+            self.single_analysis_options_frame, text="Usar ROIs de template",
+            variable=self.roi_choice_var, value="template"
+        ).pack(anchor="w", padx=10)
+
+        # Frame interval
+        ttk.Label(self.single_analysis_options_frame, text="Intervalo de feedback (frames):").pack(anchor="w", pady=(10,0))
+        self.feedback_interval_var = StringVar(value="10")
+        ttk.Entry(self.single_analysis_options_frame, textvariable=self.feedback_interval_var, width=10).pack(anchor="w", padx=10)
+
         if self.controller.project_manager.get_project_type() == "pre-recorded":
             ttk.Button(
                 actions_frame,
@@ -1023,6 +1052,57 @@ class ApplicationGUI:
         self.set_status(
             "Detecção automática concluída. Aceite, edite ou desenhe manualmente."
         )
+
+    def display_roi_video_frame(self, video_path: str):
+        """Opens a video, reads the first frame, and displays it on the ROI canvas."""
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                self.show_error("Erro de Vídeo", f"Não foi possível abrir o arquivo de vídeo:\n{video_path}")
+                return
+
+            ret, frame = cap.read()
+            cap.release()
+
+            if not ret:
+                self.show_error("Erro de Vídeo", f"Não foi possível ler o primeiro frame do vídeo:\n{video_path}")
+                return
+
+            # Resize frame to fit canvas while maintaining aspect ratio
+            canvas_w = self.roi_canvas.winfo_width()
+            canvas_h = self.roi_canvas.winfo_height()
+
+            # This is a fallback in case the canvas size is not yet known
+            if canvas_w < 2 or canvas_h < 2:
+                canvas_w, canvas_h = 800, 600 # Default size
+
+            h, w, _ = frame.shape
+            aspect_ratio = w / h
+
+            if w > canvas_w or h > canvas_h:
+                if (canvas_w / aspect_ratio) < canvas_h:
+                    new_w = canvas_w
+                    new_h = int(new_w / aspect_ratio)
+                else:
+                    new_h = canvas_h
+                    new_w = int(new_h * aspect_ratio)
+                frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+            # Convert for Tkinter
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame_rgb)
+
+            # Store reference to avoid garbage collection
+            self._canvas_bg_image = ImageTk.PhotoImage(image=img)
+
+            # Clear previous drawings and display new image
+            self.roi_canvas.delete("all")
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+            self.roi_canvas.config(scrollregion=self.roi_canvas.bbox("all"))
+
+        except Exception as e:
+            log.error("gui.display_roi_frame.error", exc_info=True)
+            self.show_error("Erro ao Exibir Frame", f"Ocorreu um erro ao exibir o frame do vídeo: {e}")
 
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
@@ -1264,6 +1344,10 @@ class ApplicationGUI:
 
         self.current_polygon_points = []
         self._stop_drawing()
+
+        # New logic to enable single analysis button
+        if hasattr(self, 'run_single_analysis_btn') and self.run_single_analysis_btn.winfo_exists():
+            self.run_single_analysis_btn.config(state="normal")
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
@@ -1976,6 +2060,27 @@ class ApplicationGUI:
             config=dialog.result,
         )
 
+    def setup_zone_configuration_for_video(self, video_path: str):
+        """Switches to the zone tab and loads a video frame for configuration."""
+        self.notebook.select(self.zone_tab_frame)
+        self.display_roi_video_frame(video_path)
+
+        # Show the options frame, packed right after the drawing actions
+        self.single_analysis_options_frame.pack(fill="x", pady=5, after=self.zone_controls_frame.winfo_children()[0])
+
+        self.show_info(
+            "Configuração Necessária",
+            "Por favor, defina a área do aquário usando a 'Detecção Automática' ou desenhando o 'Polígono Principal'.\n\nApós definir a arena, clique em 'Iniciar Análise'."
+        )
+        # Adicione um novo botão "Iniciar Análise" na aba de zonas
+        self.run_single_analysis_btn = ttk.Button(
+            self.zone_controls_frame,
+            text="Iniciar Análise de Vídeo Único",
+            command=self.controller.resume_single_video_analysis,
+            state="disabled" # Initially disabled
+        )
+        self.run_single_analysis_btn.pack(fill="x", pady=10, padx=5)
+
     def _on_close(self):
         """Delegates the close action to the controller."""
         self.controller.on_close()
@@ -2040,11 +2145,29 @@ class ApplicationGUI:
         if self.cancel_proc_btn:
             self.cancel_proc_btn.config(state="disabled")
 
+    def _draw_zones_on_frame(self, frame):
+        """Desenha a arena e as ROIs salvas no frame de vídeo."""
+        zone_data = self.controller.project_manager.get_zone_data()
+        if zone_data.polygon:
+            pts = np.array(zone_data.polygon, np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.polylines(frame, [pts], isClosed=True, color=(255, 255, 0), thickness=2) # Ciano para a arena
+
+        for i, square_coords in enumerate(zone_data.squares):
+            color = zone_data.colors[i] if i < len(zone_data.colors) else (0, 255, 0) # Verde padrão
+            pt1 = (int(square_coords[0][0]), int(square_coords[0][1]))
+            pt2 = (int(square_coords[1][0]), int(square_coords[1][1]))
+            cv2.rectangle(frame, pt1, pt2, color, 2)
+        return frame
+
     def display_frame(self, frame):
-        """Display a video frame inside the GUI (used for preview)."""
+        """Display a video frame inside the GUI, with overlays."""
         try:
-            # Convert and embed
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Desenha as zonas antes de exibir
+            frame_with_zones = self._draw_zones_on_frame(frame.copy())
+
+            # Converte e embute
+            frame_rgb = cv2.cvtColor(frame_with_zones, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
             imgtk = ImageTk.PhotoImage(image=img)
             if self.video_label:
