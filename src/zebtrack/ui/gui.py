@@ -36,11 +36,271 @@ from zebtrack.settings import settings
 log = structlog.get_logger()
 
 
-class ManageWeightsDialog(simpledialog.Dialog):
-    """Dialog to manage the available weights."""
+class CalibrationDialog(simpledialog.Dialog):
+    """Dialog for model calibration and diagnostics."""
 
     def __init__(self, parent, controller):
         self.controller = controller
+        self.view = controller.view # Still need this for some callbacks like _manage_weights_clicked
+
+        # Local Tkinter variables for this dialog
+        self.active_weight_var = StringVar()
+        self.use_openvino_var = BooleanVar()
+        self.openvino_status_var = StringVar()
+
+        super().__init__(parent, "Calibração e Diagnóstico")
+
+    def body(self, master):
+        # --- Frame for model configuration ---
+        model_frame = ttk.LabelFrame(
+            master, text="Configuração do Modelo", padding=10
+        )
+        model_frame.pack(fill="x", pady=5, padx=5)
+        model_frame.columnconfigure(1, weight=1)
+
+        # --- Row 0: Weight Selection ---
+        ttk.Label(model_frame, text="Peso Ativo:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=3
+        )
+        self.weights_dropdown = ttk.Combobox(
+            model_frame, textvariable=self.active_weight_var, state="readonly"
+        )
+        self.weights_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=3)
+        self.weights_dropdown.bind(
+            "<<ComboboxSelected>>", self._on_weight_selected_local
+        )
+        self._populate_weights_dropdown()
+
+        # --- Row 1: Weight Management Buttons ---
+        btn_frame = ttk.Frame(model_frame)
+        btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
+        ttk.Button(
+            btn_frame,
+            text="Carregar Novo Peso...",
+            command=self._load_new_weight_local,
+        ).pack(side="left", padx=(0, 5))
+        ttk.Button(
+            btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_local
+        ).pack(side="left")
+
+        # --- Row 2: OpenVINO Toggle ---
+        self.openvino_checkbox = ttk.Checkbutton(
+            model_frame,
+            text="Otimizar com OpenVINO (para hardware Intel)",
+            variable=self.use_openvino_var,
+            command=self._on_openvino_toggled_local,
+        )
+        self.openvino_checkbox.grid(
+            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2)
+        )
+
+        # --- Row 3: OpenVINO Status ---
+        self.openvino_status_label = ttk.Label(
+            model_frame, textvariable=self.openvino_status_var, font=("Segoe UI", 8)
+        )
+        self.openvino_status_label.grid(
+            row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5)
+        )
+
+        # Set initial state from controller
+        self.use_openvino_var.set(self.controller.use_openvino)
+        self._update_openvino_status_local()
+
+    def _populate_weights_dropdown(self):
+        """(Re)populates the weights dropdown in the dialog."""
+        weights_list = self.controller.get_all_weight_names()
+        self.weights_dropdown["values"] = weights_list
+        if not weights_list:
+            self.active_weight_var.set("Nenhum peso encontrado.")
+            self.weights_dropdown.config(state="disabled")
+        else:
+            self.weights_dropdown.config(state="readonly")
+            # Set to the controller's current weight
+            current_weight = self.controller.active_weight_name
+            if current_weight in weights_list:
+                self.active_weight_var.set(current_weight)
+            elif weights_list:
+                self.active_weight_var.set(weights_list[0])
+
+    def _on_weight_selected_local(self, event=None):
+        """Callback when user selects a new weight from the dropdown."""
+        selected_weight = self.active_weight_var.get()
+        self.controller.set_active_weight(selected_weight)
+        self._update_openvino_status_local()
+
+    def _on_openvino_toggled_local(self):
+        """Callback when user toggles the OpenVINO checkbox."""
+        self.controller.set_openvino_usage(self.use_openvino_var.get())
+        self._update_openvino_status_local()
+
+    def _update_openvino_status_local(self):
+        """Updates the status label based on the controller's state."""
+        status = self.controller.get_openvino_status()
+        self.openvino_status_var.set(status)
+
+    def _load_new_weight_local(self):
+        """Handles the 'Load New Weight' button click."""
+        # This can call the view's method as it's just a file dialog
+        self.view._load_new_weight_clicked()
+        # Repopulate this dialog's dropdown after the controller has the new weight
+        self._populate_weights_dropdown()
+        self._update_openvino_status_local()
+
+    def _manage_weights_local(self):
+        """Opens the weight management dialog and provides a callback to refresh."""
+        # The callback will be called by the ManageWeightsDialog upon closing
+        def refresh_callback():
+            self._populate_weights_dropdown()
+            self._update_openvino_status_local()
+
+        ManageWeightsDialog(self.parent, self.controller, refresh_callback)
+
+
+        # --- Frame for diagnostics ---
+        diag_frame = ttk.LabelFrame(
+            master, text="Diagnóstico de Desempenho do Modelo", padding=10
+        )
+        diag_frame.pack(fill="x", pady=10, padx=5)
+
+        ttk.Button(
+            diag_frame,
+            text="Testar Modelo em Vídeo...",
+            command=self._open_diagnostic_dialog,
+        ).pack(fill="x", padx=10, pady=5)
+
+    def _open_diagnostic_dialog(self):
+        dialog = DiagnosticDialog(self.parent, self.controller)
+        if dialog.result:
+            self.controller.run_model_diagnostic(dialog.result)
+
+    def buttonbox(self):
+        # Override to have only a close button
+        box = ttk.Frame(self)
+        w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
+        w.pack(side="left", padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
+
+class DiagnosticDialog(simpledialog.Dialog):
+    """Dialog for configuring a model diagnostic test."""
+
+    def __init__(self, parent, controller):
+        self.controller = controller
+        self.video_path = ""
+        self.result = None
+        super().__init__(parent, "Configurar Diagnóstico de Modelo")
+
+    def body(self, master):
+        self.model_choice_var = StringVar(value="YOLO (PyTorch)")
+        self.frames_to_analyze_var = StringVar(value="10")
+        self.confidence_threshold_var = StringVar(value="0.25")
+        self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
+
+        # --- Video Selection ---
+        video_frame = ttk.Frame(master)
+        video_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Button(
+            video_frame, text="Selecionar Vídeo...", command=self._select_video
+        ).pack(side="left")
+        ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
+            side="left", padx=5
+        )
+
+        # --- Parameters ---
+        params_frame = ttk.LabelFrame(master, text="Parâmetros", padding=10)
+        params_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.frames_to_analyze_var, width=10
+        ).grid(row=0, column=1, sticky="w", padx=5)
+
+        ttk.Label(params_frame, text="Limiar de Confiança:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.confidence_threshold_var, width=10
+        ).grid(row=1, column=1, sticky="w", padx=5)
+
+        # --- Model Selection ---
+        model_frame = ttk.LabelFrame(master, text="Modelo a Testar", padding=10)
+        model_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Radiobutton(
+            model_frame,
+            text="YOLO (PyTorch)",
+            variable=self.model_choice_var,
+            value="YOLO (PyTorch)",
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            model_frame, text="OpenVINO", variable=self.model_choice_var, value="OpenVINO"
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            model_frame, text="Ambos", variable=self.model_choice_var, value="Ambos"
+        ).pack(anchor="w")
+
+        return master # initial focus
+
+    def _select_video(self):
+        path = filedialog.askopenfilename(
+            title="Selecione o Vídeo para Diagnóstico",
+            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
+        )
+        if path:
+            self.video_path = path
+            self.video_path_label_var.set(os.path.basename(path))
+
+    def validate(self):
+        if not self.video_path:
+            messagebox.showerror("Erro", "Por favor, selecione um arquivo de vídeo.")
+            return 0
+
+        try:
+            frames = int(self.frames_to_analyze_var.get())
+            if frames <= 0:
+                messagebox.showerror(
+                    "Erro", "O número de frames deve ser um inteiro positivo."
+                )
+                return 0
+        except ValueError:
+            messagebox.showerror(
+                "Erro", "O número de frames deve ser um número inteiro."
+            )
+            return 0
+
+        try:
+            conf = float(self.confidence_threshold_var.get())
+            if not 0.0 <= conf <= 1.0:
+                messagebox.showerror(
+                    "Erro", "O limiar de confiança deve ser um número entre 0.0 e 1.0."
+                )
+                return 0
+        except ValueError:
+            messagebox.showerror(
+                "Erro", "O limiar de confiança deve ser um número válido."
+            )
+            return 0
+        return 1
+
+    def apply(self):
+        self.result = {
+            "video_path": self.video_path,
+            "frames_to_analyze": int(self.frames_to_analyze_var.get()),
+            "confidence_threshold": float(self.confidence_threshold_var.get()),
+            "model_to_test": self.model_choice_var.get(),
+        }
+
+
+class ManageWeightsDialog(simpledialog.Dialog):
+    """Dialog to manage the available weights."""
+
+    def __init__(self, parent, controller, refresh_callback=None):
+        self.controller = controller
+        self.refresh_callback = refresh_callback
         super().__init__(parent, "Gerenciar Pesos de Detecção")
 
     def body(self, master):
@@ -89,8 +349,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         if name:
             self.controller.weight_manager.set_default_weight(name)
             self.populate_list()
-            # Also update the main GUI dropdown
-            self.controller.view.set_active_weight_in_dropdown(name)
+            # No longer need to update the main GUI dropdown directly
 
     def delete(self):
         name = self.get_selected_item_name()
@@ -100,6 +359,12 @@ class ManageWeightsDialog(simpledialog.Dialog):
             ):
                 self.controller.delete_weight(name)
                 self.populate_list()
+
+    def destroy(self):
+        # Override destroy to call the callback if it exists
+        if self.refresh_callback:
+            self.refresh_callback()
+        super().destroy()
 
     def buttonbox(self):
         # Override to have only a close button
@@ -651,11 +916,6 @@ class ApplicationGUI:
         )
         self.show_preview_var = BooleanVar(value=True)
 
-        # Model management variables
-        self.active_weight_var = StringVar()
-        self.use_openvino_var = BooleanVar(value=False)
-        self.openvino_status_var = StringVar(value="Inicializando...")
-
         # Interactive arena editing state
         self.stabilization_frames_var = StringVar(value="10")
         self.interactive_polygon_item = None
@@ -699,15 +959,17 @@ class ApplicationGUI:
             font=("Helvetica", 16),
         ).pack(pady=(0, 15))
 
-        # --- Model Configuration ---
-        self._create_model_config_frame()
-
         # --- Project Actions ---
         project_actions_frame = ttk.LabelFrame(
             self.welcome_frame, text="Ações do Projeto", padding=10
         )
         project_actions_frame.pack(fill="x", pady=10, expand=True)
 
+        ttk.Button(
+            project_actions_frame,
+            text="Calibrar Pesos e Detecções",
+            command=self._open_calibration_window,  # Novo método handler
+        ).pack(fill="x", padx=10, pady=5)
         ttk.Button(
             project_actions_frame,
             text="Analisar Vídeo Único",
@@ -724,56 +986,8 @@ class ApplicationGUI:
             command=self._open_project_workflow,
         ).pack(fill="x", padx=10, pady=5)
 
-    def _create_model_config_frame(self):
-        """Builds the UI for model and OpenVINO configuration."""
-        model_frame = ttk.LabelFrame(
-            self.welcome_frame, text="Configuração do Modelo", padding=10
-        )
-        model_frame.pack(fill="x", pady=5)
-        model_frame.columnconfigure(1, weight=1)
-
-        # --- Row 0: Weight Selection ---
-        ttk.Label(model_frame, text="Peso Ativo:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=3
-        )
-        self.weights_dropdown = ttk.Combobox(
-            model_frame, textvariable=self.active_weight_var, state="readonly"
-        )
-        self.weights_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=3)
-        self.weights_dropdown.bind(
-            "<<ComboboxSelected>>", self._on_weight_selected
-        )
-
-        # --- Row 1: Weight Management Buttons ---
-        btn_frame = ttk.Frame(model_frame)
-        btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
-        ttk.Button(
-            btn_frame,
-            text="Carregar Novo Peso...",
-            command=self._load_new_weight_clicked,
-        ).pack(side="left", padx=(0, 5))
-        ttk.Button(
-            btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_clicked
-        ).pack(side="left")
-
-        # --- Row 2: OpenVINO Toggle ---
-        self.openvino_checkbox = ttk.Checkbutton(
-            model_frame,
-            text="Otimizar com OpenVINO (para hardware Intel)",
-            variable=self.use_openvino_var,
-            command=self._on_openvino_toggled,
-        )
-        self.openvino_checkbox.grid(
-            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2)
-        )
-
-        # --- Row 3: OpenVINO Status ---
-        self.openvino_status_label = ttk.Label(
-            model_frame, textvariable=self.openvino_status_var, font=("Segoe UI", 8)
-        )
-        self.openvino_status_label.grid(
-            row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5)
-        )
+    def _open_calibration_window(self):
+        CalibrationDialog(self.root, self.controller)
 
     def _create_main_control_frame(self):
         """Creates the main UI with tabs for controlling the app."""
@@ -2164,39 +2378,6 @@ class ApplicationGUI:
         if show_preview:
             cv2.destroyAllWindows()
         self.root.after(0, self._cleanup_after_processing)
-
-    # --- New UI Methods for Model Management ---
-
-    def update_weights_dropdown(self, weights_list: list):
-        """Clears and repopulates the weights dropdown."""
-        self.weights_dropdown["values"] = weights_list
-        if not weights_list:
-            self.active_weight_var.set("Nenhum peso encontrado.")
-            self.weights_dropdown.config(state="disabled")
-        else:
-            self.weights_dropdown.config(state="readonly")
-
-    def set_active_weight_in_dropdown(self, weight_name: str | None):
-        """Sets the currently selected value in the dropdown."""
-        if weight_name:
-            self.active_weight_var.set(weight_name)
-
-    def update_openvino_status_label(self, status_text: str):
-        """Updates the text of the OpenVINO status label."""
-        self.openvino_status_var.set(status_text)
-
-    def update_openvino_checkbox(self, is_checked: bool):
-        """Sets the state of the OpenVINO checkbox."""
-        self.use_openvino_var.set(is_checked)
-
-    def _on_weight_selected(self, event=None):
-        """Callback when user selects a new weight from the dropdown."""
-        selected_weight = self.active_weight_var.get()
-        self.controller.set_active_weight(selected_weight)
-
-    def _on_openvino_toggled(self):
-        """Callback when user toggles the OpenVINO checkbox."""
-        self.controller.set_openvino_usage(self.use_openvino_var.get())
 
     def _load_new_weight_clicked(self):
         """Handles the 'Load New Weight' button click."""

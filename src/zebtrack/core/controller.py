@@ -23,6 +23,8 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
+from ultralytics import YOLO
+
 from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
@@ -53,11 +55,27 @@ class AppController:
         self.use_openvino = False  # Default to not using OpenVINO
 
     def run(self):
-        # Populate the GUI with initial model info before starting the main loop
-        self.view.update_weights_dropdown(self.weight_manager.get_all_weights())
-        self.view.set_active_weight_in_dropdown(self.active_weight_name)
-        self.update_openvino_status()
+        # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
+
+    def get_openvino_status(self) -> str:
+        """Gets the current OpenVINO status text based on the model and settings."""
+        if not self.active_weight_name:
+            return "Nenhum peso selecionado."
+
+        details = self.weight_manager.get_weight_details(self.active_weight_name)
+        if not details:
+            return "Detalhes do peso não encontrados."
+
+        if self.use_openvino:
+            if details.get("openvino_path") and os.path.exists(
+                details.get("openvino_path")
+            ):
+                return "O modelo OpenVINO está pronto."
+            else:
+                return "Necessita de conversão para OpenVINO."
+        else:
+            return "O OpenVINO está desativado."
 
     def on_close(self):
         if self.view.ask_ok_cancel("Sair", "Deseja realmente sair?"):
@@ -1194,3 +1212,184 @@ class AppController:
             Reporter.export_project_report(aggregated_df, docx_path)
 
         self.view.show_info("Relatório Gerado", f"Relatório salvo em:\n{save_path}")
+
+    def run_model_diagnostic(self, config: dict):
+        """
+        Prepares for and launches the diagnostic test in a background thread.
+        """
+        log.info("controller.diagnostic.start", config=config)
+        self.view.set_status("Iniciando diagnóstico do modelo...")
+        self.view.update_idletasks()
+
+        model_to_test = config["model_to_test"]
+        active_weight_details = self.weight_manager.get_weight_details(
+            self.active_weight_name
+        )
+        if not active_weight_details:
+            self.view.show_error("Erro", "Nenhum peso ativo selecionado.")
+            return
+
+        # --- Pre-flight checks (OpenVINO conversion) ---
+        if model_to_test in ["OpenVINO", "Ambos"]:
+            ov_path = active_weight_details.get("openvino_path")
+            if not ov_path or not os.path.exists(ov_path):
+                if self.view.ask_ok_cancel(
+                    "Converter Modelo?",
+                    "O modelo OpenVINO não foi encontrado. Deseja convertê-lo agora?",
+                ):
+                    self.convert_active_weight_to_openvino()
+                    # Refresh details after conversion
+                    active_weight_details = self.weight_manager.get_weight_details(
+                        self.active_weight_name
+                    )
+                    if not active_weight_details.get("openvino_path"):
+                        self.view.show_error(
+                            "Erro", "A conversão para OpenVINO falhou."
+                        )
+                        return
+                else:
+                    log.warning("diagnostic.openvino.conversion_skipped")
+                    # If user skips conversion, modify config to only run YOLO if possible
+                    if model_to_test == "Ambos":
+                        config["model_to_test"] = "YOLO (PyTorch)"
+                    else: # model_to_test was 'OpenVINO'
+                        self.view.set_status("Diagnóstico cancelado.")
+                        return
+
+        # --- Launch background thread ---
+        self.cancel_event.clear()
+        thread = threading.Thread(
+            target=self._diagnostic_processing_thread,
+            args=(config, active_weight_details),
+            daemon=True,
+        )
+        thread.start()
+
+    def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
+        """
+        The actual diagnostic processing logic that runs in a background thread.
+        """
+        video_path = config["video_path"]
+        frames_to_analyze = config["frames_to_analyze"]
+        conf_threshold = config["confidence_threshold"]
+        model_to_test = config["model_to_test"]
+        results = {}
+
+        # --- Model Loading ---
+        yolo_model = None
+        openvino_model = None
+
+        try:
+            if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
+                yolo_model = YOLO(weight_details["path"])
+                results["YOLO (PyTorch)"] = []
+
+            if model_to_test in ["OpenVINO", "Ambos"]:
+                ov_path = weight_details.get("openvino_path")
+                if ov_path and os.path.exists(ov_path):
+                    plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
+                    if plugin_class:
+                        openvino_model = plugin_class(ov_path)
+                        results["OpenVINO"] = []
+        except Exception as e:
+            log.error("diagnostic.thread.load_error", exc_info=True)
+            self.root.after(0, self.view.show_error, "Erro ao Carregar Modelo", f"Falha: {e}")
+            return
+
+        # --- Video Processing ---
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            self.root.after(0, self.view.show_error, "Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            return
+
+        for frame_count in range(frames_to_analyze):
+            if self.cancel_event.is_set():
+                break
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+            self.root.after(0, self.view.set_status, status_msg)
+
+            if yolo_model:
+                preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
+                results.setdefault("YOLO (PyTorch)", []).append(preds[0])
+
+            if openvino_model:
+                preds = openvino_model.predict(frame, conf_threshold)
+                results.setdefault("OpenVINO", []).append(preds)
+        cap.release()
+
+        # --- Schedule report generation on main thread ---
+        self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
+
+    def _finish_diagnostic_and_save_report(self, config, results):
+        """Formats and saves the report. Runs on the main UI thread."""
+        report_str = self._format_diagnostic_report(config, results)
+        save_path = self.view.ask_save_filename(
+            title="Salvar Relatório de Diagnóstico",
+            defaultextension=".txt",
+            initialfile="diagnostic_report.txt",
+            filetypes=[("Arquivos de Texto", "*.txt")],
+        )
+
+        if save_path:
+            try:
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(report_str)
+                self.view.show_info(
+                    "Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}"
+                )
+            except IOError as e:
+                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
+
+        self.view.set_status("Diagnóstico concluído. Pronto.")
+
+    def _format_diagnostic_report(self, config, results) -> str:
+        """Formats the collected diagnostic data into a string."""
+        report_lines = [
+            "Relatório de Diagnóstico do Modelo",
+            "-----------------------------------",
+            f"- Vídeo: {config['video_path']}",
+            f"- Frames Analisados: {config['frames_to_analyze']}",
+            f"- Limiar de Confiança: {config['confidence_threshold']}",
+            "-----------------------------------",
+            "",
+        ]
+
+        for model_name, preds_list in results.items():
+            report_lines.append(f"--- [ RESULTADOS {model_name.upper()} ] ---")
+            report_lines.append("")
+
+            for i, preds in enumerate(preds_list):
+                frame_num = i + 1
+                report_lines.append(f"Frame {frame_num}:")
+
+                detections = []
+                # Handle ultralytics results object
+                if hasattr(preds, 'boxes'):
+                    for box in preds.boxes:
+                        class_id = int(box.cls)
+                        class_name = preds.names.get(class_id, 'desconhecido')
+                        conf = float(box.conf)
+                        bbox = [int(coord) for coord in box.xyxy[0]]
+                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+                # Handle our custom OpenVINO plugin list of dicts
+                elif isinstance(preds, list):
+                     for det in preds:
+                        class_id = det['class_id']
+                        class_name = det['class_name']
+                        conf = det['confidence']
+                        bbox = det['box']
+                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+
+                if not detections:
+                    report_lines.append("  - Nenhuma detecção encontrada.")
+                else:
+                    report_lines.extend(detections)
+                report_lines.append("") # Spacer between frames
+
+            report_lines.append("") # Spacer between models
+
+        return "\n".join(report_lines)
