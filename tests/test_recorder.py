@@ -54,9 +54,18 @@ def test_start_recording_creates_files(recorder_setup):
 
     assert os.path.exists(video_file)
     assert os.path.exists(processing_area_parquet)
-    assert os.path.exists(areas_of_interest_parquet)
+    # The areas of interest file should NOT be created if no ROIs are provided
+    assert not os.path.exists(areas_of_interest_parquet)
     assert not os.path.exists(coord_movimento_file)
 
+    recorder.stop_recording()
+
+    # Now test that it IS created when ROIs are present
+    mock_zones_with_roi = ZoneData(roi_polygons=[[[0,0], [1,1], [0,1]]])
+    recorder.start_recording(
+        output_folder, frame_width, frame_height, zones=mock_zones_with_roi
+    )
+    assert os.path.exists(areas_of_interest_parquet)
     recorder.stop_recording()
 
 
@@ -67,7 +76,8 @@ def test_metadata_parquet_content(recorder_setup):
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData(
         polygon=[[0, 0], [1, 1], [0, 1]],
-        squares=[((10, 10), (20, 20)), ((30, 30), (40, 40))],
+        roi_polygons=[[[10, 10], [20, 10], [20, 20], [10, 20]]],
+        roi_names=["TestROI"],
     )
     recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)
     base_name = os.path.basename(output_folder)
@@ -87,9 +97,11 @@ def test_metadata_parquet_content(recorder_setup):
     )
     assert os.path.exists(areas_of_interest_parquet)
     df_areas = pd.read_parquet(areas_of_interest_parquet)
-    assert list(df_areas.columns) == ["area", "x1", "y1", "x2", "y2"]
-    assert len(df_areas) == len(mock_zones.squares)
-    assert df_areas.iloc[0]["x1"] == 10
+    assert list(df_areas.columns) == ["roi_name", "point_index", "x", "y"]
+    assert len(df_areas) == 4  # 4 points in our test polygon
+    assert df_areas.iloc[0]["roi_name"] == "TestROI"
+    assert df_areas.iloc[1]["point_index"] == 1
+    assert df_areas.iloc[2]["x"] == 20
 
     recorder.stop_recording()
 

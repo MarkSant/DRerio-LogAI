@@ -2,7 +2,7 @@
 import numpy as np
 from cython_bbox import bbox_overlaps as bbox_ious
 from scipy.optimize import linear_sum_assignment
-from scipy.sparse import coo_matrix
+from scipy.sparse import csc_matrix
 from scipy.spatial.distance import cdist
 
 from zebtrack.tracker import kalman_filter
@@ -19,10 +19,10 @@ def merge_matches(m1, m2, shape):
     mask = M1 * M2
     match = mask.nonzero()
     match = list(zip(match[0], match[1]))
-    unmatched_O = tuple(set(range(O)) - set([i for i, j in match]))
+    unmatched_P = tuple(set(range(P)) - set([i for i, j in match]))
     unmatched_Q = tuple(set(range(Q)) - set([j for i, j in match]))
 
-    return match, unmatched_O, unmatched_Q
+    return match, unmatched_P, unmatched_Q
 
 
 def _indices_to_matches(cost_matrix, indices, thresh):

@@ -4,7 +4,7 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import structlog
 import yaml
@@ -92,28 +92,17 @@ class DetectionZonesSettings(BaseModel):
         default_factory=list,
         description="A list of [x, y] points defining the main detection polygon.",
     )
-    squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = Field(
+    roi_polygons: List[List[List[int]]] = Field(
         default_factory=list,
-        description=(
-            "A list of rectangular zones, each defined by top-left and "
-            "bottom-right points."
-        ),
+        description="A list of polygons, where each polygon is a list of [x,y] points.",
     )
-    colors: List[Tuple[int, int, int]] = Field(
+    roi_names: List[str] = Field(
         default_factory=list,
-        description="The BGR colors for drawing each square on the overlay.",
+        description="The names for each ROI polygon.",
     )
-    enter_commands: List[Union[int, str]] = Field(
+    roi_colors: List[Tuple[int, int, int]] = Field(
         default_factory=list,
-        description=(
-            "List of commands to send to Arduino when an object enters a square."
-        ),
-    )
-    exit_commands: List[Union[int, str]] = Field(
-        default_factory=list,
-        description=(
-            "List of commands to send to Arduino when an object exits a square."
-        ),
+        description="The BGR colors for drawing each ROI polygon on the overlay.",
     )
 
 

@@ -231,7 +231,9 @@ def test_preprocess_data_handles_duplicate_timestamps():
 
     # 3. Perform assertions
     # The primary assertion: no duplicate timestamps in the index
-    assert not processed_df.index.has_duplicates, "Index should be unique after preprocessing."
+    assert not processed_df.index.has_duplicates, (
+        "Index should be unique after preprocessing."
+    )
 
     # Check that the number of rows is correct (3 unique timestamps)
     assert len(processed_df) == 3

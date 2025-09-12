@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import structlog
-from shapely.geometry import box
+from shapely.geometry import Polygon
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
@@ -298,7 +298,8 @@ class AppController:
 
         if not video_path:
             self.view.show_warning(
-                "Aviso", "Nenhum vídeo pendente ou especificado foi encontrado para a detecção."
+                "Aviso",
+                "Nenhum vídeo pendente ou especificado foi encontrado para a detecção.",
             )
             return
 
@@ -358,6 +359,28 @@ class AppController:
         # After updating, we need to reload the zones in the detector
         self.setup_detector_zones()
         log.info("controller.zone.update_arena.success")
+
+    def add_roi_polygon(
+        self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]
+    ):
+        """Adds a new polygonal ROI to the project's zone data."""
+        log.info("controller.zone.add_roi", name=name, points=len(roi_points))
+
+        zone_data = self.project_manager.get_zone_data()
+
+        # Append the new data
+        zone_data.roi_polygons.append(roi_points)
+        zone_data.roi_names.append(name)
+        zone_data.roi_colors.append(color)
+
+        # Convert the dataclass back to a dict for JSON serialization
+        from dataclasses import asdict
+        self.project_manager.project_data["detection_zones"] = asdict(zone_data)
+
+        # Save the project and reload the zones in the active detector
+        self.project_manager.save_project()
+        self.setup_detector_zones()
+        log.info("controller.zone.add_roi.success", name=name)
 
     def run_live_calibration(self):
         """Records a short clip from the live camera and runs aquarium detection."""
@@ -553,11 +576,22 @@ class AppController:
     def start_single_video_workflow(self, video_path: str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
+
+        # Ensure the detector is set up before showing the UI that needs it.
+        # This is crucial for the single video flow.
+        if not self.detector:
+            log.info("controller.single_video.setup_detector")
+            if not self.setup_detector():
+                # setup_detector shows its own error message
+                return
+
         # The processing logic has been moved to a new method.
         # This function now only delegates to the UI to prepare the drawing screen.
         self.view.setup_zone_definition_for_single_video(video_path, config)
 
-    def start_single_video_processing(self, video_path: str, config: dict, zone_data: 'ZoneData'):
+    def start_single_video_processing(
+        self, video_path: str, config: dict, zone_data: ZoneData
+    ):
         """Starts the actual processing for a single video after zone setup."""
         log.info("workflow.single_video.processing_start", video=video_path)
 
@@ -565,22 +599,30 @@ class AppController:
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            self.view.show_error("Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            self.view.show_error(
+                "Erro", f"Não foi possível abrir o vídeo: {video_path}"
+            )
             return
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
         self.detector.set_zones(zone_data, width, height)
-        log.info("controller.single_video.zones_set", count=len(zone_data.squares) + (1 if zone_data.polygon else 0))
+        log.info(
+            "controller.single_video.zones_set",
+            count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
+        )
 
         # 2. Prepare the environment for _process_videos
         scanned_files = ProjectManager.scan_input_paths([video_path])
         if not scanned_files:
-            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
+            self.view.show_error(
+                "Erro", "Não foi possível identificar um arquivo de vídeo válido."
+            )
             return
         video_to_process = scanned_files[0]
 
-        output_dir = os.path.join(os.path.dirname(video_path), f"{os.path.splitext(os.path.basename(video_path))[0]}_results")
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
         os.makedirs(output_dir, exist_ok=True)
 
         # 3. Call the processing
@@ -611,7 +653,7 @@ class AppController:
 
         # Check for ROIs and ask for confirmation if none are defined
         zone_data = self.project_manager.get_zone_data()
-        if not zone_data.squares:  # .squares holds the ROIs
+        if not zone_data.roi_polygons:  # .roi_polygons holds the ROIs
             if not self.view.ask_ok_cancel(
                 "Nenhuma ROI Definida",
                 "Nenhuma Área de Interesse (ROI) foi definida. A análise prosseguirá "
@@ -933,7 +975,8 @@ class AppController:
                         0,
                         lambda: self.view.show_error(
                             "Erro de Processamento",
-                            f"Falha ao gerar arquivo de trajetória para {experiment_id}.",
+                            f"Falha ao gerar arquivo de trajetória para "
+                            f"{experiment_id}.",
                         ),
                     )
                     continue
@@ -992,12 +1035,15 @@ class AppController:
                 pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
                 rois = [
                     ROI(
-                        name=f"ROI {j+1}",
-                        geometry=box(s[0][0], s[0][1], s[1][0], s[1][1]),
+                        name=zone_data.roi_names[i],
+                        geometry=Polygon(p),
                     )
-                    for j, s in enumerate(zone_data.squares)
+                    for i, p in enumerate(zone_data.roi_polygons)
                 ]
-                roi_colors = {f"ROI {j+1}": c for j, c in enumerate(zone_data.colors)}
+                roi_colors = {
+                    zone_data.roi_names[i]: color
+                    for i, color in enumerate(zone_data.roi_colors)
+                }
 
                 reporter = Reporter(
                     trajectory_df=trajectory_df,

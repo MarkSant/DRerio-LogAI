@@ -47,12 +47,6 @@ class AquariumDetector:
         source = None
         try:
             source = VideoFileSource(video_path)
-            if not source.is_opened():
-                log.error(
-                    "aquarium_detector.detect.video_open_failed", video_path=video_path
-                )
-                return []
-
             detected_polygons = []
             for i in range(stabilization_frames):
                 ret, frame = source.get_frame()

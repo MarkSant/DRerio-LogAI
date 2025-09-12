@@ -1,6 +1,6 @@
 import time
 from dataclasses import dataclass, field
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -16,10 +16,9 @@ class ZoneData:
     """Holds the configuration for detection zones."""
 
     polygon: List[List[int]] = field(default_factory=list)
-    squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = field(default_factory=list)
-    colors: List[Tuple[int, int, int]] = field(default_factory=list)
-    enter_commands: List[Union[int, str]] = field(default_factory=list)
-    exit_commands: List[Union[int, str]] = field(default_factory=list)
+    roi_polygons: List[List[List[int]]] = field(default_factory=list)
+    roi_names: List[str] = field(default_factory=list)
+    roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
 
 
 class Detector:
@@ -51,16 +50,10 @@ class Detector:
         self.base_height = base_height
         log.info("detector.init.success", plugin=self.plugin.get_name())
 
-        # State variables for tracking object movement
-        self.crossed_in = False
-        self.crossed_out = False
-        self.flag = 0  # 0: looking for entry, 1: looking for exit
-        self.current_square = 0
-
         # Zone configuration is now set dynamically via set_zones()
         self.zones: ZoneData = ZoneData()
         self.scaled_polygon: np.ndarray = np.array([])
-        self.scaled_squares: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+        self.scaled_roi_polygons: List[np.ndarray] = []
         self._scaling_cache: dict = {}
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
@@ -76,7 +69,7 @@ class Detector:
         # Clear cache if zones are redefined, as scaling depends on zone data
         self._scaling_cache.clear()
         self._update_scaling(actual_width, actual_height)
-        log.info("detector.zones.set", count=len(self.zones.squares))
+        log.info("detector.zones.set", count=len(self.zones.roi_polygons))
 
     def _update_scaling(self, actual_width: int, actual_height: int):
         """
@@ -87,44 +80,37 @@ class Detector:
         if cache_key in self._scaling_cache:
             cached_data = self._scaling_cache[cache_key]
             self.scaled_polygon = cached_data["polygon"]
-            self.scaled_squares = cached_data["squares"]
+            self.scaled_roi_polygons = cached_data["roi_polygons"]
             log.debug("detector.scaling.cache.hit", key=cache_key)
             return
 
-        # Convert base polygon to numpy array for scaling
+        # Convert base polygons to numpy arrays for scaling
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
-        base_squares = self.zones.squares
+        base_roi_polygons = [
+            np.array(p, dtype=np.int32) for p in self.zones.roi_polygons
+        ]
 
         if actual_width == self.base_width and actual_height == self.base_height:
             self.scaled_polygon = base_polygon
-            self.scaled_squares = base_squares
+            self.scaled_roi_polygons = base_roi_polygons
         else:
             scale_x = actual_width / self.base_width
             scale_y = actual_height / self.base_height
             self.scaled_polygon = (base_polygon * [scale_x, scale_y]).astype(np.int32)
-            self.scaled_squares = []
-            for p1, p2 in base_squares:
-                x1, y1 = p1
-                x2, y2 = p2
-                scaled_p1 = (int(x1 * scale_x), int(y1 * scale_y))
-                scaled_p2 = (int(x2 * scale_x), int(y2 * scale_y))
-                self.scaled_squares.append((scaled_p1, scaled_p2))
+            self.scaled_roi_polygons = [
+                (p * [scale_x, scale_y]).astype(np.int32) for p in base_roi_polygons
+            ]
 
         # Store the newly calculated values in the cache
         self._scaling_cache[cache_key] = {
             "polygon": self.scaled_polygon,
-            "squares": self.scaled_squares,
+            "roi_polygons": self.scaled_roi_polygons,
         }
         log.info(
             "detector.scaling.updated_and_cached",
             width=actual_width,
             height=actual_height,
         )
-
-    def _is_inside_square(self, x1, y1, x2, y2, square):
-        """Checks if a bounding box overlaps with an area square."""
-        (sx1, sy1), (sx2, sy2) = square
-        return not (x2 < sx1 or x1 > sx2 or y2 < sy1 or y1 > sy2)
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
         """
@@ -147,11 +133,8 @@ class Detector:
         # 1. Delegate actual detection to the loaded plugin
         predictions = self.plugin.detect(frame)
 
-        # 2. Apply stateful logic based on the detections
+        # 2. Filter detections to only those inside the main polygon
         detections_in_polygon = []
-        command_to_send = None
-        found_object_for_state_change = False
-
         if len(predictions) > 0:
             for det in predictions:
                 x1, y1, x2, y2, confidence, track_id = det
@@ -160,30 +143,6 @@ class Detector:
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id))
 
-                    if project_type == "live" and not found_object_for_state_change:
-                        if self.flag == 0:  # Looking for entry
-                            for index, square in enumerate(self.scaled_squares):
-                                if self._is_inside_square(x1, y1, x2, y2, square):
-                                    self.crossed_in = True
-                                    self.flag = 1
-                                    self.current_square = index + 1
-                                    command_to_send = self.zones.enter_commands[index]
-                                    found_object_for_state_change = True
-                                    break
-                        elif self.flag == 1:  # Looking for exit
-                            is_in_any_square = any(
-                                self._is_inside_square(x1, y1, x2, y2, sq)
-                                for sq in self.scaled_squares
-                            )
-                            if not is_in_any_square:
-                                self.crossed_out = True
-                                self.flag = 0
-                                command_to_send = self.zones.exit_commands[
-                                    self.current_square - 1
-                                ]
-                                self.current_square = 0
-                                found_object_for_state_change = True
-
         end_time = time.perf_counter()
         log.debug(
             "frame.processing.time",
@@ -191,17 +150,19 @@ class Detector:
             plugin=self.plugin.get_name(),
         )
 
+        # The command logic has been removed as it was tied to the old square ROIs
+        command_to_send = None
         return detections_in_polygon, command_to_send
 
     def draw_overlay(self, frame, detections):
         """
         Draws detection overlays on the frame.
         """
-        # Draw the area-of-interest squares
-        for i, ((x1, y1), (x2, y2)) in enumerate(self.scaled_squares):
-            # Check if there are enough colors defined
-            if i < len(self.zones.colors):
-                cv2.rectangle(frame, (x1, y1), (x2, y2), self.zones.colors[i], 2)
+        # Draw the ROI polygons
+        for i, polygon in enumerate(self.scaled_roi_polygons):
+            if i < len(self.zones.roi_colors):
+                color = self.zones.roi_colors[i]
+                cv2.polylines(frame, [polygon], isClosed=True, color=color, thickness=2)
 
         # Draw the processing area polygon
         if self.scaled_polygon.size > 0:
