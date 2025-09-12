@@ -1497,42 +1497,19 @@ class ApplicationGUI:
             )
 
     def _on_canvas_double_click(self, event):
-        """Finaliza o desenho do polígono e o envia para o controlador."""
+        """
+        Finaliza o desenho do polígono e o envia para o controlador para ser salvo
+        como a arena principal.
+        """
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             self._stop_drawing()
             return
 
-        if self.current_drawing_type == "arena":
-            # Delegate saving and redrawing to the controller for consistency
-            self.controller.set_main_arena_polygon(self.current_polygon_points)
-            self.set_status("Arena principal definida.")
+        # Ponto Chave: Envia os pontos diretamente para o controlador,
+        # que gerencia o estado da aplicação.
+        self.controller.set_main_arena_polygon(self.current_polygon_points)
 
-        elif self.current_drawing_type == "roi":
-            # This logic remains as it was, as it's outside the scope of the bug fix
-            roi_name = self.ask_string(
-                "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
-            )
-            if not roi_name:
-                self.current_polygon_points = []
-                self._stop_drawing()
-                return
-
-            roi_color = (0, 255, 0)  # Green
-            self.controller.add_roi_polygon(
-                self.current_polygon_points, roi_name, roi_color
-            )
-            # Manually draw the new ROI for immediate feedback, then update list
-            self.roi_canvas.create_polygon(
-                self.current_polygon_points,
-                fill="",
-                outline="green",
-                width=2,
-                tags="roi_polygon",
-            )
-            self.set_status(f"Área de Interesse '{roi_name}' adicionada.")
-            self.update_zone_listbox()
-
-        # Clean up temporary drawing elements and state
+        # Limpa o estado de desenho
         self.current_polygon_points = []
         self._stop_drawing()
 
