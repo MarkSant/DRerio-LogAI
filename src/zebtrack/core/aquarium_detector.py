@@ -81,7 +81,8 @@ class AquariumDetector:
                     log.warning("aquarium_detector.detect.frame_read_failed", frame=i)
                     break
 
-                results = self.model.predict(frame, verbose=False)
+                # Detect only the 'aquarium' class (assumed to be class 0)
+                results = self.model.predict(frame, verbose=False, classes=0)
 
                 if results and results[0].masks and results[0].masks.xy:
                     polygons = results[0].masks.xy
