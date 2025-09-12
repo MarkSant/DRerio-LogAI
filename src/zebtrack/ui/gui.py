@@ -1497,17 +1497,41 @@ class ApplicationGUI:
             )
 
     def _on_canvas_double_click(self, event):
-        """
-        Finaliza o desenho do polígono e o envia para o controlador para ser salvo
-        como a arena principal.
-        """
+        """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             self._stop_drawing()
             return
 
-        # Ponto Chave: Envia os pontos diretamente para o controlador,
-        # que gerencia o estado da aplicação.
-        self.controller.set_main_arena_polygon(self.current_polygon_points)
+        if self.current_drawing_type == "arena":
+            # Ponto Chave: Envia os pontos diretamente para o controlador,
+            # que gerencia o estado da aplicação e a atualização da UI.
+            self.controller.set_main_arena_polygon(self.current_polygon_points)
+            self.set_status("Arena principal definida com sucesso.")
+
+        elif self.current_drawing_type == "roi":
+            # A lógica para ROIs é mantida, apenas adicionando feedback.
+            roi_name = self.ask_string(
+                "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
+            )
+            if not roi_name:
+                self.current_polygon_points = []
+                self._stop_drawing()
+                return
+
+            roi_color = (0, 255, 0)  # Green
+            self.controller.add_roi_polygon(
+                self.current_polygon_points, roi_name, roi_color
+            )
+            # A UI será atualizada pelo controller, mas um feedback imediato é bom.
+            self.roi_canvas.create_polygon(
+                self.current_polygon_points,
+                fill="",
+                outline="green",
+                width=2,
+                tags="roi_polygon",
+            )
+            self.set_status(f"Área de Interesse '{roi_name}' adicionada.")
+            self.update_zone_listbox()
 
         # Limpa o estado de desenho
         self.current_polygon_points = []
