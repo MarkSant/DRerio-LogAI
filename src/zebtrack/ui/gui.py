@@ -656,6 +656,16 @@ class ApplicationGUI:
         self.use_openvino_var = BooleanVar(value=False)
         self.openvino_status_var = StringVar(value="Inicializando...")
 
+        # Interactive arena editing state
+        self.stabilization_frames_var = StringVar(value="10")
+        self.interactive_polygon_item = None
+        self.polygon_handles = []
+        self.edited_polygon_points = []
+        self._dragged_handle_index = None
+        self.save_arena_btn = None
+        self.discard_arena_btn = None
+        self.interactive_buttons_frame = None
+
         self._create_welcome_frame()
 
     def _cleanup_single_analysis_button(self):
@@ -916,8 +926,18 @@ class ApplicationGUI:
         ttk.Button(
             actions_frame,
             text="Detectar Aquário (Auto)",
-            command=self._on_auto_detect_clicked,  # Change to a new handler method
+            command=self._on_auto_detect_clicked,
         ).pack(fill="x", pady=2)
+
+        # New Entry for stabilization frames
+        stabilization_frame = ttk.Frame(actions_frame)
+        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(
+            side="left", padx=(0, 5)
+        )
+        ttk.Entry(
+            stabilization_frame, textvariable=self.stabilization_frames_var, width=5
+        ).pack(side="left")
+        stabilization_frame.pack(fill="x", pady=2, anchor="w")
 
         # Manual drawing buttons
         ttk.Button(
@@ -1014,6 +1034,22 @@ class ApplicationGUI:
         )
         self.prop_widgets["placeholder_label"].pack(pady=10)
 
+        # --- Interactive Buttons (initially hidden) ---
+        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
+        self.save_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="✅ Salvar Arena",
+            command=self._on_save_arena,
+        )
+        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.discard_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="❌ Descartar",
+            command=self._on_discard_arena,
+        )
+        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        # This frame is packed later when needed
+
     def _on_zone_select(self, event=None):
         """Shows and populates the properties panel when a zone is selected."""
         selected_items = self.zone_listbox.selection()
@@ -1057,25 +1093,114 @@ class ApplicationGUI:
             self.zone_prop_enter_cmd_var.set("1")
             self.zone_prop_exit_cmd_var.set("2")
 
-    def display_suggested_polygon(self, polygon: np.ndarray):
-        """Draws a detected polygon and saves it as the main arena."""
-        polygon_points = polygon.tolist()
+    def setup_interactive_polygon(self, polygon: np.ndarray):
+        """Draws a suggested polygon that the user can interactively edit."""
+        self._clear_interactive_polygon()  # Clear any previous one
+        self.edited_polygon_points = [list(p) for p in polygon]
 
-        # Save the detected polygon as the main arena
-        self.controller.update_main_arena(polygon_points)
+        self._draw_interactive_polygon()
 
-        # Clear any previously suggested polygon and draw the new one
-        self.roi_canvas.delete("suggested_polygon", "main_arena")
+        # Show the save/discard buttons
+        if self.interactive_buttons_frame:
+            self.interactive_buttons_frame.pack(
+                after=self.zone_properties_frame, fill="x", padx=5, pady=5
+            )
+
+        self.set_status(
+            "Ajuste o polígono arrastando os vértices. Salve ou descarte."
+        )
+
+    def _draw_interactive_polygon(self):
+        """Helper to (re)draw the polygon and its handles based on current points."""
+        # Clear previous drawings
+        self.roi_canvas.delete("interactive_polygon", "handle")
+
+        # Draw the polygon itself
+        flat_points = [coord for point in self.edited_polygon_points for coord in point]
+        self.interactive_polygon_item = self.roi_canvas.create_polygon(
+            flat_points,
+            fill="",
+            outline="yellow",
+            width=2,
+            tags="interactive_polygon",
+        )
+
+        # Draw the handles
+        self.polygon_handles = []
+        for i, (x, y) in enumerate(self.edited_polygon_points):
+            handle = self.roi_canvas.create_rectangle(
+                x - 4,
+                y - 4,
+                x + 4,
+                y + 4,
+                fill="darkgoldenrod",
+                outline="yellow",
+                tags=("handle", f"handle-{i}"),
+            )
+            self.polygon_handles.append(handle)
+            # Bind events to each handle
+            self.roi_canvas.tag_bind(
+                handle, "<ButtonPress-1>", lambda e, i=i: self._on_handle_press(e, i)
+            )
+            self.roi_canvas.tag_bind(handle, "<B1-Motion>", self._on_handle_drag)
+            self.roi_canvas.tag_bind(
+                handle, "<ButtonRelease-1>", self._on_handle_release
+            )
+
+    def _on_handle_press(self, event, handle_index):
+        """Records which handle is being dragged."""
+        self._dragged_handle_index = handle_index
+
+    def _on_handle_drag(self, event):
+        """Updates the polygon point and redraws as the handle is dragged."""
+        if self._dragged_handle_index is None:
+            return
+
+        # Update the point coordinates
+        self.edited_polygon_points[self._dragged_handle_index] = [event.x, event.y]
+
+        # Redraw the entire interactive polygon and its handles
+        self._draw_interactive_polygon()
+
+    def _on_handle_release(self, event):
+        """Finalizes the drag operation."""
+        self._dragged_handle_index = None
+
+    def _on_save_arena(self):
+        """Saves the edited polygon and makes it static."""
+        self.controller.save_manual_arena(self.edited_polygon_points)
+        self.set_status("Arena salva com sucesso.")
+
+        # Make the polygon static (non-interactive)
+        self.roi_canvas.delete("interactive_polygon", "handle")
+        flat_points = [coord for point in self.edited_polygon_points for coord in point]
         self.roi_canvas.create_polygon(
-            polygon_points,
-            fill="",  # No fill
-            outline="yellow",  # Yellow to indicate it was auto-detected
+            flat_points,
+            fill="",
+            outline="cyan",  # Change color to indicate it's saved
             width=2,
             tags="main_arena",
         )
-        self.set_status(
-            "Detecção automática concluída. A arena foi definida."
-        )
+        self._clear_interactive_polygon()
+
+    def _on_discard_arena(self):
+        """Discards the interactive polygon."""
+        self._clear_interactive_polygon()
+        self.set_status("Sugestão de arena descartada.")
+
+    def _clear_interactive_polygon(self):
+        """Clears all interactive elements from the canvas and hides buttons."""
+        self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+        if (
+            self.interactive_buttons_frame
+            and self.interactive_buttons_frame.winfo_exists()
+        ):
+            self.interactive_buttons_frame.pack_forget()
+
+        self.interactive_polygon_item = None
+        self.polygon_handles = []
+        self.edited_polygon_points = []
+        self._dragged_handle_index = None
 
     def display_roi_video_frame(self, video_path):
         """
@@ -2169,15 +2294,40 @@ class ApplicationGUI:
 
     def _on_auto_detect_clicked(self):
         """Handler for the auto-detect button."""
+        try:
+            stabilization_frames = int(self.stabilization_frames_var.get())
+            if stabilization_frames <= 0:
+                self.show_warning("Entrada Inválida", "O número de frames deve ser positivo.")
+                return
+        except (ValueError, TypeError):
+            self.show_warning(
+                "Entrada Inválida",
+                "O número de frames para análise deve ser um número inteiro.",
+            )
+            return
+
+        # Clear any old interactive polygon before starting a new detection
+        self._clear_interactive_polygon()
+
         if self.pending_single_video_path:
             # Single video flow
-            self.controller.run_aquarium_detection(video_path=self.pending_single_video_path)
+            self.controller.run_aquarium_detection(
+                video_path=self.pending_single_video_path,
+                stabilization_frames=stabilization_frames,
+            )
         else:
             # Project flow
-            self.controller.run_aquarium_detection()
+            self.controller.run_aquarium_detection(
+                stabilization_frames=stabilization_frames
+            )
 
     def _on_start_single_video_processing_clicked(self):
         """Handler for the 'Start Analysis' button in the single video flow."""
+        # If the user was editing a polygon, save it before starting.
+        if self.edited_polygon_points:
+            self.controller.save_manual_arena(self.edited_polygon_points)
+            self._clear_interactive_polygon()
+
         # 1. Get the zone data that the user drew
         zone_data = self.controller.project_manager.get_zone_data()
         if not zone_data.polygon:
@@ -2191,7 +2341,7 @@ class ApplicationGUI:
         self.controller.start_single_video_processing(
             self.pending_single_video_path,
             self.pending_single_video_config,
-            zone_data
+            zone_data,
         )
         # Clear the pending state
         self.pending_single_video_path = None
