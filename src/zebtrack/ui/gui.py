@@ -1191,11 +1191,16 @@ class ApplicationGUI:
     def _clear_interactive_polygon(self):
         """Clears all interactive elements from the canvas and hides buttons."""
         self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
-        if (
-            self.interactive_buttons_frame
-            and self.interactive_buttons_frame.winfo_exists()
-        ):
-            self.interactive_buttons_frame.pack_forget()
+        try:
+            if (
+                self.interactive_buttons_frame
+                and self.interactive_buttons_frame.winfo_exists()
+            ):
+                self.interactive_buttons_frame.pack_forget()
+        except Exception:
+            # This can fail if the root window is already being destroyed.
+            # It's safe to ignore in that case.
+            pass
 
         self.interactive_polygon_item = None
         self.polygon_handles = []
@@ -2297,7 +2302,9 @@ class ApplicationGUI:
         try:
             stabilization_frames = int(self.stabilization_frames_var.get())
             if stabilization_frames <= 0:
-                self.show_warning("Entrada Inválida", "O número de frames deve ser positivo.")
+                self.show_warning(
+                    "Entrada Inválida", "O número de frames deve ser positivo."
+                )
                 return
         except (ValueError, TypeError):
             self.show_warning(
@@ -2323,10 +2330,26 @@ class ApplicationGUI:
 
     def _on_start_single_video_processing_clicked(self):
         """Handler for the 'Start Analysis' button in the single video flow."""
-        # If the user was editing a polygon, save it before starting.
+        # If the user was editing a polygon, prompt for confirmation before saving.
         if self.edited_polygon_points:
-            self.controller.save_manual_arena(self.edited_polygon_points)
-            self._clear_interactive_polygon()
+            response = messagebox.askyesnocancel(
+                "Salvar Polígono?",
+                "Você deseja salvar as alterações no polígono antes de iniciar a "
+                "análise?\n\n"
+                "Sim: Salvar e iniciar análise\n"
+                "Não: Descartar alterações e iniciar análise\n"
+                "Cancelar: Voltar para edição",
+            )
+            if response is None:
+                # Cancel pressed, abort analysis
+                return
+            elif response:
+                # Yes pressed, save polygon
+                self.controller.save_manual_arena(self.edited_polygon_points)
+                self._clear_interactive_polygon()
+            else:
+                # No pressed, discard changes
+                self._clear_interactive_polygon()
 
         # 1. Get the zone data that the user drew
         zone_data = self.controller.project_manager.get_zone_data()

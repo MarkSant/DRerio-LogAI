@@ -82,7 +82,8 @@ def single_video_test_setup(tmp_path: Path):
     controller.project_manager.get_zone_data.return_value = MagicMock(
         polygon=None, squares=[], colors=[]
     )
-    controller.project_manager.get_calibration_data.return_value = {} # Mock calibration data
+    # Mock calibration data
+    controller.project_manager.get_calibration_data.return_value = {}
 
 
     # 4. Define the configuration that the dialog would produce

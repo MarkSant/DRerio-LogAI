@@ -316,7 +316,8 @@ class AppController:
             )
             if not weight_details or not weight_details.get("path"):
                 self.view.show_error(
-                    "Erro", "Não foi possível encontrar um caminho de modelo .pt válido."
+                    "Erro",
+                    "Não foi possível encontrar um caminho de modelo .pt válido.",
                 )
                 return
 
@@ -329,10 +330,13 @@ class AppController:
             if not polygons:
                 self.view.show_warning(
                     "Detecção Automática Falhou",
-                    "Não foi possível identificar uma área de aquário estável no vídeo. "
-                    "Isso pode ocorrer devido a reflexos, pouca luz ou movimento "
-                    "excessivo da câmera.\n\nPor favor, defina a área do aquário "
-                    "manualmente utilizando a ferramenta 'Desenhar Polígono Principal'.",
+                    (
+                        "Não foi possível identificar uma área de aquário estável "
+                        "no vídeo. Isso pode ocorrer devido a reflexos, pouca luz ou "
+                        "movimento excessivo da câmera.\n\nPor favor, defina a área "
+                        "do aquário manualmente utilizando a ferramenta 'Desenhar "
+                        "Polígono Principal'."
+                    ),
                 )
                 return
 
