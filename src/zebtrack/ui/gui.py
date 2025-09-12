@@ -1497,23 +1497,18 @@ class ApplicationGUI:
             )
 
     def _on_canvas_double_click(self, event):
-        """Finalizes the polygon drawing, dispatching based on drawing type."""
+        """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             self._stop_drawing()
             return
 
         if self.current_drawing_type == "arena":
-            self.controller.update_main_arena(self.current_polygon_points)
-            self.roi_canvas.create_polygon(
-                self.current_polygon_points,
-                fill="",
-                outline="cyan",
-                width=2,
-                tags="main_arena",
-            )
+            # Delegate saving and redrawing to the controller for consistency
+            self.controller.set_main_arena_polygon(self.current_polygon_points)
             self.set_status("Arena principal definida.")
 
         elif self.current_drawing_type == "roi":
+            # This logic remains as it was, as it's outside the scope of the bug fix
             roi_name = self.ask_string(
                 "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
             )
@@ -1522,11 +1517,11 @@ class ApplicationGUI:
                 self._stop_drawing()
                 return
 
-            # For now, let's use a fixed color. A color picker could be added later.
             roi_color = (0, 255, 0)  # Green
             self.controller.add_roi_polygon(
                 self.current_polygon_points, roi_name, roi_color
             )
+            # Manually draw the new ROI for immediate feedback, then update list
             self.roi_canvas.create_polygon(
                 self.current_polygon_points,
                 fill="",
@@ -1553,6 +1548,37 @@ class ApplicationGUI:
 
         for name in zone_data.roi_names:
             self.zone_listbox.insert("", "end", values=(name, "Polígono ROI"))
+
+    def redraw_zones_from_project_data(self):
+        """Limpa o canvas e redesenha todas as zonas a partir dos dados centrais."""
+        self.roi_canvas.delete("all")
+        if self._canvas_bg_image:
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+
+        zone_data = self.controller.project_manager.get_zone_data()
+
+        if zone_data.polygon:
+            self.roi_canvas.create_polygon(
+                zone_data.polygon,
+                fill="",
+                outline="cyan",
+                width=2,
+                tags="main_polygon"
+            )
+
+        for i, polygon in enumerate(zone_data.roi_polygons):
+            # tkinter expects color as a hex string like #RRGGBB
+            color_tuple = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
+            color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
+            self.roi_canvas.create_polygon(
+                polygon,
+                fill="",
+                outline=color_hex,
+                width=2,
+                tags="roi_polygon"
+            )
+        # Chame uma função para atualizar a lista de zonas na UI
+        self.update_zone_listbox()
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""

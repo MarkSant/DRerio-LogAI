@@ -356,6 +356,12 @@ class AppController:
         finally:
             self.view.set_status("Pronto.")
 
+    def set_main_arena_polygon(self, points: list):
+        """Recebe os pontos da GUI e os salva como a arena principal."""
+        log.info("controller.zone.set_main_arena", points_count=len(points))
+        self.project_manager.update_main_polygon(points)
+        self.view.redraw_zones_from_project_data()
+
     def save_manual_arena(self, polygon_points: list[list[int]]):
         """Saves the manually adjusted arena and updates the detector."""
         log.info("controller.arena.save_manual", points_count=len(polygon_points))
