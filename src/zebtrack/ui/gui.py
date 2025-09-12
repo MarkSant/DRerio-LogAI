@@ -1503,12 +1503,13 @@ class ApplicationGUI:
             return
 
         if self.current_drawing_type == "arena":
-            # Delegate saving and redrawing to the controller for consistency
+            # Ponto Chave: Envia os pontos diretamente para o controlador,
+            # que gerencia o estado da aplicação e a atualização da UI.
             self.controller.set_main_arena_polygon(self.current_polygon_points)
-            self.set_status("Arena principal definida.")
+            self.set_status("Arena principal definida com sucesso.")
 
         elif self.current_drawing_type == "roi":
-            # This logic remains as it was, as it's outside the scope of the bug fix
+            # A lógica para ROIs é mantida, apenas adicionando feedback.
             roi_name = self.ask_string(
                 "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
             )
@@ -1521,7 +1522,7 @@ class ApplicationGUI:
             self.controller.add_roi_polygon(
                 self.current_polygon_points, roi_name, roi_color
             )
-            # Manually draw the new ROI for immediate feedback, then update list
+            # A UI será atualizada pelo controller, mas um feedback imediato é bom.
             self.roi_canvas.create_polygon(
                 self.current_polygon_points,
                 fill="",
@@ -1532,7 +1533,7 @@ class ApplicationGUI:
             self.set_status(f"Área de Interesse '{roi_name}' adicionada.")
             self.update_zone_listbox()
 
-        # Clean up temporary drawing elements and state
+        # Limpa o estado de desenho
         self.current_polygon_points = []
         self._stop_drawing()
 
