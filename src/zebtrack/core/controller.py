@@ -23,6 +23,8 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
+from ultralytics import YOLO
+
 from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
@@ -1194,3 +1196,167 @@ class AppController:
             Reporter.export_project_report(aggregated_df, docx_path)
 
         self.view.show_info("Relatório Gerado", f"Relatório salvo em:\n{save_path}")
+
+    def run_model_diagnostic(self, config: dict):
+        """Runs a diagnostic test on a video and generates a text report."""
+        log.info("controller.diagnostic.start", config=config)
+        self.view.set_status("Iniciando diagnóstico do modelo...")
+        self.view.update_idletasks()
+
+        video_path = config["video_path"]
+        frames_to_analyze = config["frames_to_analyze"]
+        conf_threshold = config["confidence_threshold"]
+        model_to_test = config["model_to_test"]
+
+        results = {}
+        active_weight_details = self.weight_manager.get_weight_details(
+            self.active_weight_name
+        )
+        if not active_weight_details:
+            self.view.show_error("Erro", "Nenhum peso ativo selecionado.")
+            return
+
+        # --- Model Loading ---
+        yolo_model = None
+        openvino_model = None
+
+        try:
+            # Load YOLO model if needed
+            if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
+                log.info("diagnostic.load.yolo")
+                yolo_model = YOLO(active_weight_details["path"])
+                results["YOLO (PyTorch)"] = []
+
+            # Load OpenVINO model if needed
+            if model_to_test in ["OpenVINO", "Ambos"]:
+                log.info("diagnostic.load.openvino")
+                ov_path = active_weight_details.get("openvino_path")
+                if not ov_path or not os.path.exists(ov_path):
+                    if self.view.ask_ok_cancel(
+                        "Converter Modelo?",
+                        "O modelo OpenVINO não foi encontrado. Deseja convertê-lo agora?",
+                    ):
+                        self.convert_active_weight_to_openvino()
+                        # Refresh details
+                        active_weight_details = (
+                            self.weight_manager.get_weight_details(
+                                self.active_weight_name
+                            )
+                        )
+                        ov_path = active_weight_details.get("openvino_path")
+                        if not ov_path:
+                            self.view.show_error(
+                                "Erro", "A conversão para OpenVINO falhou."
+                            )
+                            return
+                    else:
+                        log.warning("diagnostic.openvino.conversion_skipped")
+
+                if ov_path and os.path.exists(ov_path):
+                    plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
+                    if plugin_class:
+                        openvino_model = plugin_class(ov_path)
+                        results["OpenVINO"] = []
+                    else:
+                        log.error("diagnostic.load.openvino_plugin_not_found")
+        except Exception as e:
+            log.error("diagnostic.load.error", exc_info=True)
+            self.view.show_error("Erro ao Carregar Modelo", f"Falha: {e}")
+            return
+
+        # --- Video Processing ---
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            self.view.show_error("Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            return
+
+        for frame_count in range(frames_to_analyze):
+            ret, frame = cap.read()
+            if not ret:
+                log.warning("diagnostic.video.frame_read_failed", frame=frame_count)
+                break
+
+            self.view.set_status(f"Analisando frame {frame_count + 1}/{frames_to_analyze}...")
+            self.view.update_idletasks()
+
+            # --- Predictions ---
+            if yolo_model:
+                preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
+                results["YOLO (PyTorch)"].append(preds[0])
+
+            if openvino_model:
+                # The plugin returns a list of dictionaries, so we adapt it
+                # to the ultralytics results object format for consistency
+                preds = openvino_model.predict(frame, conf_threshold)
+                results["OpenVINO"].append(preds)
+
+        cap.release()
+
+        # --- Report Generation ---
+        report_str = self._format_diagnostic_report(config, results)
+        save_path = self.view.ask_save_filename(
+            title="Salvar Relatório de Diagnóstico",
+            defaultextension=".txt",
+            initialfile="diagnostic_report.txt",
+            filetypes=[("Arquivos de Texto", "*.txt")],
+        )
+
+        if save_path:
+            try:
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(report_str)
+                self.view.show_info(
+                    "Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}"
+                )
+            except IOError as e:
+                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
+
+        self.view.set_status("Diagnóstico concluído. Pronto.")
+
+    def _format_diagnostic_report(self, config, results) -> str:
+        """Formats the collected diagnostic data into a string."""
+        report_lines = [
+            "Relatório de Diagnóstico do Modelo",
+            "-----------------------------------",
+            f"- Vídeo: {config['video_path']}",
+            f"- Frames Analisados: {config['frames_to_analyze']}",
+            f"- Limiar de Confiança: {config['confidence_threshold']}",
+            "-----------------------------------",
+            "",
+        ]
+
+        for model_name, preds_list in results.items():
+            report_lines.append(f"--- [ RESULTADOS {model_name.upper()} ] ---")
+            report_lines.append("")
+
+            for i, preds in enumerate(preds_list):
+                frame_num = i + 1
+                report_lines.append(f"Frame {frame_num}:")
+
+                detections = []
+                # Handle ultralytics results object
+                if hasattr(preds, 'boxes'):
+                    for box in preds.boxes:
+                        class_id = int(box.cls)
+                        class_name = preds.names.get(class_id, 'desconhecido')
+                        conf = float(box.conf)
+                        bbox = [int(coord) for coord in box.xyxy[0]]
+                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+                # Handle our custom OpenVINO plugin list of dicts
+                elif isinstance(preds, list):
+                     for det in preds:
+                        class_id = det['class_id']
+                        class_name = det['class_name']
+                        conf = det['confidence']
+                        bbox = det['box']
+                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+
+                if not detections:
+                    report_lines.append("  - Nenhuma detecção encontrada.")
+                else:
+                    report_lines.extend(detections)
+                report_lines.append("") # Spacer between frames
+
+            report_lines.append("") # Spacer between models
+
+        return "\n".join(report_lines)
