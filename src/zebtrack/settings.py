@@ -4,7 +4,7 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import structlog
 import yaml

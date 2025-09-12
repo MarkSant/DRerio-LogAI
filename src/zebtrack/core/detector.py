@@ -1,6 +1,6 @@
 import time
 from dataclasses import dataclass, field
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -86,7 +86,9 @@ class Detector:
 
         # Convert base polygons to numpy arrays for scaling
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
-        base_roi_polygons = [np.array(p, dtype=np.int32) for p in self.zones.roi_polygons]
+        base_roi_polygons = [
+            np.array(p, dtype=np.int32) for p in self.zones.roi_polygons
+        ]
 
         if actual_width == self.base_width and actual_height == self.base_height:
             self.scaled_polygon = base_polygon

@@ -40,8 +40,9 @@ reproducibility:
                 self.assertEqual(settings.yolo_model.path, "test.pt")
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
-                self.assertEqual(settings.detection_zones.squares, [])
-                self.assertEqual(settings.detection_zones.colors, [])
+                self.assertEqual(settings.detection_zones.roi_polygons, [])
+                self.assertEqual(settings.detection_zones.roi_names, [])
+                self.assertEqual(settings.detection_zones.roi_colors, [])
                 # Should check for both default and override files
                 self.assertEqual(mock_is_file.call_count, 2)
                 # Should only open the default file
@@ -69,12 +70,11 @@ detection_zones:
   polygon:
     - [0, 0]
     - [1, 1]
-  squares:
-    - [[10, 20], [30, 40]]
-  colors:
+  roi_polygons:
+    - [[10, 20], [30, 40], [15, 30]]
+  roi_names: ["ROI1"]
+  roi_colors:
     - [255, 0, 0]
-  enter_commands: [1, "A"]
-  exit_commands: [2, "B"]
 reproducibility:
   seed: 123
 """
@@ -83,9 +83,10 @@ reproducibility:
                 settings = load_settings()
                 self.assertEqual(len(settings.detection_zones.polygon), 2)
                 self.assertEqual(
-                    settings.detection_zones.squares[0], ((10, 20), (30, 40))
+                    settings.detection_zones.roi_polygons[0],
+                    [[10, 20], [30, 40], [15, 30]],
                 )
-                self.assertEqual(settings.detection_zones.enter_commands, [1, "A"])
+                self.assertEqual(settings.detection_zones.roi_names[0], "ROI1")
 
     def test_load_settings_file_not_found(self):
         """Test that a FileNotFoundError is raised if the default config is missing."""

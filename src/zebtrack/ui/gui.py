@@ -921,10 +921,14 @@ class ApplicationGUI:
 
         # Manual drawing buttons
         ttk.Button(
-            actions_frame, text="Desenhar Polígono Principal", command=self._start_main_arena_drawing
+            actions_frame,
+            text="Desenhar Polígono Principal",
+            command=self._start_main_arena_drawing,
         ).pack(fill="x", pady=2)
         ttk.Button(
-            actions_frame, text="Desenhar Área de Interesse", command=self._start_roi_drawing
+            actions_frame,
+            text="Desenhar Área de Interesse",
+            command=self._start_roi_drawing,
         ).pack(fill="x", pady=2)
 
         # --- Zone List ---
@@ -1074,7 +1078,10 @@ class ApplicationGUI:
         )
 
     def display_roi_video_frame(self, video_path):
-        """Loads the first frame of a video, displays it on the canvas, and adjusts the window size."""
+        """
+        Loads the first frame of a video, displays it on the canvas,
+        and adjusts the window size.
+        """
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
@@ -1234,7 +1241,11 @@ class ApplicationGUI:
         """Starts drawing an ROI polygon, checking if an arena exists first."""
         main_arena = self.controller.project_manager.get_zone_data().polygon
         if not main_arena:
-            self.show_error("Erro", "Por favor, defina o 'Polígono Principal' primeiro antes de adicionar Áreas de Interesse.")
+            self.show_error(
+                "Erro",
+                "Por favor, defina o 'Polígono Principal' primeiro antes de "
+                "adicionar Áreas de Interesse.",
+            )
             return
         self.current_drawing_type = "roi"
         self._start_polygon_drawing()
@@ -1293,10 +1304,16 @@ class ApplicationGUI:
             return
 
         # If drawing an ROI, check if the point is inside the main arena
-        if self.current_drawing_type == 'roi':
+        if self.current_drawing_type == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
-            if cv2.pointPolygonTest(np.array(main_arena_poly), (event.x, event.y), False) < 0:
-                self.show_warning("Ponto Inválido", "As Áreas de Interesse devem ser desenhadas dentro do Polígono Principal.")
+            if cv2.pointPolygonTest(
+                np.array(main_arena_poly), (event.x, event.y), False
+            ) < 0:
+                self.show_warning(
+                    "Ponto Inválido",
+                    "As Áreas de Interesse devem ser desenhadas dentro do "
+                    "Polígono Principal.",
+                )
                 return
 
         self.current_polygon_points.append((event.x, event.y))
@@ -1314,7 +1331,9 @@ class ApplicationGUI:
         if len(self.current_polygon_points) > 1:
             p1 = self.current_polygon_points[-2]
             p2 = self.current_polygon_points[-1]
-            self.roi_canvas.create_line(p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid")
+            self.roi_canvas.create_line(
+                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+            )
 
     def _on_canvas_motion(self, event):
         """Handles mouse movement for drawing elastic lines."""
@@ -1356,22 +1375,34 @@ class ApplicationGUI:
         if self.current_drawing_type == "arena":
             self.controller.update_main_arena(self.current_polygon_points)
             self.roi_canvas.create_polygon(
-                self.current_polygon_points, fill="", outline="cyan", width=2, tags="main_arena"
+                self.current_polygon_points,
+                fill="",
+                outline="cyan",
+                width=2,
+                tags="main_arena",
             )
             self.set_status("Arena principal definida.")
 
         elif self.current_drawing_type == "roi":
-            roi_name = self.ask_string("Nome da ROI", "Digite um nome para esta nova Área de Interesse:")
+            roi_name = self.ask_string(
+                "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
+            )
             if not roi_name:
                 self.current_polygon_points = []
                 self._stop_drawing()
                 return
 
             # For now, let's use a fixed color. A color picker could be added later.
-            roi_color = (0, 255, 0) # Green
-            self.controller.add_roi_polygon(self.current_polygon_points, roi_name, roi_color)
+            roi_color = (0, 255, 0)  # Green
+            self.controller.add_roi_polygon(
+                self.current_polygon_points, roi_name, roi_color
+            )
             self.roi_canvas.create_polygon(
-                self.current_polygon_points, fill="", outline="green", width=2, tags="roi_polygon"
+                self.current_polygon_points,
+                fill="",
+                outline="green",
+                width=2,
+                tags="roi_polygon",
             )
             self.set_status(f"Área de Interesse '{roi_name}' adicionada.")
             self.update_zone_listbox()
@@ -2121,15 +2152,19 @@ class ApplicationGUI:
             self.start_single_analysis_btn = ttk.Button(
                 self.zone_controls_frame, # Add to the left control panel
                 text="Iniciar Análise de Vídeo Único",
-                command=self._on_start_single_video_processing_clicked
+                command=self._on_start_single_video_processing_clicked,
             )
-            self.start_single_analysis_btn.pack(side="bottom", fill="x", pady=10, padx=5)
+            self.start_single_analysis_btn.pack(
+                side="bottom", fill="x", pady=10, padx=5
+            )
         self.start_single_analysis_btn.config(state="normal")
 
         self.show_info(
             "Configuração Necessária",
-            "Defina a arena do aquário usando a detecção automática ou o desenho manual.\n\n"
-            "Após definir a arena principal, clique em 'Iniciar Análise de Vídeo Único'."
+            "Defina a arena do aquário usando a detecção automática ou o "
+            "desenho manual.\n\n"
+            "Após definir a arena principal, clique em 'Iniciar Análise de "
+            "Vídeo Único'.",
         )
 
     def _on_auto_detect_clicked(self):
@@ -2144,9 +2179,11 @@ class ApplicationGUI:
     def _on_start_single_video_processing_clicked(self):
         """Handler for the 'Start Analysis' button in the single video flow."""
         # 1. Get the zone data that the user drew
-        zone_data = self.controller.project_manager.get_zone_data() # Assuming the UI updates the PM
+        zone_data = self.controller.project_manager.get_zone_data()
         if not zone_data.polygon:
-            self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
+            self.show_error(
+                "Erro", "A área principal do aquário (polígono) não foi definida."
+            )
             return
 
         # 2. Disable the button and call the controller to start processing
@@ -2236,7 +2273,9 @@ class ApplicationGUI:
 
         for i, polygon in enumerate(zone_data.roi_polygons):
             color = (
-                zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
+                zone_data.roi_colors[i]
+                if i < len(zone_data.roi_colors)
+                else (0, 255, 0)
             )  # Default to green
             pts = np.array(polygon, np.int32)
             pts = pts.reshape((-1, 1, 2))
