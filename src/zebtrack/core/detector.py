@@ -25,6 +25,14 @@ class Detector:
     """
     Manages the detection process by delegating to a plugin and handling
     stateful logic for zone tracking.
+
+    Nota de Otimização:
+    O rastreamento de objetos é baseado nos bounding boxes. Se o modelo de IA
+    carregado for um modelo de segmentação (*_seg.pt), ele realizará a
+    tarefa computacionalmente mais custosa de encontrar máscaras de pixel,
+    mesmo que apenas os bounding boxes sejam usados. Para um desempenho
+    ótimo no rastreamento, um modelo treinado apenas para DETECÇÃO (que
+    gera somente bounding boxes) deve ser usado em futuras versões.
     """
 
     def __init__(
@@ -130,10 +138,27 @@ class Detector:
         """
         start_time = time.perf_counter()
 
-        # 1. Delegate actual detection to the loaded plugin
-        predictions = self.plugin.detect(frame)
+        # Optimization: Crop the frame to the bounding box of the arena polygon
+        if self.scaled_polygon.size > 0:
+            x, y, w, h = cv2.boundingRect(self.scaled_polygon)
+            cropped_frame = frame[y : y + h, x : x + w]
+
+            # 1. Delegate actual detection to the loaded plugin on the cropped frame
+            predictions_cropped = self.plugin.detect(cropped_frame)
+
+            # Translate predictions back to the original frame's coordinate system
+            predictions = []
+            for det in predictions_cropped:
+                x1, y1, x2, y2, conf, track_id = det
+                predictions.append(
+                    (x1 + x, y1 + y, x2 + x, y2 + y, conf, track_id)
+                )
+        else:
+            # Fallback to detecting on the full frame if no polygon is defined
+            predictions = self.plugin.detect(frame)
 
         # 2. Filter detections to only those inside the main polygon
+        # This is still necessary for non-rectangular polygons
         detections_in_polygon = []
         if len(predictions) > 0:
             for det in predictions:

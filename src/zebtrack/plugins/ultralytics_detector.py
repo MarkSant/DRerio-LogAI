@@ -36,6 +36,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
+            classes=1,  # Track only the 'zebrafish' class
         )
 
         predictions = []

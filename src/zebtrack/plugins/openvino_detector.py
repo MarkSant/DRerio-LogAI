@@ -156,9 +156,11 @@ class OpenVINOPlugin(DetectorPlugin):
 
         final_detections = []
         for *xyxy, conf, cls in detections:
-            final_detections.append(
-                (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
-            )
+            # Filter for 'zebrafish' class (assumed to be class 1)
+            if int(cls) == 1:
+                final_detections.append(
+                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
+                )
         return final_detections
 
     @staticmethod
