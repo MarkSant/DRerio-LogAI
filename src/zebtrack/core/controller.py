@@ -289,22 +289,28 @@ class AppController:
         else:
             self.view.update_openvino_status_label("O OpenVINO está desativado.")
 
-    def run_aquarium_detection(self, video_path: str | None = None):
-        """Runs the aquarium detection model on the first video of the project."""
+    def run_aquarium_detection(
+        self, video_path: str | None = None, stabilization_frames: int = 10
+    ):
+        """Runs the aquarium detection model on the specified or first project video."""
         log.info("controller.aquarium_detection.start")
-        if video_path is None:
-            # Default behavior for project workflow
-            video_path = self.project_manager.get_next_video()
-
-        if not video_path:
-            self.view.show_warning(
-                "Aviso",
-                "Nenhum vídeo pendente ou especificado foi encontrado para a detecção.",
-            )
-            return
+        self.view.set_status("Detectando aquário, por favor aguarde...")
+        self.view.update_idletasks()
 
         try:
-            # Use the globally selected .pt model for this, not OpenVINO
+            if video_path is None:
+                video_path = self.project_manager.get_next_video()
+
+            if not video_path:
+                self.view.show_warning(
+                    "Aviso",
+                    "Nenhum vídeo foi encontrado para a detecção.",
+                )
+                return
+
+            # Display the first frame of the video as a preview background
+            self.view.display_roi_video_frame(video_path)
+
             weight_details = self.weight_manager.get_weight_details(
                 self.active_weight_name
             )
@@ -314,15 +320,23 @@ class AppController:
                     "Não foi possível encontrar um caminho de modelo .pt válido.",
                 )
                 return
+
             model_path = weight_details["path"]
             detector = AquariumDetector(model_path=model_path)
-            polygons = detector.detect_aquariums(video_path)
+            polygons = detector.detect_aquariums(
+                video_path, stabilization_frames=stabilization_frames
+            )
 
             if not polygons:
                 self.view.show_warning(
-                    "Detecção Falhou",
-                    "Nenhum aquário foi detectado no vídeo. "
-                    "Por favor, desenhe a área manualmente.",
+                    "Detecção Automática Falhou",
+                    (
+                        "Não foi possível identificar uma área de aquário estável "
+                        "no vídeo. Isso pode ocorrer devido a reflexos, pouca luz ou "
+                        "movimento excessivo da câmera.\n\nPor favor, defina a área "
+                        "do aquário manualmente utilizando a ferramenta 'Desenhar "
+                        "Polígono Principal'."
+                    ),
                 )
                 return
 
@@ -331,14 +345,21 @@ class AppController:
                 "controller.aquarium_detection.success",
                 polygon_points=len(main_polygon),
             )
-            # The view will handle drawing this polygon
-            self.view.display_suggested_polygon(main_polygon)
+            # The view will handle drawing this polygon interactively
+            self.view.setup_interactive_polygon(main_polygon)
 
         except Exception as e:
             log.error("controller.aquarium_detection.error", exc_info=True)
             self.view.show_error(
                 "Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}"
             )
+        finally:
+            self.view.set_status("Pronto.")
+
+    def save_manual_arena(self, polygon_points: list[list[int]]):
+        """Saves the manually adjusted arena and updates the detector."""
+        log.info("controller.arena.save_manual", points_count=len(polygon_points))
+        self.update_main_arena(polygon_points)
 
     def update_main_arena(self, polygon_points: list[list[int]]):
         """Updates the main arena polygon in the project's zone data."""
