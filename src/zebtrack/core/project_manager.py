@@ -363,6 +363,20 @@ class ProjectManager:
             return ZoneData(**zone_dict)
         return ZoneData()
 
+    def update_main_polygon(self, points: list):
+        """Atualiza ou define o polígono principal nos dados do projeto."""
+        # This method correctly handles the ZoneData object and project saving.
+        from dataclasses import asdict
+
+        log.info("project_manager.polygon.updating", points_count=len(points))
+
+        zone_data = self.get_zone_data()
+        zone_data.polygon = points
+
+        self.project_data["detection_zones"] = asdict(zone_data)
+        self.save_project()
+        log.info("project_manager.polygon.updated_and_saved")
+
     def load_metadata(self):
         """Loads the metadata.csv file from the project root into a pandas DataFrame."""
         if not self.project_path:
