@@ -8,7 +8,8 @@ import numpy as np
 import openvino as ov
 import structlog
 import torch
-from ultralytics.utils.ops import non_max_suppression, scale_boxes
+from ultralytics.utils.nms import non_max_suppression
+from ultralytics.utils.ops import scale_boxes
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
@@ -36,6 +37,10 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
+
+        # Context control for class filtering
+        self._context: str = 'tracking'  # 'tracking' or 'diagnostic'
+        self._aquarium_region_defined: bool = False
 
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
@@ -78,6 +83,20 @@ class OpenVINOPlugin(DetectorPlugin):
         )
         self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
 
+    def set_context(self, context: str):
+        """
+        Define o contexto de uso do plugin.
+        'diagnostic' => não filtra classes (mostra todas)
+        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do aquário definido)
+        """
+        if context not in ('tracking', 'diagnostic'):
+            return
+        self._context = context
+
+    def set_aquarium_region_defined(self, defined: bool = True):
+        """Informar que a região do aquário já está válida"""
+        self._aquarium_region_defined = bool(defined)
+
     def detect(
         self, frame: np.ndarray
     ) -> List[Tuple[int, int, int, int, float, int]]:
@@ -99,7 +118,13 @@ class OpenVINOPlugin(DetectorPlugin):
 
         # 2. Pass detections to ByteTrack for tracking
         # Bytetrack expects a numpy array of shape (N, 5) with (x1, y1, x2, y2, score)
-        detections_np = np.array(detections) if detections else np.empty((0, 5))
+        # Extract only first 5 elements (exclude class_id) for ByteTrack compatibility
+        detections_for_tracker = []
+        for det in detections:
+            x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
+            detections_for_tracker.append([x1, y1, x2, y2, conf])
+        
+        detections_np = np.array(detections_for_tracker) if detections_for_tracker else np.empty((0, 5))
 
         # Bytetrack's update method needs image info and size
         img_info = frame.shape[:2]  # (height, width)
@@ -127,6 +152,43 @@ class OpenVINOPlugin(DetectorPlugin):
             )
 
         return predictions
+
+    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> list:
+        """
+        Compatibility method for diagnostic workflow.
+        Returns raw detections without tracking, formatted for diagnostic reporting.
+        """
+        if conf_threshold is not None:
+            # Temporarily override confidence threshold for this prediction
+            old_conf = self.conf_threshold
+            self.conf_threshold = conf_threshold
+
+        try:
+            # 1. Preprocess and get detections from OpenVINO
+            input_tensor = self._preprocess(frame)
+            self.infer_request.infer({self.input_layer.any_name: input_tensor})
+            results = self.infer_request.results
+            detections = self._postprocess(results, frame.shape)
+
+            # 2. Format results for diagnostic reporting
+            formatted_results = []
+            for det in detections:
+                x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
+                # Include class_id if available, or assume class 1 for compatibility
+                class_id = det[5] if len(det) > 5 else 1
+                class_name = "zebrafish" if class_id == 1 else f"class_{class_id}"
+                formatted_results.append({
+                    'box': [int(x1), int(y1), int(x2), int(y2)],
+                    'confidence': float(conf),
+                    'class_id': int(class_id),
+                    'class_name': class_name
+                })
+            return formatted_results
+
+        finally:
+            if conf_threshold is not None:
+                # Restore original confidence threshold
+                self.conf_threshold = old_conf
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
         """Prepares a frame for OpenVINO inference using letterboxing."""
@@ -156,10 +218,22 @@ class OpenVINOPlugin(DetectorPlugin):
 
         final_detections = []
         for *xyxy, conf, cls in detections:
-            # Filter for 'zebrafish' class (assumed to be class 1)
-            if int(cls) == 1:
+            class_id = int(cls)
+            
+            # LÓGICA DE FILTRO ATUALIZADA:
+            if self._context == 'diagnostic':
+                # Em modo diagnóstico NUNCA filtra: inclui todas as classes retornadas
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf))
+                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                )
+            else:
+                # Modo tracking:
+                # Antes do aquário estar definido: não filtra (permite aparecer classe 0 ou outras)
+                # Após definição do aquário: filtra para somente peixe (cls == 1)
+                if self._aquarium_region_defined and class_id != 1:
+                    continue
+                final_detections.append(
+                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
                 )
         return final_detections
 

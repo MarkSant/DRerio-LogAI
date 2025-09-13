@@ -1301,6 +1301,9 @@ class AppController:
                     plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
                     if plugin_class:
                         openvino_model = plugin_class(ov_path)
+                        # Set diagnostic context to allow all classes
+                        if hasattr(openvino_model, "set_context"):
+                            openvino_model.set_context("diagnostic")
                         results["OpenVINO"] = []
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
