@@ -5,21 +5,28 @@ from zebtrack.core.controller import AppController
 
 
 class TestAppController(unittest.TestCase):
+    @patch("zebtrack.core.controller.WeightManager")
     @patch("zebtrack.core.controller.ProjectManager")
     @patch("zebtrack.core.controller.ApplicationGUI")
-    def setUp(self, mock_gui, mock_pm):
+    def setUp(self, mock_gui, mock_pm, mock_wm):
         """Set up a test environment before each test."""
         self.root = MagicMock()
 
         # The patched classes are passed as arguments to setUp
         self.mock_view = mock_gui.return_value
         self.mock_pm = mock_pm.return_value
+        self.mock_wm = mock_wm.return_value
+
+        # Configure the mock WeightManager to return a predictable default weight
+        self.mock_wm.get_default_weight.return_value = ("best_seg.pt", "/fake/path/best_seg.pt")
+
 
         self.controller = AppController(self.root)
 
         # The controller now has MOCK instances for its dependencies
         self.controller.project_manager = self.mock_pm
         self.controller.view = self.mock_view
+        self.controller.weight_manager = self.mock_wm
 
     def tearDown(self):
         """Clean up after each test."""
