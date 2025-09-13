@@ -8,8 +8,20 @@ import numpy as np
 import openvino as ov
 import structlog
 import torch
-from ultralytics.utils.nms import non_max_suppression
-from ultralytics.utils.ops import scale_boxes
+# Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
+try:
+    # Versões onde non_max_suppression está em ops
+    from ultralytics.utils.ops import non_max_suppression, scale_boxes
+except ImportError:
+    try:
+        # Fallback para versões que expõem non_max_suppression em utils.nms
+        from ultralytics.utils.nms import non_max_suppression  # type: ignore
+        from ultralytics.utils.ops import scale_boxes
+    except ImportError as e:
+        raise ImportError(
+            "Falha ao importar non_max_suppression da biblioteca ultralytics. "
+            "Atualize a dependência ou ajuste o caminho do import."
+        ) from e
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
