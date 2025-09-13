@@ -48,6 +48,13 @@ class CalibrationDialog(simpledialog.Dialog):
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
 
+        # --- Vars for diagnostic ---
+        self.frames_to_analyze_var = StringVar(value="10")
+        self.confidence_threshold_var = StringVar(value="0.25")
+        self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
+        self.diagnostic_video_path = ""
+
+
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
@@ -104,7 +111,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         # Set initial state from controller
         self.use_openvino_var.set(self.controller.use_openvino)
-        self._update_openvino_status_local()
+        self.update_openvino_status_label(self.controller.get_openvino_status())
 
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""
@@ -125,17 +132,14 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_weight_selected_local(self, event=None):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
-        self.controller.set_active_weight(selected_weight)
-        self._update_openvino_status_local()
+        self.controller.set_active_weight(selected_weight, self)
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.controller.set_openvino_usage(self.use_openvino_var.get())
-        self._update_openvino_status_local()
+        self.controller.set_openvino_usage(self.use_openvino_var.get(), self)
 
-    def _update_openvino_status_local(self):
-        """Updates the status label based on the controller's state."""
-        status = self.controller.get_openvino_status()
+    def update_openvino_status_label(self, status: str):
+        """Updates the status label with the given text."""
         self.openvino_status_var.set(status)
 
     def _load_new_weight_local(self):
@@ -144,14 +148,15 @@ class CalibrationDialog(simpledialog.Dialog):
         self.view._load_new_weight_clicked()
         # Repopulate this dialog's dropdown after the controller has the new weight
         self._populate_weights_dropdown()
-        self._update_openvino_status_local()
+        # Status is updated by the controller when the weight is set.
 
     def _manage_weights_local(self):
         """Opens the weight management dialog and provides a callback to refresh."""
         # The callback will be called by the ManageWeightsDialog upon closing
         def refresh_callback():
             self._populate_weights_dropdown()
-            self._update_openvino_status_local()
+            # The controller will handle the status update when a new weight is selected
+            # or the default is changed.
 
         ManageWeightsDialog(self.parent, self.controller, refresh_callback)
 
@@ -162,54 +167,18 @@ class CalibrationDialog(simpledialog.Dialog):
         )
         diag_frame.pack(fill="x", pady=10, padx=5)
 
-        ttk.Button(
-            diag_frame,
-            text="Testar Modelo em Vídeo...",
-            command=self._open_diagnostic_dialog,
-        ).pack(fill="x", padx=10, pady=5)
-
-    def _open_diagnostic_dialog(self):
-        dialog = DiagnosticDialog(self.parent, self.controller)
-        if dialog.result:
-            self.controller.run_model_diagnostic(dialog.result)
-
-    def buttonbox(self):
-        # Override to have only a close button
-        box = ttk.Frame(self)
-        w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
-        w.pack(side="left", padx=5, pady=5)
-        self.bind("<Return>", self.ok)
-        self.bind("<Escape>", self.cancel)
-        box.pack()
-
-
-class DiagnosticDialog(simpledialog.Dialog):
-    """Dialog for configuring a model diagnostic test."""
-
-    def __init__(self, parent, controller):
-        self.controller = controller
-        self.video_path = ""
-        self.result = None
-        super().__init__(parent, "Configurar Diagnóstico de Modelo")
-
-    def body(self, master):
-        self.model_choice_var = StringVar(value="YOLO (PyTorch)")
-        self.frames_to_analyze_var = StringVar(value="10")
-        self.confidence_threshold_var = StringVar(value="0.25")
-        self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
-
         # --- Video Selection ---
-        video_frame = ttk.Frame(master)
+        video_frame = ttk.Frame(diag_frame)
         video_frame.pack(fill="x", padx=10, pady=5)
         ttk.Button(
-            video_frame, text="Selecionar Vídeo...", command=self._select_video
+            video_frame, text="Selecionar Vídeo...", command=self._select_diagnostic_video
         ).pack(side="left")
         ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
             side="left", padx=5
         )
 
         # --- Parameters ---
-        params_frame = ttk.LabelFrame(master, text="Parâmetros", padding=10)
+        params_frame = ttk.Frame(diag_frame, padding=5)
         params_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
@@ -226,38 +195,27 @@ class DiagnosticDialog(simpledialog.Dialog):
             params_frame, textvariable=self.confidence_threshold_var, width=10
         ).grid(row=1, column=1, sticky="w", padx=5)
 
-        # --- Model Selection ---
-        model_frame = ttk.LabelFrame(master, text="Modelo a Testar", padding=10)
-        model_frame.pack(fill="x", padx=10, pady=5)
 
-        ttk.Radiobutton(
-            model_frame,
-            text="YOLO (PyTorch)",
-            variable=self.model_choice_var,
-            value="YOLO (PyTorch)",
-        ).pack(anchor="w")
-        ttk.Radiobutton(
-            model_frame, text="OpenVINO", variable=self.model_choice_var, value="OpenVINO"
-        ).pack(anchor="w")
-        ttk.Radiobutton(
-            model_frame, text="Ambos", variable=self.model_choice_var, value="Ambos"
-        ).pack(anchor="w")
+        ttk.Button(
+            diag_frame,
+            text="Testar Modelo em Vídeo...",
+            command=self._run_diagnostic_test,
+        ).pack(fill="x", padx=10, pady=5)
 
-        return master # initial focus
-
-    def _select_video(self):
+    def _select_diagnostic_video(self):
         path = filedialog.askopenfilename(
             title="Selecione o Vídeo para Diagnóstico",
             filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
         )
         if path:
-            self.video_path = path
+            self.diagnostic_video_path = path
             self.video_path_label_var.set(os.path.basename(path))
 
-    def validate(self):
-        if not self.video_path:
+    def _run_diagnostic_test(self):
+        # --- Validation ---
+        if not self.diagnostic_video_path:
             messagebox.showerror("Erro", "Por favor, selecione um arquivo de vídeo.")
-            return 0
+            return
 
         try:
             frames = int(self.frames_to_analyze_var.get())
@@ -265,12 +223,12 @@ class DiagnosticDialog(simpledialog.Dialog):
                 messagebox.showerror(
                     "Erro", "O número de frames deve ser um inteiro positivo."
                 )
-                return 0
+                return
         except ValueError:
             messagebox.showerror(
                 "Erro", "O número de frames deve ser um número inteiro."
             )
-            return 0
+            return
 
         try:
             conf = float(self.confidence_threshold_var.get())
@@ -278,21 +236,36 @@ class DiagnosticDialog(simpledialog.Dialog):
                 messagebox.showerror(
                     "Erro", "O limiar de confiança deve ser um número entre 0.0 e 1.0."
                 )
-                return 0
+                return
         except ValueError:
             messagebox.showerror(
                 "Erro", "O limiar de confiança deve ser um número válido."
             )
-            return 0
-        return 1
+            return
 
-    def apply(self):
-        self.result = {
-            "video_path": self.video_path,
+        # --- Config Build ---
+        model_to_test = "OpenVINO" if self.use_openvino_var.get() else "YOLO (PyTorch)"
+
+        config = {
+            "video_path": self.diagnostic_video_path,
             "frames_to_analyze": int(self.frames_to_analyze_var.get()),
             "confidence_threshold": float(self.confidence_threshold_var.get()),
-            "model_to_test": self.model_choice_var.get(),
+            "model_to_test": model_to_test,
         }
+
+        self.controller.run_model_diagnostic(config)
+        self.destroy()
+
+    def buttonbox(self):
+        # Override to have only a close button
+        box = ttk.Frame(self)
+        w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
+        w.pack(side="left", padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
+
 
 
 class ManageWeightsDialog(simpledialog.Dialog):
