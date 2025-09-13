@@ -154,7 +154,6 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
-        self.model_test_var = StringVar(value="YOLO (PyTorch)")
         self.model_test_dropdown = ttk.Combobox(
             params_frame, textvariable=self.model_test_var, state="readonly",
             values=["YOLO (PyTorch)", "OpenVINO", "Ambos"], width=15
