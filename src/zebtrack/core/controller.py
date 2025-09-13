@@ -1301,10 +1301,18 @@ class AppController:
                     plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
                     if plugin_class:
                         openvino_model = plugin_class(ov_path)
+                        # Verify the plugin has the required predict method
+                        if not hasattr(openvino_model, "predict"):
+                            log.error("diagnostic.thread.missing_predict_method", plugin_class=str(plugin_class))
+                            self.root.after(0, self.view.show_error, "Erro de Plugin", 
+                                          "O plugin OpenVINO não possui o método predict necessário para diagnóstico.")
+                            return
                         # Set diagnostic context to allow all classes
                         if hasattr(openvino_model, "set_context"):
                             openvino_model.set_context("diagnostic")
+                            log.info("diagnostic.thread.openvino_context_set", context="diagnostic")
                         results["OpenVINO"] = []
+                        log.info("diagnostic.thread.openvino_loaded", path=ov_path)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
             self.root.after(0, self.view.show_error, "Erro ao Carregar Modelo", f"Falha: {e}")
@@ -1331,8 +1339,18 @@ class AppController:
                 results.setdefault("YOLO (PyTorch)", []).append(preds[0])
 
             if openvino_model:
-                preds = openvino_model.predict(frame, conf_threshold)
-                results.setdefault("OpenVINO", []).append(preds)
+                try:
+                    log.debug("diagnostic.thread.openvino_predict_start", frame=frame_count + 1)
+                    preds = openvino_model.predict(frame, conf_threshold)
+                    log.debug("diagnostic.thread.openvino_predict_success", 
+                             frame=frame_count + 1, detections=len(preds))
+                    results.setdefault("OpenVINO", []).append(preds)
+                except Exception as e:
+                    log.error("diagnostic.thread.openvino_predict_error", 
+                             frame=frame_count + 1, exc_info=True)
+                    self.root.after(0, self.view.show_error, "Erro de Inferência OpenVINO", 
+                                  f"Falha na inferência do frame {frame_count + 1}: {e}")
+                    return
         cap.release()
 
         # --- Schedule report generation on main thread ---
