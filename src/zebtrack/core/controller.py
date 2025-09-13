@@ -257,55 +257,41 @@ class AppController:
         self.view.set_active_weight_in_dropdown(name)
         self.set_active_weight(name)
 
-    def set_active_weight(self, name: str):
+    def set_active_weight(self, name: str, dialog):
         if name and name in self.get_all_weight_names():
             self.active_weight_name = name
             log.info("controller.active_weight.set", name=name)
-            self.update_openvino_status()
+            self.update_openvino_status(dialog)
             if self.use_openvino:
-                self.convert_active_weight_to_openvino()
+                self.convert_active_weight_to_openvino(dialog)
         else:
             log.warning("controller.active_weight.not_found", name=name)
             self.active_weight_name = None
+            self.update_openvino_status(dialog)
 
-    def set_openvino_usage(self, use_openvino: bool):
+
+    def set_openvino_usage(self, use_openvino: bool, dialog):
         self.use_openvino = use_openvino
         log.info("controller.openvino_usage.set", enabled=use_openvino)
         if use_openvino and self.active_weight_name:
             # Trigger conversion if switching to OpenVINO and model isn't converted
-            self.convert_active_weight_to_openvino()
-        self.update_openvino_status()
+            self.convert_active_weight_to_openvino(dialog)
+        self.update_openvino_status(dialog)
 
-    def convert_active_weight_to_openvino(self):
+    def convert_active_weight_to_openvino(self, dialog):
         if not self.active_weight_name:
             return
         self.view.set_status(f"Convertendo {self.active_weight_name} para OpenVINO...")
         self.view.update_idletasks()
         self.weight_manager.convert_to_openvino(self.active_weight_name)
-        self.update_openvino_status()
+        self.update_openvino_status(dialog)
         self.view.set_status("Verificação de conversão concluída. Pronto.")
 
-    def update_openvino_status(self):
+    def update_openvino_status(self, dialog):
         """Updates the status label in the GUI based on the current state."""
-        if not self.active_weight_name:
-            self.view.update_openvino_status_label("Nenhum peso selecionado.")
-            return
-
-        details = self.weight_manager.get_weight_details(self.active_weight_name)
-        if not details:
-            return
-
-        if self.use_openvino:
-            if details.get("openvino_path") and os.path.exists(
-                details.get("openvino_path")
-            ):
-                self.view.update_openvino_status_label("O modelo OpenVINO está pronto.")
-            else:
-                self.view.update_openvino_status_label(
-                    "Necessita de conversão para OpenVINO."
-                )
-        else:
-            self.view.update_openvino_status_label("O OpenVINO está desativado.")
+        status = self.get_openvino_status()
+        if dialog:
+            dialog.update_openvino_status_label(status)
 
     def run_aquarium_detection(
         self, video_path: str | None = None, stabilization_frames: int = 10
