@@ -111,7 +111,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         # Set initial state from controller
         self.use_openvino_var.set(self.controller.use_openvino)
-        self._update_openvino_status_local()
+        self.update_openvino_status_label(self.controller.get_openvino_status())
 
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""
@@ -148,14 +148,15 @@ class CalibrationDialog(simpledialog.Dialog):
         self.view._load_new_weight_clicked()
         # Repopulate this dialog's dropdown after the controller has the new weight
         self._populate_weights_dropdown()
-        self._update_openvino_status_local()
+        # Status is updated by the controller when the weight is set.
 
     def _manage_weights_local(self):
         """Opens the weight management dialog and provides a callback to refresh."""
         # The callback will be called by the ManageWeightsDialog upon closing
         def refresh_callback():
             self._populate_weights_dropdown()
-            self._update_openvino_status_local()
+            # The controller will handle the status update when a new weight is selected
+            # or the default is changed.
 
         ManageWeightsDialog(self.parent, self.controller, refresh_callback)
 
