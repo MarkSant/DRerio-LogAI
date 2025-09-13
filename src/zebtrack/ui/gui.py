@@ -1596,6 +1596,15 @@ class ApplicationGUI:
 
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
+        # Critical Fix #1: Validate canvas has background frame before drawing
+        if self._canvas_bg_image is None:
+            self.show_error(
+                "Frame Necessário",
+                "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
+                "primeiro para ter uma imagem de fundo no canvas antes de desenhar polígonos."
+            )
+            return False
+            
         self._stop_drawing()  # Ensure clean state
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
@@ -1713,40 +1722,73 @@ class ApplicationGUI:
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
+            if self.current_polygon_points:
+                self.show_warning(
+                    "Polígono Incompleto", 
+                    f"Um polígono precisa de pelo menos 3 pontos. Você tem {len(self.current_polygon_points)} pontos."
+                )
             self._stop_drawing()
             return
 
-        if self.current_drawing_type == "arena":
-            # Ponto Chave: Envia os pontos diretamente para o controlador,
-            # que gerencia o estado da aplicação e a atualização da UI.
-            self.controller.set_main_arena_polygon(self.current_polygon_points)
-            self.set_status("Arena principal definida com sucesso.")
+        try:
+            if self.current_drawing_type == "arena":
+                # Critical Fix #2: Add validation and better feedback
+                self.set_status("Salvando arena principal...")
+                success = self.controller.set_main_arena_polygon(self.current_polygon_points)
+                
+                if success:
+                    self.set_status("✓ Arena principal definida com sucesso!")
+                    # Show success message to user
+                    self.show_info(
+                        "Sucesso", 
+                        f"Arena principal criada com {len(self.current_polygon_points)} pontos e salva no projeto."
+                    )
+                else:
+                    self.set_status("❌ Erro ao salvar arena principal.")
+                    self.show_error(
+                        "Erro",
+                        "Não foi possível salvar a arena principal. Verifique se o projeto está inicializado."
+                    )
 
-        elif self.current_drawing_type == "roi":
-            # A lógica para ROIs é mantida, apenas adicionando feedback.
-            roi_name = self.ask_string(
-                "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
-            )
-            if not roi_name:
-                self.current_polygon_points = []
-                self._stop_drawing()
-                return
+            elif self.current_drawing_type == "roi":
+                # A lógica para ROIs é mantida, apenas adicionando feedback.
+                roi_name = self.ask_string(
+                    "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
+                )
+                if not roi_name:
+                    self.current_polygon_points = []
+                    self._stop_drawing()
+                    return
 
-            roi_color = (0, 255, 0)  # Green
-            self.controller.add_roi_polygon(
-                self.current_polygon_points, roi_name, roi_color
-            )
-            # A UI será atualizada pelo controller, mas um feedback imediato é bom.
-            self.roi_canvas.create_polygon(
-                self.current_polygon_points,
-                fill="",
-                outline="green",
-                width=2,
-                tags="roi_polygon",
-            )
-            self.set_status(f"Área de Interesse '{roi_name}' adicionada.")
-            self.update_zone_listbox()
+                self.set_status(f"Salvando área de interesse '{roi_name}'...")
+                roi_color = (0, 255, 0)  # Green
+                success = self.controller.add_roi_polygon(
+                    self.current_polygon_points, roi_name, roi_color
+                )
+                
+                if success:
+                    # A UI será atualizada pelo controller, mas um feedback imediato é bom.
+                    self.roi_canvas.create_polygon(
+                        self.current_polygon_points,
+                        fill="",
+                        outline="green",
+                        width=2,
+                        tags="roi_polygon",
+                    )
+                    self.set_status(f"✓ Área de Interesse '{roi_name}' adicionada com sucesso!")
+                    self.update_zone_listbox()
+                    self.show_info(
+                        "Sucesso", 
+                        f"Área de interesse '{roi_name}' criada com {len(self.current_polygon_points)} pontos."
+                    )
+                else:
+                    self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
+                    self.show_error("Erro", f"Não foi possível salvar a área de interesse '{roi_name}'.")
 
+        except Exception as e:
+            self.set_status("❌ Erro durante salvamento do polígono.")
+            self.show_error("Erro Inesperado", f"Erro ao processar polígono: {str(e)}")
+            
         # Limpa o estado de desenho
         self.current_polygon_points = []
         self._stop_drawing()
@@ -1766,12 +1808,22 @@ class ApplicationGUI:
 
     def redraw_zones_from_project_data(self):
         """Limpa o canvas e redesenha todas as zonas a partir dos dados centrais."""
+        # Critical Fix #6: Ensure proper canvas clearing and background restoration
         self.roi_canvas.delete("all")
+        
+        # Always restore background image if available
         if self._canvas_bg_image:
             self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+            log.info("gui.redraw_zones.background_restored")
+        else:
+            log.warning("gui.redraw_zones.no_background_image")
 
         zone_data = self.controller.project_manager.get_zone_data()
+        log.info("gui.redraw_zones.start", 
+                 has_main_polygon=bool(zone_data.polygon),
+                 roi_count=len(zone_data.roi_polygons))
 
+        # Draw main polygon if exists
         if zone_data.polygon:
             self.roi_canvas.create_polygon(
                 zone_data.polygon,
@@ -1780,11 +1832,15 @@ class ApplicationGUI:
                 width=2,
                 tags="main_polygon"
             )
+            log.info("gui.redraw_zones.main_polygon_drawn", points=len(zone_data.polygon))
 
+        # Draw ROI polygons
         for i, polygon in enumerate(zone_data.roi_polygons):
             # tkinter expects color as a hex string like #RRGGBB
             color_tuple = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
             color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
+            name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
+            
             self.roi_canvas.create_polygon(
                 polygon,
                 fill="",
@@ -1792,8 +1848,11 @@ class ApplicationGUI:
                 width=2,
                 tags="roi_polygon"
             )
-        # Chame uma função para atualizar a lista de zonas na UI
+            log.info("gui.redraw_zones.roi_drawn", name=name, points=len(polygon))
+        
+        # Update the zone listbox to reflect current zones  
         self.update_zone_listbox()
+        log.info("gui.redraw_zones.complete")
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
