@@ -266,8 +266,6 @@ class CalibrationDialog(simpledialog.Dialog):
         box.pack()
 
 
-
-
 class ManageWeightsDialog(simpledialog.Dialog):
     """Dialog to manage the available weights."""
 
