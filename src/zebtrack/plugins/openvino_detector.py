@@ -1,7 +1,7 @@
 import glob
 import os
 from types import SimpleNamespace
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 import cv2
 import numpy as np
@@ -97,6 +97,15 @@ class OpenVINOPlugin(DetectorPlugin):
         """Informar que a região do aquário já está válida"""
         self._aquarium_region_defined = bool(defined)
 
+    def get_context_info(self) -> dict:
+        """Get current context and aquarium region status for debugging."""
+        return {
+            "context": self._context,
+            "aquarium_region_defined": self._aquarium_region_defined,
+            "conf_threshold": self.conf_threshold,
+            "nms_threshold": self.nms_threshold
+        }
+
     def detect(
         self, frame: np.ndarray
     ) -> List[Tuple[int, int, int, int, float, int]]:
@@ -153,15 +162,22 @@ class OpenVINOPlugin(DetectorPlugin):
 
         return predictions
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> list:
+    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> List[Dict[str, Any]]:
         """
         Compatibility method for diagnostic workflow.
         Returns raw detections without tracking, formatted for diagnostic reporting.
         """
+        # Store original values
+        old_conf = None
+        old_context = self._context
+        
         if conf_threshold is not None:
             # Temporarily override confidence threshold for this prediction
             old_conf = self.conf_threshold
             self.conf_threshold = conf_threshold
+
+        # Ensure diagnostic context for this prediction (shows all classes)
+        self.set_context("diagnostic")
 
         try:
             # 1. Preprocess and get detections from OpenVINO
@@ -186,9 +202,11 @@ class OpenVINOPlugin(DetectorPlugin):
             return formatted_results
 
         finally:
-            if conf_threshold is not None:
-                # Restore original confidence threshold
+            # Restore original values
+            if old_conf is not None:
                 self.conf_threshold = old_conf
+            # Restore original context
+            self._context = old_context
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
         """Prepares a frame for OpenVINO inference using letterboxing."""
