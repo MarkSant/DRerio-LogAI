@@ -41,7 +41,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def __init__(self, parent, controller):
         self.controller = controller
-        self.view = controller.view # Still need this for some callbacks like _manage_weights_clicked
+        # Still need this for some callbacks like _manage_weights_clicked
+        self.view = controller.view
 
         # Local Tkinter variables for this dialog
         self.active_weight_var = StringVar()
@@ -53,7 +54,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.confidence_threshold_var = StringVar(value="0.25")
         self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
         self.diagnostic_video_path = ""
-
+        self.model_test_var = StringVar(value="YOLO (PyTorch)")
 
         super().__init__(parent, "Calibração e Diagnóstico")
 
@@ -113,6 +114,59 @@ class CalibrationDialog(simpledialog.Dialog):
         self.use_openvino_var.set(self.controller.use_openvino)
         self.update_openvino_status_label(self.controller.get_openvino_status())
 
+        # --- Frame for diagnostics ---
+        diag_frame = ttk.LabelFrame(
+            master, text="Diagnóstico de Desempenho do Modelo", padding=10
+        )
+        diag_frame.pack(fill="x", pady=10, padx=5)
+
+        # --- Video Selection ---
+        video_frame = ttk.Frame(diag_frame)
+        video_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Button(
+            video_frame,
+            text="Selecionar Vídeo...",
+            command=self._select_diagnostic_video
+        ).pack(side="left")
+        ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
+            side="left", padx=5
+        )
+
+        # --- Parameters ---
+        params_frame = ttk.Frame(diag_frame, padding=5)
+        params_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.frames_to_analyze_var, width=10
+        ).grid(row=0, column=1, sticky="w", padx=5)
+
+        ttk.Label(params_frame, text="Limiar de Confiança:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.confidence_threshold_var, width=10
+        ).grid(row=1, column=1, sticky="w", padx=5)
+
+        # --- Model Selection for Diagnostic ---
+        ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        self.model_test_var = StringVar(value="YOLO (PyTorch)")
+        self.model_test_dropdown = ttk.Combobox(
+            params_frame, textvariable=self.model_test_var, state="readonly",
+            values=["YOLO (PyTorch)", "OpenVINO", "Ambos"], width=15
+        )
+        self.model_test_dropdown.grid(row=2, column=1, sticky="w", padx=5)
+
+        ttk.Button(
+            diag_frame,
+            text="Testar Modelo em Vídeo...",
+            command=self._run_diagnostic_test,
+        ).pack(fill="x", padx=10, pady=5)
+
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""
         weights_list = self.controller.get_all_weight_names()
@@ -160,48 +214,6 @@ class CalibrationDialog(simpledialog.Dialog):
 
         ManageWeightsDialog(self.parent, self.controller, refresh_callback)
 
-
-        # --- Frame for diagnostics ---
-        diag_frame = ttk.LabelFrame(
-            master, text="Diagnóstico de Desempenho do Modelo", padding=10
-        )
-        diag_frame.pack(fill="x", pady=10, padx=5)
-
-        # --- Video Selection ---
-        video_frame = ttk.Frame(diag_frame)
-        video_frame.pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            video_frame, text="Selecionar Vídeo...", command=self._select_diagnostic_video
-        ).pack(side="left")
-        ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
-            side="left", padx=5
-        )
-
-        # --- Parameters ---
-        params_frame = ttk.Frame(diag_frame, padding=5)
-        params_frame.pack(fill="x", padx=10, pady=5)
-
-        ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=2
-        )
-        ttk.Entry(
-            params_frame, textvariable=self.frames_to_analyze_var, width=10
-        ).grid(row=0, column=1, sticky="w", padx=5)
-
-        ttk.Label(params_frame, text="Limiar de Confiança:").grid(
-            row=1, column=0, sticky="w", padx=5, pady=2
-        )
-        ttk.Entry(
-            params_frame, textvariable=self.confidence_threshold_var, width=10
-        ).grid(row=1, column=1, sticky="w", padx=5)
-
-
-        ttk.Button(
-            diag_frame,
-            text="Testar Modelo em Vídeo...",
-            command=self._run_diagnostic_test,
-        ).pack(fill="x", padx=10, pady=5)
-
     def _select_diagnostic_video(self):
         path = filedialog.askopenfilename(
             title="Selecione o Vídeo para Diagnóstico",
@@ -244,7 +256,7 @@ class CalibrationDialog(simpledialog.Dialog):
             return
 
         # --- Config Build ---
-        model_to_test = "OpenVINO" if self.use_openvino_var.get() else "YOLO (PyTorch)"
+        model_to_test = self.model_test_var.get()
 
         config = {
             "video_path": self.diagnostic_video_path,
