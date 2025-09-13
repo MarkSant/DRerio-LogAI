@@ -48,6 +48,13 @@ class CalibrationDialog(simpledialog.Dialog):
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
 
+        # --- Vars for diagnostic ---
+        self.frames_to_analyze_var = StringVar(value="10")
+        self.confidence_threshold_var = StringVar(value="0.25")
+        self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
+        self.diagnostic_video_path = ""
+
+
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
