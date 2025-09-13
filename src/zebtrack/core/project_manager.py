@@ -261,10 +261,13 @@ class ProjectManager:
         """
         Saves the current project data to the config file with an integrity hash.
         """
+        # Critical Fix #5: Add validation before saving
         if not self.project_path:
+            log.error("project.save.no_path")
             return False
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
+        
         try:
             # Create a copy for hashing to avoid modifying the live object state
             data_to_save = self.project_data.copy()

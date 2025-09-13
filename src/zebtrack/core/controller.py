@@ -376,9 +376,23 @@ class AppController:
 
     def set_main_arena_polygon(self, points: list):
         """Recebe os pontos da GUI e os salva como a arena principal."""
-        log.info("controller.zone.set_main_arena", points_count=len(points))
-        self.project_manager.update_main_polygon(points)
-        self.view.redraw_zones_from_project_data()
+        try:
+            log.info("controller.zone.set_main_arena", points_count=len(points))
+            
+            # Critical Fix #3: Add project validation before saving
+            if not self.project_manager.project_path:
+                log.error("controller.zone.set_main_arena.no_project")
+                return False
+                
+            self.project_manager.update_main_polygon(points)
+            self.view.redraw_zones_from_project_data()
+            
+            log.info("controller.zone.set_main_arena.success")
+            return True
+            
+        except Exception as e:
+            log.error("controller.zone.set_main_arena.error", error=str(e))
+            return False
 
     def save_manual_arena(self, polygon_points: list[list[int]]):
         """Saves the manually adjusted arena and updates the detector."""
@@ -409,23 +423,34 @@ class AppController:
         self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]
     ):
         """Adds a new polygonal ROI to the project's zone data."""
-        log.info("controller.zone.add_roi", name=name, points=len(roi_points))
+        try:
+            log.info("controller.zone.add_roi", name=name, points=len(roi_points))
+            
+            # Critical Fix #4: Add project validation before saving ROI
+            if not self.project_manager.project_path:
+                log.error("controller.zone.add_roi.no_project", name=name)
+                return False
 
-        zone_data = self.project_manager.get_zone_data()
+            zone_data = self.project_manager.get_zone_data()
 
-        # Append the new data
-        zone_data.roi_polygons.append(roi_points)
-        zone_data.roi_names.append(name)
-        zone_data.roi_colors.append(color)
+            # Append the new data
+            zone_data.roi_polygons.append(roi_points)
+            zone_data.roi_names.append(name)
+            zone_data.roi_colors.append(color)
 
-        # Convert the dataclass back to a dict for JSON serialization
-        from dataclasses import asdict
-        self.project_manager.project_data["detection_zones"] = asdict(zone_data)
+            # Convert the dataclass back to a dict for JSON serialization
+            from dataclasses import asdict
+            self.project_manager.project_data["detection_zones"] = asdict(zone_data)
 
-        # Save the project and reload the zones in the active detector
-        self.project_manager.save_project()
-        self.setup_detector_zones()
-        log.info("controller.zone.add_roi.success", name=name)
+            # Save the project and reload the zones in the active detector
+            self.project_manager.save_project()
+            self.setup_detector_zones()
+            log.info("controller.zone.add_roi.success", name=name)
+            return True
+            
+        except Exception as e:
+            log.error("controller.zone.add_roi.error", name=name, error=str(e))
+            return False
 
     def run_live_calibration(self):
         """Records a short clip from the live camera and runs aquarium detection."""
