@@ -2514,6 +2514,126 @@ class ApplicationGUI:
             config=dialog.result,
         )
 
+    def _on_detect_in_frame(self):
+        """Placeholder for detecting objects in a single static frame."""
+        if not self.controller.detector:
+            if not self.controller.setup_detector():
+                self.show_error(
+                    "Detector não Configurado",
+                    "O detector não pôde ser inicializado. "
+                    "Verifique as configurações do modelo.",
+                )
+                return
+
+        file_path = self.ask_open_filename(
+            "Selecione um Frame para Análise",
+            [("Imagens", "*.jpg *.jpeg *.png *.bmp"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+
+        try:
+            self.set_status(f"Analisando frame: {os.path.basename(file_path)}...")
+            self.update_idletasks()
+
+            frame = cv2.imread(file_path)
+            if frame is None:
+                raise ValueError("Não foi possível carregar a imagem.")
+
+            all_detections = self.controller.run_diagnostic_on_frame(frame)
+
+            # --- Custom Diagnostic Drawing Logic ---
+            overlay = frame.copy()
+            # Colors in BGR format for OpenCV
+            COLOR_AQUA = (255, 0, 0)  # Blue
+            COLOR_ZEBRAFISH = (0, 255, 0)  # Green
+            COLOR_UNKNOWN = (0, 0, 255)  # Red
+
+            # First, draw all the semi-transparent masks
+            for detection in all_detections:
+                color = (
+                    COLOR_AQUA
+                    if detection.class_id == 0
+                    else COLOR_ZEBRAFISH
+                    if detection.class_id == 1
+                    else COLOR_UNKNOWN
+                )
+                if detection.mask is not None:
+                    mask_points = detection.mask.astype(np.int32)
+                    cv2.fillPoly(overlay, [mask_points], color)
+
+            # Blend the overlay with the original frame
+            alpha = 0.5
+            frame_with_overlays = cv2.addWeighted(
+                overlay, alpha, frame, 1 - alpha, 0
+            )
+
+            # Second, draw the bounding boxes and labels on top of the blended image
+            for detection in all_detections:
+                color = (
+                    COLOR_AQUA
+                    if detection.class_id == 0
+                    else COLOR_ZEBRAFISH
+                    if detection.class_id == 1
+                    else COLOR_UNKNOWN
+                )
+
+                # Bounding box
+                x1, y1, x2, y2 = detection.box.astype(int)
+                cv2.rectangle(frame_with_overlays, (x1, y1), (x2, y2), color, 2)
+
+                # Label
+                label = f"{detection.class_name} ({detection.confidence:.0%})"
+                # Calculate text size to draw a background box
+                (w, h), _ = cv2.getTextSize(
+                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
+                )
+                # Ensure the background box is not drawn outside the image
+                text_origin = (x1, y1 - h - 10)
+                cv2.rectangle(
+                    frame_with_overlays,
+                    (text_origin[0], text_origin[1] + 5),
+                    (text_origin[0] + w, text_origin[1] - h),
+                    color,
+                    -1,
+                )
+                cv2.putText(
+                    frame_with_overlays,
+                    label,
+                    (text_origin[0], text_origin[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),  # White text for better contrast
+                    2,
+                )
+
+            # Display the final composed image in a new window
+            self.display_image_in_new_window(
+                frame_with_overlays,
+                f"Resultado do Diagnóstico - {os.path.basename(file_path)}",
+            )
+            self.set_status("Análise de frame concluída.")
+
+        except Exception as e:
+            log.error("gui.detect_in_frame.error", exc_info=True)
+            self.show_error("Erro na Análise", f"Ocorreu um erro: {e}")
+            self.set_status("Erro durante a análise do frame.")
+
+    def display_image_in_new_window(self, image_np, title="Visualização"):
+        """Displays a NumPy image in a new Toplevel window."""
+        new_window = Toplevel(self.root)
+        new_window.title(title)
+
+        # Convert image to PhotoImage
+        image_rgb = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+        image_pil = Image.fromarray(image_rgb)
+        photo_image = ImageTk.PhotoImage(image_pil)
+
+        # Display image in a label
+        image_label = Label(new_window, image=photo_image)
+        image_label.image = photo_image  # Keep a reference!
+        image_label.pack()
+
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
         self.pending_single_video_path = video_path

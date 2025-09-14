@@ -2,7 +2,9 @@ from typing import List, Tuple
 
 import numpy as np
 from ultralytics import YOLO
+from ultralytics.engine.results import Boxes, Masks
 
+from zebtrack.core.detector import Detection
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
 
@@ -21,46 +23,61 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
+    def detect(self, frame: np.ndarray, diagnostic: bool = False) -> list[Detection]:
         """
-        Performs object tracking using the YOLOv8 model with ByteTrack.
+        Performs object detection and tracking.
+
+        In standard mode, it tracks only 'zebrafish'.
+        In diagnostic mode, it detects all classes and does not perform tracking.
+
+        Args:
+            frame (np.ndarray): The input image.
+            diagnostic (bool): If True, detects all classes and includes masks.
 
         Returns:
-            A list of tuples, where each tuple contains:
-            (x1, y1, x2, y2, confidence, track_id).
+            A list of Detection objects.
         """
-        results = self.model.track(
-            frame,
-            persist=True,
-            tracker="bytetrack.yaml",
-            verbose=False,
-            conf=self.conf_threshold,
-            iou=self.nms_threshold,
-            classes=1,  # Track only the 'zebrafish' class
-        )
+        if diagnostic:
+            # For diagnostics, we want raw detections of all classes, no tracking
+            results = self.model.predict(
+                frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.nms_threshold,
+                classes=None,  # Detect all classes
+            )
+        else:
+            # For standard analysis, we track only the zebrafish class
+            results = self.model.track(
+                frame,
+                persist=True,
+                tracker="bytetrack.yaml",
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.nms_threshold,
+                classes=1,  # Track only the 'zebrafish' class
+            )
 
         predictions = []
-        # Check if tracking IDs are available
-        if results[0].boxes.id is not None:
-            boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            track_ids = boxes.id.cpu().numpy()
+        if not results or not results[0].boxes:
+            return predictions
 
-            for i in range(len(xyxys)):
-                x1, y1, x2, y2 = xyxys[i]
-                confidence = confs[i]
-                track_id = track_ids[i]
-                predictions.append(
-                    (
-                        int(x1),
-                        int(y1),
-                        int(x2),
-                        int(y2),
-                        float(confidence),
-                        int(track_id),
-                    )
+        boxes: Boxes = results[0].boxes
+        masks: Masks | None = results[0].masks
+
+        for i in range(len(boxes)):
+            class_id = int(boxes.cls[i])
+            mask_coords = masks.xy[i] if masks and masks.xy is not None and len(masks.xy) > i else None
+
+            predictions.append(
+                Detection(
+                    box=boxes.xyxy[i].cpu().numpy(),
+                    mask=mask_coords,
+                    confidence=float(boxes.conf[i]),
+                    class_id=class_id,
+                    class_name=self.model.names.get(class_id, f"ID {class_id}"),
                 )
+            )
 
         return predictions
 
@@ -72,5 +89,4 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
     def model_input_shape(self) -> Tuple[int, int]:
         # This is a bit of a simplification. YOLOv8 can handle various input sizes,
         # but 640 is the default and what's implicitly used.
-        # For a more robust implementation, one might inspect the model's properties.
-        return (640, 640)
+        return 640, 640

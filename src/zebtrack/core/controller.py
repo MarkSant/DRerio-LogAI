@@ -16,7 +16,7 @@ from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detector import Detection, Detector, ZoneData
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.recorder import Recorder
@@ -1223,6 +1223,26 @@ class AppController:
             Reporter.export_project_report(aggregated_df, docx_path)
 
         self.view.show_info("Relatório Gerado", f"Relatório salvo em:\n{save_path}")
+
+    def run_diagnostic_on_frame(self, frame: np.ndarray) -> list[Detection]:
+        """
+        Runs the full detection pipeline on a single frame for diagnostic purposes.
+
+        Args:
+            frame: The image frame to be analyzed.
+
+        Returns:
+            A list of all detected objects without any filtering.
+        """
+        if not self.detector:
+            log.error("controller.diagnostic.no_detector")
+            # Attempt to set it up, but this is an exceptional case.
+            if not self.setup_detector():
+                self.view.show_error(
+                    "Erro de Diagnóstico", "Detector não está configurado."
+                )
+                return []
+        return self.detector.detect_diagnostic(frame)
 
     def run_model_diagnostic(self, config: dict):
         """

@@ -21,6 +21,17 @@ class ZoneData:
     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
 
 
+@dataclass
+class Detection:
+    """Holds all data for a single detection event."""
+
+    box: np.ndarray
+    mask: np.ndarray | None
+    confidence: float
+    class_id: int
+    class_name: str
+
+
 class Detector:
     """
     Manages the detection process by delegating to a plugin and handling
@@ -119,6 +130,14 @@ class Detector:
             width=actual_width,
             height=actual_height,
         )
+
+    def detect_diagnostic(self, frame: np.ndarray) -> list[Detection]:
+        """
+        Runs the detector plugin in diagnostic mode, returning all raw detections.
+        This method bypasses all zone filtering and cropping.
+        """
+        log.info("detector.diagnostic_detect.start")
+        return self.plugin.detect(frame, diagnostic=True)
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
         """
