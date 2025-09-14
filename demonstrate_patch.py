@@ -8,19 +8,22 @@ This script shows how the new context-based filtering works:
 3. In tracking mode after aquarium is defined: Only zebrafish (class 1) is shown
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from unittest.mock import MagicMock
+
 import numpy as np
 import torch
+
 
 def main():
     print("=" * 60)
     print("OpenVINO Class Filtering Patch Demonstration")
     print("=" * 60)
-    
+
     # Mock all dependencies
     sys.modules['cython_bbox'] = MagicMock()
     sys.modules['zebtrack.tracker.byte_tracker'] = MagicMock()
@@ -82,22 +85,22 @@ def main():
         final_detections = []
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
-            
+            detection_tuple = (
+                int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]),
+                float(conf), class_id
+            )
+
             # NEW FILTERING LOGIC:
             if plugin._context == 'diagnostic':
                 # In diagnostic mode NEVER filter: include all returned classes
-                final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
-                )
+                final_detections.append(detection_tuple)
             else:
                 # Tracking mode:
                 # Before aquarium is defined: don't filter (allow class 0 or others)
                 # After aquarium definition: filter to only fish (cls == 1)
                 if plugin._aquarium_region_defined and class_id != 1:
                     continue
-                final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
-                )
+                final_detections.append(detection_tuple)
         return final_detections
 
     plugin.set_context = set_context
@@ -110,8 +113,15 @@ def main():
 
     def format_detections(detections):
         class_names = {0: 'aquarium', 1: 'zebrafish'}
-        return [f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}" 
-                for det in detections]
+        formatted_list = []
+        for det in detections:
+            class_name = class_names.get(det[5], 'unknown')
+            bbox_str = f"bbox=({det[0]},{det[1]},{det[2]},{det[3]})"
+            conf_str = f"conf={det[4]:.2f}"
+            formatted_list.append(
+                f"Class {det[5]} ({class_name}): {bbox_str}, {conf_str}"
+            )
+        return formatted_list
 
     print("\n1. DIAGNOSTIC MODE (Weight Testing)")
     print("-" * 40)
@@ -120,7 +130,8 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (both aquarium and zebrafish) for comprehensive model testing")
+    print("✓ Shows ALL classes (both aquarium and zebrafish) for "
+          "comprehensive model testing")
 
     print("\n2. TRACKING MODE - Before Aquarium Region Defined")
     print("-" * 40)
@@ -130,7 +141,8 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (helpful for initial setup before aquarium is detected/drawn)")
+    print("✓ Shows ALL classes (helpful for initial setup before "
+          "aquarium is detected/drawn)")
 
     print("\n3. TRACKING MODE - After Aquarium Region Defined")
     print("-" * 40)
@@ -148,7 +160,7 @@ def main():
     print("- Tracking before aquarium: Shows all classes for initial setup")
     print("- Tracking after aquarium: Shows only zebrafish for focused analysis")
     print("=" * 60)
-    
+
     return True
 
 if __name__ == "__main__":

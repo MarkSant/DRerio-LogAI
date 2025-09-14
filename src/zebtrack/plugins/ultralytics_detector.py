@@ -1,10 +1,10 @@
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 from ultralytics import YOLO
 from ultralytics.engine.results import Boxes, Masks
 
-from zebtrack.core.detector import Detection
+from zebtrack.core.datastructures import Detection
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
 
@@ -67,7 +67,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         for i in range(len(boxes)):
             class_id = int(boxes.cls[i])
-            mask_coords = masks.xy[i] if masks and masks.xy is not None and len(masks.xy) > i else None
+            has_masks = masks and masks.xy is not None and len(masks.xy) > i
+            mask_coords = masks.xy[i] if has_masks else None
 
             predictions.append(
                 Detection(

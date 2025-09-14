@@ -1,13 +1,14 @@
 import glob
 import os
 from types import SimpleNamespace
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
 import openvino as ov
 import structlog
 import torch
+
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
 try:
     # Versões onde non_max_suppression está em ops
@@ -99,7 +100,8 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         Define o contexto de uso do plugin.
         'diagnostic' => não filtra classes (mostra todas)
-        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do aquário definido)
+        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do
+                        aquário definido)
         """
         if context not in ('tracking', 'diagnostic'):
             return
@@ -144,8 +146,11 @@ class OpenVINOPlugin(DetectorPlugin):
         for det in detections:
             x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
             detections_for_tracker.append([x1, y1, x2, y2, conf])
-        
-        detections_np = np.array(detections_for_tracker) if detections_for_tracker else np.empty((0, 5))
+
+        if detections_for_tracker:
+            detections_np = np.array(detections_for_tracker)
+        else:
+            detections_np = np.empty((0, 5))
 
         # Bytetrack's update method needs image info and size
         img_info = frame.shape[:2]  # (height, width)
@@ -174,7 +179,9 @@ class OpenVINOPlugin(DetectorPlugin):
 
         return predictions
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> List[Dict[str, Any]]:
+    def predict(
+        self, frame: np.ndarray, conf_threshold: float = None
+    ) -> List[Dict[str, Any]]:
         """
         Compatibility method for diagnostic workflow.
         Returns raw detections without tracking, formatted for diagnostic reporting.
@@ -182,7 +189,7 @@ class OpenVINOPlugin(DetectorPlugin):
         # Store original values
         old_conf = None
         old_context = self._context
-        
+
         if conf_threshold is not None:
             # Temporarily override confidence threshold for this prediction
             old_conf = self.conf_threshold
@@ -249,21 +256,36 @@ class OpenVINOPlugin(DetectorPlugin):
         final_detections = []
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
-            
+
             # LÓGICA DE FILTRO ATUALIZADA:
-            if self._context == 'diagnostic':
+            if self._context == "diagnostic":
                 # Em modo diagnóstico NUNCA filtra: inclui todas as classes retornadas
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
             else:
                 # Modo tracking:
-                # Antes do aquário estar definido: não filtra (permite aparecer classe 0 ou outras)
+                # Antes do aquário estar definido: não filtra (permite aparecer
+                # classe 0 ou outras)
                 # Após definição do aquário: filtra para somente peixe (cls == 1)
                 if self._aquarium_region_defined and class_id != 1:
                     continue
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
         return final_detections
 

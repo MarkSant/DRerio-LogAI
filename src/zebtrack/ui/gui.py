@@ -16,6 +16,7 @@ from tkinter import (
     Label,
     OptionMenu,
     StringVar,
+    Toplevel,
     filedialog,
     messagebox,
     simpledialog,
@@ -853,8 +854,13 @@ class ApplicationGUI:
     """
     A classe principal que gerencia a interface gráfica (a "Visão").
     """
+
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
+    # Colors in BGR format for OpenCV
+    COLOR_AQUA = (255, 0, 0)  # Blue
+    COLOR_ZEBRAFISH = (0, 255, 0)  # Green
+    COLOR_UNKNOWN = (0, 0, 255)  # Red
 
     def __init__(self, root, controller):
         """
@@ -1583,10 +1589,11 @@ class ApplicationGUI:
             self.show_error(
                 "Frame Necessário",
                 "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
-                "primeiro para ter uma imagem de fundo no canvas antes de desenhar polígonos."
+                "primeiro para ter uma imagem de fundo no canvas antes de "
+                "desenhar polígonos.",
             )
             return False
-            
+
         self._stop_drawing()  # Ensure clean state
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
@@ -1706,8 +1713,9 @@ class ApplicationGUI:
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             if self.current_polygon_points:
                 self.show_warning(
-                    "Polígono Incompleto", 
-                    f"Um polígono precisa de pelo menos 3 pontos. Você tem {len(self.current_polygon_points)} pontos."
+                    "Polígono Incompleto",
+                    f"Um polígono precisa de pelo menos 3 pontos. "
+                    f"Você tem {len(self.current_polygon_points)} pontos.",
                 )
             self._stop_drawing()
             return
@@ -1716,20 +1724,25 @@ class ApplicationGUI:
             if self.current_drawing_type == "arena":
                 # Critical Fix #2: Add validation and better feedback
                 self.set_status("Salvando arena principal...")
-                success = self.controller.set_main_arena_polygon(self.current_polygon_points)
-                
+                success = self.controller.set_main_arena_polygon(
+                    self.current_polygon_points
+                )
+
                 if success:
                     self.set_status("✓ Arena principal definida com sucesso!")
                     # Show success message to user
                     self.show_info(
-                        "Sucesso", 
-                        f"Arena principal criada com {len(self.current_polygon_points)} pontos e salva no projeto."
+                        "Sucesso",
+                        f"Arena principal criada com "
+                        f"{len(self.current_polygon_points)} pontos e salva no "
+                        f"projeto.",
                     )
                 else:
                     self.set_status("❌ Erro ao salvar arena principal.")
                     self.show_error(
                         "Erro",
-                        "Não foi possível salvar a arena principal. Verifique se o projeto está inicializado."
+                        "Não foi possível salvar a arena principal. "
+                        "Verifique se o projeto está inicializado.",
                     )
 
             elif self.current_drawing_type == "roi":
@@ -1747,9 +1760,10 @@ class ApplicationGUI:
                 success = self.controller.add_roi_polygon(
                     self.current_polygon_points, roi_name, roi_color
                 )
-                
+
                 if success:
-                    # A UI será atualizada pelo controller, mas um feedback imediato é bom.
+                    # A UI será atualizada pelo controller, mas um feedback imediato é
+                    # bom.
                     self.roi_canvas.create_polygon(
                         self.current_polygon_points,
                         fill="",
@@ -1757,20 +1771,28 @@ class ApplicationGUI:
                         width=2,
                         tags="roi_polygon",
                     )
-                    self.set_status(f"✓ Área de Interesse '{roi_name}' adicionada com sucesso!")
+                    self.set_status(
+                        f"✓ Área de Interesse '{roi_name}' adicionada com sucesso!"
+                    )
                     self.update_zone_listbox()
                     self.show_info(
-                        "Sucesso", 
-                        f"Área de interesse '{roi_name}' criada com {len(self.current_polygon_points)} pontos."
+                        "Sucesso",
+                        f"Área de interesse '{roi_name}' criada com "
+                        f"{len(self.current_polygon_points)} pontos.",
                     )
                 else:
-                    self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
-                    self.show_error("Erro", f"Não foi possível salvar a área de interesse '{roi_name}'.")
+                    self.set_status(
+                        f"❌ Erro ao salvar área de interesse '{roi_name}'."
+                    )
+                    self.show_error(
+                        "Erro",
+                        f"Não foi possível salvar a área de interesse '{roi_name}'.",
+                    )
 
         except Exception as e:
             self.set_status("❌ Erro durante salvamento do polígono.")
             self.show_error("Erro Inesperado", f"Erro ao processar polígono: {str(e)}")
-            
+
         # Limpa o estado de desenho
         self.current_polygon_points = []
         self._stop_drawing()
@@ -1792,7 +1814,7 @@ class ApplicationGUI:
         """Limpa o canvas e redesenha todas as zonas a partir dos dados centrais."""
         # Critical Fix #6: Ensure proper canvas clearing and background restoration
         self.roi_canvas.delete("all")
-        
+
         # Always restore background image if available
         if self._canvas_bg_image:
             self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
@@ -1801,7 +1823,7 @@ class ApplicationGUI:
             log.warning("gui.redraw_zones.no_background_image")
 
         zone_data = self.controller.project_manager.get_zone_data()
-        log.info("gui.redraw_zones.start", 
+        log.info("gui.redraw_zones.start",
                  has_main_polygon=bool(zone_data.polygon),
                  roi_count=len(zone_data.roi_polygons))
 
@@ -1812,17 +1834,26 @@ class ApplicationGUI:
                 fill="",
                 outline="cyan",
                 width=2,
-                tags="main_polygon"
+                tags="main_polygon",
             )
-            log.info("gui.redraw_zones.main_polygon_drawn", points=len(zone_data.polygon))
+            log.info(
+                "gui.redraw_zones.main_polygon_drawn", points=len(zone_data.polygon)
+            )
 
         # Draw ROI polygons
         for i, polygon in enumerate(zone_data.roi_polygons):
             # tkinter expects color as a hex string like #RRGGBB
-            color_tuple = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
+            if i < len(zone_data.roi_colors):
+                color_tuple = zone_data.roi_colors[i]
+            else:
+                color_tuple = (0, 255, 0)
             color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
-            name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
-            
+            name = (
+                zone_data.roi_names[i]
+                if i < len(zone_data.roi_names)
+                else f"ROI_{i+1}"
+            )
+
             self.roi_canvas.create_polygon(
                 polygon,
                 fill="",
@@ -1831,8 +1862,8 @@ class ApplicationGUI:
                 tags="roi_polygon"
             )
             log.info("gui.redraw_zones.roi_drawn", name=name, points=len(polygon))
-        
-        # Update the zone listbox to reflect current zones  
+
+        # Update the zone listbox to reflect current zones
         self.update_zone_listbox()
         log.info("gui.redraw_zones.complete")
 
@@ -2544,20 +2575,10 @@ class ApplicationGUI:
 
             # --- Custom Diagnostic Drawing Logic ---
             overlay = frame.copy()
-            # Colors in BGR format for OpenCV
-            COLOR_AQUA = (255, 0, 0)  # Blue
-            COLOR_ZEBRAFISH = (0, 255, 0)  # Green
-            COLOR_UNKNOWN = (0, 0, 255)  # Red
 
             # First, draw all the semi-transparent masks
             for detection in all_detections:
-                color = (
-                    COLOR_AQUA
-                    if detection.class_id == 0
-                    else COLOR_ZEBRAFISH
-                    if detection.class_id == 1
-                    else COLOR_UNKNOWN
-                )
+                color = self._get_color_for_detection(detection.class_id)
                 if detection.mask is not None:
                     mask_points = detection.mask.astype(np.int32)
                     cv2.fillPoly(overlay, [mask_points], color)
@@ -2570,13 +2591,7 @@ class ApplicationGUI:
 
             # Second, draw the bounding boxes and labels on top of the blended image
             for detection in all_detections:
-                color = (
-                    COLOR_AQUA
-                    if detection.class_id == 0
-                    else COLOR_ZEBRAFISH
-                    if detection.class_id == 1
-                    else COLOR_UNKNOWN
-                )
+                color = self._get_color_for_detection(detection.class_id)
 
                 # Bounding box
                 x1, y1, x2, y2 = detection.box.astype(int)
@@ -2618,6 +2633,15 @@ class ApplicationGUI:
             log.error("gui.detect_in_frame.error", exc_info=True)
             self.show_error("Erro na Análise", f"Ocorreu um erro: {e}")
             self.set_status("Erro durante a análise do frame.")
+
+    def _get_color_for_detection(self, class_id: int) -> tuple[int, int, int]:
+        """Returns a BGR color tuple for a given class ID."""
+        if class_id == 0:
+            return self.COLOR_AQUA
+        elif class_id == 1:
+            return self.COLOR_ZEBRAFISH
+        else:
+            return self.COLOR_UNKNOWN
 
     def display_image_in_new_window(self, image_np, title="Visualização"):
         """Displays a NumPy image in a new Toplevel window."""

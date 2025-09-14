@@ -267,7 +267,7 @@ class ProjectManager:
             return False
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
-        
+
         try:
             # Create a copy for hashing to avoid modifying the live object state
             data_to_save = self.project_data.copy()

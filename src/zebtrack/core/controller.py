@@ -11,20 +11,20 @@ import numpy as np
 import pandas as pd
 import structlog
 from shapely.geometry import Polygon
+from ultralytics import YOLO
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import Detection, Detector, ZoneData
+from zebtrack.core.datastructures import Detection, ZoneData
+from zebtrack.core.detector import Detector
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
-from ultralytics import YOLO
-
 from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
@@ -364,18 +364,18 @@ class AppController:
         """Recebe os pontos da GUI e os salva como a arena principal."""
         try:
             log.info("controller.zone.set_main_arena", points_count=len(points))
-            
+
             # Critical Fix #3: Add project validation before saving
             if not self.project_manager.project_path:
                 log.error("controller.zone.set_main_arena.no_project")
                 return False
-                
+
             self.project_manager.update_main_polygon(points)
             self.view.redraw_zones_from_project_data()
-            
+
             log.info("controller.zone.set_main_arena.success")
             return True
-            
+
         except Exception as e:
             log.error("controller.zone.set_main_arena.error", error=str(e))
             return False
@@ -411,7 +411,7 @@ class AppController:
         """Adds a new polygonal ROI to the project's zone data."""
         try:
             log.info("controller.zone.add_roi", name=name, points=len(roi_points))
-            
+
             # Critical Fix #4: Add project validation before saving ROI
             if not self.project_manager.project_path:
                 log.error("controller.zone.add_roi.no_project", name=name)
@@ -433,7 +433,7 @@ class AppController:
             self.setup_detector_zones()
             log.info("controller.zone.add_roi.success", name=name)
             return True
-            
+
         except Exception as e:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
@@ -712,8 +712,9 @@ class AppController:
         if not zone_data.roi_polygons:  # .roi_polygons holds the ROIs
             if not self.view.ask_ok_cancel(
                 "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida. A análise prosseguirá "
-                "usando apenas a área total do aquário. Deseja continuar?",
+                    "Nenhuma Área de Interesse (ROI) foi definida. A análise "
+                    "prosseguirá usando apenas a área total do aquário. "
+                    "Deseja continuar?",
             ):
                 log.info("workflow.project_processing.cancelled_by_user_no_roi")
                 self.view.show_info(
@@ -1280,10 +1281,11 @@ class AppController:
                         return
                 else:
                     log.warning("diagnostic.openvino.conversion_skipped")
-                    # If user skips conversion, modify config to only run YOLO if possible
+                    # If user skips conversion, modify config to only run YOLO if
+                    # possible
                     if model_to_test == "Ambos":
                         config["model_to_test"] = "YOLO (PyTorch)"
-                    else: # model_to_test was 'OpenVINO'
+                    else:  # model_to_test was 'OpenVINO'
                         self.view.set_status("Diagnóstico cancelado.")
                         return
 
@@ -1323,25 +1325,43 @@ class AppController:
                         openvino_model = plugin_class(ov_path)
                         # Verify the plugin has the required predict method
                         if not hasattr(openvino_model, "predict"):
-                            log.error("diagnostic.thread.missing_predict_method", plugin_class=str(plugin_class))
-                            self.root.after(0, self.view.show_error, "Erro de Plugin", 
-                                          "O plugin OpenVINO não possui o método predict necessário para diagnóstico.")
+                            log.error(
+                                "diagnostic.thread.missing_predict_method",
+                                plugin_class=str(plugin_class),
+                            )
+                            self.root.after(
+                                0,
+                                self.view.show_error,
+                                "Erro de Plugin",
+                                "O plugin OpenVINO não possui o método predict "
+                                "necessário para diagnóstico.",
+                            )
                             return
                         # Set diagnostic context to allow all classes
                         if hasattr(openvino_model, "set_context"):
                             openvino_model.set_context("diagnostic")
-                            log.info("diagnostic.thread.openvino_context_set", context="diagnostic")
+                            log.info(
+                                "diagnostic.thread.openvino_context_set",
+                                context="diagnostic",
+                            )
                         results["OpenVINO"] = []
                         log.info("diagnostic.thread.openvino_loaded", path=ov_path)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
-            self.root.after(0, self.view.show_error, "Erro ao Carregar Modelo", f"Falha: {e}")
+            self.root.after(
+                0, self.view.show_error, "Erro ao Carregar Modelo", f"Falha: {e}"
+            )
             return
 
         # --- Video Processing ---
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            self.root.after(0, self.view.show_error, "Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            self.root.after(
+                0,
+                self.view.show_error,
+                "Erro",
+                f"Não foi possível abrir o vídeo: {video_path}",
+            )
             return
 
         for frame_count in range(frames_to_analyze):
@@ -1360,16 +1380,29 @@ class AppController:
 
             if openvino_model:
                 try:
-                    log.debug("diagnostic.thread.openvino_predict_start", frame=frame_count + 1)
+                    log.debug(
+                        "diagnostic.thread.openvino_predict_start",
+                        frame=frame_count + 1,
+                    )
                     preds = openvino_model.predict(frame, conf_threshold)
-                    log.debug("diagnostic.thread.openvino_predict_success", 
-                             frame=frame_count + 1, detections=len(preds))
+                    log.debug(
+                        "diagnostic.thread.openvino_predict_success",
+                        frame=frame_count + 1,
+                        detections=len(preds),
+                    )
                     results.setdefault("OpenVINO", []).append(preds)
                 except Exception as e:
-                    log.error("diagnostic.thread.openvino_predict_error", 
-                             frame=frame_count + 1, exc_info=True)
-                    self.root.after(0, self.view.show_error, "Erro de Inferência OpenVINO", 
-                                  f"Falha na inferência do frame {frame_count + 1}: {e}")
+                    log.error(
+                        "diagnostic.thread.openvino_predict_error",
+                        frame=frame_count + 1,
+                        exc_info=True,
+                    )
+                    self.root.after(
+                        0,
+                        self.view.show_error,
+                        "Erro de Inferência OpenVINO",
+                        f"Falha na inferência do frame {frame_count + 1}: {e}",
+                    )
                     return
         cap.release()
 
@@ -1394,7 +1427,9 @@ class AppController:
                     "Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}"
                 )
             except IOError as e:
-                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
+                self.view.show_error(
+                    "Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}"
+                )
 
         self.view.set_status("Diagnóstico concluído. Pronto.")
 
@@ -1420,21 +1455,27 @@ class AppController:
 
                 detections = []
                 # Handle ultralytics results object
-                if hasattr(preds, 'boxes'):
+                if hasattr(preds, "boxes"):
                     for box in preds.boxes:
                         class_id = int(box.cls)
-                        class_name = preds.names.get(class_id, 'desconhecido')
+                        class_name = preds.names.get(class_id, "desconhecido")
                         conf = float(box.conf)
                         bbox = [int(coord) for coord in box.xyxy[0]]
-                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+                        detections.append(
+                            f"  - Classe ID {class_id} ('{class_name}'), "
+                            f"Confiança: {conf:.2f}, BBox: {bbox}"
+                        )
                 # Handle our custom OpenVINO plugin list of dicts
                 elif isinstance(preds, list):
-                     for det in preds:
-                        class_id = det['class_id']
-                        class_name = det['class_name']
-                        conf = det['confidence']
-                        bbox = det['box']
-                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+                    for det in preds:
+                        class_id = det["class_id"]
+                        class_name = det["class_name"]
+                        conf = det["confidence"]
+                        bbox = det["box"]
+                        detections.append(
+                            f"  - Classe ID {class_id} ('{class_name}'), "
+                            f"Confiança: {conf:.2f}, BBox: {bbox}"
+                        )
 
                 if not detections:
                     report_lines.append("  - Nenhuma detecção encontrada.")

@@ -18,8 +18,10 @@ class TestAppController(unittest.TestCase):
         self.mock_wm = mock_wm.return_value
 
         # Configure the mock WeightManager to return a predictable default weight
-        self.mock_wm.get_default_weight.return_value = ("best_seg.pt", "/fake/path/best_seg.pt")
-
+        self.mock_wm.get_default_weight.return_value = (
+            "best_seg.pt",
+            "/fake/path/best_seg.pt",
+        )
 
         self.controller = AppController(self.root)
 
