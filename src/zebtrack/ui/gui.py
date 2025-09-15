@@ -56,6 +56,9 @@ class CalibrationDialog(simpledialog.Dialog):
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
 
+        # --- Vars for sensitivity control ---
+        self.sensitivity_var = StringVar(value="0.15")
+
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
@@ -160,6 +163,33 @@ class CalibrationDialog(simpledialog.Dialog):
         )
         self.model_test_dropdown.grid(row=2, column=1, sticky="w", padx=5)
 
+        # --- Row 3: Sensitivity Control ---
+        ttk.Label(params_frame, text="Ajuste de Sensibilidade:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=2
+        )
+
+        sensitivity_frame = ttk.Frame(params_frame)
+        sensitivity_frame.grid(row=3, column=1, sticky="w", padx=5)
+
+        self.sensitivity_scale = ttk.Scale(
+            sensitivity_frame,
+            from_=0.05,
+            to=0.50,
+            orient="horizontal",
+            length=150,
+            command=self._on_sensitivity_change
+        )
+        self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
+        self.sensitivity_scale.pack(side="left")
+
+        self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
+        self.sensitivity_label.pack(side="left", padx=(5, 0))
+
+        # --- Tooltip para sensibilidade ---
+        tooltip_label = ttk.Label(params_frame, text="(Valores menores detectam mais objetos)",
+                                font=("Segoe UI", 8), foreground="gray")
+        tooltip_label.grid(row=4, column=1, sticky="w", padx=5, pady=(0, 5))
+
         ttk.Button(
             diag_frame,
             text="Testar Modelo em Vídeo...",
@@ -221,6 +251,24 @@ class CalibrationDialog(simpledialog.Dialog):
         if path:
             self.diagnostic_video_path = path
             self.video_path_label_var.set(os.path.basename(path))
+
+    def _on_sensitivity_change(self, value):
+        """Atualiza label quando threshold muda e aplica globalmente"""
+        threshold_value = float(value)
+        self.sensitivity_label.config(text=f"{threshold_value:.2f}")
+        self.sensitivity_var.set(f"{threshold_value:.2f}")
+
+        # Atualiza threshold globalmente no detector ativo
+        if hasattr(self.controller, 'detector') and self.controller.detector:
+            if hasattr(self.controller.detector.plugin, 'conf_threshold'):
+                old_threshold = self.controller.detector.plugin.conf_threshold
+                self.controller.detector.plugin.conf_threshold = threshold_value
+
+                # Log da mudança para debug (usando print simples para evitar dependências)
+                print(f"Sensitivity changed: {old_threshold:.2f} → {threshold_value:.2f}")
+
+        # Atualiza também a variável de confidence threshold para diagnósticos
+        self.confidence_threshold_var.set(f"{threshold_value:.2f}")
 
     def _run_diagnostic_test(self):
         # --- Validation ---
@@ -1291,6 +1339,15 @@ class ApplicationGUI:
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Draws a suggested polygon that the user can interactively edit."""
+        # Garante que há frame no canvas antes de desenhar
+        if self._canvas_bg_image is None:
+            if not self.load_video_frame_to_canvas():
+                self.show_error(
+                    "Erro",
+                    "Não foi possível carregar um frame para mostrar o polígono detectado."
+                )
+                return
+
         self._clear_interactive_polygon()  # Clear any previous one
         self.edited_polygon_points = [list(p) for p in polygon]
 
@@ -1438,6 +1495,50 @@ class ApplicationGUI:
         except Exception as e:
             self.show_error("Erro ao Exibir Frame", str(e))
 
+    def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
+        """Carrega um frame do vídeo no canvas"""
+        if video_path is None:
+            # Tenta usar o vídeo pendente ou do projeto
+            if hasattr(self, 'pending_single_video_path') and self.pending_single_video_path:
+                video_path = self.pending_single_video_path
+            elif self.controller.project_manager.project_path:
+                videos = self.controller.project_manager.get_all_videos()
+                if videos:
+                    video_path = videos[0].get('path')
+
+        if not video_path or not os.path.exists(video_path):
+            log.error("gui.load_frame.no_video")
+            return False
+
+        try:
+            cap = cv2.VideoCapture(video_path)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+            ret, frame = cap.read()
+            cap.release()
+
+            if not ret:
+                return False
+
+            # Converte e redimensiona
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(frame_rgb)
+
+            # Ajusta ao canvas
+            canvas_width = self.roi_canvas.winfo_width() or 800
+            canvas_height = self.roi_canvas.winfo_height() or 600
+            image.thumbnail((canvas_width, canvas_height), Image.LANCZOS)
+
+            self._canvas_bg_image = ImageTk.PhotoImage(image)
+            self.roi_canvas.delete("all")
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+
+            log.info("gui.canvas.frame_loaded", video=video_path)
+            return True
+
+        except Exception as e:
+            log.error("gui.load_frame.error", error=str(e))
+            return False
+
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
@@ -1578,14 +1679,16 @@ class ApplicationGUI:
 
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
-        # Critical Fix #1: Validate canvas has background frame before drawing
+        # Garante que há frame no canvas
         if self._canvas_bg_image is None:
-            self.show_error(
-                "Frame Necessário",
-                "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
-                "primeiro para ter uma imagem de fundo no canvas antes de desenhar polígonos."
-            )
-            return False
+            self.set_status("Carregando frame para desenho...")
+            if not self.load_video_frame_to_canvas():
+                self.show_error(
+                    "Erro",
+                    "Não foi possível carregar um frame. "
+                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' primeiro."
+                )
+                return False
             
         self._stop_drawing()  # Ensure clean state
         self.drawing_mode = "polygon"
@@ -1792,13 +1895,15 @@ class ApplicationGUI:
         """Limpa o canvas e redesenha todas as zonas a partir dos dados centrais."""
         # Critical Fix #6: Ensure proper canvas clearing and background restoration
         self.roi_canvas.delete("all")
-        
+
         # Always restore background image if available
         if self._canvas_bg_image:
             self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
             log.info("gui.redraw_zones.background_restored")
         else:
             log.warning("gui.redraw_zones.no_background_image")
+            # Tenta carregar um frame se não há imagem de fundo
+            self.load_video_frame_to_canvas()
 
         zone_data = self.controller.project_manager.get_zone_data()
         log.info("gui.redraw_zones.start", 

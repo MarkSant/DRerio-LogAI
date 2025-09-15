@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 from types import SimpleNamespace
 from typing import List, Tuple, Dict, Any
@@ -94,6 +95,19 @@ class OpenVINOPlugin(DetectorPlugin):
             mot20=False,
         )
         self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
+
+        # Carrega metadata se existir
+        metadata_path = os.path.join(model_path, 'metadata.json')
+        self.class_names = {0: 'aquarium', 1: 'zebrafish'}  # Default
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                    if 'class_names' in metadata:
+                        self.class_names = {int(k): v for k, v in metadata['class_names'].items()}
+                    log.info("openvino.metadata.loaded", classes=self.class_names)
+            except Exception as e:
+                log.warning("openvino.metadata.load_failed", error=str(e))
 
     def set_context(self, context: str):
         """
@@ -204,7 +218,8 @@ class OpenVINOPlugin(DetectorPlugin):
                 x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
                 # Include class_id if available, or assume class 1 for compatibility
                 class_id = det[5] if len(det) > 5 else 1
-                class_name = "zebrafish" if class_id == 1 else f"class_{class_id}"
+                # Use metadata class names if available
+                class_name = self.class_names.get(int(class_id), f"class_{class_id}")
                 formatted_results.append({
                     'box': [int(x1), int(y1), int(x2), int(y2)],
                     'confidence': float(conf),

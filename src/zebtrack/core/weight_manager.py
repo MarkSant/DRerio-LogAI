@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 from tkinter import messagebox
 
@@ -243,6 +244,25 @@ class WeightManager:
             # Atomically move the exported model to its final destination.
             shutil.move(temp_export_path, cached_model_dir)
             temp_export_path = None  # The move was successful
+
+            # Cria arquivo de metadata
+            metadata = {
+                'model_type': 'instance_segmentation',
+                'num_classes': 2,
+                'class_names': {
+                    '0': 'aquarium',
+                    '1': 'zebrafish'
+                },
+                'task': 'segment',
+                'original_model': os.path.basename(pt_path),
+                'conversion_date': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+            metadata_path = os.path.join(cached_model_dir, 'metadata.json')
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+            log.info("openvino.metadata.created", path=metadata_path)
 
             # Now that the model is in place, calculate its hash and save.
             openvino_model_path = os.path.abspath(cached_model_dir)

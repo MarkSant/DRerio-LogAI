@@ -197,6 +197,12 @@ class AppController:
                 base_width=settings.camera.desired_width,
                 base_height=settings.camera.desired_height,
             )
+
+            # Define contexto inicial baseado no modo
+            if hasattr(plugin_instance, 'set_context'):
+                plugin_instance.set_context('tracking')
+                log.info("detector.context.set", context='tracking')
+
             log.info("detector.setup.success")
             return True
         except (ValueError, FileNotFoundError, IntegrityError) as e:
@@ -222,6 +228,12 @@ class AppController:
 
         self.detector.set_zones(zone_data, width, height)
         log.info("controller.setup_zones.success")
+
+        # Informa ao plugin se o aquário está definido
+        if self.detector and hasattr(self.detector.plugin, 'set_aquarium_region_defined'):
+            has_aquarium = bool(zone_data and zone_data.polygon)
+            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            log.info("detector.aquarium_status", defined=has_aquarium)
 
         if not zone_data.polygon:
             if self.project_manager.get_project_type() == "pre-recorded":
@@ -1293,6 +1305,10 @@ class AppController:
         try:
             if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
                 yolo_model = YOLO(weight_details["path"])
+                # Define contexto diagnóstico
+                if hasattr(yolo_model, 'set_context'):
+                    yolo_model.set_context('diagnostic')
+                    log.info("diagnostic.thread.yolo_context_set", context="diagnostic")
                 results["YOLO (PyTorch)"] = []
 
             if model_to_test in ["OpenVINO", "Ambos"]:
@@ -1399,28 +1415,70 @@ class AppController:
                 report_lines.append(f"Frame {frame_num}:")
 
                 detections = []
+                mask_only_detections = []
+
                 # Handle ultralytics results object
-                if hasattr(preds, 'boxes'):
-                    for box in preds.boxes:
-                        class_id = int(box.cls)
-                        class_name = preds.names.get(class_id, 'desconhecido')
-                        conf = float(box.conf)
-                        bbox = [int(coord) for coord in box.xyxy[0]]
-                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
-                # Handle our custom OpenVINO plugin list of dicts
+                if hasattr(preds, 'boxes') or hasattr(preds, 'masks'):
+                    # Processa boxes com suas máscaras
+                    if preds.boxes is not None:
+                        for j, box in enumerate(preds.boxes):
+                            class_id = int(box.cls)
+                            class_name = preds.names.get(class_id, 'desconhecido')
+                            conf = float(box.conf)
+                            bbox = [int(coord) for coord in box.xyxy[0]]
+
+                            # Verifica se tem máscara
+                            has_mask = (preds.masks is not None and
+                                      preds.masks.xy is not None and
+                                      j < len(preds.masks.xy))
+                            mask_info = f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
+
+                            detections.append(
+                                f"  - Classe {class_id} ('{class_name}'), "
+                                f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
+                            )
+
+                    # Processa máscaras sem boxes (órfãs)
+                    if preds.masks is not None and preds.masks.xy is not None:
+                        num_boxes = len(preds.boxes) if preds.boxes else 0
+                        for j in range(num_boxes, len(preds.masks.xy)):
+                            mask = preds.masks.xy[j]
+                            x_min = int(mask[:, 0].min())
+                            y_min = int(mask[:, 1].min())
+                            x_max = int(mask[:, 0].max())
+                            y_max = int(mask[:, 1].max())
+                            area = (x_max - x_min) * (y_max - y_min)
+
+                            mask_only_detections.append(
+                                f"  - [MÁSCARA SEM BOX] Provável Aquário, "
+                                f"BBox aprox: [{x_min}, {y_min}, {x_max}, {y_max}], "
+                                f"Área: {area}, Pontos: {len(mask)}"
+                            )
+
+                # Handle OpenVINO plugin format
                 elif isinstance(preds, list):
-                     for det in preds:
+                    for det in preds:
                         class_id = det['class_id']
                         class_name = det['class_name']
                         conf = det['confidence']
                         bbox = det['box']
-                        detections.append(f"  - Classe ID {class_id} ('{class_name}'), Confiança: {conf:.2f}, BBox: {bbox}")
+                        mask_info = f", Máscara: {det.get('mask_points', 0)} pontos" if det.get('has_mask') else ""
 
-                if not detections:
-                    report_lines.append("  - Nenhuma detecção encontrada.")
-                else:
+                        detections.append(
+                            f"  - Classe {class_id} ('{class_name}'), "
+                            f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
+                        )
+
+                # Adiciona detecções ao relatório
+                if detections:
                     report_lines.extend(detections)
-                report_lines.append("") # Spacer between frames
+                if mask_only_detections:
+                    report_lines.append("  Máscaras sem bounding box (possíveis aquários):")
+                    report_lines.extend(mask_only_detections)
+                if not detections and not mask_only_detections:
+                    report_lines.append("  - Nenhuma detecção encontrada.")
+
+                report_lines.append("")
 
             report_lines.append("") # Spacer between models
 

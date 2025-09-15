@@ -1,0 +1,18 @@
+Relatório de Diagnóstico do Modelo
+-----------------------------------
+- Vídeo: CECT_8.mp4
+- Frames Analisados: 3
+- Limiar de Confiança: 0.1
+-----------------------------------
+
+--- [ RESULTADOS YOLO (PYTORCH) ] ---
+
+Frame 1:
+  - Classe 1 ('zebrafish'), Conf: 0.40, BBox: [641, 360, 672, 385], Máscara: 13 pontos
+
+Frame 2:
+  - Classe 1 ('zebrafish'), Conf: 0.55, BBox: [638, 360, 671, 387], Máscara: 11 pontos
+
+Frame 3:
+  - Classe 1 ('zebrafish'), Conf: 0.64, BBox: [635, 362, 672, 388], Máscara: 16 pontos
+
