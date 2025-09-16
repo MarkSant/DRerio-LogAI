@@ -872,15 +872,22 @@ class AppController:
         output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
         os.makedirs(output_dir, exist_ok=True)
 
-        # 3. Call the processing
-        self._process_videos([video_to_process], output_dir, single_video_config=config)
-
-        self.view.show_info(
-            "Sucesso",
-            f"Análise de vídeo único concluída. Resultados salvos em:\n{output_dir}",
+        # 3. Call the processing in a background thread
+        self.cancel_event.clear()
+        self.processing_thread = threading.Thread(
+            target=self._process_videos,
+            args=([video_to_process], output_dir),
+            kwargs={"single_video_config": config},
+            daemon=True,
         )
-        # Optional: Return to the welcome screen after completion
+        self.processing_thread.start()
+
         self.view._create_welcome_frame()
+        self.view.show_info(
+            "Análise Iniciada",
+            "A análise do vídeo foi iniciada em segundo plano.\n"
+            f"Você será notificado quando terminar. Os resultados serão salvos em:\n{output_dir}",
+        )
 
     def start_project_processing_workflow(self):
         """Adiciona vídeos com validação robusta de zonas"""
