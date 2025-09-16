@@ -913,6 +913,9 @@ class ApplicationGUI:
         self.root.title("Controlador Zebtrack")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
+        # Debug mode para visualizar fluxo de salvamento
+        self.DEBUG_ZONES = True  # Ative para debug
+
         # Dynamic widgets / state variables
         self.welcome_frame = None
         self.notebook = None
@@ -1195,6 +1198,13 @@ class ApplicationGUI:
             command=self._start_roi_drawing,
         ).pack(fill="x", pady=2)
 
+        # Zone validation button
+        ttk.Button(
+            actions_frame,
+            text="Validar Configuração",
+            command=self._validate_zone_configuration,
+        ).pack(fill="x", pady=2)
+
         # --- Zone List ---
         zone_list_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Zonas Definidas", padding=10
@@ -1202,11 +1212,13 @@ class ApplicationGUI:
         zone_list_frame.pack(fill="both", expand=True, pady=5)
 
         self.zone_listbox = ttk.Treeview(
-            zone_list_frame, columns=("name", "type"), show="headings"
+            zone_list_frame, columns=("name", "type", "color"), show="headings"
         )
         self.zone_listbox.heading("name", text="Nome")
         self.zone_listbox.heading("type", text="Tipo")
-        self.zone_listbox.column("type", width=60)
+        self.zone_listbox.heading("color", text="Cor")
+        self.zone_listbox.column("type", width=80)
+        self.zone_listbox.column("color", width=60)
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
         # Scrollbar for the listbox
@@ -1215,6 +1227,14 @@ class ApplicationGUI:
         )
         self.zone_listbox.configure(yscrollcommand=scrollbar.set)
         self.zone_listbox.bind("<<TreeviewSelect>>", self._on_zone_select)
+
+        # Menu de contexto para ROIs
+        self.roi_context_menu = None
+        self._create_roi_context_menu()
+
+        # Bind click direito na listbox
+        self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
+
         scrollbar.pack(side="right", fill="y")
 
         # Buttons to manage the list
@@ -1490,7 +1510,7 @@ class ApplicationGUI:
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             self._canvas_bg_image = ImageTk.PhotoImage(img)
             self.roi_canvas.config(width=w, height=h)
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image")
 
         except Exception as e:
             self.show_error("Erro ao Exibir Frame", str(e))
@@ -1526,11 +1546,22 @@ class ApplicationGUI:
             # Ajusta ao canvas
             canvas_width = self.roi_canvas.winfo_width() or 800
             canvas_height = self.roi_canvas.winfo_height() or 600
-            image.thumbnail((canvas_width, canvas_height), Image.LANCZOS)
+
+            # Calcula nova escala mantendo aspecto
+            img_w, img_h = image.size
+            scale = min(canvas_width / img_w, canvas_height / img_h)
+            new_width = int(img_w * scale)
+            new_height = int(img_h * scale)
+
+            # Redimensiona a imagem
+            image = image.resize((new_width, new_height), Image.LANCZOS)
+
+            # Atualiza o tamanho do canvas para corresponder à imagem
+            self.roi_canvas.config(width=new_width, height=new_height)
 
             self._canvas_bg_image = ImageTk.PhotoImage(image)
             self.roi_canvas.delete("all")
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
+            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image")
 
             log.info("gui.canvas.frame_loaded", video=video_path)
             return True
@@ -1661,7 +1692,15 @@ class ApplicationGUI:
 
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
+        if self.DEBUG_ZONES:
+            print(f"\n=== DEBUG BOTÃO ARENA ===")
+            print(f"1. Definindo current_drawing_type = 'arena'")
+
         self.current_drawing_type = "arena"
+
+        if self.DEBUG_ZONES:
+            print(f"2. Chamando _start_polygon_drawing()")
+
         self._start_polygon_drawing()
 
     def _start_roi_drawing(self):
@@ -1677,8 +1716,23 @@ class ApplicationGUI:
         self.current_drawing_type = "roi"
         self._start_polygon_drawing()
 
+    def _validate_zone_configuration(self):
+        """Validates the current zone configuration and shows detailed feedback."""
+        is_valid, summary, recommendations = self.controller.validate_zone_configuration_comprehensive()
+
+        if is_valid:
+            title = "✅ Configuração Validada"
+        else:
+            title = "⚠️ Problemas na Configuração"
+
+        self.show_info(title, summary)
+
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
+        if self.DEBUG_ZONES:
+            print(f"3. _start_polygon_drawing iniciado")
+            print(f"4. current_drawing_type antes de _stop_drawing: {self.current_drawing_type}")
+
         # Garante que há frame no canvas
         if self._canvas_bg_image is None:
             self.set_status("Carregando frame para desenho...")
@@ -1689,8 +1743,14 @@ class ApplicationGUI:
                     "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' primeiro."
                 )
                 return False
-            
+
+        # Preserve drawing type before cleaning
+        preserved_drawing_type = self.current_drawing_type
         self._stop_drawing()  # Ensure clean state
+        self.current_drawing_type = preserved_drawing_type  # Restore
+
+        if self.DEBUG_ZONES:
+            print(f"5. current_drawing_type após _stop_drawing: {self.current_drawing_type}")
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
         self.roi_canvas.config(cursor="crosshair")
@@ -1806,6 +1866,25 @@ class ApplicationGUI:
 
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
+        if self.DEBUG_ZONES:
+            print(f"\n=== DEBUG ZONE SAVE ===")
+            print(f"1. Pontos a salvar: {len(self.current_polygon_points) if self.current_polygon_points else 0}")
+            print(f"2. Tipo: {self.current_drawing_type}")
+            print(f"3. Modo de desenho: {self.drawing_mode}")
+
+        # Fix: Auto-detect drawing type if not set (for single video workflow)
+        if self.current_drawing_type is None and self.drawing_mode == "polygon":
+            # If no main arena exists, assume we're drawing it
+            zone_data = self.controller.project_manager.get_zone_data()
+            if not zone_data.polygon:
+                self.current_drawing_type = "arena"
+                if self.DEBUG_ZONES:
+                    print(f"3.1. Auto-detectado como arena (não existe polygon principal)")
+            else:
+                self.current_drawing_type = "roi"
+                if self.DEBUG_ZONES:
+                    print(f"3.1. Auto-detectado como ROI (polygon principal já existe)")
+
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             if self.current_polygon_points:
                 self.show_warning(
@@ -1816,27 +1895,61 @@ class ApplicationGUI:
             return
 
         try:
+            # Limpa elementos temporários de desenho ANTES de salvar
+            self.roi_canvas.delete("elastic_line")
+            self.roi_canvas.delete("drawing_aid")
+
             if self.current_drawing_type == "arena":
-                # Critical Fix #2: Add validation and better feedback
+                if self.DEBUG_ZONES:
+                    print(f"4. Iniciando salvamento da arena...")
+
                 self.set_status("Salvando arena principal...")
+
+                # Salva o polígono no projeto
+                if self.DEBUG_ZONES:
+                    print(f"5. Chamando controller.set_main_arena_polygon...")
                 success = self.controller.set_main_arena_polygon(self.current_polygon_points)
-                
+
+                if self.DEBUG_ZONES:
+                    print(f"6. Resultado do salvamento: {success}")
+
                 if success:
+                    # Agora redesenha tudo do zero com os dados salvos
+                    # Não chame _stop_drawing() ainda, pois ele limpa o canvas
+                    self.drawing_mode = None
+                    self.current_drawing_type = None
+                    self.roi_canvas.config(cursor="")
+
+                    # Unbind eventos
+                    self.roi_canvas.unbind("<Button-1>")
+                    self.roi_canvas.unbind("<Double-Button-1>")
+                    self.roi_canvas.unbind("<Motion>")
+
+                    # Limpa label de instrução
+                    if self.drawing_instruction_label:
+                        self.drawing_instruction_label.destroy()
+                        self.drawing_instruction_label = None
+
+                    # Força redesenho com dados salvos
+                    if self.DEBUG_ZONES:
+                        print(f"7. Iniciando redesenho das zonas...")
+                    self.redraw_zones_from_project_data()
+                    self.update_zone_listbox()
+
                     self.set_status("✓ Arena principal definida com sucesso!")
-                    # Show success message to user
                     self.show_info(
-                        "Sucesso", 
-                        f"Arena principal criada com {len(self.current_polygon_points)} pontos e salva no projeto."
+                        "Sucesso",
+                        f"Arena principal criada com {len(self.current_polygon_points)} pontos."
                     )
                 else:
                     self.set_status("❌ Erro ao salvar arena principal.")
                     self.show_error(
                         "Erro",
-                        "Não foi possível salvar a arena principal. Verifique se o projeto está inicializado."
+                        "Não foi possível salvar a arena principal."
                     )
+                    self._stop_drawing()
 
             elif self.current_drawing_type == "roi":
-                # A lógica para ROIs é mantida, apenas adicionando feedback.
                 roi_name = self.ask_string(
                     "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
                 )
@@ -1845,100 +1958,230 @@ class ApplicationGUI:
                     self._stop_drawing()
                     return
 
-                self.set_status(f"Salvando área de interesse '{roi_name}'...")
-                roi_color = (0, 255, 0)  # Green
+                # Selecionar cor da área
+                color_dialog = ColorSelectionDialog(self.root)
+                if not color_dialog.result:
+                    self.current_polygon_points = []
+                    self._stop_drawing()
+                    return
+
+                selected_color = color_dialog.result
+                roi_color = selected_color["rgb"]
+                color_name = selected_color["name"]
+
+                self.set_status(f"Salvando área de interesse '{roi_name}' ({color_name})...")
                 success = self.controller.add_roi_polygon(
                     self.current_polygon_points, roi_name, roi_color
                 )
-                
+
                 if success:
-                    # A UI será atualizada pelo controller, mas um feedback imediato é bom.
-                    self.roi_canvas.create_polygon(
-                        self.current_polygon_points,
-                        fill="",
-                        outline="green",
-                        width=2,
-                        tags="roi_polygon",
-                    )
-                    self.set_status(f"✓ Área de Interesse '{roi_name}' adicionada com sucesso!")
+                    # Limpa o estado de desenho manualmente para ROI também
+                    self.drawing_mode = None
+                    self.current_drawing_type = None
+                    self.roi_canvas.config(cursor="")
+
+                    # Unbind eventos
+                    self.roi_canvas.unbind("<Button-1>")
+                    self.roi_canvas.unbind("<Double-Button-1>")
+                    self.roi_canvas.unbind("<Motion>")
+
+                    # Limpa label de instrução
+                    if self.drawing_instruction_label:
+                        self.drawing_instruction_label.destroy()
+                        self.drawing_instruction_label = None
+
+                    # Força redesenho com dados salvos
+                    self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
+
+                    self.set_status(f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada com sucesso!")
                     self.show_info(
-                        "Sucesso", 
-                        f"Área de interesse '{roi_name}' criada com {len(self.current_polygon_points)} pontos."
+                        "Sucesso",
+                        f"Área de interesse '{roi_name}' ({color_name}) criada com {len(self.current_polygon_points)} pontos."
                     )
                 else:
                     self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
                     self.show_error("Erro", f"Não foi possível salvar a área de interesse '{roi_name}'.")
+                    self._stop_drawing()
 
         except Exception as e:
-            self.set_status("❌ Erro durante salvamento do polígono.")
-            self.show_error("Erro Inesperado", f"Erro ao processar polígono: {str(e)}")
-            
-        # Limpa o estado de desenho
-        self.current_polygon_points = []
-        self._stop_drawing()
+            self.set_status("❌ Erro durante salvamento.")
+            self.show_error("Erro", str(e))
+            self._stop_drawing()
+
+        finally:
+            # Limpa pontos temporários
+            self.current_polygon_points = []
 
     def update_zone_listbox(self):
-        """Clears and repopulates the list of defined zones."""
+        """Atualiza lista com indicadores visuais de cor"""
+        # Limpa lista
         for item in self.zone_listbox.get_children():
             self.zone_listbox.delete(item)
 
         zone_data = self.controller.project_manager.get_zone_data()
 
+        # Arena principal com emoji e cor
         if zone_data.polygon:
-            self.zone_listbox.insert("", "end", values=("Arena Principal", "Polígono"))
+            arena_item = self.zone_listbox.insert(
+                "", "end",
+                values=("🏠 Arena Principal", "Polígono", "Ciano"),
+                tags=("arena",)
+            )
+            # Configura cor do texto para arena
+            self.zone_listbox.tag_configure("arena", foreground="darkcyan")
 
-        for name in zone_data.roi_names:
-            self.zone_listbox.insert("", "end", values=(name, "Polígono ROI"))
+        # Mapear cores RGB para nomes e hex
+        color_map = {
+            (0, 255, 0): ("Verde", "#00AA00"),
+            (0, 0, 255): ("Azul", "#0000AA"),
+            (255, 0, 0): ("Vermelho", "#AA0000"),
+            (255, 255, 0): ("Amarelo", "#AAAA00"),
+            (255, 0, 255): ("Magenta", "#AA00AA"),
+            (0, 255, 255): ("Ciano", "#00AAAA"),
+        }
+
+        # ROIs com emojis, cores e tags
+        for i, name in enumerate(zone_data.roi_names):
+            # Obter cor da ROI se disponível
+            color_name = "Verde"
+            color_hex = "#00AA00"
+
+            if i < len(zone_data.roi_colors):
+                roi_color = tuple(zone_data.roi_colors[i])
+                color_info = color_map.get(roi_color, ("Verde", "#00AA00"))
+                color_name = color_info[0]
+                color_hex = color_info[1]
+
+            # Insere ROI com emoji
+            roi_item = self.zone_listbox.insert(
+                "", "end",
+                values=(f"📍 {name}", "Área de Interesse", color_name),
+                tags=(f"roi_{i}",)
+            )
+
+            # Configura cor do texto para ROI
+            try:
+                self.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
+            except Exception:
+                pass  # Fallback silencioso se a cor não for suportada
 
     def redraw_zones_from_project_data(self):
-        """Limpa o canvas e redesenha todas as zonas a partir dos dados centrais."""
-        # Critical Fix #6: Ensure proper canvas clearing and background restoration
-        self.roi_canvas.delete("all")
+        """Redesenha zonas preservando o background"""
+        log.info("gui.redraw_zones.start")
 
-        # Always restore background image if available
+        if self.DEBUG_ZONES:
+            zone_data = self.controller.project_manager.get_zone_data()
+            print(f"\n=== DEBUG REDRAW ===")
+            print(f"1. Tem polygon? {bool(zone_data.polygon)}")
+            if zone_data.polygon:
+                print(f"2. Pontos no polygon: {len(zone_data.polygon)}")
+                print(f"3. Primeiros 3 pontos: {zone_data.polygon[:3]}")
+            print(f"4. Canvas items antes: {len(self.roi_canvas.find_all())}")
+
+        # Apaga apenas elementos de zona, preserva background
+        for tag in ["main_polygon", "roi_polygon", "roi_label", "roi_label_bg", "elastic_line", "drawing_aid", "temp_vertex"]:
+            self.roi_canvas.delete(tag)
+
+        # Background já deve estar presente, se não, tenta restaurar
         if self._canvas_bg_image:
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image)
-            log.info("gui.redraw_zones.background_restored")
+            # Verifica se a imagem ainda está no canvas
+            bg_items = self.roi_canvas.find_withtag("background_image")
+            if not bg_items:
+                self.roi_canvas.create_image(
+                    0, 0,
+                    anchor="nw",
+                    image=self._canvas_bg_image,
+                    tags="background_image"
+                )
+                self.roi_canvas.tag_lower("background_image")  # Envia para trás
+                log.info("gui.redraw_zones.background_restored")
         else:
             log.warning("gui.redraw_zones.no_background_image")
             # Tenta carregar um frame se não há imagem de fundo
             self.load_video_frame_to_canvas()
 
         zone_data = self.controller.project_manager.get_zone_data()
-        log.info("gui.redraw_zones.start", 
+        log.info("gui.redraw_zones.zone_data_loaded",
                  has_main_polygon=bool(zone_data.polygon),
                  roi_count=len(zone_data.roi_polygons))
 
-        # Draw main polygon if exists
-        if zone_data.polygon:
-            self.roi_canvas.create_polygon(
-                zone_data.polygon,
-                fill="",
-                outline="cyan",
-                width=2,
-                tags="main_polygon"
-            )
-            log.info("gui.redraw_zones.main_polygon_drawn", points=len(zone_data.polygon))
+        # Desenha polígono principal
+        if zone_data.polygon and len(zone_data.polygon) >= 3:
+            try:
+                self.roi_canvas.create_polygon(
+                    zone_data.polygon,
+                    fill="",
+                    outline="cyan",
+                    width=2,
+                    tags="main_polygon"
+                )
+                log.info("gui.main_polygon.drawn", points=len(zone_data.polygon))
+            except Exception as e:
+                log.error("gui.main_polygon.draw_error", error=str(e))
 
-        # Draw ROI polygons
+        # Desenha ROI polygons com melhorias visuais
         for i, polygon in enumerate(zone_data.roi_polygons):
-            # tkinter expects color as a hex string like #RRGGBB
+            if len(polygon) < 3:
+                continue
+
+            # Cor da ROI
             color_tuple = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
             color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
+
+            # Nome da ROI
             name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
-            
-            self.roi_canvas.create_polygon(
-                polygon,
-                fill="",
-                outline=color_hex,
-                width=2,
-                tags="roi_polygon"
-            )
-            log.info("gui.redraw_zones.roi_drawn", name=name, points=len(polygon))
-        
-        # Update the zone listbox to reflect current zones  
+
+            # Desenha polígono com tags específicas
+            try:
+                # Cria o polígono
+                poly_id = self.roi_canvas.create_polygon(
+                    polygon,
+                    fill="",  # Sem preenchimento para manter transparência
+                    outline=color_hex,
+                    width=2,
+                    tags=("roi_polygon", f"roi_{i}")
+                )
+
+                # Adiciona label com o nome no centro do polígono
+                import numpy as np
+                poly_array = np.array(polygon)
+                center_x = int(poly_array[:, 0].mean())
+                center_y = int(poly_array[:, 1].mean())
+
+                # Cria fundo semi-transparente para melhor legibilidade
+                self.roi_canvas.create_oval(
+                    center_x - 25, center_y - 10,
+                    center_x + 25, center_y + 10,
+                    fill="white",
+                    outline=color_hex,
+                    width=1,
+                    tags=("roi_label_bg", f"roi_label_bg_{i}")
+                )
+
+                # Cria o texto do nome
+                self.roi_canvas.create_text(
+                    center_x, center_y,
+                    text=name,
+                    fill=color_hex,
+                    font=("Arial", 9, "bold"),
+                    tags=("roi_label", f"roi_label_{i}")
+                )
+
+                log.info("gui.roi_drawn", name=name, color=color_hex, points=len(polygon))
+
+            except Exception as e:
+                log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
+
+        # Atualiza listbox
         self.update_zone_listbox()
+
+        if self.DEBUG_ZONES:
+            print(f"5. Canvas items depois: {len(self.roi_canvas.find_all())}")
+            print(f"6. Items com tag 'main_polygon': {len(self.roi_canvas.find_withtag('main_polygon'))}")
+            print(f"7. Items com tag 'background_image': {len(self.roi_canvas.find_withtag('background_image'))}")
+            print("=== FIM DEBUG REDRAW ===\n")
+
         log.info("gui.redraw_zones.complete")
 
     def _remove_selected_roi(self):
@@ -2233,6 +2476,9 @@ class ApplicationGUI:
             self.controller.capture_thread.start()
             self.controller.processing_thread.start()
 
+            # Auto-calibration for Live projects when no zones are defined
+            self.root.after(1000, self._check_live_project_calibration)
+
     def _create_progress_grid_tab(self):
         """Creates the tab for viewing the experimental progress grid."""
         self.progress_grid_frame = ttk.Frame(self.notebook, padding="10")
@@ -2249,6 +2495,41 @@ class ApplicationGUI:
             command=self._render_progress_grid,
         )
         refresh_button.pack(side="bottom", pady=10)
+
+    def _check_live_project_calibration(self):
+        """Checks if Live project needs calibration and prompts user automatically."""
+        if self.controller.project_manager.get_project_type() != "live":
+            return
+
+        zone_data = self.controller.project_manager.get_zone_data()
+        if not zone_data or not zone_data.polygon:
+            log.info("ui.live_calibration.auto_prompt")
+
+            response = self.ask_ok_cancel(
+                "Calibração Automática",
+                "Nenhuma arena principal foi definida para este projeto ao vivo.\n\n"
+                "Deseja configurar a calibração automaticamente agora?\n\n"
+                "• Será aberta a aba de Configuração de Zonas\n"
+                "• Você pode usar 'Detectar Aquário (Auto)' ou desenhar manualmente\n"
+                "• A configuração será salva automaticamente"
+            )
+
+            if response:
+                log.info("ui.live_calibration.auto_accepted")
+                # Switch to zone configuration tab
+                if hasattr(self, 'notebook') and hasattr(self, 'zone_tab_frame'):
+                    self.notebook.select(self.zone_tab_frame)
+
+                # Show guidance message
+                self.show_info(
+                    "Configuração de Arena Principal",
+                    "Configure a arena principal usando:\n\n"
+                    "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
+                    "2. 'Desenhar Polígono Principal' - Para desenho manual\n\n"
+                    "A configuração será salva automaticamente."
+                )
+            else:
+                log.info("ui.live_calibration.auto_declined")
 
     def _render_progress_grid(self):
         """Clears and redraws the experimental progress grid based on project data."""
@@ -2858,9 +3139,9 @@ class ApplicationGUI:
         """Shows a confirmation dialog."""
         return messagebox.askokcancel(title, message)
 
-    def ask_string(self, title, prompt):
+    def ask_string(self, title, prompt, initialvalue=None):
         """Shows a dialog for string input."""
-        return simpledialog.askstring(title, prompt)
+        return simpledialog.askstring(title, prompt, initialvalue=initialvalue)
 
     def ask_directory(self, title):
         """Shows a dialog to select a directory."""
@@ -2869,6 +3150,155 @@ class ApplicationGUI:
     def ask_open_filenames(self, title, filetypes):
         """Shows a dialog to select one or more files."""
         return filedialog.askopenfilenames(title=title, filetypes=filetypes)
+
+    def _create_roi_context_menu(self):
+        """Cria menu de contexto para ROIs"""
+        from tkinter import Menu
+
+        self.roi_context_menu = Menu(self.root, tearoff=0)
+        self.roi_context_menu.add_command(
+            label="✏️ Renomear",
+            command=self._rename_selected_roi
+        )
+        self.roi_context_menu.add_command(
+            label="🎨 Mudar Cor",
+            command=self._change_roi_color
+        )
+        self.roi_context_menu.add_separator()
+        self.roi_context_menu.add_command(
+            label="🗑️ Remover",
+            command=self._remove_selected_roi_confirm
+        )
+
+    def _on_zone_right_click(self, event):
+        """Mostra menu de contexto"""
+        # Seleciona item sob o cursor
+        item = self.zone_listbox.identify_row(event.y)
+        if item:
+            self.zone_listbox.selection_set(item)
+
+            # Verifica se é ROI (não arena principal)
+            values = self.zone_listbox.item(item)['values']
+            if values and "Arena Principal" not in values[0]:
+                self.roi_context_menu.post(event.x_root, event.y_root)
+
+    def _rename_selected_roi(self):
+        """Renomeia ROI selecionada"""
+        selected = self.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.zone_listbox.item(selected[0])
+        old_name = item['values'][0].replace("📍 ", "")
+
+        new_name = self.ask_string(
+            "Renomear ROI",
+            f"Novo nome para '{old_name}':",
+            initialvalue=old_name
+        )
+
+        if new_name and new_name != old_name:
+            # Atualiza no projeto
+            zone_data = self.controller.project_manager.get_zone_data()
+            try:
+                idx = zone_data.roi_names.index(old_name)
+                zone_data.roi_names[idx] = new_name
+
+                # Salva
+                from dataclasses import asdict
+                self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+                self.controller.project_manager.save_project()
+
+                # Atualiza visualização
+                self.redraw_zones_from_project_data()
+                self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
+
+            except ValueError:
+                self.show_error("Erro", "ROI não encontrada")
+
+    def _change_roi_color(self):
+        """Muda cor da ROI selecionada"""
+        selected = self.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.zone_listbox.item(selected[0])
+        old_name = item['values'][0].replace("📍 ", "")
+
+        # Usa o diálogo de cores personalizado
+        color_dialog = ColorSelectionDialog(self.root, "Mudar Cor da ROI")
+        if not color_dialog.result:
+            return
+
+        selected_color = color_dialog.result
+        new_color = selected_color["rgb"]
+        color_name = selected_color["name"]
+
+        # Atualiza no projeto
+        zone_data = self.controller.project_manager.get_zone_data()
+        try:
+            idx = zone_data.roi_names.index(old_name)
+            zone_data.roi_colors[idx] = new_color
+
+            # Salva
+            from dataclasses import asdict
+            self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+            self.controller.project_manager.save_project()
+
+            # Atualiza visualização
+            self.redraw_zones_from_project_data()
+            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
+
+        except ValueError:
+            self.show_error("Erro", "ROI não encontrada")
+        except IndexError:
+            self.show_error("Erro", "Dados de cor da ROI não encontrados")
+
+    def _remove_selected_roi_confirm(self):
+        """Remove ROI selecionada com confirmação"""
+        selected = self.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.zone_listbox.item(selected[0])
+        roi_name = item['values'][0].replace("📍 ", "")
+
+        # Confirmação
+        from tkinter import messagebox
+        confirm = messagebox.askyesno(
+            "Confirmar Remoção",
+            f"Tem certeza que deseja remover a ROI '{roi_name}'?\n\nEsta ação não pode ser desfeita.",
+            icon="warning"
+        )
+
+        if confirm:
+            # Remove do projeto
+            zone_data = self.controller.project_manager.get_zone_data()
+            try:
+                idx = zone_data.roi_names.index(roi_name)
+
+                # Remove da lista de nomes
+                zone_data.roi_names.pop(idx)
+
+                # Remove da lista de polígonos
+                if idx < len(zone_data.roi_polygons):
+                    zone_data.roi_polygons.pop(idx)
+
+                # Remove da lista de cores
+                if idx < len(zone_data.roi_colors):
+                    zone_data.roi_colors.pop(idx)
+
+                # Salva
+                from dataclasses import asdict
+                self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+                self.controller.project_manager.save_project()
+
+                # Atualiza visualização
+                self.redraw_zones_from_project_data()
+                self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
+
+            except ValueError:
+                self.show_error("Erro", "ROI não encontrada")
 
     def ask_save_filename(self, **options):
         """Shows a dialog to select a save file path."""
@@ -3274,6 +3704,69 @@ class CenterPeripheryDialog(simpledialog.Dialog):
             }
         except (ValueError, TypeError):
             self.result = None
+
+
+class ColorSelectionDialog(simpledialog.Dialog):
+    """Diálogo para seleção de cor de áreas de interesse."""
+
+    def __init__(self, parent, title="Selecionar Cor da Área"):
+        self.result = None
+        super().__init__(parent, title)
+
+    def body(self, master):
+        """Cria o corpo do diálogo com opções de cores."""
+        self.selected_color = StringVar(value="green")
+
+        # Cores disponíveis: (nome, valor_rgb, cor_hex)
+        self.colors = [
+            ("Verde", (0, 255, 0), "#00FF00"),
+            ("Azul", (0, 0, 255), "#0000FF"),
+            ("Vermelho", (255, 0, 0), "#FF0000"),
+            ("Amarelo", (255, 255, 0), "#FFFF00"),
+            ("Magenta", (255, 0, 255), "#FF00FF"),
+            ("Ciano", (0, 255, 255), "#00FFFF"),
+        ]
+
+        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(pady=5)
+
+        # Frame para os botões de cor
+        colors_frame = ttk.Frame(master)
+        colors_frame.pack(pady=10)
+
+        # Criar botões de cor em duas fileiras
+        for i, (name, rgb, hex_color) in enumerate(self.colors):
+            row = i // 3
+            col = i % 3
+
+            color_frame = ttk.Frame(colors_frame)
+            color_frame.grid(row=row, column=col, padx=5, pady=5)
+
+            # Radiobutton para seleção
+            ttk.Radiobutton(
+                color_frame,
+                text=name,
+                variable=self.selected_color,
+                value=name.lower(),
+            ).pack()
+
+            # Quadrado colorido para visualização
+            color_canvas = Canvas(color_frame, width=30, height=20, highlightthickness=1)
+            color_canvas.pack()
+            color_canvas.create_rectangle(0, 0, 30, 20, fill=hex_color, outline="black")
+
+        return master
+
+    def apply(self):
+        """Aplica a seleção de cor."""
+        selected_name = self.selected_color.get()
+        for name, rgb, hex_color in self.colors:
+            if name.lower() == selected_name:
+                self.result = {
+                    "name": name,
+                    "rgb": rgb,
+                    "hex": hex_color
+                }
+                break
 
 
 if __name__ == "__main__":

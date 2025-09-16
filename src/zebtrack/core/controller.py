@@ -118,24 +118,81 @@ class AppController:
             self.view.show_error("Erro", "Falha ao criar o novo projeto.")
 
     def open_project_workflow(self, project_path):
-        if self.project_manager.load_project(project_path):
-            # When loading a project, reflect its settings in the controller
-            self.use_openvino = self.project_manager.project_data.get(
-                "use_openvino", False
-            )
-            self.active_weight_name = self.project_manager.project_data.get(
-                "active_weight"
-            )
-            self.view.update_openvino_checkbox(self.use_openvino)
+        """Carrega projeto e configura tudo automaticamente"""
+        log.info("controller.load_project.start", path=project_path)
+
+        success = self.project_manager.load_project(project_path)
+
+        if not success:
+            self.view.show_error("Erro", "Não foi possível carregar o projeto")
+            return False
+
+        # Auto-configura o detector com o peso do projeto
+        self.active_weight_name = self.project_manager.project_data.get("active_weight")
+        if self.active_weight_name:
+            log.info("controller.load_project.weight_restored", weight=self.active_weight_name)
+
+        # Auto-configura OpenVINO se estava ativo
+        self.use_openvino = self.project_manager.project_data.get("use_openvino", False)
+        log.info("controller.load_project.openvino_restored", use_openvino=self.use_openvino)
+
+        # Atualiza interface com configurações restauradas
+        self.view.update_openvino_checkbox(self.use_openvino)
+        if self.active_weight_name:
             self.view.set_active_weight_in_dropdown(self.active_weight_name)
-            self.update_openvino_status()
+        self.update_openvino_status()
 
-            if self.setup_detector():
-                self.view._load_project_view()
-                # self.load_project_results_for_gui() # This is now handled in the UI
+        # Inicializa detector
+        if not self.setup_detector():
+            log.warning("controller.load_project.detector_setup_failed")
+        else:
+            # Carrega interface do projeto
+            self.view._load_project_view()
 
-            # After loading, check if zones are defined.
+        # NOVO: Carrega e aplica zonas salvas
+        zone_data = self.project_manager.get_zone_data()
+        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+            log.info("controller.load_project.zones_found",
+                    has_polygon=bool(zone_data.polygon),
+                    roi_count=len(zone_data.roi_polygons))
+
+            # Configura zonas no detector
             self.setup_detector_zones()
+
+            # Atualiza visualização das zonas na GUI
+            if hasattr(self.view, 'redraw_zones_from_project_data'):
+                self.view.redraw_zones_from_project_data()
+            if hasattr(self.view, 'update_zone_listbox'):
+                self.view.update_zone_listbox()
+
+            log.info("controller.load_project.zones_applied")
+
+        # Coleta informações do projeto para feedback
+        project_name = self.project_manager.get_project_name()
+        all_videos = self.project_manager.get_all_videos()
+        videos_count = len(all_videos)
+
+        # Mostra status detalhado
+        zone_status = "✓" if zone_data and zone_data.polygon else "✗"
+        roi_count = len(zone_data.roi_polygons) if zone_data else 0
+
+        self.view.show_info(
+            "Projeto Carregado",
+            f"Projeto '{project_name}' carregado com sucesso!\n\n"
+            f"• Vídeos: {videos_count}\n"
+            f"• Arena Principal: {zone_status}\n"
+            f"• ROIs: {roi_count}\n"
+            f"• Peso: {self.active_weight_name or 'Padrão'}\n"
+            f"• OpenVINO: {'✓' if self.use_openvino else '✗'}"
+        )
+
+        log.info("controller.load_project.complete",
+                project=project_name,
+                videos=videos_count,
+                has_zones=bool(zone_data and zone_data.polygon),
+                rois=roi_count)
+
+        return True
 
     def setup_detector(self) -> bool:
         """Initializes the detector instance based on the globally selected model."""
@@ -372,24 +429,48 @@ class AppController:
         finally:
             self.view.set_status("Pronto.")
 
-    def set_main_arena_polygon(self, points: list):
-        """Recebe os pontos da GUI e os salva como a arena principal."""
+    def set_main_arena_polygon(self, points: list) -> bool:
+        """Salva polígono com validações robustas"""
         try:
-            log.info("controller.zone.set_main_arena", points_count=len(points))
-            
-            # Critical Fix #3: Add project validation before saving
-            if not self.project_manager.project_path:
-                log.error("controller.zone.set_main_arena.no_project")
+            # Validação 1: Pontos válidos
+            if not points or len(points) < 3:
+                log.error("controller.polygon.invalid_points", count=len(points) if points else 0)
                 return False
-                
+
+            # Validação 2: Projeto existe
+            if not self.project_manager.project_path:
+                log.error("controller.polygon.no_project")
+                # Para single video workflow, cria projeto temporário
+                if hasattr(self.view, 'pending_single_video_path') and self.view.pending_single_video_path:
+                    import tempfile
+                    import os
+                    temp_dir = tempfile.mkdtemp(prefix="zebtrack_temp_")
+                    self.project_manager.project_path = temp_dir
+                    self.project_manager.project_data = {
+                        "project_name": "Temporary Single Video Project",
+                        "project_type": "single_video",
+                        "detection_zones": {}
+                    }
+                    log.warning("controller.polygon.created_temp_project", path=temp_dir)
+                else:
+                    return False
+
+            # Validação 3: Estrutura de dados
+            if "detection_zones" not in self.project_manager.project_data:
+                self.project_manager.project_data["detection_zones"] = {}
+                log.info("controller.polygon.initialized_detection_zones")
+
+            # Salva
             self.project_manager.update_main_polygon(points)
-            self.view.redraw_zones_from_project_data()
-            
-            log.info("controller.zone.set_main_arena.success")
+
+            # Força atualização visual
+            self.root.after(100, self.view.redraw_zones_from_project_data)
+
+            log.info("controller.polygon.saved", points=len(points))
             return True
-            
+
         except Exception as e:
-            log.error("controller.zone.set_main_arena.error", error=str(e))
+            log.error("controller.polygon.save_error", error=str(e))
             return False
 
     def save_manual_arena(self, polygon_points: list[list[int]]):
@@ -420,10 +501,10 @@ class AppController:
     def add_roi_polygon(
         self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]
     ):
-        """Adds a new polygonal ROI to the project's zone data."""
+        """Adiciona ROI com validação de sobreposição"""
         try:
             log.info("controller.zone.add_roi", name=name, points=len(roi_points))
-            
+
             # Critical Fix #4: Add project validation before saving ROI
             if not self.project_manager.project_path:
                 log.error("controller.zone.add_roi.no_project", name=name)
@@ -431,7 +512,66 @@ class AppController:
 
             zone_data = self.project_manager.get_zone_data()
 
-            # Append the new data
+            # Validação 1: Verifica se está dentro da arena principal
+            if zone_data.polygon and len(zone_data.polygon) >= 3:
+                import cv2
+                import numpy as np
+
+                arena_poly = np.array(zone_data.polygon, dtype=np.int32)
+
+                # Verifica se todos os pontos da ROI estão dentro da arena
+                points_outside = 0
+                for point in roi_points:
+                    result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
+                    if result < 0:  # Ponto está fora
+                        points_outside += 1
+
+                if points_outside > 0:
+                    outside_percent = (points_outside / len(roi_points)) * 100
+                    log.warning("controller.roi.outside_arena",
+                              name=name,
+                              points_outside=points_outside,
+                              percent=outside_percent)
+
+                    if not self.view.ask_ok_cancel(
+                        "ROI Fora da Arena",
+                        f"A ROI '{name}' tem {points_outside} pontos ({outside_percent:.1f}%) "
+                        "fora da arena principal.\n\nDeseja continuar mesmo assim?"
+                    ):
+                        return False
+
+            # Validação 2: Verifica sobreposição com outras ROIs
+            for i, existing_roi in enumerate(zone_data.roi_polygons):
+                if len(existing_roi) >= 3:
+                    # Calcula sobreposição simples verificando pontos
+                    overlapping_points = 0
+
+                    existing_poly = np.array(existing_roi, dtype=np.int32)
+
+                    for point in roi_points:
+                        result = cv2.pointPolygonTest(existing_poly, tuple(point), False)
+                        if result >= 0:  # Ponto está dentro ou na borda
+                            overlapping_points += 1
+
+                    if overlapping_points > 0:
+                        overlap_percent = (overlapping_points / len(roi_points)) * 100
+
+                        if overlap_percent > 20:  # Mais de 20% de sobreposição
+                            existing_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
+                            log.warning("controller.roi.overlap",
+                                      name=name,
+                                      existing=existing_name,
+                                      percent=overlap_percent)
+
+                            if not self.view.ask_ok_cancel(
+                                "ROIs Sobrepostas",
+                                f"A nova ROI '{name}' tem {overlap_percent:.1f}% de "
+                                f"sobreposição com '{existing_name}'.\n\n"
+                                "Deseja continuar?"
+                            ):
+                                return False
+
+            # Adiciona a ROI após validações
             zone_data.roi_polygons.append(roi_points)
             zone_data.roi_names.append(name)
             zone_data.roi_colors.append(color)
@@ -541,8 +681,47 @@ class AppController:
         update_timer(duration_s)
 
     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
-        """Starts a recording session (live mode)."""
+        """Starts a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
+
+        # Validação de zonas para projetos Live
+        if self.project_manager.project_path:
+            zone_data = self.project_manager.get_zone_data()
+            if not zone_data or not zone_data.polygon:
+                log.warning("controller.recording.no_main_arena")
+
+                response = self.view.ask_ok_cancel(
+                    "Arena Principal Não Definida",
+                    "O polígono principal do aquário não foi definido.\n\n"
+                    "É recomendado definir a arena antes de iniciar gravação.\n"
+                    "Deseja definir agora?"
+                )
+
+                if response:
+                    # Muda para aba de zonas e inicia câmera para calibração
+                    if hasattr(self.view, 'notebook') and hasattr(self.view, 'zone_tab_frame'):
+                        self.view.notebook.select(self.view.zone_tab_frame)
+
+                    self.view.show_info(
+                        "Defina a Arena Principal",
+                        "Por favor:\n"
+                        "1. Use a câmera ao vivo para calibrar\n"
+                        "2. Use 'Detectar Aquário (Auto)' ou\n"
+                        "3. Desenhe manualmente o polígono principal\n"
+                        "4. Depois volte para iniciar a gravação"
+                    )
+                    return
+                else:
+                    # Continua sem arena definida (usando padrão)
+                    if not self.view.ask_ok_cancel(
+                        "Continuar Sem Arena?",
+                        "Deseja continuar a gravação sem arena definida?\n"
+                        "(A arena padrão será o frame completo)"
+                    ):
+                        log.info("controller.recording.cancelled_no_arena")
+                        return
+
+                    log.info("controller.recording.proceeding_without_arena")
 
         # 1. Get recording details
         if not all((day, group, cobaia)):
@@ -704,7 +883,7 @@ class AppController:
         self.view._create_welcome_frame()
 
     def start_project_processing_workflow(self):
-        """Handles adding and processing a new batch of videos in a project."""
+        """Adiciona vídeos com validação robusta de zonas"""
         log.info("workflow.project_processing.start")
 
         if self.processing_thread and self.processing_thread.is_alive():
@@ -715,24 +894,96 @@ class AppController:
             )
             return
 
+        # Validação 1: Projeto existe
         if not self.project_manager.project_path:
-            self.view.show_error("Error", "No project is currently open.")
+            self.view.show_error("Erro", "Nenhum projeto carregado")
             return
 
-        # Check for ROIs and ask for confirmation if none are defined
+        # Validação 2: Zonas definidas
         zone_data = self.project_manager.get_zone_data()
-        if not zone_data.roi_polygons:  # .roi_polygons holds the ROIs
-            if not self.view.ask_ok_cancel(
-                "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida. A análise prosseguirá "
-                "usando apenas a área total do aquário. Deseja continuar?",
-            ):
-                log.info("workflow.project_processing.cancelled_by_user_no_roi")
+        if not zone_data or not zone_data.polygon:
+            log.warning("workflow.project_processing.no_main_arena")
+
+            response = self.view.ask_ok_cancel(
+                "Arena Principal Não Definida",
+                "O polígono principal do aquário não foi definido.\n\n"
+                "É necessário definir a arena principal para análise precisa.\n"
+                "Deseja definir agora antes de processar?"
+            )
+
+            if response:
+                # Muda para aba de zonas
+                if hasattr(self.view, 'notebook') and hasattr(self.view, 'zone_tab_frame'):
+                    self.view.notebook.select(self.view.zone_tab_frame)
+
+                # Carrega frame do primeiro vídeo se disponível
+                first_video = self.project_manager.get_next_video()
+                if first_video and hasattr(self.view, 'load_video_frame_to_canvas'):
+                    self.view.load_video_frame_to_canvas(first_video)
+
                 self.view.show_info(
-                    "Processamento Cancelado",
-                    "O processamento foi cancelado pelo usuário.",
+                    "Defina a Arena Principal",
+                    "Por favor:\n"
+                    "1. Use 'Detectar Aquário (Auto)' ou\n"
+                    "2. Desenhe manualmente o polígono principal\n"
+                    "3. Depois volte para adicionar vídeos"
                 )
                 return
+            else:
+                # Oferece arena padrão como fallback
+                if not self.view.ask_ok_cancel(
+                    "Usar Arena Padrão?",
+                    "Deseja usar o frame completo como arena?\n"
+                    "(Não recomendado para análise precisa)"
+                ):
+                    log.info("workflow.project_processing.cancelled_no_arena")
+                    return
+
+                # Cria arena padrão baseada no primeiro vídeo
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    import cv2
+                    cap = cv2.VideoCapture(first_video)
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    cap.release()
+
+                    default_arena = [
+                        [0, 0], [width, 0],
+                        [width, height], [0, height]
+                    ]
+
+                    success = self.set_main_arena_polygon(default_arena)
+                    if success:
+                        log.info("workflow.project_processing.default_arena_created",
+                                size=f"{width}x{height}")
+                        self.view.show_info(
+                            "Arena Padrão Criada",
+                            f"Arena padrão criada ({width}x{height})\n"
+                            "Recomenda-se ajustar manualmente depois."
+                        )
+                    else:
+                        self.view.show_error("Erro", "Não foi possível criar arena padrão")
+                        return
+                else:
+                    self.view.show_error("Erro", "Nenhum vídeo encontrado no projeto")
+                    return
+
+        # Validação 3: Aviso sobre ROIs (opcional, mas informativo)
+        if not zone_data.roi_polygons:
+            if not self.view.ask_ok_cancel(
+                "Nenhuma ROI Definida",
+                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
+                "A análise usará apenas a arena principal.\n"
+                "Para análises detalhadas, considere definir ROIs.\n\n"
+                "Deseja continuar?"
+            ):
+                log.info("workflow.project_processing.cancelled_by_user_no_roi")
+                return
+
+        log.info("workflow.project_processing.zones_validated",
+                has_main_arena=bool(zone_data.polygon),
+                roi_count=len(zone_data.roi_polygons))
 
         # 1. Ask user to select files or folders
         paths = self.view.ask_open_filenames(
@@ -945,6 +1196,146 @@ class AppController:
             if cap.isOpened():
                 cap.release()
 
+    def validate_zone_configuration_comprehensive(self):
+        """
+        Comprehensive zone validation with detailed feedback.
+        Returns (is_valid, issues_summary, recommendations)
+        """
+        zone_data = self.project_manager.get_zone_data()
+        issues = []
+        recommendations = []
+        is_valid = True
+
+        # Check main arena
+        if not zone_data or not zone_data.polygon:
+            is_valid = False
+            issues.append("❌ Arena principal não definida")
+            recommendations.append("• Use 'Detectar Aquário (Auto)' ou desenhe manualmente")
+        else:
+            issues.append("✅ Arena principal definida")
+
+        # Check ROIs
+        if zone_data and zone_data.roi_polygons:
+            issues.append(f"✅ {len(zone_data.roi_polygons)} ROI(s) definida(s)")
+
+            # Check for ROI overlaps and arena containment
+            for i, roi_polygon in enumerate(zone_data.roi_polygons):
+                roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i+1}"
+
+                # Check if ROI is contained in main arena
+                if zone_data.polygon:
+                    roi_points = np.array(roi_polygon, dtype=np.float32).reshape(-1, 1, 2)
+                    contained_points = 0
+                    for point in roi_polygon:
+                        if cv2.pointPolygonTest(np.array(zone_data.polygon, dtype=np.float32), point, False) >= 0:
+                            contained_points += 1
+
+                    containment_percent = (contained_points / len(roi_polygon)) * 100
+                    if containment_percent < 80:
+                        issues.append(f"⚠️ {roi_name}: {containment_percent:.1f}% dentro da arena")
+                        recommendations.append(f"• Ajustar {roi_name} para ficar completamente dentro da arena")
+
+                # Check overlaps with other ROIs
+                for j, other_roi in enumerate(zone_data.roi_polygons):
+                    if i != j:
+                        other_name = zone_data.roi_names[j] if j < len(zone_data.roi_names) else f"ROI {j+1}"
+                        overlapping_points = 0
+                        for point in roi_polygon:
+                            if cv2.pointPolygonTest(np.array(other_roi, dtype=np.float32), point, False) >= 0:
+                                overlapping_points += 1
+
+                        if overlapping_points > 0:
+                            overlap_percent = (overlapping_points / len(roi_polygon)) * 100
+                            if overlap_percent > 20:
+                                issues.append(f"⚠️ {roi_name} e {other_name}: {overlap_percent:.1f}% sobreposição")
+                                recommendations.append(f"• Reduzir sobreposição entre {roi_name} e {other_name}")
+        else:
+            issues.append("ℹ️ Nenhuma ROI definida (opcional)")
+            recommendations.append("• Considere definir ROIs para análises mais detalhadas")
+
+        # Summary
+        summary = "\n".join(issues)
+        if recommendations:
+            summary += "\n\nRecomendações:\n" + "\n".join(recommendations)
+
+        return is_valid, summary, recommendations
+
+    def apply_project_settings_to_batch(self, videos: list):
+        """Aplica configurações do projeto a novos vídeos"""
+        if not self.project_manager.project_path:
+            log.warning("controller.batch.no_project_path")
+            return False
+
+        # Obtém configurações do projeto
+        project_data = self.project_manager.project_data
+        zone_data = self.project_manager.get_zone_data()
+        calibration = project_data.get('calibration', {})
+
+        log.info("controller.batch.apply_settings",
+                videos_count=len(videos),
+                has_zones=bool(zone_data and zone_data.polygon),
+                has_calibration=bool(calibration),
+                has_rois=len(zone_data.roi_polygons) if zone_data else 0)
+
+        # Para cada vídeo no lote
+        settings_applied = 0
+        for video_info in videos:
+            video_path = video_info.get('path')
+            if not video_path:
+                continue
+
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+
+            # Cria diretório de resultados
+            results_dir = os.path.join(
+                self.project_manager.project_path,
+                f"{video_name}_results"
+            )
+
+            try:
+                os.makedirs(results_dir, exist_ok=True)
+
+                # Salva configurações completas do projeto
+                settings_file = os.path.join(results_dir, "project_settings.json")
+                settings_data = {
+                    "project_name": self.project_manager.get_project_name(),
+                    "active_weight": project_data.get('active_weight'),
+                    "use_openvino": project_data.get('use_openvino', False),
+                    "calibration": calibration,
+                    "video_settings": video_info,
+                    "timestamp": self.project_manager.project_data.get('timestamp')
+                }
+
+                import json
+                with open(settings_file, 'w') as f:
+                    json.dump(settings_data, f, indent=2)
+
+                # Salva zonas no diretório de resultados
+                if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+                    zones_file = os.path.join(results_dir, "zones.json")
+
+                    from dataclasses import asdict
+                    with open(zones_file, 'w') as f:
+                        json.dump(asdict(zone_data), f, indent=2)
+
+                    log.info("controller.batch.zones_saved",
+                            video=video_name,
+                            zones_file=zones_file,
+                            settings_file=settings_file)
+
+                settings_applied += 1
+
+            except Exception as e:
+                log.error("controller.batch.settings_save_error",
+                         video=video_name,
+                         error=str(e))
+
+        log.info("controller.batch.settings_applied",
+                total_videos=len(videos),
+                successful=settings_applied)
+
+        return settings_applied == len(videos)
+
     def _process_videos(
         self,
         videos_to_process: list[dict],
@@ -956,6 +1347,13 @@ class AppController:
         designed to be run in a background thread.
         """
         log.info("controller.processing.start", count=len(videos_to_process))
+
+        # Aplica configurações do projeto ao lote ANTES do processamento
+        if not single_video_config:  # Só para projetos batch, não single video
+            settings_success = self.apply_project_settings_to_batch(videos_to_process)
+            if not settings_success:
+                log.warning("controller.processing.settings_partial_failure")
+
         was_cancelled = False
         final_output_dir = output_base_dir
 

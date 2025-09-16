@@ -368,17 +368,46 @@ class ProjectManager:
 
     def update_main_polygon(self, points: list):
         """Atualiza ou define o polígono principal nos dados do projeto."""
-        # This method correctly handles the ZoneData object and project saving.
         from dataclasses import asdict
 
-        log.info("project_manager.polygon.updating", points_count=len(points))
+        log.info("project_manager.polygon.updating",
+                 points_count=len(points),
+                 project_path=self.project_path,
+                 has_project_data=bool(self.project_data))
 
-        zone_data = self.get_zone_data()
-        zone_data.polygon = points
+        try:
+            # Validação de estado interno
+            if not self.project_data:
+                log.error("project_manager.polygon.no_project_data")
+                raise ValueError("Dados do projeto não inicializados")
 
-        self.project_data["detection_zones"] = asdict(zone_data)
-        self.save_project()
-        log.info("project_manager.polygon.updated_and_saved")
+            # Obter dados de zona atual
+            zone_data = self.get_zone_data()
+            log.debug("project_manager.polygon.zone_data_loaded",
+                     current_polygon_exists=bool(zone_data.polygon),
+                     current_roi_count=len(zone_data.roi_polygons))
+
+            # Atualizar polígono
+            old_polygon = zone_data.polygon
+            zone_data.polygon = points
+            log.info("project_manager.polygon.polygon_updated",
+                     old_points=len(old_polygon) if old_polygon else 0,
+                     new_points=len(points))
+
+            # Salvar estrutura atualizada
+            self.project_data["detection_zones"] = asdict(zone_data)
+            log.debug("project_manager.polygon.data_structure_updated")
+
+            # Persistir no arquivo
+            self.save_project()
+            log.info("project_manager.polygon.saved_successfully",
+                     project_file=f"{self.project_path}/project.json" if self.project_path else "unknown")
+
+        except Exception as e:
+            log.error("project_manager.polygon.update_failed",
+                     error=str(e),
+                     error_type=type(e).__name__)
+            raise
 
     def load_metadata(self):
         """Loads the metadata.csv file from the project root into a pandas DataFrame."""
