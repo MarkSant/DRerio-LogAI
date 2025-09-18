@@ -1782,7 +1782,7 @@ class AppController:
                         "Erro: YOLO não está disponível (ultralytics não instalado)"
                     )
                     return
-                
+
                 yolo_model = YOLO(weight_details["path"])
                 # Define contexto diagnóstico
                 if hasattr(yolo_model, 'set_context'):

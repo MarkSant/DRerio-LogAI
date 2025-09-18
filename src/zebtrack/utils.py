@@ -52,7 +52,7 @@ def set_seed(seed: int):
     """
     random.seed(seed)
     np.random.seed(seed)
-    
+
     if TORCH_AVAILABLE:
         torch.manual_seed(seed)
         if torch.cuda.is_available():
@@ -63,5 +63,5 @@ def set_seed(seed: int):
             # consistency is more important than performance.
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
-    
+
     log.info("reproducibility.seed.set", seed=seed)

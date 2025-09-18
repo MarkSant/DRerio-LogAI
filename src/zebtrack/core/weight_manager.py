@@ -235,13 +235,13 @@ class WeightManager:
 
         log.info("openvino.export.start", model=name)
         temp_export_path = None
-        
+
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError(
                 "Ultralytics is not available for OpenVINO export. "
                 "Please install ultralytics package."
             )
-        
+
         try:
             model = YOLO(pt_path)
             # The 'half=True' argument enables FP16 quantization.

@@ -65,7 +65,7 @@ class OpenVINOPlugin(DetectorPlugin):
             raise ImportError(
                 "OpenVINO is not available. Please install openvino package."
             )
-        
+
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 

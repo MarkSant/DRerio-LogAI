@@ -31,7 +31,7 @@ class AquariumDetector:
             raise ImportError(
                 "Ultralytics is not available. Please install ultralytics package."
             )
-        
+
         try:
             self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path)
