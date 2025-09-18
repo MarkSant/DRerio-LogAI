@@ -946,6 +946,11 @@ class ApplicationGUI:
         self.zone_prop_color_var = StringVar()
         self.zone_prop_enter_cmd_var = StringVar()
         self.zone_prop_exit_cmd_var = StringVar()
+        
+        # ROI Inclusion Rule Variables
+        self.roi_inclusion_rule_var = StringVar(value=settings.roi_inclusion_rule if settings else "bbox_intersects")
+        self.roi_buffer_radius_var = StringVar(value=str(settings.roi_buffer_radius_value if settings else 0.5))
+        self.roi_overlap_ratio_var = StringVar(value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10))
 
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
@@ -1342,6 +1347,133 @@ class ApplicationGUI:
             self.zone_properties_frame, text="Selecione uma zona para editar..."
         )
         self.prop_widgets["placeholder_label"].pack(pady=10)
+
+        # --- ROI Inclusion Rule Panel ---
+        self.roi_inclusion_frame = ttk.LabelFrame(
+            self.zone_controls_frame, text="Regra de Inclusão em ROI", padding=10
+        )
+        self.roi_inclusion_frame.pack(fill="x", pady=5)
+        
+        # Rule selection combobox
+        rule_frame = ttk.Frame(self.roi_inclusion_frame)
+        rule_frame.pack(fill="x", pady=2)
+        ttk.Label(rule_frame, text="Regra:").pack(side="left", padx=(0, 5))
+        self.roi_rule_combo = ttk.Combobox(
+            rule_frame,
+            textvariable=self.roi_inclusion_rule_var,
+            values=["centroid_in", "centroid_in_on_buffered_roi", "bbox_intersects", "seg_overlap"],
+            state="readonly",
+            width=30
+        )
+        self.roi_rule_combo.pack(side="left", fill="x", expand=True)
+        self.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_change)
+        
+        # Parameter fields (shown/hidden based on rule)
+        self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
+        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
+        self.radius_entry = ttk.Entry(self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10)
+        self.radius_entry.pack(side="left", padx=(0, 10))
+        ttk.Label(self.radius_frame, text="Usado para dilatar a ROI. Interpretado em cm quando houver calibração (px/cm); caso contrário, em pixels.", font=("TkDefaultFont", 8)).pack(side="left")
+        
+        self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
+        ttk.Label(self.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(side="left", padx=(0, 5))
+        self.overlap_entry = ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10)
+        self.overlap_entry.pack(side="left", padx=(0, 10))
+        self.overlap_help_label = ttk.Label(self.overlap_frame, text="A detecção é considerada dentro da ROI quando a fração de área do bbox contida na ROI atinge este valor.", font=("TkDefaultFont", 8))
+        self.overlap_help_label.pack(side="left")
+        
+        # Help text that changes based on rule
+        self.rule_help_label = ttk.Label(
+            self.roi_inclusion_frame, 
+            text="",
+            font=("TkDefaultFont", 8),
+            wraplength=400,
+            justify="left"
+        )
+        self.rule_help_label.pack(fill="x", pady=(5, 0))
+        
+        # Save settings button
+        save_settings_frame = ttk.Frame(self.roi_inclusion_frame)
+        save_settings_frame.pack(fill="x", pady=(5, 0))
+        ttk.Button(
+            save_settings_frame,
+            text="Aplicar Configurações",
+            command=self._on_apply_roi_settings
+        ).pack(side="right")
+        
+        # Initialize display based on current rule
+        self._on_roi_rule_change()
+
+    def _on_roi_rule_change(self, event=None):
+        """Handle ROI inclusion rule change and update UI accordingly."""
+        rule = self.roi_inclusion_rule_var.get()
+        
+        # Hide all parameter frames first
+        self.radius_frame.pack_forget()
+        self.overlap_frame.pack_forget()
+        
+        # Show appropriate parameters and help text based on rule
+        if rule == "centroid_in":
+            help_text = "Considera dentro quando o centróide do animal está dentro do polígono da ROI. Simples e rápido; pode perder entradas parciais (ex.: cabeça entra primeiro)."
+            
+        elif rule == "centroid_in_on_buffered_roi":
+            self.radius_frame.pack(fill="x", pady=2)
+            help_text = "Igual ao centróide, porém com ROI dilatada por r para capturar entradas parciais (ex.: cabeça). r em cm se houver calibração; senão em px."
+            
+        elif rule == "bbox_intersects":
+            self.overlap_frame.pack(fill="x", pady=2)
+            self.overlap_help_label.config(text="A detecção é considerada dentro da ROI quando a fração de área do bbox contida na ROI atinge este valor.")
+            help_text = "Considera dentro quando o retângulo do animal (bbox) sobrepõe a ROI ao menos pela fração definida. Captura entradas parciais; pode superestimar em bordas."
+            
+        elif rule == "seg_overlap":
+            self.overlap_frame.pack(fill="x", pady=2)
+            self.overlap_help_label.config(text="Requer dados de máscara. Se não houver, selecione outra regra.")
+            help_text = "Considera dentro com base na sobreposição da máscara do animal com a ROI. Requer segmentação; mais preciso e mais custoso."
+            
+        else:
+            help_text = ""
+            
+        self.rule_help_label.config(text=help_text)
+
+    def _on_apply_roi_settings(self):
+        """Apply ROI inclusion rule settings to the global settings."""
+        from zebtrack import settings
+        
+        try:
+            # Validate and convert parameters
+            buffer_radius = float(self.roi_buffer_radius_var.get())
+            overlap_ratio = float(self.roi_overlap_ratio_var.get())
+            
+            # Validate ranges
+            if buffer_radius < 0:
+                raise ValueError("Raio de buffer deve ser >= 0")
+            if not (0 <= overlap_ratio <= 1):
+                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
+            
+            # Update settings if available
+            if settings:
+                settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
+                settings.roi_buffer_radius_value = buffer_radius
+                settings.roi_min_bbox_overlap_ratio = overlap_ratio
+                
+                # Save to project if available
+                if self.controller.project_manager.project_path:
+                    self.controller.project_manager._save_settings_snapshot()
+                
+                self.show_info(
+                    "Sucesso",
+                    f"Configurações de ROI aplicadas:\n"
+                    f"Regra: {settings.roi_inclusion_rule}\n"
+                    f"Raio buffer: {settings.roi_buffer_radius_value}\n"
+                    f"Sobreposição mínima: {settings.roi_min_bbox_overlap_ratio}"
+                )
+            else:
+                self.show_warning("Aviso", "Settings não disponível. Configurações não foram salvas.")
+                
+        except ValueError as e:
+            self.show_error("Erro de Validação", str(e))
+        except Exception as e:
+            self.show_error("Erro", f"Erro ao aplicar configurações: {str(e)}")
 
         # --- Interactive Buttons (initially hidden) ---
         self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
