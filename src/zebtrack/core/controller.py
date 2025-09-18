@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import structlog
 from shapely.geometry import Polygon
+from ultralytics import YOLO
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
@@ -23,8 +24,6 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.gui import ApplicationGUI
-from ultralytics import YOLO
-
 from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
@@ -443,7 +442,6 @@ class AppController:
                 # Para single video workflow, cria projeto temporário
                 if hasattr(self.view, 'pending_single_video_path') and self.view.pending_single_video_path:
                     import tempfile
-                    import os
                     temp_dir = tempfile.mkdtemp(prefix="zebtrack_temp_")
                     self.project_manager.project_path = temp_dir
                     self.project_manager.project_data = {
@@ -585,7 +583,7 @@ class AppController:
             self.setup_detector_zones()
             log.info("controller.zone.add_roi.success", name=name)
             return True
-            
+
         except Exception as e:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
@@ -1060,7 +1058,7 @@ class AppController:
 
         # 4. Add the batch to the project
         self.project_manager.add_video_batch(scanned_videos)
-        
+
         # 4.5. Save current interval settings to project data
         try:
             analysis_interval = int(self.view.analysis_interval_var.get())
@@ -1069,7 +1067,7 @@ class AppController:
             self.project_manager.project_data['display_interval_frames'] = display_interval
             # Save the project to persist the intervals
             self.project_manager.save_project()
-            log.info("controller.workflow.intervals_saved", 
+            log.info("controller.workflow.intervals_saved",
                     analysis=analysis_interval, display=display_interval)
         except (ValueError, AttributeError) as e:
             log.warning("controller.workflow.intervals_save_failed", error=str(e))
@@ -1183,35 +1181,35 @@ class AppController:
 
                 # Check if we should process this frame (analysis interval)
                 should_process = frame_num % analysis_interval_frames == 0
-                
+
                 if should_process:
                     detections, _ = self.detector.process_frame(
                         frame, project_type="pre-recorded"
                     )
-                    
+
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
-                    
+
                     # Cache the last detections for display
                     last_detections = detections
                     processed_frames_count += 1
 
-                # Check if we should update the display (display interval based on processed frames)  
+                # Check if we should update the display (display interval based on processed frames)
                 should_display = processed_frames_count > 0 and (processed_frames_count % display_interval_frames == 0)
-                
+
                 # Update GUI display
                 if progress_callback:
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     progress_fraction = (
                         (frame_num + 1) / total_frames if total_frames > 0 else 0
                     )
-                    
+
                     if should_display and should_process:
                         # Draw overlay on current frame with fresh detections
                         self.detector.draw_overlay(frame, detections)
                         progress_callback(progress_fraction, "Gerando trajetória...", frame)
                     elif should_display and last_detections:
-                        # Draw overlay using last cached detections  
+                        # Draw overlay using last cached detections
                         self.detector.draw_overlay(frame, last_detections)
                         progress_callback(progress_fraction, "Gerando trajetória...", frame)
                     else:
@@ -1270,7 +1268,7 @@ class AppController:
 
                 # Check if ROI is contained in main arena
                 if zone_data.polygon:
-                    roi_points = np.array(roi_polygon, dtype=np.float32).reshape(-1, 1, 2)
+                    np.array(roi_polygon, dtype=np.float32).reshape(-1, 1, 2)
                     contained_points = 0
                     for point in roi_polygon:
                         if cv2.pointPolygonTest(np.array(zone_data.polygon, dtype=np.float32), point, False) >= 0:
@@ -1399,7 +1397,7 @@ class AppController:
         # Resolve intervals from config
         analysis_interval_frames = 10  # default
         display_interval_frames = 10   # default
-        
+
         if single_video_config:
             # For single video: take from config dict if present, else defaults
             analysis_interval_frames = single_video_config.get('analysis_interval_frames', 10)
@@ -1782,7 +1780,7 @@ class AppController:
                         # Verify the plugin has the required predict method
                         if not hasattr(openvino_model, "predict"):
                             log.error("diagnostic.thread.missing_predict_method", plugin_class=str(plugin_class))
-                            self.root.after(0, self.view.show_error, "Erro de Plugin", 
+                            self.root.after(0, self.view.show_error, "Erro de Plugin",
                                           "O plugin OpenVINO não possui o método predict necessário para diagnóstico.")
                             return
                         # Set diagnostic context to allow all classes
@@ -1820,13 +1818,13 @@ class AppController:
                 try:
                     log.debug("diagnostic.thread.openvino_predict_start", frame=frame_count + 1)
                     preds = openvino_model.predict(frame, conf_threshold)
-                    log.debug("diagnostic.thread.openvino_predict_success", 
+                    log.debug("diagnostic.thread.openvino_predict_success",
                              frame=frame_count + 1, detections=len(preds))
                     results.setdefault("OpenVINO", []).append(preds)
                 except Exception as e:
-                    log.error("diagnostic.thread.openvino_predict_error", 
+                    log.error("diagnostic.thread.openvino_predict_error",
                              frame=frame_count + 1, exc_info=True)
-                    self.root.after(0, self.view.show_error, "Erro de Inferência OpenVINO", 
+                    self.root.after(0, self.view.show_error, "Erro de Inferência OpenVINO",
                                   f"Falha na inferência do frame {frame_count + 1}: {e}")
                     return
         cap.release()

@@ -19,7 +19,7 @@ from zebtrack.analysis.roi import ROI
 def _normalize_color_for_matplotlib(color):
     """
     Normalize color to matplotlib format (0-1 range).
-    
+
     Handles different input formats:
     - RGB tuple (0-255): convert to (0-1)
     - String/named color: return as-is

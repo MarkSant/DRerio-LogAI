@@ -4,11 +4,13 @@
 Script de validação para testar todas as correções implementadas no ZebTrack-AI
 """
 
-import sys
-import os
 import json
-import cv2
+import os
+import sys
 import warnings
+
+import cv2
+
 warnings.filterwarnings("ignore")
 
 # Adiciona src ao path
@@ -128,7 +130,10 @@ def test_2_aquarium_detection(model_path, video_path):
 
                     if area > frame_area * 0.1:  # Pelo menos 10% do frame
                         good_polygons.append(polygon)
-                        print(f"   Frame {i+1}: Aquario detectado (area={area/frame_area:.1%})")
+                        print(
+                            f"   Frame {i+1}: Aquario detectado "
+                            f"(area={area/frame_area:.1%})"
+                        )
 
         cap.release()
 
@@ -156,6 +161,7 @@ def test_3_canvas_polygon():
     try:
         # Simula teste do canvas
         import tkinter as tk
+
         from PIL import Image, ImageTk
 
         print("   Testando componentes do canvas...")
@@ -184,7 +190,9 @@ def test_3_canvas_polygon():
 
                 # Simula desenho de polígono
                 polygon_points = [100, 100, 200, 100, 200, 200, 100, 200]
-                canvas.create_polygon(polygon_points, fill="", outline="yellow", width=3)
+                canvas.create_polygon(
+                    polygon_points, fill="", outline="yellow", width=3
+                )
                 print("   Poligono desenhado")
 
                 root.destroy()
@@ -350,7 +358,11 @@ def test_6_instance_segmentation(model_path, video_path):
 
         # Analisa componentes
         has_boxes = result.boxes is not None and len(result.boxes) > 0
-        has_masks = result.masks is not None and result.masks.xy is not None and len(result.masks.xy) > 0
+        has_masks = (
+            result.masks is not None
+            and result.masks.xy is not None
+            and len(result.masks.xy) > 0
+        )
 
         print(f"   Boxes detectados: {'SIM' if has_boxes else 'NAO'}")
         print(f"   Mascaras detectadas: {'SIM' if has_masks else 'NAO'}")
@@ -398,12 +410,21 @@ def run_comprehensive_validation(model_path, video_path):
 
     # Lista de testes
     tests = [
-        ("YOLO detecta ambas classes", lambda: test_1_yolo_both_classes(model_path, video_path)),
-        ("Detecao automatica aquario", lambda: test_2_aquarium_detection(model_path, video_path)),
+        (
+            "YOLO detecta ambas classes",
+            lambda: test_1_yolo_both_classes(model_path, video_path)
+        ),
+        (
+            "Detecao automatica aquario",
+            lambda: test_2_aquarium_detection(model_path, video_path)
+        ),
         ("Sistema de canvas", test_3_canvas_polygon),
         ("Classes OpenVINO/Metadata", lambda: test_4_openvino_classes(model_path)),
         ("Controle de contexto", test_5_context_control),
-        ("Instance segmentation", lambda: test_6_instance_segmentation(model_path, video_path))
+        (
+            "Instance segmentation",
+            lambda: test_6_instance_segmentation(model_path, video_path)
+        ),
     ]
 
     # Executa testes

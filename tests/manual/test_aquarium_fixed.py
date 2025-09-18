@@ -4,14 +4,14 @@
 Teste da detecção de aquário corrigida
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
+
 
 def test_manual_aquarium_strategy():
     """Testa manualmente a estratégia de fallback da detecção de aquário"""
@@ -102,7 +102,7 @@ def test_manual_aquarium_strategy():
 
     cap.release()
 
-    print(f"\n📊 RESULTADO FINAL:")
+    print("\n📊 RESULTADO FINAL:")
     print(f"Polígonos válidos: {len(good_polygons)}")
 
     if good_polygons:

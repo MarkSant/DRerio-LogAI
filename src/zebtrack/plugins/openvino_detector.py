@@ -2,13 +2,14 @@ import glob
 import json
 import os
 from types import SimpleNamespace
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
 import openvino as ov
 import structlog
 import torch
+
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
 try:
     # Versões onde non_max_suppression está em ops
@@ -158,7 +159,7 @@ class OpenVINOPlugin(DetectorPlugin):
         for det in detections:
             x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
             detections_for_tracker.append([x1, y1, x2, y2, conf])
-        
+
         detections_np = np.array(detections_for_tracker) if detections_for_tracker else np.empty((0, 5))
 
         # Bytetrack's update method needs image info and size
@@ -204,7 +205,7 @@ class OpenVINOPlugin(DetectorPlugin):
         # Store original values
         old_conf = None
         old_context = self._context
-        
+
         if conf_threshold is not None:
             # Temporarily override confidence threshold for this prediction
             old_conf = self.conf_threshold
@@ -272,7 +273,7 @@ class OpenVINOPlugin(DetectorPlugin):
         final_detections = []
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
-            
+
             # LÓGICA DE FILTRO ATUALIZADA:
             if self._context == 'diagnostic':
                 # Em modo diagnóstico NUNCA filtra: inclui todas as classes retornadas

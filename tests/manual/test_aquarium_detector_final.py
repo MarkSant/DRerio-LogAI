@@ -4,9 +4,10 @@
 Teste final do detector de aquário corrigido
 """
 
-import sys
 import os
+import sys
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Mock do structlog para teste
@@ -53,7 +54,7 @@ def test_final_aquarium_detector():
 
         polygons = detector.detect_aquariums("CECT_8.mp4", stabilization_frames=5)
 
-        print(f"\n📊 RESULTADO:")
+        print("\n📊 RESULTADO:")
         if polygons:
             print(f"✅ {len(polygons)} polígono(s) detectado(s)")
             for i, polygon in enumerate(polygons):

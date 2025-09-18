@@ -4,19 +4,20 @@ Test script for Live calibration flow validation.
 This script tests the key components of the Live project calibration workflow.
 """
 
+import os
 import sys
 import tempfile
-import os
 from pathlib import Path
 
 # Add src to the path to import zebtrack modules
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 try:
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.controller import Controller
-    from zebtrack.ui.gui import GUI
     import tkinter as tk
+
+    from zebtrack.core.controller import AppController
+    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.ui.gui import GUI
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're running this from the project root directory")

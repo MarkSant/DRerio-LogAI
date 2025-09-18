@@ -4,15 +4,15 @@
 Teste das melhorias de threshold para modelos de baixa confiança
 """
 
-import sys
-import os
-import yaml
 import warnings
+
+import yaml
+
 warnings.filterwarnings("ignore")
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
+
 
 def test_config_threshold():
     """Testa se a configuração foi atualizada"""
@@ -65,7 +65,7 @@ def test_aquarium_detection_with_confidence():
 
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        frame_area = frame_width * frame_height
+        frame_width * frame_height
 
         print(f"   Video: {frame_width}x{frame_height}")
 
@@ -116,7 +116,7 @@ def test_aquarium_detection_with_confidence():
         total_detections = sum(1 for d in detections_found if d['has_masks'])
         total_with_confidence = sum(1 for d in detections_found if d['confidences'])
 
-        print(f"\n   Resumo:")
+        print("\n   Resumo:")
         print(f"     Frames com mascaras: {total_detections}/5")
         print(f"     Frames com boxes+confianca: {total_with_confidence}/5")
 

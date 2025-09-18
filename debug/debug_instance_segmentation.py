@@ -7,19 +7,21 @@ Desenvolvido para o projeto ZebTrack-AI - UNESP
 Uso: python debug_instance_segmentation.py <modelo.pt> <video.mp4>
 """
 
-import sys
 import os
+import sys
+import time
 import warnings
+
+import cv2
+import numpy as np
+from ultralytics import YOLO
+
 warnings.filterwarnings("ignore")
 
 # Adiciona src ao path se existir
 if os.path.exists('src'):
     sys.path.insert(0, 'src')
 
-import cv2
-import numpy as np
-from ultralytics import YOLO
-import time
 
 def print_separator(title="", char="="):
     """Imprime separador visual"""
@@ -113,8 +115,13 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
 
                     class_name = result.names.get(cls, f"classe_{cls}")
                     print(f"  📦 Box {i+1}: {class_name} (conf={conf:.3f})")
-                    print(f"      Posição: [{int(x1)}, {int(y1)}, {int(x2)}, {int(y2)}]")
-                    print(f"      Tamanho: {int(width_box)}x{int(height_box)} (área={int(area)})")
+                    print(
+                        f"      Posição: [{int(x1)}, {int(y1)}, {int(x2)}, {int(y2)}]"
+                    )
+                    print(
+                        f"      Tamanho: {int(width_box)}x{int(height_box)} "
+                        f"(área={int(area)})"
+                    )
 
             else:
                 print("📦 BOXES: Nenhuma detecção")
@@ -148,7 +155,10 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
 
                             print(f"  🎭 Máscara {i+1}: {class_name}")
                             print(f"      Pontos: {len(mask_points)}")
-                            print(f"      Bbox: [{int(x_min)}, {int(y_min)}, {int(x_max)}, {int(y_max)}]")
+                            print(
+                                f"      Bbox: [{int(x_min)}, {int(y_min)}, "
+                                f"{int(x_max)}, {int(y_max)}]"
+                            )
                             print(f"      Área estimada: {int(mask_area)}")
                             if conf > 0:
                                 print(f"      Confiança: {conf:.3f}")
@@ -159,16 +169,18 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
                 print("🎭 MÁSCARAS: Nenhuma detecção")
 
             # Teste específico para classe aquário (classe 0)
-            print(f"\n🐠 TESTE ESPECÍFICO - Apenas aquário (classe 0):")
+            print("\n🐠 TESTE ESPECÍFICO - Apenas aquário (classe 0):")
             try:
-                results_aquarium = model.predict(frame, conf=conf_thresh, verbose=False, classes=[0])
+                results_aquarium = model.predict(
+                    frame, conf=conf_thresh, verbose=False, classes=[0]
+                )
                 result_aquarium = results_aquarium[0]
 
                 if result_aquarium.masks is not None and len(result_aquarium.masks) > 0:
                     aquarium_masks = len(result_aquarium.masks)
                     print(f"    ✅ Máscaras de aquário encontradas: {aquarium_masks}")
                 else:
-                    print(f"    ❌ Nenhuma máscara de aquário detectada")
+                    print("    ❌ Nenhuma máscara de aquário detectada")
 
             except Exception as e:
                 print(f"    ⚠️ Erro no teste de aquário: {e}")
@@ -232,7 +244,10 @@ def run_comprehensive_diagnosis(model_path, video_path):
         print()
         print("📊 RESUMO DAS RECOMENDAÇÕES:")
         print("• Se não há detecções: reduza o threshold de confiança")
-        print("• Se há boxes mas não máscaras: verifique se o modelo suporta segmentação")
+        print(
+            "• Se há boxes mas não máscaras: verifique se o modelo suporta "
+            "segmentação"
+        )
         print("• Se há máscaras estranhas: verifique o treinamento do modelo")
         print("• Para zebrafish: considere usar classes=[1] se classe 1 = peixe")
         print("• Para aquário: use classes=[0] se classe 0 = aquário")
@@ -245,10 +260,16 @@ def main():
     """Função principal"""
     if len(sys.argv) != 3:
         print("❌ Uso incorreto!")
-        print("📖 Uso correto: python debug_instance_segmentation.py <modelo.pt> <video.mp4>")
+        print(
+            "📖 Uso correto: python debug_instance_segmentation.py "
+            "<modelo.pt> <video.mp4>"
+        )
         print()
         print("Exemplos:")
-        print("  python debug_instance_segmentation.py models/best.pt data/test_video.mp4")
+        print(
+            "  python debug_instance_segmentation.py models/best.pt "
+            "data/test_video.mp4"
+        )
         print("  python debug_instance_segmentation.py yolov8n-seg.pt sample.mp4")
         sys.exit(1)
 

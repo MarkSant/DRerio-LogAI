@@ -70,7 +70,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "animals_test_project")
         video_files = [{"path": "video1.mp4", "has_data": False}]
-        
+
         success = pm.create_new_project(
             project_path,
             "pre-recorded",
@@ -96,7 +96,7 @@ class TestProjectManager(unittest.TestCase):
         """Test creating a project with default animals_per_aquarium value."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "default_animals_project")
-        
+
         success = pm.create_new_project(
             project_path,
             "live",
@@ -117,7 +117,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "backward_compat_project")
         os.makedirs(project_path, exist_ok=True)
-        
+
         # Create a project config WITHOUT animals_per_aquarium field (simulates old project)
         old_project_data = {
             "project_name": "backward_compat_project",
@@ -132,14 +132,14 @@ class TestProjectManager(unittest.TestCase):
             "active_weight": None,
             "batches": [],
         }
-        
+
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         with open(config_path, "w") as f:
             json.dump(old_project_data, f, indent=2)
-        
+
         # Load the project - should add default animals_per_aquarium value
         success = pm.load_project(project_path)
-        
+
         self.assertTrue(success)
         self.assertEqual(pm.project_data["calibration"]["num_aquariums"], 2)
         self.assertEqual(pm.project_data["calibration"]["animals_per_aquarium"], 1)  # Default value added
