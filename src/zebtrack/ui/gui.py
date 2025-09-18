@@ -30,7 +30,6 @@ from PIL import Image, ImageTk
 
 # Import custom modules
 from zebtrack.io.camera import Camera
-from zebtrack.io.video_source import VideoFileSource
 from zebtrack.settings import settings
 
 log = structlog.get_logger()
@@ -417,6 +416,7 @@ class CreateProjectDialog(simpledialog.Dialog):
     def body(self, master):
         self.project_name_var = StringVar()
         self.num_aquariums_var = StringVar(value="1")
+        self.animals_per_aquarium_var = StringVar(value="1")
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
         self.project_type_var = StringVar(value="pre-recorded")
@@ -459,23 +459,30 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=2, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Largura do Aquário (cm):").grid(
+        Label(master, text="Animais por Aquário:").grid(
             row=3, column=0, sticky="w", padx=5, pady=2
         )
-        Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
+        Entry(master, textvariable=self.animals_per_aquarium_var, width=10).grid(
             row=3, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Altura do Aquário (cm):").grid(
+        Label(master, text="Largura do Aquário (cm):").grid(
             row=4, column=0, sticky="w", padx=5, pady=2
         )
-        Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
+        Entry(master, textvariable=self.aquarium_width_var, width=10).grid(
             row=4, column=1, sticky="w", padx=5
+        )
+
+        Label(master, text="Altura do Aquário (cm):").grid(
+            row=5, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(master, textvariable=self.aquarium_height_var, width=10).grid(
+            row=5, column=1, sticky="w", padx=5
         )
 
         # --- Project Type & Videos ---
         Label(master, text="Tipo de Projeto:").grid(
-            row=5, column=0, sticky="w", padx=5, pady=2
+            row=6, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Radiobutton(
             master,
@@ -483,27 +490,27 @@ class CreateProjectDialog(simpledialog.Dialog):
             variable=self.project_type_var,
             value="pre-recorded",
             command=self._update_project_type_options,
-        ).grid(row=5, column=1, sticky="w", padx=5)
+        ).grid(row=6, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
             text="Ao Vivo",
             variable=self.project_type_var,
             value="live",
             command=self._update_project_type_options,
-        ).grid(row=5, column=2, sticky="w", padx=5)
+        ).grid(row=6, column=2, sticky="w", padx=5)
 
         self.video_button = Button(
             master, text="Selecionar Vídeos...", command=self._select_videos
         )
-        self.video_button.grid(row=6, column=0, padx=5, pady=5)
+        self.video_button.grid(row=7, column=0, padx=5, pady=5)
         Label(master, textvariable=self.video_list_var, wraplength=300).grid(
-            row=6, column=1, columnspan=3, sticky="w", padx=5
+            row=7, column=1, columnspan=3, sticky="w", padx=5
         )
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
         self.live_options_frame.grid(
-            row=7, column=0, columnspan=4, sticky="ew", padx=5
+            row=8, column=0, columnspan=4, sticky="ew", padx=5
         )
         Checkbutton(
             self.live_options_frame,
@@ -535,7 +542,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             master, text="Design Experimental (Projeto ao Vivo)", padding=10
         )
         self.live_project_frame.grid(
-            row=8, column=0, columnspan=4, sticky="ew", padx=5, pady=5
+            row=9, column=0, columnspan=4, sticky="ew", padx=5, pady=5
         )
         # Widgets inside live_project_frame
         ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
@@ -666,12 +673,15 @@ class CreateProjectDialog(simpledialog.Dialog):
             return 0
 
         try:
-            int(self.num_aquariums_var.get())
+            num_aquariums = int(self.num_aquariums_var.get())
+            animals_per_aquarium = int(self.animals_per_aquarium_var.get())
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
+            if num_aquariums <= 0 or animals_per_aquarium <= 0:
+                raise ValueError("Os valores devem ser positivos.")
         except ValueError:
             messagebox.showerror(
-                "Erro", "As dimensões do aquário devem ser números válidos."
+                "Erro", "Os valores devem ser positivos."
             )
             return 0
 
@@ -748,6 +758,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             "project_type": self.project_type_var.get(),
             "video_files": self.video_files,
             "num_aquariums": int(self.num_aquariums_var.get()),
+            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "use_timed_recording": self.use_timed_recording_var.get(),
@@ -948,7 +959,7 @@ class ApplicationGUI:
             value=str(settings.video_processing.processing_interval)
         )
         self.show_preview_var = BooleanVar(value=True)
-        
+
         # New frame interval controls (defaults to 10 as per requirements)
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
@@ -1091,13 +1102,13 @@ class ApplicationGUI:
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
                 command=self.controller.start_project_processing_workflow,
             ).pack(pady=10, padx=10, fill="x")
-            
+
             # Project-wide interval settings
             intervals_frame = ttk.LabelFrame(
                 self.main_controls_frame, text="Intervalos de Processamento", padding=10
             )
             intervals_frame.pack(fill="x", pady=10, padx=10)
-            
+
             # Analysis interval
             analysis_label_frame = ttk.Frame(intervals_frame)
             analysis_label_frame.pack(fill="x", pady=2)
@@ -1105,8 +1116,8 @@ class ApplicationGUI:
             ttk.Entry(
                 analysis_label_frame, textvariable=self.analysis_interval_var, width=10
             ).pack(side="right")
-            
-            # Display interval  
+
+            # Display interval
             display_label_frame = ttk.Frame(intervals_frame)
             display_label_frame.pack(fill="x", pady=2)
             ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
@@ -1727,13 +1738,13 @@ class ApplicationGUI:
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
         if self.DEBUG_ZONES:
-            print(f"\n=== DEBUG BOTÃO ARENA ===")
-            print(f"1. Definindo current_drawing_type = 'arena'")
+            print("\n=== DEBUG BOTÃO ARENA ===")
+            print("1. Definindo current_drawing_type = 'arena'")
 
         self.current_drawing_type = "arena"
 
         if self.DEBUG_ZONES:
-            print(f"2. Chamando _start_polygon_drawing()")
+            print("2. Chamando _start_polygon_drawing()")
 
         self._start_polygon_drawing()
 
@@ -1764,7 +1775,7 @@ class ApplicationGUI:
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
         if self.DEBUG_ZONES:
-            print(f"3. _start_polygon_drawing iniciado")
+            print("3. _start_polygon_drawing iniciado")
             print(f"4. current_drawing_type antes de _stop_drawing: {self.current_drawing_type}")
 
         # Garante que há frame no canvas
@@ -1901,7 +1912,7 @@ class ApplicationGUI:
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.DEBUG_ZONES:
-            print(f"\n=== DEBUG ZONE SAVE ===")
+            print("\n=== DEBUG ZONE SAVE ===")
             print(f"1. Pontos a salvar: {len(self.current_polygon_points) if self.current_polygon_points else 0}")
             print(f"2. Tipo: {self.current_drawing_type}")
             print(f"3. Modo de desenho: {self.drawing_mode}")
@@ -1913,16 +1924,16 @@ class ApplicationGUI:
             if not zone_data.polygon:
                 self.current_drawing_type = "arena"
                 if self.DEBUG_ZONES:
-                    print(f"3.1. Auto-detectado como arena (não existe polygon principal)")
+                    print("3.1. Auto-detectado como arena (não existe polygon principal)")
             else:
                 self.current_drawing_type = "roi"
                 if self.DEBUG_ZONES:
-                    print(f"3.1. Auto-detectado como ROI (polygon principal já existe)")
+                    print("3.1. Auto-detectado como ROI (polygon principal já existe)")
 
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             if self.current_polygon_points:
                 self.show_warning(
-                    "Polígono Incompleto", 
+                    "Polígono Incompleto",
                     f"Um polígono precisa de pelo menos 3 pontos. Você tem {len(self.current_polygon_points)} pontos."
                 )
             self._stop_drawing()
@@ -1935,13 +1946,13 @@ class ApplicationGUI:
 
             if self.current_drawing_type == "arena":
                 if self.DEBUG_ZONES:
-                    print(f"4. Iniciando salvamento da arena...")
+                    print("4. Iniciando salvamento da arena...")
 
                 self.set_status("Salvando arena principal...")
 
                 # Salva o polígono no projeto
                 if self.DEBUG_ZONES:
-                    print(f"5. Chamando controller.set_main_arena_polygon...")
+                    print("5. Chamando controller.set_main_arena_polygon...")
                 success = self.controller.set_main_arena_polygon(self.current_polygon_points)
 
                 if self.DEBUG_ZONES:
@@ -1966,7 +1977,7 @@ class ApplicationGUI:
 
                     # Força redesenho com dados salvos
                     if self.DEBUG_ZONES:
-                        print(f"7. Iniciando redesenho das zonas...")
+                        print("7. Iniciando redesenho das zonas...")
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
@@ -2106,7 +2117,7 @@ class ApplicationGUI:
 
         if self.DEBUG_ZONES:
             zone_data = self.controller.project_manager.get_zone_data()
-            print(f"\n=== DEBUG REDRAW ===")
+            print("\n=== DEBUG REDRAW ===")
             print(f"1. Tem polygon? {bool(zone_data.polygon)}")
             if zone_data.polygon:
                 print(f"2. Pontos no polygon: {len(zone_data.polygon)}")
@@ -2467,7 +2478,7 @@ class ApplicationGUI:
                     )
                 except Exception:  # noqa: BLE001
                     pass
-            
+
             # Restore analysis and display intervals
             if pm.project_data.get("analysis_interval_frames") is not None:
                 try:
@@ -2811,6 +2822,7 @@ class ApplicationGUI:
             project_type=dialog.result["project_type"],
             video_files=dialog.result["video_files"],
             num_aquariums=dialog.result["num_aquariums"],
+            animals_per_aquarium=dialog.result["animals_per_aquarium"],
             aquarium_width_cm=dialog.result["aquarium_width_cm"],
             aquarium_height_cm=dialog.result["aquarium_height_cm"],
         )
@@ -2950,7 +2962,7 @@ class ApplicationGUI:
                 # Use defaults
                 self.pending_single_video_config['analysis_interval_frames'] = 10
                 self.pending_single_video_config['display_interval_frames'] = 10
-                
+
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
             self.pending_single_video_path,
@@ -3300,6 +3312,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
     def body(self, master):
         # --- Tkinter Variables ---
+        self.num_aquariums_var = StringVar(value="1")
+        self.animals_per_aquarium_var = StringVar(value="1")
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
 
@@ -3323,18 +3337,32 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         dim_frame.pack(fill="x", pady=5)
         dim_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(dim_frame, text="Largura do Aquário (cm):").grid(
+        ttk.Label(dim_frame, text="Número de Aquários:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(dim_frame, textvariable=self.aquarium_width_var, width=10).grid(
+        ttk.Entry(dim_frame, textvariable=self.num_aquariums_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
-        ttk.Label(dim_frame, text="Altura do Aquário (cm):").grid(
+        ttk.Label(dim_frame, text="Animais por Aquário:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(dim_frame, textvariable=self.aquarium_height_var, width=10).grid(
+        ttk.Entry(dim_frame, textvariable=self.animals_per_aquarium_var, width=10).grid(
             row=1, column=1, sticky="w", padx=5
+        )
+
+        ttk.Label(dim_frame, text="Largura do Aquário (cm):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(dim_frame, textvariable=self.aquarium_width_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=5
+        )
+
+        ttk.Label(dim_frame, text="Altura do Aquário (cm):").grid(
+            row=3, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(dim_frame, textvariable=self.aquarium_height_var, width=10).grid(
+            row=3, column=1, sticky="w", padx=5
         )
 
         # --- Behavior Analysis Parameters ---
@@ -3369,20 +3397,26 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
     def validate(self):
         try:
+            num_aquariums = int(self.num_aquariums_var.get())
+            animals_per_aquarium = int(self.animals_per_aquarium_var.get())
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
             float(self.sharp_turn_var.get())
             float(self.freeze_thresh_var.get())
             float(self.freeze_dur_var.get())
+            if num_aquariums <= 0 or animals_per_aquarium <= 0:
+                raise ValueError("Os valores devem ser positivos.")
         except ValueError:
             messagebox.showerror(
-                "Erro", "Todos os campos de configuração devem ser números válidos."
+                "Erro", "Todos os campos de configuração devem ser números válidos e positivos."
             )
             return 0
         return 1
 
     def apply(self):
         self.result = {
+            "num_aquariums": int(self.num_aquariums_var.get()),
+            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),

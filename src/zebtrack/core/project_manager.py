@@ -91,6 +91,7 @@ class ProjectManager:
         active_weight=None,
         video_files=None,
         num_aquariums: int = 1,
+        animals_per_aquarium: int = 1,
         aquarium_width_cm: float = 0.0,
         aquarium_height_cm: float = 0.0,
         use_timed_recording: bool = False,
@@ -113,6 +114,7 @@ class ProjectManager:
             use_openvino=use_openvino,
             active_weight=active_weight,
             num_aquariums=num_aquariums,
+            animals_per_aquarium=animals_per_aquarium,
         )
         log_context.info("project.create.start")
 
@@ -140,6 +142,7 @@ class ProjectManager:
             "project_type": project_type,
             "calibration": {
                 "num_aquariums": num_aquariums,
+                "animals_per_aquarium": animals_per_aquarium,
                 "aquarium_width_cm": aquarium_width_cm,
                 "aquarium_height_cm": aquarium_height_cm,
             },
@@ -239,6 +242,15 @@ class ProjectManager:
                     )
             # --- End Security Check ---
 
+            # --- Backward Compatibility ---
+            # Ensure animals_per_aquarium field exists with default value of 1
+            if "calibration" in loaded_data:
+                if "animals_per_aquarium" not in loaded_data["calibration"]:
+                    loaded_data["calibration"]["animals_per_aquarium"] = 1
+                    log_context.info("project.load.backward_compatibility",
+                                   message="Added missing animals_per_aquarium field with default value 1")
+            # --- End Backward Compatibility ---
+
             self.project_data = loaded_data
             self.project_path = project_path
             self.load_metadata()  # Load metadata right after loading the project
@@ -267,7 +279,7 @@ class ProjectManager:
             return False
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
-        
+
         try:
             # Create a copy for hashing to avoid modifying the live object state
             data_to_save = self.project_data.copy()

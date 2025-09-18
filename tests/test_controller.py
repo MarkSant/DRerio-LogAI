@@ -46,6 +46,7 @@ class TestAppController(unittest.TestCase):
             use_openvino=False,
             video_files=[],
             num_aquariums=1,
+            animals_per_aquarium=1,
             aquarium_width_cm=10.0,
             aquarium_height_cm=10.0,
         )
@@ -57,6 +58,7 @@ class TestAppController(unittest.TestCase):
             use_openvino=False,
             video_files=[],
             num_aquariums=1,
+            animals_per_aquarium=1,
             aquarium_width_cm=10.0,
             aquarium_height_cm=10.0,
             active_weight="best_seg.pt",
@@ -77,6 +79,7 @@ class TestAppController(unittest.TestCase):
             use_openvino=False,
             video_files=[],
             num_aquariums=1,
+            animals_per_aquarium=1,
             aquarium_width_cm=10.0,
             aquarium_height_cm=10.0,
         )
