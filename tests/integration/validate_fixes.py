@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import warnings
+from unittest.mock import MagicMock
 
 import cv2
 
@@ -18,8 +19,6 @@ sys.path.insert(0, "src")
 
 
 # Mock structlog para evitar dependências
-from unittest.mock import MagicMock
-
 sys.modules["structlog"] = MagicMock()
 
 

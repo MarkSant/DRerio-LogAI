@@ -7,13 +7,12 @@ Teste final do detector de aquário corrigido
 import os
 import sys
 import warnings
+from unittest.mock import MagicMock
 
 warnings.filterwarnings("ignore")
 
 
 # Mock do structlog para teste
-from unittest.mock import MagicMock
-
 # Injeta mock
 sys.modules["structlog"] = MagicMock()
 
