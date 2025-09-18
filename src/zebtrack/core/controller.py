@@ -1060,6 +1060,22 @@ class AppController:
 
         # 4. Add the batch to the project
         self.project_manager.add_video_batch(scanned_videos)
+        
+        # 4.5. Save current interval settings to project data
+        try:
+            analysis_interval = int(self.view.analysis_interval_var.get())
+            display_interval = int(self.view.display_interval_var.get())
+            self.project_manager.project_data['analysis_interval_frames'] = analysis_interval
+            self.project_manager.project_data['display_interval_frames'] = display_interval
+            # Save the project to persist the intervals
+            self.project_manager.save_project()
+            log.info("controller.workflow.intervals_saved", 
+                    analysis=analysis_interval, display=display_interval)
+        except (ValueError, AttributeError) as e:
+            log.warning("controller.workflow.intervals_save_failed", error=str(e))
+            # Use defaults if there's an issue
+            self.project_manager.project_data['analysis_interval_frames'] = 10
+            self.project_manager.project_data['display_interval_frames'] = 10
 
         # 5. Process the videos that need it in a background thread
         self.cancel_event.clear()
@@ -1087,6 +1103,8 @@ class AppController:
         experiment_id: str,
         progress_callback=None,
         calibration_data: dict | None = None,
+        analysis_interval_frames: int = 10,
+        display_interval_frames: int = 10,
     ) -> tuple[bool, list | None]:
         """
         Checks if a trajectory file exists. If not, runs the tracking process
@@ -1154,6 +1172,8 @@ class AppController:
             )
 
             frame_num = 0
+            processed_frames_count = 0
+            last_detections = []
             log.info("controller.tracking.loop.start", video=experiment_id)
             while not self.cancel_event.is_set():
                 ret, frame = cap.read()
@@ -1161,24 +1181,42 @@ class AppController:
                     log.info("controller.tracking.loop.end_of_video", frame=frame_num)
                     break
 
-                detections, _ = self.detector.process_frame(
-                    frame, project_type="pre-recorded"
-                )
+                # Check if we should process this frame (analysis interval)
+                should_process = frame_num % analysis_interval_frames == 0
+                
+                if should_process:
+                    detections, _ = self.detector.process_frame(
+                        frame, project_type="pre-recorded"
+                    )
+                    
+                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    recorder.write_detection_data(timestamp, frame_num, detections)
+                    
+                    # Cache the last detections for display
+                    last_detections = detections
+                    processed_frames_count += 1
 
-                timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-                recorder.write_detection_data(timestamp, frame_num, detections)
-
-                # Desenha as detecções (bounding boxes)
-                self.detector.draw_overlay(frame, detections)
-
-                # Chama o callback para atualizar a GUI
+                # Check if we should update the display (display interval based on processed frames)  
+                should_display = processed_frames_count > 0 and (processed_frames_count % display_interval_frames == 0)
+                
+                # Update GUI display
                 if progress_callback:
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     progress_fraction = (
                         (frame_num + 1) / total_frames if total_frames > 0 else 0
                     )
-                    # A GUI usará o frame para exibição
-                    progress_callback(progress_fraction, "Gerando trajetória...", frame)
+                    
+                    if should_display and should_process:
+                        # Draw overlay on current frame with fresh detections
+                        self.detector.draw_overlay(frame, detections)
+                        progress_callback(progress_fraction, "Gerando trajetória...", frame)
+                    elif should_display and last_detections:
+                        # Draw overlay using last cached detections  
+                        self.detector.draw_overlay(frame, last_detections)
+                        progress_callback(progress_fraction, "Gerando trajetória...", frame)
+                    else:
+                        # Just update progress without frame
+                        progress_callback(progress_fraction, "Gerando trajetória...", None)
 
                 frame_num += 1
 
@@ -1311,7 +1349,9 @@ class AppController:
                     "use_openvino": project_data.get('use_openvino', False),
                     "calibration": calibration,
                     "video_settings": video_info,
-                    "timestamp": self.project_manager.project_data.get('timestamp')
+                    "timestamp": self.project_manager.project_data.get('timestamp'),
+                    "analysis_interval_frames": project_data.get('analysis_interval_frames', 10),
+                    "display_interval_frames": project_data.get('display_interval_frames', 10),
                 }
 
                 import json
@@ -1355,6 +1395,20 @@ class AppController:
         designed to be run in a background thread.
         """
         log.info("controller.processing.start", count=len(videos_to_process))
+
+        # Resolve intervals from config
+        analysis_interval_frames = 10  # default
+        display_interval_frames = 10   # default
+        
+        if single_video_config:
+            # For single video: take from config dict if present, else defaults
+            analysis_interval_frames = single_video_config.get('analysis_interval_frames', 10)
+            display_interval_frames = single_video_config.get('display_interval_frames', 10)
+        else:
+            # For batch projects: read from project_data
+            if hasattr(self.project_manager, 'project_data') and self.project_manager.project_data:
+                analysis_interval_frames = self.project_manager.project_data.get('analysis_interval_frames', 10)
+                display_interval_frames = self.project_manager.project_data.get('display_interval_frames', 10)
 
         # Aplica configurações do projeto ao lote ANTES do processamento
         if not single_video_config:  # Só para projetos batch, não single video
@@ -1426,6 +1480,8 @@ class AppController:
                     experiment_id,
                     progress_callback,
                     calibration_data=single_video_config,
+                    analysis_interval_frames=analysis_interval_frames,
+                    display_interval_frames=display_interval_frames,
                 )
                 if self.cancel_event.is_set():
                     was_cancelled = True

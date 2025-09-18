@@ -948,6 +948,10 @@ class ApplicationGUI:
             value=str(settings.video_processing.processing_interval)
         )
         self.show_preview_var = BooleanVar(value=True)
+        
+        # New frame interval controls (defaults to 10 as per requirements)
+        self.analysis_interval_var = StringVar(value="10")
+        self.display_interval_var = StringVar(value="10")
 
         # Interactive arena editing state
         self.stabilization_frames_var = StringVar(value="10")
@@ -1087,6 +1091,28 @@ class ApplicationGUI:
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
                 command=self.controller.start_project_processing_workflow,
             ).pack(pady=10, padx=10, fill="x")
+            
+            # Project-wide interval settings
+            intervals_frame = ttk.LabelFrame(
+                self.main_controls_frame, text="Intervalos de Processamento", padding=10
+            )
+            intervals_frame.pack(fill="x", pady=10, padx=10)
+            
+            # Analysis interval
+            analysis_label_frame = ttk.Frame(intervals_frame)
+            analysis_label_frame.pack(fill="x", pady=2)
+            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
+            ttk.Entry(
+                analysis_label_frame, textvariable=self.analysis_interval_var, width=10
+            ).pack(side="right")
+            
+            # Display interval  
+            display_label_frame = ttk.Frame(intervals_frame)
+            display_label_frame.pack(fill="x", pady=2)
+            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
+            ttk.Entry(
+                display_label_frame, textvariable=self.display_interval_var, width=10
+            ).pack(side="right")
 
         Button(
             self.main_controls_frame,
@@ -1158,14 +1184,22 @@ class ApplicationGUI:
             variable=self.roi_choice_var, value="template"
         ).pack(anchor="w", padx=10)
 
-        # Frame interval
+        # Frame intervals for analysis and display
         ttk.Label(
-            self.single_analysis_options_frame, text="Intervalo de feedback (frames):"
+            self.single_analysis_options_frame, text="Intervalo de Análise (frames):"
         ).pack(anchor="w", pady=(10, 0))
-        self.feedback_interval_var = StringVar(value="10")
         ttk.Entry(
             self.single_analysis_options_frame,
-            textvariable=self.feedback_interval_var,
+            textvariable=self.analysis_interval_var,
+            width=10,
+        ).pack(anchor="w", padx=10)
+
+        ttk.Label(
+            self.single_analysis_options_frame, text="Intervalo de Exibição (frames):"
+        ).pack(anchor="w", pady=(5, 0))
+        ttk.Entry(
+            self.single_analysis_options_frame,
+            textvariable=self.display_interval_var,
             width=10,
         ).pack(anchor="w", padx=10)
 
@@ -2433,6 +2467,22 @@ class ApplicationGUI:
                     )
                 except Exception:  # noqa: BLE001
                     pass
+            
+            # Restore analysis and display intervals
+            if pm.project_data.get("analysis_interval_frames") is not None:
+                try:
+                    self.analysis_interval_var.set(
+                        str(int(pm.project_data["analysis_interval_frames"]))
+                    )
+                except (ValueError, TypeError):
+                    pass
+            if pm.project_data.get("display_interval_frames") is not None:
+                try:
+                    self.display_interval_var.set(
+                        str(int(pm.project_data["display_interval_frames"]))
+                    )
+                except (ValueError, TypeError):
+                    pass
 
         self._create_main_control_frame()
 
@@ -2698,113 +2748,7 @@ class ApplicationGUI:
         cv2.destroyAllWindows()
         log.info("gui.live_processing_loop.finished")
 
-    def _file_processing_loop(self):
-        """
-        Loop to efficiently process a video FILE with adaptive frame skipping.
-        """
-        if not self.controller.is_recording or not isinstance(
-            self.controller.active_frame_source, VideoFileSource
-        ):
-            log.error("gui.file_processing_loop.invalid_state")
-            return
 
-        show_preview = self.show_preview_var.get()
-        # For adaptive skipping, we ignore the UI var and start at 1
-        processing_interval = 1
-
-        video_source = self.controller.active_frame_source
-        props = video_source.get_properties()
-        total_frames = props["frame_count"]
-        fps = props.get("fps", 30.0)
-        if fps <= 0:  # Avoid division by zero or invalid intervals
-            fps = 30.0
-        frame_duration = 1.0 / fps
-        frame_number = -1
-
-        # Use a deque for an efficient moving average of processing times
-        from collections import deque
-
-        processing_times = deque(maxlen=5)
-
-        while (
-            not self.controller.program_exit_event.is_set()
-            and frame_number < total_frames
-        ):
-            # --- Frame Selection ---
-            target_frame = (
-                (
-                    settings.video_processing.processing_offset
-                    if settings.video_processing.processing_offset > 0
-                    else 1
-                )
-                if frame_number < 0
-                else frame_number + processing_interval
-            )
-
-            if target_frame >= total_frames:
-                break
-
-            video_source.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-            ret, frame = video_source.get_frame()
-            if not ret:
-                break
-            frame_number = int(target_frame)
-
-            # --- Processing and Timing ---
-            start_time = time.perf_counter()
-            detections, _ = self.controller.detector.process_frame(
-                frame, "pre-recorded"
-            )
-            end_time = time.perf_counter()
-            processing_time = end_time - start_time
-
-            # --- Update UI ---
-            log.debug(
-                "gui.file_processing_loop.progress",
-                frame=frame_number,
-                interval=processing_interval,
-                proc_time_ms=processing_time * 1000,
-            )
-            if not show_preview and total_frames > 0:
-                progress_percent = int((frame_number / total_frames) * 100)
-                video_name = os.path.basename(video_source.video_path)
-                status_msg = f"Processing: {video_name} ({progress_percent}%)"
-                self.root.after(0, self.status_var.set, status_msg)
-
-            # --- Data Recording ---
-            if detections:
-                timestamp = frame_number / fps
-                self.controller.recorder.write_detection_data(
-                    timestamp, frame_number, detections
-                )
-
-            # --- Preview ---
-            if show_preview:
-                self.controller.detector.draw_overlay(frame, detections)
-                cv2.imshow("File Processing", frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    self.controller.program_exit_event.set()
-
-            # --- Adaptive Interval Adjustment ---
-            processing_times.append(processing_time)
-            avg_processing_time = sum(processing_times) / len(processing_times)
-
-            # Adjust interval based on load (aim for 80% utilization)
-            if avg_processing_time > (frame_duration * 0.9):  # Lagging
-                processing_interval += 1
-            elif avg_processing_time < (frame_duration * 0.7):  # Well ahead
-                processing_interval = max(1, processing_interval - 1)
-
-            # Cap the interval to a reasonable maximum (e.g., half the framerate)
-            processing_interval = min(
-                processing_interval, int(fps / 2) if fps > 2 else 1
-            )
-            processing_interval = max(1, processing_interval)
-
-
-        if show_preview:
-            cv2.destroyAllWindows()
-        self.root.after(0, self._cleanup_after_processing)
 
     def _load_new_weight_clicked(self):
         """Handles the 'Load New Weight' button click."""
@@ -2994,7 +2938,19 @@ class ApplicationGUI:
             )
             return
 
-        # 2. Disable the button and call the controller to start processing
+        # 2. Add interval settings to config and disable the button
+        if self.pending_single_video_config is not None:
+            try:
+                analysis_interval = int(self.analysis_interval_var.get())
+                display_interval = int(self.display_interval_var.get())
+                self.pending_single_video_config['analysis_interval_frames'] = analysis_interval
+                self.pending_single_video_config['display_interval_frames'] = display_interval
+            except (ValueError, AttributeError) as e:
+                log.warning("gui.single_video.intervals_parse_failed", error=str(e))
+                # Use defaults
+                self.pending_single_video_config['analysis_interval_frames'] = 10
+                self.pending_single_video_config['display_interval_frames'] = 10
+                
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
             self.pending_single_video_path,
