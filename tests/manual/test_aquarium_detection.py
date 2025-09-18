@@ -15,13 +15,12 @@ warnings.filterwarnings("ignore")
 
 # Configura logging para ver os outputs detalhados
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 # Adiciona src ao path se existir
-if os.path.exists('src'):
-    sys.path.insert(0, 'src')
+if os.path.exists("src"):
+    sys.path.insert(0, "src")
 
 # Configura structlog para output legível
 structlog.configure(
@@ -34,7 +33,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -42,11 +41,12 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
+
 def test_aquarium_detection():
     """Testa a detecção automática de aquário"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DA DETECÇÃO AUTOMÁTICA DE AQUÁRIO")
-    print("="*80)
+    print("=" * 80)
 
     try:
         from zebtrack.core.aquarium_detector import AquariumDetector
@@ -66,7 +66,7 @@ def test_aquarium_detection():
         if polygons:
             print(f"✅ {len(polygons)} polígono(s) de aquário detectado(s)")
             for i, polygon in enumerate(polygons):
-                print(f"   Polígono {i+1}: {len(polygon)} pontos")
+                print(f"   Polígono {i + 1}: {len(polygon)} pontos")
                 x_min = polygon[:, 0].min()
                 y_min = polygon[:, 1].min()
                 x_max = polygon[:, 0].max()
@@ -77,17 +77,19 @@ def test_aquarium_detection():
         else:
             print("❌ Nenhum polígono de aquário detectado")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("TESTE CONCLUÍDO")
-        print("="*80)
+        print("=" * 80)
 
         return polygons
 
     except Exception as e:
         print(f"❌ ERRO: {e}")
         import traceback
+
         traceback.print_exc()
         return None
+
 
 if __name__ == "__main__":
     test_aquarium_detection()

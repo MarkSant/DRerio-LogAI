@@ -4,6 +4,7 @@ import numpy as np
 
 try:
     from ultralytics import YOLO
+
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
     YOLO = None
@@ -32,7 +33,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.nms_threshold = settings.yolo_model.nms_threshold
 
         # Context control for instance segmentation
-        self._context = 'tracking'  # 'tracking' or 'diagnostic'
+        self._context = "tracking"  # 'tracking' or 'diagnostic'
         self._aquarium_region_defined = False
 
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
@@ -44,10 +45,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             (x1, y1, x2, y2, confidence, track_id).
         """
         # Dynamic class filtering based on context
-        if self._context == 'diagnostic':
+        if self._context == "diagnostic":
             # Diagnostic mode: detect all classes
             classes_param = None
-        elif self._context == 'tracking' and not self._aquarium_region_defined:
+        elif self._context == "tracking" and not self._aquarium_region_defined:
             # Tracking before aquarium: detect all classes
             classes_param = None
         else:
@@ -91,8 +92,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         if settings.video_processing.single_animal_per_aquarium and predictions:
             # Force all detections to have track_id=1 in single animal mode
             predictions = [
-                (pred[0], pred[1], pred[2], pred[3], pred[4], 1)
-                for pred in predictions
+                (pred[0], pred[1], pred[2], pred[3], pred[4], 1) for pred in predictions
             ]
 
         return predictions
@@ -104,7 +104,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         Args:
             context (str): 'tracking' or 'diagnostic'
         """
-        if context in ('tracking', 'diagnostic'):
+        if context in ("tracking", "diagnostic"):
             self._context = context
 
     def set_aquarium_region_defined(self, defined: bool = True):
@@ -116,7 +116,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         """
         self._aquarium_region_defined = bool(defined)
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> List[Dict[str, Any]]:
+    def predict(
+        self, frame: np.ndarray, conf_threshold: float = None
+    ) -> List[Dict[str, Any]]:
         """
         Method for diagnostic with instance segmentation support.
 
@@ -131,7 +133,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # Force diagnostic context
         old_context = self._context
-        self._context = 'diagnostic'
+        self._context = "diagnostic"
 
         try:
             results = self.model.predict(frame, conf=conf, verbose=False)
@@ -148,18 +150,26 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         confidence = float(box.conf)
 
                         # Check if corresponding mask exists
-                        has_mask = (result.masks is not None and
-                                  result.masks.xy is not None and
-                                  i < len(result.masks.xy))
+                        has_mask = (
+                            result.masks is not None
+                            and result.masks.xy is not None
+                            and i < len(result.masks.xy)
+                        )
 
-                        formatted_results.append({
-                            'box': [int(x1), int(y1), int(x2), int(y2)],
-                            'confidence': confidence,
-                            'class_id': class_id,
-                            'class_name': result.names.get(class_id, f'class_{class_id}'),
-                            'has_mask': has_mask,
-                            'mask_points': len(result.masks.xy[i]) if has_mask else 0
-                        })
+                        formatted_results.append(
+                            {
+                                "box": [int(x1), int(y1), int(x2), int(y2)],
+                                "confidence": confidence,
+                                "class_id": class_id,
+                                "class_name": result.names.get(
+                                    class_id, f"class_{class_id}"
+                                ),
+                                "has_mask": has_mask,
+                                "mask_points": len(result.masks.xy[i])
+                                if has_mask
+                                else 0,
+                            }
+                        )
 
                 # Process orphan masks (without boxes)
                 if result.masks is not None and result.masks.xy is not None:
@@ -171,14 +181,16 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         x_max = int(mask_xy[:, 0].max())
                         y_max = int(mask_xy[:, 1].max())
 
-                        formatted_results.append({
-                            'box': [x_min, y_min, x_max, y_max],
-                            'confidence': 0.99,
-                            'class_id': 0,  # Assume aquarium for orphan masks
-                            'class_name': 'aquarium',
-                            'has_mask': True,
-                            'mask_points': len(mask_xy)
-                        })
+                        formatted_results.append(
+                            {
+                                "box": [x_min, y_min, x_max, y_max],
+                                "confidence": 0.99,
+                                "class_id": 0,  # Assume aquarium for orphan masks
+                                "class_name": "aquarium",
+                                "has_mask": True,
+                                "mask_points": len(mask_xy),
+                            }
+                        )
 
             return formatted_results
 

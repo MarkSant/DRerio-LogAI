@@ -172,31 +172,41 @@ class ROIAnalyzer:
 
     def _get_rois_in_coordinate_space(self, coord_space: str) -> Dict[str, Polygon]:
         """
-        Convert ROI geometries to the appropriate coordinate space.
+        Ensures ROI geometries are in the correct coordinate space for analysis.
+        Assumes that ROIs are originally defined in 'cm' space.
         """
+        # If the analysis is happening in 'cm' space, ROIs are already correct.
         if coord_space == "cm":
-            # Convert px ROIs to cm if we have calibration data
-            if (hasattr(self._b_analyzer, 'pixelcm_x') and
-                    hasattr(self._b_analyzer, 'pixelcm_y')):
-                rois_in_cm = {}
+            return {name: roi.geometry for name, roi in self._rois.items()}
+
+        # If analysis is in 'px' space, convert ROIs from 'cm' to 'px'.
+        elif coord_space == "px":
+            if hasattr(self._b_analyzer, "pixelcm_x") and hasattr(
+                self._b_analyzer, "pixelcm_y"
+            ):
+                rois_in_px = {}
                 for name, roi in self._rois.items():
-                    # Convert polygon coordinates from px to cm
                     coords = list(roi.geometry.exterior.coords)
-                    cm_coords = [
-                        (x/self._b_analyzer.pixelcm_x, y/self._b_analyzer.pixelcm_y)
+                    px_coords = [
+                        (x * self._b_analyzer.pixelcm_x, y * self._b_analyzer.pixelcm_y)
                         for x, y in coords
                     ]
-                    rois_in_cm[name] = Polygon(cm_coords)
-                return rois_in_cm
+                    rois_in_px[name] = Polygon(px_coords)
+                return rois_in_px
             else:
-                # Use original geometries if no calibration available
+                # If no calibration, cannot convert. Assume ROIs are already in px.
                 return {name: roi.geometry for name, roi in self._rois.items()}
-        else:  # px coordinate space
+        else:
+            # Fallback: return original geometries if coord_space is unknown
             return {name: roi.geometry for name, roi in self._rois.items()}
 
     def _calculate_roi_presence_by_rule(
-        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray,
-        y_coords: np.ndarray, coord_space: str
+        self,
+        roi_geometry: Polygon,
+        roi_name: str,
+        x_coords: np.ndarray,
+        y_coords: np.ndarray,
+        coord_space: str,
     ) -> pd.Series:
         """
         Calculate presence in ROI based on the configured inclusion rule.
@@ -224,8 +234,12 @@ class ROIAnalyzer:
         return pd.Series(raw_presence_np, index=self._trajectory.index)
 
     def _calculate_centroid_in_buffered(
-        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray,
-        y_coords: np.ndarray, coord_space: str
+        self,
+        roi_geometry: Polygon,
+        roi_name: str,
+        x_coords: np.ndarray,
+        y_coords: np.ndarray,
+        coord_space: str,
     ) -> pd.Series:
         """Calculate presence using buffered ROI and centroid inclusion."""
         # Use cached buffered geometry if available
@@ -264,7 +278,11 @@ class ROIAnalyzer:
         # Process frame by frame for bbox intersection calculation
         # TODO: This could be optimized for very large trajectories by chunking
         for idx, row in self._trajectory.iterrows():
-            bbox = box(row["x1"], row["y1"], row["x2"], row["y2"])
+            x1_cm = row["x1"] / self._b_analyzer._pixelcm_x
+            y1_cm = row["y1"] / self._b_analyzer._pixelcm_y
+            x2_cm = row["x2"] / self._b_analyzer._pixelcm_x
+            y2_cm = row["y2"] / self._b_analyzer._pixelcm_y
+            bbox = box(x1_cm, y1_cm, x2_cm, y2_cm)
             intersection = roi_geometry.intersection(bbox)
             if intersection.is_empty or bbox.area == 0:
                 raw_presence_list.append(False)

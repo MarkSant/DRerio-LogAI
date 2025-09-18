@@ -62,9 +62,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def body(self, master):
         # --- Frame for model configuration ---
-        model_frame = ttk.LabelFrame(
-            master, text="Configuração do Modelo", padding=10
-        )
+        model_frame = ttk.LabelFrame(master, text="Configuração do Modelo", padding=10)
         model_frame.pack(fill="x", pady=5, padx=5)
         model_frame.columnconfigure(1, weight=1)
 
@@ -128,7 +126,7 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Button(
             video_frame,
             text="Selecionar Vídeo...",
-            command=self._select_diagnostic_video
+            command=self._select_diagnostic_video,
         ).pack(side="left")
         ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
             side="left", padx=5
@@ -141,9 +139,9 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            params_frame, textvariable=self.frames_to_analyze_var, width=10
-        ).grid(row=0, column=1, sticky="w", padx=5)
+        ttk.Entry(params_frame, textvariable=self.frames_to_analyze_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
 
         ttk.Label(params_frame, text="Limiar de Confiança:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
@@ -157,8 +155,11 @@ class CalibrationDialog(simpledialog.Dialog):
             row=2, column=0, sticky="w", padx=5, pady=2
         )
         self.model_test_dropdown = ttk.Combobox(
-            params_frame, textvariable=self.model_test_var, state="readonly",
-            values=["YOLO (PyTorch)", "OpenVINO", "Ambos"], width=15
+            params_frame,
+            textvariable=self.model_test_var,
+            state="readonly",
+            values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
+            width=15,
         )
         self.model_test_dropdown.grid(row=2, column=1, sticky="w", padx=5)
 
@@ -176,7 +177,7 @@ class CalibrationDialog(simpledialog.Dialog):
             to=0.50,
             orient="horizontal",
             length=150,
-            command=self._on_sensitivity_change
+            command=self._on_sensitivity_change,
         )
         self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
         self.sensitivity_scale.pack(side="left")
@@ -185,8 +186,12 @@ class CalibrationDialog(simpledialog.Dialog):
         self.sensitivity_label.pack(side="left", padx=(5, 0))
 
         # --- Tooltip para sensibilidade ---
-        tooltip_label = ttk.Label(params_frame, text="(Valores menores detectam mais objetos)",
-                                font=("Segoe UI", 8), foreground="gray")
+        tooltip_label = ttk.Label(
+            params_frame,
+            text="(Valores menores detectam mais objetos)",
+            font=("Segoe UI", 8),
+            foreground="gray",
+        )
         tooltip_label.grid(row=4, column=1, sticky="w", padx=5, pady=(0, 5))
 
         ttk.Button(
@@ -234,6 +239,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _manage_weights_local(self):
         """Opens the weight management dialog and provides a callback to refresh."""
+
         # The callback will be called by the ManageWeightsDialog upon closing
         def refresh_callback():
             self._populate_weights_dropdown()
@@ -258,13 +264,16 @@ class CalibrationDialog(simpledialog.Dialog):
         self.sensitivity_var.set(f"{threshold_value:.2f}")
 
         # Atualiza threshold globalmente no detector ativo
-        if hasattr(self.controller, 'detector') and self.controller.detector:
-            if hasattr(self.controller.detector.plugin, 'conf_threshold'):
+        if hasattr(self.controller, "detector") and self.controller.detector:
+            if hasattr(self.controller.detector.plugin, "conf_threshold"):
                 old_threshold = self.controller.detector.plugin.conf_threshold
                 self.controller.detector.plugin.conf_threshold = threshold_value
 
-                # Log da mudança para debug (usando print simples para evitar dependências)
-                print(f"Sensitivity changed: {old_threshold:.2f} → {threshold_value:.2f}")
+                # Log da mudança para debug (usando print simples para evitar
+                # dependências)
+                print(
+                    f"Sensitivity changed: {old_threshold:.2f} → {threshold_value:.2f}"
+                )
 
         # Atualiza também a variável de confidence threshold para diagnósticos
         self.confidence_threshold_var.set(f"{threshold_value:.2f}")
@@ -349,9 +358,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
         ttk.Button(
             button_frame, text="Definir como Padrão", command=self.set_default
         ).pack(side="left", padx=5)
-        ttk.Button(
-            button_frame, text="Excluir Selecionado", command=self.delete
-        ).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Excluir Selecionado", command=self.delete).pack(
+            side="left", padx=5
+        )
 
     def populate_list(self):
         for item in self.listbox.get_children():
@@ -509,9 +518,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
-        self.live_options_frame.grid(
-            row=8, column=0, columnspan=4, sticky="ew", padx=5
-        )
+        self.live_options_frame.grid(row=8, column=0, columnspan=4, sticky="ew", padx=5)
         Checkbutton(
             self.live_options_frame,
             text="Usar gravação com tempo?",
@@ -574,7 +581,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.group_name_entries = []
         for i in range(6):
             row, col = divmod(i, 2)
-            ttk.Label(self.group_names_frame, text=f"Grupo {i+1}:").grid(
+            ttk.Label(self.group_names_frame, text=f"Grupo {i + 1}:").grid(
                 row=row, column=col * 2, sticky="w", padx=5, pady=2
             )
             entry = ttk.Entry(
@@ -680,9 +687,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")
         except ValueError:
-            messagebox.showerror(
-                "Erro", "Os valores devem ser positivos."
-            )
+            messagebox.showerror("Erro", "Os valores devem ser positivos.")
             return 0
 
         if self.project_type_var.get() == "live":
@@ -775,9 +780,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         if self.project_type_var.get() == "live":
             num_groups = int(self.num_groups_var.get())
             self.result["experiment_days"] = int(self.total_days_var.get())
-            self.result["subjects_per_group"] = int(
-                self.subjects_per_group_var.get()
-            )
+            self.result["subjects_per_group"] = int(self.subjects_per_group_var.get())
             self.result["num_groups"] = num_groups
             self.result["group_names"] = [
                 self.group_name_vars[i].get().strip() for i in range(num_groups)
@@ -875,14 +878,12 @@ class LiveConfigDialog(simpledialog.Dialog):
             if not self.available_ports:
                 self.use_arduino_var.set(False)
 
-
     def validate(self):
         """Validate the inputs before closing the dialog."""
         if not self.available_cameras:
             messagebox.showerror(
                 "Erro",
-                "Nenhuma câmera detectada. Não é possível iniciar uma sessão "
-                "ao vivo.",
+                "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo.",
             )
             return 0
         if self.use_arduino_var.get() and not self.available_ports:
@@ -912,6 +913,7 @@ class ApplicationGUI:
     """
     A classe principal que gerencia a interface gráfica (a "Visão").
     """
+
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
@@ -948,9 +950,15 @@ class ApplicationGUI:
         self.zone_prop_exit_cmd_var = StringVar()
 
         # ROI Inclusion Rule Variables
-        self.roi_inclusion_rule_var = StringVar(value=settings.roi_inclusion_rule if settings else "bbox_intersects")
-        self.roi_buffer_radius_var = StringVar(value=str(settings.roi_buffer_radius_value if settings else 0.5))
-        self.roi_overlap_ratio_var = StringVar(value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10))
+        self.roi_inclusion_rule_var = StringVar(
+            value=settings.roi_inclusion_rule if settings else "bbox_intersects"
+        )
+        self.roi_buffer_radius_var = StringVar(
+            value=str(settings.roi_buffer_radius_value if settings else 0.5)
+        )
+        self.roi_overlap_ratio_var = StringVar(
+            value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10)
+        )
 
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
@@ -1117,7 +1125,9 @@ class ApplicationGUI:
             # Analysis interval
             analysis_label_frame = ttk.Frame(intervals_frame)
             analysis_label_frame.pack(fill="x", pady=2)
-            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
+            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(
+                side="left"
+            )
             ttk.Entry(
                 analysis_label_frame, textvariable=self.analysis_interval_var, width=10
             ).pack(side="right")
@@ -1125,7 +1135,9 @@ class ApplicationGUI:
             # Display interval
             display_label_frame = ttk.Frame(intervals_frame)
             display_label_frame.pack(fill="x", pady=2)
-            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
+            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(
+                side="left"
+            )
             ttk.Entry(
                 display_label_frame, textvariable=self.display_interval_var, width=10
             ).pack(side="right")
@@ -1184,20 +1196,26 @@ class ApplicationGUI:
 
         # ROI options
         self.roi_choice_var = StringVar(value="none")
-        ttk.Label(
-            self.single_analysis_options_frame, text="Opções de ROI:"
-        ).pack(anchor="w")
+        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(
+            anchor="w"
+        )
         ttk.Radiobutton(
-            self.single_analysis_options_frame, text="Não usar ROIs",
-            variable=self.roi_choice_var, value="none"
+            self.single_analysis_options_frame,
+            text="Não usar ROIs",
+            variable=self.roi_choice_var,
+            value="none",
         ).pack(anchor="w", padx=10)
         ttk.Radiobutton(
-            self.single_analysis_options_frame, text="Desenhar ROIs manualmente",
-            variable=self.roi_choice_var, value="manual"
+            self.single_analysis_options_frame,
+            text="Desenhar ROIs manualmente",
+            variable=self.roi_choice_var,
+            value="manual",
         ).pack(anchor="w", padx=10)
         ttk.Radiobutton(
-            self.single_analysis_options_frame, text="Usar ROIs de template",
-            variable=self.roi_choice_var, value="template"
+            self.single_analysis_options_frame,
+            text="Usar ROIs de template",
+            variable=self.roi_choice_var,
+            value="template",
         ).pack(anchor="w", padx=10)
 
         # Frame intervals for analysis and display
@@ -1361,25 +1379,48 @@ class ApplicationGUI:
         self.roi_rule_combo = ttk.Combobox(
             rule_frame,
             textvariable=self.roi_inclusion_rule_var,
-            values=["centroid_in", "centroid_in_on_buffered_roi", "bbox_intersects", "seg_overlap"],
+            values=[
+                "centroid_in",
+                "centroid_in_on_buffered_roi",
+                "bbox_intersects",
+                "seg_overlap",
+            ],
             state="readonly",
-            width=30
+            width=30,
         )
         self.roi_rule_combo.pack(side="left", fill="x", expand=True)
         self.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_change)
 
         # Parameter fields (shown/hidden based on rule)
         self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
-        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
-        self.radius_entry = ttk.Entry(self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10)
+        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(
+            side="left", padx=(0, 5)
+        )
+        self.radius_entry = ttk.Entry(
+            self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10
+        )
         self.radius_entry.pack(side="left", padx=(0, 10))
-        ttk.Label(self.radius_frame, text="Usado para dilatar a ROI. Interpretado em cm quando houver calibração (px/cm); caso contrário, em pixels.", font=("TkDefaultFont", 8)).pack(side="left")
+        ttk.Label(
+            self.radius_frame,
+            text="Usado para dilatar a ROI. Interpretado em cm quando houver "
+            "calibração (px/cm); caso contrário, em pixels.",
+            font=("TkDefaultFont", 8),
+        ).pack(side="left")
 
         self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
-        ttk.Label(self.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(side="left", padx=(0, 5))
-        self.overlap_entry = ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10)
+        ttk.Label(self.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(
+            side="left", padx=(0, 5)
+        )
+        self.overlap_entry = ttk.Entry(
+            self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10
+        )
         self.overlap_entry.pack(side="left", padx=(0, 10))
-        self.overlap_help_label = ttk.Label(self.overlap_frame, text="A detecção é considerada dentro da ROI quando a fração de área do bbox contida na ROI atinge este valor.", font=("TkDefaultFont", 8))
+        self.overlap_help_label = ttk.Label(
+            self.overlap_frame,
+            text="A detecção é considerada dentro da ROI quando a fração de "
+            "área do bbox contida na ROI atinge este valor.",
+            font=("TkDefaultFont", 8),
+        )
         self.overlap_help_label.pack(side="left")
 
         # Help text that changes based on rule
@@ -1388,7 +1429,7 @@ class ApplicationGUI:
             text="",
             font=("TkDefaultFont", 8),
             wraplength=400,
-            justify="left"
+            justify="left",
         )
         self.rule_help_label.pack(fill="x", pady=(5, 0))
 
@@ -1398,7 +1439,7 @@ class ApplicationGUI:
         ttk.Button(
             save_settings_frame,
             text="Aplicar Configurações",
-            command=self._on_apply_roi_settings
+            command=self._on_apply_roi_settings,
         ).pack(side="right")
 
         # Initialize display based on current rule
@@ -1414,21 +1455,41 @@ class ApplicationGUI:
 
         # Show appropriate parameters and help text based on rule
         if rule == "centroid_in":
-            help_text = "Considera dentro quando o centróide do animal está dentro do polígono da ROI. Simples e rápido; pode perder entradas parciais (ex.: cabeça entra primeiro)."
+            help_text = (
+                "Considera dentro quando o centróide do animal está dentro do "
+                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
+                "(ex.: cabeça entra primeiro)."
+            )
 
         elif rule == "centroid_in_on_buffered_roi":
             self.radius_frame.pack(fill="x", pady=2)
-            help_text = "Igual ao centróide, porém com ROI dilatada por r para capturar entradas parciais (ex.: cabeça). r em cm se houver calibração; senão em px."
+            help_text = (
+                "Igual ao centróide, porém com ROI dilatada por r para capturar "
+                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
+                "senão em px."
+            )
 
         elif rule == "bbox_intersects":
             self.overlap_frame.pack(fill="x", pady=2)
-            self.overlap_help_label.config(text="A detecção é considerada dentro da ROI quando a fração de área do bbox contida na ROI atinge este valor.")
-            help_text = "Considera dentro quando o retângulo do animal (bbox) sobrepõe a ROI ao menos pela fração definida. Captura entradas parciais; pode superestimar em bordas."
+            self.overlap_help_label.config(
+                text="A detecção é considerada dentro da ROI quando a fração de "
+                "área do bbox contida na ROI atinge este valor."
+            )
+            help_text = (
+                "Considera dentro quando o retângulo do animal (bbox) sobrepõe a "
+                "ROI ao menos pela fração definida. Captura entradas parciais; "
+                "pode superestimar em bordas."
+            )
 
         elif rule == "seg_overlap":
             self.overlap_frame.pack(fill="x", pady=2)
-            self.overlap_help_label.config(text="Requer dados de máscara. Se não houver, selecione outra regra.")
-            help_text = "Considera dentro com base na sobreposição da máscara do animal com a ROI. Requer segmentação; mais preciso e mais custoso."
+            self.overlap_help_label.config(
+                text="Requer dados de máscara. Se não houver, selecione outra regra."
+            )
+            help_text = (
+                "Considera dentro com base na sobreposição da máscara do animal com "
+                "a ROI. Requer segmentação; mais preciso e mais custoso."
+            )
 
         else:
             help_text = ""
@@ -1465,10 +1526,12 @@ class ApplicationGUI:
                     f"Configurações de ROI aplicadas:\n"
                     f"Regra: {settings.roi_inclusion_rule}\n"
                     f"Raio buffer: {settings.roi_buffer_radius_value}\n"
-                    f"Sobreposição mínima: {settings.roi_min_bbox_overlap_ratio}"
+                    f"Sobreposição mínima: {settings.roi_min_bbox_overlap_ratio}",
                 )
             else:
-                self.show_warning("Aviso", "Settings não disponível. Configurações não foram salvas.")
+                self.show_warning(
+                    "Aviso", "Settings não disponível. Configurações não foram salvas."
+                )
 
         except ValueError as e:
             self.show_error("Erro de Validação", str(e))
@@ -1541,7 +1604,8 @@ class ApplicationGUI:
             if not self.load_video_frame_to_canvas():
                 self.show_error(
                     "Erro",
-                    "Não foi possível carregar um frame para mostrar o polígono detectado."
+                    "Não foi possível carregar um frame para mostrar o polígono "
+                    "detectado.",
                 )
                 return
 
@@ -1556,9 +1620,7 @@ class ApplicationGUI:
                 after=self.zone_properties_frame, fill="x", padx=5, pady=5
             )
 
-        self.set_status(
-            "Ajuste o polígono arrastando os vértices. Salve ou descarte."
-        )
+        self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
 
     def _draw_interactive_polygon(self):
         """Helper to (re)draw the polygon and its handles based on current points."""
@@ -1678,7 +1740,7 @@ class ApplicationGUI:
             # Adjust the main window to a proportional size
             screen_w = self.root.winfo_screenwidth()
             screen_h = self.root.winfo_screenheight()
-            win_w = min(int(screen_w * 0.8), w + 350) # Add space for controls
+            win_w = min(int(screen_w * 0.8), w + 350)  # Add space for controls
             win_h = min(int(screen_h * 0.8), h + 100)
             self.root.geometry(f"{win_w}x{win_h}")
             self.root.update_idletasks()
@@ -1687,7 +1749,9 @@ class ApplicationGUI:
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             self._canvas_bg_image = ImageTk.PhotoImage(img)
             self.roi_canvas.config(width=w, height=h)
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image")
+            self.roi_canvas.create_image(
+                0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image"
+            )
 
         except Exception as e:
             self.show_error("Erro ao Exibir Frame", str(e))
@@ -1696,12 +1760,15 @@ class ApplicationGUI:
         """Carrega um frame do vídeo no canvas"""
         if video_path is None:
             # Tenta usar o vídeo pendente ou do projeto
-            if hasattr(self, 'pending_single_video_path') and self.pending_single_video_path:
+            if (
+                hasattr(self, "pending_single_video_path")
+                and self.pending_single_video_path
+            ):
                 video_path = self.pending_single_video_path
             elif self.controller.project_manager.project_path:
                 videos = self.controller.project_manager.get_all_videos()
                 if videos:
-                    video_path = videos[0].get('path')
+                    video_path = videos[0].get("path")
 
         if not video_path or not os.path.exists(video_path):
             log.error("gui.load_frame.no_video")
@@ -1738,7 +1805,9 @@ class ApplicationGUI:
 
             self._canvas_bg_image = ImageTk.PhotoImage(image)
             self.roi_canvas.delete("all")
-            self.roi_canvas.create_image(0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image")
+            self.roi_canvas.create_image(
+                0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image"
+            )
 
             log.info("gui.canvas.frame_loaded", video=video_path)
             return True
@@ -1803,11 +1872,9 @@ class ApplicationGUI:
 
         batches = self.controller.project_manager.project_data.get("batches", [])
         for i, batch in enumerate(batches):
-            batch_ts = batch.get("timestamp", f"Lote {i+1}")
+            batch_ts = batch.get("timestamp", f"Lote {i + 1}")
             # Insert parent item for the batch
-            batch_id = self.reports_tree.insert(
-                "", "end", text=batch_ts, open=True
-            )
+            batch_id = self.reports_tree.insert("", "end", text=batch_ts, open=True)
             for video in batch.get("videos", []):
                 video_name = os.path.basename(video.get("path", "Vídeo Desconhecido"))
                 self.reports_tree.insert(
@@ -1819,7 +1886,7 @@ class ApplicationGUI:
                         video.get("status", "N/A"),
                     ),
                     # Store the full video info in the item using tags
-                    tags=(video.get("path"),)
+                    tags=(video.get("path"),),
                 )
 
     def _on_report_item_select(self, event=None):
@@ -1895,7 +1962,11 @@ class ApplicationGUI:
 
     def _validate_zone_configuration(self):
         """Validates the current zone configuration and shows detailed feedback."""
-        is_valid, summary, recommendations = self.controller.validate_zone_configuration_comprehensive()
+        (
+            is_valid,
+            summary,
+            recommendations,
+        ) = self.controller.validate_zone_configuration_comprehensive()
 
         if is_valid:
             title = "✅ Configuração Validada"
@@ -1908,7 +1979,10 @@ class ApplicationGUI:
         """Activates polygon drawing mode."""
         if self.DEBUG_ZONES:
             print("3. _start_polygon_drawing iniciado")
-            print(f"4. current_drawing_type antes de _stop_drawing: {self.current_drawing_type}")
+            print(
+                "4. current_drawing_type antes de _stop_drawing: "
+                f"{self.current_drawing_type}"
+            )
 
         # Garante que há frame no canvas
         if self._canvas_bg_image is None:
@@ -1917,7 +1991,8 @@ class ApplicationGUI:
                 self.show_error(
                     "Erro",
                     "Não foi possível carregar um frame. "
-                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' primeiro."
+                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
+                    "primeiro.",
                 )
                 return False
 
@@ -1927,7 +2002,10 @@ class ApplicationGUI:
         self.current_drawing_type = preserved_drawing_type  # Restore
 
         if self.DEBUG_ZONES:
-            print(f"5. current_drawing_type após _stop_drawing: {self.current_drawing_type}")
+            print(
+                "5. current_drawing_type após _stop_drawing: "
+                f"{self.current_drawing_type}"
+            )
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
         self.roi_canvas.config(cursor="crosshair")
@@ -1970,7 +2048,7 @@ class ApplicationGUI:
         self.roi_canvas.unbind("<ButtonRelease-1>")
 
         self.roi_canvas.delete("elastic_line")
-        self.roi_canvas.delete("drawing_aid") # Deletes both vertices and fixed lines
+        self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
         self.set_status("Pronto.")
 
     def _on_canvas_click(self, event):
@@ -1981,9 +2059,12 @@ class ApplicationGUI:
         # If drawing an ROI, check if the point is inside the main arena
         if self.current_drawing_type == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
-            if cv2.pointPolygonTest(
-                np.array(main_arena_poly), (event.x, event.y), False
-            ) < 0:
+            if (
+                cv2.pointPolygonTest(
+                    np.array(main_arena_poly), (event.x, event.y), False
+                )
+                < 0
+            ):
                 self.show_warning(
                     "Ponto Inválido",
                     "As Áreas de Interesse devem ser desenhadas dentro do "
@@ -2045,7 +2126,10 @@ class ApplicationGUI:
         """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.DEBUG_ZONES:
             print("\n=== DEBUG ZONE SAVE ===")
-            print(f"1. Pontos a salvar: {len(self.current_polygon_points) if self.current_polygon_points else 0}")
+            num_points = (
+                len(self.current_polygon_points) if self.current_polygon_points else 0
+            )
+            print(f"1. Pontos a salvar: {num_points}")
             print(f"2. Tipo: {self.current_drawing_type}")
             print(f"3. Modo de desenho: {self.drawing_mode}")
 
@@ -2056,7 +2140,9 @@ class ApplicationGUI:
             if not zone_data.polygon:
                 self.current_drawing_type = "arena"
                 if self.DEBUG_ZONES:
-                    print("3.1. Auto-detectado como arena (não existe polygon principal)")
+                    print(
+                        "3.1. Auto-detectado como arena (não existe polygon principal)"
+                    )
             else:
                 self.current_drawing_type = "roi"
                 if self.DEBUG_ZONES:
@@ -2066,7 +2152,8 @@ class ApplicationGUI:
             if self.current_polygon_points:
                 self.show_warning(
                     "Polígono Incompleto",
-                    f"Um polígono precisa de pelo menos 3 pontos. Você tem {len(self.current_polygon_points)} pontos."
+                    "Um polígono precisa de pelo menos 3 pontos. Você tem "
+                    f"{len(self.current_polygon_points)} pontos.",
                 )
             self._stop_drawing()
             return
@@ -2085,7 +2172,9 @@ class ApplicationGUI:
                 # Salva o polígono no projeto
                 if self.DEBUG_ZONES:
                     print("5. Chamando controller.set_main_arena_polygon...")
-                success = self.controller.set_main_arena_polygon(self.current_polygon_points)
+                success = self.controller.set_main_arena_polygon(
+                    self.current_polygon_points
+                )
 
                 if self.DEBUG_ZONES:
                     print(f"6. Resultado do salvamento: {success}")
@@ -2116,13 +2205,13 @@ class ApplicationGUI:
                     self.set_status("✓ Arena principal definida com sucesso!")
                     self.show_info(
                         "Sucesso",
-                        f"Arena principal criada com {len(self.current_polygon_points)} pontos."
+                        f"Arena principal criada com "
+                        f"{len(self.current_polygon_points)} pontos.",
                     )
                 else:
                     self.set_status("❌ Erro ao salvar arena principal.")
                     self.show_error(
-                        "Erro",
-                        "Não foi possível salvar a arena principal."
+                        "Erro", "Não foi possível salvar a arena principal."
                     )
                     self._stop_drawing()
 
@@ -2146,7 +2235,9 @@ class ApplicationGUI:
                 roi_color = selected_color["rgb"]
                 color_name = selected_color["name"]
 
-                self.set_status(f"Salvando área de interesse '{roi_name}' ({color_name})...")
+                self.set_status(
+                    f"Salvando área de interesse '{roi_name}' ({color_name})..."
+                )
                 success = self.controller.add_roi_polygon(
                     self.current_polygon_points, roi_name, roi_color
                 )
@@ -2171,14 +2262,23 @@ class ApplicationGUI:
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
-                    self.set_status(f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada com sucesso!")
+                    self.set_status(
+                        f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada "
+                        "com sucesso!"
+                    )
                     self.show_info(
                         "Sucesso",
-                        f"Área de interesse '{roi_name}' ({color_name}) criada com {len(self.current_polygon_points)} pontos."
+                        f"Área de interesse '{roi_name}' ({color_name}) criada com "
+                        f"{len(self.current_polygon_points)} pontos.",
                     )
                 else:
-                    self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
-                    self.show_error("Erro", f"Não foi possível salvar a área de interesse '{roi_name}'.")
+                    self.set_status(
+                        f"❌ Erro ao salvar área de interesse '{roi_name}'."
+                    )
+                    self.show_error(
+                        "Erro",
+                        f"Não foi possível salvar a área de interesse '{roi_name}'.",
+                    )
                     self._stop_drawing()
 
         except Exception as e:
@@ -2201,9 +2301,10 @@ class ApplicationGUI:
         # Arena principal com emoji e cor
         if zone_data.polygon:
             self.zone_listbox.insert(
-                "", "end",
+                "",
+                "end",
                 values=("🏠 Arena Principal", "Polígono", "Ciano"),
-                tags=("arena",)
+                tags=("arena",),
             )
             # Configura cor do texto para arena
             self.zone_listbox.tag_configure("arena", foreground="darkcyan")
@@ -2232,9 +2333,10 @@ class ApplicationGUI:
 
             # Insere ROI com emoji
             self.zone_listbox.insert(
-                "", "end",
+                "",
+                "end",
                 values=(f"📍 {name}", "Área de Interesse", color_name),
-                tags=(f"roi_{i}",)
+                tags=(f"roi_{i}",),
             )
 
             # Configura cor do texto para ROI
@@ -2257,7 +2359,15 @@ class ApplicationGUI:
             print(f"4. Canvas items antes: {len(self.roi_canvas.find_all())}")
 
         # Apaga apenas elementos de zona, preserva background
-        for tag in ["main_polygon", "roi_polygon", "roi_label", "roi_label_bg", "elastic_line", "drawing_aid", "temp_vertex"]:
+        for tag in [
+            "main_polygon",
+            "roi_polygon",
+            "roi_label",
+            "roi_label_bg",
+            "elastic_line",
+            "drawing_aid",
+            "temp_vertex",
+        ]:
             self.roi_canvas.delete(tag)
 
         # Background já deve estar presente, se não, tenta restaurar
@@ -2266,10 +2376,11 @@ class ApplicationGUI:
             bg_items = self.roi_canvas.find_withtag("background_image")
             if not bg_items:
                 self.roi_canvas.create_image(
-                    0, 0,
+                    0,
+                    0,
                     anchor="nw",
                     image=self._canvas_bg_image,
-                    tags="background_image"
+                    tags="background_image",
                 )
                 self.roi_canvas.tag_lower("background_image")  # Envia para trás
                 log.info("gui.redraw_zones.background_restored")
@@ -2279,9 +2390,11 @@ class ApplicationGUI:
             self.load_video_frame_to_canvas()
 
         zone_data = self.controller.project_manager.get_zone_data()
-        log.info("gui.redraw_zones.zone_data_loaded",
-                 has_main_polygon=bool(zone_data.polygon),
-                 roi_count=len(zone_data.roi_polygons))
+        log.info(
+            "gui.redraw_zones.zone_data_loaded",
+            has_main_polygon=bool(zone_data.polygon),
+            roi_count=len(zone_data.roi_polygons),
+        )
 
         # Desenha polígono principal
         if zone_data.polygon and len(zone_data.polygon) >= 3:
@@ -2291,7 +2404,7 @@ class ApplicationGUI:
                     fill="",
                     outline="cyan",
                     width=2,
-                    tags="main_polygon"
+                    tags="main_polygon",
                 )
                 log.info("gui.main_polygon.drawn", points=len(zone_data.polygon))
             except Exception as e:
@@ -2303,11 +2416,19 @@ class ApplicationGUI:
                 continue
 
             # Cor da ROI
-            color_tuple = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
+            color_tuple = (
+                zone_data.roi_colors[i]
+                if i < len(zone_data.roi_colors)
+                else (0, 255, 0)
+            )
             color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
 
             # Nome da ROI
-            name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
+            name = (
+                zone_data.roi_names[i]
+                if i < len(zone_data.roi_names)
+                else f"ROI_{i + 1}"
+            )
 
             # Desenha polígono com tags específicas
             try:
@@ -2317,35 +2438,41 @@ class ApplicationGUI:
                     fill="",  # Sem preenchimento para manter transparência
                     outline=color_hex,
                     width=2,
-                    tags=("roi_polygon", f"roi_{i}")
+                    tags=("roi_polygon", f"roi_{i}"),
                 )
 
                 # Adiciona label com o nome no centro do polígono
                 import numpy as np
+
                 poly_array = np.array(polygon)
                 center_x = int(poly_array[:, 0].mean())
                 center_y = int(poly_array[:, 1].mean())
 
                 # Cria fundo semi-transparente para melhor legibilidade
                 self.roi_canvas.create_oval(
-                    center_x - 25, center_y - 10,
-                    center_x + 25, center_y + 10,
+                    center_x - 25,
+                    center_y - 10,
+                    center_x + 25,
+                    center_y + 10,
                     fill="white",
                     outline=color_hex,
                     width=1,
-                    tags=("roi_label_bg", f"roi_label_bg_{i}")
+                    tags=("roi_label_bg", f"roi_label_bg_{i}"),
                 )
 
                 # Cria o texto do nome
                 self.roi_canvas.create_text(
-                    center_x, center_y,
+                    center_x,
+                    center_y,
                     text=name,
                     fill=color_hex,
                     font=("Arial", 9, "bold"),
-                    tags=("roi_label", f"roi_label_{i}")
+                    tags=("roi_label", f"roi_label_{i}"),
                 )
 
-                log.info("gui.roi_drawn", name=name, color=color_hex, points=len(polygon))
+                log.info(
+                    "gui.roi_drawn", name=name, color=color_hex, points=len(polygon)
+                )
 
             except Exception as e:
                 log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
@@ -2355,8 +2482,14 @@ class ApplicationGUI:
 
         if self.DEBUG_ZONES:
             print(f"5. Canvas items depois: {len(self.roi_canvas.find_all())}")
-            print(f"6. Items com tag 'main_polygon': {len(self.roi_canvas.find_withtag('main_polygon'))}")
-            print(f"7. Items com tag 'background_image': {len(self.roi_canvas.find_withtag('background_image'))}")
+            print(
+                "6. Items com tag 'main_polygon': "
+                f"{len(self.roi_canvas.find_withtag('main_polygon'))}"
+            )
+            print(
+                "7. Items com tag 'background_image': "
+                f"{len(self.roi_canvas.find_withtag('background_image'))}"
+            )
             print("=== FIM DEBUG REDRAW ===\n")
 
         log.info("gui.redraw_zones.complete")
@@ -2655,9 +2788,7 @@ class ApplicationGUI:
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
-            self.set_status(
-                f"Projeto: {pm.get_project_name()} - Pronto."
-            )
+            self.set_status(f"Projeto: {pm.get_project_name()} - Pronto.")
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
@@ -2704,13 +2835,13 @@ class ApplicationGUI:
                 "Deseja configurar a calibração automaticamente agora?\n\n"
                 "• Será aberta a aba de Configuração de Zonas\n"
                 "• Você pode usar 'Detectar Aquário (Auto)' ou desenhar manualmente\n"
-                "• A configuração será salva automaticamente"
+                "• A configuração será salva automaticamente",
             )
 
             if response:
                 log.info("ui.live_calibration.auto_accepted")
                 # Switch to zone configuration tab
-                if hasattr(self, 'notebook') and hasattr(self, 'zone_tab_frame'):
+                if hasattr(self, "notebook") and hasattr(self, "zone_tab_frame"):
                     self.notebook.select(self.zone_tab_frame)
 
                 # Show guidance message
@@ -2719,7 +2850,7 @@ class ApplicationGUI:
                     "Configure a arena principal usando:\n\n"
                     "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
                     "2. 'Desenhar Polígono Principal' - Para desenho manual\n\n"
-                    "A configuração será salva automaticamente."
+                    "A configuração será salva automaticamente.",
                 )
             else:
                 log.info("ui.live_calibration.auto_declined")
@@ -2891,8 +3022,6 @@ class ApplicationGUI:
         cv2.destroyAllWindows()
         log.info("gui.live_processing_loop.finished")
 
-
-
     def _load_new_weight_clicked(self):
         """Handles the 'Load New Weight' button click."""
         filepath = filedialog.askopenfilename(
@@ -3003,7 +3132,7 @@ class ApplicationGUI:
         # Add a "Start Analysis" button specific to this flow
         if not self.start_single_analysis_btn:
             self.start_single_analysis_btn = ttk.Button(
-                self.zone_controls_frame, # Add to the left control panel
+                self.zone_controls_frame,  # Add to the left control panel
                 text="Iniciar Análise de Vídeo Único",
                 command=self._on_start_single_video_processing_clicked,
             )
@@ -3087,13 +3216,17 @@ class ApplicationGUI:
             try:
                 analysis_interval = int(self.analysis_interval_var.get())
                 display_interval = int(self.display_interval_var.get())
-                self.pending_single_video_config['analysis_interval_frames'] = analysis_interval
-                self.pending_single_video_config['display_interval_frames'] = display_interval
+                self.pending_single_video_config["analysis_interval_frames"] = (
+                    analysis_interval
+                )
+                self.pending_single_video_config["display_interval_frames"] = (
+                    display_interval
+                )
             except (ValueError, AttributeError) as e:
                 log.warning("gui.single_video.intervals_parse_failed", error=str(e))
                 # Use defaults
-                self.pending_single_video_config['analysis_interval_frames'] = 10
-                self.pending_single_video_config['display_interval_frames'] = 10
+                self.pending_single_video_config["analysis_interval_frames"] = 10
+                self.pending_single_video_config["display_interval_frames"] = 10
 
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
@@ -3257,17 +3390,14 @@ class ApplicationGUI:
 
         self.roi_context_menu = Menu(self.root, tearoff=0)
         self.roi_context_menu.add_command(
-            label="✏️ Renomear",
-            command=self._rename_selected_roi
+            label="✏️ Renomear", command=self._rename_selected_roi
         )
         self.roi_context_menu.add_command(
-            label="🎨 Mudar Cor",
-            command=self._change_roi_color
+            label="🎨 Mudar Cor", command=self._change_roi_color
         )
         self.roi_context_menu.add_separator()
         self.roi_context_menu.add_command(
-            label="🗑️ Remover",
-            command=self._remove_selected_roi_confirm
+            label="🗑️ Remover", command=self._remove_selected_roi_confirm
         )
 
     def _on_zone_right_click(self, event):
@@ -3278,7 +3408,7 @@ class ApplicationGUI:
             self.zone_listbox.selection_set(item)
 
             # Verifica se é ROI (não arena principal)
-            values = self.zone_listbox.item(item)['values']
+            values = self.zone_listbox.item(item)["values"]
             if values and "Arena Principal" not in values[0]:
                 self.roi_context_menu.post(event.x_root, event.y_root)
 
@@ -3289,12 +3419,10 @@ class ApplicationGUI:
             return
 
         item = self.zone_listbox.item(selected[0])
-        old_name = item['values'][0].replace("📍 ", "")
+        old_name = item["values"][0].replace("📍 ", "")
 
         new_name = self.ask_string(
-            "Renomear ROI",
-            f"Novo nome para '{old_name}':",
-            initialvalue=old_name
+            "Renomear ROI", f"Novo nome para '{old_name}':", initialvalue=old_name
         )
 
         if new_name and new_name != old_name:
@@ -3306,7 +3434,10 @@ class ApplicationGUI:
 
                 # Salva
                 from dataclasses import asdict
-                self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+
+                self.controller.project_manager.project_data["detection_zones"] = (
+                    asdict(zone_data)
+                )
                 self.controller.project_manager.save_project()
 
                 # Atualiza visualização
@@ -3323,7 +3454,7 @@ class ApplicationGUI:
             return
 
         item = self.zone_listbox.item(selected[0])
-        old_name = item['values'][0].replace("📍 ", "")
+        old_name = item["values"][0].replace("📍 ", "")
 
         # Usa o diálogo de cores personalizado
         color_dialog = ColorSelectionDialog(self.root, "Mudar Cor da ROI")
@@ -3342,12 +3473,17 @@ class ApplicationGUI:
 
             # Salva
             from dataclasses import asdict
-            self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+
+            self.controller.project_manager.project_data["detection_zones"] = asdict(
+                zone_data
+            )
             self.controller.project_manager.save_project()
 
             # Atualiza visualização
             self.redraw_zones_from_project_data()
-            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
+            self.show_info(
+                "Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}"
+            )
 
         except ValueError:
             self.show_error("Erro", "ROI não encontrada")
@@ -3361,14 +3497,16 @@ class ApplicationGUI:
             return
 
         item = self.zone_listbox.item(selected[0])
-        roi_name = item['values'][0].replace("📍 ", "")
+        roi_name = item["values"][0].replace("📍 ", "")
 
         # Confirmação
         from tkinter import messagebox
+
         confirm = messagebox.askyesno(
             "Confirmar Remoção",
-            f"Tem certeza que deseja remover a ROI '{roi_name}'?\n\nEsta ação não pode ser desfeita.",
-            icon="warning"
+            f"Tem certeza que deseja remover a ROI '{roi_name}'?\n\n"
+            "Esta ação não pode ser desfeita.",
+            icon="warning",
         )
 
         if confirm:
@@ -3390,7 +3528,10 @@ class ApplicationGUI:
 
                 # Salva
                 from dataclasses import asdict
-                self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+
+                self.controller.project_manager.project_data["detection_zones"] = (
+                    asdict(zone_data)
+                )
                 self.controller.project_manager.save_project()
 
                 # Atualiza visualização
@@ -3540,7 +3681,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 raise ValueError("Os valores devem ser positivos.")
         except ValueError:
             messagebox.showerror(
-                "Erro", "Todos os campos de configuração devem ser números válidos e positivos."
+                "Erro",
+                "Todos os campos de configuração devem ser números válidos e "
+                "positivos.",
             )
             return 0
         return 1
@@ -3849,7 +3992,9 @@ class ColorSelectionDialog(simpledialog.Dialog):
             ("Ciano", (0, 255, 255), "#00FFFF"),
         ]
 
-        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(pady=5)
+        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(
+            pady=5
+        )
 
         # Frame para os botões de cor
         colors_frame = ttk.Frame(master)
@@ -3872,7 +4017,9 @@ class ColorSelectionDialog(simpledialog.Dialog):
             ).pack()
 
             # Quadrado colorido para visualização
-            color_canvas = Canvas(color_frame, width=30, height=20, highlightthickness=1)
+            color_canvas = Canvas(
+                color_frame, width=30, height=20, highlightthickness=1
+            )
             color_canvas.pack()
             color_canvas.create_rectangle(0, 0, 30, 20, fill=hex_color, outline="black")
 
@@ -3883,11 +4030,7 @@ class ColorSelectionDialog(simpledialog.Dialog):
         selected_name = self.selected_color.get()
         for name, rgb, hex_color in self.colors:
             if name.lower() == selected_name:
-                self.result = {
-                    "name": name,
-                    "rgb": rgb,
-                    "hex": hex_color
-                }
+                self.result = {"name": name, "rgb": rgb, "hex": hex_color}
                 break
 
 

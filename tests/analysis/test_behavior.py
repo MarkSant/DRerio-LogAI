@@ -240,12 +240,12 @@ def test_preprocess_data_handles_duplicate_timestamps():
 
     # Check the aggregated values for the consolidated row (at timestamp 1.0)
     consolidated_row = processed_df.loc[pd.to_timedelta(1.0, unit="s")]
-    assert np.isclose(
-        consolidated_row["x_center_px"], 25.0
-    ), "x_center_px should be the mean of the duplicates."
-    assert np.isclose(
-        consolidated_row["confidence"], 0.95
-    ), "confidence should be the max of the duplicates."
-    assert (
-        consolidated_row["track_id"] == 1
-    ), "track_id should be the first of the duplicates."
+    assert np.isclose(consolidated_row["x_center_px"], 25.0), (
+        "x_center_px should be the mean of the duplicates."
+    )
+    assert np.isclose(consolidated_row["confidence"], 0.95), (
+        "confidence should be the max of the duplicates."
+    )
+    assert consolidated_row["track_id"] == 1, (
+        "track_id should be the first of the duplicates."
+    )

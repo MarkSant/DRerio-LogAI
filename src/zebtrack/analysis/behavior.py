@@ -560,9 +560,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         # Calculate total duration for per-minute metric
         df = self._trajectory_data
         total_duration_s = (df.index[-1] - df.index[0]).total_seconds()
-        total_duration_minutes = (
-            total_duration_s / 60.0 if total_duration_s > 0 else 0
-        )
+        total_duration_minutes = total_duration_s / 60.0 if total_duration_s > 0 else 0
 
         if total_duration_minutes > 0:
             sharp_turns_per_minute = sharp_turns_count / total_duration_minutes

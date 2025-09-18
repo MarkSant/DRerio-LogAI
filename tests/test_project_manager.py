@@ -207,7 +207,6 @@ class TestProjectManager(unittest.TestCase):
         # Now there should be no pending videos
         self.assertIsNone(pm.get_next_video())
 
-
         # Now there should be no pending videos
         self.assertIsNone(pm.get_next_video())
 

@@ -1,4 +1,3 @@
-
 import numpy as np
 import scipy.linalg
 
@@ -20,7 +19,6 @@ chi2inv95 = {
 
 
 class KalmanFilter:
-
     """
     A simple Kalman filter for tracking bounding boxes in image space.
 
@@ -40,7 +38,6 @@ class KalmanFilter:
     def __init__(self):
         ndim, dt = 4, 1.0
 
-
         # Create Kalman filter model matrices.
         self._motion_mat = np.eye(2 * ndim, 2 * ndim)
         for i in range(ndim):
@@ -52,7 +49,6 @@ class KalmanFilter:
         # the model. This is a bit hacky.
         self._std_weight_position = 1.0 / 20
         self._std_weight_velocity = 1.0 / 160
-
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.

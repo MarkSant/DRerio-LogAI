@@ -6,18 +6,19 @@ Teste simples da detecção automática de aquário
 
 import warnings
 
-warnings.filterwarnings("ignore")
-
 import cv2
 import numpy as np
 from ultralytics import YOLO
 
+warnings.filterwarnings("ignore")
+
 
 def simple_aquarium_detection_test():
     """Teste manual da detecção de aquário com debug"""
-    print("="*80)
+    class_names = {0: "aqua", 1: "zebrafish"}
+    print("=" * 80)
     print("TESTE MANUAL DE DETECÇÃO DE AQUÁRIO")
-    print("="*80)
+    print("=" * 80)
 
     # Carrega modelo
     print("🔄 Carregando modelo...")
@@ -50,7 +51,7 @@ def simple_aquarium_detection_test():
         # Detecção só da classe 0 (aquário) com conf 0.25
         results = model.predict(frame, verbose=False, classes=[0], conf=0.25)
 
-        print(f"\nFrame {i+1}:")
+        print(f"\nFrame {i + 1}:")
         print(f"  Resultados: {'✅' if results else '❌'}")
 
         if results and results[0]:
@@ -78,21 +79,31 @@ def simple_aquarium_detection_test():
                         class_id = int(result.boxes[j].cls)
                         conf = float(result.boxes[j].conf)
 
-                    print(f"    Máscara {j+1}:")
-                    print(f"      Classe: {class_id} ({'aqua' if class_id == 0 else 'zebrafish' if class_id == 1 else 'desconhecida'})")
+                    class_name = class_names.get(class_id, "desconhecida")
+                    print(f"    Máscara {j + 1}:")
+                    print(f"      Classe: {class_id} ({class_name})")
                     print(f"      Confiança: {conf:.3f}")
                     print(f"      Pontos: {len(poly)}")
                     print(f"      Área: {int(poly_area)} ({area_ratio:.2%} do frame)")
-                    print(f"      Bbox: [{int(x_min)}, {int(y_min)}, {int(x_max)}, {int(y_max)}]")
+                    print(
+                        f"      Bbox: [{int(x_min)}, {int(y_min)}, {int(x_max)}, "
+                        f"{int(y_max)}]"
+                    )
 
                     # Critério: exatamente 1 máscara, área > 30% do frame
                     if len(polygons) == 1 and area_ratio > 0.3:
                         good_polygons.append(poly.astype(np.int32))
                         print("      ✅ POLÍGONO ACEITO (área satisfatória)")
                     elif len(polygons) != 1:
-                        print(f"      ❌ Rejeitado: {len(polygons)} máscaras (esperado: 1)")
+                        print(
+                            f"      ❌ Rejeitado: {len(polygons)} máscaras "
+                            "(esperado: 1)"
+                        )
                     else:
-                        print(f"      ❌ Rejeitado: área muito pequena ({area_ratio:.2%} < 30%)")
+                        print(
+                            f"      ❌ Rejeitado: área muito pequena "
+                            f"({area_ratio:.2%} < 30%)"
+                        )
             else:
                 print("  ❌ Nenhuma máscara encontrada")
         else:
@@ -109,7 +120,7 @@ def simple_aquarium_detection_test():
             x_min, y_min = poly[:, 0].min(), poly[:, 1].min()
             x_max, y_max = poly[:, 0].max(), poly[:, 1].max()
             area = (x_max - x_min) * (y_max - y_min)
-            print(f"  Polígono {i+1}: {len(poly)} pontos, área={area}")
+            print(f"  Polígono {i + 1}: {len(poly)} pontos, área={area}")
     else:
         print("❌ Nenhum aquário detectado")
         print("\n🔧 POSSÍVEIS SOLUÇÕES:")
@@ -118,7 +129,8 @@ def simple_aquarium_detection_test():
         print("• Reduzir critério de área mínima (< 30%)")
         print("• Aumentar número de frames analisados")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
+
 
 if __name__ == "__main__":
     simple_aquarium_detection_test()

@@ -14,6 +14,7 @@ from zebtrack.plugins.base import DetectorPlugin
 
 # -- Mocks and Test Data Generators --
 
+
 def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
     """
     Generates a simple dummy video file with a moving square.
@@ -78,6 +79,7 @@ def integration_test_setup(tmp_path):
 
 
 # -- New, More Complete Integration Test --
+
 
 def test_full_pipeline_from_video_to_report(integration_test_setup):
     """
@@ -152,7 +154,9 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
         # Provide a minimal mock report dictionary for the tidy data creation
         mock_service.return_value.run_full_analysis.return_value = (
-            {"comportamento_geral": {}, "analise_roi": {}}, MagicMock(), MagicMock()
+            {"comportamento_geral": {}, "analise_roi": {}},
+            MagicMock(),
+            MagicMock(),
         )
         reporter = Reporter(
             trajectory_df=trajectory_df,

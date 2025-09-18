@@ -121,7 +121,9 @@ def test_get_distance_in_roi(roi_crossing_trajectory):
         **{k: v for k, v in roi_crossing_trajectory.items() if k != "rois"}
     )
     r_analyzer = ROIAnalyzer(
-        behavior_analyzer=b_analyzer, rois=roi_crossing_trajectory["rois"]
+        behavior_analyzer=b_analyzer,
+        rois=roi_crossing_trajectory["rois"],
+        inclusion_rule="centroid_in",
     )
 
     distances = r_analyzer.get_distance_in_rois()
@@ -146,6 +148,7 @@ def test_get_event_log(roi_crossing_trajectory):
         behavior_analyzer=b_analyzer,
         rois=roi_crossing_trajectory["rois"],
         flutter_n_frames=3,
+        inclusion_rule="centroid_in",
     )
 
     event_log = r_analyzer.get_event_log()

@@ -15,20 +15,20 @@ warnings.filterwarnings("ignore")
 
 def test_config_threshold():
     """Testa se a configuração foi atualizada"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DAS MELHORIAS DE THRESHOLD")
-    print("="*80)
+    print("=" * 80)
 
     print("\n[TEST 1] CONFIGURACAO ATUALIZADA")
     print("-" * 50)
 
     try:
-        with open("config.yaml", 'r') as f:
+        with open("config.yaml", "r") as f:
             config = yaml.safe_load(f)
 
-        yolo_config = config.get('yolo_model', {})
-        conf_thresh = yolo_config.get('confidence_threshold')
-        nms_thresh = yolo_config.get('nms_threshold')
+        yolo_config = config.get("yolo_model", {})
+        conf_thresh = yolo_config.get("confidence_threshold")
+        nms_thresh = yolo_config.get("nms_threshold")
 
         print(f"   Confidence threshold: {conf_thresh}")
         print(f"   NMS threshold: {nms_thresh}")
@@ -48,6 +48,7 @@ def test_config_threshold():
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_aquarium_detection_with_confidence():
     """Testa detecção de aquário com logging de confiança"""
@@ -79,41 +80,53 @@ def test_aquarium_detection_with_confidence():
             results = model.predict(frame, verbose=False, classes=[0], conf=0.05)
 
             frame_info = {
-                'frame': i+1,
-                'has_results': bool(results),
-                'has_boxes': False,
-                'has_masks': False,
-                'confidences': [],
-                'mask_count': 0
+                "frame": i + 1,
+                "has_results": bool(results),
+                "has_boxes": False,
+                "has_masks": False,
+                "confidences": [],
+                "mask_count": 0,
             }
 
             if results and results[0]:
                 result = results[0]
-                frame_info['has_boxes'] = result.boxes is not None
-                frame_info['has_masks'] = result.masks is not None and result.masks.xy is not None
+                frame_info["has_boxes"] = result.boxes is not None
+                frame_info["has_masks"] = (
+                    result.masks is not None and result.masks.xy is not None
+                )
 
-                if frame_info['has_boxes']:
-                    frame_info['confidences'] = [float(box.conf) for box in result.boxes]
+                if frame_info["has_boxes"]:
+                    frame_info["confidences"] = [
+                        float(box.conf) for box in result.boxes
+                    ]
 
-                if frame_info['has_masks']:
-                    frame_info['mask_count'] = len(result.masks.xy)
+                if frame_info["has_masks"]:
+                    frame_info["mask_count"] = len(result.masks.xy)
 
             detections_found.append(frame_info)
 
-            print(f"   Frame {i+1}: boxes={'SIM' if frame_info['has_boxes'] else 'NAO'}, "
-                  f"masks={'SIM' if frame_info['has_masks'] else 'NAO'}")
+            print(
+                f"   Frame {i + 1}: "
+                f"boxes={'SIM' if frame_info['has_boxes'] else 'NAO'}, "
+                f"masks={'SIM' if frame_info['has_masks'] else 'NAO'}"
+            )
 
-            if frame_info['confidences']:
-                avg_conf = sum(frame_info['confidences']) / len(frame_info['confidences'])
-                max_conf = max(frame_info['confidences'])
-                print(f"     Confiancas: {[f'{c:.3f}' for c in frame_info['confidences']]}")
+            if frame_info["confidences"]:
+                avg_conf = sum(frame_info["confidences"]) / len(
+                    frame_info["confidences"]
+                )
+                max_conf = max(frame_info["confidences"])
+                print(
+                    "     Confiancas: "
+                    f"{[f'{c:.3f}' for c in frame_info['confidences']]}"
+                )
                 print(f"     Media: {avg_conf:.3f}, Maxima: {max_conf:.3f}")
 
         cap.release()
 
         # Análise dos resultados
-        total_detections = sum(1 for d in detections_found if d['has_masks'])
-        total_with_confidence = sum(1 for d in detections_found if d['confidences'])
+        total_detections = sum(1 for d in detections_found if d["has_masks"])
+        total_with_confidence = sum(1 for d in detections_found if d["confidences"])
 
         print("\n   Resumo:")
         print(f"     Frames com mascaras: {total_detections}/5")
@@ -129,6 +142,7 @@ def test_aquarium_detection_with_confidence():
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_confidence_validation():
     """Testa validação de confiança com diferentes thresholds"""
@@ -165,21 +179,28 @@ def test_confidence_validation():
                 result = results[0]
 
                 boxes_count = len(result.boxes) if result.boxes else 0
-                masks_count = len(result.masks.xy) if result.masks and result.masks.xy else 0
+                masks_count = (
+                    len(result.masks.xy) if result.masks and result.masks.xy else 0
+                )
 
                 print(f"     Boxes: {boxes_count}, Mascaras: {masks_count}")
 
                 if result.boxes:
                     confidences = [float(box.conf) for box in result.boxes]
                     classes = [int(box.cls) for box in result.boxes]
-                    class_names = [result.names.get(c, f'class_{c}') for c in classes]
+                    class_names = [result.names.get(c, f"class_{c}") for c in classes]
 
-                    for i, (conf, class_name) in enumerate(zip(confidences, class_names)):
-                        print(f"       Det {i+1}: {class_name} (conf={conf:.3f})")
+                    for i, (conf, class_name) in enumerate(
+                        zip(confidences, class_names)
+                    ):
+                        print(f"       Det {i + 1}: {class_name} (conf={conf:.3f})")
 
                         # Simula validação de confiança
                         valid_conf = conf > 0.05
-                        print(f"         Confianca valida (>0.05): {'SIM' if valid_conf else 'NAO'}")
+                        print(
+                            "         Confianca valida (>0.05): "
+                            f"{'SIM' if valid_conf else 'NAO'}"
+                        )
             else:
                 print("     Nenhuma deteccao")
 
@@ -189,6 +210,7 @@ def test_confidence_validation():
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_performance_comparison():
     """Compara performance com diferentes thresholds"""
@@ -242,11 +264,15 @@ def test_performance_comparison():
                     total_zebrafish += zebrafish_count
                     total_aquarium += aquarium_count
 
-                    print(f"     Frame {i+1}: {len(classes)} deteccoes "
-                          f"({zebrafish_count} zebrafish, {aquarium_count} aquario)")
+                    print(
+                        f"     Frame {i + 1}: {len(classes)} deteccoes "
+                        f"({zebrafish_count} zebrafish, {aquarium_count} aquario)"
+                    )
 
-            print(f"     TOTAL: {total_detections} deteccoes "
-                  f"({total_zebrafish} zebrafish, {total_aquarium} aquario)")
+            print(
+                f"     TOTAL: {total_detections} deteccoes "
+                f"({total_zebrafish} zebrafish, {total_aquarium} aquario)"
+            )
 
         print("\n   SUCESSO: Comparacao concluida")
         print("   OBSERVACAO: Threshold mais baixo detecta mais objetos")
@@ -256,6 +282,7 @@ def test_performance_comparison():
         print(f"   ERRO: {e}")
         return False
 
+
 def main():
     """Executa todos os testes de threshold"""
     print("Executando testes das melhorias de threshold...")
@@ -264,7 +291,7 @@ def main():
         ("Configuracao atualizada", test_config_threshold),
         ("Deteccao aquario com logging", test_aquarium_detection_with_confidence),
         ("Validacao de confianca", test_confidence_validation),
-        ("Comparacao de performance", test_performance_comparison)
+        ("Comparacao de performance", test_performance_comparison),
     ]
 
     results = []
@@ -277,9 +304,9 @@ def main():
             results.append((test_name, False))
 
     # Relatório final
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RELATORIO FINAL - MELHORIAS DE THRESHOLD")
-    print("="*80)
+    print("=" * 80)
 
     passed = 0
     for test_name, success in results:
@@ -296,6 +323,7 @@ def main():
     print("• Logging detalhado de confianca no detector aquario")
     print("• Validacao de confianca com fallback robusto")
     print("• Threshold otimizado para deteccao inicial de aquario")
+
 
 if __name__ == "__main__":
     main()

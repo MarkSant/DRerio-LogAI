@@ -86,7 +86,8 @@ class VideoProcessingSettings(BaseModel):
     # Single animal tracking mode
     single_animal_per_aquarium: bool = Field(
         False,
-        description="When True, forces consistent track_id=1 for single animal scenarios."
+        description="When True, forces consistent track_id=1 for single animal "
+        "scenarios.",
     )
 
 
@@ -136,7 +137,12 @@ class Settings(BaseModel):
     reproducibility: ReproducibilitySettings
 
     # ROI inclusion rule settings
-    roi_inclusion_rule: Literal["centroid_in", "centroid_in_on_buffered_roi", "bbox_intersects", "seg_overlap"] = "bbox_intersects"
+    roi_inclusion_rule: Literal[
+        "centroid_in",
+        "centroid_in_on_buffered_roi",
+        "bbox_intersects",
+        "seg_overlap",
+    ] = "bbox_intersects"
     roi_buffer_radius_value: float = 0.5
     roi_min_bbox_overlap_ratio: float = 0.10
 

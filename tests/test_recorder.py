@@ -61,7 +61,7 @@ def test_start_recording_creates_files(recorder_setup):
     recorder.stop_recording()
 
     # Now test that it IS created when ROIs are present
-    mock_zones_with_roi = ZoneData(roi_polygons=[[[0,0], [1,1], [0,1]]])
+    mock_zones_with_roi = ZoneData(roi_polygons=[[[0, 0], [1, 1], [0, 1]]])
     recorder.start_recording(
         output_folder, frame_width, frame_height, zones=mock_zones_with_roi
     )

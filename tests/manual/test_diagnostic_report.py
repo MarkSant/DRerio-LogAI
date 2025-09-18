@@ -6,18 +6,17 @@ Teste do relatório de diagnóstico com suporte a máscaras de segmentação
 
 import warnings
 
-warnings.filterwarnings("ignore")
-
-
 import cv2
 from ultralytics import YOLO
+
+warnings.filterwarnings("ignore")
 
 
 def mock_diagnostic_report_test():
     """Simula o diagnóstico e testa a formatação do relatório"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DO RELATÓRIO DE DIAGNÓSTICO COM MÁSCARAS")
-    print("="*80)
+    print("=" * 80)
 
     # Configura o modelo
     model = YOLO("best_seg.pt")
@@ -29,10 +28,10 @@ def mock_diagnostic_report_test():
 
     # Simula configuração de diagnóstico
     config = {
-        'video_path': 'CECT_8.mp4',
-        'frames_to_analyze': 3,
-        'confidence_threshold': 0.1,
-        'model_to_test': 'YOLO (PyTorch)'
+        "video_path": "CECT_8.mp4",
+        "frames_to_analyze": 3,
+        "confidence_threshold": 0.1,
+        "model_to_test": "YOLO (PyTorch)",
     }
 
     # Coleta resultados de alguns frames
@@ -48,7 +47,10 @@ def mock_diagnostic_report_test():
         preds = model.predict(frame, conf=0.1, verbose=False)
         results["YOLO (PyTorch)"].append(preds[0])
 
-        print(f"Frame {frame_idx + 1}: {len(preds[0].boxes) if preds[0].boxes else 0} detecções")
+        print(
+            f"Frame {frame_idx + 1}: "
+            f"{len(preds[0].boxes) if preds[0].boxes else 0} detecções"
+        )
 
     cap.release()
 
@@ -64,6 +66,7 @@ def mock_diagnostic_report_test():
     print("\n📊 PRÉVIA DO RELATÓRIO:")
     print("-" * 50)
     print(report_str[:1000] + "..." if len(report_str) > 1000 else report_str)
+
 
 def format_diagnostic_report(config, results) -> str:
     """Reproduz a lógica do método _format_diagnostic_report atualizado"""
@@ -89,20 +92,26 @@ def format_diagnostic_report(config, results) -> str:
             mask_only_detections = []
 
             # Handle ultralytics results object
-            if hasattr(preds, 'boxes') or hasattr(preds, 'masks'):
+            if hasattr(preds, "boxes") or hasattr(preds, "masks"):
                 # Processa boxes com suas máscaras
                 if preds.boxes is not None:
                     for j, box in enumerate(preds.boxes):
                         class_id = int(box.cls)
-                        class_name = preds.names.get(class_id, 'desconhecido')
+                        class_name = preds.names.get(class_id, "desconhecido")
                         conf = float(box.conf)
                         bbox = [int(coord) for coord in box.xyxy[0]]
 
                         # Verifica se tem máscara
-                        has_mask = (preds.masks is not None and
-                                  preds.masks.xy is not None and
-                                  j < len(preds.masks.xy))
-                        mask_info = f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
+                        has_mask = (
+                            preds.masks is not None
+                            and preds.masks.xy is not None
+                            and j < len(preds.masks.xy)
+                        )
+                        mask_info = (
+                            f", Máscara: {len(preds.masks.xy[j])} pontos"
+                            if has_mask
+                            else ""
+                        )
 
                         detections.append(
                             f"  - Classe {class_id} ('{class_name}'), "
@@ -129,11 +138,15 @@ def format_diagnostic_report(config, results) -> str:
             # Handle OpenVINO plugin format
             elif isinstance(preds, list):
                 for det in preds:
-                    class_id = det['class_id']
-                    class_name = det['class_name']
-                    conf = det['confidence']
-                    bbox = det['box']
-                    mask_info = f", Máscara: {det.get('mask_points', 0)} pontos" if det.get('has_mask') else ""
+                    class_id = det["class_id"]
+                    class_name = det["class_name"]
+                    conf = det["confidence"]
+                    bbox = det["box"]
+                    mask_info = (
+                        f", Máscara: {det.get('mask_points', 0)} pontos"
+                        if det.get("has_mask")
+                        else ""
+                    )
 
                     detections.append(
                         f"  - Classe {class_id} ('{class_name}'), "
@@ -151,9 +164,10 @@ def format_diagnostic_report(config, results) -> str:
 
             report_lines.append("")
 
-        report_lines.append("") # Spacer between models
+        report_lines.append("")  # Spacer between models
 
     return "\n".join(report_lines)
+
 
 if __name__ == "__main__":
     mock_diagnostic_report_test()

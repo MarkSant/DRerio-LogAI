@@ -21,9 +21,10 @@ def wm_setup(tmp_path):
     default_weight_path.touch()
 
     # Patch the global settings to point to this dummy file for initialization
-    with patch("zebtrack.core.weight_manager.settings") as mock_settings, \
-         patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox:
-
+    with (
+        patch("zebtrack.core.weight_manager.settings") as mock_settings,
+        patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox,
+    ):
         mock_settings.yolo_model.path = str(default_weight_path)
 
         # Instantiate the manager pointing to the temp config dir

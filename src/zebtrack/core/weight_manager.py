@@ -9,6 +9,7 @@ import structlog
 
 try:
     from ultralytics import YOLO
+
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
     YOLO = None
@@ -260,19 +261,16 @@ class WeightManager:
 
             # Cria arquivo de metadata
             metadata = {
-                'model_type': 'instance_segmentation',
-                'num_classes': 2,
-                'class_names': {
-                    '0': 'aquarium',
-                    '1': 'zebrafish'
-                },
-                'task': 'segment',
-                'original_model': os.path.basename(pt_path),
-                'conversion_date': time.strftime('%Y-%m-%d %H:%M:%S')
+                "model_type": "instance_segmentation",
+                "num_classes": 2,
+                "class_names": {"0": "aquarium", "1": "zebrafish"},
+                "task": "segment",
+                "original_model": os.path.basename(pt_path),
+                "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
 
-            metadata_path = os.path.join(cached_model_dir, 'metadata.json')
-            with open(metadata_path, 'w') as f:
+            metadata_path = os.path.join(cached_model_dir, "metadata.json")
+            with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
             log.info("openvino.metadata.created", path=metadata_path)
