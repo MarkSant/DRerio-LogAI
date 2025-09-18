@@ -65,6 +65,85 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
+    def test_create_project_with_animals_per_aquarium(self):
+        """Test creating a project with animals_per_aquarium field."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "animals_test_project")
+        video_files = [{"path": "video1.mp4", "has_data": False}]
+        
+        success = pm.create_new_project(
+            project_path,
+            "pre-recorded",
+            video_files=video_files,
+            num_aquariums=2,
+            animals_per_aquarium=3,
+            aquarium_width_cm=15.0,
+            aquarium_height_cm=20.0,
+        )
+
+        self.assertTrue(success)
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        self.assertTrue(os.path.exists(config_path))
+
+        with open(config_path, "r") as f:
+            data = json.load(f)
+            self.assertEqual(data["calibration"]["num_aquariums"], 2)
+            self.assertEqual(data["calibration"]["animals_per_aquarium"], 3)
+            self.assertEqual(data["calibration"]["aquarium_width_cm"], 15.0)
+            self.assertEqual(data["calibration"]["aquarium_height_cm"], 20.0)
+
+    def test_create_project_default_animals_per_aquarium(self):
+        """Test creating a project with default animals_per_aquarium value."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "default_animals_project")
+        
+        success = pm.create_new_project(
+            project_path,
+            "live",
+        )
+
+        self.assertTrue(success)
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        self.assertTrue(os.path.exists(config_path))
+
+        with open(config_path, "r") as f:
+            data = json.load(f)
+            # Check default values
+            self.assertEqual(data["calibration"]["num_aquariums"], 1)
+            self.assertEqual(data["calibration"]["animals_per_aquarium"], 1)
+
+    def test_load_project_backward_compatibility(self):
+        """Test loading a project without animals_per_aquarium field."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "backward_compat_project")
+        os.makedirs(project_path, exist_ok=True)
+        
+        # Create a project config WITHOUT animals_per_aquarium field (simulates old project)
+        old_project_data = {
+            "project_name": "backward_compat_project",
+            "project_type": "live",
+            "calibration": {
+                "num_aquariums": 2,
+                "aquarium_width_cm": 15.0,
+                "aquarium_height_cm": 20.0,
+                # Missing animals_per_aquarium field
+            },
+            "use_openvino": False,
+            "active_weight": None,
+            "batches": [],
+        }
+        
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        with open(config_path, "w") as f:
+            json.dump(old_project_data, f, indent=2)
+        
+        # Load the project - should add default animals_per_aquarium value
+        success = pm.load_project(project_path)
+        
+        self.assertTrue(success)
+        self.assertEqual(pm.project_data["calibration"]["num_aquariums"], 2)
+        self.assertEqual(pm.project_data["calibration"]["animals_per_aquarium"], 1)  # Default value added
+
     def test_load_project(self):
         """Test loading an existing project configuration."""
         pm = ProjectManager()
