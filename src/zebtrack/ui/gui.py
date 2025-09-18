@@ -30,7 +30,6 @@ from PIL import Image, ImageTk
 
 # Import custom modules
 from zebtrack.io.camera import Camera
-from zebtrack.io.video_source import VideoFileSource
 from zebtrack.settings import settings
 
 log = structlog.get_logger()
@@ -960,7 +959,7 @@ class ApplicationGUI:
             value=str(settings.video_processing.processing_interval)
         )
         self.show_preview_var = BooleanVar(value=True)
-        
+
         # New frame interval controls (defaults to 10 as per requirements)
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
@@ -1103,13 +1102,13 @@ class ApplicationGUI:
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
                 command=self.controller.start_project_processing_workflow,
             ).pack(pady=10, padx=10, fill="x")
-            
+
             # Project-wide interval settings
             intervals_frame = ttk.LabelFrame(
                 self.main_controls_frame, text="Intervalos de Processamento", padding=10
             )
             intervals_frame.pack(fill="x", pady=10, padx=10)
-            
+
             # Analysis interval
             analysis_label_frame = ttk.Frame(intervals_frame)
             analysis_label_frame.pack(fill="x", pady=2)
@@ -1117,8 +1116,8 @@ class ApplicationGUI:
             ttk.Entry(
                 analysis_label_frame, textvariable=self.analysis_interval_var, width=10
             ).pack(side="right")
-            
-            # Display interval  
+
+            # Display interval
             display_label_frame = ttk.Frame(intervals_frame)
             display_label_frame.pack(fill="x", pady=2)
             ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
@@ -1739,13 +1738,13 @@ class ApplicationGUI:
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
         if self.DEBUG_ZONES:
-            print(f"\n=== DEBUG BOTÃO ARENA ===")
-            print(f"1. Definindo current_drawing_type = 'arena'")
+            print("\n=== DEBUG BOTÃO ARENA ===")
+            print("1. Definindo current_drawing_type = 'arena'")
 
         self.current_drawing_type = "arena"
 
         if self.DEBUG_ZONES:
-            print(f"2. Chamando _start_polygon_drawing()")
+            print("2. Chamando _start_polygon_drawing()")
 
         self._start_polygon_drawing()
 
@@ -1776,7 +1775,7 @@ class ApplicationGUI:
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
         if self.DEBUG_ZONES:
-            print(f"3. _start_polygon_drawing iniciado")
+            print("3. _start_polygon_drawing iniciado")
             print(f"4. current_drawing_type antes de _stop_drawing: {self.current_drawing_type}")
 
         # Garante que há frame no canvas
@@ -1913,7 +1912,7 @@ class ApplicationGUI:
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
         if self.DEBUG_ZONES:
-            print(f"\n=== DEBUG ZONE SAVE ===")
+            print("\n=== DEBUG ZONE SAVE ===")
             print(f"1. Pontos a salvar: {len(self.current_polygon_points) if self.current_polygon_points else 0}")
             print(f"2. Tipo: {self.current_drawing_type}")
             print(f"3. Modo de desenho: {self.drawing_mode}")
@@ -1925,16 +1924,16 @@ class ApplicationGUI:
             if not zone_data.polygon:
                 self.current_drawing_type = "arena"
                 if self.DEBUG_ZONES:
-                    print(f"3.1. Auto-detectado como arena (não existe polygon principal)")
+                    print("3.1. Auto-detectado como arena (não existe polygon principal)")
             else:
                 self.current_drawing_type = "roi"
                 if self.DEBUG_ZONES:
-                    print(f"3.1. Auto-detectado como ROI (polygon principal já existe)")
+                    print("3.1. Auto-detectado como ROI (polygon principal já existe)")
 
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             if self.current_polygon_points:
                 self.show_warning(
-                    "Polígono Incompleto", 
+                    "Polígono Incompleto",
                     f"Um polígono precisa de pelo menos 3 pontos. Você tem {len(self.current_polygon_points)} pontos."
                 )
             self._stop_drawing()
@@ -1947,13 +1946,13 @@ class ApplicationGUI:
 
             if self.current_drawing_type == "arena":
                 if self.DEBUG_ZONES:
-                    print(f"4. Iniciando salvamento da arena...")
+                    print("4. Iniciando salvamento da arena...")
 
                 self.set_status("Salvando arena principal...")
 
                 # Salva o polígono no projeto
                 if self.DEBUG_ZONES:
-                    print(f"5. Chamando controller.set_main_arena_polygon...")
+                    print("5. Chamando controller.set_main_arena_polygon...")
                 success = self.controller.set_main_arena_polygon(self.current_polygon_points)
 
                 if self.DEBUG_ZONES:
@@ -1978,7 +1977,7 @@ class ApplicationGUI:
 
                     # Força redesenho com dados salvos
                     if self.DEBUG_ZONES:
-                        print(f"7. Iniciando redesenho das zonas...")
+                        print("7. Iniciando redesenho das zonas...")
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
@@ -2118,7 +2117,7 @@ class ApplicationGUI:
 
         if self.DEBUG_ZONES:
             zone_data = self.controller.project_manager.get_zone_data()
-            print(f"\n=== DEBUG REDRAW ===")
+            print("\n=== DEBUG REDRAW ===")
             print(f"1. Tem polygon? {bool(zone_data.polygon)}")
             if zone_data.polygon:
                 print(f"2. Pontos no polygon: {len(zone_data.polygon)}")
@@ -2479,7 +2478,7 @@ class ApplicationGUI:
                     )
                 except Exception:  # noqa: BLE001
                     pass
-            
+
             # Restore analysis and display intervals
             if pm.project_data.get("analysis_interval_frames") is not None:
                 try:
@@ -2963,7 +2962,7 @@ class ApplicationGUI:
                 # Use defaults
                 self.pending_single_video_config['analysis_interval_frames'] = 10
                 self.pending_single_video_config['display_interval_frames'] = 10
-                
+
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
             self.pending_single_video_path,

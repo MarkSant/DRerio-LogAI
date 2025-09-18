@@ -247,7 +247,7 @@ class ProjectManager:
             if "calibration" in loaded_data:
                 if "animals_per_aquarium" not in loaded_data["calibration"]:
                     loaded_data["calibration"]["animals_per_aquarium"] = 1
-                    log_context.info("project.load.backward_compatibility", 
+                    log_context.info("project.load.backward_compatibility",
                                    message="Added missing animals_per_aquarium field with default value 1")
             # --- End Backward Compatibility ---
 
@@ -279,7 +279,7 @@ class ProjectManager:
             return False
 
         config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
-        
+
         try:
             # Create a copy for hashing to avoid modifying the live object state
             data_to_save = self.project_data.copy()
