@@ -882,8 +882,8 @@ class AppController:
         )
         self.processing_thread.start()
 
-        # Return to welcome screen and notify user that processing started
-        self.view._create_welcome_frame()
+        # Permanecer na tela principal para exibir a barra de progresso
+        # self.view._create_welcome_frame()
         self.view.show_info(
             "Análise Iniciada",
             "A análise do vídeo foi iniciada em segundo plano.\n"
