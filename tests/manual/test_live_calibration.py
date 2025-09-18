@@ -45,7 +45,7 @@ def test_zone_validation():
         # Create mock controller
         root = tk.Tk()
         root.withdraw()  # Hide the window
-        controller = Controller(root)
+        controller = AppController(root)
         controller.project_manager = pm
 
         # Test 1: No zones defined
@@ -98,7 +98,7 @@ def test_live_project_setup():
     root.withdraw()  # Hide the window
 
     try:
-        controller = Controller(root)
+        controller = AppController(root)
         assert controller is not None
         print("✅ Controller created successfully")
 
