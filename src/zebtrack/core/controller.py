@@ -129,11 +129,15 @@ class AppController:
         # Auto-configura o detector com o peso do projeto
         self.active_weight_name = self.project_manager.project_data.get("active_weight")
         if self.active_weight_name:
-            log.info("controller.load_project.weight_restored", weight=self.active_weight_name)
+            log.info(
+                "controller.load_project.weight_restored", weight=self.active_weight_name
+            )
 
         # Auto-configura OpenVINO se estava ativo
         self.use_openvino = self.project_manager.project_data.get("use_openvino", False)
-        log.info("controller.load_project.openvino_restored", use_openvino=self.use_openvino)
+        log.info(
+            "controller.load_project.openvino_restored", use_openvino=self.use_openvino
+        )
 
         # Atualiza interface com configurações restauradas
         self.view.update_openvino_checkbox(self.use_openvino)

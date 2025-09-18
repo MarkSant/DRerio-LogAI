@@ -137,11 +137,19 @@ class ROIAnalyzer:
             ):
                 x_coords = self._trajectory["x_center_px"].to_numpy()
                 y_coords = self._trajectory["y_center_px"].to_numpy()
-            elif all(col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]):
-                x_coords = ((self._trajectory["x1"] + self._trajectory["x2"]) / 2).to_numpy()
-                y_coords = ((self._trajectory["y1"] + self._trajectory["y2"]) / 2).to_numpy()
+            elif all(
+                col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]
+            ):
+                x_coords = (
+                    (self._trajectory["x1"] + self._trajectory["x2"]) / 2
+                ).to_numpy()
+                y_coords = (
+                    (self._trajectory["y1"] + self._trajectory["y2"]) / 2
+                ).to_numpy()
             else:
-                raise ValueError("Cannot find suitable coordinate columns in trajectory data")
+                raise ValueError(
+                    "Cannot find suitable coordinate columns in trajectory data"
+                )
             coord_space = "px"
 
         # Convert ROI geometries to appropriate coordinate space if needed
@@ -168,12 +176,16 @@ class ROIAnalyzer:
         """
         if coord_space == "cm":
             # Convert px ROIs to cm if we have calibration data
-            if hasattr(self._b_analyzer, 'pixelcm_x') and hasattr(self._b_analyzer, 'pixelcm_y'):
+            if (hasattr(self._b_analyzer, 'pixelcm_x') and
+                    hasattr(self._b_analyzer, 'pixelcm_y')):
                 rois_in_cm = {}
                 for name, roi in self._rois.items():
                     # Convert polygon coordinates from px to cm
                     coords = list(roi.geometry.exterior.coords)
-                    cm_coords = [(x/self._b_analyzer.pixelcm_x, y/self._b_analyzer.pixelcm_y) for x, y in coords]
+                    cm_coords = [
+                        (x/self._b_analyzer.pixelcm_x, y/self._b_analyzer.pixelcm_y)
+                        for x, y in coords
+                    ]
                     rois_in_cm[name] = Polygon(cm_coords)
                 return rois_in_cm
             else:
@@ -192,7 +204,9 @@ class ROIAnalyzer:
         if self._inclusion_rule == "centroid_in":
             return self._calculate_centroid_in(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "centroid_in_on_buffered_roi":
-            return self._calculate_centroid_in_buffered(roi_geometry, roi_name, x_coords, y_coords, coord_space)
+            return self._calculate_centroid_in_buffered(
+                roi_geometry, roi_name, x_coords, y_coords, coord_space
+            )
         elif self._inclusion_rule == "bbox_intersects":
             return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "seg_overlap":
@@ -200,7 +214,9 @@ class ROIAnalyzer:
         else:
             raise ValueError(f"Unknown inclusion rule: {self._inclusion_rule}")
 
-    def _calculate_centroid_in(self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray) -> pd.Series:
+    def _calculate_centroid_in(
+        self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray
+    ) -> pd.Series:
         """Calculate presence using centroid inclusion (current behavior)."""
         prepare(roi_geometry)
         points = shapely.points(x_coords, y_coords)
@@ -216,7 +232,8 @@ class ROIAnalyzer:
         cache_key = f"{roi_name}_{coord_space}_{self._buffer_radius_value}"
         if cache_key not in self._buffered_rois_cache:
             buffer_radius = self._buffer_radius_value
-            # Note: buffer_radius is interpreted in cm when coord_space is cm, px when coord_space is px
+            # Note: buffer_radius is interpreted in cm when coord_space is cm,
+            # px when coord_space is px
             self._buffered_rois_cache[cache_key] = roi_geometry.buffer(buffer_radius)
 
         buffered_roi = self._buffered_rois_cache[cache_key]
@@ -225,11 +242,15 @@ class ROIAnalyzer:
         raw_presence_np = shapely.contains(buffered_roi, points)
         return pd.Series(raw_presence_np, index=self._trajectory.index)
 
-    def _calculate_bbox_intersects(self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray) -> pd.Series:
+    def _calculate_bbox_intersects(
+        self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray
+    ) -> pd.Series:
         """Calculate presence based on bbox intersection with ROI."""
         # Require bbox columns
         required_cols = ["x1", "y1", "x2", "y2"]
-        missing_cols = [col for col in required_cols if col not in self._trajectory.columns]
+        missing_cols = [
+            col for col in required_cols if col not in self._trajectory.columns
+        ]
         if missing_cols:
             raise ValueError(
                 f"Regra bbox_intersects requer colunas de bbox: {missing_cols}. "
@@ -256,10 +277,13 @@ class ROIAnalyzer:
     def _calculate_seg_overlap(self, roi_geometry: Polygon) -> pd.Series:
         """Calculate presence based on segmentation mask overlap."""
         # Check for segmentation data columns
-        # Note: We don't persist segmentation masks in this PR, so this will always error
+        # Note: We don't persist segmentation masks in this PR,
+        # so this will always error
         raise ValueError(
-            "Regra seg_overlap requer dados de segmentação que não estão disponíveis neste dataset. "
-            "Por favor, selecione outra regra de inclusão (centroid_in, centroid_in_on_buffered_roi, ou bbox_intersects)."
+            "Regra seg_overlap requer dados de segmentação que não estão "
+            "disponíveis neste dataset. "
+            "Por favor, selecione outra regra de inclusão (centroid_in, "
+            "centroid_in_on_buffered_roi, ou bbox_intersects)."
         )
 
     def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:

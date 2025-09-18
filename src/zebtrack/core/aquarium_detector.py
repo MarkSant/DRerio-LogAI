@@ -83,7 +83,9 @@ class AquariumDetector:
                     break
 
                 # Primeiro tenta detectar aquário (classe 0) com threshold otimizado
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+                results = self.model.predict(
+                    frame, verbose=False, classes=[0], conf=0.05
+                )
 
                 # Debug detalhado
                 log.info("aquarium_detector.frame_analysis",
@@ -232,7 +234,8 @@ class AquariumDetector:
                 log.warning("aquarium_detector.detect.no_good_polygons_found")
                 log.info("aquarium_detector.generating_default_polygon")
 
-                # Como último recurso, cria um polígono padrão baseado no tamanho do frame
+                # Como último recurso, cria um polígono padrão baseado no tamanho
+                # do frame
                 # Assume aquário no centro com 80% da área do frame
                 try:
                     cap_temp = source._cap if hasattr(source, '_cap') else None
