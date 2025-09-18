@@ -9,6 +9,7 @@ import pandas as pd
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack import settings
 
 
 class AnalysisService:
@@ -84,7 +85,13 @@ class AnalysisService:
         if not rois:
             return report, b_analyzer, None
 
-        r_analyzer = ROIAnalyzer(behavior_analyzer=b_analyzer, rois=rois)
+        r_analyzer = ROIAnalyzer(
+            behavior_analyzer=b_analyzer, 
+            rois=rois,
+            inclusion_rule=settings.roi_inclusion_rule,
+            buffer_radius_value=settings.roi_buffer_radius_value,
+            min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio
+        )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
             "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),

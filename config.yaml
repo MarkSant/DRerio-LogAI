@@ -43,3 +43,8 @@ reproducibility:
   # Seed for random number generators to ensure that repeated runs with the
   # same video and settings produce identical results.
   seed: 42
+
+# ROI inclusion rule settings
+roi_inclusion_rule: "bbox_intersects"
+roi_buffer_radius_value: 0.5
+roi_min_bbox_overlap_ratio: 0.10

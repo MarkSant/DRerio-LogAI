@@ -4,7 +4,7 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Literal
 
 import structlog
 import yaml
@@ -129,6 +129,11 @@ class Settings(BaseModel):
         default_factory=DetectionZonesSettings
     )
     reproducibility: ReproducibilitySettings
+    
+    # ROI inclusion rule settings
+    roi_inclusion_rule: Literal["centroid_in", "centroid_in_on_buffered_roi", "bbox_intersects", "seg_overlap"] = "bbox_intersects"
+    roi_buffer_radius_value: float = 0.5
+    roi_min_bbox_overlap_ratio: float = 0.10
 
 
 def _merge_configs(base: dict, override: dict) -> dict:

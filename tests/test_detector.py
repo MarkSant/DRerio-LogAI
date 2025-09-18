@@ -130,6 +130,55 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(len(detections), 0)
         self.assertIsNone(command)
 
+    def test_is_inside_polygon_four_corners_or_center(self):
+        """Test the _is_inside_polygon method with 4 corners OR center logic."""
+        polygon = np.array([[100, 100], [200, 100], [200, 200], [100, 200]])
+        
+        # Test case 1: center inside, all corners outside
+        # bbox: x1=50, y1=50, x2=90, y2=90 (all corners outside)
+        # center: (70, 70) - outside
+        self.assertFalse(self.detector._is_inside_polygon(50, 50, 90, 90, polygon))
+        
+        # Test case 2: center inside, some corners outside  
+        # bbox: x1=80, y1=80, x2=120, y2=120
+        # center: (100, 100) - outside, but corner (120, 120) inside
+        self.assertTrue(self.detector._is_inside_polygon(80, 80, 120, 120, polygon))
+        
+        # Test case 3: only one corner inside
+        # bbox: x1=90, y1=90, x2=110, y2=110
+        # corner (110, 110) is inside
+        self.assertTrue(self.detector._is_inside_polygon(90, 90, 110, 110, polygon))
+        
+        # Test case 4: center inside, corners outside
+        # bbox: x1=140, y1=140, x2=160, y2=160
+        # center: (150, 150) inside
+        self.assertTrue(self.detector._is_inside_polygon(140, 140, 160, 160, polygon))
+        
+        # Test case 5: all points outside
+        # bbox: x1=250, y1=250, x2=300, y2=300
+        self.assertFalse(self.detector._is_inside_polygon(250, 250, 300, 300, polygon))
+        
+        # Test case 6: empty polygon
+        empty_polygon = np.array([])
+        self.assertFalse(self.detector._is_inside_polygon(150, 150, 160, 160, empty_polygon))
+
+    def test_bbox_hits_roi_polygon_helper(self):
+        """Test the bbox_hits_roi_polygon helper method."""
+        roi_polygon = np.array([[50, 50], [100, 50], [100, 100], [50, 100]])
+        
+        # Test case 1: bbox completely inside
+        self.assertTrue(self.detector.bbox_hits_roi_polygon(60, 60, 90, 90, roi_polygon))
+        
+        # Test case 2: bbox completely outside
+        self.assertFalse(self.detector.bbox_hits_roi_polygon(200, 200, 250, 250, roi_polygon))
+        
+        # Test case 3: only center inside
+        self.assertTrue(self.detector.bbox_hits_roi_polygon(70, 70, 80, 80, roi_polygon))
+        
+        # Test case 4: empty ROI polygon
+        empty_roi = np.array([])
+        self.assertFalse(self.detector.bbox_hits_roi_polygon(75, 75, 85, 85, empty_roi))
+
 
 if __name__ == "__main__":
     unittest.main()
