@@ -186,6 +186,14 @@ class OpenVINOPlugin(DetectorPlugin):
                 )
             )
 
+        # 4. Apply single animal mode if enabled
+        if settings.video_processing.single_animal_per_aquarium and predictions:
+            # Force all detections to have track_id=1 in single animal mode
+            predictions = [
+                (pred[0], pred[1], pred[2], pred[3], pred[4], 1)
+                for pred in predictions
+            ]
+
         return predictions
 
     def predict(self, frame: np.ndarray, conf_threshold: float = None) -> List[Dict[str, Any]]:

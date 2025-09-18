@@ -38,6 +38,8 @@ video_processing:
   freezing_velocity_threshold: 2.0
   # Minimum duration for a freezing episode (seconds).
   freezing_min_duration_s: 1.0
+  # Single animal tracking mode - ensures consistent track_id=1
+  single_animal_per_aquarium: false
 
 reproducibility:
   # Seed for random number generators to ensure that repeated runs with the

@@ -16,6 +16,27 @@ from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
 
 
+def _normalize_color_for_matplotlib(color):
+    """
+    Normalize color to matplotlib format (0-1 range).
+    
+    Handles different input formats:
+    - RGB tuple (0-255): convert to (0-1)
+    - String/named color: return as-is
+    - Already normalized (0-1): return as-is
+    """
+    if isinstance(color, (tuple, list)) and len(color) == 3:
+        # Check if values are in 0-255 range (need normalization)
+        # If any value is > 1, assume it's in 0-255 range
+        if any(isinstance(c, (int, float)) and c > 1 for c in color):
+            return tuple(c / 255.0 for c in color)
+        else:
+            # Already normalized or mixed values
+            return color
+    # String colors or other formats - return as-is
+    return color
+
+
 class Reporter:
     def __init__(
         self,
@@ -241,11 +262,13 @@ class Reporter:
         if self.r_analyzer:
             for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
                 roi_color = self.roi_colors.get(roi_name, "blue")
+                # Normalize color for matplotlib (0-255 RGB tuples -> 0-1 range)
+                normalized_color = _normalize_color_for_matplotlib(roi_color)
                 ax.add_patch(
                     patches.Polygon(
                         roi.geometry.exterior.coords,
                         fill=True,
-                        color=roi_color,
+                        color=normalized_color,
                         alpha=0.4,
                     )
                 )
@@ -260,7 +283,7 @@ class Reporter:
                     fontweight="bold",
                     fontsize=12,
                     bbox=dict(
-                        facecolor=roi_color,
+                        facecolor=normalized_color,
                         alpha=0.7,
                         boxstyle="circle,pad=0.2",
                         ec="none",
