@@ -118,7 +118,8 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "backward_compat_project")
         os.makedirs(project_path, exist_ok=True)
 
-        # Create a project config WITHOUT animals_per_aquarium field (simulates old project)
+        # Create a project config WITHOUT animals_per_aquarium field
+        # (simulates old project)
         old_project_data = {
             "project_name": "backward_compat_project",
             "project_type": "live",
@@ -142,7 +143,9 @@ class TestProjectManager(unittest.TestCase):
 
         self.assertTrue(success)
         self.assertEqual(pm.project_data["calibration"]["num_aquariums"], 2)
-        self.assertEqual(pm.project_data["calibration"]["animals_per_aquarium"], 1)  # Default value added
+        self.assertEqual(
+            pm.project_data["calibration"]["animals_per_aquarium"], 1
+        )  # Default value added
 
     def test_load_project(self):
         """Test loading an existing project configuration."""

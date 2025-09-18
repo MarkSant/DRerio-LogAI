@@ -11,7 +11,13 @@ import numpy as np
 import pandas as pd
 import structlog
 from shapely.geometry import Polygon
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    YOLO = None
+    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
@@ -129,11 +135,16 @@ class AppController:
         # Auto-configura o detector com o peso do projeto
         self.active_weight_name = self.project_manager.project_data.get("active_weight")
         if self.active_weight_name:
-            log.info("controller.load_project.weight_restored", weight=self.active_weight_name)
+            log.info(
+                "controller.load_project.weight_restored",
+                weight=self.active_weight_name
+            )
 
         # Auto-configura OpenVINO se estava ativo
         self.use_openvino = self.project_manager.project_data.get("use_openvino", False)
-        log.info("controller.load_project.openvino_restored", use_openvino=self.use_openvino)
+        log.info(
+            "controller.load_project.openvino_restored", use_openvino=self.use_openvino
+        )
 
         # Atualiza interface com configurações restauradas
         self.view.update_openvino_checkbox(self.use_openvino)
@@ -286,7 +297,8 @@ class AppController:
         log.info("controller.setup_zones.success")
 
         # Informa ao plugin se o aquário está definido
-        if self.detector and hasattr(self.detector.plugin, 'set_aquarium_region_defined'):
+        if (self.detector and
+                hasattr(self.detector.plugin, 'set_aquarium_region_defined')):
             has_aquarium = bool(zone_data and zone_data.polygon)
             self.detector.plugin.set_aquarium_region_defined(has_aquarium)
             log.info("detector.aquarium_status", defined=has_aquarium)
@@ -1764,6 +1776,13 @@ class AppController:
 
         try:
             if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
+                if not ULTRALYTICS_AVAILABLE:
+                    log.error("diagnostic.yolo.unavailable")
+                    config["update_progress"](
+                        "Erro: YOLO não está disponível (ultralytics não instalado)"
+                    )
+                    return
+
                 yolo_model = YOLO(weight_details["path"])
                 # Define contexto diagnóstico
                 if hasattr(yolo_model, 'set_context'):

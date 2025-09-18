@@ -90,7 +90,8 @@ def main():
             if plugin._context == 'diagnostic':
                 # In diagnostic mode NEVER filter: include all returned classes
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]),
+                     float(conf), class_id)
                 )
             else:
                 # Tracking mode:
@@ -99,7 +100,8 @@ def main():
                 if plugin._aquarium_region_defined and class_id != 1:
                     continue
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]),
+                     float(conf), class_id)
                 )
         return final_detections
 
@@ -113,8 +115,11 @@ def main():
 
     def format_detections(detections):
         class_names = {0: 'aquarium', 1: 'zebrafish'}
-        return [f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}"
-                for det in detections]
+        return [
+            f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): "
+            f"bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}"
+            for det in detections
+        ]
 
     print("\n1. DIAGNOSTIC MODE (Weight Testing)")
     print("-" * 40)
@@ -123,7 +128,8 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (both aquarium and zebrafish) for comprehensive model testing")
+    print("✓ Shows ALL classes (both aquarium and zebrafish) for "
+          "comprehensive model testing")
 
     print("\n2. TRACKING MODE - Before Aquarium Region Defined")
     print("-" * 40)
@@ -133,7 +139,8 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (helpful for initial setup before aquarium is detected/drawn)")
+    print("✓ Shows ALL classes (helpful for initial setup before "
+          "aquarium is detected/drawn)")
 
     print("\n3. TRACKING MODE - After Aquarium Region Defined")
     print("-" * 40)

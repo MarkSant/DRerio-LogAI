@@ -18,7 +18,9 @@ class TestAppController(unittest.TestCase):
         self.mock_wm = mock_wm.return_value
 
         # Configure the mock WeightManager to return a predictable default weight
-        self.mock_wm.get_default_weight.return_value = ("best_seg.pt", "/fake/path/best_seg.pt")
+        self.mock_wm.get_default_weight.return_value = (
+            "best_seg.pt", "/fake/path/best_seg.pt"
+        )
 
 
         self.controller = AppController(self.root)
@@ -91,7 +93,8 @@ class TestAppController(unittest.TestCase):
         self.mock_view._load_project_view.assert_not_called()
 
     def test_run_tracking_with_intervals(self):
-        """Test that _run_tracking_if_needed accepts and uses analysis/display intervals."""
+        """Test that _run_tracking_if_needed accepts and uses analysis/display
+        intervals."""
         # --- Arrange ---
         with patch("cv2.VideoCapture") as mock_cap, \
              patch.object(self.controller, "detector") as mock_detector, \
@@ -118,7 +121,9 @@ class TestAppController(unittest.TestCase):
 
             # Mock project manager
             self.mock_pm.get_zone_data.return_value = MagicMock()
-            self.mock_pm.get_zone_data.return_value.polygon = [[0,0], [640,0], [640,480], [0,480]]
+            self.mock_pm.get_zone_data.return_value.polygon = [
+                [0,0], [640,0], [640,480], [0,480]
+            ]
 
             mock_recorder_instance = mock_recorder_class.return_value
 
@@ -137,7 +142,8 @@ class TestAppController(unittest.TestCase):
 
             # --- Assert ---
             self.assertTrue(success)
-            # With 5 frames and analysis_interval=2, should process frames 0, 2, 4 (3 times)
+            # With 5 frames and analysis_interval=2, should process frames 0, 2, 4
+            # (3 times)
             self.assertEqual(mock_detector.process_frame.call_count, 3)
             # Should call recorder write for each processed frame
             self.assertEqual(mock_recorder_instance.write_detection_data.call_count, 3)
@@ -145,7 +151,8 @@ class TestAppController(unittest.TestCase):
             self.assertEqual(progress_callback.call_count, 5)
 
     def test_process_videos_interval_resolution(self):
-        """Test that _process_videos correctly resolves analysis and display intervals."""
+        """Test that _process_videos correctly resolves analysis and display
+        intervals."""
         # --- Arrange ---
         with patch.object(self.controller, "_run_tracking_if_needed") as mock_tracking:
             mock_tracking.return_value = (True, [[0,0], [100,0], [100,100], [0,100]])

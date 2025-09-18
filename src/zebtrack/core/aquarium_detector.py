@@ -2,7 +2,13 @@ import cv2
 import numpy as np
 import structlog
 from shapely.geometry import Polygon
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    YOLO = None
+    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.io.video_source import VideoFileSource
 
@@ -21,6 +27,11 @@ class AquariumDetector:
         Args:
             model_path (str): Path to the YOLO segmentation model (.pt file).
         """
+        if not ULTRALYTICS_AVAILABLE:
+            raise ImportError(
+                "Ultralytics is not available. Please install ultralytics package."
+            )
+
         try:
             self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path)
@@ -83,7 +94,9 @@ class AquariumDetector:
                     break
 
                 # Primeiro tenta detectar aquário (classe 0) com threshold otimizado
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+                results = self.model.predict(
+                    frame, verbose=False, classes=[0], conf=0.05
+                )
 
                 # Debug detalhado
                 log.info("aquarium_detector.frame_analysis",
@@ -232,7 +245,8 @@ class AquariumDetector:
                 log.warning("aquarium_detector.detect.no_good_polygons_found")
                 log.info("aquarium_detector.generating_default_polygon")
 
-                # Como último recurso, cria um polígono padrão baseado no tamanho do frame
+                # Como último recurso, cria um polígono padrão baseado no tamanho
+                # do frame
                 # Assume aquário no centro com 80% da área do frame
                 try:
                     cap_temp = source._cap if hasattr(source, '_cap') else None

@@ -6,12 +6,11 @@ Teste das melhorias de threshold para modelos de baixa confiança
 
 import warnings
 
+import cv2
 import yaml
+from ultralytics import YOLO
 
 warnings.filterwarnings("ignore")
-
-import cv2
-from ultralytics import YOLO
 
 
 def test_config_threshold():

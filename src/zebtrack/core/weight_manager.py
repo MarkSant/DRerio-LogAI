@@ -6,7 +6,13 @@ from pathlib import Path
 from tkinter import messagebox
 
 import structlog
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    YOLO = None
+    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.settings import settings
 from zebtrack.utils import calculate_sha256
@@ -229,6 +235,13 @@ class WeightManager:
 
         log.info("openvino.export.start", model=name)
         temp_export_path = None
+
+        if not ULTRALYTICS_AVAILABLE:
+            raise ImportError(
+                "Ultralytics is not available for OpenVINO export. "
+                "Please install ultralytics package."
+            )
+
         try:
             model = YOLO(pt_path)
             # The 'half=True' argument enables FP16 quantization.

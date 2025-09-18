@@ -1,7 +1,13 @@
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    YOLO = None
+    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
@@ -17,6 +23,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         Args:
             model_path (str): The path to the .pt model file.
         """
+        if not ULTRALYTICS_AVAILABLE:
+            raise ImportError(
+                "Ultralytics is not available. Please install ultralytics package."
+            )
         self.model = YOLO(model_path)
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
