@@ -4,11 +4,11 @@
 Teste simples de preservação de metadata
 """
 
-import sys
-import os
 import json
+import os
 import shutil
 import warnings
+
 warnings.filterwarnings("ignore")
 
 def test_metadata_creation():
@@ -63,7 +63,7 @@ def test_metadata_creation():
                     metadata = json.load(f)
                     if 'class_names' in metadata:
                         class_names = {int(k): v for k, v in metadata['class_names'].items()}
-                    print(f"   SUCESSO: Metadata carregado com sucesso")
+                    print("   SUCESSO: Metadata carregado com sucesso")
                     print(f"   Classes carregadas: {class_names}")
             except Exception as e:
                 print(f"   ERRO: Erro ao carregar metadata: {e}")

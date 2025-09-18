@@ -4,14 +4,13 @@
 Teste de diferentes thresholds para detecção de aquário
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
+
 
 def test_aquarium_thresholds():
     """Testa diferentes confidence thresholds para encontrar aquários"""
@@ -47,7 +46,7 @@ def test_aquarium_thresholds():
 
         # Teste 1: Todas as classes
         results_all = model.predict(frame, verbose=False, conf=conf_thresh)
-        print(f"  Todas classes:")
+        print("  Todas classes:")
         if results_all and results_all[0]:
             result = results_all[0]
             boxes_count = len(result.boxes) if result.boxes else 0
@@ -65,7 +64,7 @@ def test_aquarium_thresholds():
 
         # Teste 2: Só classe 0 (aquário)
         results_aqua = model.predict(frame, verbose=False, conf=conf_thresh, classes=[0])
-        print(f"  Só aquário (classe 0):")
+        print("  Só aquário (classe 0):")
         if results_aqua and results_aqua[0]:
             result = results_aqua[0]
             boxes_count = len(result.boxes) if result.boxes else 0

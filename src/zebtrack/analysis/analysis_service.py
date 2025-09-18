@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
+from zebtrack import settings
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack import settings
 
 
 class AnalysisService:
@@ -86,7 +86,7 @@ class AnalysisService:
             return report, b_analyzer, None
 
         r_analyzer = ROIAnalyzer(
-            behavior_analyzer=b_analyzer, 
+            behavior_analyzer=b_analyzer,
             rois=rois,
             inclusion_rule=settings.roi_inclusion_rule,
             buffer_radius_value=settings.roi_buffer_radius_value,

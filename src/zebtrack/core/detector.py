@@ -127,11 +127,11 @@ class Detector:
         """
         if polygon.size == 0:
             return False
-        
+
         # Calculate all 5 points: 4 corners + center
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
-        
+
         points_to_test = [
             (x1, y1),      # top-left
             (x2, y1),      # top-right
@@ -139,12 +139,12 @@ class Detector:
             (x1, y2),      # bottom-left
             (center_x, center_y)  # center
         ]
-        
+
         # Return True if ANY of the 5 points is inside the polygon
         for point in points_to_test:
             if cv2.pointPolygonTest(polygon, point, False) >= 0:
                 return True
-        
+
         return False
 
     def bbox_hits_roi_polygon(self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray) -> bool:
@@ -154,24 +154,24 @@ class Detector:
         """
         if roi_polygon.size == 0:
             return False
-            
+
         # Calculate all 5 points: 4 corners + center
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
-        
+
         points_to_test = [
             (x1, y1),      # top-left
-            (x2, y1),      # top-right 
+            (x2, y1),      # top-right
             (x2, y2),      # bottom-right
             (x1, y2),      # bottom-left
             (center_x, center_y)  # center
         ]
-        
+
         # Return True if ANY of the 5 points is inside the polygon
         for point in points_to_test:
             if cv2.pointPolygonTest(roi_polygon, point, False) >= 0:
                 return True
-        
+
         return False
 
     def process_frame(self, frame: np.ndarray, project_type: str):

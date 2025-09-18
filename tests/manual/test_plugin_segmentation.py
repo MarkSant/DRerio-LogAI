@@ -4,9 +4,10 @@
 Teste do plugin YOLO modificado com suporte a instance segmentation
 """
 
-import sys
 import os
+import sys
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Adiciona src ao path
@@ -14,7 +15,7 @@ if os.path.exists('src'):
     sys.path.insert(0, 'src')
 
 import cv2
-import numpy as np
+
 
 def test_plugin():
     """Testa o plugin YOLO modificado"""

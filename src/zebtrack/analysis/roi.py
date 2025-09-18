@@ -47,10 +47,11 @@ class ROIAnalyzer:
             flutter_n_frames (int): The number of consecutive frames an animal
                 must be inside/outside an ROI to confirm an entry/exit event.
             inclusion_rule (str): Rule for determining ROI inclusion.
-                Options: "centroid_in", "centroid_in_on_buffered_roi", 
+                Options: "centroid_in", "centroid_in_on_buffered_roi",
                 "bbox_intersects", "seg_overlap"
             buffer_radius_value (Optional[float]): Radius for buffered ROI rule.
-            min_bbox_overlap_ratio (Optional[float]): Minimum overlap ratio for bbox rule.
+            min_bbox_overlap_ratio (Optional[float]): Minimum overlap ratio
+                for bbox rule.
         """
         self._b_analyzer = behavior_analyzer
         self._rois = {roi.name: roi for roi in rois}
@@ -109,19 +110,20 @@ class ROIAnalyzer:
 
     def _calculate_presence_in_rois(self):
         """
-        Calculates raw and stable presence for each ROI based on the configured inclusion rule.
-        Also creates a single column with the current stable ROI name.
+        Calculates raw and stable presence for each ROI based on the
+        configured inclusion rule. Also creates a single column with
+        the current stable ROI name.
         """
         # Calculate time delta between frames for later use
         self._trajectory["dt"] = self._trajectory.index.to_series().diff()
 
         # Determine coordinate space and extract coordinates
         use_cm_coords = (
-            "x_cm_smoothed" in self._trajectory.columns 
+            "x_cm_smoothed" in self._trajectory.columns
             and "y_cm_smoothed" in self._trajectory.columns
             and not self._trajectory["x_cm_smoothed"].isna().all()
         )
-        
+
         if use_cm_coords:
             x_coords = self._trajectory["x_cm_smoothed"].to_numpy()
             y_coords = self._trajectory["y_cm_smoothed"].to_numpy()
@@ -129,7 +131,7 @@ class ROIAnalyzer:
         else:
             # Try x_center_px/y_center_px first, then derive from bbox
             if (
-                "x_center_px" in self._trajectory.columns 
+                "x_center_px" in self._trajectory.columns
                 and "y_center_px" in self._trajectory.columns
                 and not self._trajectory["x_center_px"].isna().all()
             ):
@@ -144,12 +146,12 @@ class ROIAnalyzer:
 
         # Convert ROI geometries to appropriate coordinate space if needed
         rois_in_coord_space = self._get_rois_in_coordinate_space(coord_space)
-        
+
         for name, roi_geometry in rois_in_coord_space.items():
             raw_presence = self._calculate_roi_presence_by_rule(
                 roi_geometry, name, x_coords, y_coords, coord_space
             )
-            
+
             self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
                 raw_presence
             )
@@ -181,7 +183,7 @@ class ROIAnalyzer:
             return {name: roi.geometry for name, roi in self._rois.items()}
 
     def _calculate_roi_presence_by_rule(
-        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray, 
+        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray,
         y_coords: np.ndarray, coord_space: str
     ) -> pd.Series:
         """
@@ -206,7 +208,7 @@ class ROIAnalyzer:
         return pd.Series(raw_presence_np, index=self._trajectory.index)
 
     def _calculate_centroid_in_buffered(
-        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray, 
+        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray,
         y_coords: np.ndarray, coord_space: str
     ) -> pd.Series:
         """Calculate presence using buffered ROI and centroid inclusion."""
@@ -216,7 +218,7 @@ class ROIAnalyzer:
             buffer_radius = self._buffer_radius_value
             # Note: buffer_radius is interpreted in cm when coord_space is cm, px when coord_space is px
             self._buffered_rois_cache[cache_key] = roi_geometry.buffer(buffer_radius)
-        
+
         buffered_roi = self._buffered_rois_cache[cache_key]
         prepare(buffered_roi)
         points = shapely.points(x_coords, y_coords)
@@ -234,10 +236,10 @@ class ROIAnalyzer:
                 f"Essas colunas não estão disponíveis no dataset. "
                 f"Considere usar 'centroid_in' ou 'centroid_in_on_buffered_roi'."
             )
-        
+
         prepare(roi_geometry)
         raw_presence_list = []
-        
+
         # Process frame by frame for bbox intersection calculation
         # TODO: This could be optimized for very large trajectories by chunking
         for idx, row in self._trajectory.iterrows():
@@ -248,7 +250,7 @@ class ROIAnalyzer:
             else:
                 overlap_ratio = intersection.area / bbox.area
                 raw_presence_list.append(overlap_ratio >= self._min_bbox_overlap_ratio)
-        
+
         return pd.Series(raw_presence_list, index=self._trajectory.index)
 
     def _calculate_seg_overlap(self, roi_geometry: Polygon) -> pd.Series:

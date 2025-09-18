@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+
 def check_project_state(project_path):
     """Verifica o estado do projeto salvo"""
     json_path = Path(project_path) / "project.json"
@@ -18,7 +19,7 @@ def check_project_state(project_path):
     print(f"Tipo: {data.get('project_type', 'N/A')}")
 
     zones = data.get('detection_zones', {})
-    print(f"\n=== DETECTION ZONES ===")
+    print("\n=== DETECTION ZONES ===")
     print(f"Tem detection_zones? {bool(zones)}")
 
     if zones:

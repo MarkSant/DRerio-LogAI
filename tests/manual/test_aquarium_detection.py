@@ -4,10 +4,11 @@
 Teste da detecção automática de aquário com logs detalhados
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Configura logging para ver os outputs detalhados
@@ -61,7 +62,7 @@ def test_aquarium_detection():
 
         polygons = detector.detect_aquariums("CECT_8.mp4", stabilization_frames=10)
 
-        print(f"\n📊 RESULTADO:")
+        print("\n📊 RESULTADO:")
         if polygons:
             print(f"✅ {len(polygons)} polígono(s) de aquário detectado(s)")
             for i, polygon in enumerate(polygons):

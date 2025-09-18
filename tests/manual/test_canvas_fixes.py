@@ -4,16 +4,17 @@
 Teste das correções do canvas vazio para desenho de polígonos
 """
 
-import sys
 import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
-import cv2
-import numpy as np
-from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import Canvas
+
+import cv2
+from PIL import Image, ImageTk
+
 
 def test_canvas_functionality():
     """Simula e testa a funcionalidade de carregamento de frame no canvas"""

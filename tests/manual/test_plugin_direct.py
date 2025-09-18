@@ -4,15 +4,16 @@
 Teste direto do plugin YOLO modificado
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
+
+from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from typing import List, Tuple, Dict, Any
+
 
 class TestUltralyticsPlugin:
     """Versão simplificada do plugin para teste"""

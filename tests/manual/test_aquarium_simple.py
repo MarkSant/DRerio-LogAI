@@ -4,14 +4,14 @@
 Teste simples da detecção automática de aquário
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
+
 
 def simple_aquarium_detection_test():
     """Teste manual da detecção de aquário com debug"""
@@ -88,7 +88,7 @@ def simple_aquarium_detection_test():
                     # Critério: exatamente 1 máscara, área > 30% do frame
                     if len(polygons) == 1 and area_ratio > 0.3:
                         good_polygons.append(poly.astype(np.int32))
-                        print(f"      ✅ POLÍGONO ACEITO (área satisfatória)")
+                        print("      ✅ POLÍGONO ACEITO (área satisfatória)")
                     elif len(polygons) != 1:
                         print(f"      ❌ Rejeitado: {len(polygons)} máscaras (esperado: 1)")
                     else:
@@ -100,7 +100,7 @@ def simple_aquarium_detection_test():
 
     cap.release()
 
-    print(f"\n📊 RESUMO FINAL:")
+    print("\n📊 RESUMO FINAL:")
     print(f"Polígonos válidos encontrados: {len(good_polygons)}")
 
     if good_polygons:

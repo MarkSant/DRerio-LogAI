@@ -8,19 +8,22 @@ This script shows how the new context-based filtering works:
 3. In tracking mode after aquarium is defined: Only zebrafish (class 1) is shown
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from unittest.mock import MagicMock
+
 import numpy as np
 import torch
+
 
 def main():
     print("=" * 60)
     print("OpenVINO Class Filtering Patch Demonstration")
     print("=" * 60)
-    
+
     # Mock all dependencies
     sys.modules['cython_bbox'] = MagicMock()
     sys.modules['zebtrack.tracker.byte_tracker'] = MagicMock()
@@ -82,7 +85,7 @@ def main():
         final_detections = []
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
-            
+
             # NEW FILTERING LOGIC:
             if plugin._context == 'diagnostic':
                 # In diagnostic mode NEVER filter: include all returned classes
@@ -110,7 +113,7 @@ def main():
 
     def format_detections(detections):
         class_names = {0: 'aquarium', 1: 'zebrafish'}
-        return [f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}" 
+        return [f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}"
                 for det in detections]
 
     print("\n1. DIAGNOSTIC MODE (Weight Testing)")
@@ -148,7 +151,7 @@ def main():
     print("- Tracking before aquarium: Shows all classes for initial setup")
     print("- Tracking after aquarium: Shows only zebrafish for focused analysis")
     print("=" * 60)
-    
+
     return True
 
 if __name__ == "__main__":

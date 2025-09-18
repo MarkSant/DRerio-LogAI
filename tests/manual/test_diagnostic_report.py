@@ -4,15 +4,14 @@
 Teste do relatório de diagnóstico com suporte a máscaras de segmentação
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
+
 import cv2
-import numpy as np
 from ultralytics import YOLO
-from typing import List, Tuple, Dict, Any
+
 
 def mock_diagnostic_report_test():
     """Simula o diagnóstico e testa a formatação do relatório"""

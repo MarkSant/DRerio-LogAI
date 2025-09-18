@@ -4,7 +4,7 @@ a loader function to read and validate the configuration from a YAML file.
 """
 
 from pathlib import Path
-from typing import List, Tuple, Literal
+from typing import List, Literal, Tuple
 
 import structlog
 import yaml
@@ -85,7 +85,7 @@ class VideoProcessingSettings(BaseModel):
     freezing_min_duration_s: float = 1.0
     # Single animal tracking mode
     single_animal_per_aquarium: bool = Field(
-        False, 
+        False,
         description="When True, forces consistent track_id=1 for single animal scenarios."
     )
 
@@ -134,7 +134,7 @@ class Settings(BaseModel):
         default_factory=DetectionZonesSettings
     )
     reproducibility: ReproducibilitySettings
-    
+
     # ROI inclusion rule settings
     roi_inclusion_rule: Literal["centroid_in", "centroid_in_on_buffered_roi", "bbox_intersects", "seg_overlap"] = "bbox_intersects"
     roi_buffer_radius_value: float = 0.5

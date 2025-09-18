@@ -4,14 +4,13 @@
 Teste do controle de sensibilidade na interface de calibração
 """
 
-import sys
-import os
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import tkinter as tk
-from tkinter import ttk
-from tkinter import StringVar
+from tkinter import StringVar, ttk
+
 
 def test_sensitivity_control():
     """Simula e testa o controle de sensibilidade"""
@@ -32,7 +31,7 @@ def test_sensitivity_control():
     main_frame.pack(fill="x", pady=10, padx=10)
 
     # Variáveis
-    sensitivity_var = StringVar(value="0.15")
+    StringVar(value="0.15")
     current_threshold = [0.15]  # Lista para simular referência mutável
 
     # Label
