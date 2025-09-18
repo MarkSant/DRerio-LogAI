@@ -14,9 +14,11 @@ Output naming stages: user-visible prefixes `1_`, `2_`, `3_` must remain stable 
 
 ### 4. Detector / Plugin Rules
 Plugins implement `DetectorPlugin` (see `plugins/base.py`) + `get_name()`. Register in `plugins/__init__.py: DETECTOR_PLUGINS`. Guard for missing track IDs (some models). Maintain non-blocking inference (no GUI thread stalls). OpenVINO path must contain paired `.xml` + `.bin`; conversion handled lazily by `core/weight_manager.py`.
+Arena inclusion uses "4 corners OR center" logic (`_is_inside_polygon`). Helper `bbox_hits_roi_polygon` available for ROI checking.
 
 ### 5. Behavioral & ROI Analysis
 Behavior metrics live in `analysis/behavior.py`; orchestration in `behavioral_analyzer.py`; ROI computations in `roi.py`; reporter aggregates & emits Excel/Docx (`reporter.py`). Adding a metric: implement function or extend analyzer, add to reporter export mapping, create synthetic trajectory test in `tests/analysis/`.
+ROI analysis supports configurable inclusion rules: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects` (default), `seg_overlap`. Settings: `roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio`.
 
 ### 6. Calibration & Units
 Calibration (`core/calibration.py`) yields pixel_per_cm ratio; only then `recorder` appends `x_cm,y_cm`. Code consuming cm coords must tolerate absence (fallback to px if columns missing).

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import shapely
 from shapely import prepare
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, box
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
@@ -33,6 +33,9 @@ class ROIAnalyzer:
         behavior_analyzer: BehavioralAnalyzer,
         rois: List[ROI],
         flutter_n_frames: int = 3,
+        inclusion_rule: str = "bbox_intersects",
+        buffer_radius_value: Optional[float] = None,
+        min_bbox_overlap_ratio: Optional[float] = None,
     ):
         """
         Initializes the ROIAnalyzer.
@@ -43,11 +46,20 @@ class ROIAnalyzer:
             rois (List[ROI]): A list of ROI objects to be analyzed.
             flutter_n_frames (int): The number of consecutive frames an animal
                 must be inside/outside an ROI to confirm an entry/exit event.
+            inclusion_rule (str): Rule for determining ROI inclusion.
+                Options: "centroid_in", "centroid_in_on_buffered_roi", 
+                "bbox_intersects", "seg_overlap"
+            buffer_radius_value (Optional[float]): Radius for buffered ROI rule.
+            min_bbox_overlap_ratio (Optional[float]): Minimum overlap ratio for bbox rule.
         """
         self._b_analyzer = behavior_analyzer
         self._rois = {roi.name: roi for roi in rois}
         self._trajectory = self._b_analyzer.trajectory_data.copy()
         self._flutter_n = flutter_n_frames
+        self._inclusion_rule = inclusion_rule
+        self._buffer_radius_value = buffer_radius_value or 0.5
+        self._min_bbox_overlap_ratio = min_bbox_overlap_ratio or 0.10
+        self._buffered_rois_cache = {}  # Cache for buffered ROI geometries
         self._validate_rois()
         self._calculate_presence_in_rois()
 
@@ -97,33 +109,47 @@ class ROIAnalyzer:
 
     def _calculate_presence_in_rois(self):
         """
-        Calculates raw and stable presence for each ROI and adds it to the
-        trajectory DataFrame. Also creates a single column with the current
-        stable ROI name. This version is optimized using vectorized operations.
+        Calculates raw and stable presence for each ROI based on the configured inclusion rule.
+        Also creates a single column with the current stable ROI name.
         """
         # Calculate time delta between frames for later use
         self._trajectory["dt"] = self._trajectory.index.to_series().diff()
 
-        # Extract coordinate arrays once to avoid repeated access
-        x_coords = self._trajectory["x_cm_smoothed"].to_numpy()
-        y_coords = self._trajectory["y_cm_smoothed"].to_numpy()
+        # Determine coordinate space and extract coordinates
+        use_cm_coords = (
+            "x_cm_smoothed" in self._trajectory.columns 
+            and "y_cm_smoothed" in self._trajectory.columns
+            and not self._trajectory["x_cm_smoothed"].isna().all()
+        )
+        
+        if use_cm_coords:
+            x_coords = self._trajectory["x_cm_smoothed"].to_numpy()
+            y_coords = self._trajectory["y_cm_smoothed"].to_numpy()
+            coord_space = "cm"
+        else:
+            # Try x_center_px/y_center_px first, then derive from bbox
+            if (
+                "x_center_px" in self._trajectory.columns 
+                and "y_center_px" in self._trajectory.columns
+                and not self._trajectory["x_center_px"].isna().all()
+            ):
+                x_coords = self._trajectory["x_center_px"].to_numpy()
+                y_coords = self._trajectory["y_center_px"].to_numpy()
+            elif all(col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]):
+                x_coords = ((self._trajectory["x1"] + self._trajectory["x2"]) / 2).to_numpy()
+                y_coords = ((self._trajectory["y1"] + self._trajectory["y2"]) / 2).to_numpy()
+            else:
+                raise ValueError("Cannot find suitable coordinate columns in trajectory data")
+            coord_space = "px"
 
-        for name, roi in self._rois.items():
-            # Prepare the geometry for significant performance gain.
-            # This modifies the geometry in-place.
-            prepare(roi.geometry)
-
-            # Vectorized check for presence, much faster than .apply()
-            # This requires Shapely >= 2.0. It will automatically use the
-            # prepared geometry if available.
-            points = shapely.points(x_coords, y_coords)
-            raw_presence_np = shapely.contains(roi.geometry, points)
-
-            # Convert boolean numpy array back to a pandas Series with the correct index
-            raw_presence = pd.Series(
-                raw_presence_np, index=self._trajectory.index, name=f"in_{name}_raw"
+        # Convert ROI geometries to appropriate coordinate space if needed
+        rois_in_coord_space = self._get_rois_in_coordinate_space(coord_space)
+        
+        for name, roi_geometry in rois_in_coord_space.items():
+            raw_presence = self._calculate_roi_presence_by_rule(
+                roi_geometry, name, x_coords, y_coords, coord_space
             )
-
+            
             self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
                 raw_presence
             )
@@ -133,6 +159,106 @@ class ROIAnalyzer:
         for name in self._rois:
             stable_col = f"in_{name}_stable"
             self._trajectory.loc[self._trajectory[stable_col], "stable_roi"] = name
+
+    def _get_rois_in_coordinate_space(self, coord_space: str) -> Dict[str, Polygon]:
+        """
+        Convert ROI geometries to the appropriate coordinate space.
+        """
+        if coord_space == "cm":
+            # Convert px ROIs to cm if we have calibration data
+            if hasattr(self._b_analyzer, 'pixelcm_x') and hasattr(self._b_analyzer, 'pixelcm_y'):
+                rois_in_cm = {}
+                for name, roi in self._rois.items():
+                    # Convert polygon coordinates from px to cm
+                    coords = list(roi.geometry.exterior.coords)
+                    cm_coords = [(x/self._b_analyzer.pixelcm_x, y/self._b_analyzer.pixelcm_y) for x, y in coords]
+                    rois_in_cm[name] = Polygon(cm_coords)
+                return rois_in_cm
+            else:
+                # Use original geometries if no calibration available
+                return {name: roi.geometry for name, roi in self._rois.items()}
+        else:  # px coordinate space
+            return {name: roi.geometry for name, roi in self._rois.items()}
+
+    def _calculate_roi_presence_by_rule(
+        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray, 
+        y_coords: np.ndarray, coord_space: str
+    ) -> pd.Series:
+        """
+        Calculate presence in ROI based on the configured inclusion rule.
+        """
+        if self._inclusion_rule == "centroid_in":
+            return self._calculate_centroid_in(roi_geometry, x_coords, y_coords)
+        elif self._inclusion_rule == "centroid_in_on_buffered_roi":
+            return self._calculate_centroid_in_buffered(roi_geometry, roi_name, x_coords, y_coords, coord_space)
+        elif self._inclusion_rule == "bbox_intersects":
+            return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
+        elif self._inclusion_rule == "seg_overlap":
+            return self._calculate_seg_overlap(roi_geometry)
+        else:
+            raise ValueError(f"Unknown inclusion rule: {self._inclusion_rule}")
+
+    def _calculate_centroid_in(self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray) -> pd.Series:
+        """Calculate presence using centroid inclusion (current behavior)."""
+        prepare(roi_geometry)
+        points = shapely.points(x_coords, y_coords)
+        raw_presence_np = shapely.contains(roi_geometry, points)
+        return pd.Series(raw_presence_np, index=self._trajectory.index)
+
+    def _calculate_centroid_in_buffered(
+        self, roi_geometry: Polygon, roi_name: str, x_coords: np.ndarray, 
+        y_coords: np.ndarray, coord_space: str
+    ) -> pd.Series:
+        """Calculate presence using buffered ROI and centroid inclusion."""
+        # Use cached buffered geometry if available
+        cache_key = f"{roi_name}_{coord_space}_{self._buffer_radius_value}"
+        if cache_key not in self._buffered_rois_cache:
+            buffer_radius = self._buffer_radius_value
+            # Note: buffer_radius is interpreted in cm when coord_space is cm, px when coord_space is px
+            self._buffered_rois_cache[cache_key] = roi_geometry.buffer(buffer_radius)
+        
+        buffered_roi = self._buffered_rois_cache[cache_key]
+        prepare(buffered_roi)
+        points = shapely.points(x_coords, y_coords)
+        raw_presence_np = shapely.contains(buffered_roi, points)
+        return pd.Series(raw_presence_np, index=self._trajectory.index)
+
+    def _calculate_bbox_intersects(self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray) -> pd.Series:
+        """Calculate presence based on bbox intersection with ROI."""
+        # Require bbox columns
+        required_cols = ["x1", "y1", "x2", "y2"]
+        missing_cols = [col for col in required_cols if col not in self._trajectory.columns]
+        if missing_cols:
+            raise ValueError(
+                f"Regra bbox_intersects requer colunas de bbox: {missing_cols}. "
+                f"Essas colunas não estão disponíveis no dataset. "
+                f"Considere usar 'centroid_in' ou 'centroid_in_on_buffered_roi'."
+            )
+        
+        prepare(roi_geometry)
+        raw_presence_list = []
+        
+        # Process frame by frame for bbox intersection calculation
+        # TODO: This could be optimized for very large trajectories by chunking
+        for idx, row in self._trajectory.iterrows():
+            bbox = box(row["x1"], row["y1"], row["x2"], row["y2"])
+            intersection = roi_geometry.intersection(bbox)
+            if intersection.is_empty or bbox.area == 0:
+                raw_presence_list.append(False)
+            else:
+                overlap_ratio = intersection.area / bbox.area
+                raw_presence_list.append(overlap_ratio >= self._min_bbox_overlap_ratio)
+        
+        return pd.Series(raw_presence_list, index=self._trajectory.index)
+
+    def _calculate_seg_overlap(self, roi_geometry: Polygon) -> pd.Series:
+        """Calculate presence based on segmentation mask overlap."""
+        # Check for segmentation data columns
+        # Note: We don't persist segmentation masks in this PR, so this will always error
+        raise ValueError(
+            "Regra seg_overlap requer dados de segmentação que não estão disponíveis neste dataset. "
+            "Por favor, selecione outra regra de inclusão (centroid_in, centroid_in_on_buffered_roi, ou bbox_intersects)."
+        )
 
     def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:
         """

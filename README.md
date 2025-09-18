@@ -14,6 +14,11 @@ ZebTrack-AI is a user-friendly desktop application designed for researchers to p
     *   **Thigmotaxis:** Calculates wall-hugging behavior.
 *   **Advanced ROI Analysis:**
     *   **Interactive ROI Definition:** Easily draw custom polygonal regions of interest (ROIs) directly on a frame from your video.
+    *   **Configurable Inclusion Rules:** Choose how animals are considered "inside" an ROI:
+        *   **`centroid_in`:** Simple centroid-based inclusion (legacy behavior) - fast but may miss partial entries
+        *   **`centroid_in_on_buffered_roi`:** Uses buffered (dilated) ROI for more sensitive detection of partial entries
+        *   **`bbox_intersects` (default):** Considers animals inside when their bounding box overlaps the ROI by a configurable threshold
+        *   **`seg_overlap`:** Uses segmentation masks for most accurate but computationally intensive detection
     *   **Intra-ROI Metrics:** Get detailed statistics for behavior *within* each defined region, including distance traveled, velocity, freezing episodes, entry/exit counts, and time spent.
     *   **ROI Reference Map:** Automatically generate a numbered and colored map of your ROIs in reports for easy reference.
 *   **Flexible Live Recording:**
@@ -64,6 +69,49 @@ When you run an analysis, ZebTrack-AI organizes the results into a subfolder for
 -   `{video_name}_report.docx`: A full report with metadata, tables, and all generated plots.
 
 For project-wide analysis, you can generate a unified report in `.xlsx`, `.csv`, or `.parquet` format from the "Reporting" tab.
+
+## ROI Inclusion Rules
+
+ZebTrack-AI offers four configurable rules for determining when an animal is considered "inside" a Region of Interest (ROI):
+
+### 1. `centroid_in` (Simple Centroid)
+- **Method:** Animal is inside when its centroid falls within the ROI polygon
+- **Pros:** Fast and simple
+- **Cons:** May miss partial entries (e.g., when only the head enters first)
+- **Best for:** When precision is less critical and performance is important
+
+### 2. `centroid_in_on_buffered_roi` (Buffered Centroid)
+- **Method:** Uses a dilated ROI with configurable buffer radius `r`
+- **Parameters:** Buffer radius `r` (interpreted in cm if calibration available, otherwise pixels)
+- **Pros:** Catches partial entries while remaining computationally efficient
+- **Cons:** May over-detect at boundaries
+- **Best for:** Detecting early entries while maintaining good performance
+
+### 3. `bbox_intersects` (Bounding Box Intersection) - **Default**
+- **Method:** Animal is inside when its bounding box overlaps the ROI by at least the specified fraction
+- **Parameters:** Minimum overlap ratio (0.0-1.0, default: 0.10)
+- **Pros:** Good balance of accuracy and performance, captures partial entries
+- **Cons:** Requires bounding box data; may overestimate at ROI edges
+- **Best for:** Most general use cases where you want to detect partial entries
+
+### 4. `seg_overlap` (Segmentation Overlap)
+- **Method:** Uses pixel-level segmentation masks for most precise detection
+- **Parameters:** Minimum area overlap ratio (0.0-1.0)
+- **Pros:** Most accurate detection method
+- **Cons:** Requires segmentation data (not currently stored); computationally intensive
+- **Best for:** When maximum precision is needed and segmentation data is available
+
+### Configuration
+
+ROI inclusion rules can be configured in the GUI under "Regra de Inclusão em ROI" or by modifying the settings:
+
+```yaml
+roi_inclusion_rule: "bbox_intersects"
+roi_buffer_radius_value: 0.5
+roi_min_bbox_overlap_ratio: 0.10
+```
+
+The settings are automatically saved to your project and will be preserved for future analyses.
 
 ## License
 

@@ -122,15 +122,57 @@ class Detector:
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
         """
-        Checks if a corner of the bounding box is inside the polygon.
+        Checks if any of the 4 corners OR the center of the bounding box is inside the polygon.
         Returns False if the polygon is empty or invalid.
         """
         if polygon.size == 0:
             return False
-        return (
-            cv2.pointPolygonTest(polygon, (x1, y1), False) >= 0
-            or cv2.pointPolygonTest(polygon, (x2, y2), False) >= 0
-        )
+        
+        # Calculate all 5 points: 4 corners + center
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        
+        points_to_test = [
+            (x1, y1),      # top-left
+            (x2, y1),      # top-right
+            (x2, y2),      # bottom-right
+            (x1, y2),      # bottom-left
+            (center_x, center_y)  # center
+        ]
+        
+        # Return True if ANY of the 5 points is inside the polygon
+        for point in points_to_test:
+            if cv2.pointPolygonTest(polygon, point, False) >= 0:
+                return True
+        
+        return False
+
+    def bbox_hits_roi_polygon(self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray) -> bool:
+        """
+        Returns True if 4 corners OR center of bbox falls within roi_polygon (cv2.pointPolygonTest >= 0).
+        This is a utility helper for future live ROI checking functionality.
+        """
+        if roi_polygon.size == 0:
+            return False
+            
+        # Calculate all 5 points: 4 corners + center
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        
+        points_to_test = [
+            (x1, y1),      # top-left
+            (x2, y1),      # top-right 
+            (x2, y2),      # bottom-right
+            (x1, y2),      # bottom-left
+            (center_x, center_y)  # center
+        ]
+        
+        # Return True if ANY of the 5 points is inside the polygon
+        for point in points_to_test:
+            if cv2.pointPolygonTest(roi_polygon, point, False) >= 0:
+                return True
+        
+        return False
 
     def process_frame(self, frame: np.ndarray, project_type: str):
         """

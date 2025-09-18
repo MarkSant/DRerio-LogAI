@@ -25,6 +25,9 @@ video_processing:
   processing_offset: 1
 reproducibility:
   seed: 123
+roi_inclusion_rule: "bbox_intersects"
+roi_buffer_radius_value: 0.5
+roi_min_bbox_overlap_ratio: 0.10
 """
 
     def test_load_settings_success_without_zones(self):
@@ -134,6 +137,41 @@ yolo_model:
                 self.assertEqual(settings.yolo_model.confidence_threshold, 0.8)
                 # Check that another nested value (not in override) is still present
                 self.assertEqual(settings.yolo_model.path, "test.pt")
+
+    def test_roi_inclusion_settings_defaults(self):
+        """Test that ROI inclusion settings have correct defaults."""
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=self.mock_yaml_content)):
+                settings = load_settings()
+                
+                # Check default values for ROI inclusion settings
+                self.assertEqual(settings.roi_inclusion_rule, "bbox_intersects")
+                self.assertEqual(settings.roi_buffer_radius_value, 0.5)
+                self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.10)
+
+    def test_roi_inclusion_settings_override(self):
+        """Test that ROI inclusion settings can be overridden."""
+        base_yaml = self.mock_yaml_content
+        override_yaml = """
+roi_inclusion_rule: "centroid_in"
+roi_buffer_radius_value: 1.5
+roi_min_bbox_overlap_ratio: 0.25
+"""
+        
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            else:
+                return mock_open(read_data=base_yaml)()
+        
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                settings = load_settings()
+                
+                # Check overridden values
+                self.assertEqual(settings.roi_inclusion_rule, "centroid_in")
+                self.assertEqual(settings.roi_buffer_radius_value, 1.5)
+                self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.25)
 
 
 if __name__ == "__main__":
