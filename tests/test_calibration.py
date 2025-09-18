@@ -7,9 +7,7 @@ from zebtrack.core.calibration import Calibration
 @pytest.fixture
 def calibration_setup():
     """Provides a sample polygon and dimensions for testing."""
-    polygon = np.array(
-        [[105, 105], [495, 100], [505, 395], [100, 405]], dtype=np.int32
-    )
+    polygon = np.array([[105, 105], [495, 100], [505, 395], [100, 405]], dtype=np.int32)
     real_width_cm = 20.0
     real_height_cm = 15.0
     return polygon, real_width_cm, real_height_cm
@@ -93,9 +91,7 @@ def test_pixel_to_cm_conversion():
     """
     # This polygon is not important for the ratio calculation itself, but the
     # class requires it for initialization.
-    dummy_polygon = np.array(
-        [[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32
-    )
+    dummy_polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
     # If the real-world width is 30cm, and the target warped width is 600px,
     # the ratio should be 20 pixels per cm.
     calibration = Calibration(

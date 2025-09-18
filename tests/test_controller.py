@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -19,9 +20,9 @@ class TestAppController(unittest.TestCase):
 
         # Configure the mock WeightManager to return a predictable default weight
         self.mock_wm.get_default_weight.return_value = (
-            "best_seg.pt", "/fake/path/best_seg.pt"
+            "best_seg.pt",
+            "/fake/path/best_seg.pt",
         )
-
 
         self.controller = AppController(self.root)
 
@@ -43,15 +44,15 @@ class TestAppController(unittest.TestCase):
         with patch.object(self.controller, "setup_detector", return_value=True):
             # --- Act ---
             self.controller.create_project_workflow(
-            project_path="/fake/parent/fake_project",
-            project_type="live",
-            use_openvino=False,
-            video_files=[],
-            num_aquariums=1,
-            animals_per_aquarium=1,
-            aquarium_width_cm=10.0,
-            aquarium_height_cm=10.0,
-        )
+                project_path="/fake/parent/fake_project",
+                project_type="live",
+                use_openvino=False,
+                video_files=[],
+                num_aquariums=1,
+                animals_per_aquarium=1,
+                aquarium_width_cm=10.0,
+                aquarium_height_cm=10.0,
+            )
 
         # --- Assert ---
         self.mock_pm.create_new_project.assert_called_once_with(
@@ -96,10 +97,11 @@ class TestAppController(unittest.TestCase):
         """Test that _run_tracking_if_needed accepts and uses analysis/display
         intervals."""
         # --- Arrange ---
-        with patch("cv2.VideoCapture") as mock_cap, \
-             patch.object(self.controller, "detector") as mock_detector, \
-             patch("zebtrack.core.controller.Recorder") as mock_recorder_class:
-
+        with (
+            patch("cv2.VideoCapture") as mock_cap,
+            patch.object(self.controller, "detector") as mock_detector,
+            patch("zebtrack.core.controller.Recorder") as mock_recorder_class,
+        ):
             # Configure mocks
             mock_cap_instance = mock_cap.return_value
             mock_cap_instance.isOpened.return_value = True
@@ -107,13 +109,17 @@ class TestAppController(unittest.TestCase):
                 0: 640,  # CAP_PROP_FRAME_WIDTH
                 1: 480,  # CAP_PROP_FRAME_HEIGHT
                 2: 100,  # CAP_PROP_FRAME_COUNT
-                3: 1000  # CAP_PROP_POS_MSEC
+                3: 1000,  # CAP_PROP_POS_MSEC
             }.get(prop, 30.0)
 
             # Mock frame reading - return 5 frames then stop
             mock_cap_instance.read.side_effect = [
-                (True, "frame1"), (True, "frame2"), (True, "frame3"),
-                (True, "frame4"), (True, "frame5"), (False, None)
+                (True, "frame1"),
+                (True, "frame2"),
+                (True, "frame3"),
+                (True, "frame4"),
+                (True, "frame5"),
+                (False, None),
             ]
 
             mock_detector.process_frame.return_value = ([], None)
@@ -122,7 +128,10 @@ class TestAppController(unittest.TestCase):
             # Mock project manager
             self.mock_pm.get_zone_data.return_value = MagicMock()
             self.mock_pm.get_zone_data.return_value.polygon = [
-                [0,0], [640,0], [640,480], [0,480]
+                [0, 0],
+                [640, 0],
+                [640, 480],
+                [0, 480],
             ]
 
             mock_recorder_instance = mock_recorder_class.return_value
@@ -154,66 +163,74 @@ class TestAppController(unittest.TestCase):
         """Test that _process_videos correctly resolves analysis and display
         intervals."""
         # --- Arrange ---
-        with patch.object(self.controller, "_run_tracking_if_needed") as mock_tracking:
-            mock_tracking.return_value = (True, [[0,0], [100,0], [100,100], [0,100]])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                self.controller, "_run_tracking_if_needed"
+            ) as mock_tracking:
+                mock_tracking.return_value = (
+                    True,
+                    [[0, 0], [100, 0], [100, 100], [0, 100]],
+                )
 
-            # Set up project data with intervals
-            self.mock_pm.project_data = {
-                'analysis_interval_frames': 15,
-                'display_interval_frames': 20
-            }
+                # Set up project data with intervals
+                self.mock_pm.project_data = {
+                    "analysis_interval_frames": 15,
+                    "display_interval_frames": 20,
+                }
 
-            videos_to_process = [
-                {'path': '/fake/video1.mp4', 'has_data': False}
-            ]
+                videos_to_process = [{"path": "/fake/video1.mp4", "has_data": False}]
 
-            # --- Act ---
-            self.controller._process_videos(
-                videos_to_process=videos_to_process,
-                output_base_dir="/fake/output",
-                single_video_config=None  # This should use project data
-            )
+                # --- Act ---
+                self.controller._process_videos(
+                    videos_to_process=videos_to_process,
+                    output_base_dir=temp_dir,
+                    single_video_config=None,  # This should use project data
+                )
 
-            # --- Assert ---
-            mock_tracking.assert_called_once()
-            call_args = mock_tracking.call_args
-            self.assertEqual(call_args.kwargs['analysis_interval_frames'], 15)
-            self.assertEqual(call_args.kwargs['display_interval_frames'], 20)
+                # --- Assert ---
+                mock_tracking.assert_called_once()
+                call_args = mock_tracking.call_args
+                self.assertEqual(call_args.kwargs["analysis_interval_frames"], 15)
+                self.assertEqual(call_args.kwargs["display_interval_frames"], 20)
 
     def test_process_videos_single_video_config_intervals(self):
         """Test that single video config intervals take precedence over project data."""
         # --- Arrange ---
-        with patch.object(self.controller, "_run_tracking_if_needed") as mock_tracking:
-            mock_tracking.return_value = (True, [[0,0], [100,0], [100,100], [0,100]])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                self.controller, "_run_tracking_if_needed"
+            ) as mock_tracking:
+                mock_tracking.return_value = (
+                    True,
+                    [[0, 0], [100, 0], [100, 100], [0, 100]],
+                )
 
-            # Set up project data with different intervals
-            self.mock_pm.project_data = {
-                'analysis_interval_frames': 15,
-                'display_interval_frames': 20
-            }
+                # Set up project data with different intervals
+                self.mock_pm.project_data = {
+                    "analysis_interval_frames": 15,
+                    "display_interval_frames": 20,
+                }
 
-            videos_to_process = [
-                {'path': '/fake/video1.mp4', 'has_data': False}
-            ]
+                videos_to_process = [{"path": "/fake/video1.mp4", "has_data": False}]
 
-            single_video_config = {
-                'analysis_interval_frames': 5,
-                'display_interval_frames': 7
-            }
+                single_video_config = {
+                    "analysis_interval_frames": 5,
+                    "display_interval_frames": 7,
+                }
 
-            # --- Act ---
-            self.controller._process_videos(
-                videos_to_process=videos_to_process,
-                output_base_dir="/fake/output",
-                single_video_config=single_video_config
-            )
+                # --- Act ---
+                self.controller._process_videos(
+                    videos_to_process=videos_to_process,
+                    output_base_dir=temp_dir,
+                    single_video_config=single_video_config,
+                )
 
-            # --- Assert ---
-            mock_tracking.assert_called_once()
-            call_args = mock_tracking.call_args
-            # Should use single video config values, not project data
-            self.assertEqual(call_args.kwargs['analysis_interval_frames'], 5)
-            self.assertEqual(call_args.kwargs['display_interval_frames'], 7)
+                # --- Assert ---
+                mock_tracking.assert_called_once()
+                call_args = mock_tracking.call_args
+                # Should use single video config values, not project data
+                self.assertEqual(call_args.kwargs["analysis_interval_frames"], 5)
+                self.assertEqual(call_args.kwargs["display_interval_frames"], 7)
 
 
 if __name__ == "__main__":

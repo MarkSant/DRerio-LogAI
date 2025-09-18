@@ -10,6 +10,7 @@ import structlog
 
 try:
     import openvino as ov
+
     OPENVINO_AVAILABLE = True
 except ImportError:
     ov = None
@@ -17,6 +18,7 @@ except ImportError:
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     torch = None
@@ -70,7 +72,7 @@ class OpenVINOPlugin(DetectorPlugin):
         self.nms_threshold = settings.yolo_model.nms_threshold
 
         # Context control for class filtering
-        self._context: str = 'tracking'  # 'tracking' or 'diagnostic'
+        self._context: str = "tracking"  # 'tracking' or 'diagnostic'
         self._aquarium_region_defined: bool = False
 
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
@@ -115,14 +117,16 @@ class OpenVINOPlugin(DetectorPlugin):
         self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
 
         # Carrega metadata se existir
-        metadata_path = os.path.join(model_path, 'metadata.json')
-        self.class_names = {0: 'aquarium', 1: 'zebrafish'}  # Default
+        metadata_path = os.path.join(model_path, "metadata.json")
+        self.class_names = {0: "aquarium", 1: "zebrafish"}  # Default
         if os.path.exists(metadata_path):
             try:
-                with open(metadata_path, 'r') as f:
+                with open(metadata_path, "r") as f:
                     metadata = json.load(f)
-                    if 'class_names' in metadata:
-                        self.class_names = {int(k): v for k, v in metadata['class_names'].items()}
+                    if "class_names" in metadata:
+                        self.class_names = {
+                            int(k): v for k, v in metadata["class_names"].items()
+                        }
                     log.info("openvino.metadata.loaded", classes=self.class_names)
             except Exception as e:
                 log.warning("openvino.metadata.load_failed", error=str(e))
@@ -131,9 +135,10 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         Define o contexto de uso do plugin.
         'diagnostic' => não filtra classes (mostra todas)
-        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do aquário definido)
+        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do
+                        aquário definido)
         """
-        if context not in ('tracking', 'diagnostic'):
+        if context not in ("tracking", "diagnostic"):
             return
         self._context = context
 
@@ -147,12 +152,10 @@ class OpenVINOPlugin(DetectorPlugin):
             "context": self._context,
             "aquarium_region_defined": self._aquarium_region_defined,
             "conf_threshold": self.conf_threshold,
-            "nms_threshold": self.nms_threshold
+            "nms_threshold": self.nms_threshold,
         }
 
-    def detect(
-        self, frame: np.ndarray
-    ) -> List[Tuple[int, int, int, int, float, int]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
         """
         Performs inference using the OpenVINO model and tracks objects with ByteTrack.
 
@@ -177,13 +180,16 @@ class OpenVINOPlugin(DetectorPlugin):
             x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
             detections_for_tracker.append([x1, y1, x2, y2, conf])
 
-        detections_np = np.array(detections_for_tracker) if detections_for_tracker else np.empty((0, 5))
+        detections_np = (
+            np.array(detections_for_tracker)
+            if detections_for_tracker
+            else np.empty((0, 5))
+        )
 
         # Bytetrack's update method needs image info and size
         img_info = frame.shape[:2]  # (height, width)
         # self.model_input_shape returns (height, width) as expected by ByteTrack
         img_size = self.model_input_shape
-
 
         online_targets = self.tracker.update(detections_np, img_info, img_size)
 
@@ -208,13 +214,14 @@ class OpenVINOPlugin(DetectorPlugin):
         if settings.video_processing.single_animal_per_aquarium and predictions:
             # Force all detections to have track_id=1 in single animal mode
             predictions = [
-                (pred[0], pred[1], pred[2], pred[3], pred[4], 1)
-                for pred in predictions
+                (pred[0], pred[1], pred[2], pred[3], pred[4], 1) for pred in predictions
             ]
 
         return predictions
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = None) -> List[Dict[str, Any]]:
+    def predict(
+        self, frame: np.ndarray, conf_threshold: float = None
+    ) -> List[Dict[str, Any]]:
         """
         Compatibility method for diagnostic workflow.
         Returns raw detections without tracking, formatted for diagnostic reporting.
@@ -246,12 +253,14 @@ class OpenVINOPlugin(DetectorPlugin):
                 class_id = det[5] if len(det) > 5 else 1
                 # Use metadata class names if available
                 class_name = self.class_names.get(int(class_id), f"class_{class_id}")
-                formatted_results.append({
-                    'box': [int(x1), int(y1), int(x2), int(y2)],
-                    'confidence': float(conf),
-                    'class_id': int(class_id),
-                    'class_name': class_name
-                })
+                formatted_results.append(
+                    {
+                        "box": [int(x1), int(y1), int(x2), int(y2)],
+                        "confidence": float(conf),
+                        "class_id": int(class_id),
+                        "class_name": class_name,
+                    }
+                )
             return formatted_results
 
         finally:
@@ -292,19 +301,34 @@ class OpenVINOPlugin(DetectorPlugin):
             class_id = int(cls)
 
             # LÓGICA DE FILTRO ATUALIZADA:
-            if self._context == 'diagnostic':
+            if self._context == "diagnostic":
                 # Em modo diagnóstico NUNCA filtra: inclui todas as classes retornadas
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
             else:
                 # Modo tracking:
-                # Antes do aquário estar definido: não filtra (permite aparecer classe 0 ou outras)
+                # Antes do aquário estar definido: não filtra (permite aparecer
+                # classe 0 ou outras)
                 # Após definição do aquário: filtra para somente peixe (cls == 1)
                 if self._aquarium_region_defined and class_id != 1:
                     continue
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
         return final_detections
 

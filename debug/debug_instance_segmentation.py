@@ -19,8 +19,8 @@ from ultralytics import YOLO
 warnings.filterwarnings("ignore")
 
 # Adiciona src ao path se existir
-if os.path.exists('src'):
-    sys.path.insert(0, 'src')
+if os.path.exists("src"):
+    sys.path.insert(0, "src")
 
 
 def print_separator(title="", char="="):
@@ -29,6 +29,7 @@ def print_separator(title="", char="="):
     if title:
         print(f"{title:^80}")
         print(char * 80)
+
 
 def analyze_model_info(model):
     """Analisa informações básicas do modelo"""
@@ -39,7 +40,7 @@ def analyze_model_info(model):
 
     # Tenta acessar informações adicionais
     try:
-        if hasattr(model, 'model') and hasattr(model.model, 'names'):
+        if hasattr(model, "model") and hasattr(model.model, "names"):
             names = model.model.names
             print(f"Classes do modelo: {names}")
             print(f"Número total de classes: {len(names)}")
@@ -49,6 +50,7 @@ def analyze_model_info(model):
         print(f"Erro ao acessar informações do modelo: {e}")
 
     print()
+
 
 def analyze_video_info(video_path):
     """Analisa informações básicas do vídeo"""
@@ -79,6 +81,7 @@ def analyze_video_info(video_path):
     print()
 
     return cap
+
 
 def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5]):
     """Testa um frame com diferentes configurações"""
@@ -114,7 +117,7 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
                     area = width_box * height_box
 
                     class_name = result.names.get(cls, f"classe_{cls}")
-                    print(f"  📦 Box {i+1}: {class_name} (conf={conf:.3f})")
+                    print(f"  📦 Box {i + 1}: {class_name} (conf={conf:.3f})")
                     print(
                         f"      Posição: [{int(x1)}, {int(y1)}, {int(x2)}, {int(y2)}]"
                     )
@@ -130,7 +133,7 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
             if result.masks is not None and len(result.masks) > 0:
                 print(f"🎭 MÁSCARAS detectadas: {len(result.masks)}")
 
-                masks_data = result.masks.xy if hasattr(result.masks, 'xy') else None
+                masks_data = result.masks.xy if hasattr(result.masks, "xy") else None
 
                 if masks_data is not None:
                     for i, mask_points in enumerate(masks_data):
@@ -153,7 +156,7 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
                                 class_name = "desconhecida"
                                 conf = 0.0
 
-                            print(f"  🎭 Máscara {i+1}: {class_name}")
+                            print(f"  🎭 Máscara {i + 1}: {class_name}")
                             print(f"      Pontos: {len(mask_points)}")
                             print(
                                 f"      Bbox: [{int(x_min)}, {int(y_min)}, "
@@ -188,6 +191,7 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
         except Exception as e:
             print(f"❌ ERRO durante predição: {e}")
             print(f"   Tipo do erro: {type(e).__name__}")
+
 
 def run_comprehensive_diagnosis(model_path, video_path):
     """Executa diagnóstico completo"""
@@ -224,7 +228,7 @@ def run_comprehensive_diagnosis(model_path, video_path):
 
         # Pega frames em diferentes posições do vídeo
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frame_positions = np.linspace(0, total_frames-1, frames_to_test, dtype=int)
+        frame_positions = np.linspace(0, total_frames - 1, frames_to_test, dtype=int)
 
         for i, frame_pos in enumerate(frame_positions):
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
@@ -245,8 +249,7 @@ def run_comprehensive_diagnosis(model_path, video_path):
         print("📊 RESUMO DAS RECOMENDAÇÕES:")
         print("• Se não há detecções: reduza o threshold de confiança")
         print(
-            "• Se há boxes mas não máscaras: verifique se o modelo suporta "
-            "segmentação"
+            "• Se há boxes mas não máscaras: verifique se o modelo suporta segmentação"
         )
         print("• Se há máscaras estranhas: verifique o treinamento do modelo")
         print("• Para zebrafish: considere usar classes=[1] se classe 1 = peixe")
@@ -255,6 +258,7 @@ def run_comprehensive_diagnosis(model_path, video_path):
     except Exception as e:
         print(f"❌ ERRO FATAL: {e}")
         print(f"Tipo do erro: {type(e).__name__}")
+
 
 def main():
     """Função principal"""
@@ -267,8 +271,7 @@ def main():
         print()
         print("Exemplos:")
         print(
-            "  python debug_instance_segmentation.py models/best.pt "
-            "data/test_video.mp4"
+            "  python debug_instance_segmentation.py models/best.pt data/test_video.mp4"
         )
         print("  python debug_instance_segmentation.py yolov8n-seg.pt sample.mp4")
         sys.exit(1)
@@ -277,6 +280,7 @@ def main():
     video_path = sys.argv[2]
 
     run_comprehensive_diagnosis(model_path, video_path)
+
 
 if __name__ == "__main__":
     main()

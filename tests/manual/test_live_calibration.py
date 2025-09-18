@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 # Add src to the path to import zebtrack modules
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -17,7 +19,7 @@ try:
 
     from zebtrack.core.controller import AppController
     from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.ui.gui import GUI
+    from zebtrack.ui.gui import ApplicationGUI as GUI
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're running this from the project root directory")
@@ -26,6 +28,8 @@ except ImportError as e:
 
 def test_zone_validation():
     """Test comprehensive zone validation method."""
+    if os.environ.get("DISPLAY") is None:
+        pytest.skip("requires a display")
     print("\n=== Testing Zone Validation ===")
 
     # Create temporary project
@@ -39,7 +43,7 @@ def test_zone_validation():
         pm.project_data = {
             "project_name": "Test Live Project",
             "project_type": "live",
-            "detection_zones": {}
+            "detection_zones": {},
         }
 
         # Create mock controller
@@ -50,7 +54,11 @@ def test_zone_validation():
 
         # Test 1: No zones defined
         print("Test 1: No zones defined")
-        is_valid, summary, recommendations = controller.validate_zone_configuration_comprehensive()
+        (
+            is_valid,
+            summary,
+            recommendations,
+        ) = controller.validate_zone_configuration_comprehensive()
         print(f"Valid: {is_valid}")
         print(f"Summary: {summary}")
         assert not is_valid, "Should be invalid with no zones"
@@ -62,7 +70,11 @@ def test_zone_validation():
         pm.project_data["detection_zones"] = {
             "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]]
         }
-        is_valid, summary, recommendations = controller.validate_zone_configuration_comprehensive()
+        (
+            is_valid,
+            summary,
+            recommendations,
+        ) = controller.validate_zone_configuration_comprehensive()
         print(f"Valid: {is_valid}")
         print(f"Summary: {summary}")
         assert is_valid, "Should be valid with main arena"
@@ -75,11 +87,15 @@ def test_zone_validation():
             "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
             "roi_polygons": [
                 [[20, 20], [40, 20], [40, 40], [20, 40]],  # Valid ROI
-                [[60, 60], [80, 60], [80, 80], [60, 80]]   # Valid ROI
+                [[60, 60], [80, 60], [80, 80], [60, 80]],  # Valid ROI
             ],
-            "roi_names": ["ROI 1", "ROI 2"]
+            "roi_names": ["ROI 1", "ROI 2"],
         }
-        is_valid, summary, recommendations = controller.validate_zone_configuration_comprehensive()
+        (
+            is_valid,
+            summary,
+            recommendations,
+        ) = controller.validate_zone_configuration_comprehensive()
         print(f"Valid: {is_valid}")
         print(f"Summary: {summary}")
         assert is_valid, "Should be valid with arena and ROIs"
@@ -91,6 +107,8 @@ def test_zone_validation():
 
 def test_live_project_setup():
     """Test Live project setup components."""
+    if os.environ.get("DISPLAY") is None:
+        pytest.skip("requires a display")
     print("\n=== Testing Live Project Setup ===")
 
     # Test that we can create the controller and project manager
@@ -107,15 +125,15 @@ def test_live_project_setup():
         print("✅ Project manager accessible")
 
         # Test validation method exists
-        assert hasattr(controller, 'validate_zone_configuration_comprehensive')
+        assert hasattr(controller, "validate_zone_configuration_comprehensive")
         print("✅ Comprehensive validation method exists")
 
         # Test GUI has the calibration check method
         gui = GUI(root, controller)
-        assert hasattr(gui, '_check_live_project_calibration')
+        assert hasattr(gui, "_check_live_project_calibration")
         print("✅ GUI auto-calibration method exists")
 
-        assert hasattr(gui, '_validate_zone_configuration')
+        assert hasattr(gui, "_validate_zone_configuration")
         print("✅ GUI validation method exists")
 
     except Exception as e:

@@ -1,6 +1,7 @@
 # Try to import plugins, but handle missing dependencies gracefully
 try:
     from .ultralytics_detector import UltralyticsDetectorPlugin
+
     ULTRALYTICS_PLUGIN_AVAILABLE = True
 except ImportError:
     UltralyticsDetectorPlugin = None
@@ -8,6 +9,7 @@ except ImportError:
 
 try:
     from .openvino_detector import OpenVINOPlugin
+
     OPENVINO_PLUGIN_AVAILABLE = True
 except ImportError:
     OpenVINOPlugin = None

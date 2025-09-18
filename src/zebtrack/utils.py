@@ -6,6 +6,7 @@ import structlog
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     torch = None

@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from zebtrack.tracker import matching
@@ -29,7 +28,6 @@ class STrack(BaseTrack):
             mean_state, self.covariance
         )
 
-
     @staticmethod
     def multi_predict(stracks):
         if len(stracks) > 0:
@@ -57,12 +55,10 @@ class STrack(BaseTrack):
             self.tlwh_to_xyah(self._tlwh)
         )
 
-
         self.tracklet_len = 0
         self.state = TrackState.Tracked
         if frame_id == 1:
             self.is_activated = True
-
 
         self.frame_id = frame_id
         self.start_frame = frame_id
@@ -92,7 +88,6 @@ class STrack(BaseTrack):
 
         new_tlwh = new_track.tlwh
         self.mean, self.covariance = self.kalman_filter.update(
-
             self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh)
         )
 
@@ -102,7 +97,6 @@ class STrack(BaseTrack):
         self.score = new_track.score
 
     @property
-
     def tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -115,7 +109,6 @@ class STrack(BaseTrack):
         return ret
 
     @property
-
     def tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
         `(top left, bottom right)`.
@@ -125,7 +118,6 @@ class STrack(BaseTrack):
         return ret
 
     @staticmethod
-
     def tlwh_to_xyah(tlwh):
         """Convert bounding box to format `(center x, center y, aspect ratio,
         height)`, where the aspect ratio is `width / height`.
@@ -142,21 +134,18 @@ class STrack(BaseTrack):
         return self.tlwh_to_xyah(self.tlwh)
 
     @staticmethod
-
     def tlbr_to_tlwh(tlbr):
         ret = np.asarray(tlbr).copy()
         ret[2:] -= ret[:2]
         return ret
 
     @staticmethod
-
     def tlwh_to_tlbr(tlwh):
         ret = np.asarray(tlwh).copy()
         ret[2:] += ret[:2]
         return ret
 
     def __repr__(self):
-
         return f"OT_{self.track_id}_({self.start_frame}-{self.end_frame})"
 
 
@@ -185,13 +174,11 @@ class BYTETracker:
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
-
             # This is for YOLOX model which has score in a different format
             # We are using a detector that provides 5 columns, so this part is not used
             output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
-
 
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
@@ -208,7 +195,6 @@ class BYTETracker:
         scores_second = scores[inds_second]
 
         if len(dets) > 0:
-
             """Detections"""
             detections = [
                 STrack(STrack.tlbr_to_tlwh(tlbr), s)
@@ -227,7 +213,6 @@ class BYTETracker:
             else:
                 tracked_stracks.append(track)
 
-
         """ Step 2: First association, with high score detection boxes"""
 
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
@@ -241,7 +226,6 @@ class BYTETracker:
             dists, thresh=self.args.match_thresh
         )
 
-
         for itracked, idet in matches:
             track = strack_pool[itracked]
             det = detections[idet]
@@ -251,7 +235,6 @@ class BYTETracker:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-
 
         """ Step 3: Second association, with low score detection boxes"""
         # association the untrack to the low score detections
@@ -289,7 +272,6 @@ class BYTETracker:
                 track.mark_lost()
                 lost_stracks.append(track)
 
-
         """Deal with unconfirmed tracks, usually tracks with only one beginning
         frame"""
 
@@ -323,7 +305,6 @@ class BYTETracker:
                 track.mark_removed()
                 removed_stracks.append(track)
 
-
         self.tracked_stracks = [
             t for t in self.tracked_stracks if t.state == TrackState.Tracked
         ]
@@ -341,7 +322,6 @@ class BYTETracker:
         ) = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
         # get scores of lost tracks
         output_stracks = [track for track in self.tracked_stracks if track.is_activated]
-
 
         return output_stracks
 

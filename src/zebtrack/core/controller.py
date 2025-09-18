@@ -14,6 +14,7 @@ from shapely.geometry import Polygon
 
 try:
     from ultralytics import YOLO
+
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
     YOLO = None
@@ -137,7 +138,7 @@ class AppController:
         if self.active_weight_name:
             log.info(
                 "controller.load_project.weight_restored",
-                weight=self.active_weight_name
+                weight=self.active_weight_name,
             )
 
         # Auto-configura OpenVINO se estava ativo
@@ -162,17 +163,19 @@ class AppController:
         # NOVO: Carrega e aplica zonas salvas
         zone_data = self.project_manager.get_zone_data()
         if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-            log.info("controller.load_project.zones_found",
-                    has_polygon=bool(zone_data.polygon),
-                    roi_count=len(zone_data.roi_polygons))
+            log.info(
+                "controller.load_project.zones_found",
+                has_polygon=bool(zone_data.polygon),
+                roi_count=len(zone_data.roi_polygons),
+            )
 
             # Configura zonas no detector
             self.setup_detector_zones()
 
             # Atualiza visualização das zonas na GUI
-            if hasattr(self.view, 'redraw_zones_from_project_data'):
+            if hasattr(self.view, "redraw_zones_from_project_data"):
                 self.view.redraw_zones_from_project_data()
-            if hasattr(self.view, 'update_zone_listbox'):
+            if hasattr(self.view, "update_zone_listbox"):
                 self.view.update_zone_listbox()
 
             log.info("controller.load_project.zones_applied")
@@ -193,14 +196,16 @@ class AppController:
             f"• Arena Principal: {zone_status}\n"
             f"• ROIs: {roi_count}\n"
             f"• Peso: {self.active_weight_name or 'Padrão'}\n"
-            f"• OpenVINO: {'✓' if self.use_openvino else '✗'}"
+            f"• OpenVINO: {'✓' if self.use_openvino else '✗'}",
         )
 
-        log.info("controller.load_project.complete",
-                project=project_name,
-                videos=videos_count,
-                has_zones=bool(zone_data and zone_data.polygon),
-                rois=roi_count)
+        log.info(
+            "controller.load_project.complete",
+            project=project_name,
+            videos=videos_count,
+            has_zones=bool(zone_data and zone_data.polygon),
+            rois=roi_count,
+        )
 
         return True
 
@@ -217,9 +222,7 @@ class AppController:
             )
             return False
 
-        weight_details = self.weight_manager.get_weight_details(
-            self.active_weight_name
-        )
+        weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
         if not weight_details:
             self.view.show_error(
                 "Erro de Detector",
@@ -266,9 +269,9 @@ class AppController:
             )
 
             # Define contexto inicial baseado no modo
-            if hasattr(plugin_instance, 'set_context'):
-                plugin_instance.set_context('tracking')
-                log.info("detector.context.set", context='tracking')
+            if hasattr(plugin_instance, "set_context"):
+                plugin_instance.set_context("tracking")
+                log.info("detector.context.set", context="tracking")
 
             log.info("detector.setup.success")
             return True
@@ -297,8 +300,9 @@ class AppController:
         log.info("controller.setup_zones.success")
 
         # Informa ao plugin se o aquário está definido
-        if (self.detector and
-                hasattr(self.detector.plugin, 'set_aquarium_region_defined')):
+        if self.detector and hasattr(
+            self.detector.plugin, "set_aquarium_region_defined"
+        ):
             has_aquarium = bool(zone_data and zone_data.polygon)
             self.detector.plugin.set_aquarium_region_defined(has_aquarium)
             log.info("detector.aquarium_status", defined=has_aquarium)
@@ -348,7 +352,6 @@ class AppController:
             log.warning("controller.active_weight.not_found", name=name)
             self.active_weight_name = None
             self.update_openvino_status(dialog)
-
 
     def set_openvino_usage(self, use_openvino: bool, dialog):
         self.use_openvino = use_openvino
@@ -445,23 +448,32 @@ class AppController:
         try:
             # Validação 1: Pontos válidos
             if not points or len(points) < 3:
-                log.error("controller.polygon.invalid_points", count=len(points) if points else 0)
+                log.error(
+                    "controller.polygon.invalid_points",
+                    count=len(points) if points else 0,
+                )
                 return False
 
             # Validação 2: Projeto existe
             if not self.project_manager.project_path:
                 log.error("controller.polygon.no_project")
                 # Para single video workflow, cria projeto temporário
-                if hasattr(self.view, 'pending_single_video_path') and self.view.pending_single_video_path:
+                if (
+                    hasattr(self.view, "pending_single_video_path")
+                    and self.view.pending_single_video_path
+                ):
                     import tempfile
+
                     temp_dir = tempfile.mkdtemp(prefix="zebtrack_temp_")
                     self.project_manager.project_path = temp_dir
                     self.project_manager.project_data = {
                         "project_name": "Temporary Single Video Project",
                         "project_type": "single_video",
-                        "detection_zones": {}
+                        "detection_zones": {},
                     }
-                    log.warning("controller.polygon.created_temp_project", path=temp_dir)
+                    log.warning(
+                        "controller.polygon.created_temp_project", path=temp_dir
+                    )
                 else:
                     return False
 
@@ -501,6 +513,7 @@ class AppController:
 
         # Convert dataclass to dict and save
         from dataclasses import asdict
+
         self.project_manager.project_data["detection_zones"] = asdict(zone_data)
         self.project_manager.save_project()
 
@@ -538,15 +551,20 @@ class AppController:
 
                 if points_outside > 0:
                     outside_percent = (points_outside / len(roi_points)) * 100
-                    log.warning("controller.roi.outside_arena",
-                              name=name,
-                              points_outside=points_outside,
-                              percent=outside_percent)
+                    log.warning(
+                        "controller.roi.outside_arena",
+                        name=name,
+                        points_outside=points_outside,
+                        percent=outside_percent,
+                    )
 
                     if not self.view.ask_ok_cancel(
                         "ROI Fora da Arena",
-                        f"A ROI '{name}' tem {points_outside} pontos ({outside_percent:.1f}%) "
-                        "fora da arena principal.\n\nDeseja continuar mesmo assim?"
+                        (
+                            f"A ROI '{name}' tem {points_outside} pontos "
+                            f"({outside_percent:.1f}%) "
+                            "fora da arena principal.\n\nDeseja continuar mesmo assim?"
+                        ),
                     ):
                         return False
 
@@ -559,7 +577,9 @@ class AppController:
                     existing_poly = np.array(existing_roi, dtype=np.int32)
 
                     for point in roi_points:
-                        result = cv2.pointPolygonTest(existing_poly, tuple(point), False)
+                        result = cv2.pointPolygonTest(
+                            existing_poly, tuple(point), False
+                        )
                         if result >= 0:  # Ponto está dentro ou na borda
                             overlapping_points += 1
 
@@ -567,17 +587,23 @@ class AppController:
                         overlap_percent = (overlapping_points / len(roi_points)) * 100
 
                         if overlap_percent > 20:  # Mais de 20% de sobreposição
-                            existing_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i+1}"
-                            log.warning("controller.roi.overlap",
-                                      name=name,
-                                      existing=existing_name,
-                                      percent=overlap_percent)
+                            existing_name = (
+                                zone_data.roi_names[i]
+                                if i < len(zone_data.roi_names)
+                                else f"ROI_{i + 1}"
+                            )
+                            log.warning(
+                                "controller.roi.overlap",
+                                name=name,
+                                existing=existing_name,
+                                percent=overlap_percent,
+                            )
 
                             if not self.view.ask_ok_cancel(
                                 "ROIs Sobrepostas",
                                 f"A nova ROI '{name}' tem {overlap_percent:.1f}% de "
                                 f"sobreposição com '{existing_name}'.\n\n"
-                                "Deseja continuar?"
+                                "Deseja continuar?",
                             ):
                                 return False
 
@@ -588,6 +614,7 @@ class AppController:
 
             # Convert the dataclass back to a dict for JSON serialization
             from dataclasses import asdict
+
             self.project_manager.project_data["detection_zones"] = asdict(zone_data)
 
             # Save the project and reload the zones in the active detector
@@ -704,12 +731,14 @@ class AppController:
                     "Arena Principal Não Definida",
                     "O polígono principal do aquário não foi definido.\n\n"
                     "É recomendado definir a arena antes de iniciar gravação.\n"
-                    "Deseja definir agora?"
+                    "Deseja definir agora?",
                 )
 
                 if response:
                     # Muda para aba de zonas e inicia câmera para calibração
-                    if hasattr(self.view, 'notebook') and hasattr(self.view, 'zone_tab_frame'):
+                    if hasattr(self.view, "notebook") and hasattr(
+                        self.view, "zone_tab_frame"
+                    ):
                         self.view.notebook.select(self.view.zone_tab_frame)
 
                     self.view.show_info(
@@ -718,7 +747,7 @@ class AppController:
                         "1. Use a câmera ao vivo para calibrar\n"
                         "2. Use 'Detectar Aquário (Auto)' ou\n"
                         "3. Desenhe manualmente o polígono principal\n"
-                        "4. Depois volte para iniciar a gravação"
+                        "4. Depois volte para iniciar a gravação",
                     )
                     return
                 else:
@@ -726,7 +755,7 @@ class AppController:
                     if not self.view.ask_ok_cancel(
                         "Continuar Sem Arena?",
                         "Deseja continuar a gravação sem arena definida?\n"
-                        "(A arena padrão será o frame completo)"
+                        "(A arena padrão será o frame completo)",
                     ):
                         log.info("controller.recording.cancelled_no_arena")
                         return
@@ -789,9 +818,7 @@ class AppController:
                     self.timed_recording_job = self.root.after(
                         duration_ms, self.stop_recording
                     )
-                    log.info(
-                        "controller.recording.timed_start", duration_s=duration_s
-                    )
+                    log.info("controller.recording.timed_start", duration_s=duration_s)
 
         # 5. Check for countdown and execute recording logic
         project_data = self.project_manager.project_data
@@ -897,7 +924,8 @@ class AppController:
         self.view.show_info(
             "Análise Iniciada",
             "A análise do vídeo foi iniciada em segundo plano.\n"
-            f"Você será notificado quando terminar. Os resultados serão salvos em:\n{output_dir}"
+            "Você será notificado quando terminar. Os resultados serão salvos em:\n"
+            f"{output_dir}",
         )
 
     def start_project_processing_workflow(self):
@@ -926,17 +954,19 @@ class AppController:
                 "Arena Principal Não Definida",
                 "O polígono principal do aquário não foi definido.\n\n"
                 "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?"
+                "Deseja definir agora antes de processar?",
             )
 
             if response:
                 # Muda para aba de zonas
-                if hasattr(self.view, 'notebook') and hasattr(self.view, 'zone_tab_frame'):
+                if hasattr(self.view, "notebook") and hasattr(
+                    self.view, "zone_tab_frame"
+                ):
                     self.view.notebook.select(self.view.zone_tab_frame)
 
                 # Carrega frame do primeiro vídeo se disponível
                 first_video = self.project_manager.get_next_video()
-                if first_video and hasattr(self.view, 'load_video_frame_to_canvas'):
+                if first_video and hasattr(self.view, "load_video_frame_to_canvas"):
                     self.view.load_video_frame_to_canvas(first_video)
 
                 self.view.show_info(
@@ -944,7 +974,7 @@ class AppController:
                     "Por favor:\n"
                     "1. Use 'Detectar Aquário (Auto)' ou\n"
                     "2. Desenhe manualmente o polígono principal\n"
-                    "3. Depois volte para adicionar vídeos"
+                    "3. Depois volte para adicionar vídeos",
                 )
                 return
             else:
@@ -952,7 +982,7 @@ class AppController:
                 if not self.view.ask_ok_cancel(
                     "Usar Arena Padrão?",
                     "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)"
+                    "(Não recomendado para análise precisa)",
                 ):
                     log.info("workflow.project_processing.cancelled_no_arena")
                     return
@@ -961,27 +991,29 @@ class AppController:
                 first_video = self.project_manager.get_next_video()
                 if first_video:
                     import cv2
+
                     cap = cv2.VideoCapture(first_video)
                     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     cap.release()
 
-                    default_arena = [
-                        [0, 0], [width, 0],
-                        [width, height], [0, height]
-                    ]
+                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
                     success = self.set_main_arena_polygon(default_arena)
                     if success:
-                        log.info("workflow.project_processing.default_arena_created",
-                                size=f"{width}x{height}")
+                        log.info(
+                            "workflow.project_processing.default_arena_created",
+                            size=f"{width}x{height}",
+                        )
                         self.view.show_info(
                             "Arena Padrão Criada",
                             f"Arena padrão criada ({width}x{height})\n"
-                            "Recomenda-se ajustar manualmente depois."
+                            "Recomenda-se ajustar manualmente depois.",
                         )
                     else:
-                        self.view.show_error("Erro", "Não foi possível criar arena padrão")
+                        self.view.show_error(
+                            "Erro", "Não foi possível criar arena padrão"
+                        )
                         return
                 else:
                     self.view.show_error("Erro", "Nenhum vídeo encontrado no projeto")
@@ -994,14 +1026,16 @@ class AppController:
                 "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
                 "A análise usará apenas a arena principal.\n"
                 "Para análises detalhadas, considere definir ROIs.\n\n"
-                "Deseja continuar?"
+                "Deseja continuar?",
             ):
                 log.info("workflow.project_processing.cancelled_by_user_no_roi")
                 return
 
-        log.info("workflow.project_processing.zones_validated",
-                has_main_arena=bool(zone_data.polygon),
-                roi_count=len(zone_data.roi_polygons))
+        log.info(
+            "workflow.project_processing.zones_validated",
+            has_main_arena=bool(zone_data.polygon),
+            roi_count=len(zone_data.roi_polygons),
+        )
 
         # 1. Ask user to select files or folders
         paths = self.view.ask_open_filenames(
@@ -1075,17 +1109,24 @@ class AppController:
         try:
             analysis_interval = int(self.view.analysis_interval_var.get())
             display_interval = int(self.view.display_interval_var.get())
-            self.project_manager.project_data['analysis_interval_frames'] = analysis_interval
-            self.project_manager.project_data['display_interval_frames'] = display_interval
+            self.project_manager.project_data["analysis_interval_frames"] = (
+                analysis_interval
+            )
+            self.project_manager.project_data["display_interval_frames"] = (
+                display_interval
+            )
             # Save the project to persist the intervals
             self.project_manager.save_project()
-            log.info("controller.workflow.intervals_saved",
-                    analysis=analysis_interval, display=display_interval)
+            log.info(
+                "controller.workflow.intervals_saved",
+                analysis=analysis_interval,
+                display=display_interval,
+            )
         except (ValueError, AttributeError) as e:
             log.warning("controller.workflow.intervals_save_failed", error=str(e))
             # Use defaults if there's an issue
-            self.project_manager.project_data['analysis_interval_frames'] = 10
-            self.project_manager.project_data['display_interval_frames'] = 10
+            self.project_manager.project_data["analysis_interval_frames"] = 10
+            self.project_manager.project_data["display_interval_frames"] = 10
 
         # 5. Process the videos that need it in a background thread
         self.cancel_event.clear()
@@ -1206,8 +1247,11 @@ class AppController:
                     last_detections = detections
                     processed_frames_count += 1
 
-                # Check if we should update the display (display interval based on processed frames)
-                should_display = processed_frames_count > 0 and (processed_frames_count % display_interval_frames == 0)
+                # Check if we should update the display
+                # (display interval based on processed frames)
+                should_display = processed_frames_count > 0 and (
+                    processed_frames_count % display_interval_frames == 0
+                )
 
                 # Update GUI display
                 if progress_callback:
@@ -1219,14 +1263,20 @@ class AppController:
                     if should_display and should_process:
                         # Draw overlay on current frame with fresh detections
                         self.detector.draw_overlay(frame, detections)
-                        progress_callback(progress_fraction, "Gerando trajetória...", frame)
+                        progress_callback(
+                            progress_fraction, "Gerando trajetória...", frame
+                        )
                     elif should_display and last_detections:
                         # Draw overlay using last cached detections
                         self.detector.draw_overlay(frame, last_detections)
-                        progress_callback(progress_fraction, "Gerando trajetória...", frame)
+                        progress_callback(
+                            progress_fraction, "Gerando trajetória...", frame
+                        )
                     else:
                         # Just update progress without frame
-                        progress_callback(progress_fraction, "Gerando trajetória...", None)
+                        progress_callback(
+                            progress_fraction, "Gerando trajetória...", None
+                        )
 
                 frame_num += 1
 
@@ -1266,7 +1316,9 @@ class AppController:
         if not zone_data or not zone_data.polygon:
             is_valid = False
             issues.append("❌ Arena principal não definida")
-            recommendations.append("• Use 'Detectar Aquário (Auto)' ou desenhe manualmente")
+            recommendations.append(
+                "• Use 'Detectar Aquário (Auto)' ou desenhe manualmente"
+            )
         else:
             issues.append("✅ Arena principal definida")
 
@@ -1276,38 +1328,75 @@ class AppController:
 
             # Check for ROI overlaps and arena containment
             for i, roi_polygon in enumerate(zone_data.roi_polygons):
-                roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i+1}"
+                roi_name = (
+                    zone_data.roi_names[i]
+                    if i < len(zone_data.roi_names)
+                    else f"ROI {i + 1}"
+                )
 
                 # Check if ROI is contained in main arena
                 if zone_data.polygon:
                     np.array(roi_polygon, dtype=np.float32).reshape(-1, 1, 2)
                     contained_points = 0
                     for point in roi_polygon:
-                        if cv2.pointPolygonTest(np.array(zone_data.polygon, dtype=np.float32), point, False) >= 0:
+                        if (
+                            cv2.pointPolygonTest(
+                                np.array(zone_data.polygon, dtype=np.float32),
+                                point,
+                                False,
+                            )
+                            >= 0
+                        ):
                             contained_points += 1
 
                     containment_percent = (contained_points / len(roi_polygon)) * 100
                     if containment_percent < 80:
-                        issues.append(f"⚠️ {roi_name}: {containment_percent:.1f}% dentro da arena")
-                        recommendations.append(f"• Ajustar {roi_name} para ficar completamente dentro da arena")
+                        issues.append(
+                            f"⚠️ {roi_name}: {containment_percent:.1f}% dentro da arena"
+                        )
+                        recommendations.append(
+                            f"• Ajustar {roi_name} para ficar completamente "
+                            "dentro da arena"
+                        )
 
                 # Check overlaps with other ROIs
                 for j, other_roi in enumerate(zone_data.roi_polygons):
                     if i != j:
-                        other_name = zone_data.roi_names[j] if j < len(zone_data.roi_names) else f"ROI {j+1}"
+                        other_name = (
+                            zone_data.roi_names[j]
+                            if j < len(zone_data.roi_names)
+                            else f"ROI {j + 1}"
+                        )
                         overlapping_points = 0
                         for point in roi_polygon:
-                            if cv2.pointPolygonTest(np.array(other_roi, dtype=np.float32), point, False) >= 0:
+                            if (
+                                cv2.pointPolygonTest(
+                                    np.array(other_roi, dtype=np.float32),
+                                    point,
+                                    False,
+                                )
+                                >= 0
+                            ):
                                 overlapping_points += 1
 
                         if overlapping_points > 0:
-                            overlap_percent = (overlapping_points / len(roi_polygon)) * 100
+                            overlap_percent = (
+                                overlapping_points / len(roi_polygon)
+                            ) * 100
                             if overlap_percent > 20:
-                                issues.append(f"⚠️ {roi_name} e {other_name}: {overlap_percent:.1f}% sobreposição")
-                                recommendations.append(f"• Reduzir sobreposição entre {roi_name} e {other_name}")
+                                issues.append(
+                                    f"⚠️ {roi_name} e {other_name}: "
+                                    f"{overlap_percent:.1f}% sobreposição"
+                                )
+                                recommendations.append(
+                                    f"• Reduzir sobreposição entre {roi_name} e "
+                                    f"{other_name}"
+                                )
         else:
             issues.append("ℹ️ Nenhuma ROI definida (opcional)")
-            recommendations.append("• Considere definir ROIs para análises mais detalhadas")
+            recommendations.append(
+                "• Considere definir ROIs para análises mais detalhadas"
+            )
 
         # Summary
         summary = "\n".join(issues)
@@ -1325,18 +1414,20 @@ class AppController:
         # Obtém configurações do projeto
         project_data = self.project_manager.project_data
         zone_data = self.project_manager.get_zone_data()
-        calibration = project_data.get('calibration', {})
+        calibration = project_data.get("calibration", {})
 
-        log.info("controller.batch.apply_settings",
-                videos_count=len(videos),
-                has_zones=bool(zone_data and zone_data.polygon),
-                has_calibration=bool(calibration),
-                has_rois=len(zone_data.roi_polygons) if zone_data else 0)
+        log.info(
+            "controller.batch.apply_settings",
+            videos_count=len(videos),
+            has_zones=bool(zone_data and zone_data.polygon),
+            has_calibration=bool(calibration),
+            has_rois=len(zone_data.roi_polygons) if zone_data else 0,
+        )
 
         # Para cada vídeo no lote
         settings_applied = 0
         for video_info in videos:
-            video_path = video_info.get('path')
+            video_path = video_info.get("path")
             if not video_path:
                 continue
 
@@ -1344,8 +1435,7 @@ class AppController:
 
             # Cria diretório de resultados
             results_dir = os.path.join(
-                self.project_manager.project_path,
-                f"{video_name}_results"
+                self.project_manager.project_path, f"{video_name}_results"
             )
 
             try:
@@ -1355,17 +1445,22 @@ class AppController:
                 settings_file = os.path.join(results_dir, "project_settings.json")
                 settings_data = {
                     "project_name": self.project_manager.get_project_name(),
-                    "active_weight": project_data.get('active_weight'),
-                    "use_openvino": project_data.get('use_openvino', False),
+                    "active_weight": project_data.get("active_weight"),
+                    "use_openvino": project_data.get("use_openvino", False),
                     "calibration": calibration,
                     "video_settings": video_info,
-                    "timestamp": self.project_manager.project_data.get('timestamp'),
-                    "analysis_interval_frames": project_data.get('analysis_interval_frames', 10),
-                    "display_interval_frames": project_data.get('display_interval_frames', 10),
+                    "timestamp": self.project_manager.project_data.get("timestamp"),
+                    "analysis_interval_frames": project_data.get(
+                        "analysis_interval_frames", 10
+                    ),
+                    "display_interval_frames": project_data.get(
+                        "display_interval_frames", 10
+                    ),
                 }
 
                 import json
-                with open(settings_file, 'w') as f:
+
+                with open(settings_file, "w") as f:
                     json.dump(settings_data, f, indent=2)
 
                 # Salva zonas no diretório de resultados
@@ -1373,24 +1468,31 @@ class AppController:
                     zones_file = os.path.join(results_dir, "zones.json")
 
                     from dataclasses import asdict
-                    with open(zones_file, 'w') as f:
+
+                    with open(zones_file, "w") as f:
                         json.dump(asdict(zone_data), f, indent=2)
 
-                    log.info("controller.batch.zones_saved",
-                            video=video_name,
-                            zones_file=zones_file,
-                            settings_file=settings_file)
+                    log.info(
+                        "controller.batch.zones_saved",
+                        video=video_name,
+                        zones_file=zones_file,
+                        settings_file=settings_file,
+                    )
 
                 settings_applied += 1
 
             except Exception as e:
-                log.error("controller.batch.settings_save_error",
-                         video=video_name,
-                         error=str(e))
+                log.error(
+                    "controller.batch.settings_save_error",
+                    video=video_name,
+                    error=str(e),
+                )
 
-        log.info("controller.batch.settings_applied",
-                total_videos=len(videos),
-                successful=settings_applied)
+        log.info(
+            "controller.batch.settings_applied",
+            total_videos=len(videos),
+            successful=settings_applied,
+        )
 
         return settings_applied == len(videos)
 
@@ -1408,17 +1510,28 @@ class AppController:
 
         # Resolve intervals from config
         analysis_interval_frames = 10  # default
-        display_interval_frames = 10   # default
+        display_interval_frames = 10  # default
 
         if single_video_config:
             # For single video: take from config dict if present, else defaults
-            analysis_interval_frames = single_video_config.get('analysis_interval_frames', 10)
-            display_interval_frames = single_video_config.get('display_interval_frames', 10)
+            analysis_interval_frames = single_video_config.get(
+                "analysis_interval_frames", 10
+            )
+            display_interval_frames = single_video_config.get(
+                "display_interval_frames", 10
+            )
         else:
             # For batch projects: read from project_data
-            if hasattr(self.project_manager, 'project_data') and self.project_manager.project_data:
-                analysis_interval_frames = self.project_manager.project_data.get('analysis_interval_frames', 10)
-                display_interval_frames = self.project_manager.project_data.get('display_interval_frames', 10)
+            if (
+                hasattr(self.project_manager, "project_data")
+                and self.project_manager.project_data
+            ):
+                analysis_interval_frames = self.project_manager.project_data.get(
+                    "analysis_interval_frames", 10
+                )
+                display_interval_frames = self.project_manager.project_data.get(
+                    "display_interval_frames", 10
+                )
 
         # Aplica configurações do projeto ao lote ANTES do processamento
         if not single_video_config:  # Só para projetos batch, não single video
@@ -1451,7 +1564,7 @@ class AppController:
                     if self.cancel_event.is_set():
                         return
                     overall_progress = (
-                        f"Processando {i+1}/{len(videos_to_process)}: {experiment_id}"
+                        f"Processando {i + 1}/{len(videos_to_process)}: {experiment_id}"
                     )
                     step_status = f"Etapa: {status_message}"
                     self.root.after(
@@ -1651,9 +1764,7 @@ class AppController:
         for video_info in videos:
             experiment_id = os.path.splitext(os.path.basename(video_info["path"]))[0]
             results_dir = os.path.join(project_path, f"{experiment_id}_results")
-            summary_path = os.path.join(
-                results_dir, f"{experiment_id}_summary.parquet"
-            )
+            summary_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
 
             if os.path.exists(summary_path):
                 try:
@@ -1744,10 +1855,11 @@ class AppController:
                         return
                 else:
                     log.warning("diagnostic.openvino.conversion_skipped")
-                    # If user skips conversion, modify config to only run YOLO if possible
+                    # If user skips conversion, modify config to only run YOLO if
+                    # possible
                     if model_to_test == "Ambos":
                         config["model_to_test"] = "YOLO (PyTorch)"
-                    else: # model_to_test was 'OpenVINO'
+                    else:  # model_to_test was 'OpenVINO'
                         self.view.set_status("Diagnóstico cancelado.")
                         return
 
@@ -1785,8 +1897,8 @@ class AppController:
 
                 yolo_model = YOLO(weight_details["path"])
                 # Define contexto diagnóstico
-                if hasattr(yolo_model, 'set_context'):
-                    yolo_model.set_context('diagnostic')
+                if hasattr(yolo_model, "set_context"):
+                    yolo_model.set_context("diagnostic")
                     log.info("diagnostic.thread.yolo_context_set", context="diagnostic")
                 results["YOLO (PyTorch)"] = []
 
@@ -1798,25 +1910,46 @@ class AppController:
                         openvino_model = plugin_class(ov_path)
                         # Verify the plugin has the required predict method
                         if not hasattr(openvino_model, "predict"):
-                            log.error("diagnostic.thread.missing_predict_method", plugin_class=str(plugin_class))
-                            self.root.after(0, self.view.show_error, "Erro de Plugin",
-                                          "O plugin OpenVINO não possui o método predict necessário para diagnóstico.")
+                            log.error(
+                                "diagnostic.thread.missing_predict_method",
+                                plugin_class=str(plugin_class),
+                            )
+                            self.root.after(
+                                0,
+                                self.view.show_error,
+                                "Erro de Plugin",
+                                "O plugin OpenVINO não possui o método predict "
+                                "necessário para diagnóstico.",
+                            )
                             return
                         # Set diagnostic context to allow all classes
                         if hasattr(openvino_model, "set_context"):
                             openvino_model.set_context("diagnostic")
-                            log.info("diagnostic.thread.openvino_context_set", context="diagnostic")
+                            log.info(
+                                "diagnostic.thread.openvino_context_set",
+                                context="diagnostic",
+                            )
                         results["OpenVINO"] = []
                         log.info("diagnostic.thread.openvino_loaded", path=ov_path)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
-            self.root.after(0, self.view.show_error, "Erro ao Carregar Modelo", f"Falha: {e}")
+            self.root.after(
+                0,
+                self.view.show_error,
+                "Erro ao Carregar Modelo",
+                f"Falha: {e}",
+            )
             return
 
         # --- Video Processing ---
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            self.root.after(0, self.view.show_error, "Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            self.root.after(
+                0,
+                self.view.show_error,
+                "Erro",
+                f"Não foi possível abrir o vídeo: {video_path}",
+            )
             return
 
         for frame_count in range(frames_to_analyze):
@@ -1835,16 +1968,29 @@ class AppController:
 
             if openvino_model:
                 try:
-                    log.debug("diagnostic.thread.openvino_predict_start", frame=frame_count + 1)
+                    log.debug(
+                        "diagnostic.thread.openvino_predict_start",
+                        frame=frame_count + 1,
+                    )
                     preds = openvino_model.predict(frame, conf_threshold)
-                    log.debug("diagnostic.thread.openvino_predict_success",
-                             frame=frame_count + 1, detections=len(preds))
+                    log.debug(
+                        "diagnostic.thread.openvino_predict_success",
+                        frame=frame_count + 1,
+                        detections=len(preds),
+                    )
                     results.setdefault("OpenVINO", []).append(preds)
                 except Exception as e:
-                    log.error("diagnostic.thread.openvino_predict_error",
-                             frame=frame_count + 1, exc_info=True)
-                    self.root.after(0, self.view.show_error, "Erro de Inferência OpenVINO",
-                                  f"Falha na inferência do frame {frame_count + 1}: {e}")
+                    log.error(
+                        "diagnostic.thread.openvino_predict_error",
+                        frame=frame_count + 1,
+                        exc_info=True,
+                    )
+                    self.root.after(
+                        0,
+                        self.view.show_error,
+                        "Erro de Inferência OpenVINO",
+                        f"Falha na inferência do frame {frame_count + 1}: {e}",
+                    )
                     return
         cap.release()
 
@@ -1869,7 +2015,9 @@ class AppController:
                     "Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}"
                 )
             except IOError as e:
-                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
+                self.view.show_error(
+                    "Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}"
+                )
 
         self.view.set_status("Diagnóstico concluído. Pronto.")
 
@@ -1897,20 +2045,26 @@ class AppController:
                 mask_only_detections = []
 
                 # Handle ultralytics results object
-                if hasattr(preds, 'boxes') or hasattr(preds, 'masks'):
+                if hasattr(preds, "boxes") or hasattr(preds, "masks"):
                     # Processa boxes com suas máscaras
                     if preds.boxes is not None:
                         for j, box in enumerate(preds.boxes):
                             class_id = int(box.cls)
-                            class_name = preds.names.get(class_id, 'desconhecido')
+                            class_name = preds.names.get(class_id, "desconhecido")
                             conf = float(box.conf)
                             bbox = [int(coord) for coord in box.xyxy[0]]
 
                             # Verifica se tem máscara
-                            has_mask = (preds.masks is not None and
-                                      preds.masks.xy is not None and
-                                      j < len(preds.masks.xy))
-                            mask_info = f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
+                            has_mask = (
+                                preds.masks is not None
+                                and preds.masks.xy is not None
+                                and j < len(preds.masks.xy)
+                            )
+                            mask_info = (
+                                f", Máscara: {len(preds.masks.xy[j])} pontos"
+                                if has_mask
+                                else ""
+                            )
 
                             detections.append(
                                 f"  - Classe {class_id} ('{class_name}'), "
@@ -1937,11 +2091,15 @@ class AppController:
                 # Handle OpenVINO plugin format
                 elif isinstance(preds, list):
                     for det in preds:
-                        class_id = det['class_id']
-                        class_name = det['class_name']
-                        conf = det['confidence']
-                        bbox = det['box']
-                        mask_info = f", Máscara: {det.get('mask_points', 0)} pontos" if det.get('has_mask') else ""
+                        class_id = det["class_id"]
+                        class_name = det["class_name"]
+                        conf = det["confidence"]
+                        bbox = det["box"]
+                        mask_info = (
+                            f", Máscara: {det.get('mask_points', 0)} pontos"
+                            if det.get("has_mask")
+                            else ""
+                        )
 
                         detections.append(
                             f"  - Classe {class_id} ('{class_name}'), "
@@ -1952,13 +2110,15 @@ class AppController:
                 if detections:
                     report_lines.extend(detections)
                 if mask_only_detections:
-                    report_lines.append("  Máscaras sem bounding box (possíveis aquários):")
+                    report_lines.append(
+                        "  Máscaras sem bounding box (possíveis aquários):"
+                    )
                     report_lines.extend(mask_only_detections)
                 if not detections and not mask_only_detections:
                     report_lines.append("  - Nenhuma detecção encontrada.")
 
                 report_lines.append("")
 
-            report_lines.append("") # Spacer between models
+            report_lines.append("")  # Spacer between models
 
         return "\n".join(report_lines)

@@ -186,7 +186,7 @@ class Recorder:
             poly_data = []
             for i, polygon_points in enumerate(zones.roi_polygons):
                 roi_name = (
-                    zones.roi_names[i] if i < len(zones.roi_names) else f"ROI_{i+1}"
+                    zones.roi_names[i] if i < len(zones.roi_names) else f"ROI_{i + 1}"
                 )
                 for j, (x, y) in enumerate(polygon_points):
                     poly_data.append([roi_name, j, x, y])

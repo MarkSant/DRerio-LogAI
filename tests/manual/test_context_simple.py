@@ -8,21 +8,22 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+
 def test_context_control_concept():
     """Testa o conceito de controle de contexto"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DO CONTROLE DE CONTEXTO NO DETECTOR")
-    print("="*80)
+    print("=" * 80)
 
     # Simula plugin com controle de contexto
     class MockPlugin:
         def __init__(self):
-            self._context = 'tracking'
+            self._context = "tracking"
             self._aquarium_region_defined = False
-            self.class_names = {0: 'aquarium', 1: 'zebrafish'}
+            self.class_names = {0: "aquarium", 1: "zebrafish"}
 
         def set_context(self, context: str):
-            if context in ('tracking', 'diagnostic'):
+            if context in ("tracking", "diagnostic"):
                 self._context = context
                 print(f"   Plugin context set to: {context}")
 
@@ -32,9 +33,9 @@ def test_context_control_concept():
 
         def get_filtered_classes(self):
             """Simula filtragem de classes baseada no contexto"""
-            if self._context == 'diagnostic':
+            if self._context == "diagnostic":
                 return [0, 1]  # Todas as classes
-            elif self._context == 'tracking' and not self._aquarium_region_defined:
+            elif self._context == "tracking" and not self._aquarium_region_defined:
                 return [0, 1]  # Todas as classes (aquário ainda não definido)
             else:
                 return [1]  # Só zebrafish (tracking com aquário definido)
@@ -45,7 +46,9 @@ def test_context_control_concept():
             print(f"   Frame: {frame_description}")
             print(f"   Context: {self._context}")
             print(f"   Aquarium defined: {self._aquarium_region_defined}")
-            print(f"   Allowed classes: {[self.class_names[c] for c in allowed_classes]}")
+            print(
+                f"   Allowed classes: {[self.class_names[c] for c in allowed_classes]}"
+            )
             return f"Detection with classes {allowed_classes}"
 
     # Teste 1: Setup inicial (tracking mode)
@@ -55,8 +58,8 @@ def test_context_control_concept():
 
     # Simula setup_detector()
     print("   setup_detector() called:")
-    if hasattr(plugin, 'set_context'):
-        plugin.set_context('tracking')
+    if hasattr(plugin, "set_context"):
+        plugin.set_context("tracking")
         print("   SUCESSO: Context set to tracking")
 
     # Teste 2: Setup de zonas sem aquário definido
@@ -65,7 +68,7 @@ def test_context_control_concept():
     print("   setup_detector_zones() called (no aquarium):")
 
     zone_data_empty = None  # Simula zona não definida
-    if hasattr(plugin, 'set_aquarium_region_defined'):
+    if hasattr(plugin, "set_aquarium_region_defined"):
         has_aquarium = bool(zone_data_empty)
         plugin.set_aquarium_region_defined(has_aquarium)
         print("   SUCESSO: Aquarium status updated")
@@ -79,8 +82,13 @@ def test_context_control_concept():
     print("-" * 50)
     print("   setup_detector_zones() called (with aquarium):")
 
-    zone_data_with_aquarium = [[100, 100], [500, 100], [500, 400], [100, 400]]  # Simula polígono
-    if hasattr(plugin, 'set_aquarium_region_defined'):
+    zone_data_with_aquarium = [
+        [100, 100],
+        [500, 100],
+        [500, 400],
+        [100, 400],
+    ]  # Simula polígono
+    if hasattr(plugin, "set_aquarium_region_defined"):
         has_aquarium = bool(zone_data_with_aquarium)
         plugin.set_aquarium_region_defined(has_aquarium)
         print("   SUCESSO: Aquarium status updated")
@@ -94,8 +102,8 @@ def test_context_control_concept():
     print("-" * 50)
     print("   _diagnostic_processing_thread() called:")
 
-    if hasattr(plugin, 'set_context'):
-        plugin.set_context('diagnostic')
+    if hasattr(plugin, "set_context"):
+        plugin.set_context("diagnostic")
         print("   SUCESSO: Context set to diagnostic")
 
     # Teste predição em modo diagnóstico
@@ -107,41 +115,42 @@ def test_context_control_concept():
     print("-" * 50)
     print("   Returning to tracking mode:")
 
-    if hasattr(plugin, 'set_context'):
-        plugin.set_context('tracking')
+    if hasattr(plugin, "set_context"):
+        plugin.set_context("tracking")
         print("   SUCESSO: Context restored to tracking")
 
     result = plugin.predict("Back to tracking")
     print(f"   Result: {result}")
 
+
 def test_context_scenarios():
     """Testa diferentes cenários de contexto"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CENARIOS DE CONTEXTO")
-    print("="*60)
+    print("=" * 60)
 
     scenarios = [
         {
-            'name': 'Inicio do projeto - sem aquario',
-            'context': 'tracking',
-            'aquarium_defined': False,
-            'expected_classes': ['aquarium', 'zebrafish'],
-            'description': 'Detecta todas as classes para permitir definicao do aquario'
+            "name": "Inicio do projeto - sem aquario",
+            "context": "tracking",
+            "aquarium_defined": False,
+            "expected_classes": ["aquarium", "zebrafish"],
+            "description": "Detecta todas as classes para definir o aquario",
         },
         {
-            'name': 'Tracking normal - com aquario',
-            'context': 'tracking',
-            'aquarium_defined': True,
-            'expected_classes': ['zebrafish'],
-            'description': 'So detecta zebrafish para tracking eficiente'
+            "name": "Tracking normal - com aquario",
+            "context": "tracking",
+            "aquarium_defined": True,
+            "expected_classes": ["zebrafish"],
+            "description": "So detecta zebrafish para tracking eficiente",
         },
         {
-            'name': 'Modo diagnostico',
-            'context': 'diagnostic',
-            'aquarium_defined': True,  # Irrelevante no diagnóstico
-            'expected_classes': ['aquarium', 'zebrafish'],
-            'description': 'Detecta todas as classes para analise completa'
-        }
+            "name": "Modo diagnostico",
+            "context": "diagnostic",
+            "aquarium_defined": True,  # Irrelevante no diagnóstico
+            "expected_classes": ["aquarium", "zebrafish"],
+            "description": "Detecta todas as classes para analise completa",
+        },
     ]
 
     for i, scenario in enumerate(scenarios, 1):
@@ -151,11 +160,12 @@ def test_context_scenarios():
         print(f"   Expected classes: {scenario['expected_classes']}")
         print(f"   Description: {scenario['description']}")
 
+
 def test_implementation_benefits():
     """Lista benefícios da implementação"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("BENEFICIOS DO CONTROLE DE CONTEXTO")
-    print("="*60)
+    print("=" * 60)
 
     benefits = [
         "Filtragem automatica de classes baseada no contexto",
@@ -165,20 +175,21 @@ def test_implementation_benefits():
         "Controle centralizado no controller",
         "Compatibilidade com plugins YOLO e OpenVINO",
         "Estado do aquario influencia comportamento automaticamente",
-        "Logs detalhados para debugging"
+        "Logs detalhados para debugging",
     ]
 
     for i, benefit in enumerate(benefits, 1):
         print(f"  {i}. {benefit}")
+
 
 if __name__ == "__main__":
     test_context_control_concept()
     test_context_scenarios()
     test_implementation_benefits()
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("IMPLEMENTACAO DO CONTROLE DE CONTEXTO CONCLUIDA")
-    print("="*80)
+    print("=" * 80)
     print("• setup_detector(): Define contexto inicial 'tracking'")
     print("• setup_detector_zones(): Informa status do aquario")
     print("• _diagnostic_processing_thread(): Define contexto 'diagnostic'")

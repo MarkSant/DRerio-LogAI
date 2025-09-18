@@ -13,6 +13,7 @@ from zebtrack.plugins.base import DetectorPlugin
 
 # --- Test Helpers (adapted from test_integration.py) ---
 
+
 def generate_mock_video(filepath: str, duration_s: int = 2, fps: int = 10):
     """Generates a simple dummy video file with a moving square."""
     width, height = 640, 480
@@ -78,13 +79,12 @@ def single_video_test_setup(tmp_path: Path):
     )
     # Mock project manager for this test
     controller.project_manager = MagicMock()
-    controller.project_manager.project_path = None # Crucial for single video mode
+    controller.project_manager.project_path = None  # Crucial for single video mode
     controller.project_manager.get_zone_data.return_value = MagicMock(
         polygon=None, squares=[], colors=[]
     )
     # Mock calibration data
     controller.project_manager.get_calibration_data.return_value = {}
-
 
     # 4. Define the configuration that the dialog would produce
     test_config = {
@@ -104,6 +104,7 @@ def single_video_test_setup(tmp_path: Path):
 
 
 # --- The Integration Test ---
+
 
 def test_single_video_workflow_creates_output_files(single_video_test_setup):
     """

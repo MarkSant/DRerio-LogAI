@@ -14,22 +14,14 @@ import cv2
 warnings.filterwarnings("ignore")
 
 # Adiciona src ao path
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
-# Mock estrutlog para evitar dependências
-class MockStructlog:
-    def get_logger(self):
-        return self
-    def info(self, msg, **kwargs):
-        pass
-    def warning(self, msg, **kwargs):
-        pass
-    def error(self, msg, **kwargs):
-        pass
-    def debug(self, msg, **kwargs):
-        pass
 
-sys.modules['structlog'] = MockStructlog()
+# Mock structlog para evitar dependências
+from unittest.mock import MagicMock
+
+sys.modules["structlog"] = MagicMock()
+
 
 def test_1_yolo_both_classes(model_path, video_path):
     """Testa se YOLO detecta ambas as classes"""
@@ -78,6 +70,7 @@ def test_1_yolo_both_classes(model_path, video_path):
         print(f"   ERRO: {e}")
         return False
 
+
 def test_2_aquarium_detection(model_path, video_path):
     """Testa detecção automática de aquário"""
     print("\n[TEST 2] DETECAO AUTOMATICA DE AQUARIO")
@@ -88,8 +81,10 @@ def test_2_aquarium_detection(model_path, video_path):
         class MockVideoFileSource:
             def __init__(self, path):
                 self.cap = cv2.VideoCapture(path)
+
             def get_frame(self):
                 return self.cap.read()
+
             def release(self):
                 self.cap.release()
 
@@ -131,8 +126,8 @@ def test_2_aquarium_detection(model_path, video_path):
                     if area > frame_area * 0.1:  # Pelo menos 10% do frame
                         good_polygons.append(polygon)
                         print(
-                            f"   Frame {i+1}: Aquario detectado "
-                            f"(area={area/frame_area:.1%})"
+                            f"   Frame {i + 1}: Aquario detectado "
+                            f"(area={area / frame_area:.1%})"
                         )
 
         cap.release()
@@ -145,13 +140,14 @@ def test_2_aquarium_detection(model_path, video_path):
             # Cria polígono padrão
             margin_x = int(frame_width * 0.1)
             margin_y = int(frame_height * 0.1)
-            default_area = (frame_width - 2*margin_x) * (frame_height - 2*margin_y)
+            default_area = (frame_width - 2 * margin_x) * (frame_height - 2 * margin_y)
             print(f"   Poligono padrao: area={default_area} pixels")
             return True
 
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_3_canvas_polygon():
     """Testa sistema de canvas para desenho"""
@@ -212,6 +208,7 @@ def test_3_canvas_polygon():
         print(f"   ERRO: {e}")
         return False
 
+
 def test_4_openvino_classes(model_path):
     """Testa mapeamento de classes no OpenVINO"""
     print("\n[TEST 4] CLASSES OPENVINO E METADATA")
@@ -223,15 +220,12 @@ def test_4_openvino_classes(model_path):
 
         # Testa criação de metadata
         metadata = {
-            'model_type': 'instance_segmentation',
-            'num_classes': 2,
-            'class_names': {
-                '0': 'aquarium',
-                '1': 'zebrafish'
-            },
-            'task': 'segment',
-            'original_model': os.path.basename(model_path),
-            'conversion_date': '2024-01-15 10:30:45'
+            "model_type": "instance_segmentation",
+            "num_classes": 2,
+            "class_names": {"0": "aquarium", "1": "zebrafish"},
+            "task": "segment",
+            "original_model": os.path.basename(model_path),
+            "conversion_date": "2024-01-15 10:30:45",
         }
 
         # Cria diretório temporário
@@ -240,17 +234,17 @@ def test_4_openvino_classes(model_path):
 
         try:
             # Salva metadata
-            metadata_path = os.path.join(test_dir, 'metadata.json')
-            with open(metadata_path, 'w') as f:
+            metadata_path = os.path.join(test_dir, "metadata.json")
+            with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
             print("   Metadata criado")
 
             # Testa carregamento
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path, "r") as f:
                 loaded_metadata = json.load(f)
 
-            class_names = {int(k): v for k, v in loaded_metadata['class_names'].items()}
+            class_names = {int(k): v for k, v in loaded_metadata["class_names"].items()}
             print(f"   Classes carregadas: {class_names}")
 
             # Testa uso
@@ -264,12 +258,14 @@ def test_4_openvino_classes(model_path):
         finally:
             # Limpa arquivos de teste
             import shutil
+
             if os.path.exists(test_dir):
                 shutil.rmtree(test_dir)
 
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_5_context_control():
     """Testa controle de contexto"""
@@ -280,9 +276,9 @@ def test_5_context_control():
         # Simula plugin com controle de contexto
         class MockContextPlugin:
             def __init__(self):
-                self._context = 'tracking'
+                self._context = "tracking"
                 self._aquarium_region_defined = False
-                self.class_names = {0: 'aquarium', 1: 'zebrafish'}
+                self.class_names = {0: "aquarium", 1: "zebrafish"}
 
             def set_context(self, context):
                 self._context = context
@@ -293,9 +289,9 @@ def test_5_context_control():
                 return True
 
             def get_filtered_classes(self):
-                if self._context == 'diagnostic':
+                if self._context == "diagnostic":
                     return [0, 1]
-                elif self._context == 'tracking' and not self._aquarium_region_defined:
+                elif self._context == "tracking" and not self._aquarium_region_defined:
                     return [0, 1]
                 else:
                     return [1]
@@ -303,7 +299,7 @@ def test_5_context_control():
         plugin = MockContextPlugin()
 
         # Teste 1: Tracking inicial
-        plugin.set_context('tracking')
+        plugin.set_context("tracking")
         plugin.set_aquarium_region_defined(False)
         classes = plugin.get_filtered_classes()
         print(f"   Tracking inicial: {[plugin.class_names[c] for c in classes]}")
@@ -314,7 +310,7 @@ def test_5_context_control():
         print(f"   Tracking com aquario: {[plugin.class_names[c] for c in classes]}")
 
         # Teste 3: Diagnóstico
-        plugin.set_context('diagnostic')
+        plugin.set_context("diagnostic")
         classes = plugin.get_filtered_classes()
         print(f"   Modo diagnostico: {[plugin.class_names[c] for c in classes]}")
 
@@ -324,6 +320,7 @@ def test_5_context_control():
     except Exception as e:
         print(f"   ERRO: {e}")
         return False
+
 
 def test_6_instance_segmentation(model_path, video_path):
     """Testa instance segmentation completo"""
@@ -391,11 +388,12 @@ def test_6_instance_segmentation(model_path, video_path):
         print(f"   ERRO: {e}")
         return False
 
+
 def run_comprehensive_validation(model_path, video_path):
     """Executa validação completa"""
-    print("="*80)
+    print("=" * 80)
     print("VALIDACAO COMPLETA DAS CORRECOES - ZEBTRACK-AI")
-    print("="*80)
+    print("=" * 80)
     print(f"Modelo: {model_path}")
     print(f"Video: {video_path}")
 
@@ -412,18 +410,18 @@ def run_comprehensive_validation(model_path, video_path):
     tests = [
         (
             "YOLO detecta ambas classes",
-            lambda: test_1_yolo_both_classes(model_path, video_path)
+            lambda: test_1_yolo_both_classes(model_path, video_path),
         ),
         (
             "Detecao automatica aquario",
-            lambda: test_2_aquarium_detection(model_path, video_path)
+            lambda: test_2_aquarium_detection(model_path, video_path),
         ),
         ("Sistema de canvas", test_3_canvas_polygon),
         ("Classes OpenVINO/Metadata", lambda: test_4_openvino_classes(model_path)),
         ("Controle de contexto", test_5_context_control),
         (
             "Instance segmentation",
-            lambda: test_6_instance_segmentation(model_path, video_path)
+            lambda: test_6_instance_segmentation(model_path, video_path),
         ),
     ]
 
@@ -438,9 +436,9 @@ def run_comprehensive_validation(model_path, video_path):
             results.append((test_name, False))
 
     # Relatório final
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RELATORIO FINAL DE VALIDACAO")
-    print("="*80)
+    print("=" * 80)
 
     passed = 0
     total = len(results)
@@ -452,7 +450,7 @@ def run_comprehensive_validation(model_path, video_path):
         if success:
             passed += 1
 
-    print(f"\nRESUMO: {passed}/{total} testes passaram ({passed/total*100:.1f}%)")
+    print(f"\nRESUMO: {passed}/{total} testes passaram ({passed / total * 100:.1f}%)")
 
     if passed == total:
         print("\n🎉 TODAS AS CORRECOES VALIDADAS COM SUCESSO!")
@@ -469,6 +467,7 @@ def run_comprehensive_validation(model_path, video_path):
     print("• Controle de contexto dinamico")
     print("• Relatorios com informacoes de mascaras")
 
+
 def main():
     if len(sys.argv) != 3:
         print("Uso: python validate_fixes.py <modelo.pt> <video.mp4>")
@@ -480,6 +479,7 @@ def main():
     video_path = sys.argv[2]
 
     run_comprehensive_validation(model_path, video_path)
+
 
 if __name__ == "__main__":
     main()

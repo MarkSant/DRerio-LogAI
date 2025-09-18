@@ -11,31 +11,32 @@ def check_project_state(project_path):
         print(f"❌ Arquivo não encontrado: {json_path}")
         return
 
-    with open(json_path, 'r') as f:
+    with open(json_path, "r") as f:
         data = json.load(f)
 
     print("\n=== ESTADO DO PROJETO ===")
     print(f"Nome: {data.get('project_name', 'N/A')}")
     print(f"Tipo: {data.get('project_type', 'N/A')}")
 
-    zones = data.get('detection_zones', {})
+    zones = data.get("detection_zones", {})
     print("\n=== DETECTION ZONES ===")
     print(f"Tem detection_zones? {bool(zones)}")
 
     if zones:
-        polygon = zones.get('polygon', [])
+        polygon = zones.get("polygon", [])
         print(f"Polygon principal: {len(polygon)} pontos")
         if polygon:
             print(f"  Primeiros 3 pontos: {polygon[:3]}")
 
-        roi_polygons = zones.get('roi_polygons', [])
+        roi_polygons = zones.get("roi_polygons", [])
         print(f"ROI polygons: {len(roi_polygons)}")
 
-        roi_names = zones.get('roi_names', [])
+        roi_names = zones.get("roi_names", [])
         print(f"ROI names: {roi_names}")
 
     print("\n=== ARQUIVO COMPLETO ===")
     print(json.dumps(data, indent=2)[:500])  # Primeiros 500 chars
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

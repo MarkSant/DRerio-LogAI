@@ -121,9 +121,9 @@ class Reporter:
                 combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(
                     roi_name, {}
                 ).get("seconds")
-                combined_data[
-                    f"percentual_tempo_no_{roi_name}"
-                ] = time_spent.get(roi_name, {}).get("percentage")
+                combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(
+                    roi_name, {}
+                ).get("percentage")
                 # Entry and Exit counts
                 entries = entry_counts.get(roi_name, 0)
                 combined_data[f"entradas_no_{roi_name}"] = entries
@@ -136,18 +136,18 @@ class Reporter:
                 # Intra-ROI Velocity
                 roi_vel = velocities.get(roi_name)
                 if roi_vel:
-                    combined_data[
-                        f"velocidade_media_no_{roi_name}_cm_s"
-                    ] = roi_vel.get("mean")
+                    combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get(
+                        "mean"
+                    )
                 # Intra-ROI Freezing
                 roi_freeze = freezing.get(roi_name)
                 if roi_freeze:
-                    combined_data[
-                        f"episodios_congelamento_no_{roi_name}"
-                    ] = roi_freeze.get("count")
-                    combined_data[
-                        f"duracao_total_congelamento_no_{roi_name}_s"
-                    ] = roi_freeze.get("total_duration")
+                    combined_data[f"episodios_congelamento_no_{roi_name}"] = (
+                        roi_freeze.get("count")
+                    )
+                    combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = (
+                        roi_freeze.get("total_duration")
+                    )
                 # ROI Color
                 if roi_name in self.roi_colors:
                     combined_data[f"cor_roi_{roi_name}"] = str(

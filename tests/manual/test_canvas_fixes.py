@@ -5,22 +5,21 @@ Teste das correções do canvas vazio para desenho de polígonos
 """
 
 import os
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import tkinter as tk
+import warnings
 from tkinter import Canvas
 
 import cv2
 from PIL import Image, ImageTk
 
+warnings.filterwarnings("ignore")
+
 
 def test_canvas_functionality():
     """Simula e testa a funcionalidade de carregamento de frame no canvas"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DAS CORREÇÕES DO CANVAS VAZIO")
-    print("="*80)
+    print("=" * 80)
 
     # Verifica se os arquivos existem
     if not os.path.exists("CECT_8.mp4"):
@@ -73,6 +72,7 @@ def test_canvas_functionality():
     except Exception as e:
         print(f"❌ Erro durante teste: {e}")
         import traceback
+
         traceback.print_exc()
         return
 
@@ -97,15 +97,16 @@ def test_canvas_functionality():
     print("   → Sempre tenta manter/carregar frame de fundo")
     print("   → Desenha todas as zonas sobre a imagem")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("✅ TESTES CONCLUÍDOS - CANVAS CORRIGIDO")
-    print("="*80)
+    print("=" * 80)
+
 
 def test_fallback_strategies():
     """Testa as estratégias de fallback para carregamento de vídeos"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TESTE DAS ESTRATÉGIAS DE FALLBACK")
-    print("="*60)
+    print("=" * 60)
 
     print("1. ✅ video_path fornecido diretamente")
     print("2. ✅ pending_single_video_path (fluxo de vídeo único)")
@@ -117,6 +118,7 @@ def test_fallback_strategies():
     print("• Sistema tenta múltiplas fontes de vídeo")
     print("• Falha graciosamente com mensagens claras")
     print("• Não quebra a interface se não encontrar vídeo")
+
 
 if __name__ == "__main__":
     test_canvas_functionality()

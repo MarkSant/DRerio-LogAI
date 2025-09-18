@@ -3,6 +3,7 @@
 This module provides a unified service for performing comprehensive behavioral
 and ROI-based analysis.
 """
+
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -90,7 +91,7 @@ class AnalysisService:
             rois=rois,
             inclusion_rule=settings.roi_inclusion_rule,
             buffer_radius_value=settings.roi_buffer_radius_value,
-            min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio
+            min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),

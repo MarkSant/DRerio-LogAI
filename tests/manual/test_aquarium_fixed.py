@@ -6,18 +6,18 @@ Teste da detecção de aquário corrigida
 
 import warnings
 
-warnings.filterwarnings("ignore")
-
 import cv2
 import numpy as np
 from ultralytics import YOLO
 
+warnings.filterwarnings("ignore")
+
 
 def test_manual_aquarium_strategy():
     """Testa manualmente a estratégia de fallback da detecção de aquário"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DA ESTRATÉGIA DE FALLBACK PARA AQUÁRIO")
-    print("="*80)
+    print("=" * 80)
 
     model = YOLO("best_seg.pt")
     cap = cv2.VideoCapture("CECT_8.mp4")
@@ -40,7 +40,7 @@ def test_manual_aquarium_strategy():
         if not ret:
             break
 
-        print(f"\nFrame {i+1}:")
+        print(f"\nFrame {i + 1}:")
 
         # Estratégia 1: Só aquário (classe 0)
         results_aqua = model.predict(frame, verbose=False, classes=[0], conf=0.01)
@@ -84,7 +84,7 @@ def test_manual_aquarium_strategy():
                     area = (x_max - x_min) * (y_max - y_min)
                     area_ratio = area / frame_area
 
-                    print(f"    Máscara {j+1}: área={int(area)} ({area_ratio:.2%})")
+                    print(f"    Máscara {j + 1}: área={int(area)} ({area_ratio:.2%})")
 
                     if area > largest_area:
                         largest_area = area
@@ -96,7 +96,10 @@ def test_manual_aquarium_strategy():
                         good_polygons.append(largest_polygon.astype(np.int32))
                         print(f"    ✅ Maior máscara aceita (área={largest_ratio:.2%})")
                     else:
-                        print(f"    ❌ Maior máscara muito pequena (área={largest_ratio:.2%})")
+                        print(
+                            "    ❌ Maior máscara muito pequena "
+                            f"(área={largest_ratio:.2%})"
+                        )
             else:
                 print("  Estratégia 2: Nenhuma máscara encontrada")
 
@@ -117,19 +120,29 @@ def test_manual_aquarium_strategy():
         margin_x = int(frame_width * 0.1)
         margin_y = int(frame_height * 0.1)
 
-        default_polygon = np.array([
-            [margin_x, margin_y],
-            [frame_width - margin_x, margin_y],
-            [frame_width - margin_x, frame_height - margin_y],
-            [margin_x, frame_height - margin_y]
-        ], dtype=np.int32)
+        default_polygon = np.array(
+            [
+                [margin_x, margin_y],
+                [frame_width - margin_x, margin_y],
+                [frame_width - margin_x, frame_height - margin_y],
+                [margin_x, frame_height - margin_y],
+            ],
+            dtype=np.int32,
+        )
 
-        print(f"  Polígono padrão: bbox=[{margin_x}, {margin_y}, {frame_width - margin_x}, {frame_height - margin_y}]")
-        print(f"  Área: {(frame_width - 2*margin_x) * (frame_height - 2*margin_y)} (80% do frame)")
+        print(
+            f"  Polígono padrão: bbox=[{margin_x}, {margin_y}, "
+            f"{frame_width - margin_x}, {frame_height - margin_y}]"
+        )
+        print(
+            f"  Área: {(frame_width - 2 * margin_x) * (frame_height - 2 * margin_y)} "
+            "(80% do frame)"
+        )
         good_polygons = [default_polygon]
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     return good_polygons
+
 
 if __name__ == "__main__":
     test_manual_aquarium_strategy()

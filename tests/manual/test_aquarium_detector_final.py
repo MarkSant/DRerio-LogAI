@@ -10,35 +10,23 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+
 # Mock do structlog para teste
-class MockStructlog:
-    def get_logger(self):
-        return self
-
-    def info(self, msg, **kwargs):
-        print(f"INFO: {msg} - {kwargs}")
-
-    def warning(self, msg, **kwargs):
-        print(f"WARNING: {msg} - {kwargs}")
-
-    def error(self, msg, **kwargs):
-        print(f"ERROR: {msg} - {kwargs}")
-
-    def debug(self, msg, **kwargs):
-        pass  # Ignora debug
+from unittest.mock import MagicMock
 
 # Injeta mock
-sys.modules['structlog'] = MockStructlog()
+sys.modules["structlog"] = MagicMock()
 
 # Agora adiciona src ao path
-if os.path.exists('src'):
-    sys.path.insert(0, 'src')
+if os.path.exists("src"):
+    sys.path.insert(0, "src")
+
 
 def test_final_aquarium_detector():
     """Testa o detector de aquário corrigido"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE FINAL DO DETECTOR DE AQUÁRIO CORRIGIDO")
-    print("="*80)
+    print("=" * 80)
 
     try:
         from zebtrack.core.aquarium_detector import AquariumDetector
@@ -64,7 +52,7 @@ def test_final_aquarium_detector():
                 y_max = polygon[:, 1].max()
                 area = (x_max - x_min) * (y_max - y_min)
 
-                print(f"   Polígono {i+1}:")
+                print(f"   Polígono {i + 1}:")
                 print(f"     Pontos: {len(polygon)}")
                 print(f"     Bbox: [{x_min}, {y_min}, {x_max}, {y_max}]")
                 print(f"     Área: {area} pixels")
@@ -73,21 +61,28 @@ def test_final_aquarium_detector():
                 is_rectangle = len(polygon) == 4
                 if is_rectangle:
                     expected_area = (x_max - x_min) * (y_max - y_min)
-                    print(f"     Tipo: {'Polígono padrão (80% do frame)' if area == expected_area else 'Detectado via modelo'}")
+                    tipo = (
+                        "Polígono padrão (80% do frame)"
+                        if area == expected_area
+                        else "Detectado via modelo"
+                    )
+                    print(f"     Tipo: {tipo}")
         else:
             print("❌ Nenhum polígono detectado (erro crítico)")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("TESTE CONCLUÍDO")
-        print("="*80)
+        print("=" * 80)
 
         return polygons
 
     except Exception as e:
         print(f"❌ ERRO: {e}")
         import traceback
+
         traceback.print_exc()
         return None
+
 
 if __name__ == "__main__":
     test_final_aquarium_detector()

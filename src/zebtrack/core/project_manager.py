@@ -247,8 +247,11 @@ class ProjectManager:
             if "calibration" in loaded_data:
                 if "animals_per_aquarium" not in loaded_data["calibration"]:
                     loaded_data["calibration"]["animals_per_aquarium"] = 1
-                    log_context.info("project.load.backward_compatibility",
-                                   message="Added missing animals_per_aquarium field with default value 1")
+                    log_context.info(
+                        "project.load.backward_compatibility",
+                        message="Added missing animals_per_aquarium field with "
+                        "default value 1",
+                    )
             # --- End Backward Compatibility ---
 
             self.project_data = loaded_data
@@ -382,10 +385,12 @@ class ProjectManager:
         """Atualiza ou define o polígono principal nos dados do projeto."""
         from dataclasses import asdict
 
-        log.info("project_manager.polygon.updating",
-                 points_count=len(points),
-                 project_path=self.project_path,
-                 has_project_data=bool(self.project_data))
+        log.info(
+            "project_manager.polygon.updating",
+            points_count=len(points),
+            project_path=self.project_path,
+            has_project_data=bool(self.project_data),
+        )
 
         try:
             # Validação de estado interno
@@ -395,16 +400,20 @@ class ProjectManager:
 
             # Obter dados de zona atual
             zone_data = self.get_zone_data()
-            log.debug("project_manager.polygon.zone_data_loaded",
-                     current_polygon_exists=bool(zone_data.polygon),
-                     current_roi_count=len(zone_data.roi_polygons))
+            log.debug(
+                "project_manager.polygon.zone_data_loaded",
+                current_polygon_exists=bool(zone_data.polygon),
+                current_roi_count=len(zone_data.roi_polygons),
+            )
 
             # Atualizar polígono
             old_polygon = zone_data.polygon
             zone_data.polygon = points
-            log.info("project_manager.polygon.polygon_updated",
-                     old_points=len(old_polygon) if old_polygon else 0,
-                     new_points=len(points))
+            log.info(
+                "project_manager.polygon.polygon_updated",
+                old_points=len(old_polygon) if old_polygon else 0,
+                new_points=len(points),
+            )
 
             # Salvar estrutura atualizada
             self.project_data["detection_zones"] = asdict(zone_data)
@@ -412,13 +421,19 @@ class ProjectManager:
 
             # Persistir no arquivo
             self.save_project()
-            log.info("project_manager.polygon.saved_successfully",
-                     project_file=f"{self.project_path}/project.json" if self.project_path else "unknown")
+            log.info(
+                "project_manager.polygon.saved_successfully",
+                project_file=f"{self.project_path}/project.json"
+                if self.project_path
+                else "unknown",
+            )
 
         except Exception as e:
-            log.error("project_manager.polygon.update_failed",
-                     error=str(e),
-                     error_type=type(e).__name__)
+            log.error(
+                "project_manager.polygon.update_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             raise
 
     def load_metadata(self):
@@ -439,7 +454,7 @@ class ProjectManager:
                 messagebox.showwarning(
                     "Aviso de Metadados",
                     "Não foi possível carregar ou analisar 'metadata.csv'.\n\n"
-                    f"Erro: {e}"
+                    f"Erro: {e}",
                 )
         else:
             self.metadata = None
@@ -537,5 +552,3 @@ class ProjectManager:
         day = self.project_data.get("last_selected_day")
         group = self.project_data.get("last_selected_group")
         return day, group
-
-

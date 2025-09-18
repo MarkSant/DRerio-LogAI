@@ -4,19 +4,23 @@
 Teste do controle de sensibilidade na interface de calibração
 """
 
+import os
+import tkinter as tk
 import warnings
+from tkinter import StringVar, ttk
+
+import pytest
 
 warnings.filterwarnings("ignore")
 
-import tkinter as tk
-from tkinter import StringVar, ttk
-
 
 def test_sensitivity_control():
+    if os.environ.get("DISPLAY") is None:
+        pytest.skip("requires a display")
     """Simula e testa o controle de sensibilidade"""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DO CONTROLE DE SENSIBILIDADE")
-    print("="*80)
+    print("=" * 80)
 
     # Cria janela de teste
     root = tk.Tk()
@@ -60,7 +64,7 @@ def test_sensitivity_control():
         to=0.50,
         orient="horizontal",
         length=200,
-        command=on_sensitivity_change
+        command=on_sensitivity_change,
     )
     sensitivity_scale.set(0.15)  # Valor inicial
     sensitivity_scale.pack(side="left")
@@ -70,8 +74,12 @@ def test_sensitivity_control():
     sensitivity_label.pack(side="left", padx=(10, 0))
 
     # Tooltip
-    tooltip_label = ttk.Label(main_frame, text="(Valores menores detectam mais objetos)",
-                            font=("Arial", 8), foreground="gray")
+    tooltip_label = ttk.Label(
+        main_frame,
+        text="(Valores menores detectam mais objetos)",
+        font=("Arial", 8),
+        foreground="gray",
+    )
     tooltip_label.grid(row=1, column=1, sticky="w", padx=5, pady=(0, 5))
 
     # Frame de teste
@@ -91,9 +99,15 @@ def test_sensitivity_control():
         sensitivity_scale.set(0.35)
         print("Testando sensibilidade BAIXA (threshold alto)")
 
-    ttk.Button(test_frame, text="Alta (0.05)", command=test_low).pack(side="left", padx=3)
-    ttk.Button(test_frame, text="Média (0.15)", command=test_medium).pack(side="left", padx=3)
-    ttk.Button(test_frame, text="Baixa (0.35)", command=test_high).pack(side="left", padx=3)
+    ttk.Button(test_frame, text="Alta (0.05)", command=test_low).pack(
+        side="left", padx=3
+    )
+    ttk.Button(test_frame, text="Média (0.15)", command=test_medium).pack(
+        side="left", padx=3
+    )
+    ttk.Button(test_frame, text="Baixa (0.35)", command=test_high).pack(
+        side="left", padx=3
+    )
 
     # Frame de informações
     info_frame = ttk.LabelFrame(root, text="Informações", padding=10)
@@ -133,8 +147,9 @@ def test_sensitivity_control():
         print("Teste automático concluído")
 
     # Botão de teste automático
-    ttk.Button(root, text="Executar Teste Automático",
-              command=run_auto_test).pack(pady=10)
+    ttk.Button(root, text="Executar Teste Automático", command=run_auto_test).pack(
+        pady=10
+    )
 
     # Inicia interface
     try:
@@ -146,11 +161,12 @@ def test_sensitivity_control():
     print(f"   Threshold final: {current_threshold[0]:.2f}")
     print("Controle de sensibilidade funcional!")
 
+
 def test_integration_concept():
     """Testa o conceito de integração com o detector"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CONCEITO DE INTEGRACAO COM DETECTOR")
-    print("="*60)
+    print("=" * 60)
 
     # Simula detector plugin
     class MockDetectorPlugin:
@@ -185,20 +201,22 @@ def test_integration_concept():
         print(f"\nSlider mudou para: {val:.2f}")
 
         # Simula callback da interface
-        if hasattr(controller, 'detector') and controller.detector:
-            if hasattr(controller.detector.plugin, 'conf_threshold'):
+        if hasattr(controller, "detector") and controller.detector:
+            if hasattr(controller.detector.plugin, "conf_threshold"):
                 controller.detector.plugin.set_threshold(val)
 
     print("\nIntegração testada com sucesso!")
+
 
 if __name__ == "__main__":
     try:
         test_sensitivity_control()
         test_integration_concept()
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("CONTROLE DE SENSIBILIDADE IMPLEMENTADO E TESTADO!")
-        print("="*80)
+        print("=" * 80)
     except Exception as e:
         print(f"\nErro durante teste: {e}")
         import traceback
+
         traceback.print_exc()

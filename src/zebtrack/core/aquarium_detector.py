@@ -5,6 +5,7 @@ from shapely.geometry import Polygon
 
 try:
     from ultralytics import YOLO
+
     ULTRALYTICS_AVAILABLE = True
 except ImportError:
     YOLO = None
@@ -99,18 +100,22 @@ class AquariumDetector:
                 )
 
                 # Debug detalhado
-                log.info("aquarium_detector.frame_analysis",
+                log.info(
+                    "aquarium_detector.frame_analysis",
                     frame=i,
                     has_results=bool(results),
                     has_masks=bool(results and results[0].masks),
-                    has_boxes=bool(results and results[0].boxes)
+                    has_boxes=bool(results and results[0].boxes),
                 )
 
                 if results and results[0].masks:
-                    log.info("aquarium_detector.masks_detail",
+                    log.info(
+                        "aquarium_detector.masks_detail",
                         frame=i,
                         masks_xy_exists=bool(results[0].masks.xy),
-                        num_masks=len(results[0].masks.xy) if results[0].masks.xy else 0
+                        num_masks=len(results[0].masks.xy)
+                        if results[0].masks.xy
+                        else 0,
                     )
 
                 # Melhora a lógica de detecção
@@ -126,12 +131,13 @@ class AquariumDetector:
                     if confidences:
                         avg_conf = sum(confidences) / len(confidences)
                         max_conf = max(confidences)
-                        log.info("aquarium_detector.confidence_check",
+                        log.info(
+                            "aquarium_detector.confidence_check",
                             frame=i,
                             num_detections=len(polygons),
                             confidences=[f"{c:.3f}" for c in confidences],
                             avg_conf=f"{avg_conf:.3f}",
-                            max_conf=f"{max_conf:.3f}"
+                            max_conf=f"{max_conf:.3f}",
                         )
 
                     # Log todas as máscaras encontradas
@@ -145,13 +151,14 @@ class AquariumDetector:
                         if results[0].boxes and j < len(results[0].boxes):
                             class_id = int(results[0].boxes[j].cls)
 
-                        log.info("aquarium_detector.mask_found",
+                        log.info(
+                            "aquarium_detector.mask_found",
                             frame=i,
                             mask_index=j,
                             class_id=class_id,
                             num_points=len(poly),
                             area=int(area),
-                            bbox=[int(x_min), int(y_min), int(x_max), int(y_max)]
+                            bbox=[int(x_min), int(y_min), int(x_max), int(y_max)],
                         )
 
                     # Aceita frames com exatamente uma máscara grande
@@ -177,29 +184,33 @@ class AquariumDetector:
 
                         if area_valid and conf_valid:
                             good_polygons.append(polygon)
-                            log.info("aquarium_detector.good_polygon",
+                            log.info(
+                                "aquarium_detector.good_polygon",
                                 frame=i,
-                                area_ratio=poly_area/frame_area,
-                                confidence=conf_info
+                                area_ratio=poly_area / frame_area,
+                                confidence=conf_info,
                             )
                         elif not area_valid:
-                            log.warning("aquarium_detector.polygon_too_small",
+                            log.warning(
+                                "aquarium_detector.polygon_too_small",
                                 frame=i,
-                                area_ratio=poly_area/frame_area,
-                                confidence=conf_info
+                                area_ratio=poly_area / frame_area,
+                                confidence=conf_info,
                             )
                         elif not conf_valid:
-                            log.warning("aquarium_detector.confidence_too_low",
+                            log.warning(
+                                "aquarium_detector.confidence_too_low",
                                 frame=i,
-                                area_ratio=poly_area/frame_area,
+                                area_ratio=poly_area / frame_area,
                                 confidence=conf_info,
-                                threshold=0.05
+                                threshold=0.05,
                             )
                     else:
-                        log.warning("aquarium_detector.wrong_mask_count",
+                        log.warning(
+                            "aquarium_detector.wrong_mask_count",
                             frame=i,
                             num_masks=len(polygons),
-                            expected=1
+                            expected=1,
                         )
                 else:
                     # Se não encontrou aquário, tenta estratégia alternativa
@@ -208,8 +219,11 @@ class AquariumDetector:
 
                     if results_all and results_all[0].masks and results_all[0].masks.xy:
                         all_polygons = results_all[0].masks.xy
-                        log.info("aquarium_detector.fallback_masks_found",
-                                frame=i, num_masks=len(all_polygons))
+                        log.info(
+                            "aquarium_detector.fallback_masks_found",
+                            frame=i,
+                            num_masks=len(all_polygons),
+                        )
 
                         # Procura pela maior máscara (provável aquário)
                         if all_polygons:
@@ -225,8 +239,12 @@ class AquariumDetector:
                                     largest_area = area
                                     largest_polygon = poly
 
-                                log.info("aquarium_detector.fallback_mask",
-                                        frame=i, mask_index=j, area=int(area))
+                                log.info(
+                                    "aquarium_detector.fallback_mask",
+                                    frame=i,
+                                    mask_index=j,
+                                    area=int(area),
+                                )
 
                             # Se a maior máscara é grande o suficiente, aceita
                             if largest_polygon is not None:
@@ -234,12 +252,20 @@ class AquariumDetector:
                                 area_ratio = largest_area / frame_area
 
                                 if area_ratio > 0.1:  # Pelo menos 10% do frame
-                                    good_polygons.append(largest_polygon.astype(np.int32))
-                                    log.info("aquarium_detector.fallback_polygon_accepted",
-                                            frame=i, area_ratio=area_ratio)
+                                    good_polygons.append(
+                                        largest_polygon.astype(np.int32)
+                                    )
+                                    log.info(
+                                        "aquarium_detector.fallback_polygon_accepted",
+                                        frame=i,
+                                        area_ratio=area_ratio,
+                                    )
                                 else:
-                                    log.warning("aquarium_detector.fallback_polygon_too_small",
-                                               frame=i, area_ratio=area_ratio)
+                                    log.warning(
+                                        "aquarium_detector.fallback_polygon_too_small",
+                                        frame=i,
+                                        area_ratio=area_ratio,
+                                    )
 
             if not good_polygons:
                 log.warning("aquarium_detector.detect.no_good_polygons_found")
@@ -249,7 +275,7 @@ class AquariumDetector:
                 # do frame
                 # Assume aquário no centro com 80% da área do frame
                 try:
-                    cap_temp = source._cap if hasattr(source, '_cap') else None
+                    cap_temp = source._cap if hasattr(source, "_cap") else None
                     if cap_temp:
                         w = int(cap_temp.get(cv2.CAP_PROP_FRAME_WIDTH))
                         h = int(cap_temp.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -257,15 +283,20 @@ class AquariumDetector:
                         margin_x = int(w * 0.1)  # 10% de margem
                         margin_y = int(h * 0.1)
 
-                        default_polygon = np.array([
-                            [margin_x, margin_y],
-                            [w - margin_x, margin_y],
-                            [w - margin_x, h - margin_y],
-                            [margin_x, h - margin_y]
-                        ], dtype=np.int32)
+                        default_polygon = np.array(
+                            [
+                                [margin_x, margin_y],
+                                [w - margin_x, margin_y],
+                                [w - margin_x, h - margin_y],
+                                [margin_x, h - margin_y],
+                            ],
+                            dtype=np.int32,
+                        )
 
-                        log.info("aquarium_detector.default_polygon_created",
-                                bbox=[margin_x, margin_y, w - margin_x, h - margin_y])
+                        log.info(
+                            "aquarium_detector.default_polygon_created",
+                            bbox=[margin_x, margin_y, w - margin_x, h - margin_y],
+                        )
                         return [default_polygon]
                 except Exception as e:
                     log.error("aquarium_detector.default_polygon_failed", error=str(e))

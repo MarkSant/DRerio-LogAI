@@ -1,4 +1,3 @@
-
 import numpy as np
 from cython_bbox import bbox_overlaps as bbox_ious
 from scipy.optimize import linear_sum_assignment
@@ -68,6 +67,7 @@ def ious(atlbrs, btlbrs):
 
     return _ious
 
+
 def iou_distance(atracks, btracks):
     """
     Compute cost based on IoU
@@ -89,6 +89,7 @@ def iou_distance(atracks, btracks):
     cost_matrix = 1 - _ious
 
     return cost_matrix
+
 
 def v_iou_distance(atracks, btracks):
     """

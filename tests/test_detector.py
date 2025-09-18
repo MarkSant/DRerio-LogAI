@@ -55,7 +55,7 @@ class TestDetector(unittest.TestCase):
 
         mock_zones = ZoneData(
             polygon=[[10, 20], [100, 200]],
-            roi_polygons=[[[0, 0], [10, 0], [10, 10], [0, 10]]]
+            roi_polygons=[[[0, 0], [10, 0], [10, 10], [0, 10]]],
         )
         test_width, test_height = 640, 360
 

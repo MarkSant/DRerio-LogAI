@@ -11,7 +11,7 @@ This script shows how the new context-based filtering works:
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from unittest.mock import MagicMock
 
@@ -25,43 +25,47 @@ def main():
     print("=" * 60)
 
     # Mock all dependencies
-    sys.modules['cython_bbox'] = MagicMock()
-    sys.modules['zebtrack.tracker.byte_tracker'] = MagicMock()
-    sys.modules['zebtrack.tracker.matching'] = MagicMock()
-    sys.modules['zebtrack.utils'] = MagicMock()
+    sys.modules["cython_bbox"] = MagicMock()
+    sys.modules["zebtrack.tracker.byte_tracker"] = MagicMock()
+    sys.modules["zebtrack.tracker.matching"] = MagicMock()
+    sys.modules["zebtrack.utils"] = MagicMock()
 
     # Mock ultralytics functions to simulate detection results
     def mock_non_max_suppression(prediction, conf_thres, iou_thres, agnostic=True):
         # Return mock detections with both aquarium (class 0) and zebrafish (class 1)
-        return [torch.tensor([
-            [100, 100, 200, 200, 0.9, 0],  # Aquarium detection
-            [300, 300, 400, 400, 0.8, 1],  # Zebrafish detection
-            [500, 500, 600, 600, 0.7, 1],  # Another zebrafish detection
-        ])]
+        return [
+            torch.tensor(
+                [
+                    [100, 100, 200, 200, 0.9, 0],  # Aquarium detection
+                    [300, 300, 400, 400, 0.8, 1],  # Zebrafish detection
+                    [500, 500, 600, 600, 0.7, 1],  # Another zebrafish detection
+                ]
+            )
+        ]
 
     def mock_scale_boxes(input_shape, boxes, target_shape):
         return boxes
 
     # Mock imports
-    sys.modules['ultralytics.utils.nms'] = MagicMock()
-    sys.modules['ultralytics.utils.nms'].non_max_suppression = mock_non_max_suppression
-    sys.modules['ultralytics.utils.ops'] = MagicMock()
-    sys.modules['ultralytics.utils.ops'].scale_boxes = mock_scale_boxes
+    sys.modules["ultralytics.utils.nms"] = MagicMock()
+    sys.modules["ultralytics.utils.nms"].non_max_suppression = mock_non_max_suppression
+    sys.modules["ultralytics.utils.ops"] = MagicMock()
+    sys.modules["ultralytics.utils.ops"].scale_boxes = mock_scale_boxes
 
     # Import the modified plugin
     from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 
     # Create a mock plugin instance
     plugin = object.__new__(OpenVINOPlugin)
-    plugin._context = 'tracking'
+    plugin._context = "tracking"
     plugin._aquarium_region_defined = False
     plugin.conf_threshold = 0.5
     plugin.nms_threshold = 0.4
-    plugin.output_layer = 'output'
+    plugin.output_layer = "output"
 
     # Add our new methods
     def set_context(context):
-        if context in ('tracking', 'diagnostic'):
+        if context in ("tracking", "diagnostic"):
             plugin._context = context
 
     def set_aquarium_region_defined(defined=True):
@@ -87,11 +91,17 @@ def main():
             class_id = int(cls)
 
             # NEW FILTERING LOGIC:
-            if plugin._context == 'diagnostic':
+            if plugin._context == "diagnostic":
                 # In diagnostic mode NEVER filter: include all returned classes
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]),
-                     float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
             else:
                 # Tracking mode:
@@ -100,8 +110,14 @@ def main():
                 if plugin._aquarium_region_defined and class_id != 1:
                     continue
                 final_detections.append(
-                    (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]),
-                     float(conf), class_id)
+                    (
+                        int(xyxy[0]),
+                        int(xyxy[1]),
+                        int(xyxy[2]),
+                        int(xyxy[3]),
+                        float(conf),
+                        class_id,
+                    )
                 )
         return final_detections
 
@@ -110,11 +126,11 @@ def main():
     plugin._postprocess = _postprocess
 
     # Test data
-    mock_result = {'output': np.array([[1, 2, 3]])}
+    mock_result = {"output": np.array([[1, 2, 3]])}
     frame_shape = (480, 640, 3)
 
     def format_detections(detections):
-        class_names = {0: 'aquarium', 1: 'zebrafish'}
+        class_names = {0: "aquarium", 1: "zebrafish"}
         return [
             f"Class {det[5]} ({class_names.get(det[5], 'unknown')}): "
             f"bbox=({det[0]},{det[1]},{det[2]},{det[3]}), conf={det[4]:.2f}"
@@ -123,28 +139,32 @@ def main():
 
     print("\n1. DIAGNOSTIC MODE (Weight Testing)")
     print("-" * 40)
-    plugin.set_context('diagnostic')
+    plugin.set_context("diagnostic")
     detections = plugin._postprocess(mock_result, frame_shape)
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (both aquarium and zebrafish) for "
-          "comprehensive model testing")
+    print(
+        "✓ Shows ALL classes (both aquarium and zebrafish) for "
+        "comprehensive model testing"
+    )
 
     print("\n2. TRACKING MODE - Before Aquarium Region Defined")
     print("-" * 40)
-    plugin.set_context('tracking')
+    plugin.set_context("tracking")
     plugin.set_aquarium_region_defined(False)
     detections = plugin._postprocess(mock_result, frame_shape)
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print("✓ Shows ALL classes (helpful for initial setup before "
-          "aquarium is detected/drawn)")
+    print(
+        "✓ Shows ALL classes (helpful for initial setup before "
+        "aquarium is detected/drawn)"
+    )
 
     print("\n3. TRACKING MODE - After Aquarium Region Defined")
     print("-" * 40)
-    plugin.set_context('tracking')
+    plugin.set_context("tracking")
     plugin.set_aquarium_region_defined(True)
     detections = plugin._postprocess(mock_result, frame_shape)
     print(f"Number of detections: {len(detections)}")
@@ -161,6 +181,7 @@ def main():
 
     return True
 
+
 if __name__ == "__main__":
     try:
         success = main()
@@ -172,5 +193,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Error during demonstration: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

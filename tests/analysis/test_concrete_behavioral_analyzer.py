@@ -2,6 +2,7 @@
 """
 Tests for the ConcreteBehavioralAnalyzer class.
 """
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -22,7 +23,10 @@ def sample_trajectory_data():
             "timestamp": timestamps,
             "x_center_px": px,
             "y_center_px": py,
-            "x1": px - 1, "y1": py - 1, "x2": px + 1, "y2": py + 1,
+            "x1": px - 1,
+            "y1": py - 1,
+            "x2": px + 1,
+            "y2": py + 1,
         }
     )
     return {
@@ -76,7 +80,7 @@ def test_get_angular_velocity_non_uniform_timestamps(sample_trajectory_data):
     # Create a trajectory with non-uniform timestamps
     timestamps = [0, 1, 3, 6]  # dt = 1, 2, 3
     px = np.array([10, 20, 20, 20])
-    py = np.array([10, 10, 20, 20]) # 90 degree turn (clockwise)
+    py = np.array([10, 10, 20, 20])  # 90 degree turn (clockwise)
     df = pd.DataFrame(
         {
             "timestamp": timestamps,

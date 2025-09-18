@@ -122,7 +122,8 @@ class Detector:
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
         """
-        Checks if any of the 4 corners OR the center of the bounding box is inside the polygon.
+        Checks if any of the 4 corners OR the center of the bounding box is
+        inside the polygon.
         Returns False if the polygon is empty or invalid.
         """
         if polygon.size == 0:
@@ -133,11 +134,11 @@ class Detector:
         center_y = (y1 + y2) / 2
 
         points_to_test = [
-            (x1, y1),      # top-left
-            (x2, y1),      # top-right
-            (x2, y2),      # bottom-right
-            (x1, y2),      # bottom-left
-            (center_x, center_y)  # center
+            (x1, y1),  # top-left
+            (x2, y1),  # top-right
+            (x2, y2),  # bottom-right
+            (x1, y2),  # bottom-left
+            (center_x, center_y),  # center
         ]
 
         # Return True if ANY of the 5 points is inside the polygon
@@ -147,9 +148,12 @@ class Detector:
 
         return False
 
-    def bbox_hits_roi_polygon(self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray) -> bool:
+    def bbox_hits_roi_polygon(
+        self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray
+    ) -> bool:
         """
-        Returns True if 4 corners OR center of bbox falls within roi_polygon (cv2.pointPolygonTest >= 0).
+        Returns True if 4 corners OR center of bbox falls within roi_polygon
+        (cv2.pointPolygonTest >= 0).
         This is a utility helper for future live ROI checking functionality.
         """
         if roi_polygon.size == 0:
@@ -160,11 +164,11 @@ class Detector:
         center_y = (y1 + y2) / 2
 
         points_to_test = [
-            (x1, y1),      # top-left
-            (x2, y1),      # top-right
-            (x2, y2),      # bottom-right
-            (x1, y2),      # bottom-left
-            (center_x, center_y)  # center
+            (x1, y1),  # top-left
+            (x2, y1),  # top-right
+            (x2, y2),  # bottom-right
+            (x1, y2),  # bottom-left
+            (center_x, center_y),  # center
         ]
 
         # Return True if ANY of the 5 points is inside the polygon
@@ -192,9 +196,7 @@ class Detector:
             predictions = []
             for det in predictions_cropped:
                 x1, y1, x2, y2, conf, track_id = det
-                predictions.append(
-                    (x1 + x, y1 + y, x2 + x, y2 + y, conf, track_id)
-                )
+                predictions.append((x1 + x, y1 + y, x2 + x, y2 + y, conf, track_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined
             predictions = self.plugin.detect(frame)

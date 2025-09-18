@@ -12,15 +12,17 @@ from zebtrack.analysis.roi import ROI
 def reporter_setup(tmp_path):
     """Provides a fully initialized Reporter instance for testing."""
     # Create sample data
-    trajectory_df = pd.DataFrame({
-        'timestamp': pd.to_datetime(range(10), unit='s'),
-        'x_center_px': range(10, 20),
-        'y_center_px': range(20, 30),
-        'x1': range(9, 19),
-        'y1': range(19, 29),
-        'x2': range(11, 21),
-        'y2': range(21, 31),
-    })
+    trajectory_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(range(10), unit="s"),
+            "x_center_px": range(10, 20),
+            "y_center_px": range(20, 30),
+            "x1": range(9, 19),
+            "y1": range(19, 29),
+            "x2": range(11, 21),
+            "y2": range(21, 31),
+        }
+    )
     metadata = {"experiment_id": "test_exp_01", "group_id": "control"}
     pixelcm_x = 10.0
     pixelcm_y = 10.0
@@ -59,18 +61,26 @@ def reporter_setup(tmp_path):
                 "distancia_por_roi": {"zone1": 10.0},
                 "estatisticas_velocidade_por_roi": {"zone1": {"mean": 12.0}},
                 "congelamento_por_roi": {"zone1": {"count": 2, "total_duration": 2.0}},
-            }
+            },
         }
         mock_service.return_value.run_full_analysis.return_value = (
-            mock_report_dict, mock_analyzer, mock_roi_analyzer
+            mock_report_dict,
+            mock_analyzer,
+            mock_roi_analyzer,
         )
 
         reporter = Reporter(
-            trajectory_df=trajectory_df, metadata=metadata, pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y, video_height_px=video_height_px,
-            arena_polygon_px=arena_polygon_px, rois=rois, fps=fps
+            trajectory_df=trajectory_df,
+            metadata=metadata,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=video_height_px,
+            arena_polygon_px=arena_polygon_px,
+            rois=rois,
+            fps=fps,
         )
         yield reporter, tmp_path
+
 
 def test_reporter_create_tidy_dataframe(reporter_setup):
     """
@@ -95,6 +105,7 @@ def test_reporter_create_tidy_dataframe(reporter_setup):
     assert tidy_df["entradas_no_zone1"].iloc[0] == 1
     assert "data_hora_analise" in tidy_df.columns
 
+
 @patch("pandas.DataFrame.to_excel")
 def test_reporter_export_summary_excel(mock_to_excel, reporter_setup):
     """Tests that export_summary_data calls the correct pandas method for Excel."""
@@ -105,6 +116,7 @@ def test_reporter_export_summary_excel(mock_to_excel, reporter_setup):
         str(output_path), index=False, engine="openpyxl"
     )
 
+
 @patch("pandas.DataFrame.to_csv")
 def test_reporter_export_summary_csv(mock_to_csv, reporter_setup):
     """Tests that export_summary_data calls the correct pandas method for CSV."""
@@ -113,6 +125,7 @@ def test_reporter_export_summary_csv(mock_to_csv, reporter_setup):
     reporter.export_summary_data(str(output_path), format="csv")
     mock_to_csv.assert_called_once_with(str(output_path), index=False)
 
+
 @patch("pandas.DataFrame.to_parquet")
 def test_reporter_export_summary_parquet(mock_to_parquet, reporter_setup):
     """Tests that export_summary_data calls the correct pandas method for Parquet."""
@@ -120,6 +133,7 @@ def test_reporter_export_summary_parquet(mock_to_parquet, reporter_setup):
     output_path = tmp_path / "summary.parquet"
     reporter.export_summary_data(str(output_path), format="parquet")
     mock_to_parquet.assert_called_once_with(str(output_path), index=False)
+
 
 def test_reporter_export_summary_invalid_format(reporter_setup):
     """Tests that a ValueError is raised for an unsupported format."""
