@@ -9,6 +9,8 @@ import os
 import sys
 import warnings
 
+import structlog
+
 warnings.filterwarnings("ignore")
 
 # Configura logging para ver os outputs detalhados
@@ -20,8 +22,6 @@ logging.basicConfig(
 # Adiciona src ao path se existir
 if os.path.exists('src'):
     sys.path.insert(0, 'src')
-
-import structlog
 
 # Configura structlog para output legível
 structlog.configure(

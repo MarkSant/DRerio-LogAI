@@ -6,9 +6,21 @@ from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
-import openvino as ov
 import structlog
-import torch
+
+try:
+    import openvino as ov
+    OPENVINO_AVAILABLE = True
+except ImportError:
+    ov = None
+    OPENVINO_AVAILABLE = False
+
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    TORCH_AVAILABLE = False
 
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
 try:
@@ -49,6 +61,11 @@ class OpenVINOPlugin(DetectorPlugin):
             FileNotFoundError: If the model's .xml file cannot be found.
             IntegrityError: If the model's hash does not match the expected hash.
         """
+        if not OPENVINO_AVAILABLE:
+            raise ImportError(
+                "OpenVINO is not available. Please install openvino package."
+            )
+        
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 

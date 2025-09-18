@@ -2,7 +2,13 @@ import cv2
 import numpy as np
 import structlog
 from shapely.geometry import Polygon
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    YOLO = None
+    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.io.video_source import VideoFileSource
 
@@ -21,6 +27,11 @@ class AquariumDetector:
         Args:
             model_path (str): Path to the YOLO segmentation model (.pt file).
         """
+        if not ULTRALYTICS_AVAILABLE:
+            raise ImportError(
+                "Ultralytics is not available. Please install ultralytics package."
+            )
+        
         try:
             self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path)
