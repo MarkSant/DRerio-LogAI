@@ -111,6 +111,17 @@ roi_buffer_radius_value: 0.5
 roi_min_bbox_overlap_ratio: 0.10
 ```
 
+### Single Animal Mode
+
+For scenarios with only one animal per aquarium, you can enable consistent track ID assignment:
+
+```yaml
+video_processing:
+  single_animal_per_aquarium: true
+```
+
+When enabled, all detections are forced to use `track_id=1`, ensuring the same animal maintains a consistent identifier throughout the entire video, even if the tracking algorithm temporarily loses or reassigns the track. This is particularly useful for single-animal behavioral studies where ID consistency is critical.
+
 The settings are automatically saved to your project and will be preserved for future analyses.
 
 ## License
