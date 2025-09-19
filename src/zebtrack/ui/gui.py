@@ -179,11 +179,13 @@ class CalibrationDialog(simpledialog.Dialog):
             length=150,
             command=self._on_sensitivity_change,
         )
-        self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
         self.sensitivity_scale.pack(side="left")
 
         self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
         self.sensitivity_label.pack(side="left", padx=(5, 0))
+        
+        # Set the default value after the label is created to avoid AttributeError
+        self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
 
         # --- Tooltip para sensibilidade ---
         tooltip_label = ttk.Label(
@@ -260,7 +262,9 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_sensitivity_change(self, value):
         """Atualiza label quando threshold muda e aplica globalmente"""
         threshold_value = float(value)
-        self.sensitivity_label.config(text=f"{threshold_value:.2f}")
+        # Safety check to prevent AttributeError during initialization
+        if hasattr(self, 'sensitivity_label'):
+            self.sensitivity_label.config(text=f"{threshold_value:.2f}")
         self.sensitivity_var.set(f"{threshold_value:.2f}")
 
         # Atualiza threshold globalmente no detector ativo
