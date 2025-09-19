@@ -919,6 +919,9 @@ class AppController:
         )
         self.processing_thread.start()
 
+        # 4. Switch to analysis view mode immediately
+        self.view.start_analysis_view_mode()
+
         # Permanecer na tela principal para exibir a barra de progresso
         # self.view._create_welcome_frame()
         self.view.show_info(
@@ -1576,6 +1579,10 @@ class AppController:
                     self.root.after(
                         0, lambda p=progress_fraction: self.view.update_progress(p)
                     )
+                    # Update analysis progress overlay as well
+                    self.root.after(
+                        0, lambda p=progress_fraction, s=step_status: self.view.update_analysis_progress(p, s)
+                    )
                     if frame is not None:
                         # A GUI desenhará as zonas automaticamente
                         self.view.display_frame(frame)
@@ -1731,6 +1738,7 @@ class AppController:
                 ),
             )
         finally:
+            self.root.after(0, self.view.stop_analysis_view_mode)
             self.root.after(0, self.view.hide_progress_bar)
             if was_cancelled:
                 self.root.after(

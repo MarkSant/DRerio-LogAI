@@ -977,6 +977,12 @@ class ApplicationGUI:
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
 
+        # View toggle state for analysis/zone switching
+        self.canvas_view_mode = "zones"  # "zones" or "analysis"
+        self.analysis_active = False
+        self.toggle_view_btn = None
+        self.analysis_overlay_frame = None
+
         # Interactive arena editing state
         self.stabilization_frames_var = StringVar(value="10")
         self.interactive_polygon_item = None
@@ -1180,6 +1186,26 @@ class ApplicationGUI:
         self.roi_canvas = Canvas(viz_frame, bg="gray")
         self.roi_canvas.pack(expand=True, fill="both")
 
+        # 6. Create analysis overlay frame (initially hidden)
+        self.analysis_overlay_frame = Frame(viz_frame, bg="black")
+        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
+        self.analysis_video_label.pack(expand=True)
+        
+        # Progress info in overlay
+        self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
+        self.overlay_progress_frame.pack(fill="x", padx=10, pady=5)
+        
+        self.overlay_progress_bar = ttk.Progressbar(
+            self.overlay_progress_frame, orient="horizontal", mode="determinate"
+        )
+        self.overlay_progress_bar.pack(fill="x", pady=2)
+        
+        self.overlay_status_label = Label(
+            self.overlay_progress_frame, text="Preparando análise...", 
+            bg="black", fg="white"
+        )
+        self.overlay_status_label.pack()
+
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Ações de Desenho", padding=10
@@ -1272,6 +1298,15 @@ class ApplicationGUI:
             text="Validar Configuração",
             command=self._validate_zone_configuration,
         ).pack(fill="x", pady=2)
+
+        # View toggle button (initially hidden)
+        self.toggle_view_btn = ttk.Button(
+            actions_frame,
+            text="Ver Análise em Progresso",
+            command=self._toggle_canvas_view,
+            state="disabled"
+        )
+        self.toggle_view_btn.pack(fill="x", pady=2)
 
         # --- Zone List ---
         zone_list_frame = ttk.LabelFrame(
@@ -1936,6 +1971,14 @@ class ApplicationGUI:
 
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
+        # Prevent editing during analysis
+        if self.analysis_active:
+            self.show_warning(
+                "Análise em Progresso", 
+                "Não é possível editar zonas durante a análise de vídeo."
+            )
+            return
+            
         if self.DEBUG_ZONES:
             print("\n=== DEBUG BOTÃO ARENA ===")
             print("1. Definindo current_drawing_type = 'arena'")
@@ -1949,6 +1992,14 @@ class ApplicationGUI:
 
     def _start_roi_drawing(self):
         """Starts drawing an ROI polygon, checking if an arena exists first."""
+        # Prevent editing during analysis
+        if self.analysis_active:
+            self.show_warning(
+                "Análise em Progresso", 
+                "Não é possível editar zonas durante a análise de vídeo."
+            )
+            return
+            
         main_arena = self.controller.project_manager.get_zone_data().polygon
         if not main_arena:
             self.show_error(
@@ -3151,6 +3202,14 @@ class ApplicationGUI:
 
     def _on_auto_detect_clicked(self):
         """Handler for the auto-detect button."""
+        # Prevent editing during analysis
+        if self.analysis_active:
+            self.show_warning(
+                "Análise em Progresso", 
+                "Não é possível detectar zonas durante a análise de vídeo."
+            )
+            return
+            
         try:
             stabilization_frames = int(self.stabilization_frames_var.get())
             if stabilization_frames <= 0:
@@ -3325,7 +3384,13 @@ class ApplicationGUI:
 
     def display_frame(self, frame):
         """Display a video frame inside the GUI, with overlays."""
+        # If analysis is active, route to analysis display
+        if self.analysis_active:
+            self.display_analysis_frame(frame)
+            return
+            
         try:
+            # Original behavior for non-analysis display
             # Desenha as zonas antes de exibir
             frame_with_zones = self._draw_zones_on_frame(frame.copy())
 
@@ -3343,6 +3408,76 @@ class ApplicationGUI:
                 cv2.waitKey(1)
             except Exception:
                 pass
+
+    def _toggle_canvas_view(self):
+        """Toggle between zone drawing view and analysis progress view."""
+        if self.canvas_view_mode == "zones":
+            self._switch_to_analysis_view()
+        else:
+            self._switch_to_zones_view()
+
+    def _switch_to_analysis_view(self):
+        """Switch to analysis progress view."""
+        if self.analysis_overlay_frame:
+            self.canvas_view_mode = "analysis"
+            self.roi_canvas.pack_forget()
+            self.analysis_overlay_frame.pack(expand=True, fill="both")
+            
+            if self.toggle_view_btn:
+                self.toggle_view_btn.config(text="Ver Desenhos das Zonas")
+
+    def _switch_to_zones_view(self):
+        """Switch to zone drawing view."""
+        if self.analysis_overlay_frame:
+            self.canvas_view_mode = "zones"
+            self.analysis_overlay_frame.pack_forget()
+            self.roi_canvas.pack(expand=True, fill="both")
+            
+            if self.toggle_view_btn:
+                self.toggle_view_btn.config(text="Ver Análise em Progresso")
+
+    def start_analysis_view_mode(self):
+        """Called when analysis starts - immediately switch to analysis view and enable toggle."""
+        self.analysis_active = True
+        if self.toggle_view_btn:
+            self.toggle_view_btn.config(state="normal")
+        self._switch_to_analysis_view()
+
+    def stop_analysis_view_mode(self):
+        """Called when analysis stops - disable toggle and return to zones view."""
+        self.analysis_active = False
+        if self.toggle_view_btn:
+            self.toggle_view_btn.config(state="disabled")
+        self._switch_to_zones_view()
+
+    def display_analysis_frame(self, frame):
+        """Display analysis frame in the overlay instead of separate progress bar."""
+        try:
+            # Desenha as zonas antes de exibir
+            frame_with_zones = self._draw_zones_on_frame(frame.copy())
+            
+            # Converte e embute na análise overlay
+            frame_rgb = cv2.cvtColor(frame_with_zones, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame_rgb)
+            imgtk = ImageTk.PhotoImage(image=img)
+            if self.analysis_video_label:
+                self.analysis_video_label.configure(image=imgtk)
+                self.analysis_video_label.image = imgtk  # keep reference
+        except Exception:
+            # Fallback to OpenCV window if Pillow not installed or other error
+            try:
+                cv2.imshow("Preview", frame)
+                cv2.waitKey(1)
+            except Exception:
+                pass
+
+    def update_analysis_progress(self, value, status_text=None):
+        """Update progress bar and status in the analysis overlay."""
+        if self.overlay_progress_bar:
+            self.overlay_progress_bar["value"] = value * 100  # Convert fraction to percentage
+        if status_text and self.overlay_status_label:
+            self.overlay_status_label.config(text=status_text)
+        self.update_idletasks()
 
     @staticmethod
     def _format_time(seconds: float) -> str:
