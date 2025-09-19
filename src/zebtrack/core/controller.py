@@ -114,6 +114,25 @@ class AppController:
         self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
+        # Validate detection mode and animal count combination
+        animal_method = settings.model_selection.animal_method
+        animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
+        
+        if animal_method == "det" and animals_per_aquarium != 1:
+            self.view.show_error(
+                "Configuração Inválida",
+                f"O modo de detecção (det) para animais só é compatível com 1 animal por aquário.\n"
+                f"Configuração atual: {animals_per_aquarium} animais por aquário.\n\n"
+                f"Para usar múltiplos animais por aquário, altere o método de detecção de animais "
+                f"para 'seg' (segmentação) nas configurações."
+            )
+            return
+            
+        # If using detection mode with single animal, optionally enable single_animal_per_aquarium
+        if animal_method == "det" and animals_per_aquarium == 1:
+            log.info("controller.create_project.det_single_animal", 
+                    animal_method=animal_method, animals_per_aquarium=animals_per_aquarium)
+        
         # Add the currently selected model info to the project data
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
@@ -210,40 +229,48 @@ class AppController:
         return True
 
     def setup_detector(self) -> bool:
-        """Initializes the detector instance based on the globally selected model."""
+        """Initializes the detector instance based on the animal method selection."""
+        animal_method = settings.model_selection.animal_method
         log.info(
             "detector.setup.start",
-            active_weight=self.active_weight_name,
+            animal_method=animal_method,
             use_openvino=self.use_openvino,
         )
-        if not self.active_weight_name:
+        
+        # Get weight path based on animal method
+        model_path = self.weight_manager.get_weight_path_by_method(animal_method, "animal")
+        if not model_path:
             self.view.show_error(
-                "Erro de Detector", "Nenhum peso ativo está selecionado."
+                "Erro de Detector", 
+                f"Nenhum modelo {animal_method} está disponível para detecção de animais."
             )
             return False
 
-        weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
-        if not weight_details:
-            self.view.show_error(
-                "Erro de Detector",
-                "Não foi possível encontrar detalhes para o peso: "
-                f"{self.active_weight_name}",
-            )
-            return False
-
+        # Check if we need to use OpenVINO version
+        weight_details = None
+        if self.use_openvino:
+            # Find weight details to get OpenVINO path - use the first matching weight
+            for name, details in self.weight_manager.weights.items():
+                if details.get("path") == model_path:
+                    weight_details = details
+                    break
+                    
         try:
             if self.use_openvino:
                 plugin_name = "OpenVINO"
-                model_path = weight_details.get("openvino_path")
-                if not model_path or not os.path.exists(model_path):
+                if not weight_details:
+                    raise ValueError("Não foi possível encontrar detalhes do peso para OpenVINO")
+                    
+                openvino_model_path = weight_details.get("openvino_path")
+                if not openvino_model_path or not os.path.exists(openvino_model_path):
                     raise ValueError(
                         "Caminho do modelo OpenVINO não encontrado ou inválido. "
                         "Por favor, converta o modelo primeiro."
                     )
+                model_path = openvino_model_path
             else:
                 plugin_name = "YOLO (Ultralytics)"
-                model_path = weight_details.get("path")
-                if not model_path or not os.path.exists(model_path):
+                if not os.path.exists(model_path):
                     raise ValueError(
                         "Caminho do modelo YOLO .pt não encontrado ou inválido."
                     )
@@ -252,7 +279,7 @@ class AppController:
             if not plugin_class:
                 raise ValueError(f"Detector plugin '{plugin_name}' not found.")
 
-            log.info("detector.load.start", plugin=plugin_name, path=model_path)
+            log.info("detector.load.start", plugin=plugin_name, path=model_path, method=animal_method)
             # Pass hash for OpenVINO models for integrity check
             if self.use_openvino:
                 expected_hash = weight_details.get("openvino_hash")
@@ -268,12 +295,12 @@ class AppController:
                 base_height=settings.camera.desired_height,
             )
 
-            # Define contexto inicial baseado no modo
+            # Set context for tracking
             if hasattr(plugin_instance, "set_context"):
                 plugin_instance.set_context("tracking")
                 log.info("detector.context.set", context="tracking")
 
-            log.info("detector.setup.success")
+            log.info("detector.setup.success", method=animal_method)
             return True
         except (ValueError, FileNotFoundError, IntegrityError) as e:
             log.error("detector.init.failed", error=str(e), exc_info=True)
@@ -325,8 +352,13 @@ class AppController:
     def get_all_weight_names(self) -> list:
         return self.weight_manager.get_all_weights()
 
-    def add_new_weight(self, path: str, set_as_default: bool):
-        self.weight_manager.add_weight(path, set_as_default)
+    def classify_weight_type(self, filename: str) -> str | None:
+        """Classify weight type from filename - delegates to weight manager."""
+        return self.weight_manager._classify_weight_type(filename)
+
+    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str = None):
+        """Add a new weight with type classification."""
+        self.weight_manager.add_weight(path, set_as_default, weight_type)
         new_name = os.path.basename(path)
         # Refresh UI
         self.view.update_weights_dropdown(self.get_all_weight_names())
@@ -398,18 +430,18 @@ class AppController:
             # Display the first frame of the video as a preview background
             self.view.display_roi_video_frame(video_path)
 
-            weight_details = self.weight_manager.get_weight_details(
-                self.active_weight_name
-            )
-            if not weight_details or not weight_details.get("path"):
+            # Use selected aquarium method and get appropriate weight
+            aquarium_method = settings.model_selection.aquarium_method
+            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
+            
+            if not model_path:
                 self.view.show_error(
                     "Erro",
-                    "Não foi possível encontrar um caminho de modelo .pt válido.",
+                    f"Não foi possível encontrar um modelo {aquarium_method} para detecção do aquário.",
                 )
                 return
 
-            model_path = weight_details["path"]
-            detector = AquariumDetector(model_path=model_path)
+            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
             polygons = detector.detect_aquariums(
                 video_path, stabilization_frames=stabilization_frames
             )
@@ -660,16 +692,18 @@ class AppController:
             self.view.set_status("Calibração: Analisando o clipe...")
             self.view.update_idletasks()
 
-            # 3. Run detection on the clip
-            # Use the globally selected .pt model for this, not OpenVINO
-            weight_details = self.weight_manager.get_weight_details(
-                self.active_weight_name
-            )
-            if not weight_details or not weight_details.get("path"):
-                self.view.show_error("Error", "Could not find a valid .pt model path.")
+            # 3. Run detection on the clip using selected aquarium method
+            aquarium_method = settings.model_selection.aquarium_method
+            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
+            
+            if not model_path:
+                self.view.show_error(
+                    "Erro", 
+                    f"Não foi possível encontrar um modelo {aquarium_method} para detecção do aquário."
+                )
                 return
-            model_path = weight_details["path"]
-            detector = AquariumDetector(model_path=model_path)
+                
+            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
             polygons = detector.detect_aquariums(temp_video_path)
 
             if not polygons:
@@ -681,7 +715,7 @@ class AppController:
                 return
 
             main_polygon = polygons[0]
-            self.view.display_suggested_polygon(main_polygon)
+            self.view.setup_interactive_polygon(main_polygon)
 
         except Exception as e:
             log.error("controller.live_calibration.error", exc_info=True)
@@ -860,6 +894,20 @@ class AppController:
     def start_single_video_workflow(self, video_path: str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
+
+        # Validate detection mode and animal count combination
+        animal_method = settings.model_selection.animal_method
+        animals_per_aquarium = config.get("animals_per_aquarium", 1)
+        
+        if animal_method == "det" and animals_per_aquarium != 1:
+            self.view.show_error(
+                "Configuração Inválida",
+                f"O modo de detecção (det) para animais só é compatível com 1 animal por aquário.\n"
+                f"Configuração atual: {animals_per_aquarium} animais por aquário.\n\n"
+                f"Para usar múltiplos animais por aquário, altere o método de detecção de animais "
+                f"para 'seg' (segmentação) nas configurações."
+            )
+            return
 
         # Ensure the detector is set up before showing the UI that needs it.
         # This is crucial for the single video flow.
