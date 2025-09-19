@@ -3082,11 +3082,20 @@ class ApplicationGUI:
         if not filepath:
             return
 
+        # Classify weight type by filename
+        filename = os.path.basename(filepath)
+        weight_type = self.controller.classify_weight_type(filename)
+        
+        # If type cannot be determined, ask user
+        if weight_type is None:
+            weight_type = self._prompt_for_weight_type()
+            if weight_type is None:  # User cancelled
+                return
+
         # Ask user what to do with the new weight
-        # The 'type' option creates custom buttons
         choice = messagebox.askquestion(
             "Adicionar Peso",
-            "Deseja definir este novo peso como padrão para todos os projetos?",
+            f"Deseja definir este novo peso {weight_type} como padrão para seu tipo?",
             icon="question",
             type="yesnocancel",
         )
@@ -3094,11 +3103,65 @@ class ApplicationGUI:
         if choice == "cancel":
             return
         elif choice == "yes":
-            # Add as new default
-            self.controller.add_new_weight(filepath, set_as_default=True)
+            # Add as new default for this type
+            self.controller.add_new_weight(filepath, set_as_default=True, weight_type=weight_type)
         else:  # 'no'
             # Add as an alternative
-            self.controller.add_new_weight(filepath, set_as_default=False)
+            self.controller.add_new_weight(filepath, set_as_default=False, weight_type=weight_type)
+
+    def _prompt_for_weight_type(self):
+        """Prompts user to select weight type when it cannot be determined from filename."""
+        from tkinter import Radiobutton, Toplevel
+        
+        dialog = Toplevel(self.root)
+        dialog.title("Tipo de Peso")
+        dialog.geometry("300x150")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center dialog
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth() // 2) - (300 // 2)  
+        y = (self.root.winfo_screenheight() // 2) - (150 // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        Label(dialog, text="Selecione o tipo de modelo:").pack(pady=10)
+        
+        weight_type_var = StringVar(value="seg")
+        
+        Radiobutton(
+            dialog, 
+            text="Segmentação (para máscaras e bordas precisas)", 
+            variable=weight_type_var, 
+            value="seg"
+        ).pack(anchor="w", padx=20)
+        
+        Radiobutton(
+            dialog, 
+            text="Detecção (para caixas delimitadoras rápidas)", 
+            variable=weight_type_var, 
+            value="det"
+        ).pack(anchor="w", padx=20)
+        
+        result = [None]  # Use list to allow modification in nested function
+        
+        def on_ok():
+            result[0] = weight_type_var.get()
+            dialog.destroy()
+            
+        def on_cancel():
+            result[0] = None
+            dialog.destroy()
+        
+        button_frame = Frame(dialog)
+        button_frame.pack(pady=20)
+        
+        Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
+        Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
+        
+        dialog.wait_window()
+        return result[0]
 
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""

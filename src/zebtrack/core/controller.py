@@ -352,8 +352,13 @@ class AppController:
     def get_all_weight_names(self) -> list:
         return self.weight_manager.get_all_weights()
 
-    def add_new_weight(self, path: str, set_as_default: bool):
-        self.weight_manager.add_weight(path, set_as_default)
+    def classify_weight_type(self, filename: str) -> str | None:
+        """Classify weight type from filename - delegates to weight manager."""
+        return self.weight_manager._classify_weight_type(filename)
+
+    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str = None):
+        """Add a new weight with type classification."""
+        self.weight_manager.add_weight(path, set_as_default, weight_type)
         new_name = os.path.basename(path)
         # Refresh UI
         self.view.update_weights_dropdown(self.get_all_weight_names())
@@ -710,7 +715,7 @@ class AppController:
                 return
 
             main_polygon = polygons[0]
-            self.view.display_suggested_polygon(main_polygon)
+            self.view.setup_interactive_polygon(main_polygon)
 
         except Exception as e:
             log.error("controller.live_calibration.error", exc_info=True)
