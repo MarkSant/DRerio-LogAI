@@ -1316,10 +1316,10 @@ class ApplicationGUI:
         zone_list_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Zonas Definidas", padding=10
         )
-        zone_list_frame.pack(fill="both", expand=True, pady=5)
+        zone_list_frame.pack(fill="x", pady=5)
 
         self.zone_listbox = ttk.Treeview(
-            zone_list_frame, columns=("name", "type", "color"), show="headings"
+            zone_list_frame, columns=("name", "type", "color"), show="headings", height=6
         )
         self.zone_listbox.heading("name", text="Nome")
         self.zone_listbox.heading("type", text="Tipo")
@@ -1805,12 +1805,25 @@ class ApplicationGUI:
             # Scale the image
             image = image.resize((new_width, new_height), Image.LANCZOS)
 
-            # Update canvas size and display image
-            self.roi_canvas.config(width=new_width, height=new_height)
+            # Don't set fixed canvas size - let it expand to fill the container
+            # Instead, we'll center the image within the available canvas space
             self.roi_canvas.delete("all")
             self._canvas_bg_image = ImageTk.PhotoImage(image)
+            
+            # Update the canvas to use actual available space after window updates
+            self.root.update_idletasks()
+            canvas_width = self.roi_canvas.winfo_width()
+            canvas_height = self.roi_canvas.winfo_height()
+            
+            # Center the image within the canvas
+            center_x = canvas_width // 2
+            center_y = canvas_height // 2
+            
+            # Store positioning for later restoration in redraw_zones_from_project_data
+            self._canvas_bg_position = (center_x, center_y, "center")
+            
             self.roi_canvas.create_image(
-                0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image"
+                center_x, center_y, anchor="center", image=self._canvas_bg_image, tags="background_image"
             )
 
         except Exception as e:
@@ -1847,26 +1860,32 @@ class ApplicationGUI:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(frame_rgb)
 
-            # Ajusta ao canvas
+            # Get actual canvas dimensions
             canvas_width = self.roi_canvas.winfo_width() or 800
             canvas_height = self.roi_canvas.winfo_height() or 600
 
             # Calcula nova escala mantendo aspecto
             img_w, img_h = image.size
-            scale = min(canvas_width / img_w, canvas_height / img_h)
+            scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
             new_width = int(img_w * scale)
             new_height = int(img_h * scale)
 
             # Redimensiona a imagem
             image = image.resize((new_width, new_height), Image.LANCZOS)
 
-            # Atualiza o tamanho do canvas para corresponder à imagem
-            self.roi_canvas.config(width=new_width, height=new_height)
-
+            # Don't set fixed canvas size - center the image in available space
             self._canvas_bg_image = ImageTk.PhotoImage(image)
             self.roi_canvas.delete("all")
+            
+            # Center the image within the canvas
+            center_x = canvas_width // 2
+            center_y = canvas_height // 2
+            
+            # Store positioning for later restoration in redraw_zones_from_project_data
+            self._canvas_bg_position = (center_x, center_y, "center")
+            
             self.roi_canvas.create_image(
-                0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image"
+                center_x, center_y, anchor="center", image=self._canvas_bg_image, tags="background_image"
             )
 
             log.info("gui.canvas.frame_loaded", video=video_path)
@@ -2451,12 +2470,17 @@ class ApplicationGUI:
             # Verifica se a imagem ainda está no canvas
             bg_items = self.roi_canvas.find_withtag("background_image")
             if not bg_items:
+                # Use stored positioning if available, otherwise default to center
+                if hasattr(self, '_canvas_bg_position'):
+                    x, y, anchor = self._canvas_bg_position
+                else:
+                    # Fallback to center of current canvas
+                    canvas_width = self.roi_canvas.winfo_width() or 800
+                    canvas_height = self.roi_canvas.winfo_height() or 600
+                    x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
+                
                 self.roi_canvas.create_image(
-                    0,
-                    0,
-                    anchor="nw",
-                    image=self._canvas_bg_image,
-                    tags="background_image",
+                    x, y, anchor=anchor, image=self._canvas_bg_image, tags="background_image"
                 )
                 self.roi_canvas.tag_lower("background_image")  # Envia para trás
                 log.info("gui.redraw_zones.background_restored")
