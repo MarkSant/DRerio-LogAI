@@ -1,0 +1,20 @@
+{
+    "best_seg.pt": {
+        "path": "best_seg.pt",
+        "is_default": true,
+        "type": "seg",
+        "is_default_seg": true,
+        "is_default_det": false,
+        "openvino_path": "",
+        "openvino_hash": ""
+    },
+    "best_oi.pt": {
+        "path": "best_oi.pt",
+        "is_default": true,
+        "type": "det",
+        "is_default_seg": false,
+        "is_default_det": true,
+        "openvino_path": "",
+        "openvino_hash": ""
+    }
+}
