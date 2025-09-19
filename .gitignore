@@ -42,3 +42,6 @@ test_single_animal.py
 
 # Training outputs
 *.pt
+
+# Configuration files
+weights_config.json
