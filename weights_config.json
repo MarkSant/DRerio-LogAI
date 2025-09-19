@@ -3,6 +3,9 @@
         "path": "best_seg.pt",
         "is_default": true,
         "openvino_path": "C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\openvino_model_cache\\best_seg_openvino_model",
-        "openvino_hash": "6dca72c9598f41759e3321e77eb3f73c432bdb4441cbcb54cbc79d1275c9dcd9"
+        "openvino_hash": "6dca72c9598f41759e3321e77eb3f73c432bdb4441cbcb54cbc79d1275c9dcd9",
+        "type": "seg",
+        "is_default_seg": true,
+        "is_default_det": false
     }
 }
