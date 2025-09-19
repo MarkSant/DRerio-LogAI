@@ -46,6 +46,18 @@ reproducibility:
   # same video and settings produce identical results.
   seed: 42
 
+model_selection:
+  # Method for aquarium detection: "seg" for segmentation, "det" for detection
+  aquarium_method: "seg"
+  # Method for animal tracking: "seg" for segmentation, "det" for detection  
+  animal_method: "det"
+
+weights:
+  # Filename for segmentation model weights
+  seg_filename: "best_seg.pt"
+  # Filename for detection model weights
+  det_filename: "best_oi.pt"
+
 # ROI inclusion rule settings
 roi_inclusion_rule: "bbox_intersects"
 roi_buffer_radius_value: 0.5

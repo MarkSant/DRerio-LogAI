@@ -124,6 +124,32 @@ class ReproducibilitySettings(BaseModel):
     )
 
 
+class ModelSelectionSettings(BaseModel):
+    """Settings for selecting which model type to use for different tasks."""
+
+    aquarium_method: Literal["seg", "det"] = Field(
+        "seg",
+        description="Method for aquarium detection: 'seg' for segmentation, 'det' for detection",
+    )
+    animal_method: Literal["seg", "det"] = Field(
+        "det",
+        description="Method for animal tracking: 'seg' for segmentation, 'det' for detection",
+    )
+
+
+class WeightsSelectionSettings(BaseModel):
+    """Settings for weight file selection by type."""
+
+    seg_filename: str = Field(
+        "best_seg.pt",
+        description="Filename for segmentation model weights",
+    )
+    det_filename: str = Field(
+        "best_oi.pt", 
+        description="Filename for detection model weights",
+    )
+
+
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections."""
 
@@ -135,6 +161,16 @@ class Settings(BaseModel):
         default_factory=DetectionZonesSettings
     )
     reproducibility: ReproducibilitySettings
+    
+    # New dual-weight selection settings
+    model_selection: ModelSelectionSettings = Field(
+        default_factory=ModelSelectionSettings,
+        description="Settings for selecting model types (seg/det) for different tasks",
+    )
+    weights: WeightsSelectionSettings = Field(
+        default_factory=WeightsSelectionSettings,
+        description="Settings for weight file selection by type",
+    )
 
     # ROI inclusion rule settings
     roi_inclusion_rule: Literal[
