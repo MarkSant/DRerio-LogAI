@@ -993,6 +993,7 @@ class ApplicationGUI:
         self.polygon_handles = []
         self.edited_polygon_points = []
         self._dragged_handle_index = None
+        self.current_editing_zone = None  # Track what zone is being edited
         self.save_arena_btn = None
         self.discard_arena_btn = None
         self.interactive_buttons_frame = None
@@ -1324,8 +1325,10 @@ class ApplicationGUI:
         self.zone_listbox.heading("name", text="Nome")
         self.zone_listbox.heading("type", text="Tipo")
         self.zone_listbox.heading("color", text="Cor")
-        self.zone_listbox.column("type", width=80)
-        self.zone_listbox.column("color", width=60)
+        # Configure columns with proper sizing
+        self.zone_listbox.column("name", width=200, minwidth=150, stretch=True)
+        self.zone_listbox.column("type", width=100, minwidth=80, stretch=False)
+        self.zone_listbox.column("color", width=100, minwidth=80, stretch=False)
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
         # Scrollbar for the listbox
@@ -1333,14 +1336,15 @@ class ApplicationGUI:
             zone_list_frame, orient="vertical", command=self.zone_listbox.yview
         )
         self.zone_listbox.configure(yscrollcommand=scrollbar.set)
+        
+        # Bind events
         self.zone_listbox.bind("<<TreeviewSelect>>", self._on_zone_select)
+        self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
+        self.zone_listbox.bind("<Double-Button-1>", self._on_zone_double_click)
 
         # Menu de contexto para ROIs
         self.roi_context_menu = None
         self._create_roi_context_menu()
-
-        # Bind click direito na listbox
-        self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
 
         scrollbar.pack(side="right", fill="y")
 
@@ -1719,25 +1723,47 @@ class ApplicationGUI:
 
     def _on_save_arena(self):
         """Saves the edited polygon and makes it static."""
-        self.controller.save_manual_arena(self.edited_polygon_points)
-        self.set_status("Arena salva com sucesso.")
+        if self.current_editing_zone == "arena":
+            # Save main arena
+            self.controller.save_manual_arena(self.edited_polygon_points)
+            self.set_status("Arena principal salva com sucesso.")
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+            # Save ROI
+            _, roi_index, roi_name = self.current_editing_zone
+            zone_data = self.controller.project_manager.get_zone_data()
+            
+            # Update the ROI polygon
+            zone_data.roi_polygons[roi_index] = self.edited_polygon_points
+            
+            # Save to project
+            from dataclasses import asdict
+            self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+            self.controller.project_manager.save_project()
+            
+            self.set_status(f"ROI '{roi_name}' salva com sucesso.")
+        else:
+            # Fallback - assume arena (legacy behavior)
+            self.controller.save_manual_arena(self.edited_polygon_points)
+            self.set_status("Zona salva com sucesso.")
 
-        # Make the polygon static (non-interactive)
-        self.roi_canvas.delete("interactive_polygon", "handle")
-        flat_points = [coord for point in self.edited_polygon_points for coord in point]
-        self.roi_canvas.create_polygon(
-            flat_points,
-            fill="",
-            outline="cyan",  # Change color to indicate it's saved
-            width=2,
-            tags="main_arena",
-        )
+        # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
+        self.redraw_zones_from_project_data()
+        self.update_zone_listbox()
 
     def _on_discard_arena(self):
         """Discards the interactive polygon."""
         self._clear_interactive_polygon()
-        self.set_status("Sugestão de arena descartada.")
+        if self.current_editing_zone == "arena":
+            self.set_status("Edição da arena descartada.")
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+            _, _, roi_name = self.current_editing_zone
+            self.set_status(f"Edição da ROI '{roi_name}' descartada.")
+        else:
+            self.set_status("Edição descartada.")
+        
+        # Redraw zones to restore original state
+        self.redraw_zones_from_project_data()
 
     def _clear_interactive_polygon(self):
         """Clears all interactive elements from the canvas and hides buttons."""
@@ -1757,6 +1783,7 @@ class ApplicationGUI:
         self.polygon_handles = []
         self.edited_polygon_points = []
         self._dragged_handle_index = None
+        self.current_editing_zone = None
 
     def display_roi_video_frame(self, video_path):
         """
@@ -3647,6 +3674,10 @@ class ApplicationGUI:
 
         self.roi_context_menu = Menu(self.root, tearoff=0)
         self.roi_context_menu.add_command(
+            label="🔧 Editar Vértices", command=self._edit_selected_zone_vertices
+        )
+        self.roi_context_menu.add_separator()
+        self.roi_context_menu.add_command(
             label="✏️ Renomear", command=self._rename_selected_roi
         )
         self.roi_context_menu.add_command(
@@ -3656,6 +3687,10 @@ class ApplicationGUI:
         self.roi_context_menu.add_command(
             label="🗑️ Remover", command=self._remove_selected_roi_confirm
         )
+
+    def _on_zone_double_click(self, event):
+        """Handle double-click on zone list - opens vertex editing mode."""
+        self._edit_selected_zone_vertices()
 
     def _on_zone_right_click(self, event):
         """Mostra menu de contexto"""
@@ -3667,7 +3702,63 @@ class ApplicationGUI:
             # Verifica se é ROI (não arena principal)
             values = self.zone_listbox.item(item)["values"]
             if values and "Arena Principal" not in values[0]:
+                # ROI - show full menu
                 self.roi_context_menu.post(event.x_root, event.y_root)
+            elif values and "Arena Principal" in values[0]:
+                # Arena Principal - show limited menu (only edit vertices)
+                arena_menu = Menu(self.root, tearoff=0)
+                arena_menu.add_command(
+                    label="🔧 Editar Vértices", command=self._edit_selected_zone_vertices
+                )
+                arena_menu.post(event.x_root, event.y_root)
+
+    def _edit_selected_zone_vertices(self):
+        """Enables interactive editing of the selected zone's vertices."""
+        selected = self.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.zone_listbox.item(selected[0])
+        zone_name = item["values"][0]
+        
+        # Check if we are already in drawing mode
+        if self.drawing_mode is not None:
+            self.show_warning(
+                "Modo de Desenho Ativo",
+                "Finalize o desenho atual antes de editar vértices de outra zona."
+            )
+            return
+
+        zone_data = self.controller.project_manager.get_zone_data()
+        
+        if "Arena Principal" in zone_name:
+            # Edit main arena
+            if not zone_data.polygon:
+                self.show_warning("Erro", "Arena principal não encontrada.")
+                return
+            
+            # Convert polygon to the format expected by setup_interactive_polygon
+            polygon_points = np.array(zone_data.polygon)
+            self.setup_interactive_polygon(polygon_points)
+            self.current_editing_zone = "arena"
+            self.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
+            
+        else:
+            # Edit ROI
+            roi_name = zone_name.replace("📍 ", "")
+            try:
+                roi_index = zone_data.roi_names.index(roi_name)
+                roi_polygon = zone_data.roi_polygons[roi_index]
+                
+                # Convert polygon to the format expected by setup_interactive_polygon
+                polygon_points = np.array(roi_polygon)
+                self.setup_interactive_polygon(polygon_points)
+                self.current_editing_zone = ("roi", roi_index, roi_name)
+                self.set_status(f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos.")
+                
+            except (ValueError, IndexError):
+                self.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
+                return
 
     def _rename_selected_roi(self):
         """Renomeia ROI selecionada"""
