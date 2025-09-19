@@ -183,7 +183,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
         self.sensitivity_label.pack(side="left", padx=(5, 0))
-        
+
         # Set the default value after the label is created to avoid AttributeError
         self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
 
@@ -1784,10 +1784,31 @@ class ApplicationGUI:
             self.root.geometry(f"{win_w}x{win_h}")
             self.root.update_idletasks()
 
-            # Convert and display the image
-            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            self._canvas_bg_image = ImageTk.PhotoImage(img)
-            self.roi_canvas.config(width=w, height=h)
+            # Convert and scale the image to fit in available canvas space
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(frame_rgb)
+
+            # Calculate available canvas space (accounting for window controls)
+            available_width = win_w - 350  # Account for controls space
+            available_height = win_h - 100  # Account for window decorations
+
+            # Ensure minimum size
+            available_width = max(available_width, 400)
+            available_height = max(available_height, 300)
+
+            # Calculate scaling to fit image while maintaining aspect ratio
+            img_w, img_h = image.size
+            scale = min(available_width / img_w, available_height / img_h, 1.0)
+            new_width = int(img_w * scale)
+            new_height = int(img_h * scale)
+
+            # Scale the image
+            image = image.resize((new_width, new_height), Image.LANCZOS)
+
+            # Update canvas size and display image
+            self.roi_canvas.config(width=new_width, height=new_height)
+            self.roi_canvas.delete("all")
+            self._canvas_bg_image = ImageTk.PhotoImage(image)
             self.roi_canvas.create_image(
                 0, 0, anchor="nw", image=self._canvas_bg_image, tags="background_image"
             )
