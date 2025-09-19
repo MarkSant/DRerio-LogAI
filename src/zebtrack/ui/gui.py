@@ -1190,18 +1190,18 @@ class ApplicationGUI:
         self.analysis_overlay_frame = Frame(viz_frame, bg="black")
         self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
         self.analysis_video_label.pack(expand=True)
-        
+
         # Progress info in overlay
         self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
         self.overlay_progress_frame.pack(fill="x", padx=10, pady=5)
-        
+
         self.overlay_progress_bar = ttk.Progressbar(
             self.overlay_progress_frame, orient="horizontal", mode="determinate"
         )
         self.overlay_progress_bar.pack(fill="x", pady=2)
-        
+
         self.overlay_status_label = Label(
-            self.overlay_progress_frame, text="Preparando análise...", 
+            self.overlay_progress_frame, text="Preparando análise...",
             bg="black", fg="white"
         )
         self.overlay_status_label.pack()
@@ -1974,11 +1974,11 @@ class ApplicationGUI:
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
-                "Análise em Progresso", 
+                "Análise em Progresso",
                 "Não é possível editar zonas durante a análise de vídeo."
             )
             return
-            
+
         if self.DEBUG_ZONES:
             print("\n=== DEBUG BOTÃO ARENA ===")
             print("1. Definindo current_drawing_type = 'arena'")
@@ -1995,11 +1995,11 @@ class ApplicationGUI:
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
-                "Análise em Progresso", 
+                "Análise em Progresso",
                 "Não é possível editar zonas durante a análise de vídeo."
             )
             return
-            
+
         main_arena = self.controller.project_manager.get_zone_data().polygon
         if not main_arena:
             self.show_error(
@@ -3085,7 +3085,7 @@ class ApplicationGUI:
         # Classify weight type by filename
         filename = os.path.basename(filepath)
         weight_type = self.controller.classify_weight_type(filename)
-        
+
         # If type cannot be determined, ask user
         if weight_type is None:
             weight_type = self._prompt_for_weight_type()
@@ -3104,62 +3104,69 @@ class ApplicationGUI:
             return
         elif choice == "yes":
             # Add as new default for this type
-            self.controller.add_new_weight(filepath, set_as_default=True, weight_type=weight_type)
+            self.controller.add_new_weight(
+                filepath, set_as_default=True, weight_type=weight_type
+            )
         else:  # 'no'
             # Add as an alternative
-            self.controller.add_new_weight(filepath, set_as_default=False, weight_type=weight_type)
+            self.controller.add_new_weight(
+                filepath, set_as_default=False, weight_type=weight_type
+            )
 
     def _prompt_for_weight_type(self):
-        """Prompts user to select weight type when it cannot be determined from filename."""
+        """Prompts user to select weight type when it cannot be determined
+        from filename."""
         from tkinter import Radiobutton, Toplevel
-        
+
         dialog = Toplevel(self.root)
         dialog.title("Tipo de Peso")
         dialog.geometry("300x150")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        
+
         # Center dialog
         self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() // 2) - (300 // 2)  
+        x = (self.root.winfo_screenwidth() // 2) - (300 // 2)
         y = (self.root.winfo_screenheight() // 2) - (150 // 2)
         dialog.geometry(f"+{x}+{y}")
-        
+
         Label(dialog, text="Selecione o tipo de modelo:").pack(pady=10)
-        
+
         weight_type_var = StringVar(value="seg")
-        
+
         Radiobutton(
-            dialog, 
-            text="Segmentação (para máscaras e bordas precisas)", 
-            variable=weight_type_var, 
+            dialog,
+            text="Segmentação (para máscaras e bordas precisas)",
+            variable=weight_type_var,
             value="seg"
         ).pack(anchor="w", padx=20)
-        
+
         Radiobutton(
-            dialog, 
-            text="Detecção (para caixas delimitadoras rápidas)", 
-            variable=weight_type_var, 
+            dialog,
+            text="Detecção (para caixas delimitadoras rápidas)",
+            variable=weight_type_var,
             value="det"
         ).pack(anchor="w", padx=20)
-        
+
         result = [None]  # Use list to allow modification in nested function
-        
+
         def on_ok():
             result[0] = weight_type_var.get()
             dialog.destroy()
-            
+
         def on_cancel():
             result[0] = None
             dialog.destroy()
-        
+
         button_frame = Frame(dialog)
         button_frame.pack(pady=20)
-        
+
         Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
-        
+        Button(button_frame, text="Cancelar", command=on_cancel).pack(
+            side="left", padx=5
+        )
+
         dialog.wait_window()
         return result[0]
 
@@ -3268,11 +3275,11 @@ class ApplicationGUI:
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
-                "Análise em Progresso", 
+                "Análise em Progresso",
                 "Não é possível detectar zonas durante a análise de vídeo."
             )
             return
-            
+
         try:
             stabilization_frames = int(self.stabilization_frames_var.get())
             if stabilization_frames <= 0:
@@ -3451,7 +3458,7 @@ class ApplicationGUI:
         if self.analysis_active:
             self.display_analysis_frame(frame)
             return
-            
+
         try:
             # Original behavior for non-analysis display
             # Desenha as zonas antes de exibir
@@ -3485,7 +3492,7 @@ class ApplicationGUI:
             self.canvas_view_mode = "analysis"
             self.roi_canvas.pack_forget()
             self.analysis_overlay_frame.pack(expand=True, fill="both")
-            
+
             if self.toggle_view_btn:
                 self.toggle_view_btn.config(text="Ver Desenhos das Zonas")
 
@@ -3495,12 +3502,13 @@ class ApplicationGUI:
             self.canvas_view_mode = "zones"
             self.analysis_overlay_frame.pack_forget()
             self.roi_canvas.pack(expand=True, fill="both")
-            
+
             if self.toggle_view_btn:
                 self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def start_analysis_view_mode(self):
-        """Called when analysis starts - immediately switch to analysis view and enable toggle."""
+        """Called when analysis starts - immediately switch to analysis view and
+        enable toggle."""
         self.analysis_active = True
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="normal")
@@ -3518,7 +3526,7 @@ class ApplicationGUI:
         try:
             # Desenha as zonas antes de exibir
             frame_with_zones = self._draw_zones_on_frame(frame.copy())
-            
+
             # Converte e embute na análise overlay
             frame_rgb = cv2.cvtColor(frame_with_zones, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
@@ -3537,7 +3545,9 @@ class ApplicationGUI:
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
         if self.overlay_progress_bar:
-            self.overlay_progress_bar["value"] = value * 100  # Convert fraction to percentage
+            self.overlay_progress_bar["value"] = (
+                value * 100
+            )  # Convert fraction to percentage
         if status_text and self.overlay_status_label:
             self.overlay_status_label.config(text=status_text)
         self.update_idletasks()

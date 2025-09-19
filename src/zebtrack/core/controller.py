@@ -117,22 +117,30 @@ class AppController:
         # Validate detection mode and animal count combination
         animal_method = settings.model_selection.animal_method
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
-        
+
         if animal_method == "det" and animals_per_aquarium != 1:
             self.view.show_error(
                 "Configuração Inválida",
-                f"O modo de detecção (det) para animais só é compatível com 1 animal por aquário.\n"
-                f"Configuração atual: {animals_per_aquarium} animais por aquário.\n\n"
-                f"Para usar múltiplos animais por aquário, altere o método de detecção de animais "
-                f"para 'seg' (segmentação) nas configurações."
+                (
+                    "O modo de detecção (det) para animais só é compatível com 1 "
+                    f"animal por aquário.\n"
+                    f"Configuração atual: {animals_per_aquarium} "
+                    "animais por aquário.\n\n"
+                    "Para usar múltiplos animais por aquário, altere o método de "
+                    "detecção de animais para 'seg' (segmentação) nas configurações."
+                ),
             )
             return
-            
-        # If using detection mode with single animal, optionally enable single_animal_per_aquarium
+
+        # If using detection mode with single animal,
+        # optionally enable single_animal_per_aquarium
         if animal_method == "det" and animals_per_aquarium == 1:
-            log.info("controller.create_project.det_single_animal", 
-                    animal_method=animal_method, animals_per_aquarium=animals_per_aquarium)
-        
+            log.info(
+                "controller.create_project.det_single_animal",
+                animal_method=animal_method,
+                animals_per_aquarium=animals_per_aquarium,
+            )
+
         # Add the currently selected model info to the project data
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
@@ -179,58 +187,84 @@ class AppController:
             # Restore detector settings from saved state
             saved_detector_config = self.project_manager.get_detector_state()
             if saved_detector_config and self.detector:
-                log.info("controller.detector.state.restore_start", config=saved_detector_config)
-                
+                log.info(
+                    "controller.detector.state.restore_start",
+                    config=saved_detector_config,
+                )
+
                 plugin = self.detector.plugin
                 settings_changed = False
-                
+
                 # Restore confidence threshold
-                if "confidence_threshold" in saved_detector_config and hasattr(plugin, "conf_threshold"):
+                if "confidence_threshold" in saved_detector_config and hasattr(
+                    plugin, "conf_threshold"
+                ):
                     old_conf = plugin.conf_threshold
                     new_conf = saved_detector_config["confidence_threshold"]
                     if old_conf != new_conf:
                         plugin.conf_threshold = new_conf
                         settings_changed = True
-                        log.info("controller.detector.threshold.restored", 
-                                old=old_conf, new=new_conf, type="confidence")
-                
+                        log.info(
+                            "controller.detector.threshold.restored",
+                            old=old_conf,
+                            new=new_conf,
+                            type="confidence",
+                        )
+
                 # Restore NMS threshold
-                if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
+                if "nms_threshold" in saved_detector_config and hasattr(
+                    plugin, "nms_threshold"
+                ):
                     old_nms = plugin.nms_threshold
                     new_nms = saved_detector_config["nms_threshold"]
                     if old_nms != new_nms:
                         plugin.nms_threshold = new_nms
                         settings_changed = True
-                        log.info("controller.detector.threshold.restored", 
-                                old=old_nms, new=new_nms, type="nms")
-                
+                        log.info(
+                            "controller.detector.threshold.restored",
+                            old=old_nms,
+                            new=new_nms,
+                            type="nms",
+                        )
+
                 # Restore context
-                if "context" in saved_detector_config and hasattr(plugin, "set_context"):
+                if "context" in saved_detector_config and hasattr(
+                    plugin, "set_context"
+                ):
                     saved_context = saved_detector_config["context"]
                     current_context = getattr(plugin, "_context", "tracking")
                     if current_context != saved_context:
                         plugin.set_context(saved_context)
                         settings_changed = True
-                        log.info("controller.detector.context.restored", 
-                                old=current_context, new=saved_context)
-                
+                        log.info(
+                            "controller.detector.context.restored",
+                            old=current_context,
+                            new=saved_context,
+                        )
+
                 # Log restoration summary
                 if settings_changed:
-                    log.info("controller.detector.state.restored", 
-                            plugin=saved_detector_config.get("plugin_name"),
-                            last_updated=saved_detector_config.get("last_updated"))
+                    log.info(
+                        "controller.detector.state.restored",
+                        plugin=saved_detector_config.get("plugin_name"),
+                        last_updated=saved_detector_config.get("last_updated"),
+                    )
                     # Save back to project to ensure consistency
                     current_config = {
-                        "plugin_name": saved_detector_config.get("plugin_name", 
-                                        "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)"),
+                        "plugin_name": saved_detector_config.get(
+                            "plugin_name",
+                            "OpenVINO"
+                            if self.use_openvino
+                            else "YOLO (Ultralytics)",
+                        ),
                         "confidence_threshold": plugin.conf_threshold,
                         "nms_threshold": plugin.nms_threshold,
-                        "context": getattr(plugin, "_context", "tracking")
+                        "context": getattr(plugin, "_context", "tracking"),
                     }
                     self.project_manager.save_detector_state(current_config)
                 else:
                     log.info("controller.detector.state.no_changes_needed")
-            
+
             # Carrega interface do projeto
             self.view._load_project_view()
 
@@ -291,13 +325,16 @@ class AppController:
             animal_method=animal_method,
             use_openvino=self.use_openvino,
         )
-        
+
         # Get weight path based on animal method
-        model_path = self.weight_manager.get_weight_path_by_method(animal_method, "animal")
+        model_path = self.weight_manager.get_weight_path_by_method(
+            animal_method, "animal"
+        )
         if not model_path:
             self.view.show_error(
-                "Erro de Detector", 
-                f"Nenhum modelo {animal_method} está disponível para detecção de animais."
+                "Erro de Detector",
+                f"Nenhum modelo {animal_method} está disponível para detecção de "
+                "animais.",
             )
             return False
 
@@ -309,13 +346,15 @@ class AppController:
                 if details.get("path") == model_path:
                     weight_details = details
                     break
-                    
+
         try:
             if self.use_openvino:
                 plugin_name = "OpenVINO"
                 if not weight_details:
-                    raise ValueError("Não foi possível encontrar detalhes do peso para OpenVINO")
-                    
+                    raise ValueError(
+                        "Não foi possível encontrar detalhes do peso para OpenVINO"
+                    )
+
                 openvino_model_path = weight_details.get("openvino_path")
                 if not openvino_model_path or not os.path.exists(openvino_model_path):
                     raise ValueError(
@@ -334,7 +373,12 @@ class AppController:
             if not plugin_class:
                 raise ValueError(f"Detector plugin '{plugin_name}' not found.")
 
-            log.info("detector.load.start", plugin=plugin_name, path=model_path, method=animal_method)
+            log.info(
+                "detector.load.start",
+                plugin=plugin_name,
+                path=model_path,
+                method=animal_method,
+            )
             # Pass hash for OpenVINO models for integrity check
             if self.use_openvino:
                 expected_hash = weight_details.get("openvino_hash")
@@ -358,17 +402,19 @@ class AppController:
             # Save detector state to project
             if self.project_manager.project_data:
                 detector_config = {
-                    "plugin_name": "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)",
+                    "plugin_name": (
+                        "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)"
+                    ),
                     "confidence_threshold": plugin_instance.conf_threshold,
                     "nms_threshold": plugin_instance.nms_threshold,
-                    "context": getattr(plugin_instance, "_context", "tracking")
+                    "context": getattr(plugin_instance, "_context", "tracking"),
                 }
-                
+
                 if hasattr(plugin_instance, "get_context_info"):
                     # For plugins that provide more detailed context info
                     context_info = plugin_instance.get_context_info()
                     detector_config["context"] = context_info.get("context", "tracking")
-                
+
                 save_result = self.project_manager.save_detector_state(detector_config)
                 if save_result:
                     log.info("controller.detector.state.saved", config=detector_config)
@@ -507,12 +553,15 @@ class AppController:
 
             # Use selected aquarium method and get appropriate weight
             aquarium_method = settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-            
+            model_path = self.weight_manager.get_weight_path_by_method(
+                aquarium_method, "aquarium"
+            )
+
             if not model_path:
                 self.view.show_error(
                     "Erro",
-                    f"Não foi possível encontrar um modelo {aquarium_method} para detecção do aquário.",
+                    f"Não foi possível encontrar um modelo {aquarium_method} para "
+                    "detecção do aquário.",
                 )
                 return
 
@@ -769,15 +818,18 @@ class AppController:
 
             # 3. Run detection on the clip using selected aquarium method
             aquarium_method = settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-            
+            model_path = self.weight_manager.get_weight_path_by_method(
+                aquarium_method, "aquarium"
+            )
+
             if not model_path:
                 self.view.show_error(
-                    "Erro", 
-                    f"Não foi possível encontrar um modelo {aquarium_method} para detecção do aquário."
+                    "Erro",
+                    f"Não foi possível encontrar um modelo {aquarium_method} para "
+                    "detecção do aquário.",
                 )
                 return
-                
+
             detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
             polygons = detector.detect_aquariums(temp_video_path)
 
@@ -834,21 +886,21 @@ class AppController:
         if self.project_manager.project_path:
             project_type = self.project_manager.get_project_type()
             zone_data = self.project_manager.get_zone_data()
-            
+
             if project_type == "live" and (not zone_data or not zone_data.polygon):
                 log.info("controller.recording.live_zone_validation.start")
-                
+
                 # For Live projects, prompt for automatic calibration
                 response = self.view.ask_ok_cancel(
                     "Calibração Necessária",
                     "Deseja fazer calibração automática do aquário?\n"
                     "(Recomendado para projetos ao vivo)"
                 )
-                
+
                 if response:
                     # Run auto-calibration
                     self.run_live_calibration()
-                    
+
                     # Check if calibration was successful
                     zone_data = self.project_manager.get_zone_data()
                     if not zone_data or not zone_data.polygon:
@@ -858,7 +910,9 @@ class AppController:
                             "Por favor, desenhe manualmente."
                         )
                         # Switch to zones tab
-                        if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
+                        if hasattr(self.view, "notebook") and hasattr(
+                            self.view, "zone_tab_frame"
+                        ):
                             self.view.notebook.select(self.view.zone_tab_frame)
                         return
                     else:
@@ -871,7 +925,7 @@ class AppController:
                         "Defina o polígono principal antes de gravar."
                     )
                     return
-                    
+
             elif not zone_data or not zone_data.polygon:
                 # Generic validation for non-Live projects (preserve existing behavior)
                 log.warning("controller.recording.no_main_arena")
@@ -910,13 +964,13 @@ class AppController:
                         return
 
                     log.info("controller.recording.proceeding_without_arena")
-            
+
         # Ensure detector is set up before recording
         if not self.detector:
             if not self.setup_detector():
                 self.view.show_error("Erro", "Falha ao configurar detector.")
                 return
-        
+
         # Apply zones to detector
         self.setup_detector_zones()
 
@@ -1022,14 +1076,18 @@ class AppController:
         # Validate detection mode and animal count combination
         animal_method = settings.model_selection.animal_method
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
-        
+
         if animal_method == "det" and animals_per_aquarium != 1:
             self.view.show_error(
                 "Configuração Inválida",
-                f"O modo de detecção (det) para animais só é compatível com 1 animal por aquário.\n"
-                f"Configuração atual: {animals_per_aquarium} animais por aquário.\n\n"
-                f"Para usar múltiplos animais por aquário, altere o método de detecção de animais "
-                f"para 'seg' (segmentação) nas configurações."
+                (
+                    "O modo de detecção (det) para animais só é compatível com 1 "
+                    f"animal por aquário.\n"
+                    f"Configuração atual: {animals_per_aquarium} "
+                    "animais por aquário.\n\n"
+                    "Para usar múltiplos animais por aquário, altere o método de "
+                    "detecção de animais para 'seg' (segmentação) nas configurações."
+                ),
             )
             return
 
@@ -1754,7 +1812,10 @@ class AppController:
                     )
                     # Update analysis progress overlay as well
                     self.root.after(
-                        0, lambda p=progress_fraction, s=step_status: self.view.update_analysis_progress(p, s)
+                        0,
+                        lambda p=progress_fraction, s=step_status: self.view.update_analysis_progress(
+                            p, s
+                        ),
                     )
                     if frame is not None:
                         # A GUI desenhará as zonas automaticamente

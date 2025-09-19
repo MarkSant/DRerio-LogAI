@@ -129,11 +129,17 @@ class ModelSelectionSettings(BaseModel):
 
     aquarium_method: Literal["seg", "det"] = Field(
         "seg",
-        description="Method for aquarium detection: 'seg' for segmentation, 'det' for detection",
+        description=(
+            "Method for aquarium detection: 'seg' for segmentation, 'det' for "
+            "detection"
+        ),
     )
     animal_method: Literal["seg", "det"] = Field(
         "det",
-        description="Method for animal tracking: 'seg' for segmentation, 'det' for detection",
+        description=(
+            "Method for animal tracking: 'seg' for segmentation, 'det' for "
+            "detection"
+        ),
     )
 
 
@@ -145,7 +151,7 @@ class WeightsSelectionSettings(BaseModel):
         description="Filename for segmentation model weights",
     )
     det_filename: str = Field(
-        "best_oi.pt", 
+        "best_oi.pt",
         description="Filename for detection model weights",
     )
 
@@ -161,7 +167,7 @@ class Settings(BaseModel):
         default_factory=DetectionZonesSettings
     )
     reproducibility: ReproducibilitySettings
-    
+
     # New dual-weight selection settings
     model_selection: ModelSelectionSettings = Field(
         default_factory=ModelSelectionSettings,
