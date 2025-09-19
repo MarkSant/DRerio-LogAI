@@ -128,15 +128,16 @@ class WeightManager:
         # Check for both seg and det weights from settings
         potential_weights = []
         
-        # Add weights from the new settings if they exist
-        if settings.weights.seg_filename and os.path.exists(settings.weights.seg_filename):
+        # Add weights from the new settings - register them even if files don't exist yet
+        # This allows the weight management system to be configured before files are available
+        if settings.weights.seg_filename:
             potential_weights.append(("seg", settings.weights.seg_filename))
-        if settings.weights.det_filename and os.path.exists(settings.weights.det_filename):
+        if settings.weights.det_filename:
             potential_weights.append(("det", settings.weights.det_filename))
         
         # Check the legacy yolo_model.path for backward compatibility
         legacy_path = settings.yolo_model.path
-        if legacy_path and os.path.exists(legacy_path):
+        if legacy_path:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
             # Add legacy path if it's not already in potential_weights
