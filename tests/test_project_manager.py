@@ -244,6 +244,71 @@ class TestProjectManager(unittest.TestCase):
         next_vid_after_update = pm_loader.get_next_video()
         self.assertNotEqual(next_vid, next_vid_after_update)
 
+    def test_detector_state_persistence(self):
+        """Test detector state save and retrieve functionality."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "detector_state_project")
+        
+        # Create a new project first
+        success = pm.create_new_project(project_path, "live")
+        self.assertTrue(success)
+        
+        # Test saving detector state
+        detector_config = {
+            "plugin_name": "YOLO (Ultralytics)",
+            "confidence_threshold": 0.7,
+            "nms_threshold": 0.5,
+            "context": "tracking"
+        }
+        
+        save_result = pm.save_detector_state(detector_config)
+        self.assertTrue(save_result)
+        
+        # Test retrieving detector state
+        retrieved_config = pm.get_detector_state()
+        self.assertIsNotNone(retrieved_config)
+        self.assertEqual(retrieved_config["plugin_name"], "YOLO (Ultralytics)")
+        self.assertEqual(retrieved_config["confidence_threshold"], 0.7)
+        self.assertEqual(retrieved_config["nms_threshold"], 0.5)
+        self.assertEqual(retrieved_config["context"], "tracking")
+        self.assertIn("last_updated", retrieved_config)
+        
+        # Test loading project and verifying detector state persists
+        loader_pm = ProjectManager()
+        load_success = loader_pm.load_project(project_path)
+        self.assertTrue(load_success)
+        
+        loaded_config = loader_pm.get_detector_state()
+        self.assertEqual(loaded_config["plugin_name"], "YOLO (Ultralytics)")
+        self.assertEqual(loaded_config["confidence_threshold"], 0.7)
+        self.assertEqual(loaded_config["context"], "tracking")
+        
+    def test_detector_state_empty_project(self):
+        """Test detector state retrieval from empty project returns empty dict."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "empty_detector_project")
+        
+        # Create a new project without detector config
+        success = pm.create_new_project(project_path, "live")
+        self.assertTrue(success)
+        
+        # Should return empty dict when no detector config exists
+        config = pm.get_detector_state()
+        self.assertEqual(config, {})
+        
+    def test_detector_state_save_without_project(self):
+        """Test detector state saving fails without project data."""
+        pm = ProjectManager()
+        
+        detector_config = {
+            "plugin_name": "OpenVINO",
+            "confidence_threshold": 0.6
+        }
+        
+        # Should fail when no project data exists
+        result = pm.save_detector_state(detector_config)
+        self.assertFalse(result)
+
 
 if __name__ == "__main__":
     unittest.main()
