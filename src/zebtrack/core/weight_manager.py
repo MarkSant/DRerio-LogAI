@@ -32,41 +32,100 @@ class WeightManager:
         self._load_weights()
 
     def _load_weights(self):
-        """Loads the weights configuration from the JSON file."""
+        """Loads the weights configuration and ensures defaults are set."""
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r") as f:
                     self.weights = json.load(f)
-
-                # Migrate old format weights to new format with type support
-                migrated = False
-                for name, details in self.weights.items():
-                    if "type" not in details:
-                        # Classify weight type based on filename
-                        weight_type = self._classify_weight_type(name) or "seg"
-                        details["type"] = weight_type
-                        details["is_default_seg"] = (
-                            details.get("is_default", False) and weight_type == "seg"
-                        )
-                        details["is_default_det"] = (
-                            details.get("is_default", False) and weight_type == "det"
-                        )
-                        migrated = True
-                        log.info(
-                            "weights.migration.type_added", name=name, type=weight_type
-                        )
-
-                if migrated:
-                    self.save_weights()
-                    log.info("weights.migration.completed")
-
                 log.info("weights.config.loaded", path=self.config_path)
             except (json.JSONDecodeError, IOError) as e:
-                log.error("weights.config.load_error", error=str(e))
-                self.weights = {}
-                self._initialize_default_weight()
+                log.error("weights.config.load_error", path=self.config_path, error=str(e))
+                self.weights = {}  # Start fresh if config is corrupt
         else:
-            self._initialize_default_weight()
+            self.weights = {}
+            log.info("weights.config.not_found_initializing")
+
+        # This handles both first-run and migration scenarios
+        self._ensure_defaults_from_settings()
+
+    def _ensure_defaults_from_settings(self):
+        """
+        Ensures that default weights for 'seg' and 'det' types are set
+        based on the application settings, without overriding user choices.
+        This handles both first-run initialization and migration.
+        """
+        made_changes = False
+
+        # 1. Ensure default SEGMENTATION weight
+        has_default_seg = any(d.get("is_default_seg") for d in self.weights.values())
+        if not has_default_seg:
+            # Prefer yolo_model.path for backward compatibility
+            seg_path = (
+                settings.yolo_model.path or settings.weights.seg_filename
+            )
+            if seg_path and os.path.exists(seg_path):
+                log.info("weights.default_seg.auto_setting", path=seg_path)
+                self._add_or_update_weight(
+                    path=seg_path,
+                    weight_type="seg",
+                    set_default_flags={"is_default": True, "is_default_seg": True},
+                )
+                made_changes = True
+            elif settings.yolo_model.path:
+                log.warning(
+                    "weights.default_seg.file_not_found", path=settings.yolo_model.path
+                )
+
+        # 2. Ensure default DETECTION weight
+        has_default_det = any(d.get("is_default_det") for d in self.weights.values())
+        if not has_default_det:
+            det_path = settings.weights.det_filename
+            if det_path and os.path.exists(det_path):
+                log.info("weights.default_det.auto_setting", path=det_path)
+                self._add_or_update_weight(
+                    path=det_path,
+                    weight_type="det",
+                    set_default_flags={"is_default_det": True, "is_default": False},
+                )
+                made_changes = True
+            elif settings.weights.det_filename:
+                log.warning(
+                    "weights.default_det.file_not_found",
+                    path=settings.weights.det_filename,
+                )
+
+        if made_changes:
+            self.save_weights()
+
+    def _add_or_update_weight(self, path: str, weight_type: str, set_default_flags: dict):
+        """
+        Adds a new weight entry or updates an existing one with the given flags.
+        Preserves existing OpenVINO path and hash on update.
+        """
+        name = os.path.basename(path)
+
+        if name in self.weights:
+            # Update existing entry, preserving OpenVINO fields
+            entry = self.weights[name]
+            log.info("weights.update.start", name=name, flags=set_default_flags)
+            entry.update(set_default_flags)
+            entry["type"] = weight_type  # Ensure type is correct
+        else:
+            # Add new entry
+            log.info("weights.add.start", name=name, flags=set_default_flags)
+            entry = {
+                "path": path,
+                "type": weight_type,
+                "openvino_path": "",
+                "openvino_hash": "",
+            }
+            entry.update(set_default_flags)
+            self.weights[name] = entry
+
+        # Ensure boolean flags are present and correctly typed
+        entry.setdefault("is_default", False)
+        entry.setdefault("is_default_seg", False)
+        entry.setdefault("is_default_det", False)
 
     def get_weight_path_by_method(self, method: str, task: str) -> str | None:
         """

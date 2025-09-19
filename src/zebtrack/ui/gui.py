@@ -58,6 +58,9 @@ class CalibrationDialog(simpledialog.Dialog):
         # --- Vars for sensitivity control ---
         self.sensitivity_var = StringVar(value="0.15")
 
+        # Guard for UI synchronization to prevent recursion
+        self._suppress_conf_trace = False
+
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
@@ -146,9 +149,13 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="Limiar de Confiança:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
+        entry = ttk.Entry(
             params_frame, textvariable=self.confidence_threshold_var, width=10
-        ).grid(row=1, column=1, sticky="w", padx=5)
+        )
+        entry.grid(row=1, column=1, sticky="w", padx=5)
+        self.confidence_threshold_var.trace_add(
+            "write", self._on_confidence_entry_change
+        )
 
         # --- Model Selection for Diagnostic ---
         ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
@@ -177,12 +184,11 @@ class CalibrationDialog(simpledialog.Dialog):
             to=0.50,
             orient="horizontal",
             length=150,
-            command=self._on_sensitivity_change,
         )
-        self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
-        self.sensitivity_scale.pack(side="left")
-
+        self.sensitivity_scale.set(0.15)
         self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
+        self.sensitivity_scale.configure(command=self._on_sensitivity_change)
+        self.sensitivity_scale.pack(side="left")
         self.sensitivity_label.pack(side="left", padx=(5, 0))
 
         # --- Tooltip para sensibilidade ---
@@ -257,26 +263,57 @@ class CalibrationDialog(simpledialog.Dialog):
             self.diagnostic_video_path = path
             self.video_path_label_var.set(os.path.basename(path))
 
-    def _on_sensitivity_change(self, value):
-        """Atualiza label quando threshold muda e aplica globalmente"""
-        threshold_value = float(value)
-        self.sensitivity_label.config(text=f"{threshold_value:.2f}")
-        self.sensitivity_var.set(f"{threshold_value:.2f}")
+    def _on_confidence_entry_change(self, *args):
+        """Atualiza slider, label e detector quando o Entry de confiança muda."""
+        if self._suppress_conf_trace:
+            return
 
-        # Atualiza threshold globalmente no detector ativo
+        try:
+            conf_value = float(self.confidence_threshold_var.get())
+            if not 0.0 <= conf_value <= 1.0:
+                return
+        except (ValueError, TypeError):
+            return  # Ignore invalid or partial float values like "." or "abc"
+
+        # Update detector and label with the exact value from the Entry
+        self.sensitivity_label.config(text=f"{conf_value:.2f}")
         if hasattr(self.controller, "detector") and self.controller.detector:
             if hasattr(self.controller.detector.plugin, "conf_threshold"):
-                old_threshold = self.controller.detector.plugin.conf_threshold
-                self.controller.detector.plugin.conf_threshold = threshold_value
-
-                # Log da mudança para debug (usando print simples para evitar
-                # dependências)
-                print(
-                    f"Sensitivity changed: {old_threshold:.2f} → {threshold_value:.2f}"
+                self.controller.detector.plugin.conf_threshold = conf_value
+                log.info(
+                    "detector.conf_threshold.updated_from_entry", value=conf_value
                 )
 
-        # Atualiza também a variável de confidence threshold para diagnósticos
+        # Programmatically update the slider's position. This will fire its
+        # command, so we use the guard flag to prevent a recursive loop.
+        self._suppress_conf_trace = True
+        self.sensitivity_scale.set(
+            conf_value
+        )  # Scale clamps value to its range automatically
+        self._suppress_conf_trace = False
+
+    def _on_sensitivity_change(self, value):
+        """Atualiza label e Entry quando o slider de sensibilidade muda."""
+        if self._suppress_conf_trace:
+            return
+
+        threshold_value = float(value)
+
+        # Update detector and label
+        self.sensitivity_label.config(text=f"{threshold_value:.2f}")
+        if hasattr(self.controller, "detector") and self.controller.detector:
+            if hasattr(self.controller.detector.plugin, "conf_threshold"):
+                self.controller.detector.plugin.conf_threshold = threshold_value
+                log.info(
+                    "detector.conf_threshold.updated_from_slider",
+                    value=threshold_value,
+                )
+
+        # Update the Entry field's variable. This will fire its trace,
+        # so we use the guard flag to prevent a recursive loop.
+        self._suppress_conf_trace = True
         self.confidence_threshold_var.set(f"{threshold_value:.2f}")
+        self._suppress_conf_trace = False
 
     def _run_diagnostic_test(self):
         # --- Validation ---
