@@ -37,7 +37,7 @@ class WeightManager:
             try:
                 with open(self.config_path, "r") as f:
                     self.weights = json.load(f)
-                
+
                 # Migrate old format weights to new format with type support
                 migrated = False
                 for name, details in self.weights.items():
@@ -45,15 +45,21 @@ class WeightManager:
                         # Classify weight type based on filename
                         weight_type = self._classify_weight_type(name) or "seg"
                         details["type"] = weight_type
-                        details["is_default_seg"] = details.get("is_default", False) and weight_type == "seg"
-                        details["is_default_det"] = details.get("is_default", False) and weight_type == "det"
+                        details["is_default_seg"] = (
+                            details.get("is_default", False) and weight_type == "seg"
+                        )
+                        details["is_default_det"] = (
+                            details.get("is_default", False) and weight_type == "det"
+                        )
                         migrated = True
-                        log.info("weights.migration.type_added", name=name, type=weight_type)
-                
+                        log.info(
+                            "weights.migration.type_added", name=name, type=weight_type
+                        )
+
                 if migrated:
                     self.save_weights()
                     log.info("weights.migration.completed")
-                
+
                 log.info("weights.config.loaded", path=self.config_path)
             except (json.JSONDecodeError, IOError) as e:
                 log.error("weights.config.load_error", error=str(e))
@@ -65,11 +71,11 @@ class WeightManager:
     def get_weight_path_by_method(self, method: str, task: str) -> str | None:
         """
         Gets the weight path for a specific method and task.
-        
+
         Args:
             method: "seg" or "det"
             task: "aquarium" or "animal" (for logging purposes)
-            
+
         Returns:
             Path to the appropriate weight file, or None if not found
         """
@@ -80,10 +86,16 @@ class WeightManager:
         else:
             log.error("weights.get_path.invalid_method", method=method, task=task)
             return None
-            
+
         if details:
             path = details.get("path")
-            log.info("weights.get_path.selected", method=method, task=task, name=name, path=path)
+            log.info(
+                "weights.get_path.selected",
+                method=method,
+                task=task,
+                name=name,
+                path=path,
+            )
             return path
         else:
             log.warning("weights.get_path.not_found", method=method, task=task)
@@ -92,13 +104,13 @@ class WeightManager:
     def _classify_weight_type(self, filename: str) -> str | None:
         """
         Classifies weight type based on filename suffix.
-        
+
         Args:
             filename: The weight filename
-            
+
         Returns:
-            "seg" for segmentation models (*_seg.pt), "det" for detection models (*_oi.pt), 
-            None if classification can't be determined from suffix.
+            "seg" for segmentation models (*_seg.pt), "det" for detection models
+            (*_oi.pt), None if classification can't be determined from suffix.
         """
         filename_lower = filename.lower()
         if filename_lower.endswith('_seg.pt'):
@@ -107,7 +119,7 @@ class WeightManager:
             return "det"
         else:
             return None
-    
+
     def _initialize_default_weight(self):
         """Initializes the config with the default weight from settings."""
         log.info("weights.config.initializing_default")
@@ -158,13 +170,15 @@ class WeightManager:
                 return name, details
         return None, None
 
-    def get_default_weight_by_type(self, weight_type: str) -> tuple[str, dict] | tuple[None, None]:
+    def get_default_weight_by_type(
+        self, weight_type: str
+    ) -> tuple[str, dict] | tuple[None, None]:
         """
         Returns the name and details of the default weight for a specific type.
-        
+
         Args:
             weight_type: "seg" or "det"
-            
+
         Returns:
             Tuple of (name, details) or (None, None) if not found
         """
@@ -185,28 +199,32 @@ class WeightManager:
     def set_default_weight_by_type(self, name_to_set: str, weight_type: str):
         """
         Sets a new default weight for a specific type.
-        
+
         Args:
             name_to_set: Weight name to set as default
             weight_type: "seg" or "det"
         """
         if name_to_set not in self.weights:
-            log.error("weights.default_by_type.not_found", name=name_to_set, type=weight_type)
+            log.error(
+                "weights.default_by_type.not_found",
+                name=name_to_set,
+                type=weight_type,
+            )
             return
-            
+
         weight_details = self.weights[name_to_set]
         if weight_details.get("type") != weight_type:
-            log.warning("weights.default_by_type.type_mismatch", 
-                       name=name_to_set, expected_type=weight_type, 
+            log.warning("weights.default_by_type.type_mismatch",
+                       name=name_to_set, expected_type=weight_type,
                        actual_type=weight_details.get("type"))
             return
 
         default_key = f"is_default_{weight_type}"
-        
+
         # Unset current default for this type
         for name, details in self.weights.items():
             details[default_key] = False
-            
+
         # Set new default
         self.weights[name_to_set][default_key] = True
         self.save_weights()
@@ -230,7 +248,8 @@ class WeightManager:
         Args:
             new_path: The file path to the new .pt weight file.
             set_as_default: If True, this new weight will become the default.
-            weight_type: Optional weight type ("seg" or "det"). If None, will be classified from filename.
+            weight_type: Optional weight type ("seg" or "det"). If None, will be
+                         classified from filename.
         """
         # --- Security Check: Path Traversal ---
         try:
@@ -281,12 +300,12 @@ class WeightManager:
         # Determine weight type
         if weight_type is None:
             weight_type = self._classify_weight_type(new_name)
-            
+
         # If still can't classify, this will need to be handled by the caller
         # (GUI should prompt user for type)
         if weight_type is None:
             log.warning("weights.add.type_unclassified", name=new_name)
-            # For backward compatibility, default to "seg" 
+            # For backward compatibility, default to "seg"
             weight_type = "seg"
 
         if set_as_default:

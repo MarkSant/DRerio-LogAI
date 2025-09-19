@@ -509,45 +509,45 @@ class ProjectManager:
     def save_detector_state(self, detector_config: dict) -> bool:
         """
         Saves detector configuration to project data.
-        
+
         Args:
-            detector_config: Dictionary with keys plugin_name, confidence_threshold, 
+            detector_config: Dictionary with keys plugin_name, confidence_threshold,
                            nms_threshold, context, last_updated
-                           
+
         Returns:
             bool: True if saved successfully, False otherwise
         """
         if not self.project_data:
             log.error("project.detector_state.save.no_project_data")
             return False
-            
+
         log.info("project.detector_state.save.start", config=detector_config)
-        
+
         try:
             # Add timestamp if not provided
             if "last_updated" not in detector_config:
                 detector_config["last_updated"] = datetime.now().isoformat()
-            
+
             self.project_data["detector_config"] = detector_config
             result = self.save_project()
-            
+
             if result:
-                log.info("project.detector_state.save.success", 
+                log.info("project.detector_state.save.success",
                         plugin=detector_config.get("plugin_name"))
             else:
-                log.error("project.detector_state.save.error", 
+                log.error("project.detector_state.save.error",
                          message="save_project returned False")
-            
+
             return result
-            
+
         except Exception as e:
             log.error("project.detector_state.save.error", error=str(e), exc_info=True)
             return False
-    
+
     def get_detector_state(self) -> dict:
         """
         Retrieves detector configuration from project data.
-        
+
         Returns:
             dict: Detector configuration or empty dict if not found
         """

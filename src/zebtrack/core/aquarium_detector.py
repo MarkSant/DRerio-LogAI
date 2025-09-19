@@ -43,7 +43,10 @@ class AquariumDetector:
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
         except Exception as e:
             log.error(
-                "aquarium_detector.init.failed", model_path=model_path, mode=mode, error=str(e)
+                "aquarium_detector.init.failed",
+                model_path=model_path,
+                mode=mode,
+                error=str(e),
             )
             raise
 
@@ -74,69 +77,71 @@ class AquariumDetector:
     def _extract_polygon_from_detection(self, frame, results) -> np.ndarray | None:
         """
         Extracts a polygon from detection results (bounding boxes).
-        
+
         Args:
             frame: The frame from which detection was performed
             results: YOLO detection results
-            
+
         Returns:
             Polygon as numpy array of shape (N, 2) or None if no valid detection
         """
         if not results or not results[0].boxes:
             return None
-            
+
         boxes = results[0].boxes
         confidences = [float(box.conf) for box in boxes]
-        
+
         if not confidences:
             return None
-            
+
         # Find the box with highest confidence
         best_idx = confidences.index(max(confidences))
         best_box = boxes[best_idx]
         best_conf = confidences[best_idx]
-        
+
         # Convert box to polygon (rectangle)
         x1, y1, x2, y2 = best_box.xyxy[0].cpu().numpy()
-        
+
         # Create rectangular polygon from bounding box
         polygon = np.array([
             [int(x1), int(y1)],  # top-left
-            [int(x2), int(y1)],  # top-right  
+            [int(x2), int(y1)],  # top-right
             [int(x2), int(y2)],  # bottom-right
             [int(x1), int(y2)],  # bottom-left
         ], dtype=np.int32)
-        
+
         # Validate size - should be reasonable portion of frame
         frame_area = frame.shape[0] * frame.shape[1]
         box_area = (x2 - x1) * (y2 - y1)
         area_ratio = box_area / frame_area
-        
+
         if area_ratio < 0.1:  # Too small
-            log.warning("aquarium_detector.detection_too_small", 
+            log.warning("aquarium_detector.detection_too_small",
                        confidence=best_conf, area_ratio=area_ratio)
             return None
-            
+
         if area_ratio > 0.95:  # Almost entire frame, likely false positive
-            log.warning("aquarium_detector.detection_too_large", 
+            log.warning("aquarium_detector.detection_too_large",
                        confidence=best_conf, area_ratio=area_ratio)
             return None
-            
-        log.info("aquarium_detector.detection_polygon_extracted", 
+
+        log.info("aquarium_detector.detection_polygon_extracted",
                 confidence=best_conf, area_ratio=area_ratio,
                 bbox=[int(x1), int(y1), int(x2), int(y2)])
-        
+
         return polygon
 
-    def _process_segmentation_results(self, frame, results, frame_index: int) -> np.ndarray | None:
+    def _process_segmentation_results(
+        self, frame, results, frame_index: int
+    ) -> np.ndarray | None:
         """
         Processes segmentation results to extract a valid aquarium polygon.
-        
+
         Args:
             frame: Video frame
             results: YOLO results
             frame_index: Frame number for logging
-            
+
         Returns:
             Valid polygon or None
         """
@@ -290,11 +295,11 @@ class AquariumDetector:
     def _find_consensus_polygon(self, good_polygons: list, source) -> list:
         """
         Finds the most stable polygon using consensus approach.
-        
+
         Args:
             good_polygons: List of candidate polygons
             source: Video source for fallback default polygon
-            
+
         Returns:
             List containing the best polygon, or empty list
         """
@@ -372,7 +377,7 @@ class AquariumDetector:
     def detect_aquariums(self, video_path: str, stabilization_frames: int = 10) -> list:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
-        
+
         Supports both segmentation and detection modes:
         - "seg": Uses segmentation masks (original behavior)
         - "det": Uses bounding box detections converted to rectangular polygons
@@ -385,12 +390,14 @@ class AquariumDetector:
             A list containing the single most stable polygon, or an empty list if
             no stable polygon could be found.
         """
-        log.info("aquarium_detector.detect.start", video_path=video_path, mode=self.mode)
+        log.info(
+            "aquarium_detector.detect.start", video_path=video_path, mode=self.mode
+        )
         source = None
         try:
             source = VideoFileSource(video_path)
             good_polygons = []
-            
+
             for i in range(stabilization_frames):
                 ret, frame = source.get_frame()
                 if not ret:
@@ -413,7 +420,7 @@ class AquariumDetector:
                 )
 
                 polygon = None
-                
+
                 if self.mode == "seg":
                     # Segmentation mode - use existing logic
                     polygon = self._process_segmentation_results(frame, results, i)
@@ -421,14 +428,16 @@ class AquariumDetector:
                     # Detection mode - extract polygon from bounding boxes
                     polygon = self._extract_polygon_from_detection(frame, results)
                     if polygon is not None:
-                        log.info("aquarium_detector.detection_polygon_accepted", frame=i)
+                        log.info(
+                            "aquarium_detector.detection_polygon_accepted", frame=i
+                        )
 
                 if polygon is not None:
                     good_polygons.append(polygon)
 
             # Apply the same consensus logic regardless of mode
             return self._find_consensus_polygon(good_polygons, source)
-            
+
         except Exception as e:
             log.error(
                 "aquarium_detector.detect.failed", video_path=video_path, error=str(e)
