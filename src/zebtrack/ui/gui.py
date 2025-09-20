@@ -1182,8 +1182,16 @@ class ApplicationGUI:
         left_panel_frame = ttk.Frame(
             main_pane, padding=5, relief="groove", borderwidth=2
         )
-        # Set minimum width for left panel to prevent excessive shrinking
-        main_pane.add(left_panel_frame, weight=1, minsize=350)
+        # Add left panel without invalid minsize parameter
+        main_pane.add(left_panel_frame, weight=1)
+        
+        # Set initial sash position to 360 pixels for left panel width
+        def _set_initial_sash():
+            try:
+                main_pane.sashpos(0, 360)
+            except Exception:
+                pass  # Sash position might fail if pane isn't fully realized yet
+        main_pane.after(10, _set_initial_sash)
 
         # Create scrollable frame for zone controls
         self._create_scrollable_controls_frame(left_panel_frame)
@@ -1191,6 +1199,17 @@ class ApplicationGUI:
         # 4. Create the visualization panel on the right
         viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
         main_pane.add(viz_frame, weight=4)
+        
+        # Bind pane configure event to maintain minimum left panel width
+        def _on_pane_configure(event=None):
+            try:
+                # Clamp left panel to minimum 300px width
+                current_pos = main_pane.sashpos(0)
+                if current_pos < 300:
+                    main_pane.sashpos(0, 300)
+            except Exception:
+                pass  # Ignore errors during resize
+        main_pane.bind("<Configure>", _on_pane_configure)
 
         # 5. Create the canvas for drawing
         self.roi_canvas = Canvas(viz_frame, bg="gray")
@@ -1198,6 +1217,34 @@ class ApplicationGUI:
 
         # Bind canvas resize event for proper image scaling
         self.roi_canvas.bind("<Configure>", self._on_canvas_configure)
+
+    def _on_canvas_configure(self, event=None):
+        """Handle canvas resize events to properly scale and center the image."""
+        # Skip if this is not the main roi_canvas being resized
+        if event and event.widget != self.roi_canvas:
+            return
+
+        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
+            if hasattr(self, "_original_image") and self._original_image:
+                self._raw_bg_image = self._original_image
+            else:
+                return
+
+        # Get the current canvas dimensions
+        canvas_width = self.roi_canvas.winfo_width()
+        canvas_height = self.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+
+        # Re-scale and center the background image using the new method
+        try:
+            self._draw_bg_image_to_canvas()
+            # After updating the background, redraw any zones that exist
+            if hasattr(self, "controller") and self.controller:
+                self.redraw_zones_from_project_data()
+        except Exception as e:
+            log.warning("gui.canvas.configure_error", error=str(e))
 
         # 6. Create analysis overlay frame (initially hidden)
         self.analysis_overlay_frame = Frame(viz_frame, bg="black")
@@ -1339,7 +1386,7 @@ class ApplicationGUI:
         self.zone_listbox.heading("type", text="Tipo")
         self.zone_listbox.heading("color", text="Cor")
         # Configure columns with proper sizing for better proportions
-        self.zone_listbox.column("name", width=240, minwidth=220, stretch=True)
+        self.zone_listbox.column("name", width=240, minwidth=160, stretch=True)
         self.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
         self.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
         self.zone_listbox.pack(side="left", fill="both", expand=True)
@@ -1557,30 +1604,6 @@ class ApplicationGUI:
             "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
         )
 
-    def _on_canvas_configure(self, event=None):
-        """Handle canvas resize events to properly scale and center the image."""
-        # Skip if this is not the main roi_canvas being resized
-        if event and event.widget != self.roi_canvas:
-            return
-
-        if not hasattr(self, "_original_image") or not self._original_image:
-            return
-
-        # Get the current canvas dimensions
-        canvas_width = self.roi_canvas.winfo_width()
-        canvas_height = self.roi_canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            return
-
-        # Re-scale and center the background image using the original image
-        try:
-            self._display_image_on_canvas()
-            # After updating the background, redraw any zones that exist
-            if hasattr(self, "controller") and self.controller:
-                self.redraw_zones_from_project_data()
-        except Exception as e:
-            log.warning("gui.canvas.configure_error", error=str(e))
 
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
@@ -1941,9 +1964,11 @@ class ApplicationGUI:
             # Convert the frame for display
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self._original_image = Image.fromarray(frame_rgb)
+            # Also store as _raw_bg_image as mentioned in requirements
+            self._raw_bg_image = self._original_image
 
             # Wait for the canvas to be properly sized after geometry update
-            self.root.after(10, lambda: self._display_image_on_canvas())
+            self.root.after(10, lambda: self._draw_bg_image_to_canvas())
 
         except Exception as e:
             self.show_error("Erro ao Exibir Frame", str(e))
@@ -1970,6 +1995,51 @@ class ApplicationGUI:
 
         # Scale the image
         image = self._original_image.resize((new_width, new_height), Image.LANCZOS)
+
+        # Clear canvas and display centered image
+        self.roi_canvas.delete("all")
+        self._canvas_bg_image = ImageTk.PhotoImage(image)
+
+        # Center the image within the canvas
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+
+        # Store positioning for later restoration in redraw_zones_from_project_data
+        self._canvas_bg_position = (center_x, center_y, "center")
+
+        self.roi_canvas.create_image(
+            center_x,
+            center_y,
+            anchor="center",
+            image=self._canvas_bg_image,
+            tags="background_image",
+        )
+
+    def _draw_bg_image_to_canvas(self):
+        """Draws the background image to canvas with proper scaling and centering."""
+        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
+            if hasattr(self, "_original_image") and self._original_image:
+                self._raw_bg_image = self._original_image
+            else:
+                return
+
+        # Get actual canvas dimensions after layout
+        canvas_width = self.roi_canvas.winfo_width()
+        canvas_height = self.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            # Canvas not ready yet, try again
+            self.root.after(10, self._draw_bg_image_to_canvas)
+            return
+
+        # Calculate scaling to fit image while maintaining aspect ratio
+        img_w, img_h = self._raw_bg_image.size
+        scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
+        new_width = int(img_w * scale)
+        new_height = int(img_h * scale)
+
+        # Scale the image
+        image = self._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
 
         # Clear canvas and display centered image
         self.roi_canvas.delete("all")
@@ -2020,9 +2090,11 @@ class ApplicationGUI:
             # Convert frame and store original
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self._original_image = Image.fromarray(frame_rgb)
+            # Also store as _raw_bg_image as mentioned in requirements
+            self._raw_bg_image = self._original_image
 
             # Display the image using proper canvas scaling
-            self._display_image_on_canvas()
+            self._draw_bg_image_to_canvas()
 
             log.info("gui.canvas.frame_loaded", video=video_path)
             return True
