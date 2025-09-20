@@ -1197,8 +1197,8 @@ class ApplicationGUI:
         self._create_scrollable_controls_frame(left_panel_frame)
 
         # 4. Create the visualization panel on the right
-        viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
-        main_pane.add(viz_frame, weight=4)
+        self.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
+        main_pane.add(self.viz_frame, weight=4)
         
         # Bind pane configure event to maintain minimum left panel width
         def _on_pane_configure(event=None):
@@ -1212,11 +1212,36 @@ class ApplicationGUI:
         main_pane.bind("<Configure>", _on_pane_configure)
 
         # 5. Create the canvas for drawing
-        self.roi_canvas = Canvas(viz_frame, bg="gray")
+        self.roi_canvas = Canvas(self.viz_frame, bg="gray")
         self.roi_canvas.pack(expand=True, fill="both")
 
         # Bind canvas resize event for proper image scaling
         self.roi_canvas.bind("<Configure>", self._on_canvas_configure)
+
+        # 6. Create analysis overlay frame (initially hidden)
+        self.analysis_overlay_frame = Frame(self.viz_frame, bg="black")
+        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
+        self.analysis_video_label.pack(expand=True)
+
+        # Progress info in overlay
+        self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
+        self.overlay_progress_frame.pack(fill="x", padx=10, pady=5)
+
+        self.overlay_progress_bar = ttk.Progressbar(
+            self.overlay_progress_frame, orient="horizontal", mode="determinate"
+        )
+        self.overlay_progress_bar.pack(fill="x", pady=2)
+
+        self.overlay_status_label = Label(
+            self.overlay_progress_frame,
+            text="Preparando análise...",
+            bg="black",
+            fg="white",
+        )
+        self.overlay_status_label.pack()
+
+        # 7. Create all the zone control widgets in the scrollable frame
+        self._create_zone_control_widgets()
 
     def _on_canvas_configure(self, event=None):
         """Handle canvas resize events to properly scale and center the image."""
@@ -1246,28 +1271,8 @@ class ApplicationGUI:
         except Exception as e:
             log.warning("gui.canvas.configure_error", error=str(e))
 
-        # 6. Create analysis overlay frame (initially hidden)
-        self.analysis_overlay_frame = Frame(viz_frame, bg="black")
-        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
-        self.analysis_video_label.pack(expand=True)
-
-        # Progress info in overlay
-        self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
-        self.overlay_progress_frame.pack(fill="x", padx=10, pady=5)
-
-        self.overlay_progress_bar = ttk.Progressbar(
-            self.overlay_progress_frame, orient="horizontal", mode="determinate"
-        )
-        self.overlay_progress_bar.pack(fill="x", pady=2)
-
-        self.overlay_status_label = Label(
-            self.overlay_progress_frame,
-            text="Preparando análise...",
-            bg="black",
-            fg="white",
-        )
-        self.overlay_status_label.pack()
-
+    def _create_zone_control_widgets(self):
+        """Create all the zone control widgets in the scrollable frame."""
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Ações de Desenho", padding=10
@@ -2595,6 +2600,10 @@ class ApplicationGUI:
 
     def update_zone_listbox(self):
         """Atualiza lista com indicadores visuais de cor"""
+        # Guard against missing zone_listbox
+        if not hasattr(self, 'zone_listbox') or self.zone_listbox is None:
+            return
+            
         # Limpa lista
         for item in self.zone_listbox.get_children():
             self.zone_listbox.delete(item)
