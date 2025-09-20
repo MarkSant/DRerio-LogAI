@@ -14,6 +14,7 @@ from tkinter import (
     Entry,
     Frame,
     Label,
+    Menu,
     OptionMenu,
     StringVar,
     filedialog,
@@ -263,7 +264,7 @@ class CalibrationDialog(simpledialog.Dialog):
         """Atualiza label quando threshold muda e aplica globalmente"""
         threshold_value = float(value)
         # Safety check to prevent AttributeError during initialization
-        if hasattr(self, 'sensitivity_label'):
+        if hasattr(self, "sensitivity_label"):
             self.sensitivity_label.config(text=f"{threshold_value:.2f}")
         self.sensitivity_var.set(f"{threshold_value:.2f}")
 
@@ -1177,11 +1178,15 @@ class ApplicationGUI:
         main_pane = ttk.PanedWindow(self.zone_tab_frame, orient="horizontal")
         main_pane.pack(expand=True, fill="both")
 
-        # 3. Create the control panel on the left
-        self.zone_controls_frame = ttk.Frame(
+        # 3. Create the control panel on the left with scrollable frame
+        left_panel_frame = ttk.Frame(
             main_pane, padding=5, relief="groove", borderwidth=2
         )
-        main_pane.add(self.zone_controls_frame, weight=1)
+        # Set minimum width for left panel to prevent excessive shrinking
+        main_pane.add(left_panel_frame, weight=1, minsize=350)
+
+        # Create scrollable frame for zone controls
+        self._create_scrollable_controls_frame(left_panel_frame)
 
         # 4. Create the visualization panel on the right
         viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
@@ -1190,6 +1195,9 @@ class ApplicationGUI:
         # 5. Create the canvas for drawing
         self.roi_canvas = Canvas(viz_frame, bg="gray")
         self.roi_canvas.pack(expand=True, fill="both")
+
+        # Bind canvas resize event for proper image scaling
+        self.roi_canvas.bind("<Configure>", self._on_canvas_configure)
 
         # 6. Create analysis overlay frame (initially hidden)
         self.analysis_overlay_frame = Frame(viz_frame, bg="black")
@@ -1206,8 +1214,10 @@ class ApplicationGUI:
         self.overlay_progress_bar.pack(fill="x", pady=2)
 
         self.overlay_status_label = Label(
-            self.overlay_progress_frame, text="Preparando análise...",
-            bg="black", fg="white"
+            self.overlay_progress_frame,
+            text="Preparando análise...",
+            bg="black",
+            fg="white",
         )
         self.overlay_status_label.pack()
 
@@ -1309,7 +1319,7 @@ class ApplicationGUI:
             actions_frame,
             text="Ver Análise em Progresso",
             command=self._toggle_canvas_view,
-            state="disabled"
+            state="disabled",
         )
         self.toggle_view_btn.pack(fill="x", pady=2)
 
@@ -1320,15 +1330,18 @@ class ApplicationGUI:
         zone_list_frame.pack(fill="x", pady=5)
 
         self.zone_listbox = ttk.Treeview(
-            zone_list_frame, columns=("name", "type", "color"), show="headings", height=6
+            zone_list_frame,
+            columns=("name", "type", "color"),
+            show="headings",
+            height=6,
         )
         self.zone_listbox.heading("name", text="Nome")
         self.zone_listbox.heading("type", text="Tipo")
         self.zone_listbox.heading("color", text="Cor")
-        # Configure columns with proper sizing
-        self.zone_listbox.column("name", width=200, minwidth=150, stretch=True)
-        self.zone_listbox.column("type", width=100, minwidth=80, stretch=False)
-        self.zone_listbox.column("color", width=100, minwidth=80, stretch=False)
+        # Configure columns with proper sizing for better proportions
+        self.zone_listbox.column("name", width=240, minwidth=220, stretch=True)
+        self.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
+        self.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
         # Scrollbar for the listbox
@@ -1336,7 +1349,7 @@ class ApplicationGUI:
             zone_list_frame, orient="vertical", command=self.zone_listbox.yview
         )
         self.zone_listbox.configure(yscrollcommand=scrollbar.set)
-        
+
         # Bind events
         self.zone_listbox.bind("<<TreeviewSelect>>", self._on_zone_select)
         self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
@@ -1487,6 +1500,111 @@ class ApplicationGUI:
 
         # Initialize display based on current rule
         self._on_roi_rule_change()
+
+    def _create_scrollable_controls_frame(self, parent):
+        """Create a scrollable frame for the zone controls."""
+        # Create a canvas and scrollbar for scrolling
+        self.controls_canvas = Canvas(parent, highlightthickness=0)
+        self.controls_scrollbar = ttk.Scrollbar(
+            parent, orient="vertical", command=self.controls_canvas.yview
+        )
+
+        # Create the main scrollable frame inside the canvas
+        self.zone_controls_frame = ttk.Frame(self.controls_canvas)
+
+        # Create a frame for the fixed button at the bottom
+        self.fixed_button_frame = ttk.Frame(parent)
+
+        # Configure canvas scrolling
+        self.controls_canvas.configure(yscrollcommand=self.controls_scrollbar.set)
+
+        # Pack the scrollbar and canvas
+        self.controls_scrollbar.pack(side="right", fill="y")
+        self.fixed_button_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+        self.controls_canvas.pack(side="left", fill="both", expand=True)
+
+        # Create window in canvas for the scrollable frame
+        self.controls_canvas_window = self.controls_canvas.create_window(
+            0, 0, anchor="nw", window=self.zone_controls_frame
+        )
+
+        # Bind events for proper scrolling behavior
+        self.zone_controls_frame.bind("<Configure>", self._on_frame_configure)
+        self.controls_canvas.bind("<Configure>", self._on_canvas_configure_scroll)
+        self._bind_mousewheel()
+
+    def _on_frame_configure(self, event=None):
+        """Update scroll region when frame size changes."""
+        self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
+
+    def _on_canvas_configure_scroll(self, event=None):
+        """Update frame width when canvas size changes."""
+        canvas_width = event.width if event else self.controls_canvas.winfo_width()
+        self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
+
+    def _bind_mousewheel(self):
+        """Bind mouse wheel scrolling to the canvas."""
+
+        def _on_mousewheel(event):
+            self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
+        # For Linux
+        self.controls_canvas.bind(
+            "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
+        )
+        self.controls_canvas.bind(
+            "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
+        )
+
+    def _on_canvas_configure(self, event=None):
+        """Handle canvas resize events to properly scale and center the image."""
+        # Skip if this is not the main roi_canvas being resized
+        if event and event.widget != self.roi_canvas:
+            return
+
+        if not hasattr(self, "_original_image") or not self._original_image:
+            return
+
+        # Get the current canvas dimensions
+        canvas_width = self.roi_canvas.winfo_width()
+        canvas_height = self.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+
+        # Re-scale and center the background image using the original image
+        try:
+            self._display_image_on_canvas()
+            # After updating the background, redraw any zones that exist
+            if hasattr(self, "controller") and self.controller:
+                self.redraw_zones_from_project_data()
+        except Exception as e:
+            log.warning("gui.canvas.configure_error", error=str(e))
+
+    def _recenter_canvas_image(self, canvas_width, canvas_height):
+        """Recenter the canvas background image."""
+        if not hasattr(self, "_canvas_bg_position"):
+            return
+
+        # Remove the old image
+        self.roi_canvas.delete("background_image")
+
+        # Center the image in the new canvas size
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+
+        # Update stored position
+        self._canvas_bg_position = (center_x, center_y, "center")
+
+        # Create the centered image
+        self.roi_canvas.create_image(
+            center_x,
+            center_y,
+            anchor="center",
+            image=self._canvas_bg_image,
+            tags="background_image",
+        )
 
     def _on_roi_rule_change(self, event=None):
         """Handle ROI inclusion rule change and update UI accordingly."""
@@ -1727,19 +1845,25 @@ class ApplicationGUI:
             # Save main arena
             self.controller.save_manual_arena(self.edited_polygon_points)
             self.set_status("Arena principal salva com sucesso.")
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+        elif (
+            isinstance(self.current_editing_zone, tuple)
+            and self.current_editing_zone[0] == "roi"
+        ):
             # Save ROI
             _, roi_index, roi_name = self.current_editing_zone
             zone_data = self.controller.project_manager.get_zone_data()
-            
+
             # Update the ROI polygon
             zone_data.roi_polygons[roi_index] = self.edited_polygon_points
-            
+
             # Save to project
             from dataclasses import asdict
-            self.controller.project_manager.project_data["detection_zones"] = asdict(zone_data)
+
+            self.controller.project_manager.project_data["detection_zones"] = asdict(
+                zone_data
+            )
             self.controller.project_manager.save_project()
-            
+
             self.set_status(f"ROI '{roi_name}' salva com sucesso.")
         else:
             # Fallback - assume arena (legacy behavior)
@@ -1756,12 +1880,15 @@ class ApplicationGUI:
         self._clear_interactive_polygon()
         if self.current_editing_zone == "arena":
             self.set_status("Edição da arena descartada.")
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+        elif (
+            isinstance(self.current_editing_zone, tuple)
+            and self.current_editing_zone[0] == "roi"
+        ):
             _, _, roi_name = self.current_editing_zone
             self.set_status(f"Edição da ROI '{roi_name}' descartada.")
         else:
             self.set_status("Edição descartada.")
-        
+
         # Redraw zones to restore original state
         self.redraw_zones_from_project_data()
 
@@ -1806,55 +1933,62 @@ class ApplicationGUI:
             # Adjust the main window to a proportional size
             screen_w = self.root.winfo_screenwidth()
             screen_h = self.root.winfo_screenheight()
-            win_w = min(int(screen_w * 0.8), w + 350)  # Add space for controls
-            win_h = min(int(screen_h * 0.8), h + 100)
+            win_w = min(int(screen_w * 0.8), w + 400)  # Account for controls space
+            win_h = min(int(screen_h * 0.8), h + 150)  # Account for window decorations
             self.root.geometry(f"{win_w}x{win_h}")
             self.root.update_idletasks()
 
-            # Convert and scale the image to fit in available canvas space
+            # Convert the frame for display
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image = Image.fromarray(frame_rgb)
+            self._original_image = Image.fromarray(frame_rgb)
 
-            # Calculate available canvas space (accounting for window controls)
-            available_width = win_w - 350  # Account for controls space
-            available_height = win_h - 100  # Account for window decorations
-
-            # Ensure minimum size
-            available_width = max(available_width, 400)
-            available_height = max(available_height, 300)
-
-            # Calculate scaling to fit image while maintaining aspect ratio
-            img_w, img_h = image.size
-            scale = min(available_width / img_w, available_height / img_h, 1.0)
-            new_width = int(img_w * scale)
-            new_height = int(img_h * scale)
-
-            # Scale the image
-            image = image.resize((new_width, new_height), Image.LANCZOS)
-
-            # Don't set fixed canvas size - let it expand to fill the container
-            # Instead, we'll center the image within the available canvas space
-            self.roi_canvas.delete("all")
-            self._canvas_bg_image = ImageTk.PhotoImage(image)
-            
-            # Update the canvas to use actual available space after window updates
-            self.root.update_idletasks()
-            canvas_width = self.roi_canvas.winfo_width()
-            canvas_height = self.roi_canvas.winfo_height()
-            
-            # Center the image within the canvas
-            center_x = canvas_width // 2
-            center_y = canvas_height // 2
-            
-            # Store positioning for later restoration in redraw_zones_from_project_data
-            self._canvas_bg_position = (center_x, center_y, "center")
-            
-            self.roi_canvas.create_image(
-                center_x, center_y, anchor="center", image=self._canvas_bg_image, tags="background_image"
-            )
+            # Wait for the canvas to be properly sized after geometry update
+            self.root.after(10, lambda: self._display_image_on_canvas())
 
         except Exception as e:
             self.show_error("Erro ao Exibir Frame", str(e))
+
+    def _display_image_on_canvas(self):
+        """Display the original image on the canvas with proper scaling."""
+        if not hasattr(self, "_original_image") or not self._original_image:
+            return
+
+        # Get actual canvas dimensions after layout
+        canvas_width = self.roi_canvas.winfo_width()
+        canvas_height = self.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            # Canvas not ready yet, try again
+            self.root.after(10, self._display_image_on_canvas)
+            return
+
+        # Calculate scaling to fit image while maintaining aspect ratio
+        img_w, img_h = self._original_image.size
+        scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
+        new_width = int(img_w * scale)
+        new_height = int(img_h * scale)
+
+        # Scale the image
+        image = self._original_image.resize((new_width, new_height), Image.LANCZOS)
+
+        # Clear canvas and display centered image
+        self.roi_canvas.delete("all")
+        self._canvas_bg_image = ImageTk.PhotoImage(image)
+
+        # Center the image within the canvas
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+
+        # Store positioning for later restoration in redraw_zones_from_project_data
+        self._canvas_bg_position = (center_x, center_y, "center")
+
+        self.roi_canvas.create_image(
+            center_x,
+            center_y,
+            anchor="center",
+            image=self._canvas_bg_image,
+            tags="background_image",
+        )
 
     def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
         """Carrega um frame do vídeo no canvas"""
@@ -1883,37 +2017,12 @@ class ApplicationGUI:
             if not ret:
                 return False
 
-            # Converte e redimensiona
+            # Convert frame and store original
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image = Image.fromarray(frame_rgb)
+            self._original_image = Image.fromarray(frame_rgb)
 
-            # Get actual canvas dimensions
-            canvas_width = self.roi_canvas.winfo_width() or 800
-            canvas_height = self.roi_canvas.winfo_height() or 600
-
-            # Calcula nova escala mantendo aspecto
-            img_w, img_h = image.size
-            scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
-            new_width = int(img_w * scale)
-            new_height = int(img_h * scale)
-
-            # Redimensiona a imagem
-            image = image.resize((new_width, new_height), Image.LANCZOS)
-
-            # Don't set fixed canvas size - center the image in available space
-            self._canvas_bg_image = ImageTk.PhotoImage(image)
-            self.roi_canvas.delete("all")
-            
-            # Center the image within the canvas
-            center_x = canvas_width // 2
-            center_y = canvas_height // 2
-            
-            # Store positioning for later restoration in redraw_zones_from_project_data
-            self._canvas_bg_position = (center_x, center_y, "center")
-            
-            self.roi_canvas.create_image(
-                center_x, center_y, anchor="center", image=self._canvas_bg_image, tags="background_image"
-            )
+            # Display the image using proper canvas scaling
+            self._display_image_on_canvas()
 
             log.info("gui.canvas.frame_loaded", video=video_path)
             return True
@@ -2046,7 +2155,7 @@ class ApplicationGUI:
         if self.analysis_active:
             self.show_warning(
                 "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo."
+                "Não é possível editar zonas durante a análise de vídeo.",
             )
             return
 
@@ -2067,7 +2176,7 @@ class ApplicationGUI:
         if self.analysis_active:
             self.show_warning(
                 "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo."
+                "Não é possível editar zonas durante a análise de vídeo.",
             )
             return
 
@@ -2498,16 +2607,20 @@ class ApplicationGUI:
             bg_items = self.roi_canvas.find_withtag("background_image")
             if not bg_items:
                 # Use stored positioning if available, otherwise default to center
-                if hasattr(self, '_canvas_bg_position'):
+                if hasattr(self, "_canvas_bg_position"):
                     x, y, anchor = self._canvas_bg_position
                 else:
                     # Fallback to center of current canvas
                     canvas_width = self.roi_canvas.winfo_width() or 800
                     canvas_height = self.roi_canvas.winfo_height() or 600
                     x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
-                
+
                 self.roi_canvas.create_image(
-                    x, y, anchor=anchor, image=self._canvas_bg_image, tags="background_image"
+                    x,
+                    y,
+                    anchor=anchor,
+                    image=self._canvas_bg_image,
+                    tags="background_image",
                 )
                 self.roi_canvas.tag_lower("background_image")  # Envia para trás
                 log.info("gui.redraw_zones.background_restored")
@@ -3215,14 +3328,14 @@ class ApplicationGUI:
             dialog,
             text="Segmentação (para máscaras e bordas precisas)",
             variable=weight_type_var,
-            value="seg"
+            value="seg",
         ).pack(anchor="w", padx=20)
 
         Radiobutton(
             dialog,
             text="Detecção (para caixas delimitadoras rápidas)",
             variable=weight_type_var,
-            value="det"
+            value="det",
         ).pack(anchor="w", padx=20)
 
         result = [None]  # Use list to allow modification in nested function
@@ -3329,13 +3442,11 @@ class ApplicationGUI:
         # Add a "Start Analysis" button specific to this flow
         if not self.start_single_analysis_btn:
             self.start_single_analysis_btn = ttk.Button(
-                self.zone_controls_frame,  # Add to the left control panel
+                self.fixed_button_frame,  # Add to the fixed button frame at bottom
                 text="Iniciar Análise de Vídeo Único",
                 command=self._on_start_single_video_processing_clicked,
             )
-            self.start_single_analysis_btn.pack(
-                side="bottom", fill="x", pady=10, padx=5
-            )
+            self.start_single_analysis_btn.pack(side="bottom", fill="x", pady=5)
         self.start_single_analysis_btn.config(state="normal")
 
         self.show_info(
@@ -3352,7 +3463,7 @@ class ApplicationGUI:
         if self.analysis_active:
             self.show_warning(
                 "Análise em Progresso",
-                "Não é possível detectar zonas durante a análise de vídeo."
+                "Não é possível detectar zonas durante a análise de vídeo.",
             )
             return
 
@@ -3708,7 +3819,8 @@ class ApplicationGUI:
                 # Arena Principal - show limited menu (only edit vertices)
                 arena_menu = Menu(self.root, tearoff=0)
                 arena_menu.add_command(
-                    label="🔧 Editar Vértices", command=self._edit_selected_zone_vertices
+                    label="🔧 Editar Vértices",
+                    command=self._edit_selected_zone_vertices,
                 )
                 arena_menu.post(event.x_root, event.y_root)
 
@@ -3720,42 +3832,46 @@ class ApplicationGUI:
 
         item = self.zone_listbox.item(selected[0])
         zone_name = item["values"][0]
-        
+
         # Check if we are already in drawing mode
         if self.drawing_mode is not None:
             self.show_warning(
                 "Modo de Desenho Ativo",
-                "Finalize o desenho atual antes de editar vértices de outra zona."
+                "Finalize o desenho atual antes de editar vértices de outra zona.",
             )
             return
 
         zone_data = self.controller.project_manager.get_zone_data()
-        
+
         if "Arena Principal" in zone_name:
             # Edit main arena
             if not zone_data.polygon:
                 self.show_warning("Erro", "Arena principal não encontrada.")
                 return
-            
+
             # Convert polygon to the format expected by setup_interactive_polygon
             polygon_points = np.array(zone_data.polygon)
             self.setup_interactive_polygon(polygon_points)
             self.current_editing_zone = "arena"
-            self.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
-            
+            self.set_status(
+                "Editando vértices da arena principal. Arraste os pontos amarelos."
+            )
+
         else:
             # Edit ROI
             roi_name = zone_name.replace("📍 ", "")
             try:
                 roi_index = zone_data.roi_names.index(roi_name)
                 roi_polygon = zone_data.roi_polygons[roi_index]
-                
+
                 # Convert polygon to the format expected by setup_interactive_polygon
                 polygon_points = np.array(roi_polygon)
                 self.setup_interactive_polygon(polygon_points)
                 self.current_editing_zone = ("roi", roi_index, roi_name)
-                self.set_status(f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos.")
-                
+                self.set_status(
+                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
+                )
+
             except (ValueError, IndexError):
                 self.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
                 return
