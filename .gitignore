@@ -39,6 +39,8 @@ ui_demo.html
 test_color_fix.py
 test_color_only.py
 test_single_animal.py
+test_gui_fixes.py
+GUI_FIXES_SUMMARY.md
 
 # Training outputs
 *.pt
