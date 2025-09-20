@@ -1167,6 +1167,14 @@ class ApplicationGUI:
         self.roi_data = {}  # This will be repurposed for the new zone data
         self.drawing_mode = None
         self.current_polygon_points = []
+        
+        # Coordinate system for polygon alignment
+        self._poly_pts_canvas = []  # Canvas coordinates for UI display
+        self._poly_pts_video = []   # Video coordinates for saving
+        self._bg_scale = 1.0        # Scaling factor from video to canvas
+        self._bg_offset = (0, 0)    # Offset of image in canvas
+        self._bg_img_size = (0, 0)  # Original image dimensions
+        
         self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
 
@@ -1225,7 +1233,7 @@ class ApplicationGUI:
 
         # Progress info in overlay
         self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
-        self.overlay_progress_frame.pack(fill="x", padx=10, pady=5)
+        self.overlay_progress_frame.pack(side="bottom", fill="x", padx=10, pady=5)
 
         self.overlay_progress_bar = ttk.Progressbar(
             self.overlay_progress_frame, orient="horizontal", mode="determinate"
@@ -1239,6 +1247,14 @@ class ApplicationGUI:
             fg="white",
         )
         self.overlay_status_label.pack()
+
+        # Cancel Analysis Button
+        self.overlay_cancel_btn = ttk.Button(
+            self.overlay_progress_frame,
+            text="Cancelar Análise",
+            command=self.controller.cancel_current_analysis
+        )
+        self.overlay_cancel_btn.pack(pady=5)
 
         # 7. Create all the zone control widgets in the scrollable frame
         self._create_zone_control_widgets()
@@ -1816,8 +1832,14 @@ class ApplicationGUI:
         # Clear previous drawings
         self.roi_canvas.delete("interactive_polygon", "handle")
 
-        # Draw the polygon itself
-        flat_points = [coord for point in self.edited_polygon_points for coord in point]
+        # Convert video coordinates to canvas coordinates for display
+        canvas_points = []
+        for point in self.edited_polygon_points:
+            canvas_point = self._video_to_canvas(point[0], point[1])
+            canvas_points.append([canvas_point[0], canvas_point[1]])
+        
+        # Draw the polygon itself using canvas coordinates
+        flat_points = [coord for point in canvas_points for coord in point]
         self.interactive_polygon_item = self.roi_canvas.create_polygon(
             flat_points,
             fill="",
@@ -1826,9 +1848,10 @@ class ApplicationGUI:
             tags="interactive_polygon",
         )
 
-        # Draw the handles
+        # Draw the handles using canvas coordinates
         self.polygon_handles = []
-        for i, (x, y) in enumerate(self.edited_polygon_points):
+        for i, canvas_point in enumerate(canvas_points):
+            x, y = canvas_point[0], canvas_point[1]
             handle = self.roi_canvas.create_rectangle(
                 x - 4,
                 y - 4,
@@ -1857,8 +1880,9 @@ class ApplicationGUI:
         if self._dragged_handle_index is None:
             return
 
-        # Update the point coordinates
-        self.edited_polygon_points[self._dragged_handle_index] = [event.x, event.y]
+        # Convert canvas coordinates to video coordinates before storing
+        video_point = self._canvas_to_video(event.x, event.y)
+        self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
 
         # Redraw the entire interactive polygon and its handles
         self._draw_interactive_polygon()
@@ -2043,16 +2067,23 @@ class ApplicationGUI:
         new_width = int(img_w * scale)
         new_height = int(img_h * scale)
 
+        # Store scaling information for coordinate conversion
+        self._bg_scale = scale
+        self._bg_img_size = (img_w, img_h)  # Original image size
+        
+        # Calculate offset (top-left position of scaled image in canvas)
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+        offset_x = center_x - new_width // 2
+        offset_y = center_y - new_height // 2
+        self._bg_offset = (offset_x, offset_y)
+
         # Scale the image
         image = self._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
 
         # Clear canvas and display centered image
         self.roi_canvas.delete("all")
         self._canvas_bg_image = ImageTk.PhotoImage(image)
-
-        # Center the image within the canvas
-        center_x = canvas_width // 2
-        center_y = canvas_height // 2
 
         # Store positioning for later restoration in redraw_zones_from_project_data
         self._canvas_bg_position = (center_x, center_y, "center")
@@ -2064,6 +2095,36 @@ class ApplicationGUI:
             image=self._canvas_bg_image,
             tags="background_image",
         )
+
+    def _canvas_to_video(self, canvas_x, canvas_y):
+        """Convert canvas coordinates to video frame coordinates."""
+        if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
+            # Fallback: return canvas coordinates if scaling info not available
+            return (canvas_x, canvas_y)
+        
+        scale = self._bg_scale
+        offset_x, offset_y = self._bg_offset
+        
+        # Convert canvas coordinates to video coordinates
+        video_x = (canvas_x - offset_x) / scale
+        video_y = (canvas_y - offset_y) / scale
+        
+        return (int(video_x), int(video_y))
+    
+    def _video_to_canvas(self, video_x, video_y):
+        """Convert video frame coordinates to canvas coordinates."""
+        if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
+            # Fallback: return video coordinates if scaling info not available
+            return (video_x, video_y)
+        
+        scale = self._bg_scale
+        offset_x, offset_y = self._bg_offset
+        
+        # Convert video coordinates to canvas coordinates  
+        canvas_x = video_x * scale + offset_x
+        canvas_y = video_y * scale + offset_y
+        
+        return (int(canvas_x), int(canvas_y))
 
     def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
         """Carrega um frame do vídeo no canvas"""
@@ -2316,6 +2377,8 @@ class ApplicationGUI:
             )
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
+        self._poly_pts_canvas = []  # Canvas coordinates for UI
+        self._poly_pts_video = []   # Video coordinates for saving
         self.roi_canvas.config(cursor="crosshair")
         self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
@@ -2357,6 +2420,12 @@ class ApplicationGUI:
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+        
+        # Clear coordinate lists
+        self.current_polygon_points = []
+        self._poly_pts_canvas = []
+        self._poly_pts_video = []
+        
         self.set_status("Pronto.")
 
     def _on_canvas_click(self, event):
@@ -2381,6 +2450,13 @@ class ApplicationGUI:
                 return
 
         self.current_polygon_points.append((event.x, event.y))
+        
+        # Store both canvas and video coordinates
+        canvas_point = (event.x, event.y)
+        video_point = self._canvas_to_video(event.x, event.y)
+        self._poly_pts_canvas.append(canvas_point)
+        self._poly_pts_video.append(video_point)
+        
         # Draw a small circle to mark the vertex
         self.roi_canvas.create_oval(
             event.x - 2,
@@ -2481,7 +2557,7 @@ class ApplicationGUI:
                 if self.DEBUG_ZONES:
                     print("5. Chamando controller.set_main_arena_polygon...")
                 success = self.controller.set_main_arena_polygon(
-                    self.current_polygon_points
+                    self._poly_pts_video  # Use video coordinates instead
                 )
 
                 if self.DEBUG_ZONES:
@@ -2528,15 +2604,13 @@ class ApplicationGUI:
                     "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
                 )
                 if not roi_name:
-                    self.current_polygon_points = []
-                    self._stop_drawing()
+                    self._stop_drawing()  # This now handles all cleanup
                     return
 
                 # Selecionar cor da área
                 color_dialog = ColorSelectionDialog(self.root)
                 if not color_dialog.result:
-                    self.current_polygon_points = []
-                    self._stop_drawing()
+                    self._stop_drawing()  # This now handles all cleanup
                     return
 
                 selected_color = color_dialog.result
@@ -2547,7 +2621,7 @@ class ApplicationGUI:
                     f"Salvando área de interesse '{roi_name}' ({color_name})..."
                 )
                 success = self.controller.add_roi_polygon(
-                    self.current_polygon_points, roi_name, roi_color
+                    self._poly_pts_video, roi_name, roi_color  # Use video coordinates
                 )
 
                 if success:
@@ -2720,8 +2794,14 @@ class ApplicationGUI:
         # Desenha polígono principal
         if zone_data.polygon and len(zone_data.polygon) >= 3:
             try:
+                # Convert video coordinates to canvas coordinates
+                canvas_polygon = []
+                for point in zone_data.polygon:
+                    canvas_point = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.extend([canvas_point[0], canvas_point[1]])
+                
                 self.roi_canvas.create_polygon(
-                    zone_data.polygon,
+                    canvas_polygon,
                     fill="",
                     outline="cyan",
                     width=2,
@@ -2753,9 +2833,15 @@ class ApplicationGUI:
 
             # Desenha polígono com tags específicas
             try:
+                # Convert video coordinates to canvas coordinates
+                canvas_polygon = []
+                for point in polygon:
+                    canvas_point = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.extend([canvas_point[0], canvas_point[1]])
+                
                 # Cria o polígono
                 self.roi_canvas.create_polygon(
-                    polygon,
+                    canvas_polygon,
                     fill="",  # Sem preenchimento para manter transparência
                     outline=color_hex,
                     width=2,
@@ -2765,7 +2851,9 @@ class ApplicationGUI:
                 # Adiciona label com o nome no centro do polígono
                 import numpy as np
 
-                poly_array = np.array(polygon)
+                # Calculate center using canvas coordinates
+                poly_array = np.array([(canvas_polygon[i], canvas_polygon[i+1]) 
+                                     for i in range(0, len(canvas_polygon), 2)])
                 center_x = int(poly_array[:, 0].mean())
                 center_y = int(poly_array[:, 1].mean())
 
@@ -3780,6 +3868,8 @@ class ApplicationGUI:
         self.analysis_active = True
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="normal")
+        if hasattr(self, 'overlay_cancel_btn'):
+            self.overlay_cancel_btn.config(state="normal")
         self._switch_to_analysis_view()
 
     def stop_analysis_view_mode(self):
@@ -3787,6 +3877,8 @@ class ApplicationGUI:
         self.analysis_active = False
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="disabled")
+        if hasattr(self, 'overlay_cancel_btn'):
+            self.overlay_cancel_btn.config(state="disabled")
         self._switch_to_zones_view()
 
     def display_analysis_frame(self, frame):
