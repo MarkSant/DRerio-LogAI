@@ -2436,18 +2436,26 @@ class ApplicationGUI:
         # If drawing an ROI, check if the point is inside the main arena
         if self.current_drawing_type == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
-            if (
-                cv2.pointPolygonTest(
-                    np.array(main_arena_poly), (event.x, event.y), False
-                )
-                < 0
-            ):
-                self.show_warning(
-                    "Ponto Inválido",
-                    "As Áreas de Interesse devem ser desenhadas dentro do "
-                    "Polígono Principal.",
-                )
-                return
+            if main_arena_poly:
+                # Convert main arena polygon from video coordinates to canvas coordinates
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+                
+                # Test canvas coordinates against canvas polygon
+                if (
+                    cv2.pointPolygonTest(
+                        np.array(canvas_arena_poly), (event.x, event.y), False
+                    )
+                    < 0
+                ):
+                    self.show_warning(
+                        "Ponto Inválido",
+                        "As Áreas de Interesse devem ser desenhadas dentro do "
+                        "Polígono Principal.",
+                    )
+                    return
 
         self.current_polygon_points.append((event.x, event.y))
         
