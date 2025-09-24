@@ -3951,11 +3951,13 @@ class ApplicationGUI:
     def display_analysis_frame(self, frame):
         """Display analysis frame in the overlay instead of separate progress bar."""
         try:
-            # Desenha as zonas antes de exibir
-            frame_with_zones = self._draw_zones_on_frame(frame.copy())
+            # During analysis, frames should already have overlays (detection boxes + zones) 
+            # applied by the detector.draw_overlay in the controller.
+            # We use the frame as-is to preserve the detection bounding boxes.
+            frame_to_display = frame.copy()
 
             # Converte e embute na análise overlay
-            frame_rgb = cv2.cvtColor(frame_with_zones, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.cvtColor(frame_to_display, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
             imgtk = ImageTk.PhotoImage(image=img)
             if self.analysis_video_label:
