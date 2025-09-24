@@ -447,6 +447,10 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.num_groups_var = StringVar(value="1")
         self.group_name_vars = [StringVar() for _ in range(6)]
 
+        # Frame interval configuration variables
+        self.analysis_interval_var = StringVar(value="10")
+        self.display_interval_var = StringVar(value="10")
+
         # --- Project Name ---
         Label(master, text="Nome do Projeto:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
@@ -494,9 +498,24 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=5, column=1, sticky="w", padx=5
         )
 
+        # --- Frame Intervals ---
+        Label(master, text="Intervalo de Análise (frames):").grid(
+            row=6, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(master, textvariable=self.analysis_interval_var, width=10).grid(
+            row=6, column=1, sticky="w", padx=5
+        )
+
+        Label(master, text="Intervalo de Exibição (frames):").grid(
+            row=7, column=0, sticky="w", padx=5, pady=2
+        )
+        Entry(master, textvariable=self.display_interval_var, width=10).grid(
+            row=7, column=1, sticky="w", padx=5
+        )
+
         # --- Project Type & Videos ---
         Label(master, text="Tipo de Projeto:").grid(
-            row=6, column=0, sticky="w", padx=5, pady=2
+            row=8, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Radiobutton(
             master,
@@ -504,26 +523,26 @@ class CreateProjectDialog(simpledialog.Dialog):
             variable=self.project_type_var,
             value="pre-recorded",
             command=self._update_project_type_options,
-        ).grid(row=6, column=1, sticky="w", padx=5)
+        ).grid(row=8, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
             text="Ao Vivo",
             variable=self.project_type_var,
             value="live",
             command=self._update_project_type_options,
-        ).grid(row=6, column=2, sticky="w", padx=5)
+        ).grid(row=8, column=2, sticky="w", padx=5)
 
         self.video_button = Button(
             master, text="Selecionar Vídeos...", command=self._select_videos
         )
-        self.video_button.grid(row=7, column=0, padx=5, pady=5)
+        self.video_button.grid(row=9, column=0, padx=5, pady=5)
         Label(master, textvariable=self.video_list_var, wraplength=300).grid(
-            row=7, column=1, columnspan=3, sticky="w", padx=5
+            row=9, column=1, columnspan=3, sticky="w", padx=5
         )
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
-        self.live_options_frame.grid(row=8, column=0, columnspan=4, sticky="ew", padx=5)
+        self.live_options_frame.grid(row=10, column=0, columnspan=4, sticky="ew", padx=5)
         Checkbutton(
             self.live_options_frame,
             text="Usar gravação com tempo?",
@@ -554,7 +573,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             master, text="Design Experimental (Projeto ao Vivo)", padding=10
         )
         self.live_project_frame.grid(
-            row=9, column=0, columnspan=4, sticky="ew", padx=5, pady=5
+            row=11, column=0, columnspan=4, sticky="ew", padx=5, pady=5
         )
         # Widgets inside live_project_frame
         ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
@@ -745,6 +764,21 @@ class CreateProjectDialog(simpledialog.Dialog):
                         "positivo.",
                     )
                     return 0
+        
+        # Validate interval frames
+        try:
+            analysis_interval = int(self.analysis_interval_var.get())
+            display_interval = int(self.display_interval_var.get())
+            if analysis_interval <= 0 or display_interval <= 0:
+                raise ValueError("Os intervalos devem ser números inteiros positivos.")
+        except ValueError:
+            messagebox.showerror(
+                "Erro",
+                "Os intervalos de análise e exibição devem ser números inteiros "
+                "positivos.",
+            )
+            return 0
+        
         return 1
 
     def apply(self):
@@ -775,6 +809,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             "recording_duration_s": duration,
             "use_countdown": self.use_countdown_var.get(),
             "countdown_duration_s": countdown_duration,
+            "analysis_interval_frames": int(self.analysis_interval_var.get()),
+            "display_interval_frames": int(self.display_interval_var.get()),
             # Initialize new keys to None
             "experiment_days": None,
             "subjects_per_group": None,
@@ -4246,6 +4282,10 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             value=str(settings.video_processing.freezing_min_duration_s)
         )
 
+        # Frame interval configuration variables
+        self.analysis_interval_var = StringVar(value="10")
+        self.display_interval_var = StringVar(value="10")
+
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
@@ -4311,6 +4351,27 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=2, column=1, sticky="w", padx=5
         )
 
+        # --- Frame Interval Settings ---
+        interval_frame = ttk.LabelFrame(
+            main_frame, text="Intervalos de Processamento", padding=10
+        )
+        interval_frame.pack(fill="x", pady=5)
+        interval_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(interval_frame, text="Intervalo de Análise (frames):").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(interval_frame, textvariable=self.analysis_interval_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
+
+        ttk.Label(interval_frame, text="Intervalo de Exibição (frames):").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(interval_frame, textvariable=self.display_interval_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=5
+        )
+
         return main_frame
 
     def validate(self):
@@ -4322,11 +4383,16 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             float(self.sharp_turn_var.get())
             float(self.freeze_thresh_var.get())
             float(self.freeze_dur_var.get())
+            analysis_interval = int(self.analysis_interval_var.get())
+            display_interval = int(self.display_interval_var.get())
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")
-        except ValueError:
+            if analysis_interval <= 0 or display_interval <= 0:
+                raise ValueError("Os intervalos devem ser números inteiros positivos.")
+        except ValueError as e:
             messagebox.showerror(
                 "Erro",
+                f"Erro de validação: {e}\n\n"
                 "Todos os campos de configuração devem ser números válidos e "
                 "positivos.",
             )
@@ -4342,6 +4408,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
             "freezing_velocity_threshold": float(self.freeze_thresh_var.get()),
             "freezing_min_duration_s": float(self.freeze_dur_var.get()),
+            "analysis_interval_frames": int(self.analysis_interval_var.get()),
+            "display_interval_frames": int(self.display_interval_var.get()),
         }
 
 
