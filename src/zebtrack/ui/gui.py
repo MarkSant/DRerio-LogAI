@@ -522,8 +522,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=8, column=0, sticky="w", padx=5, pady=2
         )
         aquarium_method_combo = ttk.Combobox(
-            master, 
-            textvariable=self.aquarium_method_var, 
+            master,
+            textvariable=self.aquarium_method_var,
             values=["seg", "det"],
             state="readonly",
             width=8
@@ -534,8 +534,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=9, column=0, sticky="w", padx=5, pady=2
         )
         animal_method_combo = ttk.Combobox(
-            master, 
-            textvariable=self.animal_method_var, 
+            master,
+            textvariable=self.animal_method_var,
             values=["seg", "det"],
             state="readonly",
             width=8
@@ -793,7 +793,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                         "positivo.",
                     )
                     return 0
-        
+
         # Validate interval frames
         try:
             analysis_interval = int(self.analysis_interval_var.get())
@@ -807,7 +807,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 "positivos.",
             )
             return 0
-        
+
         return 1
 
     def apply(self):
@@ -1234,14 +1234,14 @@ class ApplicationGUI:
         self.roi_data = {}  # This will be repurposed for the new zone data
         self.drawing_mode = None
         self.current_polygon_points = []
-        
+
         # Coordinate system for polygon alignment
         self._poly_pts_canvas = []  # Canvas coordinates for UI display
         self._poly_pts_video = []   # Video coordinates for saving
         self._bg_scale = 1.0        # Scaling factor from video to canvas
         self._bg_offset = (0, 0)    # Offset of image in canvas
         self._bg_img_size = (0, 0)  # Original image dimensions
-        
+
         self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
 
@@ -1259,7 +1259,7 @@ class ApplicationGUI:
         )
         # Add left panel without invalid minsize parameter
         main_pane.add(left_panel_frame, weight=1)
-        
+
         # Set initial sash position to 360 pixels for left panel width
         def _set_initial_sash():
             try:
@@ -1274,7 +1274,7 @@ class ApplicationGUI:
         # 4. Create the visualization panel on the right
         self.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
         main_pane.add(self.viz_frame, weight=4)
-        
+
         # Bind pane configure event to maintain minimum left panel width
         def _on_pane_configure(event=None):
             try:
@@ -1904,7 +1904,7 @@ class ApplicationGUI:
         for point in self.edited_polygon_points:
             canvas_point = self._video_to_canvas(point[0], point[1])
             canvas_points.append([canvas_point[0], canvas_point[1]])
-        
+
         # Draw the polygon itself using canvas coordinates
         flat_points = [coord for point in canvas_points for coord in point]
         self.interactive_polygon_item = self.roi_canvas.create_polygon(
@@ -2137,7 +2137,7 @@ class ApplicationGUI:
         # Store scaling information for coordinate conversion
         self._bg_scale = scale
         self._bg_img_size = (img_w, img_h)  # Original image size
-        
+
         # Calculate offset (top-left position of scaled image in canvas)
         center_x = canvas_width // 2
         center_y = canvas_height // 2
@@ -2168,29 +2168,29 @@ class ApplicationGUI:
         if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
             # Fallback: return canvas coordinates if scaling info not available
             return (canvas_x, canvas_y)
-        
+
         scale = self._bg_scale
         offset_x, offset_y = self._bg_offset
-        
+
         # Convert canvas coordinates to video coordinates
         video_x = (canvas_x - offset_x) / scale
         video_y = (canvas_y - offset_y) / scale
-        
+
         return (int(video_x), int(video_y))
-    
+
     def _video_to_canvas(self, video_x, video_y):
         """Convert video frame coordinates to canvas coordinates."""
         if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
             # Fallback: return video coordinates if scaling info not available
             return (video_x, video_y)
-        
+
         scale = self._bg_scale
         offset_x, offset_y = self._bg_offset
-        
-        # Convert video coordinates to canvas coordinates  
+
+        # Convert video coordinates to canvas coordinates
         canvas_x = video_x * scale + offset_x
         canvas_y = video_y * scale + offset_y
-        
+
         return (int(canvas_x), int(canvas_y))
 
     def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
@@ -2487,12 +2487,12 @@ class ApplicationGUI:
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
-        
+
         # Clear coordinate lists
         self.current_polygon_points = []
         self._poly_pts_canvas = []
         self._poly_pts_video = []
-        
+
         self.set_status("Pronto.")
 
     def _on_canvas_click(self, event):
@@ -2509,7 +2509,7 @@ class ApplicationGUI:
                 for point in main_arena_poly:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-                
+
                 # Test canvas coordinates against canvas polygon
                 if (
                     cv2.pointPolygonTest(
@@ -2525,13 +2525,13 @@ class ApplicationGUI:
                     return
 
         self.current_polygon_points.append((event.x, event.y))
-        
+
         # Store both canvas and video coordinates
         canvas_point = (event.x, event.y)
         video_point = self._canvas_to_video(event.x, event.y)
         self._poly_pts_canvas.append(canvas_point)
         self._poly_pts_video.append(video_point)
-        
+
         # Draw a small circle to mark the vertex
         self.roi_canvas.create_oval(
             event.x - 2,
@@ -2752,7 +2752,7 @@ class ApplicationGUI:
         # Guard against missing zone_listbox
         if not hasattr(self, 'zone_listbox') or self.zone_listbox is None:
             return
-            
+
         # Limpa lista
         for item in self.zone_listbox.get_children():
             self.zone_listbox.delete(item)
@@ -2874,7 +2874,7 @@ class ApplicationGUI:
                 for point in zone_data.polygon:
                     canvas_point = self._video_to_canvas(point[0], point[1])
                     canvas_polygon.extend([canvas_point[0], canvas_point[1]])
-                
+
                 self.roi_canvas.create_polygon(
                     canvas_polygon,
                     fill="",
@@ -2913,7 +2913,7 @@ class ApplicationGUI:
                 for point in polygon:
                     canvas_point = self._video_to_canvas(point[0], point[1])
                     canvas_polygon.extend([canvas_point[0], canvas_point[1]])
-                
+
                 # Cria o polígono
                 self.roi_canvas.create_polygon(
                     canvas_polygon,
@@ -2927,7 +2927,7 @@ class ApplicationGUI:
                 import numpy as np
 
                 # Calculate center using canvas coordinates
-                poly_array = np.array([(canvas_polygon[i], canvas_polygon[i+1]) 
+                poly_array = np.array([(canvas_polygon[i], canvas_polygon[i+1])
                                      for i in range(0, len(canvas_polygon), 2)])
                 center_x = int(poly_array[:, 0].mean())
                 center_y = int(poly_array[:, 1].mean())
@@ -3951,7 +3951,7 @@ class ApplicationGUI:
     def display_analysis_frame(self, frame):
         """Display analysis frame in the overlay instead of separate progress bar."""
         try:
-            # During analysis, frames should already have overlays (detection boxes + zones) 
+            # During analysis, frames should already have overlays (detection boxes + zones)
             # applied by the detector.draw_overlay in the controller.
             # We use the frame as-is to preserve the detection bounding boxes.
             frame_to_display = frame.copy()
@@ -3980,6 +3980,46 @@ class ApplicationGUI:
         if status_text and self.overlay_status_label:
             self.overlay_status_label.config(text=status_text)
         self.update_idletasks()
+
+    def update_processing_stats(
+        self,
+        total_frames=None,
+        processed_frames=None,
+        detected_frames=None,
+        start_time=None
+    ):
+        """Update processing statistics in real-time during video analysis."""
+        if not self.progress_labels:
+            return
+
+        # Update frame counters
+        if total_frames is not None:
+            self.progress_labels["total"].set(str(total_frames))
+        if processed_frames is not None:
+            self.progress_labels["processed"].set(str(processed_frames))
+        if detected_frames is not None:
+            self.progress_labels["detected"].set(str(detected_frames))
+
+        # Calculate and update percentage
+        if total_frames and processed_frames:
+            percent = (processed_frames / total_frames) * 100
+            self.progress_labels["percent"].set(f"{percent:.1f}%")
+
+        # Calculate elapsed time and ETA
+        if start_time:
+            import time
+            elapsed = time.time() - start_time
+            self.progress_labels["elapsed"].set(self._format_time(elapsed))
+
+            # Calculate ETA based on progress
+            if processed_frames and total_frames and processed_frames > 0:
+                rate = processed_frames / elapsed
+                remaining_frames = total_frames - processed_frames
+                if rate > 0:
+                    eta = remaining_frames / rate
+                    self.progress_labels["eta"].set(self._format_time(eta))
+                else:
+                    self.progress_labels["eta"].set("-")
 
     @staticmethod
     def _format_time(seconds: float) -> str:
@@ -4412,8 +4452,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=0, column=0, sticky="w", padx=5, pady=2
         )
         aquarium_method_combo = ttk.Combobox(
-            method_frame, 
-            textvariable=self.aquarium_method_var, 
+            method_frame,
+            textvariable=self.aquarium_method_var,
             values=["seg", "det"],
             state="readonly",
             width=8
@@ -4424,8 +4464,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=1, column=0, sticky="w", padx=5, pady=2
         )
         animal_method_combo = ttk.Combobox(
-            method_frame, 
-            textvariable=self.animal_method_var, 
+            method_frame,
+            textvariable=self.animal_method_var,
             values=["seg", "det"],
             state="readonly",
             width=8
@@ -4433,7 +4473,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         animal_method_combo.grid(row=1, column=1, sticky="w", padx=5)
 
         # Add tooltips/help text
-        ttk.Label(method_frame, text="seg = Segmentação, det = Detecção", 
+        ttk.Label(method_frame, text="seg = Segmentação, det = Detecção",
                  font=("TkDefaultFont", 8)).grid(
             row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0)
         )
