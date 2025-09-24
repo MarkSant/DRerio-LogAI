@@ -451,6 +451,10 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
 
+        # Detection method configuration variables
+        self.aquarium_method_var = StringVar(value="seg")  # Default from settings
+        self.animal_method_var = StringVar(value="det")    # Default from settings
+
         # --- Project Name ---
         Label(master, text="Nome do Projeto:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
@@ -513,9 +517,34 @@ class CreateProjectDialog(simpledialog.Dialog):
             row=7, column=1, sticky="w", padx=5
         )
 
+        # --- Detection Methods ---
+        Label(master, text="Método para Aquário:").grid(
+            row=8, column=0, sticky="w", padx=5, pady=2
+        )
+        aquarium_method_combo = ttk.Combobox(
+            master, 
+            textvariable=self.aquarium_method_var, 
+            values=["seg", "det"],
+            state="readonly",
+            width=8
+        )
+        aquarium_method_combo.grid(row=8, column=1, sticky="w", padx=5)
+
+        Label(master, text="Método para Animais:").grid(
+            row=9, column=0, sticky="w", padx=5, pady=2
+        )
+        animal_method_combo = ttk.Combobox(
+            master, 
+            textvariable=self.animal_method_var, 
+            values=["seg", "det"],
+            state="readonly",
+            width=8
+        )
+        animal_method_combo.grid(row=9, column=1, sticky="w", padx=5)
+
         # --- Project Type & Videos ---
         Label(master, text="Tipo de Projeto:").grid(
-            row=8, column=0, sticky="w", padx=5, pady=2
+            row=10, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Radiobutton(
             master,
@@ -523,26 +552,26 @@ class CreateProjectDialog(simpledialog.Dialog):
             variable=self.project_type_var,
             value="pre-recorded",
             command=self._update_project_type_options,
-        ).grid(row=8, column=1, sticky="w", padx=5)
+        ).grid(row=10, column=1, sticky="w", padx=5)
         ttk.Radiobutton(
             master,
             text="Ao Vivo",
             variable=self.project_type_var,
             value="live",
             command=self._update_project_type_options,
-        ).grid(row=8, column=2, sticky="w", padx=5)
+        ).grid(row=10, column=2, sticky="w", padx=5)
 
         self.video_button = Button(
             master, text="Selecionar Vídeos...", command=self._select_videos
         )
-        self.video_button.grid(row=9, column=0, padx=5, pady=5)
+        self.video_button.grid(row=11, column=0, padx=5, pady=5)
         Label(master, textvariable=self.video_list_var, wraplength=300).grid(
-            row=9, column=1, columnspan=3, sticky="w", padx=5
+            row=11, column=1, columnspan=3, sticky="w", padx=5
         )
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
-        self.live_options_frame.grid(row=10, column=0, columnspan=4, sticky="ew", padx=5)
+        self.live_options_frame.grid(row=12, column=0, columnspan=4, sticky="ew", padx=5)
         Checkbutton(
             self.live_options_frame,
             text="Usar gravação com tempo?",
@@ -573,7 +602,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             master, text="Design Experimental (Projeto ao Vivo)", padding=10
         )
         self.live_project_frame.grid(
-            row=11, column=0, columnspan=4, sticky="ew", padx=5, pady=5
+            row=13, column=0, columnspan=4, sticky="ew", padx=5, pady=5
         )
         # Widgets inside live_project_frame
         ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
@@ -811,6 +840,8 @@ class CreateProjectDialog(simpledialog.Dialog):
             "countdown_duration_s": countdown_duration,
             "analysis_interval_frames": int(self.analysis_interval_var.get()),
             "display_interval_frames": int(self.display_interval_var.get()),
+            "aquarium_method": self.aquarium_method_var.get(),
+            "animal_method": self.animal_method_var.get(),
             # Initialize new keys to None
             "experiment_days": None,
             "subjects_per_group": None,
@@ -4278,6 +4309,10 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
 
+        # Detection method configuration variables
+        self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
+        self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
+
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
@@ -4364,6 +4399,43 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=1, column=1, sticky="w", padx=5
         )
 
+        # --- Detection Method Settings ---
+        method_frame = ttk.LabelFrame(
+            main_frame, text="Métodos de Detecção", padding=10
+        )
+        method_frame.pack(fill="x", pady=5)
+        method_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(method_frame, text="Método para Aquário:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
+        )
+        aquarium_method_combo = ttk.Combobox(
+            method_frame, 
+            textvariable=self.aquarium_method_var, 
+            values=["seg", "det"],
+            state="readonly",
+            width=8
+        )
+        aquarium_method_combo.grid(row=0, column=1, sticky="w", padx=5)
+
+        ttk.Label(method_frame, text="Método para Animais:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=2
+        )
+        animal_method_combo = ttk.Combobox(
+            method_frame, 
+            textvariable=self.animal_method_var, 
+            values=["seg", "det"],
+            state="readonly",
+            width=8
+        )
+        animal_method_combo.grid(row=1, column=1, sticky="w", padx=5)
+
+        # Add tooltips/help text
+        ttk.Label(method_frame, text="seg = Segmentação, det = Detecção", 
+                 font=("TkDefaultFont", 8)).grid(
+            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0)
+        )
+
         return main_frame
 
     def validate(self):
@@ -4402,6 +4474,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "freezing_min_duration_s": float(self.freeze_dur_var.get()),
             "analysis_interval_frames": int(self.analysis_interval_var.get()),
             "display_interval_frames": int(self.display_interval_var.get()),
+            "aquarium_method": self.aquarium_method_var.get(),
+            "animal_method": self.animal_method_var.get(),
         }
 
 

@@ -114,8 +114,8 @@ class AppController:
         self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
-        # Validate detection mode and animal count combination
-        animal_method = settings.model_selection.animal_method
+        # Use detection methods from kwargs if provided, otherwise fall back to global settings
+        animal_method = kwargs.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
         if animal_method == "det" and animals_per_aquarium != 1:
@@ -144,6 +144,13 @@ class AppController:
         # Add the currently selected model info to the project data
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
+        
+        # Store detection methods for use in processing workflows
+        # These will override global settings when processing project videos
+        if "aquarium_method" in kwargs and "animal_method" in kwargs:
+            kwargs["temp_aquarium_method"] = kwargs["aquarium_method"]
+            kwargs["temp_animal_method"] = kwargs["animal_method"]
+            
         if self.project_manager.create_new_project(**kwargs):
             if self.setup_detector():
                 self.view._load_project_view()
@@ -317,12 +324,19 @@ class AppController:
 
         return True
 
-    def setup_detector(self) -> bool:
-        """Initializes the detector instance based on the animal method selection."""
-        animal_method = settings.model_selection.animal_method
+    def setup_detector(self, temp_animal_method: str = None) -> bool:
+        """Initializes the detector instance based on the animal method selection.
+        
+        Args:
+            temp_animal_method: Temporary override for animal detection method ('det' or 'seg').
+                               If None, uses global settings.
+        """
+        # Use temporary override if provided, otherwise use global settings
+        animal_method = temp_animal_method or settings.model_selection.animal_method
         log.info(
             "detector.setup.start",
             animal_method=animal_method,
+            temp_override=temp_animal_method is not None,
             use_openvino=self.use_openvino,
         )
 
@@ -530,9 +544,16 @@ class AppController:
             dialog.update_openvino_status_label(status)
 
     def run_aquarium_detection(
-        self, video_path: str | None = None, stabilization_frames: int = 10
+        self, video_path: str | None = None, stabilization_frames: int = 10, temp_aquarium_method: str = None
     ):
-        """Runs the aquarium detection model on the specified or first project video."""
+        """Runs the aquarium detection model on the specified or first project video.
+        
+        Args:
+            video_path: Path to video file, if None uses next project video
+            stabilization_frames: Number of frames to analyze for stabilization
+            temp_aquarium_method: Temporary override for aquarium detection method ('det' or 'seg').
+                                 If None, uses global settings.
+        """
         log.info("controller.aquarium_detection.start")
         self.view.set_status("Detectando aquário, por favor aguarde...")
         self.view.update_idletasks()
@@ -552,7 +573,8 @@ class AppController:
             self.view.display_roi_video_frame(video_path)
 
             # Use selected aquarium method and get appropriate weight
-            aquarium_method = settings.model_selection.aquarium_method
+            # Use temporary override if provided, otherwise use global settings
+            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
             model_path = self.weight_manager.get_weight_path_by_method(
                 aquarium_method, "aquarium"
             )
@@ -783,8 +805,13 @@ class AppController:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def run_live_calibration(self):
-        """Records a short clip from the live camera and runs aquarium detection."""
+    def run_live_calibration(self, temp_aquarium_method: str = None):
+        """Records a short clip from the live camera and runs aquarium detection.
+        
+        Args:
+            temp_aquarium_method: Temporary override for aquarium detection method ('det' or 'seg').
+                                 If None, uses global settings.
+        """
         log.info("controller.live_calibration.start")
         if not self.view.camera or not self.view.camera.is_opened():
             self.view.show_error("Erro", "A câmera não está disponível ou aberta.")
@@ -817,7 +844,8 @@ class AppController:
             self.view.update_idletasks()
 
             # 3. Run detection on the clip using selected aquarium method
-            aquarium_method = settings.model_selection.aquarium_method
+            # Use temporary override if provided, otherwise use global settings
+            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
             model_path = self.weight_manager.get_weight_path_by_method(
                 aquarium_method, "aquarium"
             )
@@ -1073,8 +1101,8 @@ class AppController:
         """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
 
-        # Validate detection mode and animal count combination
-        animal_method = settings.model_selection.animal_method
+        # Use detection methods from config if provided, otherwise fall back to global settings
+        animal_method = config.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
 
         if animal_method == "det" and animals_per_aquarium != 1:
@@ -1095,7 +1123,9 @@ class AppController:
         # This is crucial for the single video flow.
         if not self.detector:
             log.info("controller.single_video.setup_detector")
-            if not self.setup_detector():
+            # Pass the animal method from config to setup detector with temporary override
+            temp_animal_method = config.get("animal_method")
+            if not self.setup_detector(temp_animal_method):
                 # setup_detector shows its own error message
                 return
 
