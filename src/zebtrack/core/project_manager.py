@@ -98,6 +98,8 @@ class ProjectManager:
         recording_duration_s: int = 0,
         use_countdown: bool = False,
         countdown_duration_s: int = 0,
+        analysis_interval_frames: int = 10,
+        display_interval_frames: int = 10,
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
@@ -160,6 +162,8 @@ class ProjectManager:
             else None,
             "last_selected_day": 1,
             "last_selected_group": group_names[0] if group_names else None,
+            "analysis_interval_frames": analysis_interval_frames,
+            "display_interval_frames": display_interval_frames,
         }
 
         if video_files:
