@@ -1947,8 +1947,12 @@ class ApplicationGUI:
         if self._dragged_handle_index is None:
             return
 
+        # Use canvasx/canvasy for proper canvas coordinate transformation
+        canvas_x = self.roi_canvas.canvasx(event.x)
+        canvas_y = self.roi_canvas.canvasy(event.y)
+        
         # Convert canvas coordinates to video coordinates before storing
-        video_point = self._canvas_to_video(event.x, event.y)
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
         self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
 
         # Redraw the entire interactive polygon and its handles
@@ -2167,7 +2171,7 @@ class ApplicationGUI:
         """Convert canvas coordinates to video frame coordinates."""
         if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
             # Fallback: return canvas coordinates if scaling info not available
-            return (canvas_x, canvas_y)
+            return (float(canvas_x), float(canvas_y))
 
         scale = self._bg_scale
         offset_x, offset_y = self._bg_offset
@@ -2176,13 +2180,13 @@ class ApplicationGUI:
         video_x = (canvas_x - offset_x) / scale
         video_y = (canvas_y - offset_y) / scale
 
-        return (int(video_x), int(video_y))
+        return (float(video_x), float(video_y))
 
     def _video_to_canvas(self, video_x, video_y):
         """Convert video frame coordinates to canvas coordinates."""
         if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
             # Fallback: return video coordinates if scaling info not available
-            return (video_x, video_y)
+            return (float(video_x), float(video_y))
 
         scale = self._bg_scale
         offset_x, offset_y = self._bg_offset
@@ -2191,7 +2195,7 @@ class ApplicationGUI:
         canvas_x = video_x * scale + offset_x
         canvas_y = video_y * scale + offset_y
 
-        return (int(canvas_x), int(canvas_y))
+        return (float(canvas_x), float(canvas_y))
 
     def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
         """Carrega um frame do vídeo no canvas"""
@@ -2513,7 +2517,7 @@ class ApplicationGUI:
                 # Test canvas coordinates against canvas polygon
                 if (
                     cv2.pointPolygonTest(
-                        np.array(canvas_arena_poly), (event.x, event.y), False
+                        np.array(canvas_arena_poly), (canvas_x, canvas_y), False
                     )
                     < 0
                 ):
@@ -2524,20 +2528,24 @@ class ApplicationGUI:
                     )
                     return
 
-        self.current_polygon_points.append((event.x, event.y))
+        # Use canvasx/canvasy for proper canvas coordinate transformation
+        canvas_x = self.roi_canvas.canvasx(event.x)
+        canvas_y = self.roi_canvas.canvasy(event.y)
+        
+        self.current_polygon_points.append((canvas_x, canvas_y))
 
         # Store both canvas and video coordinates
-        canvas_point = (event.x, event.y)
-        video_point = self._canvas_to_video(event.x, event.y)
+        canvas_point = (canvas_x, canvas_y)
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
         self._poly_pts_canvas.append(canvas_point)
         self._poly_pts_video.append(video_point)
 
         # Draw a small circle to mark the vertex
         self.roi_canvas.create_oval(
-            event.x - 2,
-            event.y - 2,
-            event.x + 2,
-            event.y + 2,
+            canvas_x - 2,
+            canvas_y - 2,
+            canvas_x + 2,
+            canvas_y + 2,
             fill="red",
             outline="red",
             tags=("temp_vertex", "drawing_aid"),
