@@ -1487,7 +1487,10 @@ class AppController:
 
             frame_num = 0
             processed_frames_count = 0
+            detected_frames_count = 0  # Frames that actually have detections
             last_detections = []
+            import time
+            start_time = time.time()  # Track processing start time
             log.info("controller.tracking.loop.start", video=experiment_id)
             while not self.cancel_event.is_set():
                 ret, frame = cap.read()
@@ -1509,6 +1512,10 @@ class AppController:
                     # Cache the last detections for display
                     last_detections = detections
                     processed_frames_count += 1
+                    
+                    # Count frames that actually have detections
+                    if detections:
+                        detected_frames_count += 1
 
                 # Check if we should update the display
                 # (display interval based on processed frames)
@@ -1523,22 +1530,30 @@ class AppController:
                         (frame_num + 1) / total_frames if total_frames > 0 else 0
                     )
 
+                    # Prepare statistics for GUI update
+                    stats = {
+                        'total_frames': total_frames,
+                        'processed_frames': processed_frames_count,
+                        'detected_frames': detected_frames_count,
+                        'start_time': start_time
+                    }
+
                     if should_display and should_process:
                         # Draw overlay on current frame with fresh detections
                         self.detector.draw_overlay(frame, detections)
                         progress_callback(
-                            progress_fraction, "Gerando trajetória...", frame
+                            progress_fraction, "Gerando trajetória...", frame, stats
                         )
                     elif should_display and last_detections:
                         # Draw overlay using last cached detections
                         self.detector.draw_overlay(frame, last_detections)
                         progress_callback(
-                            progress_fraction, "Gerando trajetória...", frame
+                            progress_fraction, "Gerando trajetória...", frame, stats
                         )
                     else:
                         # Just update progress without frame
                         progress_callback(
-                            progress_fraction, "Gerando trajetória...", None
+                            progress_fraction, "Gerando trajetória...", None, stats
                         )
 
                 frame_num += 1
@@ -1824,7 +1839,7 @@ class AppController:
                 video_path = video_info["path"]
                 experiment_id = os.path.splitext(os.path.basename(video_path))[0]
 
-                def progress_callback(progress_fraction, status_message, frame=None):
+                def progress_callback(progress_fraction, status_message, frame=None, stats=None):
                     if self.cancel_event.is_set():
                         return
                     overall_progress = (
@@ -1847,6 +1862,17 @@ class AppController:
                             p, s
                         ),
                     )
+                    # Update processing statistics in real-time
+                    if stats:
+                        self.root.after(
+                            0,
+                            lambda: self.view.update_processing_stats(
+                                total_frames=stats.get('total_frames'),
+                                processed_frames=stats.get('processed_frames'), 
+                                detected_frames=stats.get('detected_frames'),
+                                start_time=stats.get('start_time')
+                            )
+                        )
                     if frame is not None:
                         # A GUI desenhará as zonas automaticamente
                         self.view.display_frame(frame)

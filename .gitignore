@@ -47,3 +47,9 @@ GUI_FIXES_SUMMARY.md
 
 # Configuration files
 weights_config.json
+
+# Progress callback test files
+test_progress_stats.py
+test_simple_progress.py
+demo_realtime_stats.py
+test_integration_stats.py
