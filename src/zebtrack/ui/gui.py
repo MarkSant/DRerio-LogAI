@@ -3600,16 +3600,8 @@ class ApplicationGUI:
                 # Set port to empty string to prevent connection attempt
                 settings.arduino.port = ""
 
-        # Call controller, which will now pass the model info automatically
-        self.controller.create_project_workflow(
-            project_path=dialog.result["project_path"],
-            project_type=dialog.result["project_type"],
-            video_files=dialog.result["video_files"],
-            num_aquariums=dialog.result["num_aquariums"],
-            animals_per_aquarium=dialog.result["animals_per_aquarium"],
-            aquarium_width_cm=dialog.result["aquarium_width_cm"],
-            aquarium_height_cm=dialog.result["aquarium_height_cm"],
-        )
+        # Call controller, which will now pass the model info and all dialog parameters
+        self.controller.create_project_workflow(**dialog.result)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
