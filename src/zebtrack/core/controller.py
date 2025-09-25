@@ -675,29 +675,46 @@ class AppController:
 
     def save_manual_arena(self, polygon_points: list[list[int]]):
         """Saves the manually adjusted arena and updates the detector."""
+        if not polygon_points or len(polygon_points) < 3:
+            log.error("controller.arena.save_manual.invalid_points", points_count=len(polygon_points) if polygon_points else 0)
+            return False
+            
         log.info("controller.arena.save_manual", points_count=len(polygon_points))
-        self.update_main_arena(polygon_points)
+        
+        # Ensure points are properly formatted as integers
+        formatted_points = [[int(p[0]), int(p[1])] for p in polygon_points]
+        
+        success = self.update_main_arena(formatted_points)
+        if success:
+            log.info("controller.arena.save_manual.success", points_count=len(formatted_points))
+        return success
 
     def update_main_arena(self, polygon_points: list[list[int]]):
         """Updates the main arena polygon in the project's zone data."""
-        log.info("controller.zone.update_arena", points=len(polygon_points))
+        try:
+            log.info("controller.zone.update_arena", points=len(polygon_points))
 
-        # Ensure the detection_zones dictionary exists
-        if "detection_zones" not in self.project_manager.project_data:
-            self.project_manager.project_data["detection_zones"] = {}
+            # Ensure the detection_zones dictionary exists
+            if "detection_zones" not in self.project_manager.project_data:
+                self.project_manager.project_data["detection_zones"] = {}
 
-        zone_data = self.project_manager.get_zone_data()
-        zone_data.polygon = polygon_points
+            zone_data = self.project_manager.get_zone_data()
+            zone_data.polygon = polygon_points
 
-        # Convert dataclass to dict and save
-        from dataclasses import asdict
+            # Convert dataclass to dict and save
+            from dataclasses import asdict
 
-        self.project_manager.project_data["detection_zones"] = asdict(zone_data)
-        self.project_manager.save_project()
+            self.project_manager.project_data["detection_zones"] = asdict(zone_data)
+            self.project_manager.save_project()
 
-        # After updating, we need to reload the zones in the detector
-        self.setup_detector_zones()
-        log.info("controller.zone.update_arena.success")
+            # After updating, we need to reload the zones in the detector
+            self.setup_detector_zones()
+            log.info("controller.zone.update_arena.success")
+            return True
+            
+        except Exception as e:
+            log.error("controller.zone.update_arena.error", error=str(e))
+            return False
 
     def add_roi_polygon(
         self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]

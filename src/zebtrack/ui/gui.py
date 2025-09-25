@@ -1812,18 +1812,32 @@ class ApplicationGUI:
 
         # --- Interactive Buttons (initially hidden) ---
         self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
-        self.save_arena_btn = ttk.Button(
+        
+        # Finish editing button - more prominent and explicit
+        self.finish_edit_btn = ttk.Button(
             self.interactive_buttons_frame,
-            text="✅ Salvar Arena",
+            text="🏁 Concluir Edição (Enter)",
+            command=self._on_finish_edit,
+            style="Accent.TButton"
+        )
+        self.finish_edit_btn.pack(side="top", fill="x", pady=(0, 2))
+        
+        # Secondary buttons frame for save/discard
+        self.secondary_buttons_frame = ttk.Frame(self.interactive_buttons_frame)
+        self.secondary_buttons_frame.pack(side="top", fill="x")
+        
+        self.save_arena_btn = ttk.Button(
+            self.secondary_buttons_frame,
+            text="✅ Salvar",
             command=self._on_save_arena,
         )
-        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=(0, 1))
         self.discard_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
+            self.secondary_buttons_frame,
             text="❌ Descartar",
             command=self._on_discard_arena,
         )
-        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=(1, 0))
         # This frame is packed later when needed
 
     def _on_zone_select(self, event=None):
@@ -1886,13 +1900,25 @@ class ApplicationGUI:
 
         self._draw_interactive_polygon()
 
-        # Show the save/discard buttons
+        # Show the interactive buttons
         if self.interactive_buttons_frame:
             self.interactive_buttons_frame.pack(
                 after=self.zone_properties_frame, fill="x", padx=5, pady=5
             )
+            
+            # Set initial button states - editing active, save/discard initially disabled 
+            if hasattr(self, 'finish_edit_btn'):
+                self.finish_edit_btn.config(state='normal')
+            if hasattr(self, 'save_arena_btn'):
+                self.save_arena_btn.config(state='disabled')
+            if hasattr(self, 'discard_arena_btn'):
+                self.discard_arena_btn.config(state='disabled')
 
-        self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
+        # Bind keyboard shortcut for finishing edit
+        self.root.bind('<Return>', lambda e: self._on_finish_edit())
+        self.root.bind('<KP_Enter>', lambda e: self._on_finish_edit())
+
+        self.set_status("Ajuste o polígono arrastando os vértices. Clique em 'Concluir Edição' ou pressione Enter quando terminar.")
 
     def _draw_interactive_polygon(self):
         """Helper to (re)draw the polygon and its handles based on current points."""
@@ -1959,44 +1985,89 @@ class ApplicationGUI:
         self._draw_interactive_polygon()
 
     def _on_handle_release(self, event):
-        """Finalizes the drag operation."""
+        """Finalizes the drag operation and ensures edited_polygon_points is up to date."""
+        if self._dragged_handle_index is not None:
+            # Ensure the final position is recorded
+            canvas_x = self.roi_canvas.canvasx(event.x)
+            canvas_y = self.roi_canvas.canvasy(event.y)
+            video_point = self._canvas_to_video(canvas_x, canvas_y)
+            self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
+            
         self._dragged_handle_index = None
+        # Update status to remind user how to finish editing
+        self.set_status("Vértice ajustado. Clique em 'Concluir Edição' ou pressione Enter para finalizar.")
+
+    def _on_finish_edit(self):
+        """Explicitly finishes polygon editing and prepares for save/discard decision."""
+        if not self.edited_polygon_points:
+            self.set_status("Nenhuma edição em andamento.")
+            return
+            
+        # Ensure handles are visible but editing is complete
+        self.set_status("Edição concluída. Clique em 'Salvar' para confirmar ou 'Descartar' para cancelar.")
+        
+        # Enable save/discard buttons and disable the finish button
+        if hasattr(self, 'finish_edit_btn'):
+            self.finish_edit_btn.config(state='disabled')
+        if hasattr(self, 'save_arena_btn'):
+            self.save_arena_btn.config(state='normal')
+        if hasattr(self, 'discard_arena_btn'):
+            self.discard_arena_btn.config(state='normal')
 
     def _on_save_arena(self):
         """Saves the edited polygon and makes it static."""
+        if not self.edited_polygon_points:
+            self.set_status("Nenhuma edição para salvar.")
+            return
+            
+        success = False
         if self.current_editing_zone == "arena":
             # Save main arena
-            self.controller.save_manual_arena(self.edited_polygon_points)
-            self.set_status("Arena principal salva com sucesso.")
+            success = self.controller.save_manual_arena(self.edited_polygon_points)
+            if success:
+                self.set_status("Arena principal salva com sucesso.")
+            else:
+                self.show_error("Erro", "Falha ao salvar arena principal.")
+                return
         elif (
             isinstance(self.current_editing_zone, tuple)
             and self.current_editing_zone[0] == "roi"
         ):
             # Save ROI
             _, roi_index, roi_name = self.current_editing_zone
-            zone_data = self.controller.project_manager.get_zone_data()
+            try:
+                zone_data = self.controller.project_manager.get_zone_data()
 
-            # Update the ROI polygon
-            zone_data.roi_polygons[roi_index] = self.edited_polygon_points
+                # Update the ROI polygon
+                zone_data.roi_polygons[roi_index] = self.edited_polygon_points
 
-            # Save to project
-            from dataclasses import asdict
+                # Save to project
+                from dataclasses import asdict
 
-            self.controller.project_manager.project_data["detection_zones"] = asdict(
-                zone_data
-            )
-            self.controller.project_manager.save_project()
-
-            self.set_status(f"ROI '{roi_name}' salva com sucesso.")
+                self.controller.project_manager.project_data["detection_zones"] = asdict(
+                    zone_data
+                )
+                self.controller.project_manager.save_project()
+                self.set_status(f"ROI '{roi_name}' salva com sucesso.")
+                success = True
+            except Exception as e:
+                self.show_error("Erro", f"Falha ao salvar ROI '{roi_name}': {str(e)}")
+                return
         else:
             # Fallback - assume arena (legacy behavior)
-            self.controller.save_manual_arena(self.edited_polygon_points)
-            self.set_status("Zona salva com sucesso.")
+            success = self.controller.save_manual_arena(self.edited_polygon_points)
+            if success:
+                self.set_status("Zona salva com sucesso.")
+            else:
+                self.show_error("Erro", "Falha ao salvar zona.")
+                return
 
-        # Clear interactive elements and redraw zones
-        self._clear_interactive_polygon()
-        self.redraw_zones_from_project_data()
-        self.update_zone_listbox()
+        # Only clear and redraw if save was successful
+        if success:
+            # Clear interactive elements and redraw zones
+            self._clear_interactive_polygon()
+            self.redraw_zones_from_project_data()
+            self.update_zone_listbox()
 
     def _on_discard_arena(self):
         """Discards the interactive polygon."""
@@ -2016,8 +2087,10 @@ class ApplicationGUI:
         self.redraw_zones_from_project_data()
 
     def _clear_interactive_polygon(self):
-        """Clears all interactive elements from the canvas and hides buttons."""
+        """Clears all interactive elements from the canvas, hides buttons, and resets states."""
+        # Clear canvas elements including handles
         self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+        
         try:
             if (
                 self.interactive_buttons_frame
@@ -2029,8 +2102,29 @@ class ApplicationGUI:
             # It's safe to ignore in that case.
             pass
 
+        # Unbind keyboard shortcuts
+        try:
+            self.root.unbind('<Return>')
+            self.root.unbind('<KP_Enter>')
+        except Exception:
+            # Binding might not exist, ignore
+            pass
+
+        # Reset button states to initial conditions
+        try:
+            if hasattr(self, 'finish_edit_btn') and self.finish_edit_btn.winfo_exists():
+                self.finish_edit_btn.config(state='normal')
+            if hasattr(self, 'save_arena_btn') and self.save_arena_btn.winfo_exists():
+                self.save_arena_btn.config(state='normal')  
+            if hasattr(self, 'discard_arena_btn') and self.discard_arena_btn.winfo_exists():
+                self.discard_arena_btn.config(state='normal')
+        except Exception:
+            # Widget cleanup can fail during shutdown, ignore
+            pass
+
+        # Clear all polygon-related state variables
         self.interactive_polygon_item = None
-        self.polygon_handles = []
+        self.polygon_handles = []  # Explicitly clear handle references
         self.edited_polygon_points = []
         self._dragged_handle_index = None
         self.current_editing_zone = None
