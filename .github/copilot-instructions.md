@@ -1,40 +1,83 @@
-## ZebTrack-AI – AI Contributor Guide (Concise)
-Purpose: Desktop Tkinter app for multi‑animal tracking (live camera or batch video) → trajectories (Parquet), behavioral & ROI metrics (Excel), rich per‑experiment / project reports (Word, Excel, CSV). Keep changes minimal, schema‑safe, and test‑backed.
+## ZebTrack-AI – Copilot Coding Agent Guide
 
-### 1. Core Flow (Typical Pre‑Recorded Run)
-`python -m zebtrack` → GUI (`core/controller.AppController`) → project created (`core/project_manager.py`) → detector plugin chosen (`plugins/` via registry) → zones & calibration (optional pixel/cm via `core/calibration.py`) → frames from `io/video_source.py` → detections processed by `core/detector.py` (zone enter/exit state machine → optional Arduino commands) → rows streamed to `io/recorder.py` (Parquet + optional MP4) → analysis phase (`analysis/behavioral_analyzer.py`, `analysis/behavior.py`, `analysis/roi.py`) → reporting (`analysis/reporter.py`).
+Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecorded video) that produces trajectories (Parquet), behavioral/ROI metrics (Excel), and rich per-experiment reports (Word, Excel, CSV). Optimize for small, well-tested changes that keep schemas and UI workflows stable.
 
-### 2. Configuration Contract
-Load order: `config.yaml` then optional `config.local.yaml` merged in `settings.load_settings()` → singleton `settings`. NEVER hardcode config—import `from zebtrack import settings`. Adding a field: edit Pydantic models in `settings.py`, update `config.yaml`, extend `tests/test_settings.py`.
+### Quick Start Workflow
 
-### 3. Critical Data Schemas
-Recorder Parquet strict column order: `timestamp, frame, track_id, x1, y1, x2, y2, confidence` (+ `x_center_px, y_center_px, x_cm, y_cm` only if pixel_per_cm provided). Do NOT reorder; extend only by appending and update tests.
-ZoneData (`core/detector.py`): polygon, squares list[((x1,y1),(x2,y2))], BGR colors, enter_commands, exit_commands. Always call `Detector.set_zones(zones, actual_w, actual_h)` after you know real capture size.
-Output naming stages: user-visible prefixes `1_`, `2_`, `3_` must remain stable (tests + docs rely on them).
+1. Launch GUI: `python -m zebtrack` (entry point `core/controller.AppController`).
+2. Create/select a project via `core/project_manager.py`.
+3. Choose a detector plugin from `plugins/` (registry in `plugins/__init__.py`).
+4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
+5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
+6. Results stream to `io/recorder.py` (Parquet + optional MP4).
+7. Analysis happens in `analysis/behavioral_analyzer.py`, `analysis/behavior.py`, and `analysis/roi.py`.
+8. Reports are generated via `analysis/reporter.py`.
 
-### 4. Detector / Plugin Rules
-Plugins implement `DetectorPlugin` (see `plugins/base.py`) + `get_name()`. Register in `plugins/__init__.py: DETECTOR_PLUGINS`. Guard for missing track IDs (some models). Maintain non-blocking inference (no GUI thread stalls). OpenVINO path must contain paired `.xml` + `.bin`; conversion handled lazily by `core/weight_manager.py`.
-Arena inclusion uses "4 corners OR center" logic (`_is_inside_polygon`). Helper `bbox_hits_roi_polygon` available for ROI checking.
+### Environment & Tooling
 
-### 5. Behavioral & ROI Analysis
-Behavior metrics live in `analysis/behavior.py`; orchestration in `behavioral_analyzer.py`; ROI computations in `roi.py`; reporter aggregates & emits Excel/Docx (`reporter.py`). Adding a metric: implement function or extend analyzer, add to reporter export mapping, create synthetic trajectory test in `tests/analysis/`.
-ROI analysis supports configurable inclusion rules: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects` (default), `seg_overlap`. Settings: `roi_inclusion_rule`, `roi_buffer_radius_value`, `roi_min_bbox_overlap_ratio`.
+- Python is managed with Poetry (`pyproject.toml`). Install dependencies with `poetry install`.
+- Run the app/tests inside the Poetry shell or via `poetry run ...`.
+- Windows default shell is PowerShell; commands here assume that environment.
+- Use `structlog` for logging (`structlog.get_logger()`), maintaining the `domain.action.result` naming convention.
 
-### 6. Calibration & Units
-Calibration (`core/calibration.py`) yields pixel_per_cm ratio; only then `recorder` appends `x_cm,y_cm`. Code consuming cm coords must tolerate absence (fallback to px if columns missing).
+### Configuration Contract
 
-### 7. Logging & Events
-Use `structlog.get_logger()` with pattern `domain.action.result` (e.g. `recorder.save_parquet.success`, `detector.setup.error`). Preserve existing event names where referenced in tests.
+- Settings load order: `config.yaml` → optional `config.local.yaml` (merged in `settings.load_settings()`).
+- Never hardcode configuration values; import `from zebtrack import settings`.
+- When adding a configuration field: update the Pydantic models in `settings.py`, adjust `config.yaml`, and extend `tests/test_settings.py`.
 
-### 8. Safe Modification Checklist
-Before change: locate corresponding test (mirrors module name). After change: run `poetry run pytest -q`. Adding dep: modify `[tool.poetry.dependencies]` then `poetry lock`. Never block the GUI loop (heavy work stays in worker threads / detector loop). Avoid silent schema drift—add test asserting new columns.
+### Data & File Schemas
 
-### 9. Edge / Failure Cases
-Empty detection batches: recorder must no-op (don’t create Parquet prematurely). Missing settings or load failure: guard `settings is None`. Dimension mismatch: ALWAYS rescale zones. Optional Arduino: code must degrade gracefully if unavailable.
+- Recorder Parquet column order is strict: `timestamp, frame, track_id, x1, y1, x2, y2, confidence`. Optional columns appended only when calibration is available: `x_center_px, y_center_px, x_cm, y_cm`.
+- Maintain zone metadata structure: `polygon`, `squares` (list of ((x1, y1), (x2, y2))), `bgr_color`, `enter_commands`, `exit_commands`.
+- Output naming prefixes `1_`, `2_`, `3_` are user-facing and must remain unchanged.
 
-### 10. Quick File Landmarks
-`core/controller.py` (workflow hub) | `core/detector.py` (zones + state) | `io/recorder.py` (Parquet/MP4 writer) | `plugins/` (detectors) | `analysis/*` (metrics + reporting) | `settings.py` (config models) | `tests/` (executable spec – read first when uncertain).
+### Detector & Plugin Guardrails
 
-Unsure? Read the nearest test, mirror the pattern, keep output names & column order stable. When adding something new, document briefly in this file only if it becomes a repeated pattern.
+- Plugins implement `DetectorPlugin` (`plugins/base.py`) and expose `get_name()`.
+- Register new plugins in `plugins/__init__.py` (`DETECTOR_PLUGINS`).
+- Handle missing `track_id` values gracefully.
+- Keep inference non-blocking; heavy work belongs in detector threads, not the GUI loop.
+- OpenVINO weights require matching `.xml`/`.bin`; conversion is handled in `core/weight_manager.py`.
+- Arena inclusion uses the "4 corners OR center" logic via `_is_inside_polygon`; use `bbox_hits_roi_polygon` for ROI checks when appropriate.
 
-End of concise guide – propose updates only after validating against tests.
+### Behavioral & ROI Analysis
+
+- Behavioral metrics live in `analysis/behavior.py`; orchestration in `analysis/behavioral_analyzer.py`.
+- ROI logic is in `analysis/roi.py`. Supported inclusion rules: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects` (default), `seg_overlap`.
+- Reporting is centralized in `analysis/reporter.py`. Adding a metric requires wiring it through analyzer → reporter and creating a synthetic trajectory test under `tests/analysis/`.
+
+### Calibration & Units
+
+- Pixel-to-centimeter calibration comes from `core/calibration.py`.
+- `io/recorder` only appends cm columns when calibration is known. Downstream consumers must gracefully fall back to pixel coordinates if cm columns are absent.
+
+### Testing & Validation
+
+- Run the full test suite with `poetry run pytest -q`.
+- Tests mirror modules; consult them before modifying behavior (e.g., `tests/test_detector.py`, `tests/test_recorder.py`).
+- After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
+
+### Safety Checklist Before Merging
+
+- Read the relevant test file(s) tied to the module you're editing.
+- Keep GUI responsive—avoid blocking calls on the main thread.
+- Ensure zone definitions are rescaled to match the actual capture size via `Detector.set_zones(...)` after dimensions are known.
+- Handle empty detection batches without creating output artifacts.
+- Guard for missing settings/configuration and absent hardware (e.g., Arduino).
+
+### Repository Landmarks
+
+- `src/zebtrack/core/controller.py`: Application workflow hub.
+- `src/zebtrack/core/detector.py`: Zone management and detection state machine.
+- `src/zebtrack/io/recorder.py`: Parquet/MP4 writers.
+- `src/zebtrack/plugins/`: Detector implementations.
+- `src/zebtrack/analysis/`: Behavioral metrics, ROI analysis, reporting.
+- `src/zebtrack/settings.py`: Pydantic settings models.
+- `tests/`: Pytest suite (unit, integration, GUI regression tests).
+
+### When in Doubt
+
+- Prefer reading the closest test to understand expectations.
+- Keep public APIs, file schemas, and user-visible naming stable.
+- Document recurring patterns here only after confirming they are covered by tests.
