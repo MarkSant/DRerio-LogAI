@@ -25,6 +25,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - Settings load order: `config.yaml` → optional `config.local.yaml` (merged in `settings.load_settings()`).
 - Never hardcode configuration values; import `from zebtrack import settings`.
 - When adding a configuration field: update the Pydantic models in `settings.py`, adjust `config.yaml`, and extend `tests/test_settings.py`.
+- Per-project runtime overrides (`analysis_interval_frames`, `display_interval_frames`, etc.) live in `ProjectManager.project_data`; persist them via `ProjectManager.save_project()` so the GUI can restore interval widgets on reload.
 
 ### Data & File Schemas
 
@@ -40,6 +41,13 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - Keep inference non-blocking; heavy work belongs in detector threads, not the GUI loop.
 - OpenVINO weights require matching `.xml`/`.bin`; conversion is handled in `core/weight_manager.py`.
 - Arena inclusion uses the "4 corners OR center" logic via `_is_inside_polygon`; use `bbox_hits_roi_polygon` for ROI checks when appropriate.
+
+### Analysis Progress & Intervals
+
+- Progress callbacks now supply granular stats (`total_frames`, `processed_frames`, `detected_frames`, `start_time`); keep `ApplicationGUI.update_processing_stats()` and overlay labels in sync.
+- `ApplicationGUI` handles dual views (zone drawing vs. analysis overlay). Preserve detector-drawn overlays by routing frames through `display_analysis_frame()` without redrawing zones.
+- Interval controls (`analysis_interval_var`, `display_interval_var`) exist on both project and single-video dialogs; keep defaults at `10` unless project data overrides them and update the respective tests if behavior changes.
+- When adjusting controller workflows, ensure `progress_callback` continues scheduling UI updates via `root.after(0, ...)` to avoid blocking Tkinter.
 
 ### Behavioral & ROI Analysis
 
@@ -57,6 +65,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - Run the full test suite with `poetry run pytest -q`.
 - Tests mirror modules; consult them before modifying behavior (e.g., `tests/test_detector.py`, `tests/test_recorder.py`).
 - After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
+- UI/analysis workflows now have dedicated coverage: `tests/test_overlay_integration.py` (overlay preservation) and `tests/test_interval_frames_config.py` (interval dialogs + persistence). Keep them passing.
 
 ### Safety Checklist Before Merging
 
