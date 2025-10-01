@@ -344,6 +344,12 @@ class AppController:
         model_path = self.weight_manager.get_weight_path_by_method(
             animal_method, "animal"
         )
+        log.info(
+            "detector.setup.model_path_selected",
+            animal_method=animal_method,
+            task="animal",
+            model_path=model_path,
+        )
         if not model_path:
             self.view.show_error(
                 "Erro de Detector",
@@ -1105,6 +1111,11 @@ class AppController:
         animal_method = config.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
 
+        # Apply OpenVINO setting from config
+        use_openvino = config.get("use_openvino", settings.model_selection.use_openvino)
+        self.use_openvino = use_openvino
+        log.info("controller.single_video.openvino_set", use_openvino=use_openvino)
+
         if animal_method == "det" and animals_per_aquarium != 1:
             self.view.show_error(
                 "Configuração Inválida",
@@ -1139,6 +1150,12 @@ class AppController:
         """Starts the actual processing for a single video after zone setup."""
         log.info("workflow.single_video.processing_start", video=video_path)
 
+        # Enable single animal mode if animals_per_aquarium == 1
+        animals_per_aquarium = config.get("animals_per_aquarium", 1)
+        if animals_per_aquarium == 1:
+            settings.video_processing.single_animal_per_aquarium = True
+            log.info("controller.single_video.single_animal_mode_enabled")
+
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
@@ -1155,6 +1172,19 @@ class AppController:
             "controller.single_video.zones_set",
             count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
         )
+
+        # Inform plugin that aquarium region is defined
+        if self.detector and hasattr(
+            self.detector.plugin, "set_aquarium_region_defined"
+        ):
+            has_aquarium = bool(zone_data and zone_data.polygon)
+            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            log.info(
+                "controller.single_video.aquarium_status",
+                defined=has_aquarium,
+                plugin=self.detector.plugin.get_name(),
+                context=getattr(self.detector.plugin, "_context", "unknown"),
+            )
 
         # 2. Prepare the environment for _process_videos
         scanned_files = ProjectManager.scan_input_paths([video_path])
@@ -1466,6 +1496,19 @@ class AppController:
 
             self.detector.set_zones(zone_data, frame_width, frame_height)
 
+            # Inform plugin that aquarium region is defined
+            if self.detector and hasattr(
+                self.detector.plugin, "set_aquarium_region_defined"
+            ):
+                has_aquarium = bool(zone_data and zone_data.polygon)
+                self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+                log.info(
+                    "controller.tracking.aquarium_status",
+                    defined=has_aquarium,
+                    plugin=self.detector.plugin.get_name(),
+                    context=getattr(self.detector.plugin, "_context", "unknown"),
+                )
+
             # --- New: Calculate pixel/cm ratio before recording ---
             pixel_per_cm_ratio = None
             if calibration_data:
@@ -1506,25 +1549,31 @@ class AppController:
                         frame, project_type="pre-recorded"
                     )
 
+                    log.info(
+                        "controller.tracking.frame_processed",
+                        frame_num=frame_num,
+                        detection_count=len(detections),
+                        processed_count=processed_frames_count + 1,
+                    )
+
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
 
                     # Cache the last detections for display
                     last_detections = detections
                     processed_frames_count += 1
-                    
+
                     # Count frames that actually have detections
                     if detections:
                         detected_frames_count += 1
+                        log.info(
+                            "controller.tracking.detections_found",
+                            frame_num=frame_num,
+                            count=len(detections),
+                        )
 
-                # Check if we should update the display
-                # (display interval based on processed frames)
-                should_display = processed_frames_count > 0 and (
-                    processed_frames_count % display_interval_frames == 0
-                )
-
-                # Update GUI display
-                if progress_callback:
+                # Update GUI display every processed frame for smoother visualization
+                if progress_callback and should_process:
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     progress_fraction = (
                         (frame_num + 1) / total_frames if total_frames > 0 else 0
@@ -1538,23 +1587,11 @@ class AppController:
                         'start_time': start_time
                     }
 
-                    if should_display and should_process:
-                        # Draw overlay on current frame with fresh detections
-                        self.detector.draw_overlay(frame, detections)
-                        progress_callback(
-                            progress_fraction, "Gerando trajetória...", frame, stats
-                        )
-                    elif should_display and last_detections:
-                        # Draw overlay using last cached detections
-                        self.detector.draw_overlay(frame, last_detections)
-                        progress_callback(
-                            progress_fraction, "Gerando trajetória...", frame, stats
-                        )
-                    else:
-                        # Just update progress without frame
-                        progress_callback(
-                            progress_fraction, "Gerando trajetória...", None, stats
-                        )
+                    # Always draw overlay on processed frames
+                    self.detector.draw_overlay(frame, detections)
+                    progress_callback(
+                        progress_fraction, "Gerando trajetória...", frame, stats
+                    )
 
                 frame_num += 1
 
@@ -1798,6 +1835,12 @@ class AppController:
             )
             display_interval_frames = single_video_config.get(
                 "display_interval_frames", 10
+            )
+            log.info(
+                "controller.processing.intervals_single_video",
+                analysis_interval=analysis_interval_frames,
+                display_interval=display_interval_frames,
+                config_keys=list(single_video_config.keys()),
             )
         else:
             # For batch projects: read from project_data
@@ -2128,6 +2171,12 @@ class AppController:
         model_to_test = config["model_to_test"]
         active_weight_details = self.weight_manager.get_weight_details(
             self.active_weight_name
+        )
+        log.info(
+            "controller.diagnostic.active_weight",
+            active_weight_name=self.active_weight_name,
+            pytorch_path=active_weight_details.get("path") if active_weight_details else None,
+            openvino_path=active_weight_details.get("openvino_path") if active_weight_details else None,
         )
         if not active_weight_details:
             self.view.show_error("Erro", "Nenhum peso ativo selecionado.")

@@ -192,14 +192,35 @@ class Detector:
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
             predictions_cropped = self.plugin.detect(cropped_frame)
 
+            log.info(
+                "detector.plugin_predictions_cropped",
+                count=len(predictions_cropped),
+                crop_offset=(x, y),
+                crop_size=(w, h),
+            )
+
             # Translate predictions back to the original frame's coordinate system
             predictions = []
             for det in predictions_cropped:
-                x1, y1, x2, y2, conf, track_id = det
-                predictions.append((x1 + x, y1 + y, x2 + x, y2 + y, conf, track_id))
+                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = det
+                x1 = x1_crop + x
+                y1 = y1_crop + y
+                x2 = x2_crop + x
+                y2 = y2_crop + y
+                predictions.append((x1, y1, x2, y2, conf, track_id))
+
+                if predictions:  # Log first detection for debugging
+                    log.info(
+                        "detector.coordinate_translation",
+                        cropped_bbox=(int(x1_crop), int(y1_crop), int(x2_crop), int(y2_crop)),
+                        translated_bbox=(int(x1), int(y1), int(x2), int(y2)),
+                        offset=(x, y),
+                    )
         else:
             # Fallback to detecting on the full frame if no polygon is defined
             predictions = self.plugin.detect(frame)
+
+        log.info("detector.plugin_predictions", count=len(predictions))
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
@@ -211,6 +232,14 @@ class Detector:
 
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id))
+                else:
+                    log.debug(
+                        "detector.filtered_outside_polygon",
+                        bbox=(x1, y1, x2, y2),
+                        track_id=track_id,
+                    )
+
+        log.info("detector.final_detections", count=len(detections_in_polygon))
 
         end_time = time.perf_counter()
         log.debug(

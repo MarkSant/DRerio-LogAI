@@ -141,6 +141,10 @@ class ModelSelectionSettings(BaseModel):
             "detection"
         ),
     )
+    use_openvino: bool = Field(
+        False,
+        description="Whether to use OpenVINO for model inference",
+    )
 
 
 class WeightsSelectionSettings(BaseModel):

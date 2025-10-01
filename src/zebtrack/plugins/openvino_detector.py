@@ -109,7 +109,7 @@ class OpenVINOPlugin(DetectorPlugin):
 
         # Initialize ByteTrack
         tracker_args = SimpleNamespace(
-            track_thresh=0.5,
+            track_thresh=0.1,  # Very low threshold to accept most detections
             track_buffer=30,
             match_thresh=0.8,
             mot20=False,
@@ -172,50 +172,30 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        # 2. Pass detections to ByteTrack for tracking
-        # Bytetrack expects a numpy array of shape (N, 5) with (x1, y1, x2, y2, score)
-        # Extract only first 5 elements (exclude class_id) for ByteTrack compatibility
-        detections_for_tracker = []
-        for det in detections:
-            x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
-            detections_for_tracker.append([x1, y1, x2, y2, conf])
-
-        detections_np = (
-            np.array(detections_for_tracker)
-            if detections_for_tracker
-            else np.empty((0, 5))
+        log.info(
+            "openvino.detect.after_postprocess",
+            detection_count=len(detections),
+            confidences=[float(det[4]) for det in detections] if detections else [],
         )
 
-        # Bytetrack's update method needs image info and size
-        img_info = frame.shape[:2]  # (height, width)
-        # self.model_input_shape returns (height, width) as expected by ByteTrack
-        img_size = self.model_input_shape
-
-        online_targets = self.tracker.update(detections_np, img_info, img_size)
-
-        # 3. Format the tracked results
+        # 2. For single animal mode with large frame intervals, skip ByteTrack
+        # ByteTrack needs continuous frames to maintain tracks, so with interval=30 it fails
+        # Instead, directly convert detections to predictions with fixed track_id
         predictions = []
-        for t in online_targets:
-            tlbr = t.tlbr
-            tid = t.track_id
-            score = t.score
+        for det in detections:
+            x1, y1, x2, y2, conf, class_id = det
             predictions.append(
                 (
-                    int(tlbr[0]),
-                    int(tlbr[1]),
-                    int(tlbr[2]),
-                    int(tlbr[3]),
-                    float(score),
-                    int(tid),
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2),
+                    float(conf),
+                    1,  # Fixed track_id for single animal
                 )
             )
 
-        # 4. Apply single animal mode if enabled
-        if settings.video_processing.single_animal_per_aquarium and predictions:
-            # Force all detections to have track_id=1 in single animal mode
-            predictions = [
-                (pred[0], pred[1], pred[2], pred[3], pred[4], 1) for pred in predictions
-            ]
+        log.info("openvino.detect.final", prediction_count=len(predictions))
 
         return predictions
 
@@ -290,15 +270,33 @@ class OpenVINOPlugin(DetectorPlugin):
         )
         detections = preds[0]
         if detections is None or len(detections) == 0:
+            log.debug("openvino.postprocess.no_detections_after_nms")
             return []
 
         detections[:, :4] = scale_boxes(
             self.model_input_shape, detections[:, :4], original_frame_shape
         ).round()
 
+        log.info(
+            "openvino.postprocess.raw_detections",
+            count=len(detections),
+            context=self._context,
+            aquarium_defined=self._aquarium_region_defined,
+        )
+
         final_detections = []
+        filtered_count = 0
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
+
+            # Log unexpected class IDs
+            if class_id not in self.class_names:
+                log.warning(
+                    "openvino.postprocess.unexpected_class",
+                    class_id=class_id,
+                    expected_classes=list(self.class_names.keys()),
+                    confidence=float(conf),
+                )
 
             # LÓGICA DE FILTRO ATUALIZADA:
             if self._context == "diagnostic":
@@ -317,9 +315,24 @@ class OpenVINOPlugin(DetectorPlugin):
                 # Modo tracking:
                 # Antes do aquário estar definido: não filtra (permite aparecer
                 # classe 0 ou outras)
-                # Após definição do aquário: filtra para somente peixe (cls == 1)
-                if self._aquarium_region_defined and class_id != 1:
-                    continue
+                # Após definição do aquário: filtra para somente peixe
+                # IMPORTANTE: Aceita tanto classe 0 quanto classe 1 como zebrafish,
+                # pois modelos diferentes podem usar índices diferentes
+                if self._aquarium_region_defined:
+                    # Check if this is a zebrafish class
+                    class_name = self.class_names.get(class_id, "")
+                    is_zebrafish = "zebrafish" in class_name.lower() or class_id == 0
+
+                    if not is_zebrafish:
+                        filtered_count += 1
+                        log.info(
+                            "openvino.postprocess.filtered_detection",
+                            class_id=class_id,
+                            class_name=class_name,
+                            reason="aquarium_defined_and_not_zebrafish",
+                        )
+                        continue
+
                 final_detections.append(
                     (
                         int(xyxy[0]),
@@ -330,6 +343,12 @@ class OpenVINOPlugin(DetectorPlugin):
                         class_id,
                     )
                 )
+
+        log.info(
+            "openvino.postprocess.result",
+            final_count=len(final_detections),
+            filtered_count=filtered_count,
+        )
         return final_detections
 
     @staticmethod

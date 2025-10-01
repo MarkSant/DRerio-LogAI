@@ -85,6 +85,8 @@ class Calibration:
         """
         if polygon is None or len(polygon) < 3:
             return None
+        # Ensure polygon is in the correct format (np.float32 or np.int32)
+        polygon = np.array(polygon, dtype=np.float32)
         # `cv2.minAreaRect` finds the minimum-area bounding box of a point set.
         rect = cv2.minAreaRect(polygon)
         # `cv2.boxPoints` calculates the four vertices of the rotated rectangle.

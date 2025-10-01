@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
-from zebtrack import settings
+from zebtrack.settings import settings
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 

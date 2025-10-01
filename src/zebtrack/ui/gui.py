@@ -1061,6 +1061,7 @@ class ApplicationGUI:
         self.polygon_handles = []
         self.edited_polygon_points = []
         self._dragged_handle_index = None
+        self._drag_offset = (0, 0)
         self.current_editing_zone = None  # Track what zone is being edited
         self.save_arena_btn = None
         self.discard_arena_btn = None
@@ -1636,6 +1637,22 @@ class ApplicationGUI:
         # Initialize display based on current rule
         self._on_roi_rule_change()
 
+        # --- Interactive Buttons (initially hidden) ---
+        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
+        self.save_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="✅ Salvar Edição",
+            command=self._on_save_arena,
+        )
+        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.discard_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="❌ Descartar",
+            command=self._on_discard_arena,
+        )
+        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        # This frame is packed later when needed
+
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame for the zone controls."""
         # Create a canvas and scrollbar for scrolling
@@ -1810,22 +1827,6 @@ class ApplicationGUI:
         except Exception as e:
             self.show_error("Erro", f"Erro ao aplicar configurações: {str(e)}")
 
-        # --- Interactive Buttons (initially hidden) ---
-        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
-        self.save_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="✅ Salvar Arena",
-            command=self._on_save_arena,
-        )
-        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        self.discard_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="❌ Descartar",
-            command=self._on_discard_arena,
-        )
-        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        # This frame is packed later when needed
-
     def _on_zone_select(self, event=None):
         """Shows and populates the properties panel when a zone is selected."""
         selected_items = self.zone_listbox.selection()
@@ -1884,13 +1885,27 @@ class ApplicationGUI:
         self._clear_interactive_polygon()  # Clear any previous one
         self.edited_polygon_points = [list(p) for p in polygon]
 
+        print(f"DEBUG setup_interactive_polygon: loaded {len(self.edited_polygon_points)} points")
+        print(f"DEBUG setup_interactive_polygon: first 3 points (VIDEO coords): {self.edited_polygon_points[:3]}")
+
+        # Convert first point to canvas to verify
+        if self.edited_polygon_points:
+            canvas_pt = self._video_to_canvas(self.edited_polygon_points[0][0], self.edited_polygon_points[0][1])
+            print(f"DEBUG setup_interactive_polygon: first point in CANVAS coords: {canvas_pt}")
+            print(f"DEBUG setup_interactive_polygon: scale={self._bg_scale}, offset={self._bg_offset}")
+
         self._draw_interactive_polygon()
 
         # Show the save/discard buttons
         if self.interactive_buttons_frame:
+            print(f"DEBUG: Packing interactive_buttons_frame")
+            print(f"DEBUG: zone_properties_frame exists: {self.zone_properties_frame.winfo_exists()}")
             self.interactive_buttons_frame.pack(
                 after=self.zone_properties_frame, fill="x", padx=5, pady=5
             )
+            print(f"DEBUG: interactive_buttons_frame packed, visible: {self.interactive_buttons_frame.winfo_viewable()}")
+        else:
+            print(f"DEBUG: interactive_buttons_frame is None!")
 
         self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
 
@@ -1939,28 +1954,96 @@ class ApplicationGUI:
             )
 
     def _on_handle_press(self, event, handle_index):
-        """Records which handle is being dragged."""
+        """Records which handle is being dragged and initial offset."""
         self._dragged_handle_index = handle_index
+
+        # Store the initial mouse position and handle position
+        self._drag_start_mouse = (float(event.x), float(event.y))
+
+        # Get current handle position in video coordinates
+        video_point = self.edited_polygon_points[handle_index]
+        # Convert to canvas coordinates
+        canvas_point = self._video_to_canvas(video_point[0], video_point[1])
+        self._drag_start_handle = canvas_point
+
+        # Calculate offset between mouse and handle center
+        self._drag_offset = (
+            canvas_point[0] - event.x,
+            canvas_point[1] - event.y
+        )
+
+        # Bind motion and release to the entire canvas so events continue even when mouse leaves the handle
+        self.roi_canvas.bind("<B1-Motion>", self._on_handle_drag_global)
+        self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
+
+        print(f"DEBUG _on_handle_press: handle_index={handle_index}")
+        print(f"DEBUG _on_handle_press: mouse=({event.x}, {event.y}), handle_canvas={canvas_point}")
+        print(f"DEBUG _on_handle_press: offset={self._drag_offset}")
 
     def _on_handle_drag(self, event):
         """Updates the polygon point and redraws as the handle is dragged."""
         if self._dragged_handle_index is None:
             return
 
-        # Use canvasx/canvasy for proper canvas coordinate transformation
-        canvas_x = self.roi_canvas.canvasx(event.x)
-        canvas_y = self.roi_canvas.canvasy(event.y)
-        
+        # Apply the drag offset to get the actual handle position
+        canvas_x = float(event.x) + self._drag_offset[0]
+        canvas_y = float(event.y) + self._drag_offset[1]
+
+        print(f"DEBUG: Mouse at ({event.x}, {event.y}), adjusted canvas ({canvas_x}, {canvas_y})")
+        print(f"DEBUG: Before update - point {self._dragged_handle_index}: {self.edited_polygon_points[self._dragged_handle_index]}")
+
+        # If editing an ROI, check if the point is inside the main arena
+        if (
+            isinstance(self.current_editing_zone, tuple)
+            and self.current_editing_zone[0] == "roi"
+        ):
+            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            if main_arena_poly:
+                # Convert main arena polygon from video coordinates to canvas coordinates
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                # Test canvas coordinates against canvas polygon
+                result = cv2.pointPolygonTest(
+                    np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
+                )
+                print(f"DEBUG: Point polygon test result: {result}")
+                if result < 0:
+                    # Point is outside arena, don't update
+                    print("DEBUG: Point outside arena, blocking move")
+                    return
+
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
+        print(f"DEBUG: Converted to video: {video_point}")
+        print(f"DEBUG: Scale={self._bg_scale}, Offset={self._bg_offset}")
         self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
+        print(f"DEBUG: After update - point {self._dragged_handle_index}: {self.edited_polygon_points[self._dragged_handle_index]}")
 
         # Redraw the entire interactive polygon and its handles
         self._draw_interactive_polygon()
 
+    def _on_handle_drag_global(self, event):
+        """Global drag handler for canvas-wide dragging."""
+        self._on_handle_drag(event)
+
     def _on_handle_release(self, event):
-        """Finalizes the drag operation."""
+        """Finalizes the drag operation (called from tag binding)."""
+        self._handle_release_common()
+
+    def _on_handle_release_global(self, event):
+        """Global release handler (called from canvas binding)."""
+        # Unbind global handlers
+        self.roi_canvas.unbind("<B1-Motion>")
+        self.roi_canvas.unbind("<ButtonRelease-1>")
+        self._handle_release_common()
+
+    def _handle_release_common(self):
+        """Common release logic."""
         self._dragged_handle_index = None
+        self._drag_offset = (0, 0)
 
     def _on_save_arena(self):
         """Saves the edited polygon and makes it static."""
@@ -2033,6 +2116,7 @@ class ApplicationGUI:
         self.polygon_handles = []
         self.edited_polygon_points = []
         self._dragged_handle_index = None
+        self._drag_offset = (0, 0)
         self.current_editing_zone = None
 
     def display_roi_video_frame(self, video_path):
@@ -2504,6 +2588,10 @@ class ApplicationGUI:
         if self.drawing_mode != "polygon":
             return
 
+        # Get canvas coordinates directly from event
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+
         # If drawing an ROI, check if the point is inside the main arena
         if self.current_drawing_type == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
@@ -2517,7 +2605,7 @@ class ApplicationGUI:
                 # Test canvas coordinates against canvas polygon
                 if (
                     cv2.pointPolygonTest(
-                        np.array(canvas_arena_poly), (canvas_x, canvas_y), False
+                        np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
                     )
                     < 0
                 ):
@@ -2527,10 +2615,6 @@ class ApplicationGUI:
                         "Polígono Principal.",
                     )
                     return
-
-        # Use canvasx/canvasy for proper canvas coordinate transformation
-        canvas_x = self.roi_canvas.canvasx(event.x)
-        canvas_y = self.roi_canvas.canvasy(event.y)
         
         self.current_polygon_points.append((canvas_x, canvas_y))
 
@@ -3771,23 +3855,7 @@ class ApplicationGUI:
             )
             return
 
-        # 2. Add interval settings to config and disable the button
-        if self.pending_single_video_config is not None:
-            try:
-                analysis_interval = int(self.analysis_interval_var.get())
-                display_interval = int(self.display_interval_var.get())
-                self.pending_single_video_config["analysis_interval_frames"] = (
-                    analysis_interval
-                )
-                self.pending_single_video_config["display_interval_frames"] = (
-                    display_interval
-                )
-            except (ValueError, AttributeError) as e:
-                log.warning("gui.single_video.intervals_parse_failed", error=str(e))
-                # Use defaults
-                self.pending_single_video_config["analysis_interval_frames"] = 10
-                self.pending_single_video_config["display_interval_frames"] = 10
-
+        # 2. Disable the button (intervals already set in pending_single_video_config from dialog)
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
             self.pending_single_video_path,
@@ -4362,6 +4430,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # Detection method configuration variables
         self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
         self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
+        self.use_openvino_var = BooleanVar(value=settings.model_selection.use_openvino)
 
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
@@ -4486,6 +4555,14 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0)
         )
 
+        # OpenVINO option
+        openvino_check = ttk.Checkbutton(
+            method_frame,
+            text="Usar OpenVINO (acelera inferência em CPU)",
+            variable=self.use_openvino_var
+        )
+        openvino_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
         return main_frame
 
     def validate(self):
@@ -4514,6 +4591,13 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         return 1
 
     def apply(self):
+        analysis_interval = int(self.analysis_interval_var.get())
+        display_interval = int(self.display_interval_var.get())
+        log.info(
+            "single_video_dialog.apply",
+            analysis_interval=analysis_interval,
+            display_interval=display_interval,
+        )
         self.result = {
             "num_aquariums": int(self.num_aquariums_var.get()),
             "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
@@ -4522,10 +4606,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
             "freezing_velocity_threshold": float(self.freeze_thresh_var.get()),
             "freezing_min_duration_s": float(self.freeze_dur_var.get()),
-            "analysis_interval_frames": int(self.analysis_interval_var.get()),
-            "display_interval_frames": int(self.display_interval_var.get()),
+            "analysis_interval_frames": analysis_interval,
+            "display_interval_frames": display_interval,
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
+            "use_openvino": self.use_openvino_var.get(),
         }
 
 
