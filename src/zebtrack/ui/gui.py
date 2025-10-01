@@ -1296,10 +1296,8 @@ class ApplicationGUI:
 
         # 6. Create analysis overlay frame (initially hidden)
         self.analysis_overlay_frame = Frame(self.viz_frame, bg="black")
-        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
-        self.analysis_video_label.pack(expand=True)
 
-        # Progress info in overlay
+        # Progress info in overlay - pack this FIRST so it stays at bottom
         self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
         self.overlay_progress_frame.pack(side="bottom", fill="x", padx=10, pady=5)
 
@@ -1316,6 +1314,31 @@ class ApplicationGUI:
         )
         self.overlay_status_label.pack()
 
+        # Statistics in overlay - organized in grid for better visibility
+        overlay_stats_container = Frame(self.overlay_progress_frame, bg="black")
+        overlay_stats_container.pack(fill="x", pady=5)
+        self.overlay_progress_labels = {}
+
+        stats_items = [
+            ("total", "Total de Frames:"),
+            ("processed", "Processados:"),
+            ("detected", "Frames Detectados:"),
+            ("percent", "Concluído:"),
+            ("elapsed", "Tempo Decorrido:"),
+            ("eta", "Tempo Estimado:"),
+        ]
+
+        # Create 2 rows x 3 columns grid
+        for idx, (key, label_text) in enumerate(stats_items):
+            row = idx // 3
+            col = idx % 3
+            f = Frame(overlay_stats_container, bg="black")
+            f.grid(row=row, column=col, padx=10, pady=2, sticky="w")
+            Label(f, text=label_text, bg="black", fg="white", font=("Arial", 9)).pack(side="left")
+            var = StringVar(value="-")
+            Label(f, textvariable=var, bg="black", fg="white", font=("Arial", 9, "bold")).pack(side="left", padx=5)
+            self.overlay_progress_labels[key] = var
+
         # Cancel Analysis Button
         self.overlay_cancel_btn = ttk.Button(
             self.overlay_progress_frame,
@@ -1323,6 +1346,10 @@ class ApplicationGUI:
             command=self.controller.cancel_current_analysis
         )
         self.overlay_cancel_btn.pack(pady=5)
+
+        # Video label for analysis frames - pack this AFTER progress frame
+        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
+        self.analysis_video_label.pack(expand=True, fill="both")
 
         # 7. Create all the zone control widgets in the scrollable frame
         self._create_zone_control_widgets()
@@ -4065,37 +4092,45 @@ class ApplicationGUI:
         start_time=None
     ):
         """Update processing statistics in real-time during video analysis."""
-        if not self.progress_labels:
+        # Update both progress_labels (zones view) and overlay_progress_labels (analysis view)
+        labels_to_update = []
+        if self.progress_labels:
+            labels_to_update.append(self.progress_labels)
+        if hasattr(self, 'overlay_progress_labels') and self.overlay_progress_labels:
+            labels_to_update.append(self.overlay_progress_labels)
+
+        if not labels_to_update:
             return
 
-        # Update frame counters
-        if total_frames is not None:
-            self.progress_labels["total"].set(str(total_frames))
-        if processed_frames is not None:
-            self.progress_labels["processed"].set(str(processed_frames))
-        if detected_frames is not None:
-            self.progress_labels["detected"].set(str(detected_frames))
+        # Update frame counters in all label sets
+        for labels in labels_to_update:
+            if total_frames is not None:
+                labels["total"].set(str(total_frames))
+            if processed_frames is not None:
+                labels["processed"].set(str(processed_frames))
+            if detected_frames is not None:
+                labels["detected"].set(str(detected_frames))
 
-        # Calculate and update percentage
-        if total_frames and processed_frames:
-            percent = (processed_frames / total_frames) * 100
-            self.progress_labels["percent"].set(f"{percent:.1f}%")
+            # Calculate and update percentage
+            if total_frames and processed_frames:
+                percent = (processed_frames / total_frames) * 100
+                labels["percent"].set(f"{percent:.1f}%")
 
-        # Calculate elapsed time and ETA
-        if start_time:
-            import time
-            elapsed = time.time() - start_time
-            self.progress_labels["elapsed"].set(self._format_time(elapsed))
+            # Calculate elapsed time and ETA
+            if start_time:
+                import time
+                elapsed = time.time() - start_time
+                labels["elapsed"].set(self._format_time(elapsed))
 
-            # Calculate ETA based on progress
-            if processed_frames and total_frames and processed_frames > 0:
-                rate = processed_frames / elapsed
-                remaining_frames = total_frames - processed_frames
-                if rate > 0:
-                    eta = remaining_frames / rate
-                    self.progress_labels["eta"].set(self._format_time(eta))
-                else:
-                    self.progress_labels["eta"].set("-")
+                # Calculate ETA based on progress
+                if processed_frames and total_frames and processed_frames > 0:
+                    rate = processed_frames / elapsed
+                    remaining_frames = total_frames - processed_frames
+                    if rate > 0:
+                        eta = remaining_frames / rate
+                        labels["eta"].set(self._format_time(eta))
+                    else:
+                        labels["eta"].set("-")
 
     @staticmethod
     def _format_time(seconds: float) -> str:
