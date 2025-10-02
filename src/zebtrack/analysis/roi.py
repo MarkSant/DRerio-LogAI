@@ -99,12 +99,13 @@ class ROIAnalyzer:
         # True if the last N frames were all False (confirms exit)
         stable_false = raw_presence.rolling(self._flutter_n, min_periods=1).max() == 0
 
-        stable_presence = pd.Series(np.nan, index=raw_presence.index)
+        # Create with object dtype to avoid incompatible dtype warning
+        stable_presence = pd.Series(np.nan, index=raw_presence.index, dtype=object)
         stable_presence[stable_true] = True
         stable_presence[stable_false] = False
 
         # Forward-fill the NaN values during transition periods
-        stable_presence = stable_presence.ffill().fillna(False)
+        stable_presence = stable_presence.ffill().fillna(False).infer_objects(copy=False)
 
         return stable_presence.astype(bool)
 

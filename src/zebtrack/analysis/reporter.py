@@ -3,6 +3,8 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid GUI thread warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

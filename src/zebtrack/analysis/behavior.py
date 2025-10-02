@@ -396,7 +396,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         dt_s = dt_td.dt.total_seconds()
 
         # Prevent division by zero or NaN/Inf results
-        dt_s.replace(0, np.nan, inplace=True)
+        dt_s = dt_s.replace(0, np.nan)
 
         dx = df["x_cm_smoothed"].diff()
         dy = df["y_cm_smoothed"].diff()
@@ -476,7 +476,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         dt_td = df.index.to_series().diff()
         dt_s = dt_td.dt.total_seconds()
         # Prevent division by zero or NaN/Inf results
-        dt_s.replace(0, np.nan, inplace=True)
+        dt_s = dt_s.replace(0, np.nan)
         # Calculate angular velocity
         angular_velocity_deg_s = d_theta_deg / dt_s
         angular_velocity_deg_s.name = "angular_velocity_deg_s"
