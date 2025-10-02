@@ -727,10 +727,11 @@ class AppController:
                 arena_poly = np.array(zone_data.polygon, dtype=np.int32)
 
                 # Verifica se todos os pontos da ROI estão dentro da arena
+                # Allow points on boundary (result >= -0.5) to support edge snapping
                 points_outside = 0
                 for point in roi_points:
                     result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
-                    if result < 0:  # Ponto está fora
+                    if result < -0.5:  # Ponto está fora (com tolerância)
                         points_outside += 1
 
                 if points_outside > 0:

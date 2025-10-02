@@ -1145,6 +1145,23 @@ class ApplicationGUI:
     def _open_calibration_window(self):
         CalibrationDialog(self.root, self.controller)
 
+    def _on_tab_changed(self, event):
+        """Handle tab change event to ensure analysis overlay is hidden when not on analysis tab."""
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            # If analysis overlay is currently visible, hide it when switching away from zones tab
+            try:
+                if self.analysis_overlay_frame.winfo_ismapped():
+                    current_tab = self.notebook.select()
+                    # Check if we're NOT on the zones tab
+                    if hasattr(self, 'zone_tab_frame'):
+                        zone_tab_id = str(self.zone_tab_frame)
+                        if current_tab != zone_tab_id:
+                            # Switch back to zones view to hide analysis overlay
+                            if self.canvas_view_mode == "analysis":
+                                self._switch_to_zones_view()
+            except Exception:
+                pass
+
     def _create_main_control_frame(self):
         """Creates the main UI with tabs for controlling the app."""
         if self.welcome_frame:
@@ -1153,6 +1170,9 @@ class ApplicationGUI:
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
+
+        # Bind tab change event to hide analysis overlay when switching tabs
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         # Create the tabs
         self._create_main_controls_tab()
