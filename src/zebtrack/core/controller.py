@@ -144,13 +144,13 @@ class AppController:
         # Add the currently selected model info to the project data
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
-        
+
         # Store detection methods for use in processing workflows
         # These will override global settings when processing project videos
         if "aquarium_method" in kwargs and "animal_method" in kwargs:
             kwargs["temp_aquarium_method"] = kwargs["aquarium_method"]
             kwargs["temp_animal_method"] = kwargs["animal_method"]
-            
+
         if self.project_manager.create_new_project(**kwargs):
             if self.setup_detector():
                 self.view._load_project_view()
@@ -1549,13 +1549,6 @@ class AppController:
                         frame, project_type="pre-recorded"
                     )
 
-                    log.info(
-                        "controller.tracking.frame_processed",
-                        frame_num=frame_num,
-                        detection_count=len(detections),
-                        processed_count=processed_frames_count + 1,
-                    )
-
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
 
@@ -1566,11 +1559,6 @@ class AppController:
                     # Count frames that actually have detections
                     if detections:
                         detected_frames_count += 1
-                        log.info(
-                            "controller.tracking.detections_found",
-                            frame_num=frame_num,
-                            count=len(detections),
-                        )
 
                 # Update GUI display every processed frame for smoother visualization
                 if progress_callback and should_process:
@@ -1582,6 +1570,7 @@ class AppController:
                     # Prepare statistics for GUI update
                     stats = {
                         'total_frames': total_frames,
+                        'current_frame': frame_num + 1,  # For accurate ETA calculation
                         'processed_frames': processed_frames_count,
                         'detected_frames': detected_frames_count,
                         'start_time': start_time
@@ -1616,109 +1605,6 @@ class AppController:
         finally:
             if cap.isOpened():
                 cap.release()
-
-    def validate_zone_configuration_comprehensive(self):
-        """
-        Comprehensive zone validation with detailed feedback.
-        Returns (is_valid, issues_summary, recommendations)
-        """
-        zone_data = self.project_manager.get_zone_data()
-        issues = []
-        recommendations = []
-        is_valid = True
-
-        # Check main arena
-        if not zone_data or not zone_data.polygon:
-            is_valid = False
-            issues.append("❌ Arena principal não definida")
-            recommendations.append(
-                "• Use 'Detectar Aquário (Auto)' ou desenhe manualmente"
-            )
-        else:
-            issues.append("✅ Arena principal definida")
-
-        # Check ROIs
-        if zone_data and zone_data.roi_polygons:
-            issues.append(f"✅ {len(zone_data.roi_polygons)} ROI(s) definida(s)")
-
-            # Check for ROI overlaps and arena containment
-            for i, roi_polygon in enumerate(zone_data.roi_polygons):
-                roi_name = (
-                    zone_data.roi_names[i]
-                    if i < len(zone_data.roi_names)
-                    else f"ROI {i + 1}"
-                )
-
-                # Check if ROI is contained in main arena
-                if zone_data.polygon:
-                    np.array(roi_polygon, dtype=np.float32).reshape(-1, 1, 2)
-                    contained_points = 0
-                    for point in roi_polygon:
-                        if (
-                            cv2.pointPolygonTest(
-                                np.array(zone_data.polygon, dtype=np.float32),
-                                point,
-                                False,
-                            )
-                            >= 0
-                        ):
-                            contained_points += 1
-
-                    containment_percent = (contained_points / len(roi_polygon)) * 100
-                    if containment_percent < 80:
-                        issues.append(
-                            f"⚠️ {roi_name}: {containment_percent:.1f}% dentro da arena"
-                        )
-                        recommendations.append(
-                            f"• Ajustar {roi_name} para ficar completamente "
-                            "dentro da arena"
-                        )
-
-                # Check overlaps with other ROIs
-                for j, other_roi in enumerate(zone_data.roi_polygons):
-                    if i != j:
-                        other_name = (
-                            zone_data.roi_names[j]
-                            if j < len(zone_data.roi_names)
-                            else f"ROI {j + 1}"
-                        )
-                        overlapping_points = 0
-                        for point in roi_polygon:
-                            if (
-                                cv2.pointPolygonTest(
-                                    np.array(other_roi, dtype=np.float32),
-                                    point,
-                                    False,
-                                )
-                                >= 0
-                            ):
-                                overlapping_points += 1
-
-                        if overlapping_points > 0:
-                            overlap_percent = (
-                                overlapping_points / len(roi_polygon)
-                            ) * 100
-                            if overlap_percent > 20:
-                                issues.append(
-                                    f"⚠️ {roi_name} e {other_name}: "
-                                    f"{overlap_percent:.1f}% sobreposição"
-                                )
-                                recommendations.append(
-                                    f"• Reduzir sobreposição entre {roi_name} e "
-                                    f"{other_name}"
-                                )
-        else:
-            issues.append("ℹ️ Nenhuma ROI definida (opcional)")
-            recommendations.append(
-                "• Considere definir ROIs para análises mais detalhadas"
-            )
-
-        # Summary
-        summary = "\n".join(issues)
-        if recommendations:
-            summary += "\n\nRecomendações:\n" + "\n".join(recommendations)
-
-        return is_valid, summary, recommendations
 
     def apply_project_settings_to_batch(self, videos: list):
         """Aplica configurações do projeto a novos vídeos"""
@@ -1911,9 +1797,10 @@ class AppController:
                             0,
                             lambda: self.view.update_processing_stats(
                                 total_frames=stats.get('total_frames'),
-                                processed_frames=stats.get('processed_frames'), 
+                                processed_frames=stats.get('processed_frames'),
                                 detected_frames=stats.get('detected_frames'),
-                                start_time=stats.get('start_time')
+                                start_time=stats.get('start_time'),
+                                current_frame=stats.get('current_frame')
                             )
                         )
                     if frame is not None:

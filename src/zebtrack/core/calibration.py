@@ -72,7 +72,7 @@ class Calibration:
         px_per_cm_y = target_height_px / self.real_height_cm
         self.pixel_per_cm_ratio = (px_per_cm_x, px_per_cm_y)
 
-        log.info(
+        log.debug(
             "calibration.process.success",
             ratio=self.pixel_per_cm_ratio,
             target_dims=self.target_dims_px,

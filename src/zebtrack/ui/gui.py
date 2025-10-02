@@ -271,14 +271,7 @@ class CalibrationDialog(simpledialog.Dialog):
         # Atualiza threshold globalmente no detector ativo
         if hasattr(self.controller, "detector") and self.controller.detector:
             if hasattr(self.controller.detector.plugin, "conf_threshold"):
-                old_threshold = self.controller.detector.plugin.conf_threshold
                 self.controller.detector.plugin.conf_threshold = threshold_value
-
-                # Log da mudança para debug (usando print simples para evitar
-                # dependências)
-                print(
-                    f"Sensitivity changed: {old_threshold:.2f} → {threshold_value:.2f}"
-                )
 
         # Atualiza também a variável de confidence threshold para diagnósticos
         self.confidence_threshold_var.set(f"{threshold_value:.2f}")
@@ -998,9 +991,6 @@ class ApplicationGUI:
         self.root.title("Controlador Zebtrack")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
-        # Debug mode para visualizar fluxo de salvamento
-        self.DEBUG_ZONES = True  # Ative para debug
-
         # Dynamic widgets / state variables
         self.welcome_frame = None
         self.notebook = None
@@ -1016,10 +1006,6 @@ class ApplicationGUI:
         # ROI Tab Widgets
         self.roi_listbox = None
         self.run_analysis_btn = None
-        self.zone_prop_name_var = StringVar()
-        self.zone_prop_color_var = StringVar()
-        self.zone_prop_enter_cmd_var = StringVar()
-        self.zone_prop_exit_cmd_var = StringVar()
 
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
@@ -1082,6 +1068,35 @@ class ApplicationGUI:
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
         self._cleanup_single_analysis_button()
+
+        # Clean up analysis overlay and progress frames BEFORE destroying notebook
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.pack_forget()
+                    self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
+
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                if self.overlay_progress_frame.winfo_exists():
+                    self.overlay_progress_frame.pack_forget()
+                    self.overlay_progress_frame.destroy()
+            except Exception:
+                pass
+            self.overlay_progress_frame = None
+
+        # Clean up zone tab frame components
+        if hasattr(self, 'zone_tab_frame') and self.zone_tab_frame:
+            try:
+                if self.zone_tab_frame.winfo_exists():
+                    self.zone_tab_frame.destroy()
+            except Exception:
+                pass
+            self.zone_tab_frame = None
+
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
@@ -1464,18 +1479,15 @@ class ApplicationGUI:
             text="Desenhar Polígono Principal",
             command=self._start_main_arena_drawing,
         ).pack(fill="x", pady=2)
-        ttk.Button(
+
+        # ROI button - initially disabled until main arena is drawn
+        self.draw_roi_button = ttk.Button(
             actions_frame,
             text="Desenhar Área de Interesse",
             command=self._start_roi_drawing,
-        ).pack(fill="x", pady=2)
-
-        # Zone validation button
-        ttk.Button(
-            actions_frame,
-            text="Validar Configuração",
-            command=self._validate_zone_configuration,
-        ).pack(fill="x", pady=2)
+            state="disabled",
+        )
+        self.draw_roi_button.pack(fill="x", pady=2)
 
         # View toggle button (initially hidden)
         self.toggle_view_btn = ttk.Button(
@@ -1514,7 +1526,6 @@ class ApplicationGUI:
         self.zone_listbox.configure(yscrollcommand=scrollbar.set)
 
         # Bind events
-        self.zone_listbox.bind("<<TreeviewSelect>>", self._on_zone_select)
         self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
         self.zone_listbox.bind("<Double-Button-1>", self._on_zone_double_click)
 
@@ -1523,67 +1534,6 @@ class ApplicationGUI:
         self._create_roi_context_menu()
 
         scrollbar.pack(side="right", fill="y")
-
-        # Buttons to manage the list
-        zone_list_buttons_frame = ttk.Frame(self.zone_controls_frame)
-        zone_list_buttons_frame.pack(fill="x", pady=(0, 5))
-        ttk.Button(
-            zone_list_buttons_frame, text="Salvar Propriedades", command=lambda: None
-        ).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(
-            zone_list_buttons_frame, text="Remover Selecionada", command=lambda: None
-        ).pack(side="left", expand=True, fill="x", padx=2)
-
-        # --- Properties Panel ---
-        self.zone_properties_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Propriedades da Zona", padding=10
-        )
-        self.zone_properties_frame.pack(fill="x", pady=5)
-
-        # Create the widgets but don't show them initially
-        self.prop_widgets = {}
-        prop_grid_frame = ttk.Frame(self.zone_properties_frame)
-
-        # Name
-        self.prop_widgets["name_label"] = ttk.Label(prop_grid_frame, text="Nome:")
-        self.prop_widgets["name_entry"] = ttk.Entry(
-            prop_grid_frame, textvariable=self.zone_prop_name_var
-        )
-
-        # Color
-        self.prop_widgets["color_label"] = ttk.Label(prop_grid_frame, text="Cor:")
-        self.prop_widgets["color_combo"] = ttk.Combobox(
-            prop_grid_frame,
-            textvariable=self.zone_prop_color_var,
-            values=["Vermelho", "Verde", "Azul", "Amarelo", "Ciano", "Magenta"],
-            state="readonly",
-        )
-
-        # Arduino Commands Frame
-        self.prop_widgets["arduino_frame"] = ttk.LabelFrame(
-            prop_grid_frame, text="Comandos Arduino", padding=5
-        )
-        ttk.Label(self.prop_widgets["arduino_frame"], text="Entrada:").pack(
-            side="left", padx=2
-        )
-        ttk.Entry(
-            self.prop_widgets["arduino_frame"],
-            textvariable=self.zone_prop_enter_cmd_var,
-            width=5,
-        ).pack(side="left", padx=2)
-        ttk.Label(self.prop_widgets["arduino_frame"], text="Saída:").pack(
-            side="left", padx=2
-        )
-        ttk.Entry(
-            self.prop_widgets["arduino_frame"],
-            textvariable=self.zone_prop_exit_cmd_var,
-            width=5,
-        ).pack(side="left", padx=2)
-
-        self.prop_widgets["placeholder_label"] = ttk.Label(
-            self.zone_properties_frame, text="Selecione uma zona para editar..."
-        )
-        self.prop_widgets["placeholder_label"].pack(pady=10)
 
         # --- ROI Inclusion Rule Panel ---
         self.roi_inclusion_frame = ttk.LabelFrame(
@@ -1854,49 +1804,6 @@ class ApplicationGUI:
         except Exception as e:
             self.show_error("Erro", f"Erro ao aplicar configurações: {str(e)}")
 
-    def _on_zone_select(self, event=None):
-        """Shows and populates the properties panel when a zone is selected."""
-        selected_items = self.zone_listbox.selection()
-
-        # Hide all property widgets first
-        for widget in self.prop_widgets.values():
-            manager = widget.winfo_manager()
-            if manager == "pack":
-                widget.pack_forget()
-            elif manager == "grid":
-                widget.grid_forget()
-            elif manager == "place":
-                widget.place_forget()
-
-        if not selected_items:
-            # No item selected, show placeholder
-            self.prop_widgets["placeholder_label"].pack(pady=10)
-            return
-
-        # An item is selected, show the property grid
-        self.prop_widgets["name_label"].grid(row=0, column=0, sticky="w", pady=2)
-        self.prop_widgets["name_entry"].grid(row=0, column=1, sticky="ew", pady=2)
-        self.prop_widgets["color_label"].grid(row=1, column=0, sticky="w", pady=2)
-        self.prop_widgets["color_combo"].grid(row=1, column=1, sticky="ew", pady=2)
-
-        # Get data for the selected zone (mocked for now)
-        # In a future step, this will come from a real data source
-        item = self.zone_listbox.item(selected_items[0])
-        zone_type = item["values"][1]
-
-        # Mock data population
-        self.zone_prop_name_var.set(item["values"][0])
-        self.zone_prop_color_var.set("Vermelho")
-
-        # Show Arduino frame only for "Área de Interesse" and if Arduino is enabled
-        is_arduino_enabled = True  # Mock: This will be checked from project settings
-        if zone_type == "Área de Interesse" and is_arduino_enabled:
-            self.prop_widgets["arduino_frame"].grid(
-                row=2, column=0, columnspan=2, sticky="ew", pady=5
-            )
-            self.zone_prop_enter_cmd_var.set("1")
-            self.zone_prop_exit_cmd_var.set("2")
-
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Draws a suggested polygon that the user can interactively edit."""
         # Garante que há frame no canvas antes de desenhar
@@ -1912,27 +1819,13 @@ class ApplicationGUI:
         self._clear_interactive_polygon()  # Clear any previous one
         self.edited_polygon_points = [list(p) for p in polygon]
 
-        print(f"DEBUG setup_interactive_polygon: loaded {len(self.edited_polygon_points)} points")
-        print(f"DEBUG setup_interactive_polygon: first 3 points (VIDEO coords): {self.edited_polygon_points[:3]}")
-
-        # Convert first point to canvas to verify
-        if self.edited_polygon_points:
-            canvas_pt = self._video_to_canvas(self.edited_polygon_points[0][0], self.edited_polygon_points[0][1])
-            print(f"DEBUG setup_interactive_polygon: first point in CANVAS coords: {canvas_pt}")
-            print(f"DEBUG setup_interactive_polygon: scale={self._bg_scale}, offset={self._bg_offset}")
-
         self._draw_interactive_polygon()
 
         # Show the save/discard buttons
         if self.interactive_buttons_frame:
-            print(f"DEBUG: Packing interactive_buttons_frame")
-            print(f"DEBUG: zone_properties_frame exists: {self.zone_properties_frame.winfo_exists()}")
             self.interactive_buttons_frame.pack(
-                after=self.zone_properties_frame, fill="x", padx=5, pady=5
+                fill="x", padx=5, pady=5
             )
-            print(f"DEBUG: interactive_buttons_frame packed, visible: {self.interactive_buttons_frame.winfo_viewable()}")
-        else:
-            print(f"DEBUG: interactive_buttons_frame is None!")
 
         self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
 
@@ -2003,10 +1896,6 @@ class ApplicationGUI:
         self.roi_canvas.bind("<B1-Motion>", self._on_handle_drag_global)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
 
-        print(f"DEBUG _on_handle_press: handle_index={handle_index}")
-        print(f"DEBUG _on_handle_press: mouse=({event.x}, {event.y}), handle_canvas={canvas_point}")
-        print(f"DEBUG _on_handle_press: offset={self._drag_offset}")
-
     def _on_handle_drag(self, event):
         """Updates the polygon point and redraws as the handle is dragged."""
         if self._dragged_handle_index is None:
@@ -2016,8 +1905,10 @@ class ApplicationGUI:
         canvas_x = float(event.x) + self._drag_offset[0]
         canvas_y = float(event.y) + self._drag_offset[1]
 
-        print(f"DEBUG: Mouse at ({event.x}, {event.y}), adjusted canvas ({canvas_x}, {canvas_y})")
-        print(f"DEBUG: Before update - point {self._dragged_handle_index}: {self.edited_polygon_points[self._dragged_handle_index]}")
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
 
         # If editing an ROI, check if the point is inside the main arena
         if (
@@ -2036,18 +1927,13 @@ class ApplicationGUI:
                 result = cv2.pointPolygonTest(
                     np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
                 )
-                print(f"DEBUG: Point polygon test result: {result}")
                 if result < 0:
                     # Point is outside arena, don't update
-                    print("DEBUG: Point outside arena, blocking move")
                     return
 
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
-        print(f"DEBUG: Converted to video: {video_point}")
-        print(f"DEBUG: Scale={self._bg_scale}, Offset={self._bg_offset}")
         self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
-        print(f"DEBUG: After update - point {self._dragged_handle_index}: {self.edited_polygon_points[self._dragged_handle_index]}")
 
         # Redraw the entire interactive polygon and its handles
         self._draw_interactive_polygon()
@@ -2078,6 +1964,8 @@ class ApplicationGUI:
             # Save main arena
             self.controller.save_manual_arena(self.edited_polygon_points)
             self.set_status("Arena principal salva com sucesso.")
+            # Enable ROI button after main arena is saved
+            self._enable_roi_button_if_arena_exists()
         elif (
             isinstance(self.current_editing_zone, tuple)
             and self.current_editing_zone[0] == "roi"
@@ -2102,6 +1990,8 @@ class ApplicationGUI:
             # Fallback - assume arena (legacy behavior)
             self.controller.save_manual_arena(self.edited_polygon_points)
             self.set_status("Zona salva com sucesso.")
+            # Enable ROI button after main arena is saved
+            self._enable_roi_button_if_arena_exists()
 
         # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
@@ -2479,14 +2369,7 @@ class ApplicationGUI:
             )
             return
 
-        if self.DEBUG_ZONES:
-            print("\n=== DEBUG BOTÃO ARENA ===")
-            print("1. Definindo current_drawing_type = 'arena'")
-
         self.current_drawing_type = "arena"
-
-        if self.DEBUG_ZONES:
-            print("2. Chamando _start_polygon_drawing()")
 
         self._start_polygon_drawing()
 
@@ -2511,30 +2394,8 @@ class ApplicationGUI:
         self.current_drawing_type = "roi"
         self._start_polygon_drawing()
 
-    def _validate_zone_configuration(self):
-        """Validates the current zone configuration and shows detailed feedback."""
-        (
-            is_valid,
-            summary,
-            recommendations,
-        ) = self.controller.validate_zone_configuration_comprehensive()
-
-        if is_valid:
-            title = "✅ Configuração Validada"
-        else:
-            title = "⚠️ Problemas na Configuração"
-
-        self.show_info(title, summary)
-
     def _start_polygon_drawing(self):
         """Activates polygon drawing mode."""
-        if self.DEBUG_ZONES:
-            print("3. _start_polygon_drawing iniciado")
-            print(
-                "4. current_drawing_type antes de _stop_drawing: "
-                f"{self.current_drawing_type}"
-            )
-
         # Garante que há frame no canvas
         if self._canvas_bg_image is None:
             self.set_status("Carregando frame para desenho...")
@@ -2552,11 +2413,6 @@ class ApplicationGUI:
         self._stop_drawing()  # Ensure clean state
         self.current_drawing_type = preserved_drawing_type  # Restore
 
-        if self.DEBUG_ZONES:
-            print(
-                "5. current_drawing_type após _stop_drawing: "
-                f"{self.current_drawing_type}"
-            )
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
         self._poly_pts_canvas = []  # Canvas coordinates for UI
@@ -2602,6 +2458,7 @@ class ApplicationGUI:
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+        self.roi_canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
         self.current_polygon_points = []
@@ -2609,6 +2466,111 @@ class ApplicationGUI:
         self._poly_pts_video = []
 
         self.set_status("Pronto.")
+
+    def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
+        """
+        Applies snapping to nearby vertices or edges of existing polygons.
+
+        Args:
+            canvas_x (float): X coordinate in canvas space
+            canvas_y (float): Y coordinate in canvas space
+            exclude_current_polygon (bool): If True, excludes the polygon currently being edited
+            snap_threshold (int): Maximum distance in pixels for snapping to occur
+
+        Returns:
+            tuple or None: (snapped_x, snapped_y) if snapping occurred, None otherwise
+        """
+        zone_data = self.controller.project_manager.get_zone_data()
+        all_polygons = []
+
+        # Add main arena polygon if it exists
+        if zone_data.polygon:
+            # Convert to canvas coordinates
+            canvas_polygon = []
+            for point in zone_data.polygon:
+                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_polygon.append(canvas_pt)
+
+            # Only add if not editing this polygon
+            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
+                all_polygons.append(canvas_polygon)
+
+        # Add all ROI polygons
+        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
+            canvas_polygon = []
+            for point in roi_polygon:
+                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_polygon.append(canvas_pt)
+
+            # Only add if not editing this specific ROI
+            skip_this_roi = (
+                exclude_current_polygon
+                and isinstance(self.current_editing_zone, tuple)
+                and self.current_editing_zone[0] == "roi"
+                and self.current_editing_zone[1] == idx
+            )
+            if not skip_this_roi:
+                all_polygons.append(canvas_polygon)
+
+        # Find closest point
+        closest_point = None
+        min_distance = snap_threshold
+
+        for polygon in all_polygons:
+            # Check snapping to vertices
+            for vertex in polygon:
+                dist = np.sqrt((canvas_x - vertex[0])**2 + (canvas_y - vertex[1])**2)
+                if dist < min_distance:
+                    min_distance = dist
+                    closest_point = vertex
+
+            # Check snapping to edges
+            for i in range(len(polygon)):
+                p1 = polygon[i]
+                p2 = polygon[(i + 1) % len(polygon)]
+
+                # Calculate distance from point to line segment
+                edge_snap = self._point_to_segment_distance(
+                    canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                )
+
+                if edge_snap and edge_snap['distance'] < min_distance:
+                    min_distance = edge_snap['distance']
+                    closest_point = (edge_snap['x'], edge_snap['y'])
+
+        return closest_point
+
+    def _point_to_segment_distance(self, px, py, x1, y1, x2, y2):
+        """
+        Calculates the shortest distance from point (px, py) to line segment (x1,y1)-(x2,y2).
+
+        Returns:
+            dict or None: {'distance': float, 'x': float, 'y': float} with the closest point on segment,
+                         or None if projection falls outside segment
+        """
+        # Vector from p1 to p2
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx == 0 and dy == 0:
+            # Degenerate segment (single point)
+            dist = np.sqrt((px - x1)**2 + (py - y1)**2)
+            return {'distance': dist, 'x': x1, 'y': y1}
+
+        # Parameter t for projection of point onto line
+        t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+
+        # Clamp t to [0, 1] to stay on segment
+        t = max(0, min(1, t))
+
+        # Closest point on segment
+        closest_x = x1 + t * dx
+        closest_y = y1 + t * dy
+
+        # Distance to closest point
+        dist = np.sqrt((px - closest_x)**2 + (py - closest_y)**2)
+
+        return {'distance': dist, 'x': closest_x, 'y': closest_y}
 
     def _on_canvas_click(self, event):
         """Handles single clicks on the canvas during polygon drawing."""
@@ -2618,6 +2580,11 @@ class ApplicationGUI:
         # Get canvas coordinates directly from event
         canvas_x = float(event.x)
         canvas_y = float(event.y)
+
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self._apply_snapping(canvas_x, canvas_y)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
 
         # If drawing an ROI, check if the point is inside the main arena
         if self.current_drawing_type == "roi":
@@ -2630,19 +2597,18 @@ class ApplicationGUI:
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
                 # Test canvas coordinates against canvas polygon
-                if (
-                    cv2.pointPolygonTest(
-                        np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
-                    )
-                    < 0
-                ):
+                # Allow points on the boundary (result >= 0) to support snapping to edges
+                result = cv2.pointPolygonTest(
+                    np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
+                )
+                if result < -0.5:  # Small tolerance for floating point errors
                     self.show_warning(
                         "Ponto Inválido",
                         "As Áreas de Interesse devem ser desenhadas dentro do "
                         "Polígono Principal.",
                     )
                     return
-        
+
         self.current_polygon_points.append((canvas_x, canvas_y))
 
         # Store both canvas and video coordinates
@@ -2675,24 +2641,48 @@ class ApplicationGUI:
             return
 
         self.roi_canvas.delete("elastic_line")
+        self.roi_canvas.delete("snap_indicator")  # Clear previous snap indicator
+
+        # Check for snapping
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+        snapped_point = self._apply_snapping(canvas_x, canvas_y)
+
+        # Use snapped point if available, otherwise use cursor position
+        display_x = snapped_point[0] if snapped_point else canvas_x
+        display_y = snapped_point[1] if snapped_point else canvas_y
+
+        # Draw snap indicator if snapping is active
+        if snapped_point:
+            # Draw a small circle to indicate snap point
+            self.roi_canvas.create_oval(
+                display_x - 5,
+                display_y - 5,
+                display_x + 5,
+                display_y + 5,
+                outline="cyan",
+                width=2,
+                tags="snap_indicator",
+            )
+
         last_point = self.current_polygon_points[-1]
         first_point = self.current_polygon_points[0]
 
-        # Line from last vertex to cursor
+        # Line from last vertex to cursor (or snap point)
         self.roi_canvas.create_line(
             last_point[0],
             last_point[1],
-            event.x,
-            event.y,
+            display_x,
+            display_y,
             fill="yellow",
             dash=(4, 4),
             tags="elastic_line",
         )
-        # Line from cursor to first vertex (if more than one point exists)
+        # Line from cursor (or snap point) to first vertex (if more than one point exists)
         if len(self.current_polygon_points) > 1:
             self.roi_canvas.create_line(
-                event.x,
-                event.y,
+                display_x,
+                display_y,
                 first_point[0],
                 first_point[1],
                 fill="yellow",
@@ -2702,29 +2692,14 @@ class ApplicationGUI:
 
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
-        if self.DEBUG_ZONES:
-            print("\n=== DEBUG ZONE SAVE ===")
-            num_points = (
-                len(self.current_polygon_points) if self.current_polygon_points else 0
-            )
-            print(f"1. Pontos a salvar: {num_points}")
-            print(f"2. Tipo: {self.current_drawing_type}")
-            print(f"3. Modo de desenho: {self.drawing_mode}")
-
         # Fix: Auto-detect drawing type if not set (for single video workflow)
         if self.current_drawing_type is None and self.drawing_mode == "polygon":
             # If no main arena exists, assume we're drawing it
             zone_data = self.controller.project_manager.get_zone_data()
             if not zone_data.polygon:
                 self.current_drawing_type = "arena"
-                if self.DEBUG_ZONES:
-                    print(
-                        "3.1. Auto-detectado como arena (não existe polygon principal)"
-                    )
             else:
                 self.current_drawing_type = "roi"
-                if self.DEBUG_ZONES:
-                    print("3.1. Auto-detectado como ROI (polygon principal já existe)")
 
         if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
             if self.current_polygon_points:
@@ -2742,20 +2717,12 @@ class ApplicationGUI:
             self.roi_canvas.delete("drawing_aid")
 
             if self.current_drawing_type == "arena":
-                if self.DEBUG_ZONES:
-                    print("4. Iniciando salvamento da arena...")
-
                 self.set_status("Salvando arena principal...")
 
                 # Salva o polígono no projeto
-                if self.DEBUG_ZONES:
-                    print("5. Chamando controller.set_main_arena_polygon...")
                 success = self.controller.set_main_arena_polygon(
                     self._poly_pts_video  # Use video coordinates instead
                 )
-
-                if self.DEBUG_ZONES:
-                    print(f"6. Resultado do salvamento: {success}")
 
                 if success:
                     # Agora redesenha tudo do zero com os dados salvos
@@ -2775,8 +2742,6 @@ class ApplicationGUI:
                         self.drawing_instruction_label = None
 
                     # Força redesenho com dados salvos
-                    if self.DEBUG_ZONES:
-                        print("7. Iniciando redesenho das zonas...")
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
@@ -2889,14 +2854,17 @@ class ApplicationGUI:
             # Configura cor do texto para arena
             self.zone_listbox.tag_configure("arena", foreground="darkcyan")
 
-        # Mapear cores RGB para nomes e hex
+        # Enable/disable ROI button based on arena existence
+        self._enable_roi_button_if_arena_exists()
+
+        # Mapear cores BGR (formato OpenCV) para nomes e hex
         color_map = {
             (0, 255, 0): ("Verde", "#00AA00"),
-            (0, 0, 255): ("Azul", "#0000AA"),
-            (255, 0, 0): ("Vermelho", "#AA0000"),
-            (255, 255, 0): ("Amarelo", "#AAAA00"),
-            (255, 0, 255): ("Magenta", "#AA00AA"),
-            (0, 255, 255): ("Ciano", "#00AAAA"),
+            (255, 0, 0): ("Azul", "#0000AA"),  # BGR
+            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR
+            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR
+            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR
+            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR
         }
 
         # ROIs com emojis, cores e tags
@@ -2925,18 +2893,20 @@ class ApplicationGUI:
             except Exception:
                 pass  # Fallback silencioso se a cor não for suportada
 
+    def _enable_roi_button_if_arena_exists(self):
+        """Habilita o botão de desenhar ROI se a arena principal existir."""
+        if not hasattr(self, 'draw_roi_button') or self.draw_roi_button is None:
+            return
+
+        zone_data = self.controller.project_manager.get_zone_data()
+        if zone_data.polygon:
+            self.draw_roi_button.config(state="normal")
+        else:
+            self.draw_roi_button.config(state="disabled")
+
     def redraw_zones_from_project_data(self):
         """Redesenha zonas preservando o background"""
         log.info("gui.redraw_zones.start")
-
-        if self.DEBUG_ZONES:
-            zone_data = self.controller.project_manager.get_zone_data()
-            print("\n=== DEBUG REDRAW ===")
-            print(f"1. Tem polygon? {bool(zone_data.polygon)}")
-            if zone_data.polygon:
-                print(f"2. Pontos no polygon: {len(zone_data.polygon)}")
-                print(f"3. Primeiros 3 pontos: {zone_data.polygon[:3]}")
-            print(f"4. Canvas items antes: {len(self.roi_canvas.find_all())}")
 
         # Apaga apenas elementos de zona, preserva background
         for tag in [
@@ -3010,13 +2980,14 @@ class ApplicationGUI:
             if len(polygon) < 3:
                 continue
 
-            # Cor da ROI
-            color_tuple = (
+            # Cor da ROI (armazenada em BGR para OpenCV)
+            color_bgr = (
                 zone_data.roi_colors[i]
                 if i < len(zone_data.roi_colors)
                 else (0, 255, 0)
             )
-            color_hex = f"#{color_tuple[0]:02x}{color_tuple[1]:02x}{color_tuple[2]:02x}"
+            # Convert BGR to RGB for Tkinter hex color
+            color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
 
             # Nome da ROI
             name = (
@@ -3082,18 +3053,6 @@ class ApplicationGUI:
 
         # Atualiza listbox
         self.update_zone_listbox()
-
-        if self.DEBUG_ZONES:
-            print(f"5. Canvas items depois: {len(self.roi_canvas.find_all())}")
-            print(
-                "6. Items com tag 'main_polygon': "
-                f"{len(self.roi_canvas.find_withtag('main_polygon'))}"
-            )
-            print(
-                "7. Items com tag 'background_image': "
-                f"{len(self.roi_canvas.find_withtag('background_image'))}"
-            )
-            print("=== FIM DEBUG REDRAW ===\n")
 
         log.info("gui.redraw_zones.complete")
 
@@ -3328,6 +3287,20 @@ class ApplicationGUI:
         Transitions from the welcome screen to the main control view and
         initializes the detector with the appropriate plugin.
         """
+        # Clean up any analysis overlay from single video workflow
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                self.overlay_progress_frame.destroy()
+            except Exception:
+                pass
+            self.overlay_progress_frame = None
+
         pm = self.controller.project_manager
 
         # Load persisted user preferences if present
@@ -3784,6 +3757,20 @@ class ApplicationGUI:
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
+        # Clean up any previous analysis overlay before starting new analysis
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                self.overlay_progress_frame.destroy()
+            except Exception:
+                pass
+            self.overlay_progress_frame = None
+
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
@@ -4089,7 +4076,8 @@ class ApplicationGUI:
         total_frames=None,
         processed_frames=None,
         detected_frames=None,
-        start_time=None
+        start_time=None,
+        current_frame=None
     ):
         """Update processing statistics in real-time during video analysis."""
         # Update both progress_labels (zones view) and overlay_progress_labels (analysis view)
@@ -4111,10 +4099,13 @@ class ApplicationGUI:
             if detected_frames is not None:
                 labels["detected"].set(str(detected_frames))
 
-            # Calculate and update percentage
-            if total_frames and processed_frames:
-                percent = (processed_frames / total_frames) * 100
-                labels["percent"].set(f"{percent:.1f}%")
+            # Calculate and update percentage based on actual frame position
+            # Use current_frame if available, otherwise fall back to processed_frames
+            if total_frames:
+                frame_for_percent = current_frame if current_frame is not None else processed_frames
+                if frame_for_percent is not None:
+                    percent = (frame_for_percent / total_frames) * 100
+                    labels["percent"].set(f"{percent:.1f}%")
 
             # Calculate elapsed time and ETA
             if start_time:
@@ -4122,10 +4113,12 @@ class ApplicationGUI:
                 elapsed = time.time() - start_time
                 labels["elapsed"].set(self._format_time(elapsed))
 
-                # Calculate ETA based on progress
-                if processed_frames and total_frames and processed_frames > 0:
-                    rate = processed_frames / elapsed
-                    remaining_frames = total_frames - processed_frames
+                # Calculate ETA based on actual frames processed (not analysis interval)
+                # Use current_frame if provided, otherwise fall back to processed_frames
+                frame_for_eta = current_frame if current_frame is not None else processed_frames
+                if frame_for_eta and total_frames and frame_for_eta > 0:
+                    rate = frame_for_eta / elapsed
+                    remaining_frames = total_frames - frame_for_eta
                     if rate > 0:
                         eta = remaining_frames / rate
                         labels["eta"].set(self._format_time(eta))
@@ -4465,7 +4458,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # Detection method configuration variables
         self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
         self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
-        self.use_openvino_var = BooleanVar(value=settings.model_selection.use_openvino)
+        self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
@@ -4931,14 +4924,14 @@ class ColorSelectionDialog(simpledialog.Dialog):
         """Cria o corpo do diálogo com opções de cores."""
         self.selected_color = StringVar(value="green")
 
-        # Cores disponíveis: (nome, valor_rgb, cor_hex)
+        # Cores disponíveis: (nome, valor_bgr para OpenCV, cor_hex para visualização)
         self.colors = [
             ("Verde", (0, 255, 0), "#00FF00"),
-            ("Azul", (0, 0, 255), "#0000FF"),
-            ("Vermelho", (255, 0, 0), "#FF0000"),
-            ("Amarelo", (255, 255, 0), "#FFFF00"),
-            ("Magenta", (255, 0, 255), "#FF00FF"),
-            ("Ciano", (0, 255, 255), "#00FFFF"),
+            ("Azul", (255, 0, 0), "#0000FF"),  # BGR: (255, 0, 0) = Blue
+            ("Vermelho", (0, 0, 255), "#FF0000"),  # BGR: (0, 0, 255) = Red
+            ("Amarelo", (0, 255, 255), "#FFFF00"),  # BGR: (0, 255, 255) = Yellow
+            ("Magenta", (255, 0, 255), "#FF00FF"),  # BGR: (255, 0, 255) = Magenta
+            ("Ciano", (255, 255, 0), "#00FFFF"),  # BGR: (255, 255, 0) = Cyan
         ]
 
         ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(

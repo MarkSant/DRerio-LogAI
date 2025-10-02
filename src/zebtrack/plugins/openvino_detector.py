@@ -172,12 +172,6 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        log.info(
-            "openvino.detect.after_postprocess",
-            detection_count=len(detections),
-            confidences=[float(det[4]) for det in detections] if detections else [],
-        )
-
         # 2. For single animal mode with large frame intervals, skip ByteTrack
         # ByteTrack needs continuous frames to maintain tracks, so with interval=30 it fails
         # Instead, directly convert detections to predictions with fixed track_id
@@ -194,8 +188,6 @@ class OpenVINOPlugin(DetectorPlugin):
                     1,  # Fixed track_id for single animal
                 )
             )
-
-        log.info("openvino.detect.final", prediction_count=len(predictions))
 
         return predictions
 
@@ -277,13 +269,6 @@ class OpenVINOPlugin(DetectorPlugin):
             self.model_input_shape, detections[:, :4], original_frame_shape
         ).round()
 
-        log.info(
-            "openvino.postprocess.raw_detections",
-            count=len(detections),
-            context=self._context,
-            aquarium_defined=self._aquarium_region_defined,
-        )
-
         final_detections = []
         filtered_count = 0
         for *xyxy, conf, cls in detections:
@@ -325,12 +310,6 @@ class OpenVINOPlugin(DetectorPlugin):
 
                     if not is_zebrafish:
                         filtered_count += 1
-                        log.info(
-                            "openvino.postprocess.filtered_detection",
-                            class_id=class_id,
-                            class_name=class_name,
-                            reason="aquarium_defined_and_not_zebrafish",
-                        )
                         continue
 
                 final_detections.append(
@@ -343,12 +322,6 @@ class OpenVINOPlugin(DetectorPlugin):
                         class_id,
                     )
                 )
-
-        log.info(
-            "openvino.postprocess.result",
-            final_count=len(final_detections),
-            filtered_count=filtered_count,
-        )
         return final_detections
 
     @staticmethod
