@@ -44,8 +44,10 @@ def test_create_project_dialog_has_interval_methods():
 
     # Find the CreateProjectDialog class and verify it has interval variables
     assert 'class CreateProjectDialog' in content
-    # The dialog should initialize these variables in its __init__ or body method
-    create_proj_section = content.split('class CreateProjectDialog')[1].split('class ')[0]
+    # The dialog should initialize these variables in its __init__ or body
+    # method
+    parts = content.split('class CreateProjectDialog')[1].split('class ')
+    create_proj_section = parts[0]
     assert 'analysis_interval_var' in create_proj_section
     assert 'display_interval_var' in create_proj_section
 

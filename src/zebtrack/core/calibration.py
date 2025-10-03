@@ -125,3 +125,23 @@ class Calibration:
             return frame
 
         return cv2.warpPerspective(frame, self.homography_matrix, self.target_dims_px)
+
+    def transform_points(self, points: list) -> list:
+        """
+        Transforms a list of points using the homography matrix.
+
+        Args:
+            points: List of [x, y] coordinates
+
+        Returns:
+            List of transformed [x, y] coordinates
+        """
+        if self.homography_matrix is None:
+            log.warning("calibration.transform.no_matrix", returning_original=True)
+            return points
+
+        # Convert to numpy array and reshape for cv2.perspectiveTransform
+        pts = np.array(points, dtype=np.float32).reshape(-1, 1, 2)
+        transformed = cv2.perspectiveTransform(pts, self.homography_matrix)
+        # Reshape back to list of [x, y]
+        return transformed.reshape(-1, 2).tolist()
