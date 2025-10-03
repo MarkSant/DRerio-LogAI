@@ -89,6 +89,7 @@ class AnalysisService:
         r_analyzer = ROIAnalyzer(
             behavior_analyzer=b_analyzer,
             rois=rois,
+            flutter_n_frames=1,  # Reduced to detect brief entries/exits
             inclusion_rule=settings.roi_inclusion_rule,
             buffer_radius_value=settings.roi_buffer_radius_value,
             min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio,

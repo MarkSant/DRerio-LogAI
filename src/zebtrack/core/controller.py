@@ -110,7 +110,9 @@ class AppController:
         log.info("controller.shutdown.complete")
 
     def close_project(self):
+        # Reset project manager
         self.project_manager = ProjectManager()
+        # _create_welcome_frame handles all UI cleanup
         self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
@@ -724,14 +726,41 @@ class AppController:
                 import cv2
                 import numpy as np
 
-                arena_poly = np.array(zone_data.polygon, dtype=np.int32)
+                arena_poly = np.array(zone_data.polygon, dtype=np.float32)
 
-                # Verifica se todos os pontos da ROI estão dentro da arena
-                points_outside = 0
+                # First pass: adjust points that are slightly outside (likely from snapping)
+                adjusted_points = []
+                # Calculate arena centroid once (convert to native Python float)
+                centroid_x = float(np.mean(arena_poly[:, 0]))
+                centroid_y = float(np.mean(arena_poly[:, 1]))
+
                 for point in roi_points:
+                    px, py = float(point[0]), float(point[1])
+                    result = cv2.pointPolygonTest(arena_poly, (px, py), True)  # True returns signed distance
+
+                    # If point is slightly outside (within 3 pixels), nudge it inside
+                    if -3.0 <= result < 0:
+                        # Move point toward centroid by 3 pixels
+                        dx = centroid_x - px
+                        dy = centroid_y - py
+                        length = float(np.sqrt(dx*dx + dy*dy))
+                        if length > 0:
+                            px += (dx / length) * 3.0
+                            py += (dy / length) * 3.0
+
+                    # Ensure values are native Python float, not numpy types
+                    adjusted_points.append([float(px), float(py)])
+
+                # Second pass: validate adjusted points
+                points_outside = 0
+                for point in adjusted_points:
                     result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
                     if result < 0:  # Ponto está fora
                         points_outside += 1
+
+                # If adjustment worked, use adjusted points
+                if points_outside == 0:
+                    roi_points = adjusted_points
 
                 if points_outside > 0:
                     outside_percent = (points_outside / len(roi_points)) * 100
@@ -1511,6 +1540,7 @@ class AppController:
 
             # --- New: Calculate pixel/cm ratio before recording ---
             pixel_per_cm_ratio = None
+            cal = None
             if calibration_data:
                 width_cm = calibration_data.get("aquarium_width_cm")
                 height_cm = calibration_data.get("aquarium_height_cm")
@@ -1526,6 +1556,7 @@ class AppController:
                 is_video_file=True,
                 base_name=experiment_id,
                 pixel_per_cm_ratio=pixel_per_cm_ratio,
+                calibration=cal,
             )
 
             frame_num = 0
@@ -1901,7 +1932,6 @@ class AppController:
                         continue
 
                 zone_data = self.project_manager.get_zone_data()
-                video_height_px = settings.camera.desired_height
                 if not all([width_cm, height_cm, arena_polygon_px]):
                     self.root.after(
                         0,
@@ -1912,14 +1942,31 @@ class AppController:
                     continue
 
                 cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
+                # Get warped dimensions from calibration
+                video_width_px, video_height_px = cal.target_dims_px
                 pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-                rois = [
-                    ROI(
-                        name=zone_data.roi_names[i],
-                        geometry=Polygon(p),
+
+                # Transform the original arena polygon to warped space
+                # This preserves the user's original drawing shape
+                arena_polygon_warped = cal.transform_points(arena_polygon_px)
+
+                # Transform ROI polygons from original video coordinates to warped coordinates
+                rois = []
+                for i, p in enumerate(zone_data.roi_polygons):
+                    # Transform ROI points from original to warped space
+                    warped_roi_points = cal.transform_points(p)
+                    # Convert warped points to cm
+                    roi_points_cm = [
+                        (x / pixelcm_x, (video_height_px - y) / pixelcm_y)
+                        for x, y in warped_roi_points
+                    ]
+                    rois.append(
+                        ROI(
+                            name=zone_data.roi_names[i],
+                            geometry=Polygon(roi_points_cm),
+                        )
                     )
-                    for i, p in enumerate(zone_data.roi_polygons)
-                ]
+
                 roi_colors = {
                     zone_data.roi_names[i]: color
                     for i, color in enumerate(zone_data.roi_colors)
@@ -1931,11 +1978,12 @@ class AppController:
                     pixelcm_x=pixelcm_x,
                     pixelcm_y=pixelcm_y,
                     video_height_px=video_height_px,
-                    arena_polygon_px=arena_polygon_px,
+                    arena_polygon_px=arena_polygon_warped,
                     rois=rois,
                     fps=settings.video_processing.fps,
                     roi_colors=roi_colors,
                     video_path=video_path,
+                    calibration=cal,
                     sharp_turn_threshold=st_thresh,
                     freezing_threshold=fz_thresh,
                     freezing_duration=fz_dur,

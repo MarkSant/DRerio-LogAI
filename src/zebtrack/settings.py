@@ -81,7 +81,7 @@ class VideoProcessingSettings(BaseModel):
         ),
     )
     sharp_turn_threshold_deg_s: float = 200.0
-    freezing_velocity_threshold: float = 0.5
+    freezing_velocity_threshold: float = 1.5
     freezing_min_duration_s: float = 1.0
     # Single animal tracking mode
     single_animal_per_aquarium: bool = Field(
