@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Manual verification for overlay integration logic."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_PATH = REPO_ROOT / "src"

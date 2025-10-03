@@ -17,7 +17,9 @@ def test_detection_mode_with_multiple_animals_blocked():
 
             # Also patch settings import in the controller module
             with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch('zebtrack.core.controller.ApplicationGUI') as MockApplicationGUI:
+                with patch(
+                    'zebtrack.core.controller.ApplicationGUI'
+                ) as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -67,7 +69,9 @@ def test_detection_mode_with_single_animal_allowed():
 
             # Also patch settings import in the controller module
             with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch('zebtrack.core.controller.ApplicationGUI') as MockApplicationGUI:
+                with patch(
+                    'zebtrack.core.controller.ApplicationGUI'
+                ) as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -115,7 +119,9 @@ def test_segmentation_mode_with_multiple_animals_allowed():
 
             # Also patch settings import in the controller module
             with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch('zebtrack.core.controller.ApplicationGUI') as MockApplicationGUI:
+                with patch(
+                    'zebtrack.core.controller.ApplicationGUI'
+                ) as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -164,7 +170,9 @@ def test_single_video_detection_mode_enforcement():
 
             # Also patch settings import in the controller module
             with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch('zebtrack.core.controller.ApplicationGUI') as MockApplicationGUI:
+                with patch(
+                    'zebtrack.core.controller.ApplicationGUI'
+                ) as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components

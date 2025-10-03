@@ -564,7 +564,9 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
-        self.live_options_frame.grid(row=12, column=0, columnspan=4, sticky="ew", padx=5)
+        self.live_options_frame.grid(
+            row=12, column=0, columnspan=4, sticky="ew", padx=5
+        )
         Checkbutton(
             self.live_options_frame,
             text="Usar gravação com tempo?",
@@ -1245,9 +1247,13 @@ class ApplicationGUI:
         CalibrationDialog(self.root, self.controller)
 
     def _on_tab_changed(self, event):
-        """Handle tab change event to ensure analysis overlay is hidden when not on analysis tab."""
+        """
+        Handle tab change event to ensure analysis overlay is hidden when not on
+        analysis tab.
+        """
         if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            # If analysis overlay is currently visible, hide it when switching away from zones tab
+            # If analysis overlay is currently visible, hide it when switching
+            # away from zones tab
             try:
                 if self.analysis_overlay_frame.winfo_ismapped():
                     current_tab = self.notebook.select()
@@ -1468,9 +1474,14 @@ class ApplicationGUI:
             col = idx % 3
             f = Frame(overlay_stats_container, bg="black")
             f.grid(row=row, column=col, padx=10, pady=2, sticky="w")
-            Label(f, text=label_text, bg="black", fg="white", font=("Arial", 9)).pack(side="left")
+            Label(
+                f, text=label_text, bg="black", fg="white", font=("Arial", 9)
+            ).pack(side="left")
             var = StringVar(value="-")
-            Label(f, textvariable=var, bg="black", fg="white", font=("Arial", 9, "bold")).pack(side="left", padx=5)
+            Label(
+                f, textvariable=var, bg="black", fg="white",
+                font=("Arial", 9, "bold")
+            ).pack(side="left", padx=5)
             self.overlay_progress_labels[key] = var
 
         # Cancel Analysis Button
@@ -2011,7 +2022,8 @@ class ApplicationGUI:
             canvas_point[1] - event.y
         )
 
-        # Bind motion and release to the entire canvas so events continue even when mouse leaves the handle
+        # Bind motion and release to the entire canvas so events continue even
+        # when mouse leaves the handle
         self.roi_canvas.bind("<B1-Motion>", self._on_handle_drag_global)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
 
@@ -2025,7 +2037,9 @@ class ApplicationGUI:
         canvas_y = float(event.y) + self._drag_offset[1]
 
         # Apply snapping to nearby vertices or edges
-        snapped_point = self._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        snapped_point = self._apply_snapping(
+            canvas_x, canvas_y, exclude_current_polygon=True
+        )
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
@@ -2036,7 +2050,7 @@ class ApplicationGUI:
         ):
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
             if main_arena_poly:
-                # Convert main arena polygon from video coordinates to canvas coordinates
+                # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
@@ -2044,7 +2058,8 @@ class ApplicationGUI:
 
                 # Test canvas coordinates against canvas polygon
                 result = cv2.pointPolygonTest(
-                    np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
+                    np.array(canvas_arena_poly, dtype=np.float32),
+                    (canvas_x, canvas_y), False
                 )
                 if result < 0:
                     # Point is outside arena, don't update
@@ -2052,7 +2067,9 @@ class ApplicationGUI:
 
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
-        self.edited_polygon_points[self._dragged_handle_index] = [video_point[0], video_point[1]]
+        self.edited_polygon_points[self._dragged_handle_index] = [
+            video_point[0], video_point[1]
+        ]
 
         # Redraw the entire interactive polygon and its handles
         self._draw_interactive_polygon()
@@ -2586,14 +2603,17 @@ class ApplicationGUI:
 
         self.set_status("Pronto.")
 
-    def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
+    def _apply_snapping(
+        self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10
+    ):
         """
         Applies snapping to nearby vertices or edges of existing polygons.
 
         Args:
             canvas_x (float): X coordinate in canvas space
             canvas_y (float): Y coordinate in canvas space
-            exclude_current_polygon (bool): If True, excludes the polygon currently being edited
+            exclude_current_polygon (bool): If True, excludes the polygon
+                currently being edited.
             snap_threshold (int): Maximum distance in pixels for snapping to occur
 
         Returns:
@@ -2661,11 +2681,13 @@ class ApplicationGUI:
 
     def _point_to_segment_distance(self, px, py, x1, y1, x2, y2):
         """
-        Calculates the shortest distance from point (px, py) to line segment (x1,y1)-(x2,y2).
+        Calculates the shortest distance from point (px, py) to line segment
+        (x1,y1)-(x2,y2).
 
         Returns:
-            dict or None: {'distance': float, 'x': float, 'y': float} with the closest point on segment,
-                         or None if projection falls outside segment
+            dict or None: {'distance': float, 'x': float, 'y': float} with the
+                         closest point on segment, or None if projection falls
+                         outside segment
         """
         # Vector from p1 to p2
         dx = x2 - x1
@@ -2710,16 +2732,17 @@ class ApplicationGUI:
         if self.current_drawing_type == "roi" and not snapped_point:
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
             if main_arena_poly:
-                # Convert main arena polygon from video coordinates to canvas coordinates
+                # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                # Test canvas coordinates against canvas polygon
-                # Allow points on the boundary (result >= 0) to support snapping to edges
+                # Test canvas coordinates against canvas polygon. Allow points on
+                # the boundary (result >= 0) to support snapping to edges
                 result = cv2.pointPolygonTest(
-                    np.array(canvas_arena_poly, dtype=np.float32), (canvas_x, canvas_y), False
+                    np.array(canvas_arena_poly, dtype=np.float32),
+                    (canvas_x, canvas_y), False
                 )
                 if result < -0.5:  # Small tolerance for floating point errors
                     self.show_warning(
@@ -2802,7 +2825,8 @@ class ApplicationGUI:
             dash=(4, 4),
             tags="elastic_line",
         )
-        # Line from cursor (or snap point) to first vertex (if more than one point exists)
+        # Line from cursor (or snap point) to first vertex (if more than one
+        # point exists)
         if len(self.current_polygon_points) > 1:
             self.roi_canvas.create_line(
                 display_x,
@@ -2984,11 +3008,11 @@ class ApplicationGUI:
         # Mapear cores BGR (formato OpenCV) para nomes e hex
         color_map = {
             (0, 255, 0): ("Verde", "#00AA00"),
-            (255, 0, 0): ("Azul", "#0000AA"),  # BGR
-            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR
-            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR
-            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR
-            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR
+            (255, 0, 0): ("Azul", "#0000AA"),  # BGR: (255, 0, 0) = Blue
+            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR: (0, 0, 255) = Red
+            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR: (0, 255, 255) = Yellow
+            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR: (255, 0, 255) = Magenta
+            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR: (255, 255, 0) = Cyan
         }
 
         # ROIs com emojis, cores e tags
@@ -4031,7 +4055,7 @@ class ApplicationGUI:
             )
             return
 
-        # 2. Disable the button (intervals already set in pending_single_video_config from dialog)
+        # 2. Disable the button
         self.start_single_analysis_btn.config(state="disabled")
         self.controller.start_single_video_processing(
             self.pending_single_video_path,
@@ -4203,9 +4227,10 @@ class ApplicationGUI:
     def display_analysis_frame(self, frame):
         """Display analysis frame in the overlay instead of separate progress bar."""
         try:
-            # During analysis, frames should already have overlays (detection boxes + zones)
-            # applied by the detector.draw_overlay in the controller.
-            # We use the frame as-is to preserve the detection bounding boxes.
+            # During analysis, frames should already have overlays
+            # (detection boxes + zones) applied by the detector.draw_overlay in
+            # the controller. We use the frame as-is to preserve the detection
+            # bounding boxes.
             frame_to_display = frame.copy()
 
             # Converte e embute na análise overlay
@@ -4242,7 +4267,8 @@ class ApplicationGUI:
         current_frame=None
     ):
         """Update processing statistics in real-time during video analysis."""
-        # Update both progress_labels (zones view) and overlay_progress_labels (analysis view)
+        # Update both progress_labels (zones view) and overlay_progress_labels
+        # (analysis view)
         labels_to_update = []
         if self.progress_labels:
             labels_to_update.append(self.progress_labels)
@@ -4264,7 +4290,9 @@ class ApplicationGUI:
             # Calculate and update percentage based on actual frame position
             # Use current_frame if available, otherwise fall back to processed_frames
             if total_frames:
-                frame_for_percent = current_frame if current_frame is not None else processed_frames
+                frame_for_percent = (
+                    current_frame if current_frame is not None else processed_frames
+                )
                 if frame_for_percent is not None:
                     percent = (frame_for_percent / total_frames) * 100
                     labels["percent"].set(f"{percent:.1f}%")
@@ -4275,9 +4303,12 @@ class ApplicationGUI:
                 elapsed = time.time() - start_time
                 labels["elapsed"].set(self._format_time(elapsed))
 
-                # Calculate ETA based on actual frames processed (not analysis interval)
-                # Use current_frame if provided, otherwise fall back to processed_frames
-                frame_for_eta = current_frame if current_frame is not None else processed_frames
+                # Calculate ETA based on actual frames processed (not analysis
+                # interval). Use current_frame if provided, otherwise fall back
+                # to processed_frames
+                frame_for_eta = (
+                    current_frame if current_frame is not None else processed_frames
+                )
                 if frame_for_eta and total_frames and frame_for_eta > 0:
                     rate = frame_for_eta / elapsed
                     remaining_frames = total_frames - frame_for_eta
@@ -4417,7 +4448,8 @@ class ApplicationGUI:
                 self.setup_interactive_polygon(polygon_points)
                 self.current_editing_zone = ("roi", roi_index, roi_name)
                 self.set_status(
-                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
+                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos "
+                    "amarelos."
                 )
 
             except (ValueError, IndexError):
@@ -4618,8 +4650,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.display_interval_var = StringVar(value="10")
 
         # Detection method configuration variables
-        self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
-        self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
+        self.aquarium_method_var = StringVar(
+            value=settings.model_selection.aquarium_method
+        )
+        self.animal_method_var = StringVar(
+            value=settings.model_selection.animal_method
+        )
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
         # --- Layout ---
@@ -4697,14 +4733,18 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         ttk.Label(interval_frame, text="Intervalo de Análise (frames):").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(interval_frame, textvariable=self.analysis_interval_var, width=10).grid(
+        ttk.Entry(
+            interval_frame, textvariable=self.analysis_interval_var, width=10
+        ).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
         ttk.Label(interval_frame, text="Intervalo de Exibição (frames):").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(interval_frame, textvariable=self.display_interval_var, width=10).grid(
+        ttk.Entry(
+            interval_frame, textvariable=self.display_interval_var, width=10
+        ).grid(
             row=1, column=1, sticky="w", padx=5
         )
 

@@ -124,34 +124,37 @@ class WeightManager:
         """Initializes the config with the default weight from settings."""
         log.info("weights.config.initializing_default")
         self.weights = {}
-        
+
         # Check for both seg and det weights from settings
         potential_weights = []
-        
-        # Add weights from the new settings - register them even if files don't exist yet
-        # This allows the weight management system to be configured before files are available
+
+        # Add weights from the new settings - register them even if files don't
+        # exist yet. This allows the weight management system to be configured
+        # before files are available.
         if settings.weights.seg_filename:
             potential_weights.append(("seg", settings.weights.seg_filename))
         if settings.weights.det_filename:
             potential_weights.append(("det", settings.weights.det_filename))
-        
+
         # Check the legacy yolo_model.path for backward compatibility
         legacy_path = settings.yolo_model.path
         if legacy_path:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
             # Add legacy path if it's not already in potential_weights
-            legacy_already_added = any(filename == legacy_path for _, filename in potential_weights)
+            legacy_already_added = any(
+                filename == legacy_path for _, filename in potential_weights
+            )
             if not legacy_already_added:
                 potential_weights.append((legacy_type or "seg", legacy_path))
-        
+
         weights_found = False
         for weight_type, filename in potential_weights:
             weight_name = os.path.basename(filename)
             classified_type = self._classify_weight_type(weight_name)
             # Use classified type if available, otherwise use the expected type
             final_type = classified_type or weight_type
-            
+
             self.weights[weight_name] = {
                 "path": filename,
                 "is_default": True,  # Keep for backward compatibility
@@ -162,15 +165,22 @@ class WeightManager:
                 "openvino_hash": "",
             }
             weights_found = True
-            log.info("weights.config.weight_initialized", name=weight_name, type=final_type, path=filename)
-        
+            log.info(
+                "weights.config.weight_initialized",
+                name=weight_name,
+                type=final_type,
+                path=filename,
+            )
+
         if weights_found:
             self.save_weights()
         else:
-            log.warning("weights.config.no_weights_found", 
-                       seg_filename=settings.weights.seg_filename,
-                       det_filename=settings.weights.det_filename,
-                       legacy_path=legacy_path)
+            log.warning(
+                "weights.config.no_weights_found",
+                seg_filename=settings.weights.seg_filename,
+                det_filename=settings.weights.det_filename,
+                legacy_path=legacy_path,
+            )
 
     def save_weights(self):
         """Saves the current weights configuration to the JSON file."""
