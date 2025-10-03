@@ -4,6 +4,7 @@ from pathlib import Path
 
 import cv2
 import matplotlib
+
 matplotlib.use('Agg')  # Use non-interactive backend to avoid GUI thread warnings
 import matplotlib.pyplot as plt
 import numpy as np
@@ -265,7 +266,12 @@ class Reporter:
                 pixelcm_x = self.b_analyzer._pixelcm_x
                 pixelcm_y = self.b_analyzer._pixelcm_y
                 # Frame coordinates in cm
-                frame_extent = (0, frame_width_px / pixelcm_x, 0, frame_height_px / pixelcm_y)
+                frame_extent = (
+                    0,
+                    frame_width_px / pixelcm_x,
+                    0,
+                    frame_height_px / pixelcm_y,
+                )
                 ax.imshow(
                     cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
                     extent=frame_extent,
@@ -395,7 +401,10 @@ class Reporter:
                 transform=ax.transAxes,
             )
 
-        ax.set_title(f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}")
+        title = (
+            f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}"
+        )
+        ax.set_title(title)
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
@@ -444,7 +453,8 @@ class Reporter:
                 label="Sharp Turns",
             )
 
-        ax.set_title(f"Angular Velocity - {self.metadata.get('experiment_id', 'Unknown')}")
+        title = f"Angular Velocity - {self.metadata.get('experiment_id', 'Unknown')}"
+        ax.set_title(title)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Angular Velocity (deg/s)")
         ax.legend()
@@ -467,7 +477,10 @@ class Reporter:
         ax.plot(time_seconds, traj_data["x_cm_smoothed"], label="X coordinate (cm)")
         ax.plot(time_seconds, traj_data["y_cm_smoothed"], label="Y coordinate (cm)")
 
-        ax.set_title(f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}")
+        title = (
+            f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}"
+        )
+        ax.set_title(title)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Position (cm)")
         ax.legend()
@@ -523,9 +536,10 @@ class Reporter:
         document = Document()
 
         # Step 1: Create document and add metadata
-        document.add_heading(
-            f"Analysis Report - {self.metadata.get('experiment_id', 'Unknown')}", level=1
+        heading_text = (
+            f"Analysis Report - {self.metadata.get('experiment_id', 'Unknown')}"
         )
+        document.add_heading(heading_text, level=1)
         document.add_heading("Experiment Metadata", level=2)
         for key, value in self.metadata.items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")

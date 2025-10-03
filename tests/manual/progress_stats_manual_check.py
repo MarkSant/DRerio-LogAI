@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Manual checks for progress statistics integration."""
-from pathlib import Path
 import sys
 import time
 import tkinter as tk
+from pathlib import Path
 from unittest.mock import MagicMock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -11,7 +11,7 @@ SRC_PATH = REPO_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from zebtrack.ui.gui import ApplicationGUI  # noqa: E402  pylint: disable=wrong-import-position
+from zebtrack.ui.gui import ApplicationGUI  # noqa: E402
 
 
 def test_update_processing_stats() -> None:
@@ -61,7 +61,9 @@ def test_progress_callback_signature() -> None:
         "start_time": time.time() - 5,
     }
 
-    def test_progress_callback(progress_fraction, status_message, frame=None, stats=None):
+    def test_progress_callback(
+        progress_fraction, status_message, frame=None, stats=None
+    ):
         del progress_fraction, status_message, frame
         if stats:
             mock_view.update_processing_stats(

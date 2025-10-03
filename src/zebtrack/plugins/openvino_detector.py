@@ -172,9 +172,10 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        # 2. For single animal mode with large frame intervals, skip ByteTrack
-        # ByteTrack needs continuous frames to maintain tracks, so with interval=30 it fails
-        # Instead, directly convert detections to predictions with fixed track_id
+        # 2. For single animal mode with large frame intervals, skip ByteTrack.
+        # ByteTrack needs continuous frames to maintain tracks, so with a large
+        # interval (e.g., 30 frames) it fails.
+        # Instead, directly convert detections to predictions with fixed track_id.
         predictions = []
         for det in detections:
             x1, y1, x2, y2, conf, class_id = det

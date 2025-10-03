@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Manual validation for interval frames configuration."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_PATH = REPO_ROOT / "src"
@@ -25,15 +25,19 @@ def validate_changes() -> None:
     assert 'text="Intervalo de Análise (frames):"' in gui_content
     assert 'text="Intervalo de Exibição (frames):"' in gui_content
     print("✓ Interval UI elements present")
-    assert '"analysis_interval_frames": int(self.analysis_interval_var.get())' in gui_content
-    assert '"display_interval_frames": int(self.display_interval_var.get())' in gui_content
+    assert '"analysis_interval_frames": ' \
+           'int(self.analysis_interval_var.get())' in gui_content
+    assert '"display_interval_frames": ' \
+           'int(self.display_interval_var.get())' in gui_content
     print("✓ Apply method includes intervals")
     assert 'analysis_interval = int(self.analysis_interval_var.get())' in gui_content
     assert 'display_interval = int(self.display_interval_var.get())' in gui_content
     print("✓ Validation method checks intervals")
 
-    createproject_analysis_var = gui_content.count('self.analysis_interval_var = StringVar(value="10")')
-    createproject_display_var = gui_content.count('self.display_interval_var = StringVar(value="10")')
+    analysis_var_str = 'self.analysis_interval_var = StringVar(value="10")'
+    display_var_str = 'self.display_interval_var = StringVar(value="10")'
+    createproject_analysis_var = gui_content.count(analysis_var_str)
+    createproject_display_var = gui_content.count(display_var_str)
     assert createproject_analysis_var >= 2
     assert createproject_display_var >= 2
     print("✓ CreateProjectDialog also has interval variables")
@@ -71,7 +75,8 @@ def main() -> None:
     print("5. ✅ Enhanced ProjectManager to accept and store intervals")
     print("6. ✅ Fixed controller workflow to pass all dialog parameters")
     print("\nBehavior changes:")
-    print("- Users can now configure analysis and display intervals before starting analysis")
+    print("- Users can now configure analysis and display intervals before starting "
+          "analysis")
     print("- Single video workflow respects user-defined intervals")
     print("- Project creation workflow respects user-defined intervals")
     print("- Default intervals are 10 frames (maintaining existing behavior)")

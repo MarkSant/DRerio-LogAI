@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Simplified progress statistics sanity checks."""
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_PATH = REPO_ROOT / "src"
@@ -20,11 +20,14 @@ def test_controller_stats_structure() -> None:
         "start_time": 1_234_567_890.0,
     }
 
-    def test_progress_callback(progress_fraction, status_message, frame=None, stats=None):
+    def test_progress_callback(
+        progress_fraction, status_message, frame=None, stats=None
+    ):
         del progress_fraction, status_message, frame
         if stats:
             print(
-                "Stats - Total: {total}, Processed: {processed}, Detected: {detected}".format(
+                "Stats - Total: {total}, Processed: {processed}, "
+                "Detected: {detected}".format(
                     total=stats.get("total_frames"),
                     processed=stats.get("processed_frames"),
                     detected=stats.get("detected_frames"),
@@ -46,7 +49,6 @@ def test_statistics_calculations() -> None:
     start_time = time.time() - 10
     total_frames = 1000
     processed_frames = 250
-    detected_frames = 180
 
     expected_percent = (processed_frames / total_frames) * 100
     assert expected_percent == 25.0
@@ -67,8 +69,9 @@ def test_statistics_calculations() -> None:
 def test_import_structure() -> None:
     """Confirm modules import cleanly."""
     print("Testing module imports...")
-    from zebtrack.core import controller  # noqa: WPS433  pylint: disable=import-outside-toplevel
-    from zebtrack import settings  # noqa: WPS433  pylint: disable=import-outside-toplevel
+    # noqa: E402
+    from zebtrack import settings
+    from zebtrack.core import controller
 
     assert hasattr(controller, "AppController")
     assert settings is not None

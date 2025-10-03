@@ -329,17 +329,27 @@ class ROIAnalyzer:
             return {name: {"seconds": 0.0, "percentage": 0.0} for name in self._rois}
 
         # Convert total_time Timedelta to seconds
-        total_time_seconds = total_time.total_seconds() if hasattr(total_time, 'total_seconds') else float(total_time)
+        total_time_seconds = (
+            total_time.total_seconds()
+            if hasattr(total_time, 'total_seconds')
+            else float(total_time)
+        )
 
         for name in self._rois:
             time_in_roi = self._trajectory.loc[
                 self._trajectory[f"in_{name}_stable"], "dt"
             ].sum()
             # Convert time_in_roi Timedelta to seconds
-            time_in_roi_seconds = time_in_roi.total_seconds() if hasattr(time_in_roi, 'total_seconds') else float(time_in_roi)
+            time_in_roi_seconds = (
+                time_in_roi.total_seconds()
+                if hasattr(time_in_roi, 'total_seconds')
+                else float(time_in_roi)
+            )
             results[name] = {
                 "seconds": time_in_roi_seconds,
-                "percentage": (time_in_roi_seconds / total_time_seconds) * 100 if total_time_seconds > 0 else 0.0,
+                "percentage": (time_in_roi_seconds / total_time_seconds) * 100
+                if total_time_seconds > 0
+                else 0.0,
             }
         return results
 
@@ -361,7 +371,11 @@ class ROIAnalyzer:
             ):
                 latency = first_entry_time - start_time
                 # Convert Timedelta to seconds
-                results[name] = latency.total_seconds() if hasattr(latency, 'total_seconds') else float(latency)
+                results[name] = (
+                    latency.total_seconds()
+                    if hasattr(latency, 'total_seconds')
+                    else float(latency)
+                )
             else:
                 results[name] = None
         return results

@@ -91,7 +91,10 @@ def test_detector_draw_overlay_completeness() -> Tuple[bool, str]:
     ]
     for element_name, pattern in required_elements:
         if pattern not in method_code:
-            return False, f"draw_overlay doesn't draw {element_name} (missing: {pattern})"
+            return False, (
+                f"draw_overlay doesn't draw {element_name} "
+                f"(missing: {pattern})"
+            )
 
     return True, "draw_overlay draws all required elements"
 
@@ -109,9 +112,15 @@ def test_backward_compatibility() -> Tuple[bool, str]:
 
     method_code = content[start:end]
     if '_draw_zones_on_frame(frame.copy())' not in method_code:
-        return False, "display_frame should still call _draw_zones_on_frame for backward compatibility"
+        return False, (
+            "display_frame should still call _draw_zones_on_frame for "
+            "backward compatibility"
+        )
     if 'self.display_analysis_frame(frame)' not in method_code:
-        return False, "display_frame should route to display_analysis_frame during analysis"
+        return False, (
+            "display_frame should route to display_analysis_frame during "
+            "analysis"
+        )
 
     return True, "Backward compatibility maintained"
 

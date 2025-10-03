@@ -53,7 +53,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             classes_param = None
         else:
             # Tracking after aquarium: only zebrafish
-            # Accept both class 0 and 1 as zebrafish (different models may use different indices)
+            # Accept both class 0 and 1 as zebrafish (different models may use
+            # different indices)
             zebrafish_classes = []
             for class_id, class_name in self.model.names.items():
                 if "zebrafish" in class_name.lower():
