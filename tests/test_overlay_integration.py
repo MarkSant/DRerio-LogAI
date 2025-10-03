@@ -33,7 +33,11 @@ class TestOverlayIntegration(unittest.TestCase):
         """Test that detector.draw_overlay is called in _run_tracking_if_needed."""
         with patch('zebtrack.core.controller.cv2') as mock_cv2, \
              patch('zebtrack.core.controller.Recorder') as MockRecorder, \
+             patch('zebtrack.core.controller.os.path.exists') as mock_exists, \
              patch('zebtrack.core.controller.log'):  # Removed unused mock_log
+
+            # Mock that trajectory file doesn't exist yet
+            mock_exists.return_value = False
 
             # Mock video capture
             mock_cap = MagicMock()
@@ -44,8 +48,17 @@ class TestOverlayIntegration(unittest.TestCase):
                 cv2.CAP_PROP_FRAME_COUNT: 10,
                 cv2.CAP_PROP_POS_MSEC: 1000.0
             }.get(prop, 0)
-            mock_cap.read.return_value = (True, self.test_frame.copy())
+            # Return 3 frames, then signal end of video
+            mock_cap.read.side_effect = [
+                (True, self.test_frame.copy()),
+                (True, self.test_frame.copy()),
+                (True, self.test_frame.copy()),
+                (False, None)
+            ]
+            mock_cap.release = MagicMock()
             mock_cv2.VideoCapture.return_value = mock_cap
+
+            print(f"Mock cap configured: isOpened={mock_cap.isOpened()}")
 
             # Create mock detector
             mock_detector = MagicMock(spec=Detector)
@@ -54,13 +67,25 @@ class TestOverlayIntegration(unittest.TestCase):
 
             # Create controller with mocked components
             mock_root = MagicMock()
-            with patch('zebtrack.core.controller.ApplicationGUI'), \
-                 patch('zebtrack.core.controller.ProjectManager') as MockPM:
+            with patch('zebtrack.core.controller.ApplicationGUI') as MockGUI, \
+                 patch('zebtrack.core.controller.ProjectManager') as MockPM, \
+                 patch('zebtrack.core.controller.WeightManager') as MockWM:
                 # Mock project manager
                 mock_pm = MagicMock()
                 zone_data = ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
                 mock_pm.get_zone_data.return_value = zone_data
                 MockPM.return_value = mock_pm
+
+                # Mock weight manager
+                mock_wm = MagicMock()
+                mock_wm.get_default_weight.return_value = ("test_weight.pt", {"path": "test_weight.pt"})
+                MockWM.return_value = mock_wm
+
+                # Mock GUI with necessary methods
+                mock_view = MagicMock()
+                mock_view.set_status = MagicMock()
+                mock_view.update_idletasks = MagicMock()
+                MockGUI.return_value = mock_view
 
                 controller = AppController(mock_root)
             controller.detector = mock_detector
@@ -75,14 +100,17 @@ class TestOverlayIntegration(unittest.TestCase):
             captured_frames = []
 
             def capture_progress_callback(
-                progress_fraction, status_message, frame=None
+                progress_fraction, status_message, frame=None, stats=None
             ):
                 if frame is not None:
                     captured_frames.append(frame)
 
             # Run the tracking method
+            print(f"detector is: {controller.detector}")
+            print(f"detector.draw_overlay is: {controller.detector.draw_overlay}")
+
             try:
-                controller._run_tracking_if_needed(
+                result = controller._run_tracking_if_needed(
                     "test_video.mp4",
                     "/tmp/test_results",
                     "test_experiment",
@@ -90,8 +118,15 @@ class TestOverlayIntegration(unittest.TestCase):
                     analysis_interval_frames=1,
                     display_interval_frames=1
                 )
-            except Exception:
-                pass  # We expect some exceptions due to mocking
+                print(f"Result: {result}")
+            except Exception as e:
+                # Print exception for debugging
+                print(f"Exception during _run_tracking_if_needed: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
+
+            print(f"draw_overlay was called: {mock_detector.draw_overlay.called}")
+            print(f"draw_overlay call count: {mock_detector.draw_overlay.call_count}")
 
             # Verify that draw_overlay was called
             self.assertTrue(
