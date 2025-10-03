@@ -24,6 +24,12 @@ def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(filepath, fourcc, fps, (width, height))
 
+    if not writer.isOpened():
+        raise RuntimeError(
+            f"Failed to create video writer for {filepath}. "
+            "This may be due to missing video codecs (e.g., ffmpeg, libavcodec)."
+        )
+
     for i in range(duration_s * fps):
         frame = np.zeros((height, width, 3), dtype=np.uint8)
         # Draw a white square that moves across the screen
@@ -32,6 +38,15 @@ def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
         writer.write(frame)
 
     writer.release()
+
+    # Verify the video was created and is readable
+    test_cap = cv2.VideoCapture(str(filepath))
+    if not test_cap.isOpened():
+        raise RuntimeError(
+            f"Video file {filepath} was created but cannot be opened. "
+            "This may indicate codec issues."
+        )
+    test_cap.release()
 
 
 class MockPluginForIntegration(DetectorPlugin):
@@ -67,7 +82,11 @@ def integration_test_setup(tmp_path):
     for the integration test.
     """
     video_path = tmp_path / "mock_video.mp4"
-    generate_mock_video(video_path)
+
+    try:
+        generate_mock_video(video_path)
+    except RuntimeError as e:
+        pytest.skip(f"Cannot generate mock video: {e}")
 
     # Directory to save the intermediate tracking results
     tracking_output_dir = tmp_path / "tracking_results"
