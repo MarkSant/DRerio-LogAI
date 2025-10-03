@@ -150,11 +150,10 @@ class AppController:
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
 
-        # Store detection methods for use in processing workflows
-        # These will override global settings when processing project videos
-        if "aquarium_method" in kwargs and "animal_method" in kwargs:
-            kwargs["temp_aquarium_method"] = kwargs["aquarium_method"]
-            kwargs["temp_animal_method"] = kwargs["animal_method"]
+        # Extract and remove detection methods from kwargs (they're used by controller, not ProjectManager)
+        # These methods are stored in the detector_config after setup_detector() is called
+        aquarium_method_temp = kwargs.pop("aquarium_method", None)
+        animal_method_temp = kwargs.pop("animal_method", None)
 
         if self.project_manager.create_new_project(**kwargs):
             if self.setup_detector():
