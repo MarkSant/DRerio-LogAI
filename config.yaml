@@ -35,7 +35,7 @@ video_processing:
   # Threshold for detecting a "sharp turn" in degrees per second.
   sharp_turn_threshold_deg_s: 90.0
   # Velocity threshold for freezing detection (cm/s).
-  freezing_velocity_threshold: 2.0
+  freezing_velocity_threshold: 1.5
   # Minimum duration for a freezing episode (seconds).
   freezing_min_duration_s: 1.0
   # Single animal tracking mode - ensures consistent track_id=1
@@ -61,4 +61,4 @@ weights:
 # ROI inclusion rule settings
 roi_inclusion_rule: "bbox_intersects"
 roi_buffer_radius_value: 0.5
-roi_min_bbox_overlap_ratio: 0.10
+roi_min_bbox_overlap_ratio: 0.05  # Reduced from 0.10 to detect more tangential entries

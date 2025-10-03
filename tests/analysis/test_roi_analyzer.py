@@ -43,6 +43,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
         self.mock_b_analyzer._pixelcm_x = 10.0  # For internal access
         self.mock_b_analyzer.pixelcm_y = 10.0
         self.mock_b_analyzer._pixelcm_y = 10.0  # For internal access
+        self.mock_b_analyzer._video_height_px = 300  # Video height in pixels
 
         # Create a simple rectangular ROI from x=10-20cm, y=10-20cm
         self.roi_polygon = Polygon([(10, 10), (20, 10), (20, 20), (10, 20)])

@@ -1069,24 +1069,119 @@ class ApplicationGUI:
         """Creates the initial UI for project selection and model configuration."""
         self._cleanup_single_analysis_button()
 
-        # Clean up analysis overlay and progress frames BEFORE destroying notebook
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+        # CRITICAL: Force process all pending GUI events before cleanup
+        # This ensures all scheduled callbacks are executed
+        self.root.update_idletasks()
+
+        # Clean up all overlay-related widgets and their references
+        # This must be done before destroying the notebook
+        # IMPORTANT: First pack_forget ALL widgets to prevent them from being
+        # re-parented when their parents are destroyed
+
+        # Step 1: Unpack all child widgets in reverse order (deepest first)
+        if hasattr(self, 'analysis_video_label') and self.analysis_video_label:
             try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.pack_forget()
-                    self.analysis_overlay_frame.destroy()
+                if self.analysis_video_label.winfo_exists():
+                    self.analysis_video_label.pack_forget()
             except Exception:
                 pass
-            self.analysis_overlay_frame = None
+
+        if hasattr(self, 'overlay_cancel_btn') and self.overlay_cancel_btn:
+            try:
+                if self.overlay_cancel_btn.winfo_exists():
+                    self.overlay_cancel_btn.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'overlay_progress_bar') and self.overlay_progress_bar:
+            try:
+                if self.overlay_progress_bar.winfo_exists():
+                    self.overlay_progress_bar.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'overlay_status_label') and self.overlay_status_label:
+            try:
+                if self.overlay_status_label.winfo_exists():
+                    self.overlay_status_label.pack_forget()
+            except Exception:
+                pass
 
         if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
             try:
                 if self.overlay_progress_frame.winfo_exists():
                     self.overlay_progress_frame.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'roi_canvas') and self.roi_canvas:
+            try:
+                if self.roi_canvas.winfo_exists():
+                    self.roi_canvas.pack_forget()
+            except Exception:
+                pass
+
+        # Force GUI update after unpacking
+        self.root.update_idletasks()
+
+        # Step 2: Clear widget references
+        if hasattr(self, 'overlay_progress_bar'):
+            self.overlay_progress_bar = None
+        if hasattr(self, 'overlay_status_label'):
+            self.overlay_status_label = None
+        if hasattr(self, 'overlay_cancel_btn'):
+            self.overlay_cancel_btn = None
+        if hasattr(self, 'overlay_progress_labels'):
+            self.overlay_progress_labels = {}
+        if hasattr(self, 'analysis_video_label'):
+            self.analysis_video_label = None
+
+        # Step 3: Destroy widgets (from deepest to shallowest)
+        # Destroy all child widgets of overlay_progress_frame first
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                if self.overlay_progress_frame.winfo_exists():
+                    # Destroy all children first
+                    for child in self.overlay_progress_frame.winfo_children():
+                        try:
+                            child.destroy()
+                        except Exception:
+                            pass
                     self.overlay_progress_frame.destroy()
             except Exception:
                 pass
             self.overlay_progress_frame = None
+
+        # Destroy analysis_overlay_frame (child of viz_frame)
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    # Destroy all children first
+                    for child in self.analysis_overlay_frame.winfo_children():
+                        try:
+                            child.destroy()
+                        except Exception:
+                            pass
+                    self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
+
+        # Destroy viz_frame (parent frame)
+        if hasattr(self, 'viz_frame') and self.viz_frame:
+            try:
+                if self.viz_frame.winfo_exists():
+                    self.viz_frame.destroy()
+            except Exception:
+                pass
+            self.viz_frame = None
 
         # Clean up zone tab frame components
         if hasattr(self, 'zone_tab_frame') and self.zone_tab_frame:
@@ -1097,12 +1192,16 @@ class ApplicationGUI:
                 pass
             self.zone_tab_frame = None
 
+        # Destroy notebook and main controls
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
         if self.main_controls_frame:
             self.main_controls_frame.destroy()
             self.main_controls_frame = None
+
+        # Force final GUI update before creating welcome frame
+        self.root.update_idletasks()
 
         self.root.geometry("")  # Let it resize
         self.welcome_frame = ttk.Frame(self.root, padding="10")
@@ -2607,7 +2706,8 @@ class ApplicationGUI:
             canvas_x, canvas_y = snapped_point
 
         # If drawing an ROI, check if the point is inside the main arena
-        if self.current_drawing_type == "roi":
+        # Skip validation if point was snapped (will be adjusted when saving)
+        if self.current_drawing_type == "roi" and not snapped_point:
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coordinates to canvas coordinates
@@ -2657,7 +2757,7 @@ class ApplicationGUI:
 
     def _on_canvas_motion(self, event):
         """Handles mouse movement for drawing elastic lines."""
-        if self.drawing_mode != "polygon" or not self.current_polygon_points:
+        if self.drawing_mode != "polygon":
             return
 
         self.roi_canvas.delete("elastic_line")
@@ -2684,6 +2784,10 @@ class ApplicationGUI:
                 width=2,
                 tags="snap_indicator",
             )
+
+        # If no points yet, only show snap indicator
+        if not self.current_polygon_points:
+            return
 
         last_point = self.current_polygon_points[-1]
         first_point = self.current_polygon_points[0]
@@ -3308,18 +3412,37 @@ class ApplicationGUI:
         initializes the detector with the appropriate plugin.
         """
         # Clean up any analysis overlay from single video workflow
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                self.analysis_overlay_frame.destroy()
-            except Exception:
-                pass
-            self.analysis_overlay_frame = None
+        # First pack_forget to prevent re-parenting issues
         if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
             try:
-                self.overlay_progress_frame.destroy()
+                if self.overlay_progress_frame.winfo_exists():
+                    self.overlay_progress_frame.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.pack_forget()
+            except Exception:
+                pass
+
+        # Then destroy
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                if self.overlay_progress_frame.winfo_exists():
+                    self.overlay_progress_frame.destroy()
             except Exception:
                 pass
             self.overlay_progress_frame = None
+
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
 
         pm = self.controller.project_manager
 
@@ -3778,18 +3901,37 @@ class ApplicationGUI:
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
         # Clean up any previous analysis overlay before starting new analysis
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                self.analysis_overlay_frame.destroy()
-            except Exception:
-                pass
-            self.analysis_overlay_frame = None
+        # First pack_forget to prevent re-parenting issues
         if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
             try:
-                self.overlay_progress_frame.destroy()
+                if self.overlay_progress_frame.winfo_exists():
+                    self.overlay_progress_frame.pack_forget()
+            except Exception:
+                pass
+
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.pack_forget()
+            except Exception:
+                pass
+
+        # Then destroy
+        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+            try:
+                if self.overlay_progress_frame.winfo_exists():
+                    self.overlay_progress_frame.destroy()
             except Exception:
                 pass
             self.overlay_progress_frame = None
+
+        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
+            try:
+                if self.analysis_overlay_frame.winfo_exists():
+                    self.analysis_overlay_frame.destroy()
+            except Exception:
+                pass
+            self.analysis_overlay_frame = None
 
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config

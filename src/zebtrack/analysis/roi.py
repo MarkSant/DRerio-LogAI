@@ -104,7 +104,8 @@ class ROIAnalyzer:
         stable_presence[stable_true] = True
         stable_presence[stable_false] = False
 
-        # Forward-fill and convert to bool explicitly to avoid downcasting warnings
+        # Infer objects before forward-fill to avoid downcasting warnings
+        stable_presence = stable_presence.infer_objects(copy=False)
         stable_presence = stable_presence.ffill()
         stable_presence = stable_presence.fillna(False)
         stable_presence = stable_presence.astype(bool)
@@ -278,14 +279,25 @@ class ROIAnalyzer:
         prepare(roi_geometry)
         raw_presence_list = []
 
+        # Get video height for Y-axis inversion
+        video_height_px = self._b_analyzer._video_height_px
+
         # Process frame by frame for bbox intersection calculation
         # TODO: This could be optimized for very large trajectories by chunking
         for idx, row in self._trajectory.iterrows():
+            # Convert bbox from warped pixel space to cm, inverting Y-axis
             x1_cm = row["x1"] / self._b_analyzer._pixelcm_x
-            y1_cm = row["y1"] / self._b_analyzer._pixelcm_y
+            y1_cm = (video_height_px - row["y1"]) / self._b_analyzer._pixelcm_y
             x2_cm = row["x2"] / self._b_analyzer._pixelcm_x
-            y2_cm = row["y2"] / self._b_analyzer._pixelcm_y
-            bbox = box(x1_cm, y1_cm, x2_cm, y2_cm)
+            y2_cm = (video_height_px - row["y2"]) / self._b_analyzer._pixelcm_y
+
+            # Ensure min/max order (after Y inversion, y1 and y2 may swap)
+            min_x = min(x1_cm, x2_cm)
+            max_x = max(x1_cm, x2_cm)
+            min_y = min(y1_cm, y2_cm)
+            max_y = max(y1_cm, y2_cm)
+
+            bbox = box(min_x, min_y, max_x, max_y)
             intersection = roi_geometry.intersection(bbox)
             if intersection.is_empty or bbox.area == 0:
                 raw_presence_list.append(False)
@@ -316,13 +328,18 @@ class ROIAnalyzer:
         if total_time == 0:
             return {name: {"seconds": 0.0, "percentage": 0.0} for name in self._rois}
 
+        # Convert total_time Timedelta to seconds
+        total_time_seconds = total_time.total_seconds() if hasattr(total_time, 'total_seconds') else float(total_time)
+
         for name in self._rois:
             time_in_roi = self._trajectory.loc[
                 self._trajectory[f"in_{name}_stable"], "dt"
             ].sum()
+            # Convert time_in_roi Timedelta to seconds
+            time_in_roi_seconds = time_in_roi.total_seconds() if hasattr(time_in_roi, 'total_seconds') else float(time_in_roi)
             results[name] = {
-                "seconds": time_in_roi,
-                "percentage": (time_in_roi / total_time) * 100,
+                "seconds": time_in_roi_seconds,
+                "percentage": (time_in_roi_seconds / total_time_seconds) * 100 if total_time_seconds > 0 else 0.0,
             }
         return results
 
@@ -342,7 +359,9 @@ class ROIAnalyzer:
                 first_entry_time
                 and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]
             ):
-                results[name] = first_entry_time - start_time
+                latency = first_entry_time - start_time
+                # Convert Timedelta to seconds
+                results[name] = latency.total_seconds() if hasattr(latency, 'total_seconds') else float(latency)
             else:
                 results[name] = None
         return results

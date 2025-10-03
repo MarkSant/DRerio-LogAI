@@ -18,6 +18,67 @@ from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
 
 
+def _rgb_to_color_name(rgb_tuple):
+    """
+    Convert RGB tuple to closest color name.
+    Returns a descriptive name for the color.
+    """
+    if not isinstance(rgb_tuple, (tuple, list)) or len(rgb_tuple) != 3:
+        return str(rgb_tuple)
+
+    # Common color names mapping
+    color_map = {
+        (255, 0, 0): "Red",
+        (0, 255, 0): "Green",
+        (0, 0, 255): "Blue",
+        (255, 255, 0): "Yellow",
+        (255, 0, 255): "Magenta",
+        (0, 255, 255): "Cyan",
+        (255, 165, 0): "Orange",
+        (128, 0, 128): "Purple",
+        (255, 192, 203): "Pink",
+        (165, 42, 42): "Brown",
+        (128, 128, 128): "Gray",
+        (0, 0, 0): "Black",
+        (255, 255, 255): "White",
+    }
+
+    # Find closest color
+    r, g, b = rgb_tuple
+    min_distance = float('inf')
+    closest_name = f"RGB({r},{g},{b})"
+
+    for rgb, name in color_map.items():
+        distance = sum((a - b) ** 2 for a, b in zip(rgb_tuple, rgb))
+        if distance < min_distance:
+            min_distance = distance
+            closest_name = name
+
+    # If very close match (within 30 units squared), use the name
+    return closest_name if min_distance < 900 else f"RGB({r},{g},{b})"
+
+
+def _format_time_minutes_seconds(seconds):
+    """
+    Format time as MM:SS or HH:MM:SS if over an hour.
+    """
+    if pd.isna(seconds) or seconds is None:
+        return "N/A"
+
+    seconds = float(seconds)
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes}:{secs:02d}"
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
 def _normalize_color_for_matplotlib(color):
     """
     Normalize color to matplotlib format (0-1 range).
@@ -54,14 +115,16 @@ class Reporter:
         # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,
+        calibration = None,
         # Analysis params
         sharp_turn_threshold: float = 90.0,
-        freezing_threshold: float = 2.0,
+        freezing_threshold: float = 1.5,
         freezing_duration: float = 1.0,
     ):
         self.metadata = metadata
         self.roi_colors = roi_colors if roi_colors else {}
         self.video_path = video_path
+        self.calibration = calibration
 
         # Run the unified analysis via the service
         service = AnalysisService()
@@ -150,9 +213,9 @@ class Reporter:
                     combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = (
                         roi_freeze.get("total_duration")
                     )
-                # ROI Color
+                # ROI Color - convert to color name
                 if roi_name in self.roi_colors:
-                    combined_data[f"cor_roi_{roi_name}"] = str(
+                    combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(
                         self.roi_colors[roi_name]
                     )
 
@@ -187,31 +250,60 @@ class Reporter:
         arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
+        # Get video dimensions if available
         if video_path and Path(video_path).exists():
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
-            cap.release()
             if ret:
+                # Apply perspective warp if calibration is available
+                if self.calibration:
+                    frame = self.calibration.warp_frame(frame)
+
+                frame_height_px = frame.shape[0]
+                frame_width_px = frame.shape[1]
+                # Calculate proper extent based on pixel-to-cm conversion
+                pixelcm_x = self.b_analyzer._pixelcm_x
+                pixelcm_y = self.b_analyzer._pixelcm_y
+                # Frame coordinates in cm
+                frame_extent = (0, frame_width_px / pixelcm_x, 0, frame_height_px / pixelcm_y)
                 ax.imshow(
                     cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
-                    extent=(min_x, max_x, min_y, max_y),
+                    extent=frame_extent,
                     aspect="auto",
+                    alpha=0.5,
                 )
+            cap.release()
 
         ax.set_facecolor("lightgray")
+        # Draw arena boundary
         ax.add_patch(
             patches.Polygon(
                 arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2
             )
         )
-        from matplotlib.collections import LineCollection
 
-        points = np.array([x, y]).T.reshape(-1, 1, 2)
-        segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        lc = LineCollection(segments, cmap="viridis", norm=plt.Normalize(0, len(x)))
-        lc.set_array(np.arange(len(x)))
-        ax.add_collection(lc)
-        ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'N/A')}")
+        # Draw ROIs if available
+        if self.r_analyzer:
+            for roi_name, roi in self.r_analyzer.rois.items():
+                roi_color = self.roi_colors.get(roi_name, "blue")
+                normalized_color = _normalize_color_for_matplotlib(roi_color)
+                ax.add_patch(
+                    patches.Polygon(
+                        roi.geometry.exterior.coords,
+                        fill=True,
+                        color=normalized_color,
+                        alpha=0.3,
+                        edgecolor=normalized_color,
+                        linewidth=2,
+                    )
+                )
+
+        # Draw trajectory - use single color for single animal
+        ax.plot(x, y, color="blue", linewidth=1.5, alpha=0.7, label="Trajectory")
+
+        ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'Unknown')}")
+        ax.set_xlabel("Position (cm)")
+        ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
         ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
@@ -238,12 +330,14 @@ class Reporter:
             origin="lower",
             extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
         )
-        ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'N/A')}")
+        ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'Unknown')}")
+        ax.set_xlabel("Position (cm)")
+        ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
         ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
         if not any(isinstance(artist, plt.colorbar.Colorbar) for artist in fig.artists):
-            fig.colorbar(im, ax=ax)
+            fig.colorbar(im, ax=ax, label="Occupancy Density")
         return fig
 
     def generate_roi_reference_plot(self, ax: plt.Axes = None) -> plt.Figure:
@@ -301,7 +395,9 @@ class Reporter:
                 transform=ax.transAxes,
             )
 
-        ax.set_title(f"ROI Reference Map - {self.metadata.get('experiment_id', 'N/A')}")
+        ax.set_title(f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}")
+        ax.set_xlabel("Position (cm)")
+        ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
         ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
@@ -348,7 +444,7 @@ class Reporter:
                 label="Sharp Turns",
             )
 
-        ax.set_title(f"Angular Velocity - {self.metadata.get('experiment_id', 'N/A')}")
+        ax.set_title(f"Angular Velocity - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Angular Velocity (deg/s)")
         ax.legend()
@@ -371,7 +467,7 @@ class Reporter:
         ax.plot(time_seconds, traj_data["x_cm_smoothed"], label="X coordinate (cm)")
         ax.plot(time_seconds, traj_data["y_cm_smoothed"], label="Y coordinate (cm)")
 
-        ax.set_title(f"Position vs. Time - {self.metadata.get('experiment_id', 'N/A')}")
+        ax.set_title(f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Position (cm)")
         ax.legend()
@@ -405,7 +501,7 @@ class Reporter:
         ax.plot(time_seconds, cumulative_distance)
         title = (
             f"Cumulative Distance vs. Time - "
-            f"{self.metadata.get('experiment_id', 'N/A')}"
+            f"{self.metadata.get('experiment_id', 'Unknown')}"
         )
         ax.set_title(title)
         ax.set_xlabel("Time (s)")
@@ -428,28 +524,45 @@ class Reporter:
 
         # Step 1: Create document and add metadata
         document.add_heading(
-            f"Analysis Report - {self.metadata.get('experiment_id', 'N/A')}", level=1
+            f"Analysis Report - {self.metadata.get('experiment_id', 'Unknown')}", level=1
         )
         document.add_heading("Experiment Metadata", level=2)
         for key, value in self.metadata.items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, "Metadata added")
 
-        # Step 2: Add summary table
-        document.add_heading("Metrics Summary Table", level=2)
+        # Step 2: Add summary table (vertical format - 2 columns: Metric | Value)
+        document.add_heading("Metrics Summary", level=2)
         df = self.tidy_data.drop(
             columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
         )
-        table = document.add_table(rows=1, cols=len(df.columns))
+
+        # Create vertical table with 2 columns: Metric Name and Value
+        table = document.add_table(rows=1, cols=2)
         table.style = "Table Grid"
-        for i, column_name in enumerate(df.columns):
-            table.cell(0, i).text = column_name
-        for _, row in df.iterrows():
-            cells = table.add_row().cells
-            for i, value in enumerate(row):
-                cells[i].text = (
-                    f"{value:.2f}" if isinstance(value, (int, float)) else str(value)
-                )
+        # Header row
+        table.cell(0, 0).text = "Metric"
+        table.cell(0, 1).text = "Value"
+
+        # Add each metric as a row
+        for column_name in df.columns:
+            row_cells = table.add_row().cells
+            # Format column name to be more readable
+            formatted_name = column_name.replace("_", " ").title()
+            row_cells[0].text = formatted_name
+
+            value = df[column_name].iloc[0]
+            if pd.isna(value):
+                row_cells[1].text = "N/A"
+            elif isinstance(value, (int, float)):
+                # Format time columns (ending with _s) as MM:SS
+                if column_name.endswith("_s"):
+                    row_cells[1].text = _format_time_minutes_seconds(value)
+                else:
+                    row_cells[1].text = f"{value:.2f}"
+            else:
+                row_cells[1].text = str(value)
+
         document.add_page_break()
         progress_callback(2 / total_steps, "Summary table added")
 
@@ -461,7 +574,7 @@ class Reporter:
             fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
             plt.close(fig)
             memfile.seek(0)
-            document.add_picture(memfile, width=Inches(5.0))
+            document.add_picture(memfile, width=Inches(6.5))  # Larger image
         progress_callback(3 / total_steps, "ROI map added")
 
         # Step 4-8: Add visualization plots
@@ -496,15 +609,34 @@ class Reporter:
                 document.add_paragraph(
                     "Chronological log of all entries and exits from defined ROIs."
                 )
+
+                # Rename columns to Portuguese
+                event_log_df = event_log_df.rename(columns={
+                    'roi_name': 'Área',
+                    'event': 'Evento'
+                })
+
+                # Get the first timestamp as reference (start time)
+                start_time = event_log_df['timestamp'].iloc[0]
+
                 table = document.add_table(rows=1, cols=len(event_log_df.columns))
                 table.style = "Table Grid"
                 for i, col_name in enumerate(event_log_df.columns):
-                    table.cell(0, i).text = str(col_name)
+                    # Translate timestamp column header
+                    if col_name == 'timestamp':
+                        table.cell(0, i).text = 'Tempo (mm:ss)'
+                    else:
+                        table.cell(0, i).text = str(col_name)
+
                 for _, row in event_log_df.iterrows():
                     cells = table.add_row().cells
-                    for i, value in enumerate(row):
-                        if isinstance(value, pd.Timestamp):
-                            cells[i].text = value.strftime("%H:%M:%S.%f")[:-3]
+                    for i, (col_name, value) in enumerate(row.items()):
+                        if col_name == 'timestamp':
+                            # Calculate elapsed time from start in seconds
+                            elapsed = (value - start_time).total_seconds()
+                            minutes = int(elapsed // 60)
+                            seconds = elapsed % 60
+                            cells[i].text = f"{minutes:02d}:{seconds:06.3f}"
                         else:
                             cells[i].text = str(value)
             else:
