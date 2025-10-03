@@ -554,12 +554,22 @@ class CreateProjectDialog(simpledialog.Dialog):
             command=self._update_project_type_options,
         ).grid(row=10, column=2, sticky="w", padx=5)
 
-        self.video_button = Button(
-            master, text="Selecionar Vídeos...", command=self._select_videos
+        # Video/Folder selection buttons
+        video_selection_frame = Frame(master)
+        video_selection_frame.grid(row=11, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
+        self.video_files_button = Button(
+            video_selection_frame, text="Selecionar Vídeos...", command=self._select_video_files
         )
-        self.video_button.grid(row=11, column=0, padx=5, pady=5)
-        Label(master, textvariable=self.video_list_var, wraplength=300).grid(
-            row=11, column=1, columnspan=3, sticky="w", padx=5
+        self.video_files_button.pack(side="left", padx=(0, 5))
+
+        self.video_folder_button = Button(
+            video_selection_frame, text="Selecionar Pasta...", command=self._select_video_folder
+        )
+        self.video_folder_button.pack(side="left")
+
+        Label(master, textvariable=self.video_list_var, wraplength=400).grid(
+            row=11, column=2, columnspan=2, sticky="w", padx=5
         )
 
         # --- Live Recording Options ---
@@ -650,17 +660,60 @@ class CreateProjectDialog(simpledialog.Dialog):
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
 
-    def _select_videos(self):
+    def _select_video_files(self):
+        """Select individual video files."""
         files = filedialog.askopenfilenames(
             title="Selecione os Arquivos de Vídeo",
-            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi")],
+            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
         )
         if files:
-            self.video_files = files
-            self.video_list_var.set(f"{len(files)} vídeo(s) selecionado(s).")
+            # Initialize if needed
+            if not hasattr(self, 'video_paths') or not isinstance(self.video_paths, list):
+                self.video_paths = []
+
+            # Add new files to the list (avoid duplicates)
+            for f in files:
+                if f not in self.video_paths:
+                    self.video_paths.append(f)
+
+            self._update_video_selection_display()
+
+    def _select_video_folder(self):
+        """Select a folder containing videos."""
+        folder = filedialog.askdirectory(
+            title="Selecione uma Pasta Contendo Vídeos"
+        )
+        if folder:
+            # Initialize if needed
+            if not hasattr(self, 'video_paths') or not isinstance(self.video_paths, list):
+                self.video_paths = []
+
+            # Add folder to the list (avoid duplicates)
+            if folder not in self.video_paths:
+                self.video_paths.append(folder)
+
+            self._update_video_selection_display()
+
+    def _update_video_selection_display(self):
+        """Update the display showing selected videos/folders."""
+        if not hasattr(self, 'video_paths') or not self.video_paths:
+            self.video_list_var.set("Nenhum vídeo/pasta selecionado.")
+            return
+
+        # Count files and folders
+        files = [p for p in self.video_paths if os.path.isfile(p)]
+        folders = [p for p in self.video_paths if os.path.isdir(p)]
+
+        parts = []
+        if files:
+            parts.append(f"{len(files)} arquivo(s)")
+        if folders:
+            parts.append(f"{len(folders)} pasta(s)")
+
+        if parts:
+            self.video_list_var.set(" + ".join(parts) + " selecionado(s).")
         else:
-            self.video_files = []
-            self.video_list_var.set("Nenhum vídeo selecionado.")
+            self.video_list_var.set("Seleção contém caminhos inválidos.")
 
     def _on_num_groups_change(self, *args):
         try:
@@ -680,11 +733,13 @@ class CreateProjectDialog(simpledialog.Dialog):
     def _update_project_type_options(self):
         """Shows/hides options based on the selected project type."""
         if self.project_type_var.get() == "pre-recorded":
-            self.video_button.config(state="normal")
+            self.video_files_button.config(state="normal")
+            self.video_folder_button.config(state="normal")
             self.live_options_frame.grid_remove()
             self.live_project_frame.grid_remove()
         else:  # Live
-            self.video_button.config(state="disabled")
+            self.video_files_button.config(state="disabled")
+            self.video_folder_button.config(state="disabled")
             self.video_list_var.set("Não aplicável para projetos ao vivo.")
             self.live_options_frame.grid()
             self.live_project_frame.grid()  # Show the new frame
@@ -719,13 +774,14 @@ class CreateProjectDialog(simpledialog.Dialog):
             )
             return 0
 
-        if self.project_type_var.get() == "pre-recorded" and not self.video_files:
-            messagebox.showerror(
-                "Erro",
-                "Por favor, selecione pelo menos um arquivo de vídeo para "
-                "análise pré-gravada.",
-            )
-            return 0
+        if self.project_type_var.get() == "pre-recorded":
+            if not hasattr(self, 'video_paths') or not self.video_paths:
+                messagebox.showerror(
+                    "Erro",
+                    "Por favor, selecione pelo menos um arquivo de vídeo ou pasta para "
+                    "análise pré-gravada.",
+                )
+                return 0
 
         try:
             num_aquariums = int(self.num_aquariums_var.get())
@@ -821,10 +877,13 @@ class CreateProjectDialog(simpledialog.Dialog):
             except ValueError:
                 pass
 
+        # Use video_paths if available, fallback to empty list
+        video_paths = getattr(self, 'video_paths', [])
+
         self.result = {
             "project_path": self.project_path,
             "project_type": self.project_type_var.get(),
-            "video_files": self.video_files,
+            "video_files": video_paths,  # Now can contain files AND folders
             "num_aquariums": int(self.num_aquariums_var.get()),
             "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
