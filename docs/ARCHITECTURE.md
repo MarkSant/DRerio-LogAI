@@ -139,6 +139,8 @@ sequenceDiagram
 
 - [README.md](../README.md) – visão geral, guia rápido e convenções.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) – processo de desenvolvimento e padrões de PR.
+- [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) – **⭐ documentação técnica detalhada** de criação de projetos e análise em lote.
+- [COORDINATE_SYSTEMS.md](COORDINATE_SYSTEMS.md) – sistemas de coordenadas e transformações de perspectiva.
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md) – resumo rápido para agentes automáticos.
 
 Atualize este documento sempre que novas decisões arquiteturais forem tomadas ou quando fluxos principais forem alterados.
