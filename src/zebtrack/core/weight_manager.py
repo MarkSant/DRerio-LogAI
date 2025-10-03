@@ -150,6 +150,15 @@ class WeightManager:
 
         weights_found = False
         for weight_type, filename in potential_weights:
+            # Only register weights if the file actually exists
+            if not os.path.exists(filename):
+                log.debug(
+                    "weights.config.file_not_found",
+                    filename=filename,
+                    type=weight_type,
+                )
+                continue
+
             weight_name = os.path.basename(filename)
             classified_type = self._classify_weight_type(weight_name)
             # Use classified type if available, otherwise use the expected type

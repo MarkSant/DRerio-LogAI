@@ -53,16 +53,19 @@ class TestOverlayIntegration(unittest.TestCase):
             mock_detector.draw_overlay = MagicMock()
 
             # Create controller with mocked components
-            controller = AppController(None, None, None, None)
+            mock_root = MagicMock()
+            with patch('zebtrack.core.controller.ApplicationGUI'), \
+                 patch('zebtrack.core.controller.ProjectManager') as MockPM:
+                # Mock project manager
+                mock_pm = MagicMock()
+                zone_data = ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+                mock_pm.get_zone_data.return_value = zone_data
+                MockPM.return_value = mock_pm
+
+                controller = AppController(mock_root)
             controller.detector = mock_detector
-            controller.project_manager = MagicMock()
-            controller.view = MagicMock()
             controller.cancel_event = MagicMock()
             controller.cancel_event.is_set.return_value = False
-
-            # Mock zone data
-            zone_data = ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
-            controller.project_manager.get_zone_data.return_value = zone_data
 
             # Mock recorder
             mock_recorder_instance = MagicMock()
@@ -113,7 +116,12 @@ class TestOverlayIntegration(unittest.TestCase):
         """Test that display_analysis_frame preserves existing overlays."""
         with patch('zebtrack.ui.gui.cv2') as mock_cv2, \
              patch('zebtrack.ui.gui.Image'), \
-             patch('zebtrack.ui.gui.ImageTk'):
+             patch('zebtrack.ui.gui.ImageTk'), \
+             patch('zebtrack.ui.gui.StringVar') as MockStringVar, \
+             patch('zebtrack.ui.gui.ttk.Notebook'):
+
+            # Mock StringVar to prevent Tkinter errors
+            MockStringVar.return_value = MagicMock()
 
             from zebtrack.ui.gui import ApplicationGUI
 
@@ -125,10 +133,12 @@ class TestOverlayIntegration(unittest.TestCase):
             )
 
             # Create GUI instance with mocked components
-            gui = ApplicationGUI()
+            mock_root = MagicMock()
+            mock_controller = MagicMock()
+            mock_controller.project_manager = MagicMock()
+
+            gui = ApplicationGUI(mock_root, mock_controller)
             gui.analysis_video_label = MagicMock()
-            gui.controller = MagicMock()
-            gui.controller.project_manager = MagicMock()
 
             # Mock zone data
             zone_data = ZoneData(polygon=[])  # Empty zones

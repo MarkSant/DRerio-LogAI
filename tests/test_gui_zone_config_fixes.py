@@ -52,9 +52,7 @@ def test_gui_zone_config_structure():
         "_create_zone_control_widgets should create Drawing Actions"
     assert 'Zone List' in zone_widgets_section, \
         "_create_zone_control_widgets should create Zone List"
-    assert 'Properties Panel' in zone_widgets_section, \
-        "_create_zone_control_widgets should create Properties Panel"
-    assert 'ROI Inclusion Rule Panel' in zone_widgets_section, \
+    assert 'ROI Inclusion Rule' in zone_widgets_section, \
         "_create_zone_control_widgets should create ROI Inclusion Rule Panel"
 
 

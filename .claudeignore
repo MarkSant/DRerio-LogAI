@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Data and media files (large files)
+*.mp4
+*.avi
+*.parquet
+dados_brutos/
+videos_teste/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

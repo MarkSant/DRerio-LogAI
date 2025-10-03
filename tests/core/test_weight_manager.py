@@ -26,9 +26,9 @@ def wm_setup(tmp_path):
         patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox,
     ):
         mock_settings.yolo_model.path = str(default_weight_path)
-        # Mock the new weights settings to maintain backward compatibility
-        mock_settings.weights.seg_filename = "nonexistent_seg.pt"
-        mock_settings.weights.det_filename = "nonexistent_det.pt"
+        # Mock the new weights settings to be empty - we only want the legacy path
+        mock_settings.weights.seg_filename = None
+        mock_settings.weights.det_filename = None
 
         # Instantiate the manager pointing to the temp config dir
         manager = WeightManager(config_dir=str(config_dir))

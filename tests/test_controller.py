@@ -156,8 +156,10 @@ class TestAppController(unittest.TestCase):
             self.assertEqual(mock_detector.process_frame.call_count, 3)
             # Should call recorder write for each processed frame
             self.assertEqual(mock_recorder_instance.write_detection_data.call_count, 3)
-            # Progress callback should be called for each frame (5 times)
-            self.assertEqual(progress_callback.call_count, 5)
+            # Progress callback should be called for each PROCESSED frame (3 times)
+            # Note: callback is only invoked when frame is actually processed
+            # to avoid sending frames without detection overlays
+            self.assertEqual(progress_callback.call_count, 3)
 
     def test_process_videos_interval_resolution(self):
         """Test that _process_videos correctly resolves analysis and display
