@@ -33,6 +33,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
       - name: Install Poetry
         run: |
           pip install poetry
@@ -41,4 +45,5 @@ jobs:
           poetry install
       - name: Run tests
         run: |
-          poetry run pytest
+          xvfb-run --auto-servernum poetry run pytest
+        timeout-minutes: 15
