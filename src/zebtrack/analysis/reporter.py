@@ -265,16 +265,31 @@ class Reporter:
                 # Calculate proper extent based on pixel-to-cm conversion
                 pixelcm_x = self.b_analyzer._pixelcm_x
                 pixelcm_y = self.b_analyzer._pixelcm_y
+
                 # Frame coordinates in cm
+                # Per COORDINATE_SYSTEMS.md:
+                # - Frame warped: y_px=0 at top, y_px=height at bottom
+                #   (image convention)
+                # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
+                #   (cartesian)
+                # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
+                #
+                # To align frame with trajectories:
+                # 1. Flip frame vertically so frame[0] = bottom
+                # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
+
                 frame_extent = (
-                    0,
-                    frame_width_px / pixelcm_x,
-                    0,
-                    frame_height_px / pixelcm_y,
+                    0,  # left (x=0)
+                    frame_width_px / pixelcm_x,  # right (x=max)
+                    0,  # bottom (y=0)
+                    frame_height_px / pixelcm_y,  # top (y=max)
                 )
                 ax.imshow(
-                    cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
+                    frame_rgb_flipped,
                     extent=frame_extent,
+                    origin='lower',
                     aspect="auto",
                     alpha=0.5,
                 )

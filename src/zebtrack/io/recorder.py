@@ -30,6 +30,7 @@ class Recorder:
         self.recording_start_frame = 0
         self.detection_data = []
         self.pixel_per_cm_ratio = None
+        self.calibration = None
 
     def start_recording(
         self,
@@ -40,6 +41,7 @@ class Recorder:
         is_video_file=False,
         pixel_per_cm_ratio=None,
         base_name: str | None = None,
+        calibration=None,
     ):
         """
         Prepares and starts a new recording session.
@@ -53,11 +55,15 @@ class Recorder:
             pixel_per_cm_ratio (tuple, optional): Tuple containing (x_ratio, y_ratio).
             base_name (str, optional): Explicit base name for output files.
                 If None, it's derived from the output_folder.
+            calibration (Calibration, optional): Calibration object for perspective
+                transformation. Required to transform detection coordinates from
+                original video space to warped space before saving.
 
         Returns:
             bool: True if recording started successfully, False otherwise.
         """
         self.pixel_per_cm_ratio = pixel_per_cm_ratio
+        self.calibration = calibration
         if self.is_recording:
             log.warning("recorder.start.already_recording")
             return False
@@ -115,6 +121,12 @@ class Recorder:
             return
 
         for x1, y1, x2, y2, confidence, track_id in detections:
+            # Transform coordinates from original video space to warped space
+            # This aligns with COORDINATE_SYSTEMS.md: Original → Warped → CM
+            if self.calibration:
+                x1, y1, x2, y2 = self.calibration.transform_bbox(x1, y1, x2, y2)
+                # Now coordinates are in warped space (e.g., 600×266 px)
+
             data_point = {
                 "timestamp": timestamp,
                 "frame": frame_number,
@@ -131,6 +143,7 @@ class Recorder:
                 y_center = (y1 + y2) / 2
                 data_point["x_center_px"] = x_center
                 data_point["y_center_px"] = y_center
+                # Convert warped pixels to cm using the correct ratio
                 data_point["x_cm"] = x_center / self.pixel_per_cm_ratio[0]
                 data_point["y_cm"] = y_center / self.pixel_per_cm_ratio[1]
 

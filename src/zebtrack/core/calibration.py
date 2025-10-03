@@ -145,3 +145,33 @@ class Calibration:
         transformed = cv2.perspectiveTransform(pts, self.homography_matrix)
         # Reshape back to list of [x, y]
         return transformed.reshape(-1, 2).tolist()
+
+    def transform_bbox(self, x1: float, y1: float, x2: float, y2: float) -> tuple:
+        """
+        Transforms a bounding box from original video space to warped space.
+
+        This method transforms all 4 corners of the bbox and finds the new
+        axis-aligned bounding box that encompasses all transformed points.
+
+        Args:
+            x1: Left x coordinate
+            y1: Top y coordinate
+            x2: Right x coordinate
+            y2: Bottom y coordinate
+
+        Returns:
+            Tuple of (x1_w, y1_w, x2_w, y2_w) in warped space
+        """
+        if self.homography_matrix is None:
+            log.warning("calibration.transform.no_matrix", returning_original=True)
+            return (x1, y1, x2, y2)
+
+        # Transform all 4 corners of the bounding box
+        corners = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+        warped_corners = self.transform_points(corners)
+
+        # Find new axis-aligned bbox that encompasses all transformed points
+        xs = [p[0] for p in warped_corners]
+        ys = [p[1] for p in warped_corners]
+
+        return (min(xs), min(ys), max(xs), max(ys))

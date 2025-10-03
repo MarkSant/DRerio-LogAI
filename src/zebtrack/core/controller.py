@@ -1572,6 +1572,7 @@ class AppController:
                 is_video_file=True,
                 base_name=experiment_id,
                 pixel_per_cm_ratio=pixel_per_cm_ratio,
+                calibration=cal,
             )
 
             frame_num = 0
