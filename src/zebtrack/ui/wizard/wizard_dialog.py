@@ -11,6 +11,7 @@ from tkinter.simpledialog import Dialog
 import structlog
 
 from zebtrack.ui.wizard.cache import WizardCache
+from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
@@ -83,12 +84,12 @@ class WizardDialog(Dialog):
         self.steps_container = Frame(master)
         self.steps_container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Initialize all steps (Phase W1-W2: Steps 1-2)
-        # TODO: Add remaining steps in phases W3-W5
+        # Initialize all steps (Phase W1-W3: Steps 1-3)
+        # TODO: Add remaining steps in phases W4-W5
         self.steps = [
             DiscoveryStep(self.steps_container, self.wizard_data),
             FileSelectionStep(self.steps_container, self.wizard_data),  # Phase W2 ✅
-            # DetectionStep(self.steps_container, self.wizard_data),       # Phase W3
+            DetectionStep(self.steps_container, self.wizard_data),       # Phase W3 ✅
             # ImportConfigStep(self.steps_container, self.wizard_data),    # Phase W4
             # ConfirmationStep(self.steps_container, self.wizard_data),    # Phase W5
         ]

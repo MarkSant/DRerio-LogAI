@@ -20,6 +20,7 @@ Steps:
 Version: 1.5 (wizard_schema_version: 1)
 """
 
+from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.enums import (
     ImportAction,
     ProjectType,
@@ -31,6 +32,7 @@ from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
 __all__ = [
     "WizardDialog",
+    "DetectionStep",
     "FileSelectionStep",
     "ProjectType",
     "ImportAction",
