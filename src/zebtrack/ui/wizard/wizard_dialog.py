@@ -15,6 +15,7 @@ from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
+from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 log = structlog.get_logger()
 
@@ -84,13 +85,13 @@ class WizardDialog(Dialog):
         self.steps_container = Frame(master)
         self.steps_container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Initialize all steps (Phase W1-W3: Steps 1-3)
-        # TODO: Add remaining steps in phases W4-W5
+        # Initialize all steps (Phase W1-W4: Steps 1-4)
+        # TODO: Add remaining step in phase W5
         self.steps = [
             DiscoveryStep(self.steps_container, self.wizard_data),
             FileSelectionStep(self.steps_container, self.wizard_data),  # Phase W2 ✅
             DetectionStep(self.steps_container, self.wizard_data),       # Phase W3 ✅
-            # ImportConfigStep(self.steps_container, self.wizard_data),    # Phase W4
+            ImportConfigStep(self.steps_container, self.wizard_data),    # Phase W4 ✅
             # ConfirmationStep(self.steps_container, self.wizard_data),    # Phase W5
         ]
 
