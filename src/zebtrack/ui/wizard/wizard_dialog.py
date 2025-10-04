@@ -162,6 +162,11 @@ class WizardDialog(Dialog):
 
     def _update_navigation_buttons(self):
         """Update navigation button states based on current step."""
+        # Buttons are created in buttonbox() which is called after body()
+        # So we need to check if they exist first
+        if not hasattr(self, 'back_button') or not hasattr(self, 'next_button'):
+            return
+
         # Back button: disabled on first step
         if self.current_step_index == 0:
             self.back_button.config(state="disabled")
