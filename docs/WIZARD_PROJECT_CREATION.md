@@ -920,25 +920,63 @@ def test_roi_conflict_auto_rename():
 
 ## Open Questions
 
-[Original V1 questions 1-5 preserved - lines 1698-1764]
+**ALL RESOLVED** (2025-10-04):
 
-**RESOLVED from V2**:
-- Q1 (Design Detection Accuracy): Use explicit thresholds (≥80%, 50-79%, <50%)
-- Q2 (ROI Merge Conflicts): Default to Replace, offer Merge and Manual
-- Q4 (Performance): Implement caching + ThreadPool
+### ✅ Q1: Design Detection Accuracy
+**Decision**: Use explicit confidence thresholds with UI behavior:
+- ≥90%: Auto-apply, allow edit
+- 75-89%: Allow edit, show "review recommended"
+- 50-74%: Require checkbox "Aceito usar este design"
+- <50%: Force manual edit before proceeding
+
+### ✅ Q2: ROI Merge Conflicts
+**Decision**: Three-strategy approach:
+- Default: Replace (safest)
+- Advanced: Merge with auto-rename (Top → Top_imported)
+- Power users: Manual resolution dialog per conflict
+
+### ✅ Q3: Partial Experimental Design
+**Decision**: Opção A Melhorada
+- Apply design to videos that match pattern
+- Outliers shown in list in Step 3 with checkbox "☑ Excluir do projeto"
+- If not excluded, outliers go to special group: `"Ungrouped"`
+- Step 4 allows manual reclassification (optional)
+- No forced classification - user decides
+
+**Rationale**: Balances flexibility (doesn't lose videos) with clarity (explicit outlier handling).
+
+### ✅ Q4: Performance with Large Projects
+**Decision**: Multi-level optimization:
+- Show progress bar during detection
+- Run detection in background thread (ThreadPool, 4 workers)
+- Allow user to cancel if taking >10s
+- Cache detection results (reuse on Back navigation)
+- Lazy loading for >100 videos
+
+### ✅ Q5: Custom Pattern Support
+**Decision**: Phased approach
+- **v1.0 (MVP)**: 4 built-in patterns only:
+  1. `{Group}/{Day}/{Subject}.mp4`
+  2. `{Day}/{Group}/{Subject}.mp4`
+  3. `D{day}_G{group}_S{subject}.mp4`
+  4. `{group}_{day}_{subject}.mp4` (flat)
+- **v1.1** (if demand): Add "Custom Regex" input in Step 3
+- **v2.0** (future): ML-based pattern learning
+
+**Rationale**: 4 patterns cover 90% of real-world cases. If no match, user edits manually in Step 3.
 
 ---
 
 ## Next Steps (Implementation Kickoff)
 
-### Before Starting Implementation
+### ✅ Pre-Implementation Complete (2025-10-04)
 
-1. **Review this document** with stakeholders
-2. **Prioritize open questions** and make decisions (Q3, Q5 still open)
-3. **Create GitHub issues** for each phase (W1-W7)
-4. **Set up project board** with columns: Backlog, In Progress, Review, Done
-5. **Create feature branch**: `feature/wizard-project-creation`
-6. **Commit this spec**: "docs: wizard spec V1.5 - add enums, confidence formula, edge cases"
+1. ✅ **Review this document** - Completed
+2. ✅ **Resolve open questions** - All 5 questions resolved
+3. ✅ **Feature branch created**: `feature/granular-parquet-detection-import`
+4. ✅ **Spec committed**: V1.5 with formal enums, confidence formula, edge cases
+
+### 🚀 Ready to Start Phase W1
 
 ### Phase W1 Kickoff Checklist
 
