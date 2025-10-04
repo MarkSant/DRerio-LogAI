@@ -26,10 +26,12 @@ from zebtrack.ui.wizard.enums import (
     ROIMergeStrategy,
     WizardStepID,
 )
+from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
 __all__ = [
     "WizardDialog",
+    "FileSelectionStep",
     "ProjectType",
     "ImportAction",
     "ROIMergeStrategy",
