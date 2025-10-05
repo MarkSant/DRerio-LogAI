@@ -166,6 +166,18 @@ class ImportConfigStep(WizardStep):
             fg="blue",
         ).pack(anchor="w")
 
+        # Legend
+        legend_frame = LabelFrame(self, text="Legenda", padx=10, pady=5)
+        legend_frame.pack(fill="x", pady=(10, 0))
+
+        legend_text = Label(
+            legend_frame,
+            text="✓ = Disponível e será importado  |  ○ = Disponível mas não importado  |  — = Não disponível",
+            fg="gray",
+            font=("TkDefaultFont", 9),
+        )
+        legend_text.pack()
+
         # Help text
         help_text = Label(
             self,
@@ -174,7 +186,7 @@ class ImportConfigStep(WizardStep):
             wraplength=500,
             justify="left",
         )
-        help_text.pack(pady=(10, 0))
+        help_text.pack(pady=(5, 0))
 
     def on_show(self):
         """Called when step becomes visible - compute smart defaults."""
@@ -245,10 +257,21 @@ class ImportConfigStep(WizardStep):
         for idx, config in enumerate(self.video_configs):
             video_name = Path(config["video"]).name
 
-            # Format checkbox symbols
-            arena_str = "✓" if config["import_arena"] else "✗"
-            rois_str = "✓" if config["import_rois"] else "✗"
-            traj_str = "✓" if config["import_trajectory"] else "✗"
+            # Format checkbox symbols with availability indicators
+            # ✓ = available AND will import
+            # ○ = available but NOT importing
+            # — = not available
+            def format_status(has_parquet: bool, importing: bool) -> str:
+                if not has_parquet:
+                    return "—"  # Not available
+                elif importing:
+                    return "✓"  # Available and importing
+                else:
+                    return "○"  # Available but not importing
+
+            arena_str = format_status(config["has_arena"], config["import_arena"])
+            rois_str = format_status(config["has_rois"], config["import_rois"])
+            traj_str = format_status(config["has_trajectory"], config["import_trajectory"])
 
             # Action name (user-friendly)
             action_map = {
