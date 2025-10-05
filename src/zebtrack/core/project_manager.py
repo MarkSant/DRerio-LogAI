@@ -331,7 +331,11 @@ class ProjectManager:
                     arena_path = parquet_files.get("arena")
                     if arena_path and os.path.exists(arena_path):
                         arena_df = pd.read_parquet(arena_path)
-                        if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                        if (
+                            not arena_df.empty
+                            and "x" in arena_df.columns
+                            and "y" in arena_df.columns
+                        ):
                             polygon_points = arena_df[["x", "y"]].values.tolist()
                             zone_data.polygon = polygon_points
                             imported_count["arena"] += 1
@@ -354,9 +358,9 @@ class ProjectManager:
                                 imported_roi_names = []
 
                                 for roi_name in rois_df["roi_name"].unique():
-                                    roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
-                                        "point_index"
-                                    )
+                                    roi_df = rois_df[
+                                        rois_df["roi_name"] == roi_name
+                                    ].sort_values("point_index")
                                     roi_points = roi_df[["x", "y"]].values.tolist()
                                     imported_roi_polygons.append(roi_points)
                                     imported_roi_names.append(roi_name)
@@ -370,14 +374,21 @@ class ProjectManager:
                                     # Keep existing ROIs, add imported ones
                                     # Rename conflicts by adding "_imported" suffix
                                     existing_names = set(zone_data.roi_names)
-                                    for roi_poly, roi_name in zip(imported_roi_polygons, imported_roi_names):
+                                    for roi_poly, roi_name in zip(
+                                        imported_roi_polygons, imported_roi_names
+                                    ):
                                         final_name = roi_name
                                         if roi_name in existing_names:
                                             # Find unique name
                                             counter = 1
-                                            while f"{roi_name}_imported{counter}" in existing_names:
+                                            while (
+                                                f"{roi_name}_imported{counter}"
+                                                in existing_names
+                                            ):
                                                 counter += 1
-                                            final_name = f"{roi_name}_imported{counter}"
+                                            final_name = (
+                                                f"{roi_name}_imported{counter}"
+                                            )
                                             log.info(
                                                 "project_manager.import_parquets.roi_renamed",
                                                 original=roi_name,
@@ -428,7 +439,9 @@ class ProjectManager:
                         results_dir = Path(self.project_path) / f"{video_name}_results"
                         results_dir.mkdir(exist_ok=True)
 
-                        dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
+                        dest_path = (
+                            results_dir / f"3_CoordMovimento_{video_name}.parquet"
+                        )
 
                         import shutil
                         shutil.copy2(trajectory_path, dest_path)

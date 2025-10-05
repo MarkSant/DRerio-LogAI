@@ -557,15 +557,21 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # Video/Folder selection buttons
         video_selection_frame = Frame(master)
-        video_selection_frame.grid(row=11, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        video_selection_frame.grid(
+            row=11, column=0, columnspan=2, sticky="w", padx=5, pady=5
+        )
 
         self.video_files_button = Button(
-            video_selection_frame, text="Selecionar Vídeos...", command=self._select_video_files
+            video_selection_frame,
+            text="Selecionar Vídeos...",
+            command=self._select_video_files,
         )
         self.video_files_button.pack(side="left", padx=(0, 5))
 
         self.video_folder_button = Button(
-            video_selection_frame, text="Selecionar Pasta...", command=self._select_video_folder
+            video_selection_frame,
+            text="Selecionar Pasta...",
+            command=self._select_video_folder,
         )
         self.video_folder_button.pack(side="left")
 
@@ -669,7 +675,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
         if files:
             # Initialize if needed
-            if not hasattr(self, 'video_paths') or not isinstance(self.video_paths, list):
+            if not hasattr(self, "video_paths") or not isinstance(
+                self.video_paths, list
+            ):
                 self.video_paths = []
 
             # Add new files to the list (avoid duplicates)
@@ -686,7 +694,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
         if folder:
             # Initialize if needed
-            if not hasattr(self, 'video_paths') or not isinstance(self.video_paths, list):
+            if not hasattr(self, "video_paths") or not isinstance(
+                self.video_paths, list
+            ):
                 self.video_paths = []
 
             # Add folder to the list (avoid duplicates)
@@ -1540,9 +1550,9 @@ class ApplicationGUI:
 
         controls_row = ttk.Frame(self.arduino_dashboard_frame)
         controls_row.pack(fill="x", pady=(6, 0))
-        ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
-            side="right"
-        )
+        ttk.Button(
+            controls_row, text="Limpar Log", command=self._clear_arduino_log
+        ).pack(side="right")
 
         # Reset dashboard state
         self._clear_arduino_log()
@@ -1567,7 +1577,9 @@ class ApplicationGUI:
         self.arduino_log_text.insert("end", entry)
 
         try:
-            current_line = int(float(self.arduino_log_text.index("end-1c").split(".")[0]))
+            current_line = int(
+                float(self.arduino_log_text.index("end-1c").split(".")[0])
+            )
             max_lines = 300
             if current_line > max_lines:
                 start_line = current_line - max_lines
@@ -4160,7 +4172,10 @@ class ApplicationGUI:
         then calls the controller with the collected data.
         """
         # Always use the wizard (v1.6+, wizard is now permanent)
-        from zebtrack.ui.wizard import WizardDialog, adapt_wizard_data_to_controller_format
+        from zebtrack.ui.wizard import (
+            WizardDialog,
+            adapt_wizard_data_to_controller_format,
+        )
 
         wizard = WizardDialog(self.root)
         if not wizard.result:

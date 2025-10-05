@@ -86,7 +86,9 @@ class DesignEditorDialog(Dialog):
         groups_frame = Frame(master)
         groups_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        Label(groups_frame, text="Grupos:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(
+            groups_frame, text="Grupos:", font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w")
 
         # Groups listbox with scrollbar
         groups_list_frame = Frame(groups_frame)
@@ -108,16 +110,24 @@ class DesignEditorDialog(Dialog):
         groups_btn_frame.pack(fill="x", pady=5)
 
         self.group_entry_var = StringVar()
-        Entry(groups_btn_frame, textvariable=self.group_entry_var, width=20).pack(side="left", padx=(0, 5))
+        Entry(
+            groups_btn_frame, textvariable=self.group_entry_var, width=20
+        ).pack(side="left", padx=(0, 5))
 
-        Button(groups_btn_frame, text="Adicionar Grupo", command=self._add_group).pack(side="left", padx=2)
-        Button(groups_btn_frame, text="Remover Selecionado", command=self._remove_group).pack(side="left", padx=2)
+        Button(
+            groups_btn_frame, text="Adicionar Grupo", command=self._add_group
+        ).pack(side="left", padx=2)
+        Button(
+            groups_btn_frame, text="Remover Selecionado", command=self._remove_group
+        ).pack(side="left", padx=2)
 
         # Days section
         days_frame = Frame(master)
         days_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        Label(days_frame, text="Dias:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(days_frame, text="Dias:", font=("TkDefaultFont", 10, "bold")).pack(
+            anchor="w"
+        )
 
         # Days listbox with scrollbar
         days_list_frame = Frame(days_frame)
@@ -139,10 +149,16 @@ class DesignEditorDialog(Dialog):
         days_btn_frame.pack(fill="x", pady=5)
 
         self.day_entry_var = StringVar()
-        Entry(days_btn_frame, textvariable=self.day_entry_var, width=20).pack(side="left", padx=(0, 5))
+        Entry(
+            days_btn_frame, textvariable=self.day_entry_var, width=20
+        ).pack(side="left", padx=(0, 5))
 
-        Button(days_btn_frame, text="Adicionar Dia", command=self._add_day).pack(side="left", padx=2)
-        Button(days_btn_frame, text="Remover Selecionado", command=self._remove_day).pack(side="left", padx=2)
+        Button(
+            days_btn_frame, text="Adicionar Dia", command=self._add_day
+        ).pack(side="left", padx=2)
+        Button(
+            days_btn_frame, text="Remover Selecionado", command=self._remove_day
+        ).pack(side="left", padx=2)
 
         # Help text
         help_text = Label(
@@ -167,8 +183,12 @@ class DesignEditorDialog(Dialog):
         """Override to add OK and Cancel buttons."""
         box = Frame(self)
 
-        Button(box, text="Salvar", width=10, command=self.ok, default="active").pack(side="left", padx=5, pady=5)
-        Button(box, text="Cancelar", width=10, command=self.cancel).pack(side="left", padx=5, pady=5)
+        Button(
+            box, text="Salvar", width=10, command=self.ok, default="active"
+        ).pack(side="left", padx=5, pady=5)
+        Button(box, text="Cancelar", width=10, command=self.cancel).pack(
+            side="left", padx=5, pady=5
+        )
 
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
@@ -193,11 +213,15 @@ class DesignEditorDialog(Dialog):
         group_name = self.group_entry_var.get().strip()
 
         if not group_name:
-            messagebox.showwarning("Grupo Vazio", "Por favor, digite um nome para o grupo.")
+            messagebox.showwarning(
+                "Grupo Vazio", "Por favor, digite um nome para o grupo."
+            )
             return
 
         if group_name in self.groups:
-            messagebox.showwarning("Grupo Duplicado", f"O grupo '{group_name}' já existe.")
+            messagebox.showwarning(
+                "Grupo Duplicado", f"O grupo '{group_name}' já existe."
+            )
             return
 
         self.groups.append(group_name)
@@ -211,7 +235,9 @@ class DesignEditorDialog(Dialog):
         """Remove selected group."""
         selection = self.groups_listbox.curselection()
         if not selection:
-            messagebox.showwarning("Nenhum Grupo Selecionado", "Selecione um grupo para remover.")
+            messagebox.showwarning(
+                "Nenhum Grupo Selecionado", "Selecione um grupo para remover."
+            )
             return
 
         index = selection[0]
@@ -253,7 +279,9 @@ class DesignEditorDialog(Dialog):
         """Remove selected day."""
         selection = self.days_listbox.curselection()
         if not selection:
-            messagebox.showwarning("Nenhum Dia Selecionado", "Selecione um dia para remover.")
+            messagebox.showwarning(
+                "Nenhum Dia Selecionado", "Selecione um dia para remover."
+            )
             return
 
         index = selection[0]

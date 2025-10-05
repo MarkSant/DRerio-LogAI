@@ -465,7 +465,8 @@ class DetectionStep(WizardStep):
         for path in paths:
             filename = path.stem
 
-            # Look for group in filename (common prefixes: Control, Treatment, Exp, Group)
+            # Look for group in filename
+            # (common prefixes: Control, Treatment, Exp, Group)
             group_match = re.search(
                 r"(Control|Treatment|Exp\d+|Group\d+)", filename, re.IGNORECASE
             )
@@ -566,8 +567,14 @@ class DetectionStep(WizardStep):
                 text += "⚠️ Design experimental não detectado automaticamente.\n\n"
                 text += "Possíveis causas:\n"
                 text += "  • Estrutura de pastas não segue padrões reconhecidos\n"
-                text += "  • Nomes de grupos/dias não são detectáveis (ex: Grupo1, Day01)\n\n"
-                text += "Você pode prosseguir sem design detectado ou reorganizar os arquivos.\n"
+                text += (
+                    "  • Nomes de grupos/dias não são detectáveis "
+                    "(ex: Grupo1, Day01)\n\n"
+                )
+                text += (
+                    "Você pode prosseguir sem design detectado ou "
+                    "reorganizar os arquivos.\n"
+                )
             else:
                 text += "ℹ️ Detecção de design desativada (projeto exploratório).\n"
 
