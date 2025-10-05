@@ -24,6 +24,8 @@
 
 O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científicos** que:
 
+> ℹ️ Para um inventário completo de variáveis, fórmulas matemáticas e integrações de hardware, consulte também o [`docs/REFERENCE_GUIDE.md`](./REFERENCE_GUIDE.md).
+
 - Armazena configurações, vídeos e resultados em uma estrutura hierárquica
 - Suporta análise em lote de múltiplos vídeos com configurações consistentes
 - Persiste parâmetros de análise (intervalos, métodos de detecção, calibrações)

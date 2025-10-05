@@ -15,6 +15,7 @@ ZebTrack-AI é uma aplicação desktop construída com Tkinter que automatiza to
 - [⚠️ Pontos de atenção importantes](#-pontos-de-atenção-importantes)
 - [🧪 Testes](#-testes)
 - [🗂️ Dados e relatórios](#-dados-e-relatórios)
+- [📚 Documentação estendida](#-documentação-estendida)
 - [🤝 Contribuindo](#-contribuindo)
 - [📄 Licença](#-licença)
 
@@ -84,6 +85,7 @@ Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para guia comp
 - **Relatórios científicos** em Excel e Word com mapas de ROI, gráficos e tabelas consolidadas.
 - **Fluxo guiado por projetos** com persistência de configurações, batches de vídeos e metadados experimentais.
 - **Monitoramento em tempo real** do processamento, incluindo ETA, frames processados/detectados e visualização dos overlays da detecção.
+- **Integração com Arduino** para sincronizar estímulos externos e gravação via relés/sensores, com monitoramento dedicado na UI.
 
 ## 🏗️ Arquitetura geral
 
@@ -174,6 +176,16 @@ Para cada vídeo processado é criado um diretório `*_results` contendo:
 - `{video}_report.docx`: relatório Word com gráficos, mapas de ROI e estatísticas chave.
 
 Relatórios consolidados (`.xlsx`, `.csv`, `.parquet`) podem ser gerados pela aba **Relatórios** após o processamento de múltiplos vídeos.
+
+✅ Consulte [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md) para as tabelas completas de variáveis, fórmulas matemáticas e tutoriais de inspeção experimental.
+
+## 📚 Documentação estendida
+
+- [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): guia operacional completo (fluxos, métricas, Arduino, tutoriais e FAQ).
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): visão de componentes e decisões arquiteturais.
+- [`docs/PROJECT_WORKFLOW.md`](docs/PROJECT_WORKFLOW.md): fluxo detalhado de criação de projetos e processamento em lote.
+- [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md): passo a passo do wizard de cinco etapas.
+- [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): transformações de coordenadas e calibração.
 
 ## 🤝 Contribuindo
 

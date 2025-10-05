@@ -150,6 +150,7 @@ sequenceDiagram
 ## 8. Links úteis
 
 - [README.md](../README.md) – visão geral, guia rápido e convenções.
+- [REFERENCE_GUIDE.md](./REFERENCE_GUIDE.md) – referências operacionais (métricas, tutoriais e integração Arduino).
 - [CONTRIBUTING.md](../CONTRIBUTING.md) – processo de desenvolvimento e padrões de PR.
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md) – resumo rápido para agentes automáticos.
 - `tests/manual/` – scripts atuais para inspeções manuais; substituem os antigos geradores de cenários do Wizard.
