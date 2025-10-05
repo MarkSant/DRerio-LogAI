@@ -2046,6 +2046,10 @@ class AppController:
                     freezing_duration=fz_dur,
                 )
                 reporter.export_summary_data(
+                    os.path.join(results_dir, f"{experiment_id}_summary.parquet"),
+                    format="parquet",
+                )
+                reporter.export_summary_data(
                     os.path.join(results_dir, f"{experiment_id}_summary.xlsx"),
                     format="excel",
                 )

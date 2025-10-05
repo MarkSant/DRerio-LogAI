@@ -8,10 +8,7 @@ from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 
 
-@pytest.fixture
-def reporter_setup(tmp_path):
-    """Provides a fully initialized Reporter instance for testing."""
-    # Create sample data
+def _build_reporter(tmp_path, metadata_override=None):
     trajectory_df = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(range(10), unit="s"),
@@ -24,19 +21,13 @@ def reporter_setup(tmp_path):
         }
     )
     metadata = {"experiment_id": "test_exp_01", "group_id": "control"}
-    pixelcm_x = 10.0
-    pixelcm_y = 10.0
-    video_height_px = 100
-    arena_polygon_px = [(0, 0), (50, 0), (50, 50), (0, 50)]
-    rois = [ROI(name="zone1", geometry=box(1, 1, 2, 2))]
-    fps = 10.0
+    if metadata_override:
+        metadata.update(metadata_override)
 
-    # The Reporter's __init__ calls the full analysis service.
-    # We can patch the service to return predictable data, isolating the
-    # Reporter's own logic (tidy data creation, plotting, exporting).
+    rois = [ROI(name="zone1", geometry=box(1, 1, 2, 2))]
+
     with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
         mock_analyzer = MagicMock()
-        # Mock the ROI analyzer to have a `rois` property
         mock_roi_analyzer = MagicMock()
         type(mock_roi_analyzer).rois = PropertyMock(return_value={"zone1": rois[0]})
 
@@ -72,14 +63,21 @@ def reporter_setup(tmp_path):
         reporter = Reporter(
             trajectory_df=trajectory_df,
             metadata=metadata,
-            pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y,
-            video_height_px=video_height_px,
-            arena_polygon_px=arena_polygon_px,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=100,
+            arena_polygon_px=[(0, 0), (50, 0), (50, 50), (0, 50)],
             rois=rois,
-            fps=fps,
+            fps=10.0,
         )
-        yield reporter, tmp_path
+
+    return reporter
+
+
+@pytest.fixture
+def reporter_setup(tmp_path):
+    reporter = _build_reporter(tmp_path)
+    yield reporter, tmp_path
 
 
 def test_reporter_create_tidy_dataframe(reporter_setup):
@@ -98,12 +96,12 @@ def test_reporter_create_tidy_dataframe(reporter_setup):
     assert tidy_df["group_id"].iloc[0] == "control"
 
     # Check some flattened metrics from the mock report
-    assert tidy_df["distancia_total_cm"].iloc[0] == 100.0
-    assert tidy_df["velocidade_media_cm_s"].iloc[0] == 10.0
-    assert tidy_df["contagem_curvas_acentuadas"].iloc[0] == 5
-    assert tidy_df["tempo_no_zone1_s"].iloc[0] == 5.0
-    assert tidy_df["entradas_no_zone1"].iloc[0] == 1
-    assert "data_hora_analise" in tidy_df.columns
+    assert tidy_df["total_distance_cm"].iloc[0] == 100.0
+    assert tidy_df["mean_speed_cm_s"].iloc[0] == 10.0
+    assert tidy_df["sharp_turns_count"].iloc[0] == 5
+    assert tidy_df["time_in_zone1_s"].iloc[0] == 5.0
+    assert tidy_df["entries_in_zone1"].iloc[0] == 1
+    assert "analysis_timestamp" in tidy_df.columns
 
 
 @patch("pandas.DataFrame.to_excel")
@@ -140,3 +138,18 @@ def test_reporter_export_summary_invalid_format(reporter_setup):
     reporter, tmp_path = reporter_setup
     with pytest.raises(ValueError, match="Unsupported file format: json"):
         reporter.export_summary_data(str(tmp_path / "summary.json"), format="json")
+
+
+def test_reporter_group_id_fallback(tmp_path):
+    reporter = _build_reporter(
+        tmp_path, metadata_override={"group_id": None, "grupo": "treated"}
+    )
+    assert reporter.tidy_data["group_id"].iloc[0] == "treated"
+
+
+def test_reporter_export_summary_schema_validation(reporter_setup):
+    reporter, tmp_path = reporter_setup
+    reporter.tidy_data = reporter.tidy_data.drop(columns=["analysis_timestamp"])
+
+    with pytest.raises(ValueError, match="analysis_timestamp"):
+        reporter.export_summary_data(str(tmp_path / "summary.parquet"), format="parquet")

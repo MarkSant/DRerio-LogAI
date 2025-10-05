@@ -18,6 +18,40 @@ from scipy.ndimage import gaussian_filter
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
 
+COLUMN_MAPPING = {
+    "distancia_total_cm": "total_distance_cm",
+    "velocidade_media_cm_s": "mean_speed_cm_s",
+    "velocidade_mediana_cm_s": "median_speed_cm_s",
+    "desvio_padrao_velocidade_cm_s": "speed_std_dev_cm_s",
+    "contagem_curvas_acentuadas": "sharp_turns_count",
+    "curvas_acentuadas_por_minuto": "sharp_turns_per_minute",
+    "total_entradas_roi": "total_roi_entries",
+    "data_hora_analise": "analysis_timestamp",
+}
+
+DYNAMIC_PREFIX_MAPPINGS = (
+    ("tempo_no_", "time_in_"),
+    ("percentual_tempo_no_", "time_percentage_in_"),
+    ("entradas_no_", "entries_in_"),
+    ("saidas_do_", "exits_from_"),
+    ("latencia_para_", "latency_to_"),
+    ("distancia_no_", "distance_in_"),
+    ("velocidade_media_no_", "mean_speed_in_"),
+    ("episodios_congelamento_no_", "freezing_events_in_"),
+    ("duracao_total_congelamento_no_", "freezing_duration_in_"),
+    ("cor_roi_", "roi_color_"),
+)
+
+GROUP_ID_FALLBACK_KEYS = ("group", "grupo", "grupo_id", "group_name")
+
+REQUIRED_COLUMNS = (
+    "experiment_id",
+    "group_id",
+    "analysis_timestamp",
+    "total_distance_cm",
+    "mean_speed_cm_s",
+)
+
 
 def _rgb_to_color_name(rgb_tuple):
     """
@@ -147,7 +181,8 @@ class Reporter:
         self.freezing_duration = freezing_duration
 
         # Generate the tidy dataframe from the report
-        self.tidy_data = self._create_tidy_dataframe()
+        tidy_df = self._create_tidy_dataframe()
+        self.tidy_data = self._standardize_tidy_dataframe(tidy_df)
 
     def _create_tidy_dataframe(self) -> pd.DataFrame:
         """Creates a flat, tidy DataFrame from the structured report dictionary."""
@@ -224,11 +259,70 @@ class Reporter:
         combined_data["data_hora_analise"] = datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         )
+        combined_data["group_id"] = self._resolve_group_id(combined_data)
         return pd.DataFrame([combined_data])
+
+    def _resolve_group_id(self, combined_data: dict) -> str:
+        """Ensures the summary dataframe includes a populated group_id column."""
+        group_id = combined_data.get("group_id") or self.metadata.get("group_id")
+        if group_id:
+            return str(group_id)
+
+        for key in GROUP_ID_FALLBACK_KEYS:
+            candidate = combined_data.get(key) or self.metadata.get(key)
+            if candidate:
+                return str(candidate)
+
+        return "unassigned"
+
+    @staticmethod
+    def _translate_column_name(column_name: str) -> str:
+        if column_name in COLUMN_MAPPING:
+            return COLUMN_MAPPING[column_name]
+
+        for prefix, replacement in DYNAMIC_PREFIX_MAPPINGS:
+            if column_name.startswith(prefix):
+                suffix = column_name[len(prefix) :]
+                return f"{replacement}{suffix}"
+
+        return column_name
+
+    def _standardize_tidy_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        standardized_df = df.copy()
+
+        rename_map = {}
+        for column in standardized_df.columns:
+            translated = self._translate_column_name(column)
+            if translated != column:
+                rename_map[column] = translated
+
+        if rename_map:
+            standardized_df = standardized_df.rename(columns=rename_map)
+
+        if "group_id" not in standardized_df.columns:
+            standardized_df["group_id"] = self._resolve_group_id(
+                standardized_df.iloc[0].to_dict()
+            )
+
+        standardized_df["group_id"] = (
+            standardized_df["group_id"].fillna("unassigned").astype(str)
+        )
+
+        self._validate_schema(standardized_df)
+        return standardized_df
+
+    def _validate_schema(self, df: pd.DataFrame):
+        missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_columns:
+            raise ValueError(
+                "Reporter summary is missing required columns: "
+                + ", ".join(sorted(missing_columns))
+            )
 
     def export_summary_data(self, output_path: str, format: str = "excel"):
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        self._validate_schema(self.tidy_data)
         if format == "excel":
             self.tidy_data.to_excel(output_path, index=False, engine="openpyxl")
         elif format == "csv":
@@ -696,27 +790,32 @@ class Reporter:
         document = Document()
         document.add_heading("Aggregated Project Report", level=1)
         document.add_heading("Descriptive Statistics by Group", level=2)
-        desc_stats = aggregated_df.groupby("group_id")["distancia_total_cm"].agg(
-            ["mean", "std", "count"]
-        )
-        document.add_paragraph("Statistics for Total Distance Traveled (cm):")
-        table = document.add_table(rows=1, cols=len(desc_stats.columns) + 1)
-        table.style = "Table Grid"
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = "group_id"
-        for i, col_name in enumerate(desc_stats.columns):
-            hdr_cells[i + 1].text = col_name
-        for index, row in desc_stats.iterrows():
-            row_cells = table.add_row().cells
-            row_cells[0].text = str(index)
-            for i, value in enumerate(row):
-                row_cells[i + 1].text = f"{value:.2f}"
+        if "total_distance_cm" in aggregated_df.columns:
+            desc_stats = aggregated_df.groupby("group_id")["total_distance_cm"].agg(
+                ["mean", "std", "count"]
+            )
+            document.add_paragraph("Statistics for Total Distance Traveled (cm):")
+            table = document.add_table(rows=1, cols=len(desc_stats.columns) + 1)
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = "group_id"
+            for i, col_name in enumerate(desc_stats.columns):
+                hdr_cells[i + 1].text = col_name
+            for index, row in desc_stats.iterrows():
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(index)
+                for i, value in enumerate(row):
+                    row_cells[i + 1].text = f"{value:.2f}"
+        else:
+            document.add_paragraph(
+                "Total distance metric not available for the aggregated dataset."
+            )
         document.add_page_break()
         document.add_heading("Comparative Plots", level=2)
 
         metrics_for_boxplot = [
             "total_distance_cm",
-            "mean_velocity_cm_s",
+            "mean_speed_cm_s",
             "sharp_turns_count",
             "sharp_turns_per_minute",
             "total_roi_entries",
