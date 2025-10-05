@@ -228,15 +228,19 @@ class ConfirmationStep(WizardStep):
 
         lines.append("")
 
-        # ROI merge strategy
-        roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
-        strategy_names = {
-            "replace": "Substituir ROIs existentes",
-            "merge": "Mesclar (manter ambos)",
-            "manual": "Resolução manual de conflitos",
-        }
-        lines.append("🔀 Estratégia de ROIs:")
-        lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
+        # ROI merge strategy (only show if importing ROIs)
+        import_config = self.wizard_data.get("import_config", [])
+        importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+
+        if importing_rois:
+            roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
+            strategy_names = {
+                "replace": "Substituir ROIs existentes",
+                "merge": "Mesclar (manter ambos)",
+                "manual": "Resolução manual de conflitos",
+            }
+            lines.append("🔀 Estratégia de ROIs:")
+            lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
 
         self.summary_text = "\n".join(lines)
         self.summary_label.config(text=self.summary_text)

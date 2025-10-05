@@ -258,7 +258,7 @@ class DetectionStep(WizardStep):
         subjects_per_group = {}
 
         for group in groups:
-            subjects_per_group[group] = []
+            subjects_per_group[group] = set()  # Use set to avoid duplicates
             for path in group_candidates[group]:
                 # Look for day pattern in filename or parent folders
                 day_match = re.search(r"[Dd](?:ay)?[\s_-]?(\d+)", str(path))
@@ -268,7 +268,12 @@ class DetectionStep(WizardStep):
                 # Look for subject in filename
                 subject_match = re.search(r"[Ss](?:ubject)?[\s_-]?(\d+)", path.stem)
                 if subject_match:
-                    subjects_per_group[group].append(f"S{subject_match.group(1).zfill(2)}")
+                    subjects_per_group[group].add(f"S{subject_match.group(1).zfill(2)}")
+
+        # Convert sets to sorted lists for display
+        subjects_per_group_sorted = {
+            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+        }
 
         # Calculate confidence
         coverage = len([p for p in paths if any(str(p).find(g) >= 0 for g in groups)]) / len(paths)
@@ -277,7 +282,7 @@ class DetectionStep(WizardStep):
         return {
             "groups": sorted(groups),
             "days": sorted(list(days_found)) if days_found else None,
-            "subjects_per_group": subjects_per_group,
+            "subjects_per_group": subjects_per_group_sorted,
             "confidence": confidence,
             "pattern_used": "groups_as_folders",
         }
@@ -308,7 +313,7 @@ class DetectionStep(WizardStep):
                 groups_found.add(group)
 
                 if group not in subjects_per_group:
-                    subjects_per_group[group] = []
+                    subjects_per_group[group] = set()  # Use set to avoid duplicates
 
             # Look for day
             day_match = re.search(r"[Dd](?:ay)?[\s_-]?(\d+)", filename)
@@ -318,10 +323,15 @@ class DetectionStep(WizardStep):
             # Look for subject
             subject_match = re.search(r"[Ss](?:ubject)?[\s_-]?(\d+)", filename)
             if subject_match and group_match:
-                subjects_per_group[group].append(f"S{subject_match.group(1).zfill(2)}")
+                subjects_per_group[group].add(f"S{subject_match.group(1).zfill(2)}")
 
         if len(groups_found) < 2:
             return None
+
+        # Convert sets to sorted lists for display
+        subjects_per_group_sorted = {
+            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+        }
 
         # Calculate confidence based on pattern consistency
         confidence = min(len(groups_found) / 5.0, 1.0) * 0.6  # Lower confidence for filename-based
@@ -329,7 +339,7 @@ class DetectionStep(WizardStep):
         return {
             "groups": sorted(list(groups_found)),
             "days": sorted(list(days_found)) if days_found else None,
-            "subjects_per_group": subjects_per_group,
+            "subjects_per_group": subjects_per_group_sorted,
             "confidence": confidence,
             "pattern_used": "filename_based",
         }
