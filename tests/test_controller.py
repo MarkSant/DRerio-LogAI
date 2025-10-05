@@ -1,8 +1,10 @@
 import tempfile
 import unittest
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from zebtrack.core.controller import AppController
+from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.settings import settings
 
 
@@ -31,6 +33,22 @@ class TestAppController(unittest.TestCase):
         self.controller.project_manager = self.mock_pm
         self.controller.view = self.mock_view
         self.controller.weight_manager = self.mock_wm
+
+        # Stub Arduino manager factory for tests
+        self.mock_arduino_manager = MagicMock()
+        self.mock_arduino_manager.connect.return_value = True
+        self.mock_arduino_manager.is_connected.return_value = False
+        self.mock_arduino_manager.current_port.return_value = None
+        self.mock_arduino_manager.send_command.return_value = True
+        self.mock_arduino_manager.arduino = MagicMock()
+
+        self.mock_arduino_manager_cls = MagicMock(
+            return_value=self.mock_arduino_manager
+        )
+        self.controller._arduino_manager_cls = cast(
+            type[ArduinoManager], self.mock_arduino_manager_cls
+        )
+        self.controller.arduino_manager = None
 
     def tearDown(self):
         """Clean up after each test."""
@@ -235,12 +253,8 @@ class TestAppController(unittest.TestCase):
                 self.assertEqual(call_args.kwargs["analysis_interval_frames"], 5)
                 self.assertEqual(call_args.kwargs["display_interval_frames"], 7)
 
-    @patch("zebtrack.core.controller.Arduino")
-    def test_setup_arduino_success(self, mock_arduino_cls):
+    def test_setup_arduino_success(self):
         """Ensure setup_arduino connects when project requests Arduino support."""
-
-        arduino_instance = mock_arduino_cls.return_value
-        arduino_instance.connect.return_value = True
 
         self.mock_pm.project_data = {
             "use_arduino": True,
@@ -250,11 +264,12 @@ class TestAppController(unittest.TestCase):
         result = self.controller.setup_arduino()
 
         self.assertTrue(result)
-        mock_arduino_cls.assert_called_once_with(
-            port="COM9", baud_rate=settings.arduino.baud_rate
+        self.mock_arduino_manager_cls.assert_called_once_with(self.controller)
+        self.mock_arduino_manager.connect.assert_called_once_with(
+            "COM9", settings.arduino.baud_rate
         )
-        arduino_instance.connect.assert_called_once()
-        self.assertIs(self.controller.arduino, arduino_instance)
+        self.assertIs(self.controller.arduino_manager, self.mock_arduino_manager)
+        self.assertIs(self.controller.arduino, self.mock_arduino_manager.arduino)
 
     def test_start_and_stop_recording_send_arduino_commands(self):
         """Verify Arduino start/stop commands fire during recording lifecycle."""
@@ -292,30 +307,101 @@ class TestAppController(unittest.TestCase):
             }
             self.mock_view.camera = MagicMock(actual_width=640, actual_height=480)
 
-            # Arduino mock configured as already open
-            arduino_mock = MagicMock()
-            arduino_mock.ser = MagicMock(is_open=True)
-            arduino_mock.port = "COM7"
-            arduino_mock.send_command.return_value = True
+            # Reset and configure Arduino manager mock for this scenario
+            self.mock_arduino_manager_cls.reset_mock()
+            self.mock_arduino_manager.connect.reset_mock()
+            self.mock_arduino_manager.send_command.reset_mock()
+            self.mock_arduino_manager.arduino = MagicMock()
+            self.mock_arduino_manager.current_port.return_value = "COM7"
 
-            def setup_side_effect():
-                self.controller.arduino = arduino_mock
-                return True
+            def is_connected_side_effect(*_args, **_kwargs):
+                return self.mock_arduino_manager.connect.call_count > 0
 
-            self.controller.setup_arduino = MagicMock(side_effect=setup_side_effect)
+            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
 
             # --- Act: start recording triggers Arduino start command
             self.controller.start_recording()
 
-            self.controller.setup_arduino.assert_called_once()
-            arduino_mock.send_command.assert_any_call(2)
+            self.mock_arduino_manager_cls.assert_called_once_with(self.controller)
+            self.mock_arduino_manager.connect.assert_called_once_with(
+                "COM7", settings.arduino.baud_rate
+            )
+            self.mock_arduino_manager.send_command.assert_any_call(
+                2, source="manual-start"
+            )
 
             # --- Act: stopping recording triggers stop command
             self.controller.is_recording = True
             self.controller.stop_recording()
 
-            arduino_mock.send_command.assert_any_call(0)
+            self.mock_arduino_manager.send_command.assert_any_call(
+                0, source="manual-stop"
+            )
             self.controller.recorder.stop_recording.assert_called_once()
+
+    def test_external_trigger_waits_for_event_before_starting(self):
+        """External trigger mode defers recording until Arduino event arrives."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.mock_pm.project_path = temp_dir
+            self.mock_pm.project_data = {
+                "use_timed_recording": False,
+                "recording_duration_s": 0,
+                "use_countdown": False,
+                "countdown_duration_s": 0,
+                "use_arduino": True,
+                "arduino_port": "COM8",
+                "external_trigger_mode": True,
+            }
+            self.mock_pm.get_project_type.return_value = "live"
+
+            zone_data = MagicMock()
+            zone_data.polygon = [[0, 0], [1, 0], [1, 1], [0, 1]]
+            self.mock_pm.get_zone_data.return_value = zone_data
+
+            self.controller.detector = MagicMock()
+            self.controller.setup_detector_zones = MagicMock()
+            self.controller.recorder = MagicMock()
+            self.controller.recorder.start_recording.return_value = True
+
+            self.mock_view.ask_recording_details_unified.return_value = {
+                "day": 1,
+                "group": "B",
+                "cobaia": "3",
+            }
+            self.mock_view.camera = MagicMock(actual_width=640, actual_height=480)
+
+            self.mock_arduino_manager_cls.reset_mock()
+            self.mock_arduino_manager.connect.reset_mock()
+            self.mock_arduino_manager.send_command.reset_mock()
+            self.mock_arduino_manager.arduino = MagicMock()
+            self.mock_arduino_manager.current_port.return_value = "COM8"
+
+            def is_connected_side_effect(*_args, **_kwargs):
+                return self.mock_arduino_manager.connect.call_count > 0
+
+            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
+
+            # Execute scheduled UI callbacks immediately in tests
+            self.controller._schedule_on_ui = lambda func, *a, **k: func(*a, **k)
+
+            self.controller.start_recording()
+
+            # Should be waiting for external trigger
+            self.assertIsNotNone(self.controller._pending_external_trigger)
+            self.controller.recorder.start_recording.assert_not_called()
+            self.mock_arduino_manager.send_command.assert_not_called()
+            self.assertTrue(self.mock_view.show_external_trigger_notice.called)
+
+            # Simulate Arduino event to trigger recording
+            self.controller.on_arduino_event(1)
+
+            self.controller.recorder.start_recording.assert_called_once()
+            self.mock_arduino_manager.send_command.assert_any_call(
+                3, source="external-start"
+            )
+            self.assertIsNone(self.controller._pending_external_trigger)
+            self.assertTrue(self.mock_view.clear_external_trigger_notice.called)
 
 
 if __name__ == "__main__":

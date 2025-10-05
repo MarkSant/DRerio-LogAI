@@ -28,6 +28,7 @@ from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
+from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
@@ -46,6 +47,8 @@ class AppController:
         self.detector = None
         self.recorder = Recorder()
         self.arduino: Arduino | None = None
+        self.arduino_manager: ArduinoManager | None = None
+        self._arduino_manager_cls = ArduinoManager
         self.report_results_paths = {}
         self.is_recording = False
         self.timed_recording_job = None
@@ -54,6 +57,8 @@ class AppController:
         self.processing_thread: threading.Thread | None = None
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
+
+        self._pending_external_trigger: dict | None = None
 
         # New state variables for model management
         self.active_weight_name, _ = self.weight_manager.get_default_weight()
@@ -109,7 +114,188 @@ class AppController:
             log.info("controller.shutdown.release_camera")
             self.camera.release()
 
+        self._shutdown_arduino_manager()
+
         log.info("controller.shutdown.complete")
+
+    def _get_arduino_manager(self) -> ArduinoManager:
+        if self.arduino_manager is None:
+            self.arduino_manager = self._arduino_manager_cls(self)
+        return self.arduino_manager
+
+    def _shutdown_arduino_manager(self):
+        if self.arduino_manager:
+            try:
+                self.arduino_manager.shutdown()
+            except Exception:
+                log.warning("controller.arduino.shutdown_failed", exc_info=True)
+            self.arduino_manager = None
+        self.arduino = None
+
+    def _schedule_on_ui(self, func, *args, **kwargs):
+        try:
+            self.root.after(0, lambda: func(*args, **kwargs))
+        except Exception:
+            func(*args, **kwargs)
+
+    def _clear_external_trigger_wait(self):
+        if not self._pending_external_trigger:
+            return
+
+        self._pending_external_trigger = None
+        if hasattr(self.view, "clear_external_trigger_notice"):
+            self._schedule_on_ui(self.view.clear_external_trigger_notice)
+        self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
+        self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
+        self._schedule_on_ui(self.view.set_status, "Pronto.")
+
+    def log_arduino_event(self, message: str):
+        log.info("controller.arduino.log", message=message)
+        if hasattr(self.view, "append_arduino_log"):
+            self._schedule_on_ui(self.view.append_arduino_log, message)
+
+    def on_arduino_status_change(self, connected: bool, port: str | None):
+        log.info("controller.arduino.status", connected=connected, port=port)
+        if hasattr(self.view, "update_arduino_status_indicator"):
+            self._schedule_on_ui(
+                self.view.update_arduino_status_indicator, connected, port
+            )
+
+    def on_arduino_command_sent(self, command: int, success: bool, source: str):
+        label_text = str(command) if success else f"{command} (falha)"
+        if hasattr(self.view, "set_arduino_last_command"):
+            self._schedule_on_ui(self.view.set_arduino_last_command, label_text)
+
+    def on_arduino_event(self, event_code: int):
+        log.info("controller.arduino.event_received", code=event_code)
+        self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
+
+        if event_code == 1:
+            if self._pending_external_trigger:
+                self.log_arduino_event(
+                    "Sinal externo recebido. Iniciando gravação..."
+                )
+                self.trigger_recording(event_code)
+            else:
+                log.warning("controller.arduino.event.unexpected_start")
+        elif event_code == 0:
+            if self.is_recording or self._pending_external_trigger:
+                self.log_arduino_event("Sinal externo solicitando parada.")
+                self._schedule_on_ui(self.stop_recording)
+        else:
+            log.info("controller.arduino.event.ignored", code=event_code)
+
+    def trigger_recording(self, event_code: int | None = None):
+        if not self._pending_external_trigger:
+            log.warning(
+                "controller.external_trigger.no_pending", code=event_code
+            )
+            return
+
+        context = self._pending_external_trigger
+        self._pending_external_trigger = None
+
+        def _start_from_trigger():
+            if hasattr(self.view, "clear_external_trigger_notice"):
+                self.view.clear_external_trigger_notice()
+            project_data = self.project_manager.project_data or {}
+            self._schedule_recording(context, project_data, trigger_source="external")
+
+        self._schedule_on_ui(_start_from_trigger)
+
+    def _schedule_recording(
+        self,
+        context: dict,
+        project_data: dict,
+        *,
+        trigger_source: str,
+    ) -> None:
+        countdown_s = int(project_data.get("countdown_duration_s", 0) or 0)
+        use_countdown = bool(project_data.get("use_countdown")) and countdown_s > 0
+
+        def _start_now():
+            self._start_recording_now(context, project_data, trigger_source)
+
+        if use_countdown:
+            self._run_countdown(countdown_s, _start_now)
+        else:
+            _start_now()
+
+    def _start_recording_now(
+        self,
+        context: dict,
+        project_data: dict,
+        trigger_source: str,
+    ) -> None:
+        folder_name = context["folder_name"]
+        output_folder = context["output_folder"]
+
+        zone_data = self.project_manager.get_zone_data()
+        camera_width = getattr(self.view.camera, "actual_width", None)
+        camera_height = getattr(self.view.camera, "actual_height", None)
+
+        if camera_width is None or camera_height is None:
+            self.view.show_error(
+                "Erro",
+                "Configuração da câmera indisponível para iniciar a gravação.",
+            )
+            self._schedule_on_ui(
+                self.view.update_button_state, "start_rec", "normal"
+            )
+            return
+
+        self.is_recording = self.recorder.start_recording(
+            output_folder,
+            camera_width,
+            camera_height,
+            zones=zone_data,
+        )
+
+        if not self.is_recording:
+            self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
+            self._schedule_on_ui(
+                self.view.update_button_state, "start_rec", "normal"
+            )
+            self._schedule_on_ui(
+                self.view.update_button_state, "stop_rec", "disabled"
+            )
+            return
+
+        self._schedule_on_ui(self.view.update_button_state, "start_rec", "disabled")
+        self._schedule_on_ui(self.view.update_button_state, "stop_rec", "normal")
+        self._schedule_on_ui(
+            self.view.set_status, f"Recording session: {folder_name}"
+        )
+
+        if context.get("arduino_enabled") and self.arduino_manager:
+            box_number = self._get_box_number(
+                context["day"], context["group"], context["cobaia"]
+            )
+            if box_number is None:
+                log.warning(
+                    "controller.recording.arduino_invalid_box",
+                    day=context["day"],
+                    group=context["group"],
+                    cobaia=context["cobaia"],
+                )
+            else:
+                self.arduino_manager.send_command(
+                    box_number, source=f"{trigger_source}-start"
+                )
+
+        project_data = project_data or {}
+        if project_data.get("use_timed_recording"):
+            duration_s = project_data.get("recording_duration_s", 0) or 0
+            if duration_s > 0:
+                duration_ms = int(duration_s * 1000)
+                self.timed_recording_job = self.root.after(
+                    duration_ms, self.stop_recording
+                )
+                log.info(
+                    "controller.recording.timed_start",
+                    duration_s=duration_s,
+                    trigger=trigger_source,
+                )
 
     def close_project(self):
         # Reset project manager
@@ -500,11 +686,9 @@ class AppController:
 
     def _is_arduino_connected(self) -> bool:
         """Checks whether there is an active Arduino connection."""
-        if not self.arduino:
+        if not self.arduino_manager:
             return False
-
-        serial_conn = getattr(self.arduino, "ser", None)
-        return bool(serial_conn and getattr(serial_conn, "is_open", False))
+        return self.arduino_manager.is_connected()
 
     def setup_arduino(self) -> bool:
         """Ensures the Arduino connection is ready when the project requests it."""
@@ -512,6 +696,8 @@ class AppController:
         use_arduino = bool(project_data.get("use_arduino"))
         if not use_arduino:
             log.debug("controller.arduino.disabled")
+            if self.arduino_manager:
+                self.arduino_manager.disconnect()
             return False
 
         port = (project_data.get("arduino_port") or "").strip()
@@ -519,51 +705,16 @@ class AppController:
             log.warning("controller.arduino.no_port_configured")
             return False
 
-        if self._is_arduino_connected() and getattr(self.arduino, "port", None) == port:
+        manager = self._get_arduino_manager()
+        if manager.is_connected() and manager.current_port() == port:
             log.debug("controller.arduino.already_connected", port=port)
+            self.arduino = manager.arduino
             return True
 
-        if self.arduino:
-            try:
-                self.arduino.close()
-            except Exception:
-                log.warning("controller.arduino.close_previous_failed", exc_info=True)
-            finally:
-                self.arduino = None
-
         baud_rate = settings.arduino.baud_rate
-        try:
-            candidate = Arduino(port=port, baud_rate=baud_rate)
-        except Exception:
-            log.error(
-                "controller.arduino.init_failed",
-                port=port,
-                baud_rate=baud_rate,
-                exc_info=True,
-            )
-            self.arduino = None
-            return False
-
-        try:
-            if candidate.connect():
-                self.arduino = candidate
-                log.info(
-                    "controller.arduino.connected",
-                    port=port,
-                    baud_rate=baud_rate,
-                )
-                return True
-            log.warning("controller.arduino.connect_failed", port=port)
-        except Exception:
-            log.error(
-                "controller.arduino.connect_error",
-                port=port,
-                baud_rate=baud_rate,
-                exc_info=True,
-            )
-        finally:
-            if self.arduino is not candidate:
-                candidate.close()
+        if manager.connect(port, baud_rate):
+            self.arduino = manager.arduino
+            return True
 
         return False
 
@@ -1088,6 +1239,9 @@ class AppController:
         """Starts a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
 
+        # Reset any previous waiting state before starting a new session
+        self._clear_external_trigger_wait()
+
         # Enhanced zone validation for Live projects
         if self.project_manager.project_path:
             project_type = self.project_manager.get_project_type()
@@ -1208,78 +1362,80 @@ class AppController:
         output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
-        project_data_snapshot = self.project_manager.project_data
+        project_data = self.project_manager.project_data or {}
+
         arduino_enabled = False
-        if project_data_snapshot.get("use_arduino"):
+        if project_data.get("use_arduino"):
             arduino_enabled = self.setup_arduino()
             if not arduino_enabled:
                 log.warning(
                     "controller.recording.arduino_unavailable",
-                    port=project_data_snapshot.get("arduino_port"),
+                    port=project_data.get("arduino_port"),
                 )
 
-        # 4. Define the core recording logic as a callable
-        def _do_record():
-            zone_data = self.project_manager.get_zone_data()
-            self.is_recording = self.recorder.start_recording(
-                output_folder,
-                self.view.camera.actual_width,
-                self.view.camera.actual_height,
-                zones=zone_data,
+        context = {
+            "day": day,
+            "group": group,
+            "cobaia": cobaia,
+            "folder_name": folder_name,
+            "output_folder": output_folder,
+            "arduino_enabled": arduino_enabled,
+        }
+
+        arduino_port = (project_data.get("arduino_port") or "").strip()
+        if arduino_port:
+            context["arduino_port"] = arduino_port
+
+        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
+        if external_trigger_requested and not arduino_enabled:
+            self.view.show_error(
+                "Trigger Externo Indisponível",
+                (
+                    "O modo de trigger externo exige um Arduino configurado e "
+                    "conectado. Verifique o hardware e tente novamente."
+                ),
             )
+            return
 
-            if not self.is_recording:
-                self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
-                return
+        external_trigger_active = external_trigger_requested and arduino_enabled
 
-            if arduino_enabled:
-                if self._is_arduino_connected():
-                    box_number = self._get_box_number(day, group, cobaia)
-                    if box_number is None:
-                        log.warning(
-                            "controller.recording.arduino_invalid_box",
-                            day=day,
-                            group=group,
-                            cobaia=cobaia,
-                        )
-                    elif self.arduino and not self.arduino.send_command(box_number):
-                        log.warning(
-                            "controller.recording.arduino_start_failed",
-                            command=box_number,
-                        )
-                else:
-                    log.warning("controller.recording.arduino_not_connected")
+        if external_trigger_active:
+            self._pending_external_trigger = context
+            waiting_message = "Aguardando sinal externo do Arduino para iniciar..."
+            if arduino_port:
+                waiting_message = f"{waiting_message} (porta {arduino_port})"
 
-            # Update UI
-            self.view.update_button_state("start_rec", "disabled")
-            self.view.update_button_state("stop_rec", "normal")
-            self.view.set_status(f"Recording session: {folder_name}")
-
-            # Handle timed recording if enabled
-            project_data = self.project_manager.project_data
-            if project_data.get("use_timed_recording"):
-                duration_s = project_data.get("recording_duration_s", 0)
-                if duration_s > 0:
-                    duration_ms = int(duration_s * 1000)
-                    self.timed_recording_job = self.root.after(
-                        duration_ms, self.stop_recording
+            if hasattr(self.view, "show_external_trigger_notice"):
+                try:
+                    self.view.show_external_trigger_notice(
+                        folder_name,
+                        day=day,
+                        group=group,
+                        cobaia=cobaia,
+                        port=arduino_port,
                     )
-                    log.info("controller.recording.timed_start", duration_s=duration_s)
+                except TypeError:
+                    # Backward compatibility for implementations expecting a single message
+                    self.view.show_external_trigger_notice(waiting_message)
 
-        # 5. Check for countdown and execute recording logic
-        project_data = self.project_manager.project_data
-        if project_data.get("use_countdown"):
-            countdown_s = project_data.get("countdown_duration_s", 0)
-            if countdown_s > 0:
-                self._run_countdown(countdown_s, _do_record)
-            else:
-                _do_record()  # Countdown enabled but duration is 0, record immediately
-        else:
-            _do_record()  # No countdown, record immediately
+            self.view.update_button_state("start_rec", "disabled")
+            self.view.update_button_state("stop_rec", "disabled")
+            self.view.set_status(waiting_message)
+            self.log_arduino_event(
+                "Modo trigger externo habilitado. Aguardando sinal do Arduino."
+            )
+            return
+
+        self._pending_external_trigger = None
+        self._schedule_recording(context, project_data, trigger_source="manual")
 
     def stop_recording(self):
         """Stops the current recording session."""
         log.info("controller.recording.stop")
+
+        if self._pending_external_trigger:
+            self._clear_external_trigger_wait()
+
         # 1. Cancel any pending timed recording job
         if self.timed_recording_job:
             self.root.after_cancel(self.timed_recording_job)
@@ -1293,8 +1449,9 @@ class AppController:
 
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         if project_data.get("use_arduino"):
-            if self._is_arduino_connected() and self.arduino:
-                if not self.arduino.send_command(0):
+            manager = self.arduino_manager
+            if manager and manager.is_connected():
+                if not manager.send_command(0, source="manual-stop"):
                     log.warning("controller.recording.arduino_stop_failed")
             else:
                 log.warning("controller.recording.arduino_stop_not_connected")

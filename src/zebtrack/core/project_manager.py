@@ -490,6 +490,7 @@ class ProjectManager:
     camera_index: int = 0,
     use_arduino: bool = False,
     arduino_port: str = "",
+        external_trigger_mode: bool = False,
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
@@ -535,6 +536,7 @@ class ProjectManager:
         safe_camera_index = camera_index if camera_index is not None else 0
         safe_use_arduino = bool(use_arduino)
         safe_arduino_port = arduino_port or ""
+        safe_external_trigger = bool(external_trigger_mode) and safe_use_arduino
 
         self.project_data = {
             "project_name": os.path.basename(project_path),
@@ -563,6 +565,7 @@ class ProjectManager:
             "camera_index": safe_camera_index,
             "use_arduino": safe_use_arduino,
             "arduino_port": safe_arduino_port,
+            "external_trigger_mode": safe_external_trigger,
         }
 
         # Add wizard metadata if provided (from wizard v1.5+)
@@ -692,6 +695,14 @@ class ProjectManager:
                 loaded_data["arduino_port"] = ""
                 migration_applied = True
                 migrated_fields.append("arduino_port")
+
+            if (
+                "external_trigger_mode" not in loaded_data
+                or loaded_data["external_trigger_mode"] is None
+            ):
+                loaded_data["external_trigger_mode"] = False
+                migration_applied = True
+                migrated_fields.append("external_trigger_mode")
             # --- End Backward Compatibility ---
 
             self.project_path = project_path

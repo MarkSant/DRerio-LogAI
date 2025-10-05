@@ -17,6 +17,7 @@ from tkinter import (
     Menu,
     OptionMenu,
     StringVar,
+    Text,
     filedialog,
     messagebox,
     simpledialog,
@@ -1114,6 +1115,17 @@ class ApplicationGUI:
         self.discard_arena_btn = None
         self.interactive_buttons_frame = None
 
+        # Arduino dashboard state (live projects)
+        self.arduino_dashboard_frame = None
+        self.arduino_status_var = StringVar(value="Desconectado")
+        self.arduino_status_indicator = None
+        self.arduino_last_command_var = StringVar(value="-")
+        self.arduino_log_text = None
+        self.external_trigger_notice_var = StringVar(value="")
+        self.external_trigger_notice_label = None
+        self._external_notice_default_bg = None
+        self._external_notice_default_fg = None
+
         self._create_welcome_frame()
 
     def _cleanup_single_analysis_button(self):
@@ -1260,6 +1272,19 @@ class ApplicationGUI:
         if self.main_controls_frame:
             self.main_controls_frame.destroy()
             self.main_controls_frame = None
+            self.arduino_dashboard_frame = None
+            self.arduino_log_text = None
+            self.arduino_status_indicator = None
+            self.external_trigger_notice_label = None
+            try:
+                self.external_trigger_notice_var.set("")
+            except Exception:
+                pass
+            try:
+                self.arduino_status_var.set("Desconectado")
+                self.arduino_last_command_var.set("-")
+            except Exception:
+                pass
 
         # Force final GUI update before creating welcome frame
         self.root.update_idletasks()
@@ -1373,15 +1398,18 @@ class ApplicationGUI:
 
         project_type = self.controller.project_manager.get_project_type()
 
+        controls_container = ttk.Frame(self.main_controls_frame)
+        controls_container.pack(fill="x", pady=(0, 10))
+
         if project_type == "live":
             self.start_rec_btn = Button(
-                self.main_controls_frame,
+                controls_container,
                 text="Iniciar Gravação",
                 command=self.controller.start_recording,
             )
             self.start_rec_btn.pack(side="left", padx=5)
             self.stop_rec_btn = Button(
-                self.main_controls_frame,
+                controls_container,
                 text="Parar Gravação",
                 command=self.controller.stop_recording,
                 state="disabled",
@@ -1422,10 +1450,211 @@ class ApplicationGUI:
             ).pack(side="right")
 
         Button(
-            self.main_controls_frame,
+            controls_container,
             text="Fechar Projeto",
             command=self.controller.close_project,
         ).pack(side="left", padx=5)
+
+        if project_type == "live":
+            self.external_trigger_notice_label = Label(
+                self.main_controls_frame,
+                textvariable=self.external_trigger_notice_var,
+                anchor="w",
+                justify="left",
+                wraplength=600,
+                padx=10,
+                pady=6,
+            )
+            self.external_trigger_notice_label.pack(fill="x", pady=(0, 8))
+            self._external_notice_default_bg = (
+                self.external_trigger_notice_label.cget("background")
+            )
+            self._external_notice_default_fg = (
+                self.external_trigger_notice_label.cget("foreground")
+            )
+
+            self._build_arduino_dashboard(self.main_controls_frame)
+            self.clear_external_trigger_notice()
+
+    def _build_arduino_dashboard(self, parent: Frame):
+        """Creates the Arduino monitoring dashboard."""
+        if self.arduino_dashboard_frame and self.arduino_dashboard_frame.winfo_exists():
+            try:
+                self.arduino_dashboard_frame.destroy()
+            except Exception:
+                pass
+
+        self.arduino_dashboard_frame = ttk.LabelFrame(
+            parent, text="Dashboard Arduino", padding=10
+        )
+        self.arduino_dashboard_frame.pack(fill="both", expand=False, pady=(0, 10))
+
+        status_row = ttk.Frame(self.arduino_dashboard_frame)
+        status_row.pack(fill="x", pady=2)
+
+        self.arduino_status_indicator = Label(
+            status_row,
+            text="●",
+            font=("Segoe UI", 12, "bold"),
+        )
+        self.arduino_status_indicator.pack(side="left")
+
+        ttk.Label(
+            status_row,
+            textvariable=self.arduino_status_var,
+        ).pack(side="left", padx=(6, 12))
+
+        ttk.Label(status_row, text="Último comando:").pack(side="left")
+        ttk.Label(
+            status_row,
+            textvariable=self.arduino_last_command_var,
+        ).pack(side="left", padx=(6, 0))
+
+        ttk.Separator(self.arduino_dashboard_frame, orient="horizontal").pack(
+            fill="x", pady=(8, 6)
+        )
+
+        ttk.Label(
+            self.arduino_dashboard_frame,
+            text="Eventos recentes:",
+        ).pack(anchor="w")
+
+        log_frame = ttk.Frame(self.arduino_dashboard_frame)
+        log_frame.pack(fill="both", expand=True, pady=(4, 0))
+
+        self.arduino_log_text = Text(
+            log_frame,
+            height=6,
+            wrap="word",
+            state="disabled",
+            background="#1f2933",
+            foreground="#f0f4f8",
+        )
+        self.arduino_log_text.pack(side="left", fill="both", expand=True)
+
+        scrollbar = ttk.Scrollbar(
+            log_frame, orient="vertical", command=self.arduino_log_text.yview
+        )
+        scrollbar.pack(side="right", fill="y")
+        self.arduino_log_text.configure(yscrollcommand=scrollbar.set)
+
+        controls_row = ttk.Frame(self.arduino_dashboard_frame)
+        controls_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
+            side="right"
+        )
+
+        # Reset dashboard state
+        self._clear_arduino_log()
+        self.update_arduino_status_indicator(False, None)
+        self.set_arduino_last_command("-")
+
+    def _clear_arduino_log(self):
+        if not self.arduino_log_text:
+            return
+        self.arduino_log_text.configure(state="normal")
+        self.arduino_log_text.delete("1.0", "end")
+        self.arduino_log_text.configure(state="disabled")
+
+    def append_arduino_log(self, message: str):
+        if not self.arduino_log_text:
+            return
+
+        timestamp = time.strftime("%H:%M:%S")
+        entry = f"[{timestamp}] {message}\n"
+
+        self.arduino_log_text.configure(state="normal")
+        self.arduino_log_text.insert("end", entry)
+
+        try:
+            current_line = int(float(self.arduino_log_text.index("end-1c").split(".")[0]))
+            max_lines = 300
+            if current_line > max_lines:
+                start_line = current_line - max_lines
+                self.arduino_log_text.delete("1.0", f"{start_line}.0")
+        except Exception:
+            # If parsing fails, ignore trimming and keep log growing temporarily
+            pass
+
+        self.arduino_log_text.see("end")
+        self.arduino_log_text.configure(state="disabled")
+
+    def update_arduino_status_indicator(self, connected: bool, port: str | None):
+        status_text = "Desconectado"
+        if connected and port:
+            status_text = f"Conectado ({port})"
+        elif connected:
+            status_text = "Conectado"
+
+        try:
+            self.arduino_status_var.set(status_text)
+        except Exception:
+            pass
+
+        if self.arduino_status_indicator:
+            color = "#16a34a" if connected else "#b91c1c"
+            try:
+                self.arduino_status_indicator.config(foreground=color)
+            except Exception:
+                pass
+
+    def set_arduino_last_command(self, label_text: str):
+        try:
+            self.arduino_last_command_var.set(label_text or "-")
+        except Exception:
+            pass
+
+    def show_external_trigger_notice(self, session_label: str, **details):
+        if not self.external_trigger_notice_label:
+            return
+
+        day = details.get("day")
+        group = details.get("group")
+        cobaia = details.get("cobaia")
+        port = details.get("port")
+
+        descriptors = []
+        if day is not None and group is not None and cobaia is not None:
+            descriptors.append(f"Dia {day}, Grupo {group}, Sujeito {cobaia}")
+        if port:
+            descriptors.append(f"Porta {port}")
+
+        message = f"Aguardando sinal externo para iniciar {session_label}."
+        if descriptors:
+            message += f" ({' • '.join(descriptors)})"
+
+        self.external_trigger_notice_var.set(message)
+
+        highlight_bg = "#FFF7ED"
+        highlight_fg = "#92400e"
+        try:
+            self.external_trigger_notice_label.config(
+                background=highlight_bg,
+                foreground=highlight_fg,
+            )
+        except Exception:
+            pass
+
+    def clear_external_trigger_notice(self):
+        if not self.external_trigger_notice_label:
+            return
+
+        self.external_trigger_notice_var.set("")
+
+        try:
+            bg = (
+                self._external_notice_default_bg
+                if self._external_notice_default_bg is not None
+                else self.external_trigger_notice_label.cget("background")
+            )
+            fg = (
+                self._external_notice_default_fg
+                if self._external_notice_default_fg is not None
+                else self.external_trigger_notice_label.cget("foreground")
+            )
+            self.external_trigger_notice_label.config(background=bg, foreground=fg)
+        except Exception:
+            pass
 
     def _create_roi_analysis_tab(self):
         """Creates the tab for ROI and detection zone configuration."""
