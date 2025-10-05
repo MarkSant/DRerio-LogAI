@@ -15,6 +15,8 @@ from tkinter import (
     Scrollbar,
     StringVar,
     filedialog,
+)
+from tkinter import (
     font as tkfont,
 )
 
@@ -61,7 +63,10 @@ class FileSelectionStep(WizardStep):
 
         subtitle = Label(
             self,
-            text="Selecione os vídeos que deseja analisar (arquivos individuais ou pastas inteiras).",
+            text=(
+                "Selecione os vídeos que deseja analisar (arquivos individuais ou "
+                "pastas inteiras)."
+            ),
             fg="gray",
             wraplength=500,
         )
@@ -78,7 +83,13 @@ class FileSelectionStep(WizardStep):
             width=20,
         )
         btn_files.pack(side="left", padx=5)
-        ToolTip(btn_files, "Selecionar vídeos individuais (.mp4, .avi, .mov). Suporta seleção múltipla (Ctrl+Click).")
+        ToolTip(
+            btn_files,
+            (
+                "Selecionar vídeos individuais (.mp4, .avi, .mov). Suporta "
+                "seleção múltipla (Ctrl+Click)."
+            ),
+        )
 
         btn_folder = Button(
             button_frame,
@@ -87,7 +98,13 @@ class FileSelectionStep(WizardStep):
             width=20,
         )
         btn_folder.pack(side="left", padx=5)
-        ToolTip(btn_folder, "Selecionar pasta contendo vídeos. O wizard fará scan recursivo nas subpastas automaticamente.")
+        ToolTip(
+            btn_folder,
+            (
+                "Selecionar pasta contendo vídeos. O wizard fará varredura "
+                "recursiva nas subpastas automaticamente."
+            ),
+        )
 
         btn_remove = Button(
             button_frame,
@@ -96,7 +113,13 @@ class FileSelectionStep(WizardStep):
             width=20,
         )
         btn_remove.pack(side="left", padx=5)
-        ToolTip(btn_remove, "Remover o item selecionado na lista (clique no item para selecioná-lo).")
+        ToolTip(
+            btn_remove,
+            (
+                "Remover o item selecionado na lista (clique no item para "
+                "selecioná-lo)."
+            ),
+        )
 
         btn_clear = Button(
             button_frame,
@@ -105,7 +128,10 @@ class FileSelectionStep(WizardStep):
             width=20,
         )
         btn_clear.pack(side="left", padx=5)
-        ToolTip(btn_clear, "Remover todos os vídeos e pastas selecionados.")
+        ToolTip(
+            btn_clear,
+            "Remover todos os vídeos e pastas selecionados.",
+        )
 
         # Summary
         summary_frame = LabelFrame(self, text="Resumo da Seleção", padx=10, pady=10)
@@ -138,7 +164,10 @@ class FileSelectionStep(WizardStep):
         # Help text
         help_text = Label(
             self,
-            text="💡 Dica: Ao selecionar pastas, todos os vídeos dentro delas (incluindo subpastas) serão incluídos.",
+            text=(
+                "💡 Dica: Ao selecionar pastas, todos os vídeos dentro delas "
+                "(incluindo subpastas) serão incluídos."
+            ),
             fg="gray",
             wraplength=500,
             justify="left",

@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from tkinter import Tk
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID

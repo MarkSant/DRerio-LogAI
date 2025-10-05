@@ -15,6 +15,8 @@ from tkinter import (
     Scrollbar,
     StringVar,
     Text,
+)
+from tkinter import (
     font as tkfont,
 )
 from typing import Optional
@@ -75,9 +77,7 @@ class DetectionStep(WizardStep):
         """Build detection step UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Detecção Automática de Design", font=title_font
-        )
+        title = Label(self, text="Detecção Automática de Design", font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
@@ -96,7 +96,9 @@ class DetectionStep(WizardStep):
         Label(status_frame, textvariable=self.status_var, fg="blue").pack(side="left")
 
         # Detection results
-        results_frame = LabelFrame(self, text="Resultados da Detecção", padx=10, pady=10)
+        results_frame = LabelFrame(
+            self, text="Resultados da Detecção", padx=10, pady=10
+        )
         results_frame.pack(fill="both", expand=True, pady=(0, 15))
 
         # Scrollable text widget for results
@@ -144,7 +146,10 @@ class DetectionStep(WizardStep):
         # Help text
         help_text = Label(
             self,
-            text="💡 Dica: A detecção automática identifica grupos, dias e sujeitos baseando-se na estrutura de pastas.",
+            text=(
+                "💡 Dica: A detecção automática identifica grupos, dias e sujeitos "
+                "baseando-se na estrutura de pastas."
+            ),
             fg="gray",
             wraplength=500,
             justify="left",
@@ -174,16 +179,26 @@ class DetectionStep(WizardStep):
         project_type = self.wizard_data.get("project_type")
         if project_type == ProjectType.EXPERIMENTAL.value:
             log.info("wizard.detection.design_detection_started")
-            # CRITICAL FIX: Pass scanned video paths, not original input paths (which may be folders)
+            # CRITICAL FIX: Use scanned video paths instead of folder inputs
             scanned_video_paths = [v["path"] for v in self.scanned_videos]
             self.detected_design = self._detect_design(scanned_video_paths)
             if self.detected_design:
-                log.info("wizard.detection.design_detected", pattern=self.detected_design.get("pattern_used"), confidence=self.detected_design.get("confidence"))
+                log.info(
+                    "wizard.detection.design_detected",
+                    pattern=self.detected_design.get("pattern_used"),
+                    confidence=self.detected_design.get("confidence"),
+                )
             else:
-                log.warning("wizard.detection.design_not_detected", reason="No pattern matched")
+                log.warning(
+                    "wizard.detection.design_not_detected",
+                    reason="No pattern matched",
+                )
         else:
             self.detected_design = None
-            log.info("wizard.detection.design_skipped", reason=f"Project type is {project_type}, not experimental")
+            log.info(
+                "wizard.detection.design_skipped",
+                reason=f"Project type is {project_type}, not experimental",
+            )
 
         # 3. Calculate parquet summary
         parquet_summary = self._calculate_parquet_summary()
@@ -216,9 +231,14 @@ class DetectionStep(WizardStep):
 
         # Try custom regex patterns first (if configured)
         if self.custom_regex_patterns:
-            custom_result = self._pattern_custom_regex(paths, self.custom_regex_patterns)
+            custom_result = self._pattern_custom_regex(
+                paths, self.custom_regex_patterns
+            )
             if custom_result:
-                log.info("wizard.detection.custom_regex_used", confidence=custom_result.get("confidence"))
+                log.info(
+                    "wizard.detection.custom_regex_used",
+                    confidence=custom_result.get("confidence"),
+                )
                 return custom_result
 
         # Try built-in patterns (v1.0: 4 patterns)
@@ -240,7 +260,9 @@ class DetectionStep(WizardStep):
 
         return best_result
 
-    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> Optional[dict]:
+    def _pattern_custom_regex(
+        self, paths: list[Path], patterns: dict
+    ) -> Optional[dict]:
         """
         Pattern: User-defined custom regex patterns.
 
@@ -309,16 +331,22 @@ class DetectionStep(WizardStep):
                             subject = f"S{subject.zfill(2)}"
                         subjects_per_group[group].add(subject)
                 except re.error as e:
-                    log.error("wizard.detection.custom_regex.subject_error", error=str(e))
+                    log.error(
+                        "wizard.detection.custom_regex.subject_error", error=str(e)
+                    )
 
         # Must have at least 2 groups to be valid
         if len(groups_found) < 2:
-            log.debug("wizard.detection.custom_regex.insufficient_groups", count=len(groups_found))
+            log.debug(
+                "wizard.detection.custom_regex.insufficient_groups",
+                count=len(groups_found),
+            )
             return None
 
         # Convert sets to sorted lists
         subjects_per_group_sorted = {
-            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+            group: sorted(list(subjects))
+            for group, subjects in subjects_per_group.items()
         }
 
         # Calculate confidence based on match coverage
@@ -347,7 +375,9 @@ class DetectionStep(WizardStep):
                 if len(common_ancestor.parts) == 0:
                     break
 
-        log.debug("pattern_groups_as_folders.common_ancestor", path=str(common_ancestor))
+        log.debug(
+            "pattern_groups_as_folders.common_ancestor", path=str(common_ancestor)
+        )
 
         # Extract relative paths from common ancestor
         group_candidates = {}
@@ -369,10 +399,14 @@ class DetectionStep(WizardStep):
         # Find groups (should have 2+ distinct values, each with at least 1 video)
         groups = [g for g in group_candidates.keys() if len(group_candidates[g]) >= 1]
 
-        log.debug("pattern_groups_as_folders.groups_found", groups=groups, count=len(groups))
+        log.debug(
+            "pattern_groups_as_folders.groups_found", groups=groups, count=len(groups)
+        )
 
         if len(groups) < 2:
-            log.debug("pattern_groups_as_folders.insufficient_groups", count=len(groups))
+            log.debug(
+                "pattern_groups_as_folders.insufficient_groups", count=len(groups)
+            )
             return None  # Need at least 2 groups
 
         # Extract days and subjects
@@ -394,11 +428,14 @@ class DetectionStep(WizardStep):
 
         # Convert sets to sorted lists for display
         subjects_per_group_sorted = {
-            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+            group: sorted(list(subjects))
+            for group, subjects in subjects_per_group.items()
         }
 
         # Calculate confidence
-        coverage = len([p for p in paths if any(str(p).find(g) >= 0 for g in groups)]) / len(paths)
+        coverage = len(
+            [p for p in paths if any(str(p).find(g) >= 0 for g in groups)]
+        ) / len(paths)
         confidence = coverage * 0.8  # Base confidence
 
         return {
@@ -429,7 +466,9 @@ class DetectionStep(WizardStep):
             filename = path.stem
 
             # Look for group in filename (common prefixes: Control, Treatment, Exp, Group)
-            group_match = re.search(r"(Control|Treatment|Exp\d+|Group\d+)", filename, re.IGNORECASE)
+            group_match = re.search(
+                r"(Control|Treatment|Exp\d+|Group\d+)", filename, re.IGNORECASE
+            )
             if group_match:
                 group = group_match.group(1).capitalize()
                 groups_found.add(group)
@@ -452,11 +491,14 @@ class DetectionStep(WizardStep):
 
         # Convert sets to sorted lists for display
         subjects_per_group_sorted = {
-            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+            group: sorted(list(subjects))
+            for group, subjects in subjects_per_group.items()
         }
 
         # Calculate confidence based on pattern consistency
-        confidence = min(len(groups_found) / 5.0, 1.0) * 0.6  # Lower confidence for filename-based
+        confidence = (
+            min(len(groups_found) / 5.0, 1.0) * 0.6
+        )  # Lower confidence for filename-based
 
         return {
             "groups": sorted(list(groups_found)),
@@ -470,8 +512,12 @@ class DetectionStep(WizardStep):
         """Calculate summary of existing parquet files."""
         total_arena = sum(1 for v in self.scanned_videos if v.get("has_arena", False))
         total_rois = sum(1 for v in self.scanned_videos if v.get("has_rois", False))
-        total_trajectory = sum(1 for v in self.scanned_videos if v.get("has_trajectory", False))
-        total_complete = sum(1 for v in self.scanned_videos if v.get("has_complete_data", False))
+        total_trajectory = sum(
+            1 for v in self.scanned_videos if v.get("has_trajectory", False)
+        )
+        total_complete = sum(
+            1 for v in self.scanned_videos if v.get("has_complete_data", False)
+        )
 
         return {
             "total_arena": total_arena,
@@ -509,7 +555,9 @@ class DetectionStep(WizardStep):
             # Subjects per group
             if self.detected_design.get("subjects_per_group"):
                 text += "  📋 Sujeitos por Grupo:\n"
-                for group, subjects in self.detected_design["subjects_per_group"].items():
+                for group, subjects in self.detected_design[
+                    "subjects_per_group"
+                ].items():
                     if subjects:
                         text += f"    - {group}: {len(subjects)} sujeito(s)\n"
         else:
@@ -589,7 +637,10 @@ class DetectionStep(WizardStep):
             tuple[bool, str]: (True, "") if scan completed successfully
         """
         if not self.scanned_videos:
-            return (False, "Nenhum vídeo foi encontrado. Volte e selecione vídeos válidos.")
+            return (
+                False,
+                "Nenhum vídeo foi encontrado. Volte e selecione vídeos válidos.",
+            )
 
         return (True, "")
 
@@ -631,6 +682,10 @@ class DetectionStep(WizardStep):
 
         # Re-display results
         if self.scanned_videos:
-            parquet_summary = data.get("parquet_summary", self._calculate_parquet_summary())
+            parquet_summary = data.get(
+                "parquet_summary", self._calculate_parquet_summary()
+            )
             self._display_results(parquet_summary)
-            self.status_var.set("Resultados anteriores (use Re-analisar para atualizar)")
+            self.status_var.set(
+                "Resultados anteriores (use Re-analisar para atualizar)"
+            )

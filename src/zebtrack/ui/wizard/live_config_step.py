@@ -14,10 +14,10 @@ from tkinter import (
     IntVar,
     Label,
     LabelFrame,
-    Listbox,
-    Scrollbar,
     Spinbox,
     StringVar,
+)
+from tkinter import (
     font as tkfont,
 )
 
@@ -95,7 +95,12 @@ class LiveConfigStep(WizardStep):
         camera_row = Frame(camera_frame)
         camera_row.pack(fill="x", pady=5)
 
-        Label(camera_row, text="Índice da Câmera:", width=25, anchor="w").pack(side="left")
+        Label(
+            camera_row,
+            text="Índice da Câmera:",
+            width=25,
+            anchor="w",
+        ).pack(side="left")
         camera_spinbox = Spinbox(
             camera_row,
             from_=0,
@@ -104,17 +109,29 @@ class LiveConfigStep(WizardStep):
             width=10,
         )
         camera_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(camera_spinbox, "Índice da câmera a ser usada (geralmente 0 para câmera padrão).")
-
-        Button(camera_row, text="🔍 Detectar Câmeras", command=self._detect_cameras).pack(
-            side="left", padx=10
+        ToolTip(
+            camera_spinbox,
+            (
+                "Índice da câmera a ser usada (geralmente 0 para câmera padrão)."
+            ),
         )
+
+        Button(
+            camera_row,
+            text="🔍 Detectar Câmeras",
+            command=self._detect_cameras,
+        ).pack(side="left", padx=10)
 
         self.camera_status_label = Label(camera_row, text="", fg="gray")
         self.camera_status_label.pack(side="left", padx=5)
 
         # Arduino configuration
-        arduino_frame = LabelFrame(self, text="Configuração de Arduino (Opcional)", padx=15, pady=10)
+        arduino_frame = LabelFrame(
+            self,
+            text="Configuração de Arduino (Opcional)",
+            padx=15,
+            pady=10,
+        )
         arduino_frame.pack(fill="x", pady=(0, 15))
 
         use_arduino_cb = Checkbutton(
@@ -124,13 +141,24 @@ class LiveConfigStep(WizardStep):
             command=self._on_arduino_toggle,
         )
         use_arduino_cb.pack(anchor="w", pady=5)
-        ToolTip(use_arduino_cb, "Habilitar Arduino para sincronizar eventos externos com a gravação.")
+        ToolTip(
+            use_arduino_cb,
+            (
+                "Habilitar Arduino para sincronizar eventos externos com a "
+                "gravação."
+            ),
+        )
 
         # Arduino port selection
         self.arduino_port_frame = Frame(arduino_frame)
         self.arduino_port_frame.pack(fill="x", pady=5)
 
-        Label(self.arduino_port_frame, text="Porta do Arduino:", width=25, anchor="w").pack(side="left")
+        Label(
+            self.arduino_port_frame,
+            text="Porta do Arduino:",
+            width=25,
+            anchor="w",
+        ).pack(side="left")
         self.arduino_port_entry = Entry(
             self.arduino_port_frame,
             textvariable=self.arduino_port_var,
@@ -151,7 +179,12 @@ class LiveConfigStep(WizardStep):
         self.arduino_status_label.pack(side="left", padx=5)
 
         # Recording settings
-        recording_frame = LabelFrame(self, text="Configurações de Gravação", padx=15, pady=10)
+        recording_frame = LabelFrame(
+            self,
+            text="Configurações de Gravação",
+            padx=15,
+            pady=10,
+        )
         recording_frame.pack(fill="x", pady=(0, 15))
 
         # Timed recording
@@ -162,15 +195,33 @@ class LiveConfigStep(WizardStep):
             command=self._on_timed_toggle,
         )
         timed_cb.pack(anchor="w", pady=5)
-        ToolTip(timed_cb, "Habilitar gravação com duração fixa (desliga automaticamente após o tempo especificado).")
+        ToolTip(
+            timed_cb,
+            (
+                "Habilitar gravação com duração fixa (desliga automaticamente "
+                "após o tempo especificado)."
+            ),
+        )
 
         self.duration_frame = Frame(recording_frame)
         self.duration_frame.pack(fill="x", pady=5)
 
-        Label(self.duration_frame, text="Duração da gravação (segundos):", width=30, anchor="w").pack(side="left")
-        duration_entry = Entry(self.duration_frame, textvariable=self.recording_duration_var, width=10)
+        Label(
+            self.duration_frame,
+            text="Duração da gravação (segundos):",
+            width=30,
+            anchor="w",
+        ).pack(side="left")
+        duration_entry = Entry(
+            self.duration_frame,
+            textvariable=self.recording_duration_var,
+            width=10,
+        )
         duration_entry.pack(side="left", padx=(5, 0))
-        ToolTip(duration_entry, "Duração total da gravação em segundos (ex: 300 = 5 minutos).")
+        ToolTip(
+            duration_entry,
+            "Duração total da gravação em segundos (ex: 300 = 5 minutos).",
+        )
 
         # Countdown
         countdown_cb = Checkbutton(
@@ -180,12 +231,20 @@ class LiveConfigStep(WizardStep):
             command=self._on_countdown_toggle,
         )
         countdown_cb.pack(anchor="w", pady=5)
-        ToolTip(countdown_cb, "Mostrar contagem regressiva antes de iniciar a gravação.")
+        ToolTip(
+            countdown_cb,
+            "Mostrar contagem regressiva antes de iniciar a gravação.",
+        )
 
         self.countdown_frame = Frame(recording_frame)
         self.countdown_frame.pack(fill="x", pady=5)
 
-        Label(self.countdown_frame, text="Duração da contagem (segundos):", width=30, anchor="w").pack(side="left")
+        Label(
+            self.countdown_frame,
+            text="Duração da contagem (segundos):",
+            width=30,
+            anchor="w",
+        ).pack(side="left")
         countdown_spinbox = Spinbox(
             self.countdown_frame,
             from_=1,
@@ -194,10 +253,18 @@ class LiveConfigStep(WizardStep):
             width=10,
         )
         countdown_spinbox.pack(side="left", padx=(5, 0))
-        ToolTip(countdown_spinbox, "Duração da contagem regressiva em segundos.")
+        ToolTip(
+            countdown_spinbox,
+            "Duração da contagem regressiva em segundos.",
+        )
 
         # Help text
-        help_frame = LabelFrame(self, text="Sobre Projetos ao Vivo", padx=15, pady=10)
+        help_frame = LabelFrame(
+            self,
+            text="Sobre Projetos ao Vivo",
+            padx=15,
+            pady=10,
+        )
         help_frame.pack(fill="x", pady=(15, 0))
 
         help_text = Label(
@@ -206,9 +273,11 @@ class LiveConfigStep(WizardStep):
                 "Projetos ao vivo gravam diretamente da câmera em tempo real.\n\n"
                 "• A câmera deve estar conectada antes de criar o projeto\n"
                 "• Arduino é opcional e usado para sincronizar eventos externos\n"
-                "• Gravação temporizada desliga automaticamente após o tempo especificado\n"
+                "• Gravação temporizada desliga automaticamente após o tempo "
+                "especificado\n"
                 "• Contagem regressiva dá tempo para preparar o experimento\n\n"
-                "💡 Dica: Teste a câmera antes de iniciar o projeto para garantir que está funcionando."
+                "💡 Dica: Teste a câmera antes de iniciar o projeto para garantir "
+                "que está funcionando."
             ),
             fg="gray",
             wraplength=500,
@@ -275,7 +344,7 @@ class LiveConfigStep(WizardStep):
                 fg="green",
             )
             # Auto-select first camera
-            if not self.camera_index_var.get() in available:
+            if self.camera_index_var.get() not in available:
                 self.camera_index_var.set(available[0])
         else:
             self.camera_status_label.config(
@@ -283,7 +352,11 @@ class LiveConfigStep(WizardStep):
                 fg="red",
             )
 
-        log.info("live_config.cameras_detected", count=len(available), indices=available)
+        log.info(
+            "live_config.cameras_detected",
+            count=len(available),
+            indices=available,
+        )
 
     def _detect_arduino_ports(self):
         """Detect available Arduino ports."""
@@ -304,7 +377,11 @@ class LiveConfigStep(WizardStep):
                 if not self.arduino_port_var.get():
                     self.arduino_port_var.set(port_list[0])
 
-                log.info("live_config.arduino_ports_detected", count=len(ports), ports=port_list)
+                log.info(
+                    "live_config.arduino_ports_detected",
+                    count=len(ports),
+                    ports=port_list,
+                )
             else:
                 self.arduino_status_label.config(
                     text="✗ Nenhuma porta detectada",
@@ -334,7 +411,13 @@ class LiveConfigStep(WizardStep):
             if self.use_arduino_var.get():
                 arduino_port = self.arduino_port_var.get().strip()
                 if not arduino_port:
-                    return (False, "Por favor, especifique a porta do Arduino ou desmarque a opção 'Usar Arduino'.")
+                    return (
+                        False,
+                        (
+                            "Por favor, especifique a porta do Arduino ou "
+                            "desmarque a opção 'Usar Arduino'."
+                        ),
+                    )
 
             if self.use_timed_recording_var.get():
                 duration = self.recording_duration_var.get()
@@ -344,7 +427,10 @@ class LiveConfigStep(WizardStep):
             if self.use_countdown_var.get():
                 countdown = self.countdown_duration_var.get()
                 if countdown < 1:
-                    return (False, "A duração da contagem deve ser pelo menos 1 segundo.")
+                    return (
+                        False,
+                        "A duração da contagem deve ser pelo menos 1 segundo.",
+                    )
 
             return (True, "")
 
@@ -365,7 +451,11 @@ class LiveConfigStep(WizardStep):
                 - use_countdown (bool)
                 - countdown_duration_s (int)
         """
-        arduino_port = self.arduino_port_var.get().strip() if self.use_arduino_var.get() else None
+        arduino_port = (
+            self.arduino_port_var.get().strip()
+            if self.use_arduino_var.get()
+            else None
+        )
 
         return {
             "camera_index": self.camera_index_var.get(),

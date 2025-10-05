@@ -100,13 +100,27 @@ class WizardDialog(Dialog):
 
         # Initialize ALL possible steps (not all will be shown)
         self.all_steps = {
-            WizardStepID.DISCOVERY: DiscoveryStep(self.steps_container, self.wizard_data),
-            WizardStepID.FILE_SELECTION: FileSelectionStep(self.steps_container, self.wizard_data),
-            WizardStepID.LIVE_CONFIG: LiveConfigStep(self.steps_container, self.wizard_data),
-            WizardStepID.CALIBRATION: CalibrationStep(self.steps_container, self.wizard_data),
-            WizardStepID.DETECTION_VALIDATION: DetectionStep(self.steps_container, self.wizard_data),
-            WizardStepID.IMPORT_CONFIG: ImportConfigStep(self.steps_container, self.wizard_data),
-            WizardStepID.CONFIRMATION: ConfirmationStep(self.steps_container, self.wizard_data),
+            WizardStepID.DISCOVERY: DiscoveryStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.FILE_SELECTION: FileSelectionStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.LIVE_CONFIG: LiveConfigStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.CALIBRATION: CalibrationStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.DETECTION_VALIDATION: DetectionStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.IMPORT_CONFIG: ImportConfigStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.CONFIRMATION: ConfirmationStep(
+                self.steps_container, self.wizard_data
+            ),
         }
 
         # Build UI for all steps (even if not shown)
@@ -157,7 +171,9 @@ class WizardDialog(Dialog):
 
         Called after Discovery step when project type is selected.
         """
-        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+        project_type = self.wizard_data.get(
+            "project_type", ProjectType.EXPERIMENTAL.value
+        )
 
         if project_type == ProjectType.LIVE.value:
             # Live project flow: Discovery -> Live Config -> Calibration -> Confirmation
@@ -167,10 +183,15 @@ class WizardDialog(Dialog):
                 self.all_steps[WizardStepID.CALIBRATION],
                 self.all_steps[WizardStepID.CONFIRMATION],
             ]
-            log.info("wizard.active_steps_updated", project_type="live", step_count=4)
+            log.info(
+                "wizard.active_steps_updated",
+                project_type="live",
+                step_count=4,
+            )
         else:
             # Pre-recorded flow (experimental or exploratory):
-            # Discovery -> File Selection -> Calibration -> Detection -> Import Config -> Confirmation
+            # Discovery -> File Selection -> Calibration -> Detection ->
+            # Import Config -> Confirmation
             self.active_steps = [
                 self.all_steps[WizardStepID.DISCOVERY],
                 self.all_steps[WizardStepID.FILE_SELECTION],
@@ -179,7 +200,11 @@ class WizardDialog(Dialog):
                 self.all_steps[WizardStepID.IMPORT_CONFIG],
                 self.all_steps[WizardStepID.CONFIRMATION],
             ]
-            log.info("wizard.active_steps_updated", project_type=project_type, step_count=6)
+            log.info(
+                "wizard.active_steps_updated",
+                project_type=project_type,
+                step_count=6,
+            )
 
     def _show_step(self, step_index: int):
         """
@@ -202,7 +227,11 @@ class WizardDialog(Dialog):
             # Update window title with step number
             step_number = step_index + 1
             total_steps = len(self.active_steps)
-            self.title(f"Assistente de Criacao de Projeto - Etapa {step_number}/{total_steps}")
+            title_text = (
+                "Assistente de Criacao de Projeto - Etapa "
+                f"{step_number}/{total_steps}"
+            )
+            self.title(title_text)
 
             log.info(
                 "wizard.step_shown",
@@ -216,7 +245,7 @@ class WizardDialog(Dialog):
         """Update navigation button states based on current step."""
         # Buttons are created in buttonbox() which is called after body()
         # So we need to check if they exist first
-        if not hasattr(self, 'back_button') or not hasattr(self, 'next_button'):
+        if not hasattr(self, "back_button") or not hasattr(self, "next_button"):
             return
 
         # Back button: disabled on first step

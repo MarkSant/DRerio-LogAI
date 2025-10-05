@@ -56,7 +56,9 @@ class TestParquetImport(unittest.TestCase):
         pq.write_table(table, str(arena_path))
         return arena_path
 
-    def _create_rois_parquet(self, video_path: Path, roi_names: list[str] = None):
+    def _create_rois_parquet(
+        self, video_path: Path, roi_names: list[str] | None = None
+    ) -> Path:
         """Helper to create a mock ROIs parquet file."""
         if roi_names is None:
             roi_names = ["Top", "Bottom"]
@@ -69,8 +71,13 @@ class TestParquetImport(unittest.TestCase):
         for idx, roi_name in enumerate(roi_names):
             # Simple rectangular ROI
             y_offset = idx * 240
-            for point_idx, (x, y) in enumerate([(0, y_offset), (640, y_offset),
-                                                  (640, y_offset + 240), (0, y_offset + 240)]):
+            roi_points = [
+                (0, y_offset),
+                (640, y_offset),
+                (640, y_offset + 240),
+                (0, y_offset + 240),
+            ]
+            for point_idx, (x, y) in enumerate(roi_points):
                 roi_data.append({
                     "roi_name": roi_name,
                     "point_index": point_idx,
@@ -134,7 +141,8 @@ class TestParquetImport(unittest.TestCase):
         self.assertFalse(result["has_rois"])
         self.assertFalse(result["has_trajectory"])
         self.assertFalse(result["has_complete_data"])
-        self.assertFalse(result["has_data"])  # No trajectory, so backward compat is False
+        # No trajectory, so backward compatibility should be False
+        self.assertFalse(result["has_data"])
         self.assertIsNotNone(result["parquet_files"]["arena"])
 
     def test_scan_detects_arena_and_rois(self):
@@ -240,7 +248,7 @@ class TestParquetImport(unittest.TestCase):
 
         pm = ProjectManager()
         video_info = pm.scan_input_paths([str(self.video1)])[0]
-        zone_data = pm.load_zones_from_parquet(video_info)
+        zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         self.assertIsNotNone(zone_data)
         self.assertIsNotNone(zone_data.polygon)
@@ -255,7 +263,7 @@ class TestParquetImport(unittest.TestCase):
 
         pm = ProjectManager()
         video_info = pm.scan_input_paths([str(self.video1)])[0]
-        zone_data = pm.load_zones_from_parquet(video_info)
+        zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         self.assertIsNotNone(zone_data)
         self.assertIsNotNone(zone_data.polygon)
@@ -270,7 +278,7 @@ class TestParquetImport(unittest.TestCase):
         """Test that load_zones returns None when no parquet files exist."""
         pm = ProjectManager()
         video_info = pm.scan_input_paths([str(self.video1)])[0]
-        zone_data = pm.load_zones_from_parquet(video_info)
+        zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         self.assertIsNone(zone_data)
 
@@ -287,7 +295,7 @@ class TestParquetImport(unittest.TestCase):
 
         pm = ProjectManager()
         video_info = pm.scan_input_paths([str(self.video1)])[0]
-        zone_data = pm.load_zones_from_parquet(video_info)
+        zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         # Should load arena but skip invalid ROIs
         self.assertIsNotNone(zone_data)

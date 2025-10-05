@@ -13,8 +13,12 @@ import unittest
 from tkinter import Tk
 
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
-from zebtrack.ui.wizard.enums import ProjectType, WizardStepID, derive_import_action, ImportAction
-from zebtrack.ui.wizard.wizard_dialog import WizardDialog
+from zebtrack.ui.wizard.enums import (
+    ImportAction,
+    ProjectType,
+    WizardStepID,
+    derive_import_action,
+)
 
 
 class TestWizardFoundation(unittest.TestCase):
@@ -58,7 +62,7 @@ class TestWizardFoundation(unittest.TestCase):
         self.assertEqual(data["project_type"], ProjectType.EXPERIMENTAL.value)
         self.assertIn("has_folder_structure", data)
         self.assertIn("folder_meaning", data)
-        self.assertEqual(data["has_parquets"], False)
+        self.assertFalse(data["has_parquets"])
         self.assertIsNone(data["parquet_import_scope"])
 
     def test_discovery_step_exploratory_excludes_folder_fields(self):

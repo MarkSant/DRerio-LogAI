@@ -96,7 +96,9 @@ class ProjectManager:
                             rois_path = str(rois_candidates[0])
 
                     if not trajectory_path:
-                        trajectory_candidates = list(search_dir.glob(trajectory_pattern))
+                        trajectory_candidates = list(
+                            search_dir.glob(trajectory_pattern)
+                        )
                         if trajectory_candidates:
                             trajectory_path = str(trajectory_candidates[0])
 
@@ -162,7 +164,11 @@ class ProjectManager:
             # Load arena polygon
             if arena_path and os.path.exists(arena_path):
                 arena_df = pd.read_parquet(arena_path)
-                if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                if (
+                    not arena_df.empty
+                    and "x" in arena_df.columns
+                    and "y" in arena_df.columns
+                ):
                     polygon_points = arena_df[["x", "y"]].values.tolist()
                     zone_data.polygon = polygon_points
                     log.info(
@@ -187,9 +193,9 @@ class ProjectManager:
                         roi_names = []
 
                         for roi_name in rois_df["roi_name"].unique():
-                            roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
-                                "point_index"
-                            )
+                            roi_df = rois_df[
+                                rois_df["roi_name"] == roi_name
+                            ].sort_values("point_index")
                             roi_points = roi_df[["x", "y"]].values.tolist()
                             roi_polygons.append(roi_points)
                             roi_names.append(roi_name)
@@ -293,7 +299,9 @@ class ProjectManager:
         video_parquet_map = {}
         if scanned_videos:
             for video_info in scanned_videos:
-                video_parquet_map[video_info["path"]] = video_info.get("parquet_files", {})
+                video_parquet_map[video_info["path"]] = video_info.get(
+                    "parquet_files", {}
+                )
 
         # Get current zone data
         zone_data = self.get_zone_data()

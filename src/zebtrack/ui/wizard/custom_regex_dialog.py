@@ -12,8 +12,10 @@ from tkinter import (
     Frame,
     Label,
     Text,
-    font as tkfont,
     messagebox,
+)
+from tkinter import (
+    font as tkfont,
 )
 from tkinter.simpledialog import Dialog
 
@@ -39,7 +41,7 @@ class CustomRegexDialog(Dialog):
         Dict with custom patterns or None if cancelled
     """
 
-    def __init__(self, parent, current_patterns: dict = None):
+    def __init__(self, parent, current_patterns: dict | None = None):
         """
         Initialize custom regex dialog.
 
@@ -68,8 +70,8 @@ class CustomRegexDialog(Dialog):
         subtitle = Label(
             master,
             text=(
-                "Defina padrões regex personalizados para detectar grupos, dias e sujeitos.\n"
-                "Use grupos de captura () para extrair os valores."
+                "Defina padrões regex personalizados para detectar grupos, dias e "
+                "sujeitos.\nUse grupos de captura () para extrair os valores."
             ),
             fg="gray",
             wraplength=500,
@@ -81,7 +83,11 @@ class CustomRegexDialog(Dialog):
         group_frame = Frame(master)
         group_frame.pack(fill="x", padx=10, pady=5)
 
-        Label(group_frame, text="Padrão de Grupos:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(
+            group_frame,
+            text="Padrão de Grupos:",
+            font=("TkDefaultFont", 10, "bold"),
+        ).pack(anchor="w")
         Label(
             group_frame,
             text="Ex: (Control|Treatment|Group\\d+) ou (\\w+)_Group",
@@ -91,13 +97,20 @@ class CustomRegexDialog(Dialog):
 
         self.group_pattern_entry = Entry(group_frame, width=50)
         self.group_pattern_entry.pack(fill="x", pady=5)
-        self.group_pattern_entry.insert(0, self.current_patterns.get("group_pattern", ""))
+        self.group_pattern_entry.insert(
+            0,
+            self.current_patterns.get("group_pattern", ""),
+        )
 
         # Day pattern
         day_frame = Frame(master)
         day_frame.pack(fill="x", padx=10, pady=5)
 
-        Label(day_frame, text="Padrão de Dias:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(
+            day_frame,
+            text="Padrão de Dias:",
+            font=("TkDefaultFont", 10, "bold"),
+        ).pack(anchor="w")
         Label(
             day_frame,
             text="Ex: Day(\\d+) ou D(\\d+) ou (\\d{4}-\\d{2}-\\d{2})",
@@ -107,13 +120,20 @@ class CustomRegexDialog(Dialog):
 
         self.day_pattern_entry = Entry(day_frame, width=50)
         self.day_pattern_entry.pack(fill="x", pady=5)
-        self.day_pattern_entry.insert(0, self.current_patterns.get("day_pattern", ""))
+        self.day_pattern_entry.insert(
+            0,
+            self.current_patterns.get("day_pattern", ""),
+        )
 
         # Subject pattern
         subject_frame = Frame(master)
         subject_frame.pack(fill="x", padx=10, pady=5)
 
-        Label(subject_frame, text="Padrão de Sujeitos:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(
+            subject_frame,
+            text="Padrão de Sujeitos:",
+            font=("TkDefaultFont", 10, "bold"),
+        ).pack(anchor="w")
         Label(
             subject_frame,
             text="Ex: S(\\d+) ou Subject(\\d+) ou Animal_(\\w+)",
@@ -123,13 +143,20 @@ class CustomRegexDialog(Dialog):
 
         self.subject_pattern_entry = Entry(subject_frame, width=50)
         self.subject_pattern_entry.pack(fill="x", pady=5)
-        self.subject_pattern_entry.insert(0, self.current_patterns.get("subject_pattern", ""))
+        self.subject_pattern_entry.insert(
+            0,
+            self.current_patterns.get("subject_pattern", ""),
+        )
 
         # Test section
         test_frame = Frame(master)
         test_frame.pack(fill="both", expand=True, padx=10, pady=15)
 
-        Label(test_frame, text="Testar Padrões:", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        Label(
+            test_frame,
+            text="Testar Padrões:",
+            font=("TkDefaultFont", 10, "bold"),
+        ).pack(anchor="w")
         Label(
             test_frame,
             text="Digite um caminho de exemplo para testar os padrões:",
@@ -144,7 +171,11 @@ class CustomRegexDialog(Dialog):
         self.test_path_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.test_path_entry.insert(0, "/Control/Day01/Subject_S01.mp4")
 
-        Button(test_input_frame, text="Testar", command=self._test_patterns).pack(side="left")
+        Button(
+            test_input_frame,
+            text="Testar",
+            command=self._test_patterns,
+        ).pack(side="left")
 
         # Test results
         self.test_results_text = Text(test_frame, height=4, width=60, state="disabled")
@@ -177,9 +208,25 @@ class CustomRegexDialog(Dialog):
         """Override to add OK and Cancel buttons."""
         box = Frame(self)
 
-        Button(box, text="Salvar", width=10, command=self.ok, default="active").pack(side="left", padx=5, pady=5)
-        Button(box, text="Cancelar", width=10, command=self.cancel).pack(side="left", padx=5, pady=5)
-        Button(box, text="Limpar Tudo", width=12, command=self._clear_all).pack(side="left", padx=5, pady=5)
+        Button(
+            box,
+            text="Salvar",
+            width=10,
+            command=self.ok,
+            default="active",
+        ).pack(side="left", padx=5, pady=5)
+        Button(
+            box,
+            text="Cancelar",
+            width=10,
+            command=self.cancel,
+        ).pack(side="left", padx=5, pady=5)
+        Button(
+            box,
+            text="Limpar Tudo",
+            width=12,
+            command=self._clear_all,
+        ).pack(side="left", padx=5, pady=5)
 
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
@@ -190,7 +237,11 @@ class CustomRegexDialog(Dialog):
         """Test the regex patterns against the test path."""
         test_path = self.test_path_entry.get().strip()
         if not test_path:
-            messagebox.showwarning("Caminho Vazio", "Digite um caminho para testar.", parent=self)
+            messagebox.showwarning(
+                "Caminho Vazio",
+                "Digite um caminho para testar.",
+                parent=self,
+            )
             return
 
         group_pattern = self.group_pattern_entry.get().strip()
@@ -204,7 +255,10 @@ class CustomRegexDialog(Dialog):
             try:
                 match = re.search(group_pattern, test_path)
                 if match:
-                    results.append(f"✓ Grupo: '{match.group(1) if match.groups() else match.group(0)}'")
+                    results.append(
+                        "✓ Grupo: '"
+                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                    )
                 else:
                     results.append("✗ Grupo: Nenhuma correspondência")
             except re.error as e:
@@ -217,7 +271,10 @@ class CustomRegexDialog(Dialog):
             try:
                 match = re.search(day_pattern, test_path)
                 if match:
-                    results.append(f"✓ Dia: '{match.group(1) if match.groups() else match.group(0)}'")
+                    results.append(
+                        "✓ Dia: '"
+                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                    )
                 else:
                     results.append("✗ Dia: Nenhuma correspondência")
             except re.error as e:
@@ -230,7 +287,10 @@ class CustomRegexDialog(Dialog):
             try:
                 match = re.search(subject_pattern, test_path)
                 if match:
-                    results.append(f"✓ Sujeito: '{match.group(1) if match.groups() else match.group(0)}'")
+                    results.append(
+                        "✓ Sujeito: '"
+                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                    )
                 else:
                     results.append("✗ Sujeito: Nenhuma correspondência")
             except re.error as e:

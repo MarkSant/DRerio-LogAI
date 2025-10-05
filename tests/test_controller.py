@@ -317,7 +317,9 @@ class TestAppController(unittest.TestCase):
             def is_connected_side_effect(*_args, **_kwargs):
                 return self.mock_arduino_manager.connect.call_count > 0
 
-            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
+            self.mock_arduino_manager.is_connected.side_effect = (
+                is_connected_side_effect
+            )
 
             # --- Act: start recording triggers Arduino start command
             self.controller.start_recording()
@@ -380,7 +382,9 @@ class TestAppController(unittest.TestCase):
             def is_connected_side_effect(*_args, **_kwargs):
                 return self.mock_arduino_manager.connect.call_count > 0
 
-            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
+            self.mock_arduino_manager.is_connected.side_effect = (
+                is_connected_side_effect
+            )
 
             # Execute scheduled UI callbacks immediately in tests
             self.controller._schedule_on_ui = lambda func, *a, **k: func(*a, **k)

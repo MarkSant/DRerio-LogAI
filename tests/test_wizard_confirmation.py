@@ -307,7 +307,8 @@ class TestConfirmationStep(unittest.TestCase):
 
                 is_valid, error_message = step.validate()
 
-                self.assertTrue(is_valid, f"Name '{name}' should be valid but got error: {error_message}")
+                msg = f"Name '{name}' should be valid but got error: {error_message}"
+                self.assertTrue(is_valid, msg)
 
     def test_invalid_project_names(self):
         """Test various invalid project name formats."""

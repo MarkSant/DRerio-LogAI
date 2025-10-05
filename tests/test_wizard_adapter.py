@@ -3,7 +3,6 @@ Tests for wizard adapter - translation between wizard and controller formats.
 """
 
 import unittest
-from pathlib import Path
 
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType
 from zebtrack.ui.wizard.wizard_adapter import (
@@ -92,7 +91,8 @@ class TestWizardAdapter(unittest.TestCase):
 
         # Verify metadata preserved
         self.assertIn("detected_design", result["_wizard_metadata"])
-        self.assertEqual(result["_wizard_metadata"]["detected_design"]["confidence"], 0.85)
+        metadata = result["_wizard_metadata"]["detected_design"]
+        self.assertEqual(metadata["confidence"], 0.85)
 
     def test_adapt_with_parquet_import(self):
         """Adapter should preserve parquet import configuration."""

@@ -12,6 +12,8 @@ from tkinter import (
     IntVar,
     Label,
     LabelFrame,
+)
+from tkinter import (
     font as tkfont,
 )
 

@@ -5,21 +5,18 @@ Allows user to configure per-video import strategy with smart defaults.
 Shows table of videos with checkboxes for arena/ROIs/trajectory import.
 """
 
-import os
 from pathlib import Path
 from tkinter import (
-    Button,
-    Checkbutton,
-    Frame,
-    IntVar,
     Label,
     LabelFrame,
     Radiobutton,
     Scrollbar,
     StringVar,
+    ttk,
+)
+from tkinter import (
     font as tkfont,
 )
-from tkinter import ttk
 
 import structlog
 
@@ -125,7 +122,12 @@ class ImportConfigStep(WizardStep):
         self.video_tree.bind("<Double-1>", self._on_tree_double_click)
 
         # ROI merge strategy (will be hidden if no parquets detected)
-        self.roi_frame = LabelFrame(self, text="Estratégia de Importação de ROIs", padx=10, pady=10)
+        self.roi_frame = LabelFrame(
+            self,
+            text="Estratégia de Importação de ROIs",
+            padx=10,
+            pady=10,
+        )
         self.roi_frame.pack(fill="x", pady=(0, 15))
 
         rb_replace = Radiobutton(
@@ -135,7 +137,13 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.REPLACE.value,
         )
         rb_replace.pack(anchor="w", pady=2)
-        ToolTip(rb_replace, "ROIs importados do Parquet substituirão completamente as ROIs existentes no projeto.")
+        ToolTip(
+            rb_replace,
+            (
+                "ROIs importados do Parquet substituirão completamente as ROIs "
+                "existentes no projeto."
+            ),
+        )
 
         rb_merge = Radiobutton(
             self.roi_frame,
@@ -144,7 +152,13 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.MERGE.value,
         )
         rb_merge.pack(anchor="w", pady=2)
-        ToolTip(rb_merge, "Manter ROIs existentes e importadas. ROIs com mesmo nome serão renomeadas (ex: 'Zone1', 'Zone1_imported').")
+        ToolTip(
+            rb_merge,
+            (
+                "Manter ROIs existentes e importadas. ROIs com mesmo nome "
+                "serão renomeadas (ex: 'Zone1', 'Zone1_imported')."
+            ),
+        )
 
         rb_manual = Radiobutton(
             self.roi_frame,
@@ -153,7 +167,13 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.MANUAL.value,
         )
         rb_manual.pack(anchor="w", pady=2)
-        ToolTip(rb_manual, "Perguntar ao usuário como resolver cada conflito de nomes de ROIs durante a importação.")
+        ToolTip(
+            rb_manual,
+            (
+                "Perguntar ao usuário como resolver cada conflito de nomes de "
+                "ROIs durante a importação."
+            ),
+        )
 
         # Summary
         self.summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)
@@ -172,7 +192,10 @@ class ImportConfigStep(WizardStep):
 
         legend_text = Label(
             legend_frame,
-            text="✓ = Disponível e será importado  |  ○ = Disponível mas não importado  |  — = Não disponível",
+            text=(
+                "✓ = Disponível e será importado  |  ○ = Disponível mas não "
+                "importado  |  — = Não disponível"
+            ),
             fg="gray",
             font=("TkDefaultFont", 9),
         )
@@ -181,7 +204,10 @@ class ImportConfigStep(WizardStep):
         # Help text
         help_text = Label(
             self,
-            text="💡 Dica: Clique duas vezes em uma linha para alternar as opções de importação.",
+            text=(
+                "💡 Dica: Clique duas vezes em uma linha para alternar as "
+                "opções de importação."
+            ),
             fg="gray",
             wraplength=500,
             justify="left",
@@ -366,14 +392,15 @@ class ImportConfigStep(WizardStep):
             name = action_names.get(action, action)
             lines.append(f"• {count} vídeo(s): {name}")
 
-        self.summary_var.set("\n".join(lines) if lines else "Nenhum vídeo configurado")
+        self.summary_var.set(
+            "\n".join(lines) if lines else "Nenhum vídeo configurado"
+        )
 
     def _update_roi_frame_visibility(self):
         """Hide ROI merge strategy frame if no ROIs are being imported."""
         # Check if any video is configured to import ROIs
         importing_rois = any(
-            config.get("import_rois", False)
-            for config in self.video_configs
+            config.get("import_rois", False) for config in self.video_configs
         )
 
         if importing_rois:

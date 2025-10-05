@@ -5,7 +5,6 @@ This module provides a bridge between the new 5-step wizard and the existing
 controller interface, ensuring backward compatibility.
 """
 
-from pathlib import Path
 from typing import Optional
 
 import structlog
@@ -80,12 +79,14 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         # Detection methods (use defaults from settings)
         "aquarium_method": "seg",
         "animal_method": "det",
-        # Experimental design (initialized to None, will be populated below if applicable)
+        # Experimental design (initialized to None, populated later if applicable)
         "experiment_days": None,
         "subjects_per_group": None,
         "num_groups": None,
         "group_names": None,
     }
+
+    video_files: list[dict] = []
 
     if is_live:
         # Live project: Use live configuration data
@@ -107,12 +108,13 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
 
         # Convert scanned videos to format expected by add_video_batch
         # Each video needs: {"path": str, "has_data": bool}
-        video_files = []
         for video_info in scanned_videos:
-            video_files.append({
-                "path": video_info["path"],
-                "has_data": video_info.get("has_complete_data", False),
-            })
+            video_files.append(
+                {
+                    "path": video_info["path"],
+                    "has_data": video_info.get("has_complete_data", False),
+                }
+            )
 
         controller_data.update({
             "video_files": video_files,
@@ -123,8 +125,9 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         })
 
     # Add experimental design if detected
+    detected_design = wizard_data.get("detected_design")
+
     if not is_exploratory:
-        detected_design = wizard_data.get("detected_design")
         if detected_design:
             groups = detected_design.get("groups", [])
             days = detected_design.get("days", [])
@@ -138,10 +141,12 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
                 controller_data["experiment_days"] = len(days)
 
             # Calculate subjects_per_group from detected subjects dict
-            # subjects_dict is {"Control": ["S01", "S02"], "Treatment": ["S01", "S02"]}
-            # We need to extract the max number of subjects across groups
+            # subjects_dict is {"Control": ["S01", "S02"], ...}
+            # Extract the max number of subjects across groups
             if subjects_dict and isinstance(subjects_dict, dict):
-                subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
+                subject_counts = [
+                    len(subjects) for subjects in subjects_dict.values() if subjects
+                ]
                 if subject_counts:
                     controller_data["subjects_per_group"] = max(subject_counts)
 

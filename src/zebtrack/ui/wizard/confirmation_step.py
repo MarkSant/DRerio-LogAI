@@ -16,9 +16,11 @@ from tkinter import (
     LabelFrame,
     StringVar,
     filedialog,
-    font as tkfont,
     messagebox,
     simpledialog,
+)
+from tkinter import (
+    font as tkfont,
 )
 
 import structlog
@@ -81,20 +83,40 @@ class ConfirmationStep(WizardStep):
         name_frame = Frame(self)
         name_frame.pack(fill="x", pady=(0, 10))
 
-        Label(name_frame, text="Nome do Projeto:", width=20, anchor="w").pack(side="left")
+        Label(
+            name_frame,
+            text="Nome do Projeto:",
+            width=20,
+            anchor="w",
+        ).pack(side="left")
         Entry(name_frame, textvariable=self.project_name_var, width=40).pack(
-            side="left", padx=(5, 0), fill="x", expand=True
+            side="left",
+            padx=(5, 0),
+            fill="x",
+            expand=True,
         )
 
         # Project location
         location_frame = Frame(self)
         location_frame.pack(fill="x", pady=(0, 15))
 
-        Label(location_frame, text="Localização:", width=20, anchor="w").pack(side="left")
+        Label(
+            location_frame,
+            text="Localização:",
+            width=20,
+            anchor="w",
+        ).pack(side="left")
         Entry(location_frame, textvariable=self.project_location_var, width=30).pack(
-            side="left", padx=(5, 5), fill="x", expand=True
+            side="left",
+            padx=(5, 5),
+            fill="x",
+            expand=True,
         )
-        Button(location_frame, text="Procurar...", command=self._browse_location).pack(side="left")
+        Button(
+            location_frame,
+            text="Procurar...",
+            command=self._browse_location,
+        ).pack(side="left")
 
         # Summary
         summary_frame = LabelFrame(self, text="Resumo do Projeto", padx=10, pady=10)
@@ -123,7 +145,10 @@ class ConfirmationStep(WizardStep):
         # Help text
         help_text = Label(
             self,
-            text="💡 Dica: Verifique todas as configurações antes de criar o projeto. Você pode salvar como template para reutilizar.",
+            text=(
+                "💡 Dica: Verifique todas as configurações antes de criar o "
+                "projeto. Você pode salvar como template para reutilizar."
+            ),
             fg="gray",
             wraplength=500,
             justify="left",
@@ -140,7 +165,9 @@ class ConfirmationStep(WizardStep):
         if self.project_name_var.get():
             return  # Already has a name
 
-        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+        project_type = self.wizard_data.get(
+            "project_type", ProjectType.EXPERIMENTAL.value
+        )
 
         if project_type == ProjectType.EXPERIMENTAL.value:
             # Use detected groups if available
@@ -211,13 +238,15 @@ class ConfirmationStep(WizardStep):
             detected_design = self.wizard_data.get("detected_design")
             if detected_design:
                 lines.append("")
-                lines.append("🔍 Design Detectado:")
+                lines.append("🔍 Design Detectado / Design:")
                 groups = detected_design.get("groups", [])
                 days = detected_design.get("days", [])
                 confidence = detected_design.get("confidence", 0)
 
                 if groups:
-                    lines.append(f"  • Grupos: {len(groups)} ({', '.join(groups[:3])}{'...' if len(groups) > 3 else ''})")
+                    preview = ", ".join(groups[:3])
+                    suffix = "..." if len(groups) > 3 else ""
+                    lines.append(f"  • Grupos: {len(groups)} ({preview}{suffix})")
 
                 if days:
                     lines.append(f"  • Dias: {len(days)}")
@@ -283,33 +312,53 @@ class ConfirmationStep(WizardStep):
             parquet_summary = self.wizard_data.get("parquet_summary", {})
             if parquet_summary:
                 lines.append("📦 Parquets Existentes:")
-                lines.append(f"  • Arena: {parquet_summary.get('total_arena', 0)}")
-                lines.append(f"  • ROIs: {parquet_summary.get('total_rois', 0)}")
-                lines.append(f"  • Trajetória: {parquet_summary.get('total_trajectory', 0)}")
-                lines.append(f"  • Completos: {parquet_summary.get('total_complete', 0)}")
+                arena_total = parquet_summary.get("total_arena", 0)
+                rois_total = parquet_summary.get("total_rois", 0)
+                trajectory_total = parquet_summary.get("total_trajectory", 0)
+                complete_total = parquet_summary.get("total_complete", 0)
+                lines.append(f"  • Arena: {arena_total}")
+                lines.append(f"  • ROIs: {rois_total}")
+                lines.append(f"  • Trajetória: {trajectory_total}")
+                lines.append(f"  • Completos: {complete_total}")
                 lines.append("")
 
-            # Import configuration summary (only for pre-recorded, show what will be imported)
+            # Import configuration summary (pre-recorded only)
             if import_config:
-                importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
-                importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
-                importing_trajectory = any(cfg.get("import_trajectory", False) for cfg in import_config)
+                importing_arena = any(
+                    cfg.get("import_arena", False) for cfg in import_config
+                )
+                importing_rois = any(
+                    cfg.get("import_rois", False) for cfg in import_config
+                )
+                importing_trajectory = any(
+                    cfg.get("import_trajectory", False) for cfg in import_config
+                )
 
                 if importing_arena or importing_rois or importing_trajectory:
                     lines.append("📥 Configuração de Importação:")
                     if importing_arena:
-                        arena_count = sum(1 for c in import_config if c.get("import_arena"))
+                        arena_count = sum(
+                            1 for c in import_config if c.get("import_arena")
+                        )
                         lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
                     if importing_rois:
-                        rois_count = sum(1 for c in import_config if c.get("import_rois"))
+                        rois_count = sum(
+                            1 for c in import_config if c.get("import_rois")
+                        )
                         lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
                     if importing_trajectory:
-                        traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
+                        traj_count = sum(
+                            1 for c in import_config if c.get("import_trajectory")
+                        )
                         lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
                     lines.append("")
 
             # ROI merge strategy (only show if importing ROIs)
-            importing_rois = any(cfg.get("import_rois", False) for cfg in import_config) if import_config else False
+            importing_rois = (
+                any(cfg.get("import_rois", False) for cfg in import_config)
+                if import_config
+                else False
+            )
 
             if importing_rois:
                 roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
@@ -340,10 +389,14 @@ class ConfirmationStep(WizardStep):
         success = self.template_manager.save_template(template_name, self.wizard_data)
 
         if success:
+            template_message = (
+                f"Template '{template_name}' salvo com sucesso!\n\n"
+                "Você poderá carregar este template no futuro "
+                "para criar projetos similares rapidamente."
+            )
             messagebox.showinfo(
                 "Template Salvo",
-                f"Template '{template_name}' salvo com sucesso!\n\n"
-                f"Você poderá carregar este template no futuro para criar projetos similares rapidamente.",
+                template_message,
                 parent=self,
             )
             log.info("wizard.template_saved", name=template_name)
@@ -370,7 +423,11 @@ class ConfirmationStep(WizardStep):
 
         # Check valid characters (alphanumeric, underscore, hyphen, space)
         if not re.match(r'^[A-Za-z0-9_\- ]+$', project_name):
-            return (False, "Nome do projeto contém caracteres inválidos. Use apenas letras, números, espaços, '_' e '-'.")
+            message = (
+                "Nome do projeto contém caracteres inválidos. "
+                "Use apenas letras, números, espaços, '_' e '-'."
+            )
+            return (False, message)
 
         # Validate location
         location = self.project_location_var.get().strip()

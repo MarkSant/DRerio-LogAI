@@ -299,6 +299,19 @@ class Reporter:
         if rename_map:
             standardized_df = standardized_df.rename(columns=rename_map)
 
+        if "experiment_id" not in standardized_df.columns:
+            experiment_id = (
+                self.metadata.get("experiment_id")
+                or self.metadata.get("video_name")
+                or self.metadata.get("experiment_name")
+                or self.metadata.get("name")
+            )
+            standardized_df["experiment_id"] = experiment_id or "unknown"
+
+        standardized_df["experiment_id"] = (
+            standardized_df["experiment_id"].fillna("unknown").astype(str)
+        )
+
         if "group_id" not in standardized_df.columns:
             standardized_df["group_id"] = self._resolve_group_id(
                 standardized_df.iloc[0].to_dict()

@@ -12,12 +12,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from tkinter import Tk
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
-from zebtrack.ui.wizard.enums import ImportAction, ProjectType, ROIMergeStrategy
+from zebtrack.ui.wizard.enums import ImportAction, ProjectType
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
@@ -164,7 +164,8 @@ class TestWizardIntegration(unittest.TestCase):
         # Verify smart defaults applied correctly
         self.assertEqual(len(step4.video_configs), 1)
         # Should be IMPORT_ZONES based on parquet_import_scope="zones"
-        self.assertEqual(step4.video_configs[0]["action"], ImportAction.IMPORT_ZONES.value)
+        action_value = step4.video_configs[0]["action"]
+        self.assertEqual(action_value, ImportAction.IMPORT_ZONES.value)
 
         data4 = step4.get_data()
         wizard_data.update(data4)
@@ -271,7 +272,8 @@ class TestWizardIntegration(unittest.TestCase):
         step4.on_show()
         # Verify smart defaults
         self.assertEqual(len(step4.video_configs), 2)
-        self.assertEqual(step4.video_configs[0]["action"], ImportAction.IMPORT_ZONES.value)
+        action_value = step4.video_configs[0]["action"]
+        self.assertEqual(action_value, ImportAction.IMPORT_ZONES.value)
         self.assertEqual(step4.video_configs[1]["action"], ImportAction.FULL.value)
         wizard_data.update(step4.get_data())
 
@@ -368,7 +370,10 @@ class TestWizardIntegration(unittest.TestCase):
         step1_new.set_data(data1)
 
         # Verify restoration
-        self.assertEqual(step1_new.project_type_var.get(), ProjectType.EXPERIMENTAL.value)
+        self.assertEqual(
+            step1_new.project_type_var.get(),
+            ProjectType.EXPERIMENTAL.value,
+        )
         self.assertEqual(step1_new.folder_organization_var.get(), 2)
         self.assertEqual(step1_new.parquet_scope_var.get(), 2)
 

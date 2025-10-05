@@ -12,8 +12,10 @@ from tkinter import (
     Listbox,
     Scrollbar,
     StringVar,
-    font as tkfont,
     messagebox,
+)
+from tkinter import (
+    font as tkfont,
 )
 from tkinter.simpledialog import Dialog
 

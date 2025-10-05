@@ -9,7 +9,6 @@ Validates:
 - Back navigation with data restoration
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path

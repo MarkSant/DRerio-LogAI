@@ -15,7 +15,6 @@ Validates:
 
 import unittest
 from tkinter import Tk
-from unittest.mock import Mock
 
 from zebtrack.ui.wizard.enums import (
     ImportAction,
@@ -53,7 +52,8 @@ class TestImportConfigStep(unittest.TestCase):
         step.build_ui()
 
         self.assertEqual(step.video_configs, [])
-        self.assertEqual(step.roi_merge_strategy_var.get(), ROIMergeStrategy.REPLACE.value)
+        merge_value = step.roi_merge_strategy_var.get()
+        self.assertEqual(merge_value, ROIMergeStrategy.REPLACE.value)
 
     def test_smart_defaults_import_scope_all(self):
         """Smart defaults with 'all' scope should import everything available."""
@@ -307,7 +307,8 @@ class TestImportConfigStep(unittest.TestCase):
         self.assertEqual(len(step.video_configs), 1)
         self.assertEqual(step.video_configs[0]["import_arena"], True)
         self.assertEqual(step.video_configs[0]["import_rois"], False)
-        self.assertEqual(step.roi_merge_strategy_var.get(), ROIMergeStrategy.MANUAL.value)
+        merge_value = step.roi_merge_strategy_var.get()
+        self.assertEqual(merge_value, ROIMergeStrategy.MANUAL.value)
 
         # Verify table populated
         self.assertEqual(len(step.video_tree.get_children()), 1)

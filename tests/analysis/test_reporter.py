@@ -152,4 +152,5 @@ def test_reporter_export_summary_schema_validation(reporter_setup):
     reporter.tidy_data = reporter.tidy_data.drop(columns=["analysis_timestamp"])
 
     with pytest.raises(ValueError, match="analysis_timestamp"):
-        reporter.export_summary_data(str(tmp_path / "summary.parquet"), format="parquet")
+        summary_path = tmp_path / "summary.parquet"
+        reporter.export_summary_data(str(summary_path), format="parquet")

@@ -354,10 +354,6 @@ class AppController:
             '_wizard_metadata'
         }
 
-        # Extract params not in whitelist for controller use
-        aquarium_method = kwargs.get("aquarium_method")  # Will be used by setup_detector()
-        animal_method = kwargs.get("animal_method")      # Will be used by setup_detector()
-
         # Filter kwargs to only allowed parameters
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
 
@@ -366,7 +362,9 @@ class AppController:
             wizard_metadata = kwargs.get("_wizard_metadata", {})
             if wizard_metadata:
                 import_config = wizard_metadata.get("import_config", [])
-                roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
+                roi_merge_strategy = wizard_metadata.get(
+                    "roi_merge_strategy", "replace"
+                )
                 scanned_videos = wizard_metadata.get("scanned_videos", [])
 
                 if import_config:
@@ -2247,7 +2245,11 @@ class AppController:
                         "freezing_min_duration_s",
                         settings.video_processing.freezing_min_duration_s,
                     )
-                    metadata = single_video_config
+                    metadata = dict(single_video_config)
+                    metadata.setdefault("experiment_id", experiment_id)
+                    metadata.setdefault("video_name", experiment_id)
+                    if not metadata.get("group_id"):
+                        metadata["group_id"] = "single_video"
                 else:
                     proj_data = self.project_manager.project_data
                     calib_data = proj_data.get("calibration", {})
