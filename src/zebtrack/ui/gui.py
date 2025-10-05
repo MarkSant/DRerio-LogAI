@@ -3930,27 +3930,50 @@ class ApplicationGUI:
         Handles the UI part of creating a new project by opening a comprehensive dialog,
         then calls the controller with the collected data.
         """
-        dialog = CreateProjectDialog(self.root)
-        if not dialog.result:
-            return  # User cancelled
+        # Check feature flag: use new wizard or legacy dialog
+        use_wizard = settings and settings.ui_features.use_wizard_for_project_creation
 
-        # If live project, get device configuration
-        if dialog.result["project_type"] == "live":
-            live_config_dialog = LiveConfigDialog(self.root)
-            if not live_config_dialog.result:
-                return  # User cancelled live config
+        if use_wizard:
+            # New 5-step wizard flow
+            from zebtrack.ui.wizard import WizardDialog, adapt_wizard_data_to_controller_format
 
-            # Update global settings object before creating the project
-            live_config = live_config_dialog.result
-            settings.camera.index = live_config["camera_index"]
-            if live_config["use_arduino"] and live_config["arduino_port"]:
-                settings.arduino.port = live_config["arduino_port"]
-            else:
-                # Set port to empty string to prevent connection attempt
-                settings.arduino.port = ""
+            wizard = WizardDialog(self.root)
+            if not wizard.result:
+                return  # User cancelled
 
-        # Call controller, which will now pass the model info and all dialog parameters
-        self.controller.create_project_workflow(**dialog.result)
+            # Adapt wizard output to controller format
+            try:
+                controller_data = adapt_wizard_data_to_controller_format(wizard.result)
+            except ValueError as e:
+                self.show_error("Erro no Wizard", f"Erro ao processar dados do wizard: {e}")
+                return
+
+            # Call controller with adapted data
+            self.controller.create_project_workflow(**controller_data)
+
+        else:
+            # Legacy CreateProjectDialog flow
+            dialog = CreateProjectDialog(self.root)
+            if not dialog.result:
+                return  # User cancelled
+
+            # If live project, get device configuration
+            if dialog.result["project_type"] == "live":
+                live_config_dialog = LiveConfigDialog(self.root)
+                if not live_config_dialog.result:
+                    return  # User cancelled live config
+
+                # Update global settings object before creating the project
+                live_config = live_config_dialog.result
+                settings.camera.index = live_config["camera_index"]
+                if live_config["use_arduino"] and live_config["arduino_port"]:
+                    settings.arduino.port = live_config["arduino_port"]
+                else:
+                    # Set port to empty string to prevent connection attempt
+                    settings.arduino.port = ""
+
+            # Call controller, which will now pass the model info and all dialog parameters
+            self.controller.create_project_workflow(**dialog.result)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""

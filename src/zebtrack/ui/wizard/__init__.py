@@ -30,6 +30,10 @@ from zebtrack.ui.wizard.enums import (
 )
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
+from zebtrack.ui.wizard.wizard_adapter import (
+    adapt_wizard_data_to_controller_format,
+    extract_parquet_import_plan,
+)
 from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
 __all__ = [
@@ -42,4 +46,6 @@ __all__ = [
     "ImportAction",
     "ROIMergeStrategy",
     "WizardStepID",
+    "adapt_wizard_data_to_controller_format",
+    "extract_parquet_import_plan",
 ]
