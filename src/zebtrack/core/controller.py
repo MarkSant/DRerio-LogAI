@@ -150,14 +150,54 @@ class AppController:
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino
 
-        # Store detection methods for use in processing workflows
-        # These will override global settings when processing project videos
-        if "aquarium_method" in kwargs and "animal_method" in kwargs:
-            kwargs["temp_aquarium_method"] = kwargs["aquarium_method"]
-            kwargs["temp_animal_method"] = kwargs["animal_method"]
+        # WHITELIST APPROACH: Only pass parameters that create_new_project() accepts
+        # This is more robust than manually removing unsupported params (blacklist)
+        # See ProjectManager.create_new_project() signature at project_manager.py:260-282
+        allowed_params = {
+            'project_path', 'project_type', 'use_openvino', 'active_weight',
+            'video_files', 'num_aquariums', 'animals_per_aquarium',
+            'aquarium_width_cm', 'aquarium_height_cm', 'use_timed_recording',
+            'recording_duration_s', 'use_countdown', 'countdown_duration_s',
+            'analysis_interval_frames', 'display_interval_frames',
+            # Live project params (also valid for pre-recorded if user wants to track design)
+            'experiment_days', 'subjects_per_group', 'num_groups', 'group_names',
+            # Wizard metadata
+            '_wizard_metadata'
+        }
 
-        if self.project_manager.create_new_project(**kwargs):
-            if self.setup_detector():
+        # Extract params not in whitelist for controller use
+        aquarium_method = kwargs.get("aquarium_method")  # Will be used by setup_detector()
+        animal_method = kwargs.get("animal_method")      # Will be used by setup_detector()
+
+        # Filter kwargs to only allowed parameters
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
+
+        if self.project_manager.create_new_project(**filtered_kwargs):
+            # Execute parquet import if wizard provided import configuration
+            wizard_metadata = kwargs.get("_wizard_metadata", {})
+            if wizard_metadata:
+                import_config = wizard_metadata.get("import_config", [])
+                roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
+                scanned_videos = wizard_metadata.get("scanned_videos", [])
+
+                if import_config:
+                    log.info(
+                        "controller.create_project.importing_parquets",
+                        video_count=len(import_config),
+                        strategy=roi_merge_strategy,
+                    )
+                    success = self.project_manager.import_parquets_from_wizard(
+                        import_config=import_config,
+                        roi_merge_strategy=roi_merge_strategy,
+                        scanned_videos=scanned_videos,
+                    )
+                    if success:
+                        log.info("controller.create_project.parquets_imported")
+                    else:
+                        log.warning("controller.create_project.parquet_import_failed")
+
+            # Pass animal_method to setup_detector if it was specified in dialog
+            if self.setup_detector(temp_animal_method=animal_method):
                 self.view._load_project_view()
         else:
             self.view.show_error("Erro", "Falha ao criar o novo projeto.")

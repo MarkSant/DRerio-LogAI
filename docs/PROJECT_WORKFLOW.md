@@ -29,6 +29,7 @@ O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científico
 - Persiste parâmetros de análise (intervalos, métodos de detecção, calibrações)
 - Garante rastreabilidade através de hashes SHA256
 - Permite análise incremental (adicionar novos lotes de vídeos a projetos existentes)
+- **🧙 Oferece wizard inteligente** (v1.5) para criação guiada de projetos com auto-detecção de design experimental e importação de parquets
 
 **Tipos de projetos suportados:**
 - **Pre-recorded**: Análise de vídeos já gravados
@@ -41,8 +42,10 @@ O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científico
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  CAMADA 1: UI (gui.py)                              │
+│  CAMADA 1: UI (gui.py + wizard/)                    │
 │  - CreateProjectDialog: coleta configurações        │
+│  - 🧙 WizardDialog: criação inteligente (v1.5)      │
+│  - wizard_adapter: tradução wizard → controller     │
 │  - ApplicationGUI: visualização e controles         │
 │  - Progress overlays: feedback em tempo real        │
 └────────────────┬────────────────────────────────────┘
@@ -71,7 +74,27 @@ O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científico
 
 ## 3. Fluxo de Criação de Novo Projeto
 
-### 3.1 Dialog de Criação
+### 3.1 Opções de Criação
+
+O ZebTrack-AI oferece **duas formas** de criar projetos:
+
+1. **🧙 Wizard Inteligente (v1.5)** - *Recomendado para projetos experimentais*
+   - **Ativação**: Feature flag `ui_features.use_wizard_for_project_creation: true` em `config.local.yaml`
+   - **5 etapas guiadas**: Discovery → File Selection → Detection → Import Config → Confirmation
+   - **Auto-detecção**: Detecta design experimental a partir da estrutura de pastas
+   - **Importação de parquets**: Reutiliza arenas, ROIs e trajetórias de análises anteriores
+   - **Arquivo**: `src/zebtrack/ui/wizard/wizard_dialog.py`
+   - **Adaptador**: `src/zebtrack/ui/wizard/wizard_adapter.py` traduz saída para formato do controller
+   - **Documentação**: Ver `docs/WIZARD_INTEGRATION.md` e `docs/WIZARD_USER_GUIDE.md`
+
+2. **Dialog de Criação Tradicional** - *Usado quando wizard está desabilitado*
+   - **Arquivo**: `src/zebtrack/ui/gui.py` (linhas 415-855)
+   - **Classe**: `CreateProjectDialog`
+   - **Método direto**: Coleta todos os parâmetros de uma vez
+
+> **Nota**: Ambos os métodos geram a mesma estrutura `project_data` e são 100% compatíveis.
+
+### 3.2 Dialog de Criação Tradicional
 
 **Arquivo**: `src/zebtrack/ui/gui.py` (linhas 415-855)
 **Classe**: `CreateProjectDialog`
@@ -114,7 +137,7 @@ O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científico
 ✓ Intervalos de frames > 0
 ```
 
-### 3.2 Criação no Backend
+### 3.3 Criação no Backend
 
 **Arquivo**: `src/zebtrack/core/project_manager.py` (linhas 86-173)
 **Método**: `ProjectManager.create_new_project()`
@@ -194,7 +217,7 @@ O ZebTrack-AI implementa um sistema robusto de **gestão de projetos científico
 └── config_snapshot.yaml        # Snapshot de settings.py no momento da criação
 ```
 
-### 3.3 Inicialização do Detector
+### 3.4 Inicialização do Detector
 
 **Arquivo**: `src/zebtrack/core/controller.py` (linhas 332-456)
 **Método**: `AppController.setup_detector()`
@@ -825,27 +848,44 @@ for i, video in enumerate(videos):
 | | 1745-2038 | `_process_videos` |
 | | 1488-1648 | `_run_tracking_if_needed` |
 | | 1653-1743 | `apply_project_settings_to_batch` |
-| `src/zebtrack/core/project_manager.py` | 30-68 | `scan_input_paths` |
+| `src/zebtrack/core/project_manager.py` | 30-68 | `scan_input_paths` (detecção granular de parquets) |
 | | 86-173 | `create_new_project` |
 | | 175-206 | `add_video_batch` |
 | | 208-277 | `load_project`, `save_project` |
 | | 378-386 | `get_zone_data` |
-| `src/zebtrack/ui/gui.py` | 415-855 | `CreateProjectDialog` |
+| `src/zebtrack/ui/gui.py` | 415-855 | `CreateProjectDialog` (legado) |
+| | - | Integração com wizard via feature flag |
+| `src/zebtrack/ui/wizard/wizard_dialog.py` 🧙 | - | Orquestrador principal do wizard de 5 etapas |
+| `src/zebtrack/ui/wizard/wizard_adapter.py` 🧙 | - | `adapt_wizard_data_to_controller_format`, `extract_parquet_import_plan` |
+| `src/zebtrack/ui/wizard/enums.py` 🧙 | - | `ProjectType`, `ImportAction`, `ROIMergeStrategy`, `WizardStepID` |
+| `src/zebtrack/ui/wizard/*_step.py` 🧙 | - | Discovery, FileSelection, Detection, ImportConfig, Confirmation |
 | `src/zebtrack/io/recorder.py` | - | Schema Parquet imutável |
-| `src/zebtrack/settings.py` | 163-194 | Estrutura de Settings |
+| `src/zebtrack/settings.py` | 163-194 | Estrutura de Settings + `UIFeatureFlags` |
 
 ### 10.2 Testes Relacionados
 
 | Teste | Cobertura |
 |-------|-----------|
-| `tests/test_project_manager.py` | Criação, carregamento, batches |
+| `tests/test_project_manager.py` | Criação, carregamento, batches, scan_input_paths |
 | `tests/test_interval_frames_config.py` | Persistência de intervalos |
 | `tests/test_overlay_integration.py` | Sistema de canvas dual-view |
 | `tests/test_settings.py` | Validação de config.yaml |
+| `tests/test_wizard*.py` 🧙 | **91 testes** do wizard (83) + adapter (8) |
+| `tests/test_wizard_adapter.py` 🧙 | Tradução de dados wizard → controller |
+| `tests/test_wizard_integration.py` 🧙 | Fluxos completos do wizard |
 
 ---
 
 ## Changelog
+
+### 2025-10-04 - Wizard Inteligente v1.5 Implementado
+- 🧙 **Wizard de 5 etapas** para criação inteligente de projetos
+- ✨ Auto-detecção de design experimental a partir de estrutura de pastas
+- 📦 Importação granular de parquets (`*_arena.parquet`, `*_rois.parquet`, `*_trajectory.parquet`)
+- 🔄 Adapter pattern para compatibilidade total com controller existente
+- 🚩 Feature flag `ui_features.use_wizard_for_project_creation` para rollout gradual
+- ✅ 91 testes (83 wizard + 8 adapter) com 100% de sucesso
+- 📚 Documentação completa: `WIZARD_INTEGRATION.md`, `WIZARD_USER_GUIDE.md`, `WIZARD_PROJECT_CREATION.md`
 
 ### 2025-01-XX - Documentação Inicial Criada
 - ✨ Criação da documentação completa de fluxo de projetos e análise em lote

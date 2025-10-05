@@ -30,15 +30,28 @@ class ProjectManager:
     def scan_input_paths(paths: list[str]) -> list[dict]:
         """
         Scans a list of input paths (files or directories) and identifies video files.
-        For each video, it checks if corresponding parquet files exist.
+        For each video, it checks if corresponding parquet files exist and identifies
+        their types (arena, ROIs, trajectory).
 
         Args:
             paths: A list of file or directory paths.
 
         Returns:
             A list of dictionaries, where each dictionary represents a video and
-            contains its path and a flag indicating if it has existing data.
-            Example: [{'path': 'path/to/video.mp4', 'has_data': True}, ...]
+            contains detailed information about existing parquet files.
+            Example: [{
+                'path': 'path/to/video.mp4',
+                'has_arena': True,
+                'has_rois': True,
+                'has_trajectory': True,
+                'has_complete_data': True,
+                'has_data': True,  # Backward compatibility
+                'parquet_files': {
+                    'arena': 'path/to/1_ProcessingArea_video.parquet',
+                    'rois': 'path/to/2_AreasOfInterest_video.parquet',
+                    'trajectory': 'path/to/3_CoordMovimento_video.parquet'
+                }
+            }, ...]
         """
         video_files = []
         video_extensions = {".mp4", ".avi", ".mov"}
@@ -55,17 +68,391 @@ class ProjectManager:
 
         results = []
         for video_path in sorted(list(set(video_files))):  # Sorted unique list
-            # A video has data if a parquet file with the same stem exists
-            # in the same directory.
-            # Example: for "video1.mp4", it checks for "video1.parquet".
-            # This is a simplification based on the expected output format.
-            # A more robust check might look for specific parquet files.
             parent_dir = video_path.parent
             base_name = video_path.stem
-            has_data = any(parent_dir.glob(f"{base_name}*.parquet"))
-            results.append({"path": str(video_path), "has_data": has_data})
+
+            # Check for specific parquet file types
+            arena_pattern = f"1_ProcessingArea_{base_name}.parquet"
+            rois_pattern = f"2_AreasOfInterest_{base_name}.parquet"
+            trajectory_pattern = f"3_CoordMovimento_{base_name}.parquet"
+
+            # Search in parent directory and potential _results subdirectory
+            search_dirs = [parent_dir, parent_dir / f"{base_name}_results"]
+
+            arena_path = None
+            rois_path = None
+            trajectory_path = None
+
+            for search_dir in search_dirs:
+                if search_dir.exists():
+                    if not arena_path:
+                        arena_candidates = list(search_dir.glob(arena_pattern))
+                        if arena_candidates:
+                            arena_path = str(arena_candidates[0])
+
+                    if not rois_path:
+                        rois_candidates = list(search_dir.glob(rois_pattern))
+                        if rois_candidates:
+                            rois_path = str(rois_candidates[0])
+
+                    if not trajectory_path:
+                        trajectory_candidates = list(search_dir.glob(trajectory_pattern))
+                        if trajectory_candidates:
+                            trajectory_path = str(trajectory_candidates[0])
+
+            has_arena = arena_path is not None
+            has_rois = rois_path is not None
+            has_trajectory = trajectory_path is not None
+            has_complete_data = has_arena and has_rois and has_trajectory
+
+            # Backward compatibility: has_data is True if trajectory exists or complete
+            has_data = has_trajectory or has_complete_data
+
+            result = {
+                "path": str(video_path),
+                "has_arena": has_arena,
+                "has_rois": has_rois,
+                "has_trajectory": has_trajectory,
+                "has_complete_data": has_complete_data,
+                "has_data": has_data,  # Backward compatibility
+                "parquet_files": {
+                    "arena": arena_path,
+                    "rois": rois_path,
+                    "trajectory": trajectory_path,
+                },
+            }
+
+            results.append(result)
+            log.info(
+                "project_manager.scan_video",
+                video=base_name,
+                has_arena=has_arena,
+                has_rois=has_rois,
+                has_trajectory=has_trajectory,
+            )
 
         return results
+
+    @staticmethod
+    def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
+        """
+        Loads zone data (arena and ROIs) from existing parquet files.
+
+        Args:
+            video_info: Dictionary returned by scan_input_paths containing
+                       'parquet_files' with paths to arena and ROI files.
+
+        Returns:
+            ZoneData object with loaded zones, or None if loading failed.
+        """
+        parquet_files = video_info.get("parquet_files", {})
+        arena_path = parquet_files.get("arena")
+        rois_path = parquet_files.get("rois")
+
+        if not arena_path and not rois_path:
+            log.warning(
+                "project_manager.load_zones.no_files",
+                video=video_info.get("path"),
+            )
+            return None
+
+        zone_data = ZoneData()
+
+        try:
+            # Load arena polygon
+            if arena_path and os.path.exists(arena_path):
+                arena_df = pd.read_parquet(arena_path)
+                if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                    polygon_points = arena_df[["x", "y"]].values.tolist()
+                    zone_data.polygon = polygon_points
+                    log.info(
+                        "project_manager.load_zones.arena_loaded",
+                        path=arena_path,
+                        points=len(polygon_points),
+                    )
+                else:
+                    log.warning(
+                        "project_manager.load_zones.arena_empty",
+                        path=arena_path,
+                    )
+
+            # Load ROIs
+            if rois_path and os.path.exists(rois_path):
+                rois_df = pd.read_parquet(rois_path)
+                if not rois_df.empty:
+                    required_cols = {"roi_name", "point_index", "x", "y"}
+                    if required_cols.issubset(rois_df.columns):
+                        # Group by ROI name and reconstruct polygons
+                        roi_polygons = []
+                        roi_names = []
+
+                        for roi_name in rois_df["roi_name"].unique():
+                            roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
+                                "point_index"
+                            )
+                            roi_points = roi_df[["x", "y"]].values.tolist()
+                            roi_polygons.append(roi_points)
+                            roi_names.append(roi_name)
+
+                        zone_data.roi_polygons = roi_polygons
+                        zone_data.roi_names = roi_names
+
+                        # Generate default colors if not provided
+                        # (actual colors are not stored in parquet, using defaults)
+                        default_colors = [
+                            (0, 255, 0),    # Green
+                            (255, 0, 0),    # Blue
+                            (0, 0, 255),    # Red
+                            (255, 255, 0),  # Cyan
+                            (255, 0, 255),  # Magenta
+                            (0, 255, 255),  # Yellow
+                        ]
+                        zone_data.roi_colors = [
+                            default_colors[i % len(default_colors)]
+                            for i in range(len(roi_names))
+                        ]
+
+                        log.info(
+                            "project_manager.load_zones.rois_loaded",
+                            path=rois_path,
+                            count=len(roi_names),
+                            names=roi_names,
+                        )
+                    else:
+                        log.warning(
+                            "project_manager.load_zones.rois_invalid_schema",
+                            path=rois_path,
+                            columns=list(rois_df.columns),
+                        )
+                else:
+                    log.warning(
+                        "project_manager.load_zones.rois_empty",
+                        path=rois_path,
+                    )
+
+            return zone_data
+
+        except Exception as e:
+            log.error(
+                "project_manager.load_zones.error",
+                video=video_info.get("path"),
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+
+    def import_parquets_from_wizard(
+        self,
+        import_config: list[dict],
+        roi_merge_strategy: str = "replace",
+        scanned_videos: list[dict] = None,
+    ) -> bool:
+        """
+        Imports arena, ROIs, and trajectory data from existing parquet files.
+
+        This method is called after project creation to import data from parquet files
+        based on the wizard's import configuration.
+
+        Args:
+            import_config: List of per-video import configurations from wizard:
+                [
+                    {
+                        "video": str,  # Video path
+                        "import_arena": bool,
+                        "import_rois": bool,
+                        "import_trajectory": bool,
+                        "action": str,  # ImportAction.value
+                    },
+                    ...
+                ]
+            roi_merge_strategy: How to handle ROI conflicts
+                - "replace": Replace existing ROIs with imported ones
+                - "merge": Keep both, rename conflicts with "_imported" suffix
+                - "manual": Ask user for each conflict (future implementation)
+            scanned_videos: List of scanned video info (from wizard) containing
+                parquet file paths. If None, will re-scan paths.
+
+        Returns:
+            bool: True if import succeeded, False otherwise
+        """
+        if not self.project_data:
+            log.error("project_manager.import_parquets.no_project")
+            return False
+
+        if not import_config:
+            log.info("project_manager.import_parquets.no_config")
+            return True  # Nothing to import is not an error
+
+        log.info(
+            "project_manager.import_parquets.start",
+            video_count=len(import_config),
+            roi_strategy=roi_merge_strategy,
+        )
+
+        # Build lookup from video path to parquet info
+        video_parquet_map = {}
+        if scanned_videos:
+            for video_info in scanned_videos:
+                video_parquet_map[video_info["path"]] = video_info.get("parquet_files", {})
+
+        # Get current zone data
+        zone_data = self.get_zone_data()
+        imported_count = {"arena": 0, "rois": 0, "trajectory": 0}
+
+        try:
+            for config in import_config:
+                video_path = config.get("video")
+                import_arena = config.get("import_arena", False)
+                import_rois = config.get("import_rois", False)
+                import_trajectory = config.get("import_trajectory", False)
+
+                if not any([import_arena, import_rois, import_trajectory]):
+                    continue  # Skip if nothing to import for this video
+
+                # Get parquet file paths for this video
+                parquet_files = video_parquet_map.get(video_path, {})
+                if not parquet_files:
+                    log.warning(
+                        "project_manager.import_parquets.no_parquets",
+                        video=Path(video_path).name,
+                    )
+                    continue
+
+                # Import arena
+                if import_arena:
+                    arena_path = parquet_files.get("arena")
+                    if arena_path and os.path.exists(arena_path):
+                        arena_df = pd.read_parquet(arena_path)
+                        if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                            polygon_points = arena_df[["x", "y"]].values.tolist()
+                            zone_data.polygon = polygon_points
+                            imported_count["arena"] += 1
+                            log.info(
+                                "project_manager.import_parquets.arena_imported",
+                                video=Path(video_path).name,
+                                points=len(polygon_points),
+                            )
+
+                # Import ROIs
+                if import_rois:
+                    rois_path = parquet_files.get("rois")
+                    if rois_path and os.path.exists(rois_path):
+                        rois_df = pd.read_parquet(rois_path)
+                        if not rois_df.empty:
+                            required_cols = {"roi_name", "point_index", "x", "y"}
+                            if required_cols.issubset(rois_df.columns):
+                                # Load imported ROIs
+                                imported_roi_polygons = []
+                                imported_roi_names = []
+
+                                for roi_name in rois_df["roi_name"].unique():
+                                    roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
+                                        "point_index"
+                                    )
+                                    roi_points = roi_df[["x", "y"]].values.tolist()
+                                    imported_roi_polygons.append(roi_points)
+                                    imported_roi_names.append(roi_name)
+
+                                # Apply merge strategy
+                                if roi_merge_strategy == "replace":
+                                    # Replace all existing ROIs
+                                    zone_data.roi_polygons = imported_roi_polygons
+                                    zone_data.roi_names = imported_roi_names
+                                elif roi_merge_strategy == "merge":
+                                    # Keep existing ROIs, add imported ones
+                                    # Rename conflicts by adding "_imported" suffix
+                                    existing_names = set(zone_data.roi_names)
+                                    for roi_poly, roi_name in zip(imported_roi_polygons, imported_roi_names):
+                                        final_name = roi_name
+                                        if roi_name in existing_names:
+                                            # Find unique name
+                                            counter = 1
+                                            while f"{roi_name}_imported{counter}" in existing_names:
+                                                counter += 1
+                                            final_name = f"{roi_name}_imported{counter}"
+                                            log.info(
+                                                "project_manager.import_parquets.roi_renamed",
+                                                original=roi_name,
+                                                renamed=final_name,
+                                            )
+
+                                        zone_data.roi_polygons.append(roi_poly)
+                                        zone_data.roi_names.append(final_name)
+                                        existing_names.add(final_name)
+                                elif roi_merge_strategy == "manual":
+                                    # TODO: Implement interactive conflict resolution
+                                    log.warning(
+                                        "project_manager.import_parquets.manual_strategy_not_implemented",
+                                        fallback="replace",
+                                    )
+                                    zone_data.roi_polygons = imported_roi_polygons
+                                    zone_data.roi_names = imported_roi_names
+
+                                # Regenerate colors for all ROIs
+                                default_colors = [
+                                    (0, 255, 0),    # Green
+                                    (255, 0, 0),    # Blue
+                                    (0, 0, 255),    # Red
+                                    (255, 255, 0),  # Cyan
+                                    (255, 0, 255),  # Magenta
+                                    (0, 255, 255),  # Yellow
+                                ]
+                                zone_data.roi_colors = [
+                                    default_colors[i % len(default_colors)]
+                                    for i in range(len(zone_data.roi_names))
+                                ]
+
+                                imported_count["rois"] += len(imported_roi_names)
+                                log.info(
+                                    "project_manager.import_parquets.rois_imported",
+                                    video=Path(video_path).name,
+                                    count=len(imported_roi_names),
+                                    names=imported_roi_names,
+                                    strategy=roi_merge_strategy,
+                                )
+
+                # Import trajectory (copy parquet to project folder)
+                if import_trajectory:
+                    trajectory_path = parquet_files.get("trajectory")
+                    if trajectory_path and os.path.exists(trajectory_path):
+                        # Copy trajectory parquet to project results folder
+                        video_name = Path(video_path).stem
+                        results_dir = Path(self.project_path) / f"{video_name}_results"
+                        results_dir.mkdir(exist_ok=True)
+
+                        dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
+
+                        import shutil
+                        shutil.copy2(trajectory_path, dest_path)
+
+                        imported_count["trajectory"] += 1
+                        log.info(
+                            "project_manager.import_parquets.trajectory_imported",
+                            video=video_name,
+                            source=trajectory_path,
+                            dest=str(dest_path),
+                        )
+
+            # Save updated zone data to project
+            from dataclasses import asdict
+            self.project_data["detection_zones"] = asdict(zone_data)
+            self.save_project()
+
+            log.info(
+                "project_manager.import_parquets.success",
+                arena_count=imported_count["arena"],
+                roi_count=imported_count["rois"],
+                trajectory_count=imported_count["trajectory"],
+            )
+            return True
+
+        except Exception as e:
+            log.error(
+                "project_manager.import_parquets.error",
+                error=str(e),
+                exc_info=True,
+            )
+            return False
 
     def _save_settings_snapshot(self):
         """Saves a snapshot of the current settings to the project directory."""
@@ -75,7 +462,7 @@ class ProjectManager:
         snapshot_path = os.path.join(self.project_path, SETTINGS_SNAPSHOT_FILE_NAME)
         try:
             settings_dict = settings.model_dump(mode="json")
-            with open(snapshot_path, "w") as f:
+            with open(snapshot_path, "w", encoding="utf-8") as f:
                 yaml.dump(settings_dict, f, indent=4, sort_keys=False)
             log.info("settings.snapshot.saved", path=snapshot_path)
             return True
@@ -103,7 +490,10 @@ class ProjectManager:
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
+        num_groups: int | None = None,
         group_names: list[str] | None = None,
+        # Wizard metadata
+        _wizard_metadata: dict | None = None,
     ):
         """
         Initializes a new project, creating its directory and config file.
@@ -155,16 +545,19 @@ class ProjectManager:
             "use_countdown": use_countdown,
             "countdown_duration_s": countdown_duration_s,
             "batches": [],  # Changed from "videos" to "batches"
-            "groups": group_names if project_type == "live" else [],
-            "experiment_days": experiment_days if project_type == "live" else None,
-            "subjects_per_group": subjects_per_group
-            if project_type == "live"
-            else None,
+            "groups": group_names if group_names else [],
+            "num_groups": num_groups,
+            "experiment_days": experiment_days,
+            "subjects_per_group": subjects_per_group,
             "last_selected_day": 1,
             "last_selected_group": group_names[0] if group_names else None,
             "analysis_interval_frames": analysis_interval_frames,
             "display_interval_frames": display_interval_frames,
         }
+
+        # Add wizard metadata if provided (from wizard v1.5+)
+        if _wizard_metadata:
+            self.project_data["_wizard_metadata"] = _wizard_metadata
 
         if video_files:
             # The initial set of videos becomes the first batch
@@ -227,7 +620,7 @@ class ProjectManager:
             return False
 
         try:
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 loaded_data = json.load(f)
 
             # --- Security Check: File Integrity ---
@@ -304,7 +697,7 @@ class ProjectManager:
             # Add the new hash to the data to be saved
             data_to_save["file_hash"] = new_hash
 
-            with open(config_path, "w") as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 # Save with indentation for human readability, but hash was
                 # calculated on the canonical string.
                 json.dump(data_to_save, f, indent=4, sort_keys=True)

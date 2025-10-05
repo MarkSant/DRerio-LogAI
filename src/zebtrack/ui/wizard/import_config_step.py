@@ -1,0 +1,459 @@
+"""
+Step 4: Import Configuration Dialog
+
+Allows user to configure per-video import strategy with smart defaults.
+Shows table of videos with checkboxes for arena/ROIs/trajectory import.
+"""
+
+import os
+from pathlib import Path
+from tkinter import (
+    Button,
+    Checkbutton,
+    Frame,
+    IntVar,
+    Label,
+    LabelFrame,
+    Radiobutton,
+    Scrollbar,
+    StringVar,
+    font as tkfont,
+)
+from tkinter import ttk
+
+import structlog
+
+from zebtrack.ui.wizard.base import WizardStep
+from zebtrack.ui.wizard.enums import (
+    ImportAction,
+    ROIMergeStrategy,
+    WizardStepID,
+    derive_import_action,
+)
+from zebtrack.ui.wizard.tooltip import ToolTip
+
+log = structlog.get_logger()
+
+
+class ImportConfigStep(WizardStep):
+    """
+    Import Configuration step - configure per-video import strategy.
+
+    Processing:
+        1. Load scanned videos from Step 3
+        2. Apply smart defaults based on Step 1 choices
+        3. Show table with checkboxes for each video
+        4. Compute ImportAction for each video
+        5. Allow ROI merge strategy selection
+
+    Output:
+        {
+            "import_config": [
+                {
+                    "video": str,  # Video path
+                    "import_arena": bool,
+                    "import_rois": bool,
+                    "import_trajectory": bool,
+                    "action": str,  # ImportAction.value
+                },
+                ...
+            ],
+            "roi_merge_strategy": str,  # ROIMergeStrategy.value
+        }
+    """
+
+    def __init__(self, parent, wizard_data: dict):
+        """Initialize import config step."""
+        super().__init__(parent, wizard_data)
+        self.step_id = WizardStepID.IMPORT_CONFIG
+
+        # State
+        self.video_configs = []  # List of per-video config dicts
+        self.roi_merge_strategy_var = StringVar(value=ROIMergeStrategy.REPLACE.value)
+        self.summary_var = StringVar(value="")
+
+    def build_ui(self):
+        """Build import configuration UI."""
+        # Title
+        title_font = tkfont.Font(size=14, weight="bold")
+        title = Label(
+            self, text="Configuração de Importação", font=title_font
+        )
+        title.pack(pady=(0, 10))
+
+        subtitle = Label(
+            self,
+            text="Configure o que importar para cada vídeo.",
+            fg="gray",
+            wraplength=500,
+        )
+        subtitle.pack(pady=(0, 15))
+
+        # Video table
+        table_frame = LabelFrame(self, text="Vídeos e Estratégias", padx=10, pady=10)
+        table_frame.pack(fill="both", expand=True, pady=(0, 15))
+
+        # Create Treeview with scrollbar
+        tree_scroll = Scrollbar(table_frame)
+        tree_scroll.pack(side="right", fill="y")
+
+        self.video_tree = ttk.Treeview(
+            table_frame,
+            columns=("video", "arena", "rois", "trajectory", "action"),
+            show="headings",
+            yscrollcommand=tree_scroll.set,
+            height=10,
+        )
+        tree_scroll.config(command=self.video_tree.yview)
+
+        # Define columns
+        self.video_tree.heading("video", text="Vídeo")
+        self.video_tree.heading("arena", text="Arena")
+        self.video_tree.heading("rois", text="ROIs")
+        self.video_tree.heading("trajectory", text="Trajetória")
+        self.video_tree.heading("action", text="Ação")
+
+        self.video_tree.column("video", width=250, anchor="w")
+        self.video_tree.column("arena", width=70, anchor="center")
+        self.video_tree.column("rois", width=70, anchor="center")
+        self.video_tree.column("trajectory", width=90, anchor="center")
+        self.video_tree.column("action", width=120, anchor="center")
+
+        self.video_tree.pack(fill="both", expand=True)
+
+        # Bind double-click to toggle checkboxes
+        self.video_tree.bind("<Double-1>", self._on_tree_double_click)
+
+        # ROI merge strategy (will be hidden if no parquets detected)
+        self.roi_frame = LabelFrame(self, text="Estratégia de Importação de ROIs", padx=10, pady=10)
+        self.roi_frame.pack(fill="x", pady=(0, 15))
+
+        rb_replace = Radiobutton(
+            self.roi_frame,
+            text="Replace - Substituir ROIs existentes pelos importados",
+            variable=self.roi_merge_strategy_var,
+            value=ROIMergeStrategy.REPLACE.value,
+        )
+        rb_replace.pack(anchor="w", pady=2)
+        ToolTip(rb_replace, "ROIs importados do Parquet substituirão completamente as ROIs existentes no projeto.")
+
+        rb_merge = Radiobutton(
+            self.roi_frame,
+            text="Merge - Manter ambos (renomear conflitos)",
+            variable=self.roi_merge_strategy_var,
+            value=ROIMergeStrategy.MERGE.value,
+        )
+        rb_merge.pack(anchor="w", pady=2)
+        ToolTip(rb_merge, "Manter ROIs existentes e importadas. ROIs com mesmo nome serão renomeadas (ex: 'Zone1', 'Zone1_imported').")
+
+        rb_manual = Radiobutton(
+            self.roi_frame,
+            text="Manual - Perguntar para cada conflito",
+            variable=self.roi_merge_strategy_var,
+            value=ROIMergeStrategy.MANUAL.value,
+        )
+        rb_manual.pack(anchor="w", pady=2)
+        ToolTip(rb_manual, "Perguntar ao usuário como resolver cada conflito de nomes de ROIs durante a importação.")
+
+        # Summary
+        self.summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)
+        self.summary_frame.pack(fill="x", pady=(0, 10))
+
+        Label(
+            self.summary_frame,
+            textvariable=self.summary_var,
+            justify="left",
+            fg="blue",
+        ).pack(anchor="w")
+
+        # Legend
+        legend_frame = LabelFrame(self, text="Legenda", padx=10, pady=5)
+        legend_frame.pack(fill="x", pady=(10, 0))
+
+        legend_text = Label(
+            legend_frame,
+            text="✓ = Disponível e será importado  |  ○ = Disponível mas não importado  |  — = Não disponível",
+            fg="gray",
+            font=("TkDefaultFont", 9),
+        )
+        legend_text.pack()
+
+        # Help text
+        help_text = Label(
+            self,
+            text="💡 Dica: Clique duas vezes em uma linha para alternar as opções de importação.",
+            fg="gray",
+            wraplength=500,
+            justify="left",
+        )
+        help_text.pack(pady=(5, 0))
+
+    def on_show(self):
+        """Called when step becomes visible - compute smart defaults."""
+        self._compute_smart_defaults()
+        self._populate_table()
+        self._update_summary()
+        self._update_roi_frame_visibility()
+
+    def _compute_smart_defaults(self):
+        """Compute initial checkbox state based on Step 1 choices and parquet availability."""
+        scanned_videos = self.wizard_data.get("scanned_videos", [])
+        parquet_import_scope = self.wizard_data.get("parquet_import_scope")
+
+        self.video_configs = []
+
+        for video_info in scanned_videos:
+            has_arena = video_info.get("has_arena", False)
+            has_rois = video_info.get("has_rois", False)
+            has_trajectory = video_info.get("has_trajectory", False)
+
+            # Apply smart default rules
+            if parquet_import_scope == "all":
+                # User wants everything
+                import_arena = has_arena
+                import_rois = has_rois
+                import_trajectory = has_trajectory
+            elif parquet_import_scope == "zones":
+                # User wants zones only
+                import_arena = has_arena
+                import_rois = has_rois
+                import_trajectory = False  # Never import trajectory
+            elif parquet_import_scope == "arena":
+                # User wants arena only
+                import_arena = has_arena
+                import_rois = False  # Never import ROIs
+                import_trajectory = False  # Never import trajectory
+            else:  # None or not specified
+                # User wants to start fresh
+                import_arena = False
+                import_rois = False
+                import_trajectory = False
+
+            # Derive action
+            action = derive_import_action(import_arena, import_rois, import_trajectory)
+
+            config = {
+                "video": video_info["path"],
+                "has_arena": has_arena,
+                "has_rois": has_rois,
+                "has_trajectory": has_trajectory,
+                "import_arena": import_arena,
+                "import_rois": import_rois,
+                "import_trajectory": import_trajectory,
+                "action": action.value,
+            }
+
+            self.video_configs.append(config)
+
+        log.info("wizard.import_config.defaults_computed", video_count=len(self.video_configs))
+
+    def _populate_table(self):
+        """Populate Treeview with video configurations."""
+        # Clear existing items
+        for item in self.video_tree.get_children():
+            self.video_tree.delete(item)
+
+        # Add videos
+        for idx, config in enumerate(self.video_configs):
+            video_name = Path(config["video"]).name
+
+            # Format checkbox symbols with availability indicators
+            # ✓ = available AND will import
+            # ○ = available but NOT importing
+            # — = not available
+            def format_status(has_parquet: bool, importing: bool) -> str:
+                if not has_parquet:
+                    return "—"  # Not available
+                elif importing:
+                    return "✓"  # Available and importing
+                else:
+                    return "○"  # Available but not importing
+
+            arena_str = format_status(config["has_arena"], config["import_arena"])
+            rois_str = format_status(config["has_rois"], config["import_rois"])
+            traj_str = format_status(config["has_trajectory"], config["import_trajectory"])
+
+            # Action name (user-friendly)
+            action_map = {
+                ImportAction.SKIP.value: "Skip",
+                ImportAction.IMPORT_ZONES.value: "Import Zones",
+                ImportAction.PARTIAL.value: "Partial",
+                ImportAction.FULL.value: "Full",
+            }
+            action_str = action_map.get(config["action"], config["action"])
+
+            # Insert row
+            item_id = self.video_tree.insert(
+                "",
+                "end",
+                iid=str(idx),
+                values=(video_name, arena_str, rois_str, traj_str, action_str),
+            )
+
+            # Color code by action
+            if config["action"] == ImportAction.SKIP.value:
+                self.video_tree.item(item_id, tags=("skip",))
+            elif config["action"] == ImportAction.FULL.value:
+                self.video_tree.item(item_id, tags=("full",))
+
+        # Apply tag colors
+        self.video_tree.tag_configure("skip", background="#e8f5e9")  # Light green
+        self.video_tree.tag_configure("full", background="#fff3e0")  # Light orange
+
+    def _on_tree_double_click(self, event):
+        """Handle double-click on tree item to toggle import options."""
+        region = self.video_tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        # Get clicked item and column
+        item = self.video_tree.identify_row(event.y)
+        column = self.video_tree.identify_column(event.x)
+
+        if not item:
+            return
+
+        idx = int(item)
+        config = self.video_configs[idx]
+
+        # Toggle based on column
+        if column == "#2":  # Arena column
+            if config["has_arena"]:
+                config["import_arena"] = not config["import_arena"]
+        elif column == "#3":  # ROIs column
+            if config["has_rois"]:
+                config["import_rois"] = not config["import_rois"]
+        elif column == "#4":  # Trajectory column
+            if config["has_trajectory"]:
+                config["import_trajectory"] = not config["import_trajectory"]
+
+        # Re-derive action
+        action = derive_import_action(
+            config["import_arena"],
+            config["import_rois"],
+            config["import_trajectory"]
+        )
+        config["action"] = action.value
+
+        # Refresh table and summary
+        self._populate_table()
+        self._update_summary()
+
+        log.info(
+            "wizard.import_config.toggled",
+            video=Path(config["video"]).name,
+            action=config["action"],
+        )
+
+    def _update_summary(self):
+        """Update summary text with action counts."""
+        action_counts = {}
+
+        for config in self.video_configs:
+            action = config["action"]
+            action_counts[action] = action_counts.get(action, 0) + 1
+
+        # Format summary
+        action_names = {
+            ImportAction.SKIP.value: "Skip (dados completos)",
+            ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
+            ImportAction.PARTIAL.value: "Partial (arena apenas)",
+            ImportAction.FULL.value: "Full (do zero)",
+        }
+
+        lines = []
+        for action, count in sorted(action_counts.items()):
+            name = action_names.get(action, action)
+            lines.append(f"• {count} vídeo(s): {name}")
+
+        self.summary_var.set("\n".join(lines) if lines else "Nenhum vídeo configurado")
+
+    def _update_roi_frame_visibility(self):
+        """Hide ROI merge strategy frame if no ROIs are being imported."""
+        # Check if any video is configured to import ROIs
+        importing_rois = any(
+            config.get("import_rois", False)
+            for config in self.video_configs
+        )
+
+        if importing_rois:
+            # Show ROI frame if importing ROIs
+            if not self.roi_frame.winfo_ismapped():
+                self.roi_frame.pack(fill="x", pady=(0, 15), before=self.summary_frame)
+        else:
+            # Hide ROI frame if not importing any ROIs
+            self.roi_frame.pack_forget()
+            log.debug("import_config.roi_frame_hidden", reason="No ROIs being imported")
+
+    def validate(self) -> tuple[bool, str]:
+        """
+        Validate import configuration.
+
+        Returns:
+            tuple[bool, str]: (True, "") if all videos have valid actions
+        """
+        if not self.video_configs:
+            return (False, "Nenhum vídeo para configurar. Volte e selecione vídeos.")
+
+        # Check that all videos have valid actions
+        for config in self.video_configs:
+            if "action" not in config or not config["action"]:
+                video_name = Path(config["video"]).name
+                return (False, f"Vídeo {video_name} não possui ação definida.")
+
+        return (True, "")
+
+    def get_data(self) -> dict:
+        """
+        Extract import config data.
+
+        Returns:
+            dict: Import configuration with keys:
+                - import_config (list): Per-video configurations
+                - roi_merge_strategy (str): ROI merge strategy
+        """
+        # Clean configs (remove internal fields)
+        clean_configs = []
+        for config in self.video_configs:
+            clean_configs.append({
+                "video": config["video"],
+                "import_arena": config["import_arena"],
+                "import_rois": config["import_rois"],
+                "import_trajectory": config["import_trajectory"],
+                "action": config["action"],
+            })
+
+        return {
+            "import_config": clean_configs,
+            "roi_merge_strategy": self.roi_merge_strategy_var.get(),
+        }
+
+    def set_data(self, data: dict):
+        """
+        Restore UI from data (for back navigation).
+
+        Args:
+            data: Previously collected import config data
+        """
+        if "import_config" in data:
+            # Restore configs (merge with has_* flags from scanned videos)
+            scanned_videos = self.wizard_data.get("scanned_videos", [])
+            video_lookup = {v["path"]: v for v in scanned_videos}
+
+            self.video_configs = []
+            for config in data["import_config"]:
+                video_info = video_lookup.get(config["video"], {})
+                full_config = {
+                    **config,
+                    "has_arena": video_info.get("has_arena", False),
+                    "has_rois": video_info.get("has_rois", False),
+                    "has_trajectory": video_info.get("has_trajectory", False),
+                }
+                self.video_configs.append(full_config)
+
+        if "roi_merge_strategy" in data:
+            self.roi_merge_strategy_var.set(data["roi_merge_strategy"])
+
+        # Refresh UI
+        self._populate_table()
+        self._update_summary()

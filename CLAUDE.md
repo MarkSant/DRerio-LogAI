@@ -170,12 +170,15 @@ log.error("recorder.save_parquet.error", error=str(e))
 ## Key Files
 
 - `src/zebtrack/core/controller.py` - Main workflow orchestration, `_process_videos()`, `_run_tracking_if_needed()`
-- `src/zebtrack/ui/gui.py` - Tkinter interface, dual-view canvas, progress overlay system
+- `src/zebtrack/core/project_manager.py` - Project management, parquet scanning (`scan_input_paths()`), zone import
+- `src/zebtrack/ui/gui.py` - Tkinter interface, dual-view canvas, progress overlay system, wizard integration
+- `src/zebtrack/ui/wizard/` - **5-step wizard** (v1.5): Discovery, File Selection, Detection, Import Config, Confirmation
+- `src/zebtrack/ui/wizard/wizard_adapter.py` - Adapter translating wizard output to controller format
 - `src/zebtrack/io/recorder.py` - Parquet/MP4 schema enforcement
 - `src/zebtrack/analysis/behavioral_analyzer.py` - Behavioral metrics orchestration
 - `src/zebtrack/analysis/reporter.py` - Excel/Word report generation
 - `src/zebtrack/plugins/` - Detector implementations
-- `src/zebtrack/settings.py` - Configuration models
+- `src/zebtrack/settings.py` - Configuration models + **feature flags** (UIFeatureFlags)
 
 ## Additional Documentation
 

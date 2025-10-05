@@ -160,6 +160,15 @@ class WeightsSelectionSettings(BaseModel):
     )
 
 
+class UIFeatureFlags(BaseModel):
+    """Feature flags for UI/UX experiments and gradual rollouts."""
+
+    use_wizard_for_project_creation: bool = Field(
+        False,
+        description="Use new 5-step wizard instead of legacy CreateProjectDialog"
+    )
+
+
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections."""
 
@@ -191,6 +200,12 @@ class Settings(BaseModel):
     ] = "bbox_intersects"
     roi_buffer_radius_value: float = 0.5
     roi_min_bbox_overlap_ratio: float = 0.10
+
+    # UI Feature Flags
+    ui_features: UIFeatureFlags = Field(
+        default_factory=UIFeatureFlags,
+        description="Feature flags for UI experiments and gradual rollouts"
+    )
 
 
 def _merge_configs(base: dict, override: dict) -> dict:
@@ -235,12 +250,12 @@ def load_settings(
 
     log.info("settings.load.start", path=str(default_config_path))
     try:
-        with open(default_config_path, "r") as f:
+        with open(default_config_path, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
         if override_config_path.is_file():
             log.info("settings.load.override", path=str(override_config_path))
-            with open(override_config_path, "r") as f:
+            with open(override_config_path, "r", encoding="utf-8") as f:
                 override_data = yaml.safe_load(f)
             if override_data:
                 config_data = _merge_configs(config_data, override_data)

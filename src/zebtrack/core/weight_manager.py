@@ -35,7 +35,7 @@ class WeightManager:
         """Loads the weights configuration from the JSON file."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, "r") as f:
+                with open(self.config_path, "r", encoding="utf-8") as f:
                     self.weights = json.load(f)
 
                 # Migrate old format weights to new format with type support
@@ -194,7 +194,7 @@ class WeightManager:
     def save_weights(self):
         """Saves the current weights configuration to the JSON file."""
         try:
-            with open(self.config_path, "w") as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self.weights, f, indent=4)
             log.info("weights.config.saved", path=self.config_path)
         except IOError as e:
@@ -473,7 +473,7 @@ class WeightManager:
             }
 
             metadata_path = os.path.join(cached_model_dir, "metadata.json")
-            with open(metadata_path, "w") as f:
+            with open(metadata_path, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
             log.info("openvino.metadata.created", path=metadata_path)

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(poetry run pytest:*)",
-      "Bash(poetry run ruff:*)"
+      "Bash(poetry run ruff:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

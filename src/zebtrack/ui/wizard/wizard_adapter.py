@@ -1,0 +1,202 @@
+"""
+Wizard Adapter - Translates wizard output to controller format.
+
+This module provides a bridge between the new 5-step wizard and the existing
+controller interface, ensuring backward compatibility.
+"""
+
+from pathlib import Path
+from typing import Optional
+
+import structlog
+
+from zebtrack.ui.wizard.enums import ProjectType
+
+log = structlog.get_logger()
+
+
+def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
+    """
+    Transform wizard output to CreateProjectDialog format expected by controller.
+
+    The wizard produces a rich data structure with design detection and import
+    configuration. This adapter translates it to the format expected by
+    controller.create_project_workflow().
+
+    Args:
+        wizard_data: Output from WizardDialog.result
+
+    Returns:
+        dict: Data in CreateProjectDialog format with keys:
+            - project_path: Full path to project directory
+            - project_type: "pre-recorded" or "live"
+            - video_files: List of video paths
+            - num_aquariums: int
+            - animals_per_aquarium: int
+            - aquarium_width_cm: float
+            - aquarium_height_cm: float
+            - analysis_interval_frames: int
+            - display_interval_frames: int
+            - aquarium_method: "seg" or "det"
+            - animal_method: "seg" or "det"
+            - use_timed_recording: bool
+            - recording_duration_s: float
+            - use_countdown: bool
+            - countdown_duration_s: int
+            - experiment_days: int or None
+            - subjects_per_group: int or None
+            - num_groups: int or None
+            - group_names: list[str] or None
+            - _wizard_metadata: dict (additional metadata from wizard)
+
+    Raises:
+        ValueError: If required wizard fields are missing
+    """
+    log.info("wizard.adapter.start", wizard_data_keys=list(wizard_data.keys()))
+
+    # Validate required fields
+    required_fields = ["project_path", "project_name", "project_type"]
+    missing = [f for f in required_fields if f not in wizard_data]
+    if missing:
+        raise ValueError(f"Missing required wizard fields: {missing}")
+
+    # Determine project type
+    project_type_value = wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+    is_live = project_type_value == ProjectType.LIVE.value
+    is_exploratory = project_type_value == ProjectType.EXPLORATORY.value
+
+    # Base controller data (common to all project types)
+    controller_data = {
+        "project_path": wizard_data["project_path"],
+        "project_type": "live" if is_live else "pre-recorded",
+        # Calibration data (collected in v2.0, use defaults as fallback)
+        "num_aquariums": wizard_data.get("num_aquariums", 1),
+        "animals_per_aquarium": wizard_data.get("animals_per_aquarium", 1),
+        "aquarium_width_cm": wizard_data.get("aquarium_width_cm", 10.0),
+        "aquarium_height_cm": wizard_data.get("aquarium_height_cm", 10.0),
+        # Processing intervals (use defaults for now)
+        "analysis_interval_frames": 10,
+        "display_interval_frames": 10,
+        # Detection methods (use defaults from settings)
+        "aquarium_method": "seg",
+        "animal_method": "det",
+        # Experimental design (initialized to None, will be populated below if applicable)
+        "experiment_days": None,
+        "subjects_per_group": None,
+        "num_groups": None,
+        "group_names": None,
+    }
+
+    if is_live:
+        # Live project: Use live configuration data
+        controller_data.update({
+            "camera_index": wizard_data.get("camera_index", 0),
+            "use_arduino": wizard_data.get("use_arduino", False),
+            "arduino_port": wizard_data.get("arduino_port", ""),
+            "use_timed_recording": wizard_data.get("use_timed_recording", False),
+            "recording_duration_s": wizard_data.get("recording_duration_s", 0),
+            "use_countdown": wizard_data.get("use_countdown", False),
+            "countdown_duration_s": wizard_data.get("countdown_duration_s", 0),
+            "video_files": [],  # Live projects don't have pre-recorded files
+        })
+    else:
+        # Pre-recorded project: Use scanned videos
+        scanned_videos = wizard_data.get("scanned_videos", [])
+        if not scanned_videos:
+            raise ValueError("No scanned videos found in wizard data")
+
+        # Convert scanned videos to format expected by add_video_batch
+        # Each video needs: {"path": str, "has_data": bool}
+        video_files = []
+        for video_info in scanned_videos:
+            video_files.append({
+                "path": video_info["path"],
+                "has_data": video_info.get("has_complete_data", False),
+            })
+
+        controller_data.update({
+            "video_files": video_files,
+            "use_timed_recording": False,
+            "recording_duration_s": 0,
+            "use_countdown": False,
+            "countdown_duration_s": 0,
+        })
+
+    # Add experimental design if detected
+    if not is_exploratory:
+        detected_design = wizard_data.get("detected_design")
+        if detected_design:
+            groups = detected_design.get("groups", [])
+            days = detected_design.get("days", [])
+            subjects_dict = detected_design.get("subjects_per_group", {})
+
+            if groups:
+                controller_data["num_groups"] = len(groups)
+                controller_data["group_names"] = groups
+
+            if days:
+                controller_data["experiment_days"] = len(days)
+
+            # Calculate subjects_per_group from detected subjects dict
+            # subjects_dict is {"Control": ["S01", "S02"], "Treatment": ["S01", "S02"]}
+            # We need to extract the max number of subjects across groups
+            if subjects_dict and isinstance(subjects_dict, dict):
+                subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
+                if subject_counts:
+                    controller_data["subjects_per_group"] = max(subject_counts)
+
+    # Store wizard metadata for future use (parquet import, etc.)
+    controller_data["_wizard_metadata"] = {
+        "wizard_schema_version": wizard_data.get("wizard_schema_version"),
+        "created_at": wizard_data.get("created_at"),
+        "has_folder_structure": wizard_data.get("has_folder_structure"),
+        "folder_meaning": wizard_data.get("folder_meaning"),
+        "has_parquets": wizard_data.get("has_parquets"),
+        "parquet_import_scope": wizard_data.get("parquet_import_scope"),
+        "detected_design": wizard_data.get("detected_design"),
+        "scanned_videos": wizard_data.get("scanned_videos"),
+        "import_config": wizard_data.get("import_config"),
+        "roi_merge_strategy": wizard_data.get("roi_merge_strategy"),
+        "parquet_summary": wizard_data.get("parquet_summary"),
+        "video_count": wizard_data.get("video_count"),
+    }
+
+    log.info(
+        "wizard.adapter.success",
+        project_path=controller_data["project_path"],
+        video_count=len(video_files),
+        has_design=detected_design is not None if not is_exploratory else None,
+    )
+
+    return controller_data
+
+
+def extract_parquet_import_plan(wizard_data: dict) -> Optional[dict]:
+    """
+    Extract parquet import plan from wizard metadata.
+
+    This can be used by the controller to import zones and trajectories
+    from existing parquet files.
+
+    Args:
+        wizard_data: Output from WizardDialog.result
+
+    Returns:
+        dict with keys:
+            - import_config: List of per-video import configurations
+            - roi_merge_strategy: How to handle ROI conflicts
+            - parquet_summary: Summary of available parquets
+        or None if no parquets to import
+    """
+    if not wizard_data.get("has_parquets"):
+        return None
+
+    import_config = wizard_data.get("import_config", [])
+    if not import_config:
+        return None
+
+    return {
+        "import_config": import_config,
+        "roi_merge_strategy": wizard_data.get("roi_merge_strategy", "replace"),
+        "parquet_summary": wizard_data.get("parquet_summary", {}),
+    }

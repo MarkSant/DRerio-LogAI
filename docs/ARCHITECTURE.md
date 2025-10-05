@@ -18,6 +18,8 @@ ZebTrack-AI é uma aplicação desktop baseada em Tkinter que organiza o fluxo c
 graph TD
     subgraph UI
         GUI[ApplicationGUI (Tkinter)]
+        WizardDialog[🧙 WizardDialog - 5 steps]
+        WizardAdapter[wizard_adapter]
     end
     subgraph Core
         Controller[AppController]
@@ -39,6 +41,9 @@ graph TD
         DetectorPlugins[(DetectorPlugin impls)]
     end
 
+    GUI --> WizardDialog
+    WizardDialog --> WizardAdapter
+    WizardAdapter --> Controller
     GUI --> Controller
     Controller --> ProjectManager
     Controller --> Detector
@@ -59,8 +64,10 @@ graph TD
 | Componente | Responsabilidade principal |
 |------------|---------------------------|
 | `ApplicationGUI` | Interfaces Tkinter, coleta de input do usuário, exibição de progresso e overlays. |
+| `WizardDialog` 🧙 | Assistente de 5 etapas para criação inteligente de projetos com auto-detecção de design experimental e importação de parquets. |
+| `wizard_adapter` | Traduz saída do wizard (formato rico) para formato esperado pelo controller (compatibilidade retroativa). |
 | `AppController` | Orquestra o fluxo end-to-end, agenda threads e callbacks (`root.after`). |
-| `ProjectManager` | Persistência de metadados, batches de vídeos, zonas, intervalos e snapshots de configuração. |
+| `ProjectManager` | Persistência de metadados, batches de vídeos, zonas, intervalos, snapshots de configuração e detecção granular de parquets (`scan_input_paths()`). |
 | `Detector` + plugins | Abstração de modelos (YOLO, OpenVINO), normaliza detecções, desenha overlays. |
 | `Recorder` | Persistência do esquema Parquet/MP4 com colunas ordenadas. |
 | `analysis/*` | Métricas comportamentais, cálculos de ROI, geração de relatórios rich-media. |
@@ -109,6 +116,7 @@ sequenceDiagram
 | AD-04 | **Configuração via Pydantic (`settings.py`)** | Validar `config.yaml` em runtime e suportar overrides (`config.local.yaml`). |
 | AD-05 | **Progresso granular** | `progress_callback` propaga métricas (frames totais/processados/detectados) para alimentar `update_processing_stats`. |
 | AD-06 | **Projétil orientado a projetos** | Persistir `ProjectManager.project_data` mantendo batches e intervalos por projeto. |
+| AD-07 | **Wizard com feature flag e adapter pattern** 🧙 | Rollout gradual via `UIFeatureFlags.use_wizard_for_project_creation` com compatibilidade total via `wizard_adapter`, permitindo evolução sem quebrar fluxo legado. |
 
 ## 5. Pontos de extensão
 
@@ -128,18 +136,24 @@ sequenceDiagram
 | Módulo | Descrição |
 |--------|-----------|
 | `core/controller.py` | Contém `_process_videos`, `_run_tracking_if_needed`, integração com `Recorder`, UI e análise. |
-| `core/project_manager.py` | Persistência (`project_config.json`), batches, metadados e zonas. |
+| `core/project_manager.py` | Persistência (`project_config.json`), batches, metadados, zonas e detecção granular de parquets (`scan_input_paths()`). |
 | `core/detector.py` | Estado de zonas, interface com plugins, cálculo de bounding boxes e overlays. |
 | `io/recorder.py` | Escreve trajetórias (`pyarrow`/`pandas`) e vídeos com overlays. |
 | `analysis/behavioral_analyzer.py` | Orquestra métricas, congela ROI, consolida resultados. |
 | `analysis/reporter.py` | Gera relatórios Excel/Word com gráficos (seaborn/matplotlib). |
-| `ui/gui.py` | Componentes da interface: dialogs, canvas, progress overlay, interval dialogs. |
+| `ui/gui.py` | Componentes da interface: dialogs, canvas, progress overlay, interval dialogs, integração com wizard. |
+| `ui/wizard/wizard_dialog.py` 🧙 | Orquestrador principal do wizard de 5 etapas (Discovery → File Selection → Detection → Import Config → Confirmation). |
+| `ui/wizard/wizard_adapter.py` 🧙 | Traduz output do wizard para formato esperado pelo controller (`adapt_wizard_data_to_controller_format`, `extract_parquet_import_plan`). |
+| `ui/wizard/enums.py` 🧙 | Definições formais: `ProjectType`, `ImportAction`, `ROIMergeStrategy`, `WizardStepID`. |
+| `ui/wizard/*_step.py` 🧙 | Implementação individual dos 5 steps (discovery, file_selection, detection, import_config, confirmation). |
 
 ## 8. Links úteis
 
 - [README.md](../README.md) – visão geral, guia rápido e convenções.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) – processo de desenvolvimento e padrões de PR.
 - [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) – **⭐ documentação técnica detalhada** de criação de projetos e análise em lote.
+- [WIZARD_INTEGRATION.md](WIZARD_INTEGRATION.md) 🧙 – **⭐ documentação técnica do wizard v1.5**: arquitetura, feature flag, adapter, testes e rollout.
+- [WIZARD_USER_GUIDE.md](WIZARD_USER_GUIDE.md) 🧙 – guia do usuário para uso do wizard de criação de projetos.
 - [COORDINATE_SYSTEMS.md](COORDINATE_SYSTEMS.md) – sistemas de coordenadas e transformações de perspectiva.
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md) – resumo rápido para agentes automáticos.
 

@@ -1,0 +1,215 @@
+"""
+Wizard Template System
+
+Allows saving and loading project configuration templates for quick project creation.
+"""
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import structlog
+
+log = structlog.get_logger()
+
+
+class TemplateManager:
+    """
+    Manages wizard configuration templates.
+
+    Templates are saved as JSON files in the user's config directory.
+    Each template contains:
+    - Project type (experimental/exploratory)
+    - Calibration settings (dimensions, animal count)
+    - Design information (groups, days)
+    - Parquet import scope
+    """
+
+    def __init__(self, templates_dir: Optional[Path] = None):
+        """
+        Initialize template manager.
+
+        Args:
+            templates_dir: Directory to store templates. If None, uses default
+                          location in user's home directory.
+        """
+        if templates_dir is None:
+            # Default location: ~/.zebtrack/wizard_templates/
+            templates_dir = Path.home() / ".zebtrack" / "wizard_templates"
+
+        self.templates_dir = templates_dir
+        self.templates_dir.mkdir(parents=True, exist_ok=True)
+
+        log.info("template_manager.initialized", templates_dir=str(self.templates_dir))
+
+    def save_template(self, name: str, wizard_data: dict) -> bool:
+        """
+        Save wizard configuration as a template.
+
+        Args:
+            name: Template name (will be sanitized for filesystem)
+            wizard_data: Wizard configuration dict
+
+        Returns:
+            bool: True if saved successfully, False otherwise
+        """
+        try:
+            # Sanitize template name
+            safe_name = self._sanitize_name(name)
+            template_path = self.templates_dir / f"{safe_name}.json"
+
+            # Extract relevant fields for template
+            template = {
+                "name": name,
+                "created_at": datetime.now().isoformat(),
+                "project_type": wizard_data.get("project_type"),
+                "num_aquariums": wizard_data.get("num_aquariums", 1),
+                "animals_per_aquarium": wizard_data.get("animals_per_aquarium", 1),
+                "aquarium_width_cm": wizard_data.get("aquarium_width_cm", 10.0),
+                "aquarium_height_cm": wizard_data.get("aquarium_height_cm", 10.0),
+                "parquet_import_scope": wizard_data.get("parquet_import_scope"),
+                "detected_design": wizard_data.get("detected_design"),
+                "custom_regex_patterns": wizard_data.get("custom_regex_patterns"),
+            }
+
+            # Write template to file
+            with open(template_path, "w", encoding="utf-8") as f:
+                json.dump(template, f, indent=2, ensure_ascii=False)
+
+            log.info(
+                "template_manager.template_saved",
+                name=name,
+                path=str(template_path),
+            )
+            return True
+
+        except Exception as e:
+            log.error(
+                "template_manager.save_error",
+                name=name,
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    def load_template(self, name: str) -> Optional[dict]:
+        """
+        Load a template by name.
+
+        Args:
+            name: Template name
+
+        Returns:
+            dict: Template data or None if not found/invalid
+        """
+        try:
+            safe_name = self._sanitize_name(name)
+            template_path = self.templates_dir / f"{safe_name}.json"
+
+            if not template_path.exists():
+                log.warning("template_manager.template_not_found", name=name)
+                return None
+
+            with open(template_path, "r", encoding="utf-8") as f:
+                template = json.load(f)
+
+            log.info("template_manager.template_loaded", name=name)
+            return template
+
+        except Exception as e:
+            log.error(
+                "template_manager.load_error",
+                name=name,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+
+    def list_templates(self) -> list[dict]:
+        """
+        List all available templates.
+
+        Returns:
+            list[dict]: List of template metadata (name, created_at)
+        """
+        templates = []
+
+        try:
+            for template_path in self.templates_dir.glob("*.json"):
+                try:
+                    with open(template_path, "r", encoding="utf-8") as f:
+                        template = json.load(f)
+
+                    templates.append({
+                        "name": template.get("name", template_path.stem),
+                        "created_at": template.get("created_at", "Unknown"),
+                        "project_type": template.get("project_type", "Unknown"),
+                    })
+                except Exception as e:
+                    log.warning(
+                        "template_manager.template_read_error",
+                        path=str(template_path),
+                        error=str(e),
+                    )
+
+            templates.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+            log.info("template_manager.templates_listed", count=len(templates))
+
+        except Exception as e:
+            log.error(
+                "template_manager.list_error",
+                error=str(e),
+                exc_info=True,
+            )
+
+        return templates
+
+    def delete_template(self, name: str) -> bool:
+        """
+        Delete a template.
+
+        Args:
+            name: Template name
+
+        Returns:
+            bool: True if deleted successfully, False otherwise
+        """
+        try:
+            safe_name = self._sanitize_name(name)
+            template_path = self.templates_dir / f"{safe_name}.json"
+
+            if not template_path.exists():
+                log.warning("template_manager.template_not_found", name=name)
+                return False
+
+            template_path.unlink()
+            log.info("template_manager.template_deleted", name=name)
+            return True
+
+        except Exception as e:
+            log.error(
+                "template_manager.delete_error",
+                name=name,
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    @staticmethod
+    def _sanitize_name(name: str) -> str:
+        """
+        Sanitize template name for filesystem.
+
+        Args:
+            name: Original template name
+
+        Returns:
+            str: Sanitized name (lowercase, no special chars)
+        """
+        # Replace spaces with underscores, remove special characters
+        safe_name = name.lower().strip()
+        safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in safe_name)
+        # Remove consecutive underscores
+        safe_name = "_".join(filter(None, safe_name.split("_")))
+        return safe_name or "template"
