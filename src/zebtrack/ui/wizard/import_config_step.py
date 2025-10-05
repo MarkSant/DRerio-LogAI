@@ -30,6 +30,7 @@ from zebtrack.ui.wizard.enums import (
     WizardStepID,
     derive_import_action,
 )
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
 
@@ -127,26 +128,32 @@ class ImportConfigStep(WizardStep):
         roi_frame = LabelFrame(self, text="Estratégia de Importação de ROIs", padx=10, pady=10)
         roi_frame.pack(fill="x", pady=(0, 15))
 
-        Radiobutton(
+        rb_replace = Radiobutton(
             roi_frame,
             text="Replace - Substituir ROIs existentes pelos importados",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.REPLACE.value,
-        ).pack(anchor="w", pady=2)
+        )
+        rb_replace.pack(anchor="w", pady=2)
+        ToolTip(rb_replace, "ROIs importados do Parquet substituirão completamente as ROIs existentes no projeto.")
 
-        Radiobutton(
+        rb_merge = Radiobutton(
             roi_frame,
             text="Merge - Manter ambos (renomear conflitos)",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MERGE.value,
-        ).pack(anchor="w", pady=2)
+        )
+        rb_merge.pack(anchor="w", pady=2)
+        ToolTip(rb_merge, "Manter ROIs existentes e importadas. ROIs com mesmo nome serão renomeadas (ex: 'Zone1', 'Zone1_imported').")
 
-        Radiobutton(
+        rb_manual = Radiobutton(
             roi_frame,
             text="Manual - Perguntar para cada conflito",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MANUAL.value,
-        ).pack(anchor="w", pady=2)
+        )
+        rb_manual.pack(anchor="w", pady=2)
+        ToolTip(rb_manual, "Perguntar ao usuário como resolver cada conflito de nomes de ROIs durante a importação.")
 
         # Summary
         summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)

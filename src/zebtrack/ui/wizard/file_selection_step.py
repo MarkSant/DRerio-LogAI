@@ -20,6 +20,7 @@ from tkinter import (
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 
 class FileSelectionStep(WizardStep):
@@ -70,26 +71,32 @@ class FileSelectionStep(WizardStep):
         button_frame = Frame(self)
         button_frame.pack(pady=(0, 15))
 
-        Button(
+        btn_files = Button(
             button_frame,
             text="📁 Adicionar Arquivos...",
             command=self._select_video_files,
             width=20,
-        ).pack(side="left", padx=5)
+        )
+        btn_files.pack(side="left", padx=5)
+        ToolTip(btn_files, "Selecionar vídeos individuais (.mp4, .avi, .mov). Suporta seleção múltipla (Ctrl+Click).")
 
-        Button(
+        btn_folder = Button(
             button_frame,
             text="📂 Adicionar Pasta...",
             command=self._select_video_folder,
             width=20,
-        ).pack(side="left", padx=5)
+        )
+        btn_folder.pack(side="left", padx=5)
+        ToolTip(btn_folder, "Selecionar pasta contendo vídeos. O wizard fará scan recursivo nas subpastas automaticamente.")
 
-        Button(
+        btn_clear = Button(
             button_frame,
             text="🗑️ Limpar Seleção",
             command=self._clear_selection,
             width=20,
-        ).pack(side="left", padx=5)
+        )
+        btn_clear.pack(side="left", padx=5)
+        ToolTip(btn_clear, "Remover todos os vídeos e pastas selecionados.")
 
         # Summary
         summary_frame = LabelFrame(self, text="Resumo da Seleção", padx=10, pady=10)

@@ -17,6 +17,7 @@ from tkinter import (
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
+from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 
 class DiscoveryStep(WizardStep):
@@ -65,24 +66,31 @@ class DiscoveryStep(WizardStep):
         subtitle.pack(pady=(0, 20))
 
         # Question 1: Project Type
+        q1_header = Frame(self)
+        q1_header.pack(fill="x", pady=(0, 5))
+
         q1_frame = LabelFrame(self, text="1. Tipo de Projeto", padx=15, pady=10)
         q1_frame.pack(fill="x", pady=(0, 15))
 
-        Radiobutton(
+        rb1 = Radiobutton(
             q1_frame,
             text="Experimental (com grupos, dias, sujeitos)",
             variable=self.project_type_var,
             value=ProjectType.EXPERIMENTAL.value,
             command=self._on_project_type_change,
-        ).pack(anchor="w", pady=2)
+        )
+        rb1.pack(anchor="w", pady=2)
+        ToolTip(rb1, "Projetos com design formal: grupos de tratamento, controles, séries temporais, etc.")
 
-        Radiobutton(
+        rb2 = Radiobutton(
             q1_frame,
             text="Exploratório (análise livre sem design experimental)",
             variable=self.project_type_var,
             value=ProjectType.EXPLORATORY.value,
             command=self._on_project_type_change,
-        ).pack(anchor="w", pady=2)
+        )
+        rb2.pack(anchor="w", pady=2)
+        ToolTip(rb2, "Para testes rápidos, validações, ou análises sem estrutura experimental definida.")
 
         # Question 2: Folder Organization (only for experimental)
         self.q2_frame = LabelFrame(
@@ -90,26 +98,32 @@ class DiscoveryStep(WizardStep):
         )
         self.q2_frame.pack(fill="x", pady=(0, 15))
 
-        Radiobutton(
+        rb3 = Radiobutton(
             self.q2_frame,
             text="Sim - pastas representam estrutura experimental (ex: Grupo/Dia/)",
             variable=self.folder_organization_var,
             value=1,
-        ).pack(anchor="w", pady=2)
+        )
+        rb3.pack(anchor="w", pady=2)
+        ToolTip(rb3, "O wizard detectará automaticamente grupos, dias e sujeitos a partir da estrutura de pastas (ex: /Control/Day01/Subject01.mp4)")
 
-        Radiobutton(
+        rb4 = Radiobutton(
             self.q2_frame,
             text="Sim - mas apenas para organização (nomes arbitrários)",
             variable=self.folder_organization_var,
             value=2,
-        ).pack(anchor="w", pady=2)
+        )
+        rb4.pack(anchor="w", pady=2)
+        ToolTip(rb4, "Pastas são usadas só para organização, sem significado experimental.")
 
-        Radiobutton(
+        rb5 = Radiobutton(
             self.q2_frame,
             text="Não - todos os vídeos estão em um único diretório",
             variable=self.folder_organization_var,
             value=3,
-        ).pack(anchor="w", pady=2)
+        )
+        rb5.pack(anchor="w", pady=2)
+        ToolTip(rb5, "Todos os vídeos estão numa pasta plana, sem subpastas.")
 
         # Question 3: Existing Parquet Files
         q3_frame = LabelFrame(
@@ -123,26 +137,32 @@ class DiscoveryStep(WizardStep):
             fg="gray",
         ).pack(anchor="w", pady=(0, 8))
 
-        Radiobutton(
+        rb6 = Radiobutton(
             q3_frame,
             text="Sim - quero importar zonas (arena e ROIs)",
             variable=self.parquet_scope_var,
             value=1,
-        ).pack(anchor="w", pady=2)
+        )
+        rb6.pack(anchor="w", pady=2)
+        ToolTip(rb6, "Importar arena e ROIs de arquivos *_arena.parquet e *_rois.parquet. Trajetórias serão geradas novamente.")
 
-        Radiobutton(
+        rb7 = Radiobutton(
             q3_frame,
             text="Sim - quero importar tudo (zonas + trajetória)",
             variable=self.parquet_scope_var,
             value=2,
-        ).pack(anchor="w", pady=2)
+        )
+        rb7.pack(anchor="w", pady=2)
+        ToolTip(rb7, "Importar arena, ROIs e trajetórias de arquivos *_arena.parquet, *_rois.parquet e *_trajectory.parquet. Economiza tempo evitando reprocessamento.")
 
-        Radiobutton(
+        rb8 = Radiobutton(
             q3_frame,
             text="Não - começar do zero",
             variable=self.parquet_scope_var,
             value=0,
-        ).pack(anchor="w", pady=2)
+        )
+        rb8.pack(anchor="w", pady=2)
+        ToolTip(rb8, "Processar tudo do início: desenhar arena, definir ROIs e gerar trajetórias.")
 
         # Help text
         help_text = Label(
