@@ -78,25 +78,28 @@ def create_mock_parquet(video_path: Path, parquet_type: str = "trajectory"):
     results_dir.mkdir(exist_ok=True)
 
     if parquet_type == "arena":
-        # Mock de arena (polgono retangular)
-        parquet_path = results_dir / f"{video_stem}_arena.parquet"
+        # Mock de arena (polígono retangular)
+        # IMPORTANTE: Nome deve seguir padrão 1_ProcessingArea_{video_stem}.parquet
+        parquet_path = results_dir / f"1_ProcessingArea_{video_stem}.parquet"
+
+        # Schema esperado pelo load_zones: colunas x, y
         data = {
-            "arena_polygon_px": [[[50, 50], [590, 50], [590, 430], [50, 430]]],
-            "arena_width_cm": [10.0],
-            "arena_height_cm": [10.0],
+            "x": [50, 590, 590, 50],
+            "y": [50, 50, 430, 430],
         }
         df = pd.DataFrame(data)
 
     elif parquet_type == "rois":
         # Mock de ROIs (2 ROIs: Center e Edge)
-        parquet_path = results_dir / f"{video_stem}_rois.parquet"
+        # IMPORTANTE: Nome deve seguir padrão 2_AreasOfInterest_{video_stem}.parquet
+        parquet_path = results_dir / f"2_AreasOfInterest_{video_stem}.parquet"
+
+        # Schema esperado pelo load_zones: roi_name, point_index, x, y
         data = {
-            "roi_name": ["Center", "Edge"],
-            "roi_polygon_px": [
-                [[200, 200], [440, 200], [440, 280], [200, 280]],  # Center
-                [[50, 50], [150, 50], [150, 100], [50, 100]]       # Edge
-            ],
-            "roi_color_bgr": [[0, 255, 0], [255, 0, 0]],
+            "roi_name": ["Center", "Center", "Center", "Center", "Edge", "Edge", "Edge", "Edge"],
+            "point_index": [0, 1, 2, 3, 0, 1, 2, 3],
+            "x": [200, 440, 440, 200, 50, 150, 150, 50],
+            "y": [200, 200, 280, 280, 50, 50, 100, 100],
         }
         df = pd.DataFrame(data)
 
@@ -284,17 +287,24 @@ Este diretrio contm cenrios de teste gerados automaticamente para o wizard.
 - `video2`: arena + rois
 - `video3`: nenhum parquet
 
+**Arquivos gerados**:
+- `video1_results/1_ProcessingArea_video1.parquet`
+- `video1_results/2_AreasOfInterest_video1.parquet`
+- `video1_results/3_CoordMovimento_video1.parquet`
+- `video2_results/1_ProcessingArea_video2.parquet`
+- `video2_results/2_AreasOfInterest_video2.parquet`
+
 **Como testar**:
 1. No wizard, selecione "Experimental" ou "Exploratory"
-2. Em "File Selection", clique em "Add Files" e selecione os 3 vdeos
+2. Em "File Selection", clique em "Add Files" e selecione os 3 vídeos
 3. Na etapa "Detection", verifique se mostra:
-   - " Found 2 arena parquets"
-   - " Found 2 rois parquets"
-   - " Found 1 trajectory parquets"
-4. Na etapa "Import Configuration", veja as opes por vdeo:
-   - video1: IMPORT_ZONES ou FULL (tem tudo)
-   - video2: IMPORT_ZONES (tem arena+rois)
-   - video3: SKIP ou processar normalmente
+   - "✅ Arena: 2"
+   - "✅ ROIs: 2"
+   - "✅ Trajetória: 1"
+4. Na etapa "Import Configuration", veja as opções por vídeo:
+   - video1: SKIP (tem tudo completo)
+   - video2: IMPORT_ZONES (tem arena+rois, falta trajectory)
+   - video3: FULL (processar do zero)
 
 ---
 
@@ -382,9 +392,15 @@ Cada vdeo mock tem:
 - **Contedo**: Gradiente de cor + texto + "fish" simulado (crculo branco se movendo)
 
 Cada parquet mock tem:
-- **Arena**: Polgono retangular 640x480
-- **ROIs**: 2 ROIs (Center, Edge)
-- **Trajectory**: 30 frames, 1 animal, track_id=1
+- **Arena** (`1_ProcessingArea_{video}.parquet`):
+  - Schema: `x, y` (pontos do polígono)
+  - Conteúdo: Polígono retangular 640x480 (4 pontos)
+- **ROIs** (`2_AreasOfInterest_{video}.parquet`):
+  - Schema: `roi_name, point_index, x, y`
+  - Conteúdo: 2 ROIs (Center: 4 pontos, Edge: 4 pontos)
+- **Trajectory** (`3_CoordMovimento_{video}.parquet`):
+  - Schema: `timestamp, frame, track_id, x1, y1, x2, y2, confidence`
+  - Conteúdo: 30 frames, 1 animal, track_id=1
 
 ---
 
