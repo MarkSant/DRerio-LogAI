@@ -27,6 +27,7 @@ from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.weight_manager import WeightManager
+from zebtrack.io.arduino import Arduino
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
@@ -44,6 +45,7 @@ class AppController:
         self.weight_manager = WeightManager()
         self.detector = None
         self.recorder = Recorder()
+        self.arduino: Arduino | None = None
         self.report_results_paths = {}
         self.is_recording = False
         self.timed_recording_job = None
@@ -495,6 +497,94 @@ class AppController:
                 "Erro de Detector", f"Falha ao inicializar o detector: {e}"
             )
             return False
+
+    def _is_arduino_connected(self) -> bool:
+        """Checks whether there is an active Arduino connection."""
+        if not self.arduino:
+            return False
+
+        serial_conn = getattr(self.arduino, "ser", None)
+        return bool(serial_conn and getattr(serial_conn, "is_open", False))
+
+    def setup_arduino(self) -> bool:
+        """Ensures the Arduino connection is ready when the project requests it."""
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        use_arduino = bool(project_data.get("use_arduino"))
+        if not use_arduino:
+            log.debug("controller.arduino.disabled")
+            return False
+
+        port = (project_data.get("arduino_port") or "").strip()
+        if not port:
+            log.warning("controller.arduino.no_port_configured")
+            return False
+
+        if self._is_arduino_connected() and getattr(self.arduino, "port", None) == port:
+            log.debug("controller.arduino.already_connected", port=port)
+            return True
+
+        if self.arduino:
+            try:
+                self.arduino.close()
+            except Exception:
+                log.warning("controller.arduino.close_previous_failed", exc_info=True)
+            finally:
+                self.arduino = None
+
+        baud_rate = settings.arduino.baud_rate
+        try:
+            candidate = Arduino(port=port, baud_rate=baud_rate)
+        except Exception:
+            log.error(
+                "controller.arduino.init_failed",
+                port=port,
+                baud_rate=baud_rate,
+                exc_info=True,
+            )
+            self.arduino = None
+            return False
+
+        try:
+            if candidate.connect():
+                self.arduino = candidate
+                log.info(
+                    "controller.arduino.connected",
+                    port=port,
+                    baud_rate=baud_rate,
+                )
+                return True
+            log.warning("controller.arduino.connect_failed", port=port)
+        except Exception:
+            log.error(
+                "controller.arduino.connect_error",
+                port=port,
+                baud_rate=baud_rate,
+                exc_info=True,
+            )
+        finally:
+            if self.arduino is not candidate:
+                candidate.close()
+
+        return False
+
+    def _get_box_number(self, day, group, cobaia) -> int | None:
+        """Resolves the Arduino box number for this session.
+
+        By default we convert the cobaia identifier to an integer so each subject
+        maps to the same relay channel. Override this helper if your setup requires a
+        different mapping (e.g., mapping groups or arenas to relays).
+        """
+
+        try:
+            return int(cobaia)
+        except (TypeError, ValueError):
+            log.warning(
+                "controller.recording.arduino_box_resolution_failed",
+                day=day,
+                group=group,
+                cobaia=cobaia,
+            )
+            return None
 
     def setup_detector_zones(self):
         """Loads zone data from project and sets it on the detector instance."""
@@ -1118,6 +1208,16 @@ class AppController:
         output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
+        project_data_snapshot = self.project_manager.project_data
+        arduino_enabled = False
+        if project_data_snapshot.get("use_arduino"):
+            arduino_enabled = self.setup_arduino()
+            if not arduino_enabled:
+                log.warning(
+                    "controller.recording.arduino_unavailable",
+                    port=project_data_snapshot.get("arduino_port"),
+                )
+
         # 4. Define the core recording logic as a callable
         def _do_record():
             zone_data = self.project_manager.get_zone_data()
@@ -1131,6 +1231,24 @@ class AppController:
             if not self.is_recording:
                 self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
                 return
+
+            if arduino_enabled:
+                if self._is_arduino_connected():
+                    box_number = self._get_box_number(day, group, cobaia)
+                    if box_number is None:
+                        log.warning(
+                            "controller.recording.arduino_invalid_box",
+                            day=day,
+                            group=group,
+                            cobaia=cobaia,
+                        )
+                    elif self.arduino and not self.arduino.send_command(box_number):
+                        log.warning(
+                            "controller.recording.arduino_start_failed",
+                            command=box_number,
+                        )
+                else:
+                    log.warning("controller.recording.arduino_not_connected")
 
             # Update UI
             self.view.update_button_state("start_rec", "disabled")
@@ -1172,6 +1290,14 @@ class AppController:
         if self.is_recording:
             self.recorder.stop_recording()
             self.is_recording = False
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        if project_data.get("use_arduino"):
+            if self._is_arduino_connected() and self.arduino:
+                if not self.arduino.send_command(0):
+                    log.warning("controller.recording.arduino_stop_failed")
+            else:
+                log.warning("controller.recording.arduino_stop_not_connected")
 
         # 3. Update UI
         self.view.update_button_state("start_rec", "normal")

@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from zebtrack.core.controller import AppController
+from zebtrack.settings import settings
 
 
 class TestAppController(unittest.TestCase):
@@ -233,6 +234,88 @@ class TestAppController(unittest.TestCase):
                 # Should use single video config values, not project data
                 self.assertEqual(call_args.kwargs["analysis_interval_frames"], 5)
                 self.assertEqual(call_args.kwargs["display_interval_frames"], 7)
+
+    @patch("zebtrack.core.controller.Arduino")
+    def test_setup_arduino_success(self, mock_arduino_cls):
+        """Ensure setup_arduino connects when project requests Arduino support."""
+
+        arduino_instance = mock_arduino_cls.return_value
+        arduino_instance.connect.return_value = True
+
+        self.mock_pm.project_data = {
+            "use_arduino": True,
+            "arduino_port": "COM9",
+        }
+
+        result = self.controller.setup_arduino()
+
+        self.assertTrue(result)
+        mock_arduino_cls.assert_called_once_with(
+            port="COM9", baud_rate=settings.arduino.baud_rate
+        )
+        arduino_instance.connect.assert_called_once()
+        self.assertIs(self.controller.arduino, arduino_instance)
+
+    def test_start_and_stop_recording_send_arduino_commands(self):
+        """Verify Arduino start/stop commands fire during recording lifecycle."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Project configuration enabling Arduino controls
+            self.mock_pm.project_path = temp_dir
+            self.mock_pm.project_data = {
+                "use_timed_recording": False,
+                "recording_duration_s": 0,
+                "use_countdown": False,
+                "countdown_duration_s": 0,
+                "use_arduino": True,
+                "arduino_port": "COM7",
+            }
+            self.mock_pm.get_project_type.return_value = "live"
+
+            zone_data = MagicMock()
+            zone_data.polygon = [[0, 0], [1, 0], [1, 1], [0, 1]]
+            self.mock_pm.get_zone_data.return_value = zone_data
+
+            # Detector already initialised for the test scenario
+            self.controller.detector = MagicMock()
+            self.controller.setup_detector_zones = MagicMock()
+
+            # Recorder behaves successfully
+            self.controller.recorder = MagicMock()
+            self.controller.recorder.start_recording.return_value = True
+
+            # UI dependencies
+            self.mock_view.ask_recording_details_unified.return_value = {
+                "day": 1,
+                "group": "A",
+                "cobaia": "2",
+            }
+            self.mock_view.camera = MagicMock(actual_width=640, actual_height=480)
+
+            # Arduino mock configured as already open
+            arduino_mock = MagicMock()
+            arduino_mock.ser = MagicMock(is_open=True)
+            arduino_mock.port = "COM7"
+            arduino_mock.send_command.return_value = True
+
+            def setup_side_effect():
+                self.controller.arduino = arduino_mock
+                return True
+
+            self.controller.setup_arduino = MagicMock(side_effect=setup_side_effect)
+
+            # --- Act: start recording triggers Arduino start command
+            self.controller.start_recording()
+
+            self.controller.setup_arduino.assert_called_once()
+            arduino_mock.send_command.assert_any_call(2)
+
+            # --- Act: stopping recording triggers stop command
+            self.controller.is_recording = True
+            self.controller.stop_recording()
+
+            arduino_mock.send_command.assert_any_call(0)
+            self.controller.recorder.stop_recording.assert_called_once()
 
 
 if __name__ == "__main__":
