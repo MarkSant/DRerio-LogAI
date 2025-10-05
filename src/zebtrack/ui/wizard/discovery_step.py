@@ -69,11 +69,11 @@ class DiscoveryStep(WizardStep):
         q1_header = Frame(self)
         q1_header.pack(fill="x", pady=(0, 5))
 
-        q1_frame = LabelFrame(self, text="1. Tipo de Projeto", padx=15, pady=10)
-        q1_frame.pack(fill="x", pady=(0, 15))
+        self.q1_frame = LabelFrame(self, text="1. Tipo de Projeto", padx=15, pady=10)
+        self.q1_frame.pack(fill="x", pady=(0, 15))
 
         rb1 = Radiobutton(
-            q1_frame,
+            self.q1_frame,
             text="Experimental (com grupos, dias, sujeitos)",
             variable=self.project_type_var,
             value=ProjectType.EXPERIMENTAL.value,
@@ -83,7 +83,7 @@ class DiscoveryStep(WizardStep):
         ToolTip(rb1, "Projetos com design formal: grupos de tratamento, controles, séries temporais, etc.")
 
         rb2 = Radiobutton(
-            q1_frame,
+            self.q1_frame,
             text="Exploratório (análise livre sem design experimental)",
             variable=self.project_type_var,
             value=ProjectType.EXPLORATORY.value,
@@ -126,54 +126,71 @@ class DiscoveryStep(WizardStep):
         ToolTip(rb5, "Todos os vídeos estão numa pasta plana, sem subpastas.")
 
         # Question 3: Existing Parquet Files
-        q3_frame = LabelFrame(
+        self.q3_frame = LabelFrame(
             self, text="3. Arquivos Parquet Existentes", padx=15, pady=10
         )
-        q3_frame.pack(fill="x", pady=(0, 15))
+        self.q3_frame.pack(fill="x", pady=(0, 15))
 
         Label(
-            q3_frame,
+            self.q3_frame,
             text="Você possui arquivos .parquet de análises anteriores?",
             fg="gray",
         ).pack(anchor="w", pady=(0, 8))
 
         rb6 = Radiobutton(
-            q3_frame,
-            text="Sim - quero importar zonas (arena e ROIs)",
+            self.q3_frame,
+            text="Sim - quero importar apenas arena",
             variable=self.parquet_scope_var,
             value=1,
         )
         rb6.pack(anchor="w", pady=2)
-        ToolTip(rb6, "Importar arena e ROIs de arquivos *_arena.parquet e *_rois.parquet. Trajetórias serão geradas novamente.")
+        ToolTip(rb6, "Importar apenas a arena de arquivos *_arena.parquet. ROIs e trajetórias serão definidas/geradas novamente.")
 
         rb7 = Radiobutton(
-            q3_frame,
-            text="Sim - quero importar tudo (zonas + trajetória)",
+            self.q3_frame,
+            text="Sim - quero importar zonas (arena e ROIs)",
             variable=self.parquet_scope_var,
             value=2,
         )
         rb7.pack(anchor="w", pady=2)
-        ToolTip(rb7, "Importar arena, ROIs e trajetórias de arquivos *_arena.parquet, *_rois.parquet e *_trajectory.parquet. Economiza tempo evitando reprocessamento.")
+        ToolTip(rb7, "Importar arena e ROIs de arquivos *_arena.parquet e *_rois.parquet. Trajetórias serão geradas novamente.")
 
         rb8 = Radiobutton(
-            q3_frame,
+            self.q3_frame,
+            text="Sim - quero importar tudo (zonas + trajetória)",
+            variable=self.parquet_scope_var,
+            value=3,
+        )
+        rb8.pack(anchor="w", pady=2)
+        ToolTip(rb8, "Importar arena, ROIs e trajetórias de arquivos *_arena.parquet, *_rois.parquet e *_trajectory.parquet. Economiza tempo evitando reprocessamento.")
+
+        rb9 = Radiobutton(
+            self.q3_frame,
             text="Não - começar do zero",
             variable=self.parquet_scope_var,
             value=0,
         )
-        rb8.pack(anchor="w", pady=2)
-        ToolTip(rb8, "Processar tudo do início: desenhar arena, definir ROIs e gerar trajetórias.")
+        rb9.pack(anchor="w", pady=2)
+        ToolTip(rb9, "Processar tudo do início: desenhar arena, definir ROIs e gerar trajetórias.")
 
-        # Help text
-        help_text = Label(
-            self,
-            text="Dica: Arquivos parquet de análises anteriores podem ser reutilizados "
-            "para economizar tempo.",
-            fg="blue",
-            wraplength=500,
+        # Glossary / Help text explaining technical terms
+        glossary_frame = LabelFrame(self, text="O que significam esses termos?", padx=15, pady=10)
+        glossary_frame.pack(fill="x", pady=(15, 0))
+
+        glossary_text = Label(
+            glossary_frame,
+            text=(
+                "• Parquet: Formato de arquivo eficiente para armazenar dados\n\n"
+                "• Arena: Área do aquário onde os animais se movem (polígono delimitador)\n\n"
+                "• ROI (Region of Interest): Regiões específicas como 'Centro', 'Borda', 'Zona de Escape'\n\n"
+                "• Trajetória: Coordenadas frame-a-frame do movimento dos animais\n\n"
+                "Importar esses dados de análises anteriores evita reprocessamento."
+            ),
+            fg="gray",
             justify="left",
+            font=("TkDefaultFont", 9),
         )
-        help_text.pack(pady=(15, 0))
+        glossary_text.pack(anchor="w")
 
         # Update UI state
         self._on_project_type_change()
@@ -182,7 +199,10 @@ class DiscoveryStep(WizardStep):
         """Handle project type change - show/hide folder organization question."""
         if self.project_type_var.get() == ProjectType.EXPERIMENTAL.value:
             # Show folder organization question for experimental
-            self.q2_frame.pack(fill="x", pady=(0, 15), before=self.q2_frame.master.children[list(self.q2_frame.master.children.keys())[3]])
+            # Note: q2_frame was already packed in build_ui() after q1_frame
+            if not self.q2_frame.winfo_ismapped():
+                # Re-pack if it was hidden (exploratory -> experimental switch)
+                self.q2_frame.pack(fill="x", pady=(0, 15), after=self.q1_frame, before=self.q3_frame)
         else:
             # Hide for exploratory
             self.q2_frame.pack_forget()
@@ -216,8 +236,9 @@ class DiscoveryStep(WizardStep):
         # Map parquet scope value to string
         parquet_scope_map = {
             0: None,  # No parquets
-            1: "zones",  # Import zones only
-            2: "all",  # Import everything
+            1: "arena",  # Import arena only
+            2: "zones",  # Import zones (arena + ROIs)
+            3: "all",  # Import everything
         }
 
         data = {
@@ -261,10 +282,12 @@ class DiscoveryStep(WizardStep):
 
         if "parquet_import_scope" in data:
             scope = data["parquet_import_scope"]
-            if scope == "zones":
+            if scope == "arena":
                 self.parquet_scope_var.set(1)
-            elif scope == "all":
+            elif scope == "zones":
                 self.parquet_scope_var.set(2)
+            elif scope == "all":
+                self.parquet_scope_var.set(3)
             else:
                 self.parquet_scope_var.set(0)
 

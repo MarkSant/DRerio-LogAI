@@ -71,7 +71,7 @@ class TestWizardIntegration(unittest.TestCase):
         step1.build_ui()
         step1.project_type_var.set(ProjectType.EXPERIMENTAL.value)
         step1.folder_organization_var.set(1)
-        step1.parquet_scope_var.set(1)  # zones
+        step1.parquet_scope_var.set(2)  # zones
 
         # Extract data
         data1 = step1.get_data()
@@ -250,7 +250,7 @@ class TestWizardIntegration(unittest.TestCase):
         step1.build_ui()
         step1.project_type_var.set(ProjectType.EXPERIMENTAL.value)
         step1.folder_organization_var.set(1)
-        step1.parquet_scope_var.set(1)  # zones
+        step1.parquet_scope_var.set(2)  # zones
         wizard_data.update(step1.get_data())
 
         # Step 2: File Selection

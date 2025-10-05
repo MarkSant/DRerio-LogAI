@@ -75,6 +75,19 @@ class TestWizardFoundation(unittest.TestCase):
         self.assertNotIn("has_folder_structure", data)
         self.assertNotIn("folder_meaning", data)
 
+    def test_discovery_step_parquet_scope_arena(self):
+        """Selecting 'import arena' should set parquet_import_scope to 'arena'."""
+        wizard_data = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Select "import arena"
+        step.parquet_scope_var.set(1)
+        data = step.get_data()
+
+        self.assertTrue(data["has_parquets"])
+        self.assertEqual(data["parquet_import_scope"], "arena")
+
     def test_discovery_step_parquet_scope_zones(self):
         """Selecting 'import zones' should set parquet_import_scope to 'zones'."""
         wizard_data = {}
@@ -82,7 +95,7 @@ class TestWizardFoundation(unittest.TestCase):
         step.build_ui()
 
         # Select "import zones"
-        step.parquet_scope_var.set(1)
+        step.parquet_scope_var.set(2)
         data = step.get_data()
 
         self.assertTrue(data["has_parquets"])
@@ -95,7 +108,7 @@ class TestWizardFoundation(unittest.TestCase):
         step.build_ui()
 
         # Select "import all"
-        step.parquet_scope_var.set(2)
+        step.parquet_scope_var.set(3)
         data = step.get_data()
 
         self.assertTrue(data["has_parquets"])
@@ -129,7 +142,7 @@ class TestWizardFoundation(unittest.TestCase):
 
         # Verify UI restored
         self.assertEqual(step.project_type_var.get(), ProjectType.EXPLORATORY.value)
-        self.assertEqual(step.parquet_scope_var.get(), 1)  # 1 = zones
+        self.assertEqual(step.parquet_scope_var.get(), 2)  # 2 = zones
 
 
 class TestEnums(unittest.TestCase):

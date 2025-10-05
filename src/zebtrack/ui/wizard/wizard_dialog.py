@@ -152,6 +152,11 @@ class WizardDialog(Dialog):
             current_step.pack(fill="both", expand=True)
             current_step.on_show()  # Lifecycle hook
 
+            # Update window title with step number
+            step_number = step_index + 1
+            total_steps = len(self.steps)
+            self.title(f"Assistente de Criacao de Projeto - Etapa {step_number}/{total_steps}")
+
             log.info(
                 "wizard.step_shown",
                 step=step_index + 1,

@@ -154,9 +154,17 @@ class DetectionStep(WizardStep):
         # 2. Auto-detect design (only for experimental projects)
         project_type = self.wizard_data.get("project_type")
         if project_type == ProjectType.EXPERIMENTAL.value:
-            self.detected_design = self._detect_design(video_paths)
+            log.info("wizard.detection.design_detection_started")
+            # CRITICAL FIX: Pass scanned video paths, not original input paths (which may be folders)
+            scanned_video_paths = [v["path"] for v in self.scanned_videos]
+            self.detected_design = self._detect_design(scanned_video_paths)
+            if self.detected_design:
+                log.info("wizard.detection.design_detected", pattern=self.detected_design.get("pattern_used"), confidence=self.detected_design.get("confidence"))
+            else:
+                log.warning("wizard.detection.design_not_detected", reason="No pattern matched")
         else:
             self.detected_design = None
+            log.info("wizard.detection.design_skipped", reason=f"Project type is {project_type}, not experimental")
 
         # 3. Calculate parquet summary
         parquet_summary = self._calculate_parquet_summary()
@@ -206,6 +214,7 @@ class DetectionStep(WizardStep):
     def _pattern_groups_as_folders(self, paths: list[Path]) -> Optional[dict]:
         """Pattern 1: Groups as folders (e.g., /Control/Day1/video.mp4)."""
         if len(paths) < 2:
+            log.debug("pattern_groups_as_folders.skipped", reason="Less than 2 videos")
             return None
 
         # Find common ancestor directory
@@ -215,6 +224,8 @@ class DetectionStep(WizardStep):
                 common_ancestor = common_ancestor.parent
                 if len(common_ancestor.parts) == 0:
                     break
+
+        log.debug("pattern_groups_as_folders.common_ancestor", path=str(common_ancestor))
 
         # Extract relative paths from common ancestor
         group_candidates = {}
@@ -230,12 +241,16 @@ class DetectionStep(WizardStep):
                     group_candidates[folder].append(path)
             except ValueError:
                 # Path not relative to common ancestor
+                log.debug("pattern_groups_as_folders.path_not_relative", path=str(path))
                 continue
 
         # Find groups (should have 2+ distinct values, each with at least 1 video)
         groups = [g for g in group_candidates.keys() if len(group_candidates[g]) >= 1]
 
+        log.debug("pattern_groups_as_folders.groups_found", groups=groups, count=len(groups))
+
         if len(groups) < 2:
+            log.debug("pattern_groups_as_folders.insufficient_groups", count=len(groups))
             return None  # Need at least 2 groups
 
         # Extract days and subjects
@@ -366,7 +381,15 @@ class DetectionStep(WizardStep):
                     if subjects:
                         text += f"    - {group}: {len(subjects)} sujeito(s)\n"
         else:
-            text += "ℹ️ Design experimental não detectado (projeto exploratório ou estrutura não reconhecida)\n"
+            project_type = self.wizard_data.get("project_type")
+            if project_type == ProjectType.EXPERIMENTAL.value:
+                text += "⚠️ Design experimental não detectado automaticamente.\n\n"
+                text += "Possíveis causas:\n"
+                text += "  • Estrutura de pastas não segue padrões reconhecidos\n"
+                text += "  • Nomes de grupos/dias não são detectáveis (ex: Grupo1, Day01)\n\n"
+                text += "Você pode prosseguir sem design detectado ou reorganizar os arquivos.\n"
+            else:
+                text += "ℹ️ Detecção de design desativada (projeto exploratório).\n"
 
         self.results_text.insert("1.0", text)
         self.results_text.config(state="disabled")

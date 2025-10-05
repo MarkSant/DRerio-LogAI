@@ -124,12 +124,12 @@ class ImportConfigStep(WizardStep):
         # Bind double-click to toggle checkboxes
         self.video_tree.bind("<Double-1>", self._on_tree_double_click)
 
-        # ROI merge strategy
-        roi_frame = LabelFrame(self, text="Estratégia de Importação de ROIs", padx=10, pady=10)
-        roi_frame.pack(fill="x", pady=(0, 15))
+        # ROI merge strategy (will be hidden if no parquets detected)
+        self.roi_frame = LabelFrame(self, text="Estratégia de Importação de ROIs", padx=10, pady=10)
+        self.roi_frame.pack(fill="x", pady=(0, 15))
 
         rb_replace = Radiobutton(
-            roi_frame,
+            self.roi_frame,
             text="Replace - Substituir ROIs existentes pelos importados",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.REPLACE.value,
@@ -138,7 +138,7 @@ class ImportConfigStep(WizardStep):
         ToolTip(rb_replace, "ROIs importados do Parquet substituirão completamente as ROIs existentes no projeto.")
 
         rb_merge = Radiobutton(
-            roi_frame,
+            self.roi_frame,
             text="Merge - Manter ambos (renomear conflitos)",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MERGE.value,
@@ -147,7 +147,7 @@ class ImportConfigStep(WizardStep):
         ToolTip(rb_merge, "Manter ROIs existentes e importadas. ROIs com mesmo nome serão renomeadas (ex: 'Zone1', 'Zone1_imported').")
 
         rb_manual = Radiobutton(
-            roi_frame,
+            self.roi_frame,
             text="Manual - Perguntar para cada conflito",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MANUAL.value,
@@ -156,11 +156,11 @@ class ImportConfigStep(WizardStep):
         ToolTip(rb_manual, "Perguntar ao usuário como resolver cada conflito de nomes de ROIs durante a importação.")
 
         # Summary
-        summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)
-        summary_frame.pack(fill="x", pady=(0, 10))
+        self.summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)
+        self.summary_frame.pack(fill="x", pady=(0, 10))
 
         Label(
-            summary_frame,
+            self.summary_frame,
             textvariable=self.summary_var,
             justify="left",
             fg="blue",
@@ -181,6 +181,7 @@ class ImportConfigStep(WizardStep):
         self._compute_smart_defaults()
         self._populate_table()
         self._update_summary()
+        self._update_roi_frame_visibility()
 
     def _compute_smart_defaults(self):
         """Compute initial checkbox state based on Step 1 choices and parquet availability."""
@@ -204,6 +205,11 @@ class ImportConfigStep(WizardStep):
                 # User wants zones only
                 import_arena = has_arena
                 import_rois = has_rois
+                import_trajectory = False  # Never import trajectory
+            elif parquet_import_scope == "arena":
+                # User wants arena only
+                import_arena = has_arena
+                import_rois = False  # Never import ROIs
                 import_trajectory = False  # Never import trajectory
             else:  # None or not specified
                 # User wants to start fresh
@@ -338,6 +344,23 @@ class ImportConfigStep(WizardStep):
             lines.append(f"• {count} vídeo(s): {name}")
 
         self.summary_var.set("\n".join(lines) if lines else "Nenhum vídeo configurado")
+
+    def _update_roi_frame_visibility(self):
+        """Hide ROI merge strategy frame if no ROIs are being imported."""
+        # Check if any video is configured to import ROIs
+        importing_rois = any(
+            config.get("import_rois", False)
+            for config in self.video_configs
+        )
+
+        if importing_rois:
+            # Show ROI frame if importing ROIs
+            if not self.roi_frame.winfo_ismapped():
+                self.roi_frame.pack(fill="x", pady=(0, 15), before=self.summary_frame)
+        else:
+            # Hide ROI frame if not importing any ROIs
+            self.roi_frame.pack_forget()
+            log.debug("import_config.roi_frame_hidden", reason="No ROIs being imported")
 
     def validate(self) -> tuple[bool, str]:
         """
