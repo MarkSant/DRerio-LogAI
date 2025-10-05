@@ -127,7 +127,8 @@ class WizardDialog(Dialog):
         for step in self.all_steps.values():
             step.build_ui()
 
-        # Initially set active steps for default project type (experimental pre-recorded)
+        # Initially set active steps for default project type
+        # (experimental pre-recorded)
         self._update_active_steps()
 
         # Show first step

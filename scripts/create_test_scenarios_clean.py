@@ -23,8 +23,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 
 def create_mock_video(output_path: Path, duration_seconds: float = 5, fps: int = 30):
@@ -96,7 +94,9 @@ def create_mock_parquet(video_path: Path, parquet_type: str = "trajectory"):
 
         # Schema esperado pelo load_zones: roi_name, point_index, x, y
         data = {
-            "roi_name": ["Center", "Center", "Center", "Center", "Edge", "Edge", "Edge", "Edge"],
+            "roi_name": [
+                "Center", "Center", "Center", "Center", "Edge", "Edge", "Edge", "Edge"
+            ],
             "point_index": [0, 1, 2, 3, 0, 1, 2, 3],
             "x": [200, 440, 440, 200, 50, 150, 150, 50],
             "y": [200, 200, 280, 280, 50, 50, 100, 100],
@@ -161,8 +161,8 @@ def create_scenario_1_experimental(base_dir: Path):
                 create_mock_video(video_path, duration_seconds=3, fps=30)
 
     print(f"\nCenario 1 criado em: {scenario_dir}")
-    print(f"   Total de videos: 12 (2 grupos x 2 dias x 3 sujeitos)")
-    print(f"   Padrao esperado: groups_as_folders")
+    print("   Total de videos: 12 (2 grupos x 2 dias x 3 sujeitos)")
+    print("   Padrao esperado: groups_as_folders")
 
 
 def create_scenario_2_with_parquets(base_dir: Path):
@@ -211,11 +211,11 @@ def create_scenario_2_with_parquets(base_dir: Path):
     create_mock_video(video3, duration_seconds=4)
 
     print(f"\n Cenrio 2 criado em: {scenario_dir}")
-    print(f"   Total de vdeos: 3")
-    print(f"   Parquets disponveis:")
-    print(f"     - video1:  arena,  rois,  trajectory")
-    print(f"     - video2:  arena,  rois")
-    print(f"     - video3: (nenhum)")
+    print("   Total de vdeos: 3")
+    print("   Parquets disponveis:")
+    print("     - video1:  arena,  rois,  trajectory")
+    print("     - video2:  arena,  rois")
+    print("     - video3: (nenhum)")
 
 
 def create_scenario_3_exploratory(base_dir: Path):
@@ -249,8 +249,8 @@ def create_scenario_3_exploratory(base_dir: Path):
         create_mock_video(video_path, duration_seconds=3)
 
     print(f"\n Cenrio 3 criado em: {scenario_dir.parent}")
-    print(f"   Total de vdeos: 3")
-    print(f"   Padro esperado: Nenhum design detectado (exploratrio)")
+    print("   Total de vdeos: 3")
+    print("   Padro esperado: Nenhum design detectado (exploratrio)")
 
 
 def create_readme(base_dir: Path):
@@ -321,7 +321,7 @@ Este diretrio contm cenrios de teste gerados automaticamente para o wizard.
 
 **Como testar**:
 1. No wizard, selecione "Exploratory"
-2. Em "File Selection", clique em "Add Folder" e escolha `scenario_3_exploratory/Videos/`
+2. Em "File Selection", adicione a pasta `scenario_3_exploratory/Videos/`
 3. Na etapa "Detection", verifique:
    - Nenhum design detectado (ou confiana baixa)
    - Opo de importar parquets no aparece (no h parquets)

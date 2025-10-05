@@ -62,36 +62,58 @@ class CalibrationStep(WizardStep):
 
         subtitle = Label(
             self,
-            text="Configure as dimensões físicas da arena para conversão de pixels para centímetros.",
+            text=(
+                "Configure as dimensões físicas da arena para conversão de pixels "
+                "para centímetros."
+            ),
             fg="gray",
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
 
         # Video and animal configuration
-        video_frame = LabelFrame(self, text="Configuração de Vídeos e Animais", padx=15, pady=10)
+        video_frame = LabelFrame(
+            self, text="Configuração de Vídeos e Animais", padx=15, pady=10
+        )
         video_frame.pack(fill="x", pady=(0, 15))
 
         # Number of aquariums (videos)
         aquarium_row = Frame(video_frame)
         aquarium_row.pack(fill="x", pady=5)
 
-        Label(aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w").pack(side="left")
-        aquarium_entry = Entry(aquarium_row, textvariable=self.num_aquariums_var, width=10)
+        Label(
+            aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w"
+        ).pack(side="left")
+        aquarium_entry = Entry(
+            aquarium_row, textvariable=self.num_aquariums_var, width=10
+        )
         aquarium_entry.pack(side="left", padx=(5, 0))
-        ToolTip(aquarium_entry, "Número de aquários/vídeos que serão analisados neste projeto.")
+        ToolTip(
+            aquarium_entry,
+            "Número de aquários/vídeos que serão analisados neste projeto.",
+        )
 
         # Animals per aquarium
         animals_row = Frame(video_frame)
         animals_row.pack(fill="x", pady=5)
 
-        Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(side="left")
-        animals_entry = Entry(animals_row, textvariable=self.animals_per_aquarium_var, width=10)
+        Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(
+            side="left"
+        )
+        animals_entry = Entry(
+            animals_row, textvariable=self.animals_per_aquarium_var, width=10
+        )
         animals_entry.pack(side="left", padx=(5, 0))
-        ToolTip(animals_entry, "Número de animais em cada aquário (vídeo). Use 1 para rastreamento individual.")
+        ToolTip(
+            animals_entry,
+            "Número de animais em cada aquário (vídeo). "
+            "Use 1 para rastreamento individual.",
+        )
 
         # Physical dimensions
-        dimensions_frame = LabelFrame(self, text="Dimensões Físicas do Aquário", padx=15, pady=10)
+        dimensions_frame = LabelFrame(
+            self, text="Dimensões Físicas do Aquário", padx=15, pady=10
+        )
         dimensions_frame.pack(fill="x", pady=(0, 15))
 
         # Width
@@ -108,7 +130,9 @@ class CalibrationStep(WizardStep):
         height_row.pack(fill="x", pady=5)
 
         Label(height_row, text="Altura (cm):", width=30, anchor="w").pack(side="left")
-        height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
+        height_entry = Entry(
+            height_row, textvariable=self.aquarium_height_var, width=10
+        )
         height_entry.pack(side="left", padx=(5, 0))
         ToolTip(height_entry, "Altura física do aquário em centímetros.")
 
@@ -119,13 +143,14 @@ class CalibrationStep(WizardStep):
         help_text = Label(
             help_frame,
             text=(
-                "A calibração física permite converter coordenadas de pixels para centímetros.\n\n"
+                "A calibração física permite converter coordenadas de pixels para "
+                "centímetros.\n\n"
                 "Isso é necessário para:\n"
                 "• Calcular distâncias percorridas reais\n"
                 "• Calcular velocidades em cm/s\n"
                 "• Comparar resultados entre diferentes configurações de câmera\n\n"
-                "💡 Dica: Se você não souber as dimensões exatas, pode usar valores padrão "
-                "e ajustar depois nas configurações do projeto."
+                "💡 Dica: Se você não souber as dimensões exatas, pode usar "
+                "valores padrão e ajustar depois nas configurações do projeto."
             ),
             fg="gray",
             wraplength=500,

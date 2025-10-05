@@ -222,7 +222,9 @@ class ImportConfigStep(WizardStep):
         self._update_roi_frame_visibility()
 
     def _compute_smart_defaults(self):
-        """Compute initial checkbox state based on Step 1 choices and parquet availability."""
+        """
+        Compute initial checkbox state based on Step 1 choices and parquet availability.
+        """
         scanned_videos = self.wizard_data.get("scanned_videos", [])
         parquet_import_scope = self.wizard_data.get("parquet_import_scope")
 
@@ -271,7 +273,10 @@ class ImportConfigStep(WizardStep):
 
             self.video_configs.append(config)
 
-        log.info("wizard.import_config.defaults_computed", video_count=len(self.video_configs))
+        log.info(
+            "wizard.import_config.defaults_computed",
+            video_count=len(self.video_configs),
+        )
 
     def _populate_table(self):
         """Populate Treeview with video configurations."""
@@ -297,7 +302,9 @@ class ImportConfigStep(WizardStep):
 
             arena_str = format_status(config["has_arena"], config["import_arena"])
             rois_str = format_status(config["has_rois"], config["import_rois"])
-            traj_str = format_status(config["has_trajectory"], config["import_trajectory"])
+            traj_str = format_status(
+                config["has_trajectory"], config["import_trajectory"]
+            )
 
             # Action name (user-friendly)
             action_map = {

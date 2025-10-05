@@ -340,7 +340,8 @@ class AppController:
 
         # WHITELIST APPROACH: Only pass parameters that create_new_project() accepts
         # This is more robust than manually removing unsupported params (blacklist)
-        # See ProjectManager.create_new_project() signature at project_manager.py:260-282
+        # See ProjectManager.create_new_project() signature
+        # at project_manager.py:260-282
         allowed_params = {
             'project_path', 'project_type', 'use_openvino', 'active_weight',
             'video_files', 'num_aquariums', 'animals_per_aquarium',
@@ -348,7 +349,8 @@ class AppController:
             'recording_duration_s', 'use_countdown', 'countdown_duration_s',
             'analysis_interval_frames', 'display_interval_frames',
             'camera_index', 'use_arduino', 'arduino_port',
-            # Live project params (also valid for pre-recorded if user wants to track design)
+            # Live project params (also valid for pre-recorded if user wants to
+            # track design)
             'experiment_days', 'subjects_per_group', 'num_groups', 'group_names',
             # Wizard metadata
             '_wizard_metadata'
@@ -1413,7 +1415,8 @@ class AppController:
                         port=arduino_port,
                     )
                 except TypeError:
-                    # Backward compatibility for implementations expecting a single message
+                    # Backward compatibility for implementations expecting a single
+                    # message
                     self.view.show_external_trigger_notice(waiting_message)
 
             self.view.update_button_state("start_rec", "disabled")

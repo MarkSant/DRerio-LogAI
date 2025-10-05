@@ -119,7 +119,9 @@ class TestWizardFoundation(unittest.TestCase):
         self.assertEqual(data["parquet_import_scope"], "all")
 
     def test_discovery_step_validate_always_succeeds(self):
-        """Discovery step validation should always succeed (all fields have defaults)."""
+        """
+        Discovery step validation should always succeed (all fields have defaults).
+        """
         wizard_data = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
