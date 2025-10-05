@@ -24,6 +24,10 @@ class TestWizardAdapter(unittest.TestCase):
             "project_name": "Test_Project",
             "project_path": "/path/to/Test_Project",
             "video_paths": ["/path/to/video1.mp4", "/path/to/video2.mp4"],
+            "scanned_videos": [
+                {"path": "/path/to/video1.mp4", "has_complete_data": False},
+                {"path": "/path/to/video2.mp4", "has_complete_data": False},
+            ],
             "has_parquets": False,
             "parquet_import_scope": None,
         }
@@ -33,7 +37,9 @@ class TestWizardAdapter(unittest.TestCase):
         # Verify required controller fields
         self.assertEqual(result["project_path"], "/path/to/Test_Project")
         self.assertEqual(result["project_type"], "pre-recorded")
-        self.assertEqual(result["video_files"], ["/path/to/video1.mp4", "/path/to/video2.mp4"])
+        self.assertEqual(len(result["video_files"]), 2)
+        self.assertEqual(result["video_files"][0]["path"], "/path/to/video1.mp4")
+        self.assertEqual(result["video_files"][0]["has_data"], False)
 
         # Verify defaults
         self.assertEqual(result["num_aquariums"], 1)
@@ -57,6 +63,9 @@ class TestWizardAdapter(unittest.TestCase):
             "project_name": "Experiment_Control",
             "project_path": "/path/to/Experiment_Control",
             "video_paths": ["/path/to/Control/Day01/S01.mp4"],
+            "scanned_videos": [
+                {"path": "/path/to/Control/Day01/S01.mp4", "has_complete_data": False},
+            ],
             "has_folder_structure": True,
             "folder_meaning": "experimental",
             "has_parquets": False,
@@ -90,6 +99,9 @@ class TestWizardAdapter(unittest.TestCase):
             "project_name": "Import_Test",
             "project_path": "/path/to/Import_Test",
             "video_paths": ["/path/to/video1.mp4"],
+            "scanned_videos": [
+                {"path": "/path/to/video1.mp4", "has_complete_data": False},
+            ],
             "has_parquets": True,
             "parquet_import_scope": "zones",
             "import_config": [
@@ -176,19 +188,20 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertIn("Missing required wizard fields", str(cm.exception))
 
     def test_adapt_raises_on_no_videos(self):
-        """Adapter should raise ValueError if no video paths."""
+        """Adapter should raise ValueError if no scanned videos."""
         wizard_data = {
             "wizard_schema_version": 1,
             "project_type": ProjectType.EXPERIMENTAL.value,
             "project_name": "Test",
             "project_path": "/path/to/Test",
-            "video_paths": [],  # Empty!
+            "video_paths": [],
+            "scanned_videos": [],  # Empty!
         }
 
         with self.assertRaises(ValueError) as cm:
             adapt_wizard_data_to_controller_format(wizard_data)
 
-        self.assertIn("No video paths found", str(cm.exception))
+        self.assertIn("No scanned videos found", str(cm.exception))
 
 
 if __name__ == "__main__":

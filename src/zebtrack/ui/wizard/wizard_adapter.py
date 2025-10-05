@@ -60,10 +60,19 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
     if missing:
         raise ValueError(f"Missing required wizard fields: {missing}")
 
-    # Extract video paths (wizard may have scanned from folders)
-    video_paths = wizard_data.get("video_paths", [])
-    if not video_paths:
-        raise ValueError("No video paths found in wizard data")
+    # Extract scanned videos (has full metadata including has_data flags)
+    scanned_videos = wizard_data.get("scanned_videos", [])
+    if not scanned_videos:
+        raise ValueError("No scanned videos found in wizard data")
+
+    # Convert scanned videos to format expected by add_video_batch
+    # Each video needs: {"path": str, "has_data": bool}
+    video_files = []
+    for video_info in scanned_videos:
+        video_files.append({
+            "path": video_info["path"],
+            "has_data": video_info.get("has_complete_data", False),
+        })
 
     # Determine project type
     project_type_value = wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
@@ -74,7 +83,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
     controller_data = {
         "project_path": wizard_data["project_path"],
         "project_type": "pre-recorded",  # Wizard v1.5 only supports pre-recorded
-        "video_files": video_paths,
+        "video_files": video_files,
         # Calibration defaults (wizard v1.5 doesn't collect these, use defaults)
         "num_aquariums": 1,
         "animals_per_aquarium": 1,
@@ -135,7 +144,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
     log.info(
         "wizard.adapter.success",
         project_path=controller_data["project_path"],
-        video_count=len(video_paths),
+        video_count=len(video_files),
         has_design=detected_design is not None if not is_exploratory else None,
     )
 
