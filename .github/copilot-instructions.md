@@ -5,7 +5,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 ### Quick Start Workflow
 
 1. Launch GUI: `python -m zebtrack` (entry point `core/controller.AppController`).
-2. Create/select a project via `core/project_manager.py`.
+2. Create/select a project via the legacy dialog (`core/project_manager.py`) or the 5-step wizard (`ui/wizard`), depending on the `ui_features.use_wizard_for_project_creation` feature flag.
 3. Choose a detector plugin from `plugins/` (registry in `plugins/__init__.py`).
 4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
 5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
@@ -42,6 +42,14 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - OpenVINO weights require matching `.xml`/`.bin`; conversion is handled in `core/weight_manager.py`.
 - Arena inclusion uses the "4 corners OR center" logic via `_is_inside_polygon`; use `bbox_hits_roi_polygon` for ROI checks when appropriate.
 
+### Project Creation Wizard
+
+- The wizard is gated by `settings.ui_features.use_wizard_for_project_creation` (default `false`). Enable per-machine via `config.local.yaml`.
+- Wizard flow lives under `src/zebtrack/ui/wizard/` (steps, dialog, adapter). It feeds controller inputs through `wizard_adapter.adapt_wizard_data_to_controller_format()` to preserve backward compatibility.
+- Maintain parity with the legacy dialogs: every wizard change must still populate `ProjectManager.project_data` fields expected elsewhere (intervals, batches, calibration defaults).
+- Update wizard-specific tests when modifying the flow or adapter logic: `tests/test_wizard_adapter.py`, `tests/test_wizard_confirmation.py`, `tests/test_wizard_integration.py`, and related step tests.
+- Manual wizard scenarios now reside in `test_scenarios/` (documentation) and `tests/manual/`; legacy generator scripts were removed.
+
 ### Analysis Progress & Intervals
 
 - Progress callbacks now supply granular stats (`total_frames`, `processed_frames`, `detected_frames`, `start_time`); keep `ApplicationGUI.update_processing_stats()` and overlay labels in sync.
@@ -66,6 +74,8 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - Tests mirror modules; consult them before modifying behavior (e.g., `tests/test_detector.py`, `tests/test_recorder.py`).
 - After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
 - UI/analysis workflows now have dedicated coverage: `tests/test_overlay_integration.py` (overlay preservation) and `tests/test_interval_frames_config.py` (interval dialogs + persistence). Keep them passing.
+- For wizard-related work, run the focused suite: `poetry run pytest tests/test_wizard*.py -q`.
+- Manual inspection scripts live under `tests/manual/`; the legacy Wizard scenario generators were removed, so reproduce edge cases via current pytest fixtures or these manual helpers.
 
 ### Safety Checklist Before Merging
 
@@ -84,9 +94,11 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - `src/zebtrack/analysis/`: Behavioral metrics, ROI analysis, reporting.
 - `src/zebtrack/settings.py`: Pydantic settings models.
 - `tests/`: Pytest suite (unit, integration, GUI regression tests).
+- `src/zebtrack/ui/wizard/`: Wizard dialog, step implementations, and adapter.
 
 ### When in Doubt
 
 - Prefer reading the closest test to understand expectations.
 - Keep public APIs, file schemas, and user-visible naming stable.
+- Update README/CONTRIBUTING/docs when changing user-facing workflows.
 - Document recurring patterns here only after confirming they are covered by tests.

@@ -53,6 +53,7 @@ Obrigado por querer contribuir com o ZebTrack-AI! Este guia descreve o fluxo de 
   - `tests/test_interval_frames_config.py` para persistência de intervalos.
   - `tests/test_recorder.py` ao mexer no esquema Parquet.
 - Se a mudança alterar comportamentos de análise/reporting, considere fixtures sintéticas adicionais em `tests/analysis/`.
+- Scripts legados de geração Wizard v1.5 foram removidos; para reproduzir cenários manuais, utilize os utilitários atuais em `tests/manual/` ou crie fixtures explícitas em pytest.
 
 ## 5. Padrões de commit
 

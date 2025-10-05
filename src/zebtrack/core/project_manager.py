@@ -487,6 +487,9 @@ class ProjectManager:
         countdown_duration_s: int = 0,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
+    camera_index: int = 0,
+    use_arduino: bool = False,
+    arduino_port: str = "",
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
@@ -529,6 +532,10 @@ class ProjectManager:
 
         self._save_settings_snapshot()
 
+        safe_camera_index = camera_index if camera_index is not None else 0
+        safe_use_arduino = bool(use_arduino)
+        safe_arduino_port = arduino_port or ""
+
         self.project_data = {
             "project_name": os.path.basename(project_path),
             "project_type": project_type,
@@ -553,6 +560,9 @@ class ProjectManager:
             "last_selected_group": group_names[0] if group_names else None,
             "analysis_interval_frames": analysis_interval_frames,
             "display_interval_frames": display_interval_frames,
+            "camera_index": safe_camera_index,
+            "use_arduino": safe_use_arduino,
+            "arduino_port": safe_arduino_port,
         }
 
         # Add wizard metadata if provided (from wizard v1.5+)
@@ -640,19 +650,59 @@ class ProjectManager:
             # --- End Security Check ---
 
             # --- Backward Compatibility ---
-            # Ensure animals_per_aquarium field exists with default value of 1
-            if "calibration" in loaded_data:
-                if "animals_per_aquarium" not in loaded_data["calibration"]:
-                    loaded_data["calibration"]["animals_per_aquarium"] = 1
-                    log_context.info(
-                        "project.load.backward_compatibility",
-                        message="Added missing animals_per_aquarium field with "
-                        "default value 1",
-                    )
+            migration_applied = False
+            migrated_fields: list[str] = []
+
+            if (
+                "calibration" in loaded_data
+                and "animals_per_aquarium" not in loaded_data["calibration"]
+            ):
+                loaded_data["calibration"]["animals_per_aquarium"] = 1
+                migration_applied = True
+                migrated_fields.append("calibration.animals_per_aquarium")
+                log_context.info(
+                    "project.load.backward_compatibility",
+                    message=(
+                        "Added missing animals_per_aquarium field with default value 1"
+                    ),
+                )
+
+            # Add defaults for legacy projects missing interval/camera/arduino fields
+            if "analysis_interval_frames" not in loaded_data:
+                loaded_data["analysis_interval_frames"] = 10
+                migration_applied = True
+                migrated_fields.append("analysis_interval_frames")
+
+            if "display_interval_frames" not in loaded_data:
+                loaded_data["display_interval_frames"] = 10
+                migration_applied = True
+                migrated_fields.append("display_interval_frames")
+
+            if "camera_index" not in loaded_data or loaded_data["camera_index"] is None:
+                loaded_data["camera_index"] = 0
+                migration_applied = True
+                migrated_fields.append("camera_index")
+
+            if "use_arduino" not in loaded_data or loaded_data["use_arduino"] is None:
+                loaded_data["use_arduino"] = False
+                migration_applied = True
+                migrated_fields.append("use_arduino")
+
+            if "arduino_port" not in loaded_data or loaded_data["arduino_port"] is None:
+                loaded_data["arduino_port"] = ""
+                migration_applied = True
+                migrated_fields.append("arduino_port")
             # --- End Backward Compatibility ---
 
-            self.project_data = loaded_data
             self.project_path = project_path
+            self.project_data = loaded_data
+
+            if migration_applied:
+                log_context.info(
+                    "project.load.migration_applied",
+                    fields=migrated_fields,
+                )
+                self.save_project()
             self.load_metadata()  # Load metadata right after loading the project
             log_context.info(
                 "project.load.success",

@@ -14,13 +14,15 @@ class TestProjectManager(unittest.TestCase):
         os.makedirs(self.test_dir, exist_ok=True)
         # Suppress messagebox popups during tests
         self.original_showerror = sys.modules["tkinter.messagebox"].showerror
-        sys.modules["tkinter.messagebox"].showerror = lambda title, message: None
+        sys.modules["tkinter.messagebox"].showerror = (  # type: ignore[attr-defined]
+            lambda title, message: None
+        )
 
     def tearDown(self):
         """Clean up the temporary directory after tests."""
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
-        sys.modules["tkinter.messagebox"].showerror = self.original_showerror
+        sys.modules["tkinter.messagebox"].showerror = self.original_showerror  # type: ignore[attr-defined]
 
     def test_create_new_live_project(self):
         """Test the creation of a new 'live' project."""
@@ -112,6 +114,28 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["calibration"]["num_aquariums"], 1)
             self.assertEqual(data["calibration"]["animals_per_aquarium"], 1)
 
+    def test_create_project_persists_camera_and_arduino_settings(self):
+        """Projects should persist camera index and Arduino configuration."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "io_settings_project")
+
+        success = pm.create_new_project(
+            project_path,
+            "live",
+            camera_index=3,
+            use_arduino=True,
+            arduino_port="COM7",
+        )
+
+        self.assertTrue(success)
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        with open(config_path, "r") as f:
+            data = json.load(f)
+
+        self.assertEqual(data["camera_index"], 3)
+        self.assertTrue(data["use_arduino"])
+        self.assertEqual(data["arduino_port"], "COM7")
+
     def test_load_project_backward_compatibility(self):
         """Test loading a project without animals_per_aquarium field."""
         pm = ProjectManager()
@@ -146,6 +170,55 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(
             pm.project_data["calibration"]["animals_per_aquarium"], 1
         )  # Default value added
+
+    def test_load_project_migrates_missing_camera_and_interval_fields(self):
+        """Legacy projects missing interval/camera fields should gain safe defaults."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "legacy_project")
+        os.makedirs(project_path, exist_ok=True)
+
+        legacy_data = {
+            "project_name": "legacy_project",
+            "project_type": "live",
+            "calibration": {
+                "num_aquariums": 1,
+                "aquarium_width_cm": 10.0,
+                "aquarium_height_cm": 10.0,
+            },
+            "use_openvino": False,
+            "active_weight": None,
+            "batches": [],
+        }
+
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        with open(config_path, "w") as f:
+            json.dump(legacy_data, f, indent=2)
+
+        success = pm.load_project(project_path)
+
+        self.assertTrue(success)
+        self.assertEqual(pm.project_data["analysis_interval_frames"], 10)
+        self.assertEqual(pm.project_data["display_interval_frames"], 10)
+        self.assertEqual(pm.project_data["camera_index"], 0)
+        self.assertFalse(pm.project_data["use_arduino"])
+        self.assertEqual(pm.project_data["arduino_port"], "")
+        self.assertEqual(pm.project_data["calibration"]["animals_per_aquarium"], 1)
+        self.assertIn("file_hash", pm.project_data)
+
+        with open(config_path, "r") as f:
+            saved_data = json.load(f)
+
+        for field in [
+            "analysis_interval_frames",
+            "display_interval_frames",
+            "camera_index",
+            "use_arduino",
+            "arduino_port",
+        ]:
+            self.assertIn(field, saved_data)
+
+        self.assertEqual(saved_data["arduino_port"], "")
+        self.assertIn("file_hash", saved_data)
 
     def test_load_project(self):
         """Test loading an existing project configuration."""

@@ -151,10 +151,7 @@ sequenceDiagram
 
 - [README.md](../README.md) – visão geral, guia rápido e convenções.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) – processo de desenvolvimento e padrões de PR.
-- [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) – **⭐ documentação técnica detalhada** de criação de projetos e análise em lote.
-- [WIZARD_INTEGRATION.md](WIZARD_INTEGRATION.md) 🧙 – **⭐ documentação técnica do wizard v1.5**: arquitetura, feature flag, adapter, testes e rollout.
-- [WIZARD_USER_GUIDE.md](WIZARD_USER_GUIDE.md) 🧙 – guia do usuário para uso do wizard de criação de projetos.
-- [COORDINATE_SYSTEMS.md](COORDINATE_SYSTEMS.md) – sistemas de coordenadas e transformações de perspectiva.
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md) – resumo rápido para agentes automáticos.
+- `tests/manual/` – scripts atuais para inspeções manuais; substituem os antigos geradores de cenários do Wizard.
 
 Atualize este documento sempre que novas decisões arquiteturais forem tomadas ou quando fluxos principais forem alterados.

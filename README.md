@@ -163,6 +163,8 @@ poetry run pytest tests/test_overlay_integration.py::TestOverlayIntegration
 poetry run pytest tests/test_interval_frames_config.py
 ```
 
+Testes manuais (quando necessário) vivem em `tests/manual/`. Os antigos geradores automáticos de cenários do "Wizard" foram descontinuados; utilize os scripts atuais e fixtures de pytest para reproduzir contextos específicos.
+
 ## 🗂️ Dados e relatórios
 
 Para cada vídeo processado é criado um diretório `*_results` contendo:

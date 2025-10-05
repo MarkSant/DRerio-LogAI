@@ -159,6 +159,7 @@ class AppController:
             'aquarium_width_cm', 'aquarium_height_cm', 'use_timed_recording',
             'recording_duration_s', 'use_countdown', 'countdown_duration_s',
             'analysis_interval_frames', 'display_interval_frames',
+            'camera_index', 'use_arduino', 'arduino_port',
             # Live project params (also valid for pre-recorded if user wants to track design)
             'experiment_days', 'subjects_per_group', 'num_groups', 'group_names',
             # Wizard metadata
