@@ -14,12 +14,14 @@ class ProjectType(Enum):
     """
     Type of project being created.
 
-    EXPERIMENTAL: Has experimental design (groups, days, subjects)
-    EXPLORATORY: Free-form analysis without structure
+    EXPERIMENTAL: Pre-recorded videos with experimental design (groups, days, subjects)
+    EXPLORATORY: Pre-recorded videos without structure (free-form analysis)
+    LIVE: Real-time recording from camera with optional experimental design
     """
 
     EXPERIMENTAL = "experimental"
     EXPLORATORY = "exploratory"
+    LIVE = "live"
 
 
 class ImportAction(Enum):
@@ -75,9 +77,11 @@ class WizardStepID(Enum):
 
     DISCOVERY = 1
     FILE_SELECTION = 2
-    DETECTION_VALIDATION = 3
-    IMPORT_CONFIG = 4
-    CONFIRMATION = 5
+    LIVE_CONFIG = 3  # Only for live projects
+    CALIBRATION = 4
+    DETECTION_VALIDATION = 5
+    IMPORT_CONFIG = 6
+    CONFIRMATION = 7
 
 
 def derive_import_action(

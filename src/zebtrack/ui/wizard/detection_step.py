@@ -23,6 +23,8 @@ import structlog
 
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.ui.wizard.base import WizardStep
+from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
+from zebtrack.ui.wizard.design_editor_dialog import DesignEditorDialog
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 
 log = structlog.get_logger()
@@ -67,6 +69,7 @@ class DetectionStep(WizardStep):
         self.scanned_videos = []
         self.detected_design = None
         self.status_var = StringVar(value="Aguardando análise...")
+        self.custom_regex_patterns = None  # User-defined regex patterns
 
     def build_ui(self):
         """Build detection step UI."""
@@ -122,6 +125,22 @@ class DetectionStep(WizardStep):
             width=15,
         ).pack(side="left", padx=5)
 
+        self.edit_design_btn = Button(
+            button_frame,
+            text="✏️ Editar Design",
+            command=self._edit_design,
+            width=15,
+            state="disabled",  # Enable only after detection
+        )
+        self.edit_design_btn.pack(side="left", padx=5)
+
+        Button(
+            button_frame,
+            text="🔧 Regex Customizado",
+            command=self._configure_custom_regex,
+            width=18,
+        ).pack(side="left", padx=5)
+
         # Help text
         help_text = Label(
             self,
@@ -172,6 +191,9 @@ class DetectionStep(WizardStep):
         # 4. Update UI
         self._display_results(parquet_summary)
 
+        # Enable edit button (available for both detected and non-detected designs)
+        self.edit_design_btn.config(state="normal")
+
         self.status_var.set("Análise concluída!")
         log.info(
             "wizard.detection.completed",
@@ -192,6 +214,13 @@ class DetectionStep(WizardStep):
         # Convert to Path objects
         paths = [Path(p) if isinstance(p, str) else p for p in video_paths]
 
+        # Try custom regex patterns first (if configured)
+        if self.custom_regex_patterns:
+            custom_result = self._pattern_custom_regex(paths, self.custom_regex_patterns)
+            if custom_result:
+                log.info("wizard.detection.custom_regex_used", confidence=custom_result.get("confidence"))
+                return custom_result
+
         # Try built-in patterns (v1.0: 4 patterns)
         patterns = [
             self._pattern_groups_as_folders,
@@ -210,6 +239,99 @@ class DetectionStep(WizardStep):
                 best_confidence = result["confidence"]
 
         return best_result
+
+    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> Optional[dict]:
+        """
+        Pattern: User-defined custom regex patterns.
+
+        Args:
+            paths: List of video file paths
+            patterns: Dict with keys: group_pattern, day_pattern, subject_pattern
+
+        Returns:
+            dict | None: Detected design or None if patterns don't match
+        """
+        group_pattern = patterns.get("group_pattern")
+        day_pattern = patterns.get("day_pattern")
+        subject_pattern = patterns.get("subject_pattern")
+
+        if not group_pattern:
+            log.warning("wizard.detection.custom_regex.no_group_pattern")
+            return None
+
+        groups_found = set()
+        days_found = set()
+        subjects_per_group = {}
+        match_count = 0
+
+        for path in paths:
+            # Search in full path string
+            path_str = str(path)
+
+            # Extract group (required)
+            group = None
+            if group_pattern:
+                try:
+                    match = re.search(group_pattern, path_str)
+                    if match:
+                        # Use first capture group if available, otherwise full match
+                        group = match.group(1) if match.groups() else match.group(0)
+                        groups_found.add(group)
+                        match_count += 1
+
+                        if group not in subjects_per_group:
+                            subjects_per_group[group] = set()
+                except re.error as e:
+                    log.error("wizard.detection.custom_regex.group_error", error=str(e))
+                    return None
+
+            # Extract day (optional)
+            if day_pattern:
+                try:
+                    match = re.search(day_pattern, path_str)
+                    if match:
+                        day = match.group(1) if match.groups() else match.group(0)
+                        # Normalize day format (add leading zeros if numeric)
+                        if day.isdigit():
+                            day = f"Day{day.zfill(2)}"
+                        days_found.add(day)
+                except re.error as e:
+                    log.error("wizard.detection.custom_regex.day_error", error=str(e))
+
+            # Extract subject (optional)
+            if subject_pattern and group:
+                try:
+                    match = re.search(subject_pattern, path_str)
+                    if match:
+                        subject = match.group(1) if match.groups() else match.group(0)
+                        # Normalize subject format (add leading zeros if numeric)
+                        if subject.isdigit():
+                            subject = f"S{subject.zfill(2)}"
+                        subjects_per_group[group].add(subject)
+                except re.error as e:
+                    log.error("wizard.detection.custom_regex.subject_error", error=str(e))
+
+        # Must have at least 2 groups to be valid
+        if len(groups_found) < 2:
+            log.debug("wizard.detection.custom_regex.insufficient_groups", count=len(groups_found))
+            return None
+
+        # Convert sets to sorted lists
+        subjects_per_group_sorted = {
+            group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
+        }
+
+        # Calculate confidence based on match coverage
+        coverage = match_count / len(paths)
+        confidence = coverage * 0.9  # High confidence for custom patterns
+
+        return {
+            "groups": sorted(list(groups_found)),
+            "days": sorted(list(days_found)) if days_found else None,
+            "subjects_per_group": subjects_per_group_sorted,
+            "confidence": confidence,
+            "pattern_used": "custom_regex",
+        }
 
     def _pattern_groups_as_folders(self, paths: list[Path]) -> Optional[dict]:
         """Pattern 1: Groups as folders (e.g., /Control/Day1/video.mp4)."""
@@ -412,6 +534,53 @@ class DetectionStep(WizardStep):
         self.results_text.insert("1.0", f"❌ Erro: {message}")
         self.results_text.config(state="disabled")
 
+    def _configure_custom_regex(self):
+        """Open custom regex dialog to configure detection patterns."""
+        # Open dialog with current patterns
+        dialog = CustomRegexDialog(self, self.custom_regex_patterns or {})
+        result_patterns = dialog.get_result()
+
+        if result_patterns:
+            # User saved patterns
+            self.custom_regex_patterns = result_patterns
+            log.info(
+                "wizard.detection.custom_regex_configured",
+                patterns=[k for k, v in result_patterns.items() if v],
+            )
+
+            # Automatically re-run detection with new patterns
+            self._run_detection()
+
+    def _edit_design(self):
+        """Open design editor dialog for manual editing."""
+        if not self.detected_design:
+            # If no design detected, create empty template for user to fill
+            self.detected_design = {
+                "groups": [],
+                "days": [],
+                "subjects_per_group": {},
+                "pattern_used": "none",
+                "confidence": 0.0,
+            }
+
+        # Open editor dialog
+        editor = DesignEditorDialog(self, self.detected_design)
+        edited_design = editor.get_result()
+
+        if edited_design:
+            # User saved changes
+            self.detected_design = edited_design
+            log.info(
+                "wizard.design.manually_edited",
+                groups=len(edited_design["groups"]),
+                days=len(edited_design["days"]) if edited_design.get("days") else 0,
+            )
+
+            # Refresh display
+            parquet_summary = self._calculate_parquet_summary()
+            self._display_results(parquet_summary)
+            self.status_var.set("Design editado manualmente ✓")
+
     def validate(self) -> tuple[bool, str]:
         """
         Validate detection results.
@@ -434,12 +603,14 @@ class DetectionStep(WizardStep):
                 - detected_design (dict | None)
                 - video_count (int)
                 - parquet_summary (dict)
+                - custom_regex_patterns (dict | None)
         """
         return {
             "scanned_videos": self.scanned_videos,
             "detected_design": self.detected_design,
             "video_count": len(self.scanned_videos),
             "parquet_summary": self._calculate_parquet_summary(),
+            "custom_regex_patterns": self.custom_regex_patterns,
         }
 
     def set_data(self, data: dict):
@@ -454,6 +625,9 @@ class DetectionStep(WizardStep):
 
         if "detected_design" in data:
             self.detected_design = data["detected_design"]
+
+        if "custom_regex_patterns" in data:
+            self.custom_regex_patterns = data["custom_regex_patterns"]
 
         # Re-display results
         if self.scanned_videos:

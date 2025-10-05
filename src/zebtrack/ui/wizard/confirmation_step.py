@@ -17,12 +17,15 @@ from tkinter import (
     StringVar,
     filedialog,
     font as tkfont,
+    messagebox,
+    simpledialog,
 )
 
 import structlog
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
+from zebtrack.ui.wizard.templates import TemplateManager
 
 log = structlog.get_logger()
 
@@ -55,6 +58,7 @@ class ConfirmationStep(WizardStep):
         self.project_name_var = StringVar(value="")
         self.project_location_var = StringVar(value=str(Path.home() / "Documents"))
         self.summary_text = ""
+        self.template_manager = TemplateManager()
 
     def build_ui(self):
         """Build confirmation step UI."""
@@ -105,10 +109,21 @@ class ConfirmationStep(WizardStep):
         )
         self.summary_label.pack(fill="both", expand=True)
 
+        # Template button
+        template_btn_frame = Frame(self)
+        template_btn_frame.pack(fill="x", pady=(10, 0))
+
+        Button(
+            template_btn_frame,
+            text="💾 Salvar como Template",
+            command=self._save_as_template,
+            width=25,
+        ).pack(side="right")
+
         # Help text
         help_text = Label(
             self,
-            text="💡 Dica: Verifique todas as configurações antes de criar o projeto.",
+            text="💡 Dica: Verifique todas as configurações antes de criar o projeto. Você pode salvar como template para reutilizar.",
             fg="gray",
             wraplength=500,
             justify="left",
@@ -158,112 +173,187 @@ class ConfirmationStep(WizardStep):
         """Generate summary text from all wizard data."""
         lines = []
 
-        # Design summary
-        lines.append("📋 Design:")
+        # Project type summary
         project_type = self.wizard_data.get("project_type", "experimental")
-        lines.append(f"  • Tipo: {project_type.capitalize()}")
+        is_live = project_type == ProjectType.LIVE.value
 
-        detected_design = self.wizard_data.get("detected_design")
-        if detected_design:
-            groups = detected_design.get("groups", [])
-            days = detected_design.get("days", [])
-            confidence = detected_design.get("confidence", 0)
+        lines.append("📋 Tipo de Projeto:")
+        type_names = {
+            ProjectType.EXPERIMENTAL.value: "Experimental (pré-gravado)",
+            ProjectType.EXPLORATORY.value: "Exploratório (pré-gravado)",
+            ProjectType.LIVE.value: "Ao Vivo (tempo real)",
+        }
+        lines.append(f"  • {type_names.get(project_type, project_type.capitalize())}")
 
-            if groups:
-                lines.append(f"  • Grupos: {len(groups)} ({', '.join(groups[:3])}{'...' if len(groups) > 3 else ''})")
+        # Live configuration (if applicable)
+        if is_live:
+            lines.append("")
+            lines.append("📹 Configuração ao Vivo:")
+            camera_index = self.wizard_data.get("camera_index", 0)
+            lines.append(f"  • Câmera: Índice {camera_index}")
 
-            if days:
-                lines.append(f"  • Dias: {len(days)}")
+            if self.wizard_data.get("use_arduino"):
+                arduino_port = self.wizard_data.get("arduino_port", "N/A")
+                lines.append(f"  • Arduino: {arduino_port}")
 
-            lines.append(f"  • Confiança de Detecção: {confidence:.0%}")
+            if self.wizard_data.get("use_timed_recording"):
+                duration = self.wizard_data.get("recording_duration_s", 0)
+                minutes = int(duration // 60)
+                seconds = int(duration % 60)
+                lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
 
-        video_count = self.wizard_data.get("video_count", 0)
-        lines.append(f"  • Total de Vídeos: {video_count}")
+            if self.wizard_data.get("use_countdown"):
+                countdown = self.wizard_data.get("countdown_duration_s", 0)
+                lines.append(f"  • Contagem regressiva: {countdown}s")
 
-        lines.append("")
-
-        # Processing plan summary
-        lines.append("⚙️ Plano de Processamento:")
-        import_config = self.wizard_data.get("import_config", [])
-
-        if import_config:
-            action_counts = {}
-            for config in import_config:
-                action = config.get("action", ImportAction.FULL.value)
-                action_counts[action] = action_counts.get(action, 0) + 1
-
-            action_names = {
-                ImportAction.SKIP.value: "Skip (dados completos)",
-                ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
-                ImportAction.PARTIAL.value: "Partial (arena apenas)",
-                ImportAction.FULL.value: "Full (processar do zero)",
-            }
-
-            for action, count in sorted(action_counts.items()):
-                name = action_names.get(action, action)
-                lines.append(f"  • {count} vídeo(s): {name}")
-
-            # Estimate processing time (rough estimate: 5 min per video to process)
-            videos_to_process = sum(
-                1 for c in import_config
-                if c.get("action") not in [ImportAction.SKIP.value]
-            )
-
-            if videos_to_process > 0:
-                estimated_minutes = videos_to_process * 5
+        # Design detection (only for pre-recorded experimental)
+        if not is_live:
+            detected_design = self.wizard_data.get("detected_design")
+            if detected_design:
                 lines.append("")
-                lines.append(f"⏱️ Tempo Estimado: ~{estimated_minutes} minutos")
-                lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
+                lines.append("🔍 Design Detectado:")
+                groups = detected_design.get("groups", [])
+                days = detected_design.get("days", [])
+                confidence = detected_design.get("confidence", 0)
+
+                if groups:
+                    lines.append(f"  • Grupos: {len(groups)} ({', '.join(groups[:3])}{'...' if len(groups) > 3 else ''})")
+
+                if days:
+                    lines.append(f"  • Dias: {len(days)}")
+
+                lines.append(f"  • Confiança: {confidence:.0%}")
+
+            video_count = self.wizard_data.get("video_count", 0)
+            if video_count > 0:
+                lines.append(f"  • Total de Vídeos: {video_count}")
 
         lines.append("")
 
-        # Parquet summary
-        parquet_summary = self.wizard_data.get("parquet_summary", {})
-        if parquet_summary:
-            lines.append("📦 Parquets Existentes:")
-            lines.append(f"  • Arena: {parquet_summary.get('total_arena', 0)}")
-            lines.append(f"  • ROIs: {parquet_summary.get('total_rois', 0)}")
-            lines.append(f"  • Trajetória: {parquet_summary.get('total_trajectory', 0)}")
-            lines.append(f"  • Completos: {parquet_summary.get('total_complete', 0)}")
+        # Calibration summary
+        lines.append("📏 Calibração Física:")
+        num_aquariums = self.wizard_data.get("num_aquariums", 1)
+        animals_per_aquarium = self.wizard_data.get("animals_per_aquarium", 1)
+        width = self.wizard_data.get("aquarium_width_cm", 10.0)
+        height = self.wizard_data.get("aquarium_height_cm", 10.0)
+
+        lines.append(f"  • Aquários: {num_aquariums}")
+        lines.append(f"  • Animais por aquário: {animals_per_aquarium}")
+        lines.append(f"  • Dimensões: {width} × {height} cm")
 
         lines.append("")
 
-        # Import configuration summary (show what will be imported)
-        import_config = self.wizard_data.get("import_config", [])
-        if import_config:
-            importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
-            importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
-            importing_trajectory = any(cfg.get("import_trajectory", False) for cfg in import_config)
+        # Processing plan summary (only for pre-recorded)
+        if not is_live:
+            lines.append("⚙️ Plano de Processamento:")
+            import_config = self.wizard_data.get("import_config", [])
 
-            if importing_arena or importing_rois or importing_trajectory:
-                lines.append("📥 Configuração de Importação:")
-                if importing_arena:
-                    arena_count = sum(1 for c in import_config if c.get("import_arena"))
-                    lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
-                if importing_rois:
-                    rois_count = sum(1 for c in import_config if c.get("import_rois"))
-                    lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
-                if importing_trajectory:
-                    traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
-                    lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
+            if import_config:
+                action_counts = {}
+                for config in import_config:
+                    action = config.get("action", ImportAction.FULL.value)
+                    action_counts[action] = action_counts.get(action, 0) + 1
 
+                action_names = {
+                    ImportAction.SKIP.value: "Skip (dados completos)",
+                    ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
+                    ImportAction.PARTIAL.value: "Partial (arena apenas)",
+                    ImportAction.FULL.value: "Full (processar do zero)",
+                }
+
+                for action, count in sorted(action_counts.items()):
+                    name = action_names.get(action, action)
+                    lines.append(f"  • {count} vídeo(s): {name}")
+
+                # Estimate processing time (rough estimate: 5 min per video to process)
+                videos_to_process = sum(
+                    1 for c in import_config
+                    if c.get("action") not in [ImportAction.SKIP.value]
+                )
+
+                if videos_to_process > 0:
+                    estimated_minutes = videos_to_process * 5
+                    lines.append("")
+                    lines.append(f"⏱️ Tempo Estimado: ~{estimated_minutes} minutos")
+                    lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
+
+            lines.append("")
+
+            # Parquet summary (only for pre-recorded)
+            parquet_summary = self.wizard_data.get("parquet_summary", {})
+            if parquet_summary:
+                lines.append("📦 Parquets Existentes:")
+                lines.append(f"  • Arena: {parquet_summary.get('total_arena', 0)}")
+                lines.append(f"  • ROIs: {parquet_summary.get('total_rois', 0)}")
+                lines.append(f"  • Trajetória: {parquet_summary.get('total_trajectory', 0)}")
+                lines.append(f"  • Completos: {parquet_summary.get('total_complete', 0)}")
                 lines.append("")
 
-        # ROI merge strategy (only show if importing ROIs)
-        importing_rois = any(cfg.get("import_rois", False) for cfg in import_config) if import_config else False
+            # Import configuration summary (only for pre-recorded, show what will be imported)
+            if import_config:
+                importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
+                importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+                importing_trajectory = any(cfg.get("import_trajectory", False) for cfg in import_config)
 
-        if importing_rois:
-            roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
-            strategy_names = {
-                "replace": "Substituir ROIs existentes",
-                "merge": "Mesclar (manter ambos)",
-                "manual": "Resolução manual de conflitos",
-            }
-            lines.append("🔀 Estratégia de ROIs:")
-            lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
+                if importing_arena or importing_rois or importing_trajectory:
+                    lines.append("📥 Configuração de Importação:")
+                    if importing_arena:
+                        arena_count = sum(1 for c in import_config if c.get("import_arena"))
+                        lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
+                    if importing_rois:
+                        rois_count = sum(1 for c in import_config if c.get("import_rois"))
+                        lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
+                    if importing_trajectory:
+                        traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
+                        lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
+                    lines.append("")
+
+            # ROI merge strategy (only show if importing ROIs)
+            importing_rois = any(cfg.get("import_rois", False) for cfg in import_config) if import_config else False
+
+            if importing_rois:
+                roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
+                strategy_names = {
+                    "replace": "Substituir ROIs existentes",
+                    "merge": "Mesclar (manter ambos)",
+                    "manual": "Resolução manual de conflitos",
+                }
+                lines.append("🔀 Estratégia de ROIs:")
+                lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
 
         self.summary_text = "\n".join(lines)
         self.summary_label.config(text=self.summary_text)
+
+    def _save_as_template(self):
+        """Save current wizard configuration as a template."""
+        # Ask for template name
+        template_name = simpledialog.askstring(
+            "Salvar Template",
+            "Digite um nome para o template:",
+            parent=self,
+        )
+
+        if not template_name:
+            return  # User cancelled
+
+        # Save template
+        success = self.template_manager.save_template(template_name, self.wizard_data)
+
+        if success:
+            messagebox.showinfo(
+                "Template Salvo",
+                f"Template '{template_name}' salvo com sucesso!\n\n"
+                f"Você poderá carregar este template no futuro para criar projetos similares rapidamente.",
+                parent=self,
+            )
+            log.info("wizard.template_saved", name=template_name)
+        else:
+            messagebox.showerror(
+                "Erro ao Salvar",
+                f"Não foi possível salvar o template '{template_name}'.\n\n"
+                f"Verifique os logs para mais detalhes.",
+                parent=self,
+            )
 
     def validate(self) -> tuple[bool, str]:
         """

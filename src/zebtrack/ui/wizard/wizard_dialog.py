@@ -11,32 +11,42 @@ from tkinter.simpledialog import Dialog
 import structlog
 
 from zebtrack.ui.wizard.cache import WizardCache
+from zebtrack.ui.wizard.calibration_step import CalibrationStep
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
-from zebtrack.ui.wizard.enums import WizardStepID
+from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
+from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 
 log = structlog.get_logger()
 
 
 class WizardDialog(Dialog):
     """
-    Main wizard orchestrator for 5-step project creation.
+    Main wizard orchestrator for 7-step project creation (dynamic based on type).
 
     Architecture:
         - Each step is a WizardStep instance
         - wizard_data dict accumulates data across all steps
         - cache provides session-level caching for performance
         - Navigation via Back/Next buttons (validated transitions)
+        - Conditional navigation: steps shown/hidden based on project type
 
-    Steps:
+    Steps (Pre-recorded: Experimental/Exploratory):
         1. Discovery: Project type, folder structure, parquet import scope
-        2. File Selection: Select videos and folders (Phase W2)
-        3. Detection: Auto-detect design, analyze parquets (Phase W3)
-        4. Import Config: Configure per-video import strategy (Phase W4)
-        5. Confirmation: Final review and project creation (Phase W5)
+        2. File Selection: Select videos and folders
+        3. Calibration: Physical dimensions and animal configuration
+        4. Detection: Auto-detect design, analyze parquets
+        5. Import Config: Configure per-video import strategy
+        6. Confirmation: Final review and project creation
+
+    Steps (Live):
+        1. Discovery: Project type selection
+        2. Live Config: Camera, Arduino, recording settings
+        3. Calibration: Physical dimensions and animal configuration
+        4. Confirmation: Final review and project creation
 
     Usage:
         >>> wizard = WizardDialog(root)
@@ -44,8 +54,9 @@ class WizardDialog(Dialog):
         ...     controller.create_new_project(**wizard.result)
 
     Attributes:
-        steps (list[WizardStep]): All wizard steps
-        current_step_index (int): Currently visible step (0-4)
+        all_steps (list[WizardStep]): All possible wizard steps
+        current_step_index (int): Currently visible step index in active_steps
+        active_steps (list[WizardStep]): Steps actually shown (filtered by project type)
         wizard_data (dict): Accumulated data from all steps
         cache (WizardCache): Session cache for performance
         result (dict | None): Final wizard output or None if cancelled
@@ -58,10 +69,11 @@ class WizardDialog(Dialog):
         Args:
             parent: Parent Tkinter widget (usually root window)
         """
-        self.steps = []
+        self.all_steps = []  # All possible steps
+        self.active_steps = []  # Steps for current project type (updated dynamically)
         self.current_step_index = 0
         self.wizard_data = {
-            "wizard_schema_version": 1,  # For future migrations
+            "wizard_schema_version": 2,  # v2.0: Live project support
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self.cache = WizardCache()
@@ -86,18 +98,23 @@ class WizardDialog(Dialog):
         self.steps_container = Frame(master)
         self.steps_container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Initialize all steps (Phase W1-W5: All steps complete!)
-        self.steps = [
-            DiscoveryStep(self.steps_container, self.wizard_data),
-            FileSelectionStep(self.steps_container, self.wizard_data),  # Phase W2 ✅
-            DetectionStep(self.steps_container, self.wizard_data),       # Phase W3 ✅
-            ImportConfigStep(self.steps_container, self.wizard_data),    # Phase W4 ✅
-            ConfirmationStep(self.steps_container, self.wizard_data),    # Phase W5 ✅
-        ]
+        # Initialize ALL possible steps (not all will be shown)
+        self.all_steps = {
+            WizardStepID.DISCOVERY: DiscoveryStep(self.steps_container, self.wizard_data),
+            WizardStepID.FILE_SELECTION: FileSelectionStep(self.steps_container, self.wizard_data),
+            WizardStepID.LIVE_CONFIG: LiveConfigStep(self.steps_container, self.wizard_data),
+            WizardStepID.CALIBRATION: CalibrationStep(self.steps_container, self.wizard_data),
+            WizardStepID.DETECTION_VALIDATION: DetectionStep(self.steps_container, self.wizard_data),
+            WizardStepID.IMPORT_CONFIG: ImportConfigStep(self.steps_container, self.wizard_data),
+            WizardStepID.CONFIRMATION: ConfirmationStep(self.steps_container, self.wizard_data),
+        }
 
-        # Build UI for all steps
-        for step in self.steps:
+        # Build UI for all steps (even if not shown)
+        for step in self.all_steps.values():
             step.build_ui()
+
+        # Initially set active steps for default project type (experimental pre-recorded)
+        self._update_active_steps()
 
         # Show first step
         self._show_step(0)
@@ -134,27 +151,57 @@ class WizardDialog(Dialog):
 
         self._update_navigation_buttons()
 
+    def _update_active_steps(self):
+        """
+        Update the list of active steps based on project type.
+
+        Called after Discovery step when project type is selected.
+        """
+        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+
+        if project_type == ProjectType.LIVE.value:
+            # Live project flow: Discovery -> Live Config -> Calibration -> Confirmation
+            self.active_steps = [
+                self.all_steps[WizardStepID.DISCOVERY],
+                self.all_steps[WizardStepID.LIVE_CONFIG],
+                self.all_steps[WizardStepID.CALIBRATION],
+                self.all_steps[WizardStepID.CONFIRMATION],
+            ]
+            log.info("wizard.active_steps_updated", project_type="live", step_count=4)
+        else:
+            # Pre-recorded flow (experimental or exploratory):
+            # Discovery -> File Selection -> Calibration -> Detection -> Import Config -> Confirmation
+            self.active_steps = [
+                self.all_steps[WizardStepID.DISCOVERY],
+                self.all_steps[WizardStepID.FILE_SELECTION],
+                self.all_steps[WizardStepID.CALIBRATION],
+                self.all_steps[WizardStepID.DETECTION_VALIDATION],
+                self.all_steps[WizardStepID.IMPORT_CONFIG],
+                self.all_steps[WizardStepID.CONFIRMATION],
+            ]
+            log.info("wizard.active_steps_updated", project_type=project_type, step_count=6)
+
     def _show_step(self, step_index: int):
         """
         Show specific step and hide others.
 
         Args:
-            step_index: Index of step to show (0-4)
+            step_index: Index of step to show in active_steps
         """
         # Hide all steps
-        for step in self.steps:
+        for step in self.all_steps.values():
             step.pack_forget()
 
         # Show selected step
-        if 0 <= step_index < len(self.steps):
+        if 0 <= step_index < len(self.active_steps):
             self.current_step_index = step_index
-            current_step = self.steps[step_index]
+            current_step = self.active_steps[step_index]
             current_step.pack(fill="both", expand=True)
             current_step.on_show()  # Lifecycle hook
 
             # Update window title with step number
             step_number = step_index + 1
-            total_steps = len(self.steps)
+            total_steps = len(self.active_steps)
             self.title(f"Assistente de Criacao de Projeto - Etapa {step_number}/{total_steps}")
 
             log.info(
@@ -179,7 +226,7 @@ class WizardDialog(Dialog):
             self.back_button.config(state="normal")
 
         # Next button: changes to "Criar Projeto" on last step
-        if self.current_step_index == len(self.steps) - 1:
+        if self.current_step_index == len(self.active_steps) - 1:
             self.next_button.config(text="Criar Projeto")
         else:
             self.next_button.config(text="Próximo >")
@@ -188,10 +235,10 @@ class WizardDialog(Dialog):
         """Handle Back button click."""
         if self.current_step_index > 0:
             # Hide current step
-            self.steps[self.current_step_index].on_hide()
+            self.active_steps[self.current_step_index].on_hide()
 
             # Restore previous step with data
-            prev_step = self.steps[self.current_step_index - 1]
+            prev_step = self.active_steps[self.current_step_index - 1]
             prev_data = self.wizard_data.get(prev_step.step_id.name.lower(), {})
             prev_step.set_data(prev_data)
 
@@ -202,7 +249,7 @@ class WizardDialog(Dialog):
 
     def _on_next(self):
         """Handle Next button click (or Create Project on last step)."""
-        current_step = self.steps[self.current_step_index]
+        current_step = self.active_steps[self.current_step_index]
 
         # Validate current step
         is_valid, error_message = current_step.validate()
@@ -228,8 +275,12 @@ class WizardDialog(Dialog):
         # Hide current step
         current_step.on_hide()
 
+        # Special: Update active steps after Discovery (project type selected)
+        if current_step.step_id == WizardStepID.DISCOVERY:
+            self._update_active_steps()
+
         # Last step? Finish wizard
-        if self.current_step_index == len(self.steps) - 1:
+        if self.current_step_index == len(self.active_steps) - 1:
             self._finish()
         else:
             # Advance to next step

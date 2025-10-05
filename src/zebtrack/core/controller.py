@@ -173,6 +173,29 @@ class AppController:
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
 
         if self.project_manager.create_new_project(**filtered_kwargs):
+            # Execute parquet import if wizard provided import configuration
+            wizard_metadata = kwargs.get("_wizard_metadata", {})
+            if wizard_metadata:
+                import_config = wizard_metadata.get("import_config", [])
+                roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
+                scanned_videos = wizard_metadata.get("scanned_videos", [])
+
+                if import_config:
+                    log.info(
+                        "controller.create_project.importing_parquets",
+                        video_count=len(import_config),
+                        strategy=roi_merge_strategy,
+                    )
+                    success = self.project_manager.import_parquets_from_wizard(
+                        import_config=import_config,
+                        roi_merge_strategy=roi_merge_strategy,
+                        scanned_videos=scanned_videos,
+                    )
+                    if success:
+                        log.info("controller.create_project.parquets_imported")
+                    else:
+                        log.warning("controller.create_project.parquet_import_failed")
+
             # Pass animal_method to setup_detector if it was specified in dialog
             if self.setup_detector(temp_animal_method=animal_method):
                 self.view._load_project_view()

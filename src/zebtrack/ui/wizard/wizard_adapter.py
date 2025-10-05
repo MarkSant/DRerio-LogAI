@@ -55,57 +55,72 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
     log.info("wizard.adapter.start", wizard_data_keys=list(wizard_data.keys()))
 
     # Validate required fields
-    required_fields = ["project_path", "project_name", "video_paths", "project_type"]
+    required_fields = ["project_path", "project_name", "project_type"]
     missing = [f for f in required_fields if f not in wizard_data]
     if missing:
         raise ValueError(f"Missing required wizard fields: {missing}")
 
-    # Extract scanned videos (has full metadata including has_data flags)
-    scanned_videos = wizard_data.get("scanned_videos", [])
-    if not scanned_videos:
-        raise ValueError("No scanned videos found in wizard data")
-
-    # Convert scanned videos to format expected by add_video_batch
-    # Each video needs: {"path": str, "has_data": bool}
-    video_files = []
-    for video_info in scanned_videos:
-        video_files.append({
-            "path": video_info["path"],
-            "has_data": video_info.get("has_complete_data", False),
-        })
-
     # Determine project type
     project_type_value = wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+    is_live = project_type_value == ProjectType.LIVE.value
     is_exploratory = project_type_value == ProjectType.EXPLORATORY.value
 
-    # Map to controller format (always "pre-recorded" for wizard v1.5)
-    # Future: wizard will support live projects in v2.0
+    # Base controller data (common to all project types)
     controller_data = {
         "project_path": wizard_data["project_path"],
-        "project_type": "pre-recorded",  # Wizard v1.5 only supports pre-recorded
-        "video_files": video_files,
-        # Calibration defaults (wizard v1.5 doesn't collect these, use defaults)
-        "num_aquariums": 1,
-        "animals_per_aquarium": 1,
-        "aquarium_width_cm": 10.0,
-        "aquarium_height_cm": 10.0,
+        "project_type": "live" if is_live else "pre-recorded",
+        # Calibration data (collected in v2.0, use defaults as fallback)
+        "num_aquariums": wizard_data.get("num_aquariums", 1),
+        "animals_per_aquarium": wizard_data.get("animals_per_aquarium", 1),
+        "aquarium_width_cm": wizard_data.get("aquarium_width_cm", 10.0),
+        "aquarium_height_cm": wizard_data.get("aquarium_height_cm", 10.0),
         # Processing intervals (use defaults for now)
         "analysis_interval_frames": 10,
         "display_interval_frames": 10,
         # Detection methods (use defaults from settings)
         "aquarium_method": "seg",
         "animal_method": "det",
-        # Live recording (not supported in wizard v1.5)
-        "use_timed_recording": False,
-        "recording_duration_s": 0,
-        "use_countdown": False,
-        "countdown_duration_s": 0,
-        # Experimental design (only for experimental projects)
+        # Experimental design (initialized to None, will be populated below if applicable)
         "experiment_days": None,
         "subjects_per_group": None,
         "num_groups": None,
         "group_names": None,
     }
+
+    if is_live:
+        # Live project: Use live configuration data
+        controller_data.update({
+            "camera_index": wizard_data.get("camera_index", 0),
+            "use_arduino": wizard_data.get("use_arduino", False),
+            "arduino_port": wizard_data.get("arduino_port", ""),
+            "use_timed_recording": wizard_data.get("use_timed_recording", False),
+            "recording_duration_s": wizard_data.get("recording_duration_s", 0),
+            "use_countdown": wizard_data.get("use_countdown", False),
+            "countdown_duration_s": wizard_data.get("countdown_duration_s", 0),
+            "video_files": [],  # Live projects don't have pre-recorded files
+        })
+    else:
+        # Pre-recorded project: Use scanned videos
+        scanned_videos = wizard_data.get("scanned_videos", [])
+        if not scanned_videos:
+            raise ValueError("No scanned videos found in wizard data")
+
+        # Convert scanned videos to format expected by add_video_batch
+        # Each video needs: {"path": str, "has_data": bool}
+        video_files = []
+        for video_info in scanned_videos:
+            video_files.append({
+                "path": video_info["path"],
+                "has_data": video_info.get("has_complete_data", False),
+            })
+
+        controller_data.update({
+            "video_files": video_files,
+            "use_timed_recording": False,
+            "recording_duration_s": 0,
+            "use_countdown": False,
+            "countdown_duration_s": 0,
+        })
 
     # Add experimental design if detected
     if not is_exploratory:

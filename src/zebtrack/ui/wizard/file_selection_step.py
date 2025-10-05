@@ -89,9 +89,18 @@ class FileSelectionStep(WizardStep):
         btn_folder.pack(side="left", padx=5)
         ToolTip(btn_folder, "Selecionar pasta contendo vídeos. O wizard fará scan recursivo nas subpastas automaticamente.")
 
+        btn_remove = Button(
+            button_frame,
+            text="❌ Remover Selecionado",
+            command=self._remove_selected,
+            width=20,
+        )
+        btn_remove.pack(side="left", padx=5)
+        ToolTip(btn_remove, "Remover o item selecionado na lista (clique no item para selecioná-lo).")
+
         btn_clear = Button(
             button_frame,
-            text="🗑️ Limpar Seleção",
+            text="🗑️ Limpar Tudo",
             command=self._clear_selection,
             width=20,
         )
@@ -160,6 +169,16 @@ class FileSelectionStep(WizardStep):
             if folder not in self.video_paths:
                 self.video_paths.append(folder)
 
+            self._update_display()
+
+    def _remove_selected(self):
+        """Remove currently selected item from the list."""
+        selection = self.paths_listbox.curselection()
+        if selection:
+            index = selection[0]
+            # Remove from data
+            del self.video_paths[index]
+            # Refresh display
             self._update_display()
 
     def _clear_selection(self):

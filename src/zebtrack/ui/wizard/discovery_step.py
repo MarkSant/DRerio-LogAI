@@ -74,7 +74,7 @@ class DiscoveryStep(WizardStep):
 
         rb1 = Radiobutton(
             self.q1_frame,
-            text="Experimental (com grupos, dias, sujeitos)",
+            text="Experimental (vídeos pré-gravados com grupos, dias, sujeitos)",
             variable=self.project_type_var,
             value=ProjectType.EXPERIMENTAL.value,
             command=self._on_project_type_change,
@@ -84,13 +84,23 @@ class DiscoveryStep(WizardStep):
 
         rb2 = Radiobutton(
             self.q1_frame,
-            text="Exploratório (análise livre sem design experimental)",
+            text="Exploratório (vídeos pré-gravados, análise livre)",
             variable=self.project_type_var,
             value=ProjectType.EXPLORATORY.value,
             command=self._on_project_type_change,
         )
         rb2.pack(anchor="w", pady=2)
         ToolTip(rb2, "Para testes rápidos, validações, ou análises sem estrutura experimental definida.")
+
+        rb_live = Radiobutton(
+            self.q1_frame,
+            text="Ao Vivo (gravar diretamente da câmera em tempo real)",
+            variable=self.project_type_var,
+            value=ProjectType.LIVE.value,
+            command=self._on_project_type_change,
+        )
+        rb_live.pack(anchor="w", pady=2)
+        ToolTip(rb_live, "Gravar experimentos em tempo real usando câmera conectada ao computador.")
 
         # Question 2: Folder Organization (only for experimental)
         self.q2_frame = LabelFrame(
@@ -196,16 +206,24 @@ class DiscoveryStep(WizardStep):
         self._on_project_type_change()
 
     def _on_project_type_change(self):
-        """Handle project type change - show/hide folder organization question."""
-        if self.project_type_var.get() == ProjectType.EXPERIMENTAL.value:
-            # Show folder organization question for experimental
-            # Note: q2_frame was already packed in build_ui() after q1_frame
-            if not self.q2_frame.winfo_ismapped():
-                # Re-pack if it was hidden (exploratory -> experimental switch)
-                self.q2_frame.pack(fill="x", pady=(0, 15), after=self.q1_frame, before=self.q3_frame)
-        else:
-            # Hide for exploratory
+        """Handle project type change - show/hide questions based on project type."""
+        project_type = self.project_type_var.get()
+
+        if project_type == ProjectType.LIVE.value:
+            # Live projects: hide both folder organization and parquets questions
             self.q2_frame.pack_forget()
+            self.q3_frame.pack_forget()
+        elif project_type == ProjectType.EXPERIMENTAL.value:
+            # Experimental: show both questions
+            if not self.q2_frame.winfo_ismapped():
+                self.q2_frame.pack(fill="x", pady=(0, 15), after=self.q1_frame, before=self.q3_frame)
+            if not self.q3_frame.winfo_ismapped():
+                self.q3_frame.pack(fill="x", pady=(0, 15), after=self.q2_frame)
+        else:  # Exploratory
+            # Hide folder organization, show parquets
+            self.q2_frame.pack_forget()
+            if not self.q3_frame.winfo_ismapped():
+                self.q3_frame.pack(fill="x", pady=(0, 15), after=self.q1_frame)
 
     def validate(self) -> tuple[bool, str]:
         """
