@@ -228,9 +228,29 @@ class ConfirmationStep(WizardStep):
 
         lines.append("")
 
-        # ROI merge strategy (only show if importing ROIs)
+        # Import configuration summary (show what will be imported)
         import_config = self.wizard_data.get("import_config", [])
-        importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+        if import_config:
+            importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
+            importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+            importing_trajectory = any(cfg.get("import_trajectory", False) for cfg in import_config)
+
+            if importing_arena or importing_rois or importing_trajectory:
+                lines.append("📥 Configuração de Importação:")
+                if importing_arena:
+                    arena_count = sum(1 for c in import_config if c.get("import_arena"))
+                    lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
+                if importing_rois:
+                    rois_count = sum(1 for c in import_config if c.get("import_rois"))
+                    lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
+                if importing_trajectory:
+                    traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
+                    lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
+
+                lines.append("")
+
+        # ROI merge strategy (only show if importing ROIs)
+        importing_rois = any(cfg.get("import_rois", False) for cfg in import_config) if import_config else False
 
         if importing_rois:
             roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")

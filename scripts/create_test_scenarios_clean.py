@@ -296,15 +296,22 @@ Este diretrio contm cenrios de teste gerados automaticamente para o wizard.
 
 **Como testar**:
 1. No wizard, selecione "Experimental" ou "Exploratory"
-2. Em "File Selection", clique em "Add Files" e selecione os 3 vídeos
-3. Na etapa "Detection", verifique se mostra:
-   - "✅ Arena: 2"
-   - "✅ ROIs: 2"
-   - "✅ Trajetória: 1"
-4. Na etapa "Import Configuration", veja as opções por vídeo:
-   - video1: SKIP (tem tudo completo)
-   - video2: IMPORT_ZONES (tem arena+rois, falta trajectory)
-   - video3: FULL (processar do zero)
+2. **IMPORTANTE**: Em "Arquivos Parquet Existentes", selecione:
+   - **"Sim - quero importar zonas (arena e ROIs)"** (recomendado) OU
+   - **"Sim - quero importar tudo (zonas + trajetória)"**
+   - ❌ NÃO selecione "Não - começar do zero" (isso ignora os parquets!)
+3. Em "File Selection", clique em "Add Files" e selecione os 3 vídeos
+4. Na etapa "Detection", verifique se mostra:
+   - "📦 Parquets Existentes: Arena: 2, ROIs: 2, Trajetória: 1"
+5. Na etapa "Import Configuration", veja as opções derivadas:
+   - **Se escolheu "zonas"**:
+     - video1: IMPORT_ZONES (importa arena+rois, gera trajectory)
+     - video2: IMPORT_ZONES (importa arena+rois, gera trajectory)
+     - video3: FULL (processar do zero)
+   - **Se escolheu "tudo"**:
+     - video1: SKIP (já tem tudo completo!)
+     - video2: IMPORT_ZONES (importa arena+rois, gera trajectory)
+     - video3: FULL (processar do zero)
 
 ---
 
