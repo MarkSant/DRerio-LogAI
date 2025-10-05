@@ -249,7 +249,7 @@ class ProjectManager:
         snapshot_path = os.path.join(self.project_path, SETTINGS_SNAPSHOT_FILE_NAME)
         try:
             settings_dict = settings.model_dump(mode="json")
-            with open(snapshot_path, "w") as f:
+            with open(snapshot_path, "w", encoding="utf-8") as f:
                 yaml.dump(settings_dict, f, indent=4, sort_keys=False)
             log.info("settings.snapshot.saved", path=snapshot_path)
             return True
@@ -401,7 +401,7 @@ class ProjectManager:
             return False
 
         try:
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 loaded_data = json.load(f)
 
             # --- Security Check: File Integrity ---
@@ -478,7 +478,7 @@ class ProjectManager:
             # Add the new hash to the data to be saved
             data_to_save["file_hash"] = new_hash
 
-            with open(config_path, "w") as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 # Save with indentation for human readability, but hash was
                 # calculated on the canonical string.
                 json.dump(data_to_save, f, indent=4, sort_keys=True)

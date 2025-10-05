@@ -250,12 +250,12 @@ def load_settings(
 
     log.info("settings.load.start", path=str(default_config_path))
     try:
-        with open(default_config_path, "r") as f:
+        with open(default_config_path, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
         if override_config_path.is_file():
             log.info("settings.load.override", path=str(override_config_path))
-            with open(override_config_path, "r") as f:
+            with open(override_config_path, "r", encoding="utf-8") as f:
                 override_data = yaml.safe_load(f)
             if override_data:
                 config_data = _merge_configs(config_data, override_data)
