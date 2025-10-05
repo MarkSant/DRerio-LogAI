@@ -45,16 +45,40 @@ poetry run zebtrack
 
 Fluxo inicial recomendado:
 
-1. Criar/abrir um projeto dentro do app (armazenado em diretório próprio).
+1. **Criar novo projeto** usando o wizard inteligente de 5 etapas (ativável via feature flag):
+   - Seleciona tipo de projeto (experimental/exploratório)
+   - Escolhe vídeos e pastas com scan recursivo
+   - Detecção automática de design experimental a partir de pastas
+   - Configuração granular de importação de parquets (arena, ROIs, trajetória)
+   - Revisão e confirmação antes da criação
 2. Selecionar o plugin de detector (YOLO padrão ou modelos convertidos em OpenVINO).
-3. Definir arenas/ROIs e, se necessário, calibrar pixel/cm.
-4. Adicionar vídeos ou iniciar captura ao vivo.
-5. Acompanhar o progresso em tempo real pelo overlay de análise.
-6. Gerar relatórios individuais ou agregados ao final.
+3. Definir arenas/ROIs (ou importar de parquets existentes) e calibrar pixel/cm.
+4. Acompanhar o progresso em tempo real pelo overlay de análise.
+5. Gerar relatórios individuais ou agregados ao final.
+
+### 🧙 Wizard de Criação de Projetos (Novo!)
+
+O wizard v1.5 está disponível via feature flag. Para ativar, crie `config.local.yaml`:
+
+```yaml
+ui_features:
+  use_wizard_for_project_creation: true
+```
+
+**Recursos do Wizard:**
+- ✅ Auto-detecção de design experimental (grupos, dias, sujeitos)
+- ✅ Importação seletiva de zonas de parquets existentes
+- ✅ Configuração granular por vídeo (skip/import_zones/partial/full)
+- ✅ Validação inteligente e resumo antes da criação
+
+Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para guia completo e [`docs/WIZARD_INTEGRATION.md`](docs/WIZARD_INTEGRATION.md) para documentação técnica.
 
 ## 🔑 Principais capacidades
 
+- **Wizard inteligente de criação de projetos** (v1.5): Assistente de 5 etapas com auto-detecção de design experimental, importação de zonas de parquets e configuração granular por vídeo.
 - **Rastreamento multi-animal** com modelos YOLOv8 e suporte a pesos OpenVINO.
+- **Detecção granular de Parquet**: Identifica automaticamente arquivos `*_arena.parquet`, `*_rois.parquet` e `*_trajectory.parquet` para reaproveitamento seletivo.
+- **Importação de zonas**: Reutiliza arenas e ROIs de análises anteriores sem necessidade de redesenhar.
 - **Análise comportamental automática**: distância, velocidade, freezing, thigmotaxis, giros bruscos e métricas por ROI.
 - **Gestão avançada de ROIs** com regras de inclusão configuráveis (`centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`).
 - **Relatórios científicos** em Excel e Word com mapas de ROI, gráficos e tabelas consolidadas.
@@ -80,13 +104,19 @@ Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de compon
 │     ├─ __main__.py          # Entry point do CLI/GUI (python -m zebtrack / poetry run zebtrack)
 │     ├─ core/                # Controlador, gerenciamento de projetos, detectores, calibração
 │     ├─ ui/                  # Interface Tkinter, diálogos e overlays da análise
+│     │  └─ wizard/           # 🧙 Wizard de criação de projetos (5 steps, v1.5)
 │     ├─ analysis/            # Métricas comportamentais, ROI, relatórios
 │     ├─ io/                  # Escrita de Parquet, MP4 e integrações de entrada/saída
 │     ├─ plugins/             # Implementações de DetectorPlugin (YOLO, OpenVINO, etc.)
-│     └─ settings.py          # Modelos Pydantic e carregamento de config.yaml
+│     └─ settings.py          # Modelos Pydantic, feature flags e carregamento de config.yaml
 ├─ tests/                     # Suite pytest (unitário, integração e cenários guiados)
+│  ├─ test_wizard*.py         # 🧙 Testes do wizard (91 testes)
+│  └─ ...
 ├─ docs/                      # Documentação complementar (notas, wiki, arquitetura)
+│  ├─ WIZARD_*.md             # 🧙 Documentação do wizard (3 arquivos)
+│  └─ ...
 ├─ config.yaml                # Configuração padrão carregada em runtime
+├─ config.local.yaml          # 🧙 Overrides locais (feature flags, etc.)
 ├─ poetry.lock / pyproject.toml
 └─ .github/copilot-instructions.md
 ```
@@ -94,10 +124,12 @@ Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de compon
 ### Destaques
 
 - **`core/controller.py`**: hub do fluxo de trabalho. Chama detecção, grava dados, atualiza GUI e agenda callbacks pelo `root.after`.
+- **`ui/wizard/`** 🧙: Wizard de 5 etapas para criação inteligente de projetos com auto-detecção de design e importação de parquets.
+- **`core/project_manager.py`**: Detecção granular de parquets (`scan_input_paths()`) e importação seletiva de zonas.
 - **`io/recorder.py`**: garante esquema Parquet fixo (`timestamp, frame, track_id, x1, y1, x2, y2, confidence, ...`).
 - **`analysis/behavioral_analyzer.py` & `analysis/reporter.py`**: calculam métricas e fabricam relatórios multi-formato.
 - **`plugins/`**: novos detectores devem implementar `DetectorPlugin` e ser registrados em `plugins/__init__.py`.
-- **`tests/`**: cobre integrações de overlay, progress callback, intervalos de análise e configurações persistidas.
+- **`tests/test_wizard*.py`**: 91 testes cobrindo wizard (83) + adapter (8) com 100% de sucesso.
 
 ## 🔧 Convenções de código
 
