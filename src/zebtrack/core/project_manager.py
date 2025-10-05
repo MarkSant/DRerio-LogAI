@@ -277,7 +277,10 @@ class ProjectManager:
         # New live project params
         experiment_days: int | None = None,
         subjects_per_group: int | None = None,
+        num_groups: int | None = None,
         group_names: list[str] | None = None,
+        # Wizard metadata
+        _wizard_metadata: dict | None = None,
     ):
         """
         Initializes a new project, creating its directory and config file.
@@ -329,16 +332,19 @@ class ProjectManager:
             "use_countdown": use_countdown,
             "countdown_duration_s": countdown_duration_s,
             "batches": [],  # Changed from "videos" to "batches"
-            "groups": group_names if project_type == "live" else [],
-            "experiment_days": experiment_days if project_type == "live" else None,
-            "subjects_per_group": subjects_per_group
-            if project_type == "live"
-            else None,
+            "groups": group_names if group_names else [],
+            "num_groups": num_groups,
+            "experiment_days": experiment_days,
+            "subjects_per_group": subjects_per_group,
             "last_selected_day": 1,
             "last_selected_group": group_names[0] if group_names else None,
             "analysis_interval_frames": analysis_interval_frames,
             "display_interval_frames": display_interval_frames,
         }
+
+        # Add wizard metadata if provided (from wizard v1.5+)
+        if _wizard_metadata:
+            self.project_data["_wizard_metadata"] = _wizard_metadata
 
         if video_files:
             # The initial set of videos becomes the first batch

@@ -72,7 +72,10 @@ class TestWizardAdapter(unittest.TestCase):
             "detected_design": {
                 "groups": ["Control", "Treatment"],
                 "days": ["Day01", "Day02"],
-                "subjects_per_group": 3,
+                "subjects_per_group": {
+                    "Control": ["S01", "S02", "S03"],
+                    "Treatment": ["S01", "S02", "S03"],
+                },
                 "confidence": 0.85,
                 "pattern_used": "groups_as_folders",
             },
@@ -84,7 +87,8 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertEqual(result["num_groups"], 2)
         self.assertEqual(result["group_names"], ["Control", "Treatment"])
         self.assertEqual(result["experiment_days"], 2)
-        self.assertEqual(result["subjects_per_group"], 3)
+        # subjects_per_group should be calculated from max of subjects dict
+        self.assertEqual(result["subjects_per_group"], 3)  # max(3, 3) = 3
 
         # Verify metadata preserved
         self.assertIn("detected_design", result["_wizard_metadata"])

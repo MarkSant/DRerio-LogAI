@@ -113,7 +113,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         if detected_design:
             groups = detected_design.get("groups", [])
             days = detected_design.get("days", [])
-            subjects = detected_design.get("subjects_per_group")
+            subjects_dict = detected_design.get("subjects_per_group", {})
 
             if groups:
                 controller_data["num_groups"] = len(groups)
@@ -122,8 +122,13 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
             if days:
                 controller_data["experiment_days"] = len(days)
 
-            if subjects:
-                controller_data["subjects_per_group"] = subjects
+            # Calculate subjects_per_group from detected subjects dict
+            # subjects_dict is {"Control": ["S01", "S02"], "Treatment": ["S01", "S02"]}
+            # We need to extract the max number of subjects across groups
+            if subjects_dict and isinstance(subjects_dict, dict):
+                subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
+                if subject_counts:
+                    controller_data["subjects_per_group"] = max(subject_counts)
 
     # Store wizard metadata for future use (parquet import, etc.)
     controller_data["_wizard_metadata"] = {
