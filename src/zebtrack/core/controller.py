@@ -388,8 +388,149 @@ class AppController:
             # Pass animal_method to setup_detector if it was specified in dialog
             if self.setup_detector(temp_animal_method=animal_method):
                 self.view._load_project_view()
+
+                if wizard_metadata:
+                    self._show_post_creation_guide(wizard_metadata)
         else:
             self.view.show_error("Erro", "Falha ao criar o novo projeto.")
+
+    def _show_post_creation_guide(self, wizard_metadata: dict):
+        """Display a contextual onboarding message after project creation."""
+
+        if not wizard_metadata:
+            return
+
+        import_config = wizard_metadata.get("import_config") or []
+        scanned_videos = wizard_metadata.get("scanned_videos") or []
+
+        project_videos = self.project_manager.get_all_videos()
+        videos_source: list[dict] = []
+
+        if project_videos:
+            videos_source = project_videos
+        elif scanned_videos:
+            for video in scanned_videos:
+                video_copy = dict(video)
+                video_copy.setdefault("path", video_copy.get("video"))
+                videos_source.append(video_copy)
+
+        if not videos_source:
+            return
+
+        import_lookup = {
+            config.get("video"): config
+            for config in import_config
+            if config.get("video")
+        }
+
+        key_map = {
+            "has_arena": "import_arena",
+            "has_rois": "import_rois",
+            "has_trajectory": "import_trajectory",
+        }
+
+        def _feature_available(video: dict, feature_key: str) -> bool:
+            if bool(video.get(feature_key)):
+                return True
+
+            metadata = video.get("metadata") or {}
+            if bool(metadata.get(feature_key)):
+                return True
+
+            video_path = video.get("path") or video.get("video")
+            if not video_path:
+                return False
+
+            import_cfg = import_lookup.get(video_path)
+            if not import_cfg:
+                return False
+
+            import_key = key_map.get(feature_key)
+            if not import_key:
+                return False
+
+            return bool(import_cfg.get(import_key))
+
+        total_videos = len(videos_source)
+        videos_with_arena = sum(
+            1 for video in videos_source if _feature_available(video, "has_arena")
+        )
+        videos_with_rois = sum(
+            1 for video in videos_source if _feature_available(video, "has_rois")
+        )
+        videos_with_trajectory = sum(
+            1
+            for video in videos_source
+            if _feature_available(video, "has_trajectory")
+        )
+        videos_pending = sum(
+            1
+            for video in videos_source
+            if not _feature_available(video, "has_trajectory")
+        )
+
+        lines: list[str] = []
+        lines.append("🎉 Projeto criado com sucesso!")
+        lines.append("")
+        lines.append("📊 Status dos vídeos:")
+        lines.append(f"  • Total de vídeos: {total_videos}")
+        lines.append(f"  • Com arena definida: {videos_with_arena}")
+        lines.append(f"  • Com ROIs definidas: {videos_with_rois}")
+        lines.append(f"  • Com trajetória pronta: {videos_with_trajectory}")
+        lines.append(f"  • Pendentes de processamento: {videos_pending}")
+        lines.append("")
+        lines.append("🚀 Próximos passos recomendados:")
+        lines.append("")
+
+        step_num = 1
+
+        if videos_with_arena > 0 or videos_with_rois > 0:
+            lines.append(f"{step_num}. Visualizar e ajustar zonas importadas")
+            lines.append("   - Abra a aba 'Configuração de Zonas'")
+            lines.append("   - Use o painel 'Selecionar Vídeo para Desenho'")
+            lines.append("   - Clique duas vezes ou use 'Carregar Frame' para revisar")
+            lines.append("   - Ajuste arena e ROIs conforme necessário")
+            lines.append("")
+            step_num += 1
+
+        if videos_pending > 0:
+            lines.append(f"{step_num}. Processar vídeos pendentes")
+            lines.append("   - Vá até a aba 'Controle Principal'")
+            lines.append("   - Confirme os intervalos de processamento")
+            lines.append("   - Clique em 'Adicionar e Processar Novos Vídeos'")
+            lines.append("")
+            step_num += 1
+
+        if videos_with_trajectory > 0:
+            lines.append(f"{step_num}. Gerar relatórios")
+            lines.append("   - Acesse a aba 'Relatórios'")
+            lines.append("   - Navegue pela hierarquia de grupos, dias e sujeitos")
+            lines.append(
+                "   - Gere relatórios individuais ou unificados "
+                "conforme necessário"
+            )
+            lines.append("")
+
+        lines.append("💡 Dicas:")
+        lines.append("  • Use a busca para localizar vídeos rapidamente")
+        lines.append(
+            "  • Os símbolos de status indicam arenas, ROIs "
+            "e trajetórias disponíveis"
+        )
+        lines.append("  • Ajuste zonas antes de processar se necessário")
+
+        message = "\n".join(lines)
+
+        self.view.show_info("Bem-vindo ao Projeto!", message)
+
+        log.info(
+            "controller.post_creation_guide.shown",
+            total_videos=total_videos,
+            with_arena=videos_with_arena,
+            with_rois=videos_with_rois,
+            with_trajectory=videos_with_trajectory,
+            pending=videos_pending,
+        )
 
     def open_project_workflow(self, project_path):
         """Carrega projeto e configura tudo automaticamente"""
