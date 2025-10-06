@@ -15,6 +15,7 @@ from tkinter import (
     Scrollbar,
     StringVar,
     Text,
+    messagebox,
 )
 from tkinter import (
     font as tkfont,
@@ -72,6 +73,7 @@ class DetectionStep(WizardStep):
         self.detected_design = None
         self.status_var = StringVar(value="Aguardando análise...")
         self.custom_regex_patterns = None  # User-defined regex patterns
+        self.design_editor_confirmed = False
 
     def build_ui(self):
         """Build detection step UI."""
@@ -188,17 +190,26 @@ class DetectionStep(WizardStep):
                     pattern=self.detected_design.get("pattern_used"),
                     confidence=self.detected_design.get("confidence"),
                 )
+                self._ensure_group_display_names()
+                if self.wizard_data.get("auto_confirm_design"):
+                    self.design_editor_confirmed = True
+                    log.info("wizard.design.auto_confirmed")
+                else:
+                    self.design_editor_confirmed = False
+                    self._open_design_editor_for_confirmation(auto_invoked=True)
             else:
                 log.warning(
                     "wizard.detection.design_not_detected",
                     reason="No pattern matched",
                 )
+                self.design_editor_confirmed = True
         else:
             self.detected_design = None
             log.info(
                 "wizard.detection.design_skipped",
                 reason=f"Project type is {project_type}, not experimental",
             )
+            self.design_editor_confirmed = True
 
         # 3. Calculate parquet summary
         parquet_summary = self._calculate_parquet_summary()
@@ -215,6 +226,65 @@ class DetectionStep(WizardStep):
             video_count=len(self.scanned_videos),
             design_detected=self.detected_design is not None,
         )
+
+    def _ensure_group_display_names(self) -> None:
+        """Ensure detected design carries a friendly-name mapping."""
+
+        if not self.detected_design:
+            return
+
+        groups = self.detected_design.get("groups") or []
+        mapping = dict(self.detected_design.get("group_display_names") or {})
+
+        for group in groups:
+            if isinstance(group, str):
+                mapping.setdefault(group, group)
+
+        self.detected_design["group_display_names"] = mapping
+
+    def _open_design_editor_for_confirmation(self, auto_invoked: bool = False) -> None:
+        """Open the design editor dialog to force friendly-name confirmation."""
+
+        if not self.detected_design:
+            return
+
+        self._ensure_group_display_names()
+
+        groups = self.detected_design.get("groups") or []
+        if not groups:
+            self.design_editor_confirmed = True
+            return
+
+        if auto_invoked:
+            message = (
+                "Design experimental detectado!\n\n"
+                f"Grupos encontrados: {len(groups)}\n"
+                f"Dias: {len(self.detected_design.get('days') or [])}\n\n"
+                "Revise ou personalize os nomes antes de continuar."
+            )
+            messagebox.showinfo("Design Detectado", message, parent=self)
+
+        editor = DesignEditorDialog(self, self.detected_design)
+        edited_design = editor.get_result()
+
+        if edited_design:
+            self.detected_design = edited_design
+            self._ensure_group_display_names()
+            self.design_editor_confirmed = True
+            log.info(
+                "wizard.design.edited_by_user",
+                groups=len(self.detected_design.get("groups") or []),
+                has_display_names=bool(self.detected_design.get("group_display_names")),
+            )
+        else:
+            if auto_invoked:
+                messagebox.showwarning(
+                    "Confirmação Necessária",
+                    "Confirme os nomes dos grupos antes de avançar.",
+                    parent=self,
+                )
+            self.design_editor_confirmed = False
+            log.info("wizard.design.editor_cancelled", auto_invoked=auto_invoked)
 
     def _detect_design(self, video_paths: list[str]) -> Optional[dict]:
         """
@@ -467,15 +537,17 @@ class DetectionStep(WizardStep):
 
             # Look for group in filename
             # (common prefixes: Control, Treatment, Exp, Group)
+            group_value = None
             group_match = re.search(
                 r"(Control|Treatment|Exp\d+|Group\d+)", filename, re.IGNORECASE
             )
             if group_match:
-                group = group_match.group(1).capitalize()
-                groups_found.add(group)
+                group_value = group_match.group(1).capitalize()
+                groups_found.add(group_value)
 
-                if group not in subjects_per_group:
-                    subjects_per_group[group] = set()  # Use set to avoid duplicates
+                if group_value not in subjects_per_group:
+                    subjects_per_group[group_value] = set()
+                    # Use set to avoid duplicate entries for the same subject
 
             # Look for day
             day_match = re.search(r"[Dd](?:ay)?[\s_-]?(\d+)", filename)
@@ -484,8 +556,10 @@ class DetectionStep(WizardStep):
 
             # Look for subject
             subject_match = re.search(r"[Ss](?:ubject)?[\s_-]?(\d+)", filename)
-            if subject_match and group_match:
-                subjects_per_group[group].add(f"S{subject_match.group(1).zfill(2)}")
+            if subject_match and group_value:
+                subjects_per_group[group_value].add(
+                    f"S{subject_match.group(1).zfill(2)}"
+                )
 
         if len(groups_found) < 2:
             return None
@@ -545,7 +619,17 @@ class DetectionStep(WizardStep):
         # Design detection
         if self.detected_design:
             text += "🎯 Design Experimental Detectado:\n"
-            text += f"  • Grupos: {', '.join(self.detected_design['groups'])}\n"
+            groups = self.detected_design.get("groups") or []
+            friendly_names = self.detected_design.get("group_display_names") or {}
+            group_descriptions = []
+            for group in groups:
+                display = friendly_names.get(group)
+                if display and display != group:
+                    group_descriptions.append(f"{group} → {display}")
+                else:
+                    group_descriptions.append(group)
+
+            text += f"  • Grupos: {', '.join(group_descriptions)}\n"
 
             if self.detected_design.get("days"):
                 text += f"  • Dias: {', '.join(self.detected_design['days'])}\n"
@@ -560,7 +644,9 @@ class DetectionStep(WizardStep):
                     "subjects_per_group"
                 ].items():
                     if subjects:
-                        text += f"    - {group}: {len(subjects)} sujeito(s)\n"
+                        display = friendly_names.get(group, group)
+                        label = f"{group} ({display})" if display != group else group
+                        text += f"    - {label}: {len(subjects)} sujeito(s)\n"
         else:
             project_type = self.wizard_data.get("project_type")
             if project_type == ProjectType.EXPERIMENTAL.value:
@@ -616,7 +702,10 @@ class DetectionStep(WizardStep):
                 "subjects_per_group": {},
                 "pattern_used": "none",
                 "confidence": 0.0,
+                "group_display_names": {},
             }
+
+        self._ensure_group_display_names()
 
         # Open editor dialog
         editor = DesignEditorDialog(self, self.detected_design)
@@ -625,6 +714,8 @@ class DetectionStep(WizardStep):
         if edited_design:
             # User saved changes
             self.detected_design = edited_design
+            self._ensure_group_display_names()
+            self.design_editor_confirmed = True
             log.info(
                 "wizard.design.manually_edited",
                 groups=len(edited_design["groups"]),
@@ -647,6 +738,18 @@ class DetectionStep(WizardStep):
             return (
                 False,
                 "Nenhum vídeo foi encontrado. Volte e selecione vídeos válidos.",
+            )
+
+        project_type = self.wizard_data.get("project_type")
+        if (
+            project_type == ProjectType.EXPERIMENTAL.value
+            and self.detected_design
+            and (self.detected_design.get("groups") or [])
+            and not self.design_editor_confirmed
+        ):
+            return (
+                False,
+                "Confirme os nomes dos grupos no editor antes de avançar.",
             )
 
         return (True, "")
@@ -683,6 +786,8 @@ class DetectionStep(WizardStep):
 
         if "detected_design" in data:
             self.detected_design = data["detected_design"]
+            self._ensure_group_display_names()
+            self.design_editor_confirmed = True
 
         if "custom_regex_patterns" in data:
             self.custom_regex_patterns = data["custom_regex_patterns"]

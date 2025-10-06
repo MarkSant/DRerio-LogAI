@@ -101,6 +101,7 @@ class TestDetectionStep(unittest.TestCase):
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [str(self.video1)],
+            "auto_confirm_design": True,
         }
 
         step = DetectionStep(self.root, wizard_data)
@@ -123,6 +124,7 @@ class TestDetectionStep(unittest.TestCase):
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [],
+            "auto_confirm_design": True,
         }
 
         step = DetectionStep(self.root, wizard_data)
@@ -150,6 +152,7 @@ class TestDetectionStep(unittest.TestCase):
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [str(self.video1)],
+            "auto_confirm_design": True,
         }
 
         step = DetectionStep(self.root, wizard_data)
@@ -173,6 +176,7 @@ class TestDetectionStep(unittest.TestCase):
 
         # Should detect Control and Treatment groups
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertIn("Control", result["groups"])
         self.assertIn("Treatment", result["groups"])
         self.assertGreater(result["confidence"], 0.0)
@@ -194,6 +198,7 @@ class TestDetectionStep(unittest.TestCase):
 
         # Should detect Control and Treatment
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertIn("Control", result["groups"])
         self.assertIn("Treatment", result["groups"])
         self.assertEqual(result["pattern_used"], "filename_based")
@@ -221,6 +226,7 @@ class TestDetectionStep(unittest.TestCase):
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [str(self.video1), str(self.video2)],
+            "auto_confirm_design": True,
         }
 
         step = DetectionStep(self.root, wizard_data)
@@ -250,6 +256,7 @@ class TestDetectionStep(unittest.TestCase):
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [str(self.video1)],
+            "auto_confirm_design": True,
         }
 
         step = DetectionStep(self.root, wizard_data)
@@ -332,6 +339,7 @@ class TestDetectionStep(unittest.TestCase):
         # Verify state restored
         self.assertEqual(len(step.scanned_videos), 1)
         self.assertIsNotNone(step.detected_design)
+        assert step.detected_design is not None
         self.assertEqual(step.detected_design["confidence"], 0.75)
 
 
