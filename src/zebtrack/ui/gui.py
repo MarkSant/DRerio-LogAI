@@ -1125,6 +1125,11 @@ class ApplicationGUI:
         self.discard_arena_btn = None
         self.interactive_buttons_frame = None
 
+        # Zone tab video selector state
+        self.video_selector_tree = None
+        self.video_search_var = None
+        self._video_selector_filter = ""
+
         # Arduino dashboard state (live projects)
         self.arduino_dashboard_frame = None
         self.arduino_status_var = StringVar(value="Desconectado")
@@ -1928,6 +1933,86 @@ class ApplicationGUI:
         )
         self.toggle_view_btn.pack(fill="x", pady=2)
 
+        # --- Video Selector ---
+        video_selector_frame = ttk.LabelFrame(
+            self.zone_controls_frame,
+            text="📹 Selecionar Vídeo para Desenho",
+            padding=10,
+        )
+        video_selector_frame.pack(fill="both", pady=5)
+
+        search_frame = ttk.Frame(video_selector_frame)
+        search_frame.pack(fill="x", pady=(0, 5))
+
+        ttk.Label(search_frame, text="🔍 Buscar:").pack(side="left", padx=(0, 5))
+        self.video_search_var = StringVar()
+        self.video_search_var.trace_add("write", lambda *_: self._filter_video_tree())
+        ttk.Entry(
+            search_frame,
+            textvariable=self.video_search_var,
+            width=25,
+        ).pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Button(
+            search_frame,
+            text="🔄",
+            width=3,
+            command=lambda: self._populate_video_selector_tree(),
+        ).pack(side="left")
+
+        tree_container = ttk.Frame(video_selector_frame)
+        tree_container.pack(fill="both", expand=True)
+
+        self.video_selector_tree = ttk.Treeview(
+            tree_container,
+            columns=("status", "filename"),
+            show="tree headings",
+            height=10,
+            selectmode="browse",
+        )
+        self.video_selector_tree.heading("#0", text="Hierarquia")
+        self.video_selector_tree.heading("status", text="Dados")
+        self.video_selector_tree.heading("filename", text="Arquivo")
+
+        self.video_selector_tree.column("#0", width=220, stretch=True)
+        self.video_selector_tree.column(
+            "status",
+            width=90,
+            anchor="center",
+            stretch=False,
+        )
+        self.video_selector_tree.column("filename", width=180, stretch=True)
+
+        scrollbar = ttk.Scrollbar(
+            tree_container,
+            orient="vertical",
+            command=self.video_selector_tree.yview,
+        )
+        self.video_selector_tree.configure(yscrollcommand=scrollbar.set)
+        self.video_selector_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.video_selector_tree.bind(
+            "<Double-Button-1>",
+            self._on_video_tree_double_click,
+        )
+
+        ttk.Button(
+            video_selector_frame,
+            text="📹 Carregar Frame do Vídeo Selecionado",
+            command=self._load_selected_video_frame,
+        ).pack(pady=(5, 0))
+
+        legend_frame = ttk.Frame(video_selector_frame)
+        legend_frame.pack(fill="x", pady=(5, 0))
+        ttk.Label(
+            legend_frame,
+            text="Legenda: 🟢 Arena | 🟢 ROIs | 🟢 Trajetória | ⚫ Não disponível",
+            font=("TkDefaultFont", 8),
+            foreground="gray",
+        ).pack(anchor="w")
+
+        self._populate_video_selector_tree()
+
         # --- Zone List ---
         zone_list_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Zonas Definidas", padding=10
@@ -2677,6 +2762,224 @@ class ApplicationGUI:
             log.error("gui.load_frame.error", error=str(e))
             return False
 
+    def _populate_video_selector_tree(self, filter_text: str | None = None):
+        """Popula a árvore hierárquica do seletor de vídeos."""
+
+        if not self.video_selector_tree:
+            return
+
+        # Determine filter text priority: argument > entry value > stored filter
+        if filter_text is None:
+            if self.video_search_var is not None:
+                filter_text = self.video_search_var.get()
+            elif self._video_selector_filter:
+                filter_text = self._video_selector_filter
+            else:
+                filter_text = ""
+
+        search_text = (filter_text or "").strip().lower()
+        self._video_selector_filter = search_text
+
+        for item in self.video_selector_tree.get_children():
+            self.video_selector_tree.delete(item)
+
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
+            return
+
+        pm = controller.project_manager
+        if not pm.project_path:
+            return
+
+        all_videos = pm.get_all_videos()
+        if not all_videos:
+            return
+
+        def _sort_key(value):
+            try:
+                return (0, int(value))
+            except (TypeError, ValueError):
+                value_str = str(value) if value is not None else ""
+                return (1, value_str.lower())
+
+        hierarchy = {}
+
+        for video in all_videos:
+            metadata = video.get("metadata") or {}
+            group_id = metadata.get("group") or "Sem Grupo"
+            group_display = metadata.get("group_display_name") or group_id
+            day_id = metadata.get("day") or "Sem Dia"
+            subject_id = metadata.get("subject")
+            filename = os.path.basename(video.get("path", ""))
+            status_label = video.get("status", "")
+
+            searchable_values = [
+                group_id,
+                group_display,
+                str(day_id),
+                str(subject_id) if subject_id is not None else "",
+                filename,
+                status_label,
+            ]
+
+            if search_text and not any(
+                search_text in str(value).lower() for value in searchable_values
+            ):
+                continue
+
+            group_data = hierarchy.setdefault(
+                group_id,
+                {"display": group_display, "days": {}},
+            )
+            days_dict = group_data["days"]
+
+            video_entry = {
+                "path": video.get("path"),
+                "metadata": metadata,
+                "has_arena": bool(video.get("has_arena")),
+                "has_rois": bool(video.get("has_rois")),
+                "has_trajectory": bool(video.get("has_trajectory")),
+                "filename": filename,
+                "status": status_label,
+                "subject": subject_id,
+            }
+
+            days_dict.setdefault(day_id, []).append(video_entry)
+
+        def _format_subject(value):
+            if value is None:
+                return "??"
+            if isinstance(value, int):
+                return f"{value:02d}"
+            if isinstance(value, float) and value.is_integer():
+                return f"{int(value):02d}"
+            value_str = str(value).strip()
+            if not value_str:
+                return "??"
+            if value_str.isdigit():
+                try:
+                    return f"{int(value_str):02d}"
+                except ValueError:
+                    return value_str
+            return value_str
+
+        displayed_videos = 0
+
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            days_dict = group_data["days"]
+            total_group_videos = sum(len(videos) for videos in days_dict.values())
+            if total_group_videos == 0:
+                continue
+
+            group_node = self.video_selector_tree.insert(
+                "",
+                "end",
+                text=f"🏷️ {group_data['display']} ({group_id})",
+                values=("", f"{total_group_videos} vídeos"),
+                open=True,
+            )
+
+            for day_id, videos in sorted(
+                days_dict.items(), key=lambda item: _sort_key(item[0])
+            ):
+                if not videos:
+                    continue
+
+                day_node = self.video_selector_tree.insert(
+                    group_node,
+                    "end",
+                    text=f"📅 Dia {day_id}",
+                    values=("", f"{len(videos)} vídeos"),
+                    open=False,
+                )
+
+                for video_entry in sorted(
+                    videos,
+                    key=lambda entry: _sort_key(entry.get("subject")),
+                ):
+                    video_path = video_entry.get("path") or ""
+                    if not video_path:
+                        continue
+
+                    subject_label = _format_subject(video_entry.get("subject"))
+
+                    status_tokens = (
+                        ("🟢" if video_entry["has_arena"] else "⚫")
+                        + ("🟢" if video_entry["has_rois"] else "⚫")
+                        + ("🟢" if video_entry["has_trajectory"] else "⚫")
+                    )
+
+                    self.video_selector_tree.insert(
+                        day_node,
+                        "end",
+                        text=f"🐟 Sujeito {subject_label}",
+                        values=(status_tokens, video_entry["filename"]),
+                        tags=(video_path,),
+                    )
+                    displayed_videos += 1
+
+        log.info(
+            "gui.video_selector.populated",
+            filter=self._video_selector_filter,
+            groups=len(hierarchy),
+            total_videos=len(all_videos),
+            displayed=displayed_videos,
+        )
+
+    def _filter_video_tree(self):
+        """Filtra a árvore com base no texto de busca."""
+        if self.video_search_var is None:
+            return
+        self._populate_video_selector_tree(self.video_search_var.get())
+
+    def _load_selected_video_frame(self, event=None):
+        """Carrega o frame do vídeo selecionado no canvas principal."""
+
+        if not self.video_selector_tree:
+            return
+
+        selection = self.video_selector_tree.selection()
+        if not selection:
+            self.show_warning(
+                "Nenhum Vídeo Selecionado",
+                "Por favor, selecione um vídeo da lista para carregar.",
+            )
+            return
+
+        item_id = selection[0]
+        tags = self.video_selector_tree.item(item_id, "tags")
+
+        if not tags or not tags[0]:
+            self.show_info(
+                "Selecione um Vídeo",
+                (
+                    "Por favor, escolha um item com ícone de peixe (🐟) para "
+                    "carregar o frame."
+                ),
+            )
+            return
+
+        video_path = tags[0]
+        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+
+        if success:
+            self.redraw_zones_from_project_data()
+            filename = os.path.basename(video_path)
+            self.set_status(f"✓ Frame carregado: {filename}")
+            log.info("gui.video_selector.frame_loaded", path=video_path)
+        else:
+            self.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )
+
+    def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
+        """Callback para duplo clique no seletor de vídeos."""
+        del event  # Evento não é utilizado diretamente
+        self._load_selected_video_frame()
+
     def _create_reports_tab(self):
         """Creates the tab for viewing processed data and generating reports."""
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
@@ -2749,6 +3052,9 @@ class ApplicationGUI:
                     # Store the full video info in the item using tags
                     tags=(video.get("path"),),
                 )
+
+        # Mantenha o seletor hierárquico sincronizado com a lista de relatórios
+        self._populate_video_selector_tree()
 
     def _on_report_item_select(self, event=None):
         """Enables or disables the partial report button based on selection."""
@@ -3831,6 +4137,7 @@ class ApplicationGUI:
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
+            self._populate_video_selector_tree()
             self.set_status(f"Projeto: {pm.get_project_name()} - Pronto.")
 
         if project_type == "live":
