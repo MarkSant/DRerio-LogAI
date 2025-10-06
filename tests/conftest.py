@@ -1,6 +1,10 @@
-import importlib.util
+import os
 import sys
+from importlib import util
 from unittest.mock import MagicMock
+
+os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
+os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 
 
 def _mock_tkinter_modules() -> None:
@@ -12,7 +16,7 @@ def _mock_tkinter_modules() -> None:
     sys.modules["tkinter.ttk"] = MagicMock()
 
 
-tkinter_spec = importlib.util.find_spec("tkinter")
+tkinter_spec = util.find_spec("tkinter")
 if tkinter_spec is None:
     _mock_tkinter_modules()
 else:

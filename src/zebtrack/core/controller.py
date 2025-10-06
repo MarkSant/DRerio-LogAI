@@ -400,6 +400,21 @@ class AppController:
         if not wizard_metadata:
             return
 
+        suppressed = (
+            os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE")
+            or getattr(self.view, "suppress_post_creation_guide", False)
+        )
+
+        if suppressed:
+            reason = (
+                "env_flag"
+                if os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE")
+                else "pytest"
+            )
+            log.info("controller.post_creation_guide.skipped", reason=reason)
+            return
+
         import_config = wizard_metadata.get("import_config") or []
         scanned_videos = wizard_metadata.get("scanned_videos") or []
 

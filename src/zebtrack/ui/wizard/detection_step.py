@@ -1,10 +1,6 @@
-"""
-Step 3: Detection & Validation Dialog
+"""Wizard detection step (design auto-detection and confirmation)."""
 
-Auto-detects experimental design from folder structure and filenames.
-Shows scan results, parquet analysis, and design confidence.
-"""
-
+import os
 import re
 from pathlib import Path
 from tkinter import (
@@ -253,6 +249,22 @@ class DetectionStep(WizardStep):
         groups = self.detected_design.get("groups") or []
         if not groups:
             self.design_editor_confirmed = True
+            return
+
+        wizard_flag = False
+        if isinstance(self.wizard_data, dict):
+            wizard_flag = bool(self.wizard_data.get("suppress_dialogs"))
+
+        suppress_dialogs = bool(
+            os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS")
+            or wizard_flag
+            or getattr(self, "suppress_dialogs", False)
+        )
+
+        if suppress_dialogs:
+            self.design_editor_confirmed = True
+            log.info("wizard.design.confirmation.auto_suppressed")
             return
 
         if auto_invoked:
