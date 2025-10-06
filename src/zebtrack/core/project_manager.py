@@ -251,7 +251,7 @@ class ProjectManager:
         self,
         import_config: list[dict],
         roi_merge_strategy: str = "replace",
-        scanned_videos: list[dict] = None,
+    scanned_videos: list[dict] | None = None,
     ) -> bool:
         """
         Imports arena, ROIs, and trajectory data from existing parquet files.
@@ -313,6 +313,13 @@ class ProjectManager:
                 import_arena = config.get("import_arena", False)
                 import_rois = config.get("import_rois", False)
                 import_trajectory = config.get("import_trajectory", False)
+
+                if not video_path:
+                    log.warning(
+                        "project_manager.import_parquets.invalid_video_path",
+                        config=config,
+                    )
+                    continue
 
                 if not any([import_arena, import_rois, import_trajectory]):
                     continue  # Skip if nothing to import for this video
@@ -436,6 +443,13 @@ class ProjectManager:
                     if trajectory_path and os.path.exists(trajectory_path):
                         # Copy trajectory parquet to project results folder
                         video_name = Path(video_path).stem
+                        if not self.project_path:
+                            log.warning(
+                                "project_manager.import_parquets.no_project_path",
+                                video=video_name,
+                            )
+                            continue
+
                         results_dir = Path(self.project_path) / f"{video_name}_results"
                         results_dir.mkdir(exist_ok=True)
 
@@ -618,16 +632,65 @@ class ProjectManager:
         for video_info in video_files:
             video_path = video_info["path"]
             video_hash = calculate_sha256(video_path)
-            new_batch["videos"].append(
-                {
-                    "path": video_path,
-                    "sha256": video_hash,
-                    "status": "processed" if video_info["has_data"] else "pending",
-                }
+
+            has_data = bool(
+                video_info.get(
+                    "has_data",
+                    video_info.get("has_complete_data", False),
+                )
             )
 
+            metadata = dict(video_info.get("metadata") or {})
+            for key in ("group", "group_display_name", "day", "subject"):
+                value = video_info.get(key)
+                if value is not None and (
+                    value != "" or isinstance(value, (int, float))
+                ):
+                    metadata.setdefault(key, value)
+
+            # Remove empty values to keep JSON compact
+            metadata = {
+                key: value
+                for key, value in metadata.items()
+                if value is not None
+                and (value != "" or isinstance(value, (int, float)))
+            }
+
+            video_entry = {
+                "path": video_path,
+                "sha256": video_hash,
+                "status": "processed" if has_data else "pending",
+                "has_arena": bool(video_info.get("has_arena", False)),
+                "has_rois": bool(video_info.get("has_rois", False)),
+                "has_trajectory": bool(video_info.get("has_trajectory", False)),
+                "has_complete_data": bool(
+                    video_info.get(
+                        "has_complete_data",
+                        has_data,
+                    )
+                ),
+            }
+
+            if metadata:
+                video_entry["metadata"] = metadata
+
+            new_batch["videos"].append(video_entry)
+
         self.project_data.setdefault("batches", []).append(new_batch)
-        log.info("project.batch.added", count=len(video_files))
+
+        metadata_count = sum(1 for v in new_batch["videos"] if "metadata" in v)
+        arena_count = sum(1 for v in new_batch["videos"] if v.get("has_arena"))
+        trajectory_count = sum(
+            1 for v in new_batch["videos"] if v.get("has_trajectory")
+        )
+
+        log.info(
+            "project.batch.added",
+            count=len(video_files),
+            with_metadata=metadata_count,
+            with_arena=arena_count,
+            with_trajectory=trajectory_count,
+        )
 
         if save_project:
             self.save_project()

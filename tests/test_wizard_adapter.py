@@ -7,6 +7,7 @@ import unittest
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType
 from zebtrack.ui.wizard.wizard_adapter import (
     adapt_wizard_data_to_controller_format,
+    enrich_videos_with_design_metadata,
     extract_parquet_import_plan,
 )
 
@@ -89,10 +90,20 @@ class TestWizardAdapter(unittest.TestCase):
         # subjects_per_group should be calculated from max of subjects dict
         self.assertEqual(result["subjects_per_group"], 3)  # max(3, 3) = 3
 
+        # Verify per-video metadata enrichment
+        first_video = result["video_files"][0]
+        self.assertEqual(first_video["metadata"]["group"], "Control")
+        self.assertEqual(first_video["metadata"]["day"], "Day01")
+        self.assertEqual(first_video["metadata"]["subject"], "S01")
+
         # Verify metadata preserved
         self.assertIn("detected_design", result["_wizard_metadata"])
         metadata = result["_wizard_metadata"]["detected_design"]
         self.assertEqual(metadata["confidence"], 0.85)
+
+        enriched_scanned = result["_wizard_metadata"]["scanned_videos"]
+        self.assertEqual(enriched_scanned[0]["group"], "Control")
+        self.assertEqual(enriched_scanned[0]["metadata"]["subject"], "S01")
 
     def test_adapt_with_parquet_import(self):
         """Adapter should preserve parquet import configuration."""
@@ -154,6 +165,7 @@ class TestWizardAdapter(unittest.TestCase):
         plan = extract_parquet_import_plan(wizard_data)
 
         self.assertIsNotNone(plan)
+        assert plan is not None
         self.assertEqual(len(plan["import_config"]), 1)
         self.assertEqual(plan["roi_merge_strategy"], "merge")
         self.assertEqual(plan["parquet_summary"]["total_arena"], 1)
@@ -178,6 +190,44 @@ class TestWizardAdapter(unittest.TestCase):
         plan = extract_parquet_import_plan(wizard_data)
 
         self.assertIsNone(plan)
+
+    def test_enrich_videos_with_custom_regex_patterns(self):
+        """Video enrichment should honour user-specified regex patterns."""
+        scanned_videos = [
+            {
+                "path": "/data/Exp/CBD_10mg/Day5/Animal42.mp4",
+                "has_complete_data": True,
+            }
+        ]
+
+        detected_design = {
+            "groups": ["CBD_10mg", "Vehicle"],
+            "days": ["Day01", "Day05"],
+            "subjects_per_group": {
+                "CBD_10mg": ["S01", "S05", "S42"],
+                "Vehicle": ["S01"],
+            },
+            "pattern_used": "custom_regex",
+            "confidence": 0.9,
+        }
+
+        custom_patterns = {
+            "group_pattern": r"Exp/(CBD_10mg|Vehicle)",
+            "day_pattern": r"Day(\d+)",
+            "subject_pattern": r"Animal(\d+)",
+        }
+
+        enriched = enrich_videos_with_design_metadata(
+            scanned_videos,
+            detected_design,
+            custom_patterns,
+            {"CBD_10mg": "CBD 10 mg"},
+        )
+
+        self.assertEqual(enriched[0]["group"], "CBD_10mg")
+        self.assertEqual(enriched[0]["metadata"]["group_display_name"], "CBD 10 mg")
+        self.assertEqual(enriched[0]["day"], "Day05")
+        self.assertEqual(enriched[0]["subject"], "S42")
 
     def test_adapt_raises_on_missing_required_fields(self):
         """Adapter should raise ValueError if required fields are missing."""

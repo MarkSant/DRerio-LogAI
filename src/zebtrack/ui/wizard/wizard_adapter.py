@@ -5,6 +5,10 @@ This module provides a bridge between the new 5-step wizard and the existing
 controller interface, ensuring backward compatibility.
 """
 
+from __future__ import annotations
+
+import copy
+import re
 from typing import Optional
 
 import structlog
@@ -12,6 +16,177 @@ import structlog
 from zebtrack.ui.wizard.enums import ProjectType
 
 log = structlog.get_logger()
+
+
+def _normalise_subject_id(raw_subject: str) -> str:
+    """Normalize subject identifiers to the ``SXX`` format when possible."""
+
+    if raw_subject is None:
+        return raw_subject
+
+    value = raw_subject.strip()
+    if not value:
+        return raw_subject
+
+    # Remove common prefixes for digits-only normalization
+    # Examples: "Subject01", "S01", "s1" → "S01"
+    match = re.match(r"(?i)(?:subject|subj|s)?\s*([0-9]{1,3})", value)
+    if match:
+        return f"S{int(match.group(1)):02d}"
+
+    return raw_subject
+
+
+def enrich_videos_with_design_metadata(
+    scanned_videos: list[dict],
+    detected_design: dict | None,
+    custom_patterns: dict | None = None,
+    group_display_names: dict[str, str] | None = None,
+) -> list[dict]:
+    """Enrich scanned videos with experimental metadata derived from the design.
+
+    Args:
+        scanned_videos: Video descriptors produced by ``scan_input_paths``.
+        detected_design: Detected experimental design information.
+        custom_patterns: Optional regex patterns configured by the user.
+        group_display_names: Optional mapping from group IDs to friendly names.
+
+    Returns:
+        A **new** list of video descriptors with metadata persisted both at the
+        root level (``group``, ``day`` ...) and inside a dedicated ``metadata``
+        dictionary suitable for persistence in ``project.json``.
+    """
+
+    if not scanned_videos:
+        return []
+
+    if not detected_design:
+        return [copy.deepcopy(video) for video in scanned_videos]
+
+    group_display_names = group_display_names or {}
+    custom_patterns = custom_patterns or {}
+
+    groups = detected_design.get("groups") or []
+    days = detected_design.get("days") or []
+    subjects_per_group = detected_design.get("subjects_per_group") or {}
+
+    group_lookup = {str(g).lower(): g for g in groups if isinstance(g, str)}
+    day_lookup = {str(d).lower(): d for d in days if isinstance(d, str)}
+    for canonical_day in list(day_lookup.values()):
+        if isinstance(canonical_day, str):
+            digit_match = re.search(r"(\d+)", canonical_day)
+            if digit_match:
+                day_lookup[digit_match.group(1)] = canonical_day
+
+    subject_lookup = {}
+    for group_id, subjects in subjects_per_group.items():
+        if not isinstance(subjects, (list, tuple, set)):
+            continue
+        subject_lookup[group_id] = {
+            str(subject).lower(): subject for subject in subjects if subject is not None
+        }
+
+    def _build_pattern(explicit: str | None, values: list[str]) -> str | None:
+        if explicit:
+            return explicit
+
+        valid_values = [v for v in values if isinstance(v, str) and v]
+        if not valid_values:
+            return None
+
+        escaped = [re.escape(v) for v in valid_values]
+        return f"({'|'.join(escaped)})"
+
+    group_pattern = _build_pattern(custom_patterns.get("group_pattern"), groups)
+
+    day_pattern = _build_pattern(custom_patterns.get("day_pattern"), days)
+
+    # Build subject pattern from all subjects when explicit pattern is absent.
+    all_subject_values = [
+        subject
+        for values in subject_lookup.values()
+        for subject in values.values()
+        if subject is not None
+    ]
+    subject_pattern = _build_pattern(
+        custom_patterns.get("subject_pattern"), all_subject_values
+    )
+
+    enriched_videos: list[dict] = []
+
+    for original_video in scanned_videos:
+        enriched = copy.deepcopy(original_video)
+        path_str = str(enriched.get("path", ""))
+
+        metadata: dict = copy.deepcopy(enriched.get("metadata") or {})
+
+        # --- Group extraction -------------------------------------------------
+        group_id = metadata.get("group") or enriched.get("group")
+        if not group_id and group_pattern:
+            match = re.search(group_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_group = match.group(1) if match.groups() else match.group(0)
+                lookup_key = matched_group.lower()
+                group_id = group_lookup.get(lookup_key, matched_group)
+
+        if isinstance(group_id, str):
+            metadata["group"] = group_id
+            enriched["group"] = group_id
+            display_name = group_display_names.get(group_id) or group_lookup.get(
+                group_id.lower(), group_id
+            )
+            metadata.setdefault("group_display_name", display_name)
+            enriched["group_display_name"] = metadata.get("group_display_name")
+
+        # --- Day extraction ---------------------------------------------------
+        day_value = metadata.get("day") or enriched.get("day")
+        if not day_value and day_pattern:
+            match = re.search(day_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_day = match.group(1) if match.groups() else match.group(0)
+                if isinstance(matched_day, str) and matched_day.isdigit():
+                    matched_day = f"Day{int(matched_day):02d}"
+                lookup_key = matched_day.lower()
+                day_value = day_lookup.get(lookup_key, matched_day)
+
+        if day_value is not None:
+            metadata["day"] = day_value
+            enriched["day"] = day_value
+
+        # --- Subject extraction -----------------------------------------------
+        subject_value = metadata.get("subject") or enriched.get("subject")
+        if not subject_value and subject_pattern:
+            match = re.search(subject_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_subject = match.group(1) if match.groups() else match.group(0)
+                normalised = _normalise_subject_id(matched_subject)
+                subject_value = normalised
+
+        if subject_value is None and group_id:
+            candidates = subject_lookup.get(group_id, {})
+            for candidate_lower, candidate_value in candidates.items():
+                if candidate_lower in path_str.lower():
+                    subject_value = candidate_value
+                    break
+
+        if subject_value is not None:
+            metadata["subject"] = subject_value
+            enriched["subject"] = subject_value
+
+        if metadata:
+            enriched["metadata"] = metadata
+
+        enriched_videos.append(enriched)
+
+    log.info(
+        "wizard.videos_enriched",
+        total=len(enriched_videos),
+        with_group=sum(1 for v in enriched_videos if v.get("group")),
+        with_day=sum(1 for v in enriched_videos if v.get("day")),
+        with_subject=sum(1 for v in enriched_videos if v.get("subject")),
+    )
+
+    return enriched_videos
 
 
 def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
@@ -88,6 +263,10 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
 
     video_files: list[dict] = []
 
+    detected_design = wizard_data.get("detected_design")
+    custom_patterns = wizard_data.get("custom_regex_patterns")
+    enriched_scanned_videos = copy.deepcopy(wizard_data.get("scanned_videos", []))
+
     if is_live:
         # Live project: Use live configuration data
         controller_data.update({
@@ -102,19 +281,29 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         })
     else:
         # Pre-recorded project: Use scanned videos
-        scanned_videos = wizard_data.get("scanned_videos", [])
+        scanned_videos = enriched_scanned_videos
         if not scanned_videos:
             raise ValueError("No scanned videos found in wizard data")
+
+        group_display_names = None
+        if detected_design:
+            group_display_names = detected_design.get("group_display_names")
+            scanned_videos = enrich_videos_with_design_metadata(
+                scanned_videos,
+                detected_design,
+                custom_patterns,
+                group_display_names,
+            )
+            enriched_scanned_videos = copy.deepcopy(scanned_videos)
 
         # Convert scanned videos to format expected by add_video_batch
         # Each video needs: {"path": str, "has_data": bool}
         for video_info in scanned_videos:
-            video_files.append(
-                {
-                    "path": video_info["path"],
-                    "has_data": video_info.get("has_complete_data", False),
-                }
+            converted = copy.deepcopy(video_info)
+            converted["has_data"] = bool(
+                video_info.get("has_data", video_info.get("has_complete_data", False))
             )
+            video_files.append(converted)
 
         controller_data.update({
             "video_files": video_files,
@@ -125,7 +314,6 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         })
 
     # Add experimental design if detected
-    detected_design = wizard_data.get("detected_design")
 
     if not is_exploratory:
         if detected_design:
@@ -151,6 +339,10 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
                     controller_data["subjects_per_group"] = max(subject_counts)
 
     # Store wizard metadata for future use (parquet import, etc.)
+    wizard_scanned_videos = (
+        enriched_scanned_videos if not is_live else wizard_data.get("scanned_videos")
+    )
+
     controller_data["_wizard_metadata"] = {
         "wizard_schema_version": wizard_data.get("wizard_schema_version"),
         "created_at": wizard_data.get("created_at"),
@@ -159,7 +351,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "has_parquets": wizard_data.get("has_parquets"),
         "parquet_import_scope": wizard_data.get("parquet_import_scope"),
         "detected_design": wizard_data.get("detected_design"),
-        "scanned_videos": wizard_data.get("scanned_videos"),
+        "scanned_videos": wizard_scanned_videos,
         "import_config": wizard_data.get("import_config"),
         "roi_merge_strategy": wizard_data.get("roi_merge_strategy"),
         "parquet_summary": wizard_data.get("parquet_summary"),

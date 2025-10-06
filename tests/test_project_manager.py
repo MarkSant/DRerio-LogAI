@@ -67,6 +67,41 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
+    def test_add_video_batch_persists_metadata(self):
+        """Video batches should persist experimental metadata and flags."""
+        pm = ProjectManager()
+        pm.project_path = self.test_dir
+        pm.project_data = {"batches": []}
+
+        video_path = os.path.join(self.test_dir, "metadata_sample.mp4")
+        with open(video_path, "wb") as handle:
+            handle.write(b"sample")
+
+        video_files = [
+            {
+                "path": video_path,
+                "has_data": True,
+                "group": "Control",
+                "group_display_name": "Veiculo",
+                "day": "Day01",
+                "subject": "S01",
+                "has_arena": True,
+                "has_rois": False,
+                "has_trajectory": True,
+            }
+        ]
+
+        pm.add_video_batch(video_files, save_project=False)
+
+        videos = pm.get_all_videos()
+        self.assertEqual(len(videos), 1)
+        video_entry = videos[0]
+        self.assertEqual(video_entry["metadata"]["group"], "Control")
+        self.assertEqual(video_entry["metadata"]["subject"], "S01")
+        self.assertTrue(video_entry["has_arena"])
+        self.assertTrue(video_entry["has_trajectory"])
+        self.assertTrue(video_entry["has_complete_data"])
+
     def test_create_project_with_animals_per_aquarium(self):
         """Test creating a project with animals_per_aquarium field."""
         pm = ProjectManager()
