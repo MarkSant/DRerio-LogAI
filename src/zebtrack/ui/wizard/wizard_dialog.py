@@ -342,7 +342,7 @@ class WizardDialog(Dialog):
         """
         log.info(
             "wizard.finished",
-            total_steps=len(self.steps),
+            total_steps=len(self.active_steps),
             data_size=len(str(self.wizard_data)),
         )
 

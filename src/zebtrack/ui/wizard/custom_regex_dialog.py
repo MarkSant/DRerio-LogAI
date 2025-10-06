@@ -99,7 +99,7 @@ class CustomRegexDialog(Dialog):
         self.group_pattern_entry.pack(fill="x", pady=5)
         self.group_pattern_entry.insert(
             0,
-            self.current_patterns.get("group_pattern", ""),
+            self.current_patterns.get("group_pattern", "") or "",
         )
 
         # Day pattern
@@ -122,7 +122,7 @@ class CustomRegexDialog(Dialog):
         self.day_pattern_entry.pack(fill="x", pady=5)
         self.day_pattern_entry.insert(
             0,
-            self.current_patterns.get("day_pattern", ""),
+            self.current_patterns.get("day_pattern", "") or "",
         )
 
         # Subject pattern
@@ -145,7 +145,7 @@ class CustomRegexDialog(Dialog):
         self.subject_pattern_entry.pack(fill="x", pady=5)
         self.subject_pattern_entry.insert(
             0,
-            self.current_patterns.get("subject_pattern", ""),
+            self.current_patterns.get("subject_pattern", "") or "",
         )
 
         # Test section
