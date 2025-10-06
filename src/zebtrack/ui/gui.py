@@ -2985,18 +2985,32 @@ class ApplicationGUI:
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(reports_tab_frame, text="Relatórios")
 
-        # --- Video List (Master View) ---
+        # --- Estrutura Hierárquica do Experimento ---
         list_frame = ttk.LabelFrame(
-            reports_tab_frame, text="Vídeos Processados", padding=10
+            reports_tab_frame, text="Estrutura do Experimento", padding=10
         )
         list_frame.pack(fill="both", expand=True, pady=5)
 
         self.reports_tree = ttk.Treeview(
-            list_frame, columns=("name", "batch", "status"), show="headings"
+            list_frame,
+            columns=("arena", "rois", "trajectory", "status"),
+            show="tree headings",
         )
-        self.reports_tree.heading("name", text="Nome do Vídeo")
-        self.reports_tree.heading("batch", text="Lote")
+
+        # Cabeçalhos
+        self.reports_tree.heading("#0", text="Nome")
+        self.reports_tree.heading("arena", text="🏛️ Arena")
+        self.reports_tree.heading("rois", text="📍 ROIs")
+        self.reports_tree.heading("trajectory", text="📈 Trajetória")
         self.reports_tree.heading("status", text="Status")
+
+        # Larguras e alinhamentos
+        self.reports_tree.column("#0", width=300, stretch=True)
+        self.reports_tree.column("arena", width=80, anchor="center")
+        self.reports_tree.column("rois", width=80, anchor="center")
+        self.reports_tree.column("trajectory", width=100, anchor="center")
+        self.reports_tree.column("status", width=120, anchor="center")
+
         self.reports_tree.pack(side="left", fill="both", expand=True)
 
         scrollbar = ttk.Scrollbar(
@@ -3027,31 +3041,162 @@ class ApplicationGUI:
         self.generate_unified_report_btn.pack(side="left", padx=10)
 
     def update_reports_tree(self):
-        """Populates the reports Treeview with processed videos from the project."""
+        """Atualiza a árvore de relatórios com estrutura hierárquica."""
         for item in self.reports_tree.get_children():
             self.reports_tree.delete(item)
 
-        if not self.controller.project_manager.project_path:
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
             return
 
-        batches = self.controller.project_manager.project_data.get("batches", [])
-        for i, batch in enumerate(batches):
-            batch_ts = batch.get("timestamp", f"Lote {i + 1}")
-            # Insert parent item for the batch
-            batch_id = self.reports_tree.insert("", "end", text=batch_ts, open=True)
-            for video in batch.get("videos", []):
-                video_name = os.path.basename(video.get("path", "Vídeo Desconhecido"))
-                self.reports_tree.insert(
-                    batch_id,
+        pm = controller.project_manager
+        if not pm.project_path:
+            return
+
+        all_videos = pm.get_all_videos()
+        if not all_videos:
+            return
+
+        def _sort_key(value):
+            try:
+                return (0, int(value))
+            except (TypeError, ValueError):
+                value_str = str(value) if value is not None else ""
+                return (1, value_str.lower())
+
+        def _format_subject(value):
+            if value is None:
+                return "??"
+            if isinstance(value, int):
+                return f"{value:02d}"
+            if isinstance(value, float) and value.is_integer():
+                return f"{int(value):02d}"
+            value_str = str(value).strip()
+            if not value_str:
+                return "??"
+            if value_str.isdigit():
+                try:
+                    return f"{int(value_str):02d}"
+                except ValueError:
+                    return value_str
+            return value_str
+
+        hierarchy: dict[str, dict] = {}
+
+        for video in all_videos:
+            metadata = video.get("metadata") or {}
+            group_id = metadata.get("group") or "Sem Grupo"
+            group_display = metadata.get("group_display_name") or group_id
+            day_id = metadata.get("day") or "Sem Dia"
+
+            entry = {
+                "path": video.get("path"),
+                "has_arena": bool(video.get("has_arena")),
+                "has_rois": bool(video.get("has_rois")),
+                "has_trajectory": bool(video.get("has_trajectory")),
+                "status": video.get("status", "pending"),
+                "filename": os.path.basename(video.get("path", "")),
+                "subject": metadata.get("subject"),
+            }
+
+            group_data = hierarchy.setdefault(
+                group_id,
+                {"display": group_display, "days": {}},
+            )
+            group_days = group_data["days"]
+            group_days.setdefault(day_id, []).append(entry)
+
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            videos_by_day = group_data["days"]
+            total_videos = sum(len(items) for items in videos_by_day.values())
+            if total_videos == 0:
+                continue
+
+            total_arena = sum(
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_arena"]
+            )
+            total_rois = sum(
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_rois"]
+            )
+            total_trajectory = sum(
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_trajectory"]
+            )
+
+            group_node = self.reports_tree.insert(
+                "",
+                "end",
+                text=f"🏷️ {group_data['display']}",
+                values=(
+                    f"{total_arena}/{total_videos}",
+                    f"{total_rois}/{total_videos}",
+                    f"{total_trajectory}/{total_videos}",
+                    f"{total_videos} vídeos",
+                ),
+                open=True,
+            )
+
+            for day_id, entries in sorted(
+                videos_by_day.items(), key=lambda item: _sort_key(item[0])
+            ):
+                if not entries:
+                    continue
+
+                day_arena = sum(1 for entry in entries if entry["has_arena"])
+                day_rois = sum(1 for entry in entries if entry["has_rois"])
+                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
+
+                day_node = self.reports_tree.insert(
+                    group_node,
                     "end",
+                    text=f"📅 Dia {day_id}",
                     values=(
-                        video_name,
-                        batch_ts,
-                        video.get("status", "N/A"),
+                        f"{day_arena}/{len(entries)}",
+                        f"{day_rois}/{len(entries)}",
+                        f"{day_trajectory}/{len(entries)}",
+                        f"{len(entries)} vídeos",
                     ),
-                    # Store the full video info in the item using tags
-                    tags=(video.get("path"),),
+                    open=False,
                 )
+
+                for entry in sorted(
+                    entries,
+                    key=lambda item: _sort_key(item.get("subject")),
+                ):
+                    video_path = entry.get("path")
+                    if not video_path:
+                        continue
+
+                    subject_label = _format_subject(entry.get("subject"))
+
+                    self.reports_tree.insert(
+                        day_node,
+                        "end",
+                        text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
+                        values=(
+                            "✓" if entry["has_arena"] else "✗",
+                            "✓" if entry["has_rois"] else "✗",
+                            "✓" if entry["has_trajectory"] else "✗",
+                            entry["status"],
+                        ),
+                        tags=(video_path,),
+                    )
+
+        log.info(
+            "gui.reports_tree.updated",
+            groups=len(hierarchy),
+            total_videos=len(all_videos),
+        )
 
         # Mantenha o seletor hierárquico sincronizado com a lista de relatórios
         self._populate_video_selector_tree()
