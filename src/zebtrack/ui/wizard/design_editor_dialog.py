@@ -89,28 +89,26 @@ class DesignEditorDialog(Dialog):
 
         header_frame = Frame(groups_frame, relief="solid", borderwidth=1)
         header_frame.pack(fill="x")
+        self._configure_group_columns(header_frame)
 
         Label(
             header_frame,
             text="ID Original",
-            width=15,
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
-        ).pack(side="left", fill="both", expand=True)
+        ).grid(row=0, column=0, sticky="nsew", padx=(0, 1))
         Label(
             header_frame,
             text="Nome para Exibição",
-            width=25,
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
-        ).pack(side="left", fill="both", expand=True)
+        ).grid(row=0, column=1, sticky="nsew", padx=(0, 1))
         Label(
             header_frame,
             text="Ações",
-            width=10,
             font=("TkDefaultFont", 9, "bold"),
             relief="ridge",
-        ).pack(side="left")
+        ).grid(row=0, column=2, sticky="nsew")
 
         table_container = Frame(groups_frame)
         table_container.pack(fill="both", expand=True)
@@ -129,12 +127,15 @@ class DesignEditorDialog(Dialog):
         self.groups_canvas.configure(yscrollcommand=groups_scrollbar.set)
 
         self.groups_rows_frame = Frame(self.groups_canvas)
-        self.groups_canvas.create_window(
+        self._configure_group_columns(self.groups_rows_frame)
+        self.groups_rows_window = self.groups_canvas.create_window(
             (0, 0), window=self.groups_rows_frame, anchor="nw"
         )
 
         self.groups_canvas.pack(side="left", fill="both", expand=True)
         groups_scrollbar.pack(side="right", fill="y")
+
+        self.groups_canvas.bind("<Configure>", self._on_groups_canvas_configure)
 
         self.groups_rows_frame.bind(
             "<Configure>",
@@ -247,6 +248,15 @@ class DesignEditorDialog(Dialog):
 
         box.pack()
 
+    def _configure_group_columns(self, container: Frame) -> None:
+        container.grid_columnconfigure(0, weight=2, uniform="group_table")
+        container.grid_columnconfigure(1, weight=3, uniform="group_table")
+        container.grid_columnconfigure(2, weight=0, minsize=90)
+
+    def _on_groups_canvas_configure(self, event) -> None:
+        if hasattr(self, "groups_rows_window"):
+            self.groups_canvas.itemconfig(self.groups_rows_window, width=event.width)
+
     def _refresh_groups_table(self) -> None:
         for widget in self.groups_rows_frame.winfo_children():
             widget.destroy()
@@ -256,32 +266,32 @@ class DesignEditorDialog(Dialog):
         self.group_name_vars.clear()
 
         for index, group_id in enumerate(self.groups):
-            row = Frame(self.groups_rows_frame, relief="solid", borderwidth=1)
-            row.pack(fill="x", expand=True)
-
             id_label = Label(
-                row,
+                self.groups_rows_frame,
                 text=group_id,
-                width=15,
                 anchor="w",
                 relief="groove",
                 bg="lightgray",
             )
-            id_label.pack(side="left", fill="both", expand=True)
+            id_label.grid(row=index, column=0, sticky="nsew", padx=(0, 1), pady=(0, 1))
             self.group_id_labels.append(id_label)
 
             name_var = StringVar(value=self.group_display_names.get(group_id, group_id))
-            name_entry = Entry(row, textvariable=name_var, width=25, relief="groove")
-            name_entry.pack(side="left", fill="both", expand=True)
+            name_entry = Entry(
+                self.groups_rows_frame,
+                textvariable=name_var,
+                relief="groove",
+            )
+            name_entry.grid(row=index, column=1, sticky="nsew", padx=(0, 1), pady=(0, 1))
             self.group_name_vars.append(name_var)
             self.group_name_entries.append(name_entry)
 
             Button(
-                row,
+                self.groups_rows_frame,
                 text="🗑️",
                 width=6,
                 command=lambda idx=index: self._remove_group(idx),
-            ).pack(side="left")
+            ).grid(row=index, column=2, sticky="nsew", pady=(0, 1))
 
         self.groups_rows_frame.update_idletasks()
         self.groups_canvas.configure(scrollregion=self.groups_canvas.bbox("all"))
