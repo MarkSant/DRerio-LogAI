@@ -240,6 +240,55 @@ class TestDetectionStep(unittest.TestCase):
         self.assertEqual(summary["total_trajectory"], 1)
         self.assertEqual(summary["total_complete"], 1)
 
+    @patch.object(DetectionStep, "_detect_design")
+    def test_custom_regex_from_editor_recalculates_design(self, mock_detect):
+        """Custom regex updates triggered from the editor should refresh the design immediately."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_paths": [str(self.video1)],
+        }
+
+        step = DetectionStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.scanned_videos = [
+            {
+                "path": str(self.video1),
+                "has_arena": False,
+                "has_rois": False,
+                "has_trajectory": False,
+                "has_complete_data": False,
+            }
+        ]
+
+        new_design = {
+            "groups": ["RegexGroup"],
+            "days": ["Day01"],
+            "subjects_per_group": {"RegexGroup": ["Mouse01"]},
+            "pattern_used": "custom_regex",
+            "confidence": 0.9,
+            "group_display_names": {"RegexGroup": "Regex Group"},
+        }
+
+        mock_detect.return_value = new_design
+
+        result = step._handle_custom_regex_from_editor(
+            {
+                "group_pattern": "RegexGroup",
+                "day_pattern": None,
+                "subject_pattern": None,
+            }
+        )
+
+        mock_detect.assert_called_once_with([str(self.video1)])
+        self.assertEqual(result, new_design)
+        self.assertEqual(step.detected_design, new_design)
+        self.assertIsNotNone(step.custom_regex_patterns)
+        self.assertIn("regex personalizado aplicado", step.status_var.get().lower())
+
+        display_text = step.results_text.get("1.0", "end-1c")
+        self.assertIn("Regex Group", display_text)
+
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_get_data(self, mock_scan):
         """get_data should return complete detection results."""

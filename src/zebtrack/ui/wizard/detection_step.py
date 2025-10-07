@@ -276,7 +276,12 @@ class DetectionStep(WizardStep):
             )
             messagebox.showinfo("Design Detectado", message, parent=self)
 
-        editor = DesignEditorDialog(self, self.detected_design)
+        editor = DesignEditorDialog(
+            self,
+            self.detected_design,
+            custom_regex_patterns=self.custom_regex_patterns,
+            on_custom_regex_configured=self._handle_custom_regex_from_editor,
+        )
         edited_design = editor.get_result()
 
         if edited_design:
@@ -693,16 +698,116 @@ class DetectionStep(WizardStep):
         dialog = CustomRegexDialog(self, self.custom_regex_patterns or {})
         result_patterns = dialog.get_result()
 
-        if result_patterns:
-            # User saved patterns
-            self.custom_regex_patterns = result_patterns
+        if result_patterns is None:
+            return
+
+        self._set_custom_regex_patterns(result_patterns, source="detection_step")
+        self._run_detection()
+
+    def _handle_custom_regex_from_editor(self, patterns: dict | None) -> dict | None:
+        """Receive custom regex updates triggered from the design editor."""
+        if patterns is None:
+            return None
+
+        self._set_custom_regex_patterns(patterns, source="design_editor")
+        new_design = self._recalculate_detected_design(
+            update_results=True,
+            source="design_editor",
+        )
+
+        self.design_editor_confirmed = False
+
+        if self.custom_regex_patterns:
+            if new_design:
+                self.status_var.set("Regex personalizado aplicado ✓")
+            else:
+                self.status_var.set(
+                    "Regex personalizado não encontrou design; ajuste os padrões ou edite manualmente."
+                )
+        else:
+            if new_design:
+                self.status_var.set(
+                    "Regex personalizado removido. Detecção padrão reaplicada ✓"
+                )
+            else:
+                self.status_var.set(
+                    "Detecção padrão reaplicada, mas nenhum design foi encontrado."
+                )
+
+        return new_design
+
+    def _set_custom_regex_patterns(self, patterns: dict, *, source: str) -> None:
+        """Persist custom regex patterns and record origin."""
+        active_patterns = {key: value for key, value in patterns.items() if value}
+
+        if active_patterns:
+            self.custom_regex_patterns = patterns.copy()
             log.info(
                 "wizard.detection.custom_regex_configured",
-                patterns=[k for k, v in result_patterns.items() if v],
+                source=source,
+                patterns=list(active_patterns),
+            )
+        else:
+            self.custom_regex_patterns = None
+            log.info(
+                "wizard.detection.custom_regex_cleared",
+                source=source,
             )
 
-            # Automatically re-run detection with new patterns
-            self._run_detection()
+    def _recalculate_detected_design(
+        self,
+        *,
+        update_results: bool,
+        source: str,
+    ) -> dict | None:
+        """Re-run design detection using the current regex configuration."""
+        if not self.scanned_videos:
+            log.warning(
+                "wizard.detection.design_recalculation_skipped",
+                source=source,
+                reason="no_scanned_videos",
+            )
+            return self.detected_design
+
+        project_type = self.wizard_data.get("project_type")
+        if project_type != ProjectType.EXPERIMENTAL.value:
+            log.info(
+                "wizard.detection.design_recalculation_skipped",
+                source=source,
+                reason="non_experimental_project",
+            )
+            return self.detected_design
+
+        scanned_video_paths: list[str] = []
+        for video in self.scanned_videos:
+            path = video.get("path")
+            if isinstance(path, str):
+                scanned_video_paths.append(path)
+
+        if not scanned_video_paths:
+            log.warning(
+                "wizard.detection.design_recalculation_skipped",
+                source=source,
+                reason="no_paths",
+            )
+            return self.detected_design
+
+        new_design = self._detect_design(scanned_video_paths)
+        self.detected_design = new_design
+        self._ensure_group_display_names()
+
+        if update_results:
+            parquet_summary = self._calculate_parquet_summary()
+            self._display_results(parquet_summary)
+
+        log.info(
+            "wizard.detection.design_recalculated",
+            source=source,
+            has_design=bool(new_design),
+            groups=len(new_design.get("groups", [])) if new_design else 0,
+        )
+
+        return new_design
 
     def _edit_design(self):
         """Open design editor dialog for manual editing."""
@@ -720,7 +825,12 @@ class DetectionStep(WizardStep):
         self._ensure_group_display_names()
 
         # Open editor dialog
-        editor = DesignEditorDialog(self, self.detected_design)
+        editor = DesignEditorDialog(
+            self,
+            self.detected_design,
+            custom_regex_patterns=self.custom_regex_patterns,
+            on_custom_regex_configured=self._handle_custom_regex_from_editor,
+        )
         edited_design = editor.get_result()
 
         if edited_design:
@@ -737,7 +847,12 @@ class DetectionStep(WizardStep):
             # Refresh display
             parquet_summary = self._calculate_parquet_summary()
             self._display_results(parquet_summary)
-            self.status_var.set("Design editado manualmente ✓")
+            if self.custom_regex_patterns:
+                self.status_var.set(
+                    "Design editado manualmente ✓ (regex personalizado aplicado)"
+                )
+            else:
+                self.status_var.set("Design editado manualmente ✓ (regex padrão)")
 
     def validate(self) -> tuple[bool, str]:
         """

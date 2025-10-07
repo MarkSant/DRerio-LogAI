@@ -18,7 +18,11 @@ from tkinter import (
 from tkinter import font as tkfont
 from tkinter.simpledialog import Dialog
 
+from typing import Callable
+
 import structlog
+
+from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
 
 log = structlog.get_logger()
 
@@ -41,12 +45,23 @@ class DesignEditorDialog(Dialog):
         Modified design dict or None if cancelled
     """
 
-    def __init__(self, parent, design: dict | None):
+    def __init__(
+        self,
+        parent,
+        design: dict | None,
+        *,
+        custom_regex_patterns: dict | None = None,
+        on_custom_regex_configured: Callable[[dict], dict | None] | None = None,
+    ):
         """Prepare working copies before showing the dialog."""
         design = design or {}
 
         self.input_design = design.copy()
         self.edited_design: dict | None = None
+        self.custom_regex_patterns = (
+            custom_regex_patterns.copy() if custom_regex_patterns else None
+        )
+        self.on_custom_regex_configured = on_custom_regex_configured
 
         self.groups = list(design.get("groups", []))
         self.days = list(design.get("days", []) or [])
@@ -86,6 +101,16 @@ class DesignEditorDialog(Dialog):
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(anchor="w", pady=(0, 5))
+
+        action_frame = Frame(groups_frame)
+        action_frame.pack(fill="x", pady=(0, 5))
+
+        Button(
+            action_frame,
+            text="🔧 Regex Customizado",
+            command=self._open_custom_regex_dialog,
+            width=20,
+        ).pack(side="right")
 
         header_frame = Frame(groups_frame, relief="solid", borderwidth=1)
         header_frame.pack(fill="x")
@@ -301,6 +326,74 @@ class DesignEditorDialog(Dialog):
         for day in self.days:
             self.days_listbox.insert("end", day)
 
+    def _load_design(self, design: dict | None) -> None:
+        design = design or {}
+
+        self.input_design = design.copy()
+        self.edited_design = None
+
+        self.groups = list(design.get("groups", []))
+        self.days = list(design.get("days") or [])
+        self.subjects_per_group = {
+            group: list(subjects)
+            for group, subjects in (design.get("subjects_per_group") or {}).items()
+        }
+
+        self.group_display_names = dict(design.get("group_display_names") or {})
+        for group in self.groups:
+            self.group_display_names.setdefault(group, group)
+
+        if hasattr(self, "group_id_labels"):
+            self._refresh_groups_table()
+        if hasattr(self, "days_listbox"):
+            self._refresh_days_list()
+        if hasattr(self, "new_group_id_var"):
+            self.new_group_id_var.set("")
+        if hasattr(self, "new_group_name_var"):
+            self.new_group_name_var.set("")
+        if hasattr(self, "day_entry_var"):
+            self.day_entry_var.set("")
+
+        if hasattr(self, "groups_canvas"):
+            try:
+                self.groups_canvas.yview_moveto(0)
+            except Exception:  # pragma: no cover - depends on widget state
+                pass
+
+    def _open_custom_regex_dialog(self) -> None:
+        dialog = CustomRegexDialog(self, self.custom_regex_patterns or {})
+        result_patterns = dialog.get_result()
+
+        if result_patterns is None:
+            return
+
+        active_patterns = {
+            key: value for key, value in result_patterns.items() if value
+        }
+        self.custom_regex_patterns = (
+            result_patterns.copy() if active_patterns else None
+        )
+
+        new_design: dict | None = None
+        if self.on_custom_regex_configured:
+            try:
+                new_design = self.on_custom_regex_configured(result_patterns)
+            except Exception:  # pragma: no cover - defensive logging only
+                log.exception("design_editor.custom_regex_callback_failed")
+
+        self._load_design(new_design)
+
+        if new_design is None and active_patterns:
+            messagebox.showwarning(
+                "Regex sem resultados",
+                (
+                    "Os padrões regex personalizados não identificaram automaticamente "
+                    "o design. Ajuste os padrões ou edite manualmente."
+                ),
+                parent=self,
+            )
+
+
     def _add_group(self) -> None:
         group_id = self.new_group_id_var.get().strip()
         display_name = self.new_group_name_var.get().strip()
@@ -433,3 +526,4 @@ class DesignEditorDialog(Dialog):
 
     def get_result(self) -> dict | None:
         return self.edited_design
+
