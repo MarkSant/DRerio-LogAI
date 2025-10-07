@@ -69,7 +69,7 @@ class WizardDialog(Dialog):
         Args:
             parent: Parent Tkinter widget (usually root window)
         """
-        self.all_steps = []  # All possible steps
+        self.all_steps = {}  # All possible steps indexed by WizardStepID
         self.active_steps = []  # Steps for current project type (updated dynamically)
         self.current_step_index = 0
         self.wizard_data = {
@@ -78,6 +78,7 @@ class WizardDialog(Dialog):
         }
         self.cache = WizardCache()
         self.result = None  # Will be set on successful completion
+        self._geometry_initialized = False
 
         log.info("wizard.opened")
 
@@ -94,6 +95,11 @@ class WizardDialog(Dialog):
         Returns:
             Widget: Widget to receive initial focus (or None)
         """
+        try:
+            self.resizable(True, True)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("wizard.geometry.resizable_failed", error=str(exc))
+
         # Create container for steps
         self.steps_container = Frame(master)
         self.steps_container.pack(fill="both", expand=True, padx=10, pady=10)
@@ -133,6 +139,9 @@ class WizardDialog(Dialog):
 
         # Show first step
         self._show_step(0)
+
+        # Initialize geometry after widgets are realized
+        self.after_idle(self._initialize_geometry)
 
         # Return None (no specific focus)
         return None
@@ -239,8 +248,8 @@ class WizardDialog(Dialog):
                 step=step_index + 1,
                 step_id=current_step.step_id.value if current_step.step_id else None,
             )
-
-        self._update_navigation_buttons()
+            self._update_navigation_buttons()
+            self._update_minimum_size()
 
     def _update_navigation_buttons(self):
         """Update navigation button states based on current step."""
@@ -260,6 +269,80 @@ class WizardDialog(Dialog):
             self.next_button.config(text="Criar Projeto")
         else:
             self.next_button.config(text="Próximo >")
+
+    def _initialize_geometry(self):
+        """Configure initial geometry once the dialog is visible."""
+        if self._geometry_initialized or not self.winfo_exists():
+            return
+
+        try:
+            self.resizable(True, True)
+        except Exception:
+            return
+
+        self.update_idletasks()
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        available_w = max(screen_w - 120, 760)
+        available_h = max(screen_h - 160, 560)
+
+        if hasattr(self, "steps_container") and self.steps_container.winfo_exists():
+            desired_width = self.steps_container.winfo_reqwidth() + 48
+            desired_height = self.steps_container.winfo_reqheight() + 180
+        else:
+            desired_width = 960
+            desired_height = 680
+
+        width = min(max(desired_width, 900), available_w)
+        height = min(max(desired_height, 640), available_h)
+
+        min_width = max(int(width * 0.7), 720)
+        min_height = max(int(height * 0.7), 540)
+        min_width = min(min_width, width)
+        min_height = min(min_height, height)
+
+        x = max((screen_w - width) // 2, 0)
+        y = max((screen_h - height) // 2, 0)
+
+        self.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
+        self.minsize(int(min_width), int(min_height))
+
+        self._geometry_initialized = True
+
+    def _update_minimum_size(self):
+        """Refresh minimum size to accommodate the current step content."""
+        if not self._geometry_initialized or not self.winfo_exists():
+            return
+
+        if (
+            not hasattr(self, "steps_container")
+            or not self.steps_container.winfo_exists()
+        ):
+            return
+
+        self.update_idletasks()
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        available_w = max(screen_w - 120, 760)
+        available_h = max(screen_h - 160, 560)
+
+        desired_width = self.steps_container.winfo_reqwidth() + 48
+        desired_height = self.steps_container.winfo_reqheight() + 180
+
+        current_width = max(self.winfo_width(), desired_width, 900)
+        current_height = max(self.winfo_height(), desired_height, 640)
+
+        min_width = max(int(current_width * 0.7), 720)
+        min_height = max(int(current_height * 0.7), 540)
+
+        min_width = min(min_width, available_w, current_width)
+        min_height = min(min_height, available_h, current_height)
+
+        self.minsize(int(min_width), int(min_height))
 
     def _on_back(self):
         """Handle Back button click."""

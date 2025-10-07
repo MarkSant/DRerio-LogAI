@@ -4,6 +4,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 from zebtrack.core.controller import AppController
+from zebtrack.core.detector import ZoneData
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.settings import settings
 
@@ -179,6 +180,92 @@ class TestAppController(unittest.TestCase):
             # Note: callback is only invoked when frame is actually processed
             # to avoid sending frames without detection overlays
             self.assertEqual(progress_callback.call_count, 3)
+
+        @patch("zebtrack.core.controller.threading.Thread")
+        @patch("zebtrack.core.controller.ProjectManager.load_zones_from_parquet")
+        @patch("zebtrack.core.controller.ProjectManager.scan_input_paths")
+        def test_process_pending_project_videos_runs_workflow(
+            self, mock_scan, mock_load_zones, mock_thread
+        ):
+            self.mock_view.reset_mock()
+            self.mock_pm.reset_mock()
+
+            self.mock_pm.project_path = "/project"
+            self.mock_pm.get_all_videos.return_value = [
+                {"path": "/videos/full.mp4", "status": "pending"},
+                {"path": "/videos/arena.mp4", "status": "pending"},
+            ]
+
+            mock_scan.return_value = [
+                {
+                    "path": "/videos/full.mp4",
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": True,
+                    "has_complete_data": True,
+                },
+                {
+                    "path": "/videos/arena.mp4",
+                    "has_arena": True,
+                    "has_rois": False,
+                    "has_trajectory": False,
+                    "has_complete_data": False,
+                },
+            ]
+
+            mock_load_zones.return_value = ZoneData(
+                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
+            )
+
+            thread_instance = MagicMock()
+            mock_thread.return_value = thread_instance
+
+            self.mock_view.ask_ok_cancel.side_effect = [True, True]
+
+            self.controller.process_pending_project_videos()
+
+            mock_scan.assert_called_once_with(["/videos/full.mp4", "/videos/arena.mp4"])
+            self.assertEqual(self.mock_view.ask_ok_cancel.call_count, 2)
+
+            kwargs = mock_thread.call_args.kwargs
+            eligible = kwargs["args"][0]
+            self.assertEqual(len(eligible), 2)
+            self.assertTrue(thread_instance.start.called)
+
+            self.mock_pm.save_zone_data.assert_called()
+            self.mock_pm.update_video_status.assert_any_call(
+                "/videos/full.mp4",
+                "complete",
+            )
+            self.mock_pm.update_video_status.assert_any_call(
+                "/videos/arena.mp4",
+                "complete",
+            )
+
+            self.mock_view.show_info.assert_any_call(
+                "Processamento Iniciado",
+                "O processamento de 2 vídeo(s) foi iniciado em segundo plano.",
+            )
+
+        def test_process_pending_project_videos_without_pending(self):
+            self.mock_view.reset_mock()
+            self.mock_pm.reset_mock()
+
+            self.mock_pm.project_path = "/project"
+            self.mock_pm.get_all_videos.return_value = [
+                {"path": "/videos/full.mp4", "status": "complete"}
+            ]
+
+            with patch(
+                "zebtrack.core.controller.ProjectManager.scan_input_paths"
+            ) as mock_scan:
+                self.controller.process_pending_project_videos()
+                mock_scan.assert_not_called()
+
+            self.mock_view.show_info.assert_called_once()
+            title, message = self.mock_view.show_info.call_args[0]
+            self.assertEqual(title, "Processamento")
+            self.assertIn("Nenhum vídeo pendente", message)
 
     def test_process_videos_interval_resolution(self):
         """Test that _process_videos correctly resolves analysis and display

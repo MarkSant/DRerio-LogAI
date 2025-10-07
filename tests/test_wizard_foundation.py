@@ -13,13 +13,13 @@ import unittest
 from tkinter import Tk
 
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
-from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.enums import (
     ImportAction,
     ProjectType,
     WizardStepID,
     derive_import_action,
 )
+from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 
 
 class TestWizardFoundation(unittest.TestCase):

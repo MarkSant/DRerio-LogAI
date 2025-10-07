@@ -1120,6 +1120,9 @@ class ApplicationGUI:
         self.analysis_active = False
         self.toggle_view_btn = None
         self.analysis_overlay_frame = None
+        self.start_rec_btn: Button | None = None
+        self.stop_rec_btn: Button | None = None
+        self.process_video_btn: ttk.Button | None = None
 
         # Interactive arena editing state
         self.stabilization_frames_var = StringVar(value="10")
@@ -1420,6 +1423,7 @@ class ApplicationGUI:
         self.notebook.add(self.main_controls_frame, text="Controle Principal")
 
         project_type = self.controller.project_manager.get_project_type()
+        self.process_video_btn = None
 
         controls_container = ttk.Frame(self.main_controls_frame)
         controls_container.pack(fill="x", pady=(0, 10))
@@ -1439,12 +1443,12 @@ class ApplicationGUI:
             )
             self.stop_rec_btn.pack(side="left", padx=5)
         elif project_type == "pre-recorded":
-            # The main action in a pre-recorded project is to add more videos
+            # Primary action: add/process new videos (legacy location)
             ttk.Button(
-                self.main_controls_frame,
+                controls_container,
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
                 command=self.controller.start_project_processing_workflow,
-            ).pack(pady=10, padx=10, fill="x")
+            ).pack(side="left", padx=5)
 
             # Project-wide interval settings
             intervals_frame = ttk.LabelFrame(
@@ -1476,7 +1480,7 @@ class ApplicationGUI:
             controls_container,
             text="Fechar Projeto",
             command=self.controller.close_project,
-        ).pack(side="left", padx=5)
+        ).pack(side="right", padx=5)
 
         if project_type == "live":
             self.external_trigger_notice_label = Label(
@@ -1842,6 +1846,27 @@ class ApplicationGUI:
 
     def _create_zone_control_widgets(self):
         """Create all the zone control widgets in the scrollable frame."""
+        project_type = self.controller.project_manager.get_project_type()
+        if project_type == "pre-recorded":
+            if self.process_video_btn and self.process_video_btn.winfo_exists():
+                try:
+                    self.process_video_btn.destroy()
+                except Exception:
+                    pass
+            self.process_video_btn = ttk.Button(
+                self.fixed_button_frame,
+                text="Processar Vídeos Pendentes...",
+                command=self.controller.process_pending_project_videos,
+            )
+            self.process_video_btn.pack(side="top", fill="x", pady=(0, 5))
+        else:
+            if self.process_video_btn and self.process_video_btn.winfo_exists():
+                try:
+                    self.process_video_btn.destroy()
+                except Exception:
+                    pass
+            self.process_video_btn = None
+
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Ações de Desenho", padding=10
@@ -5408,13 +5433,13 @@ class ApplicationGUI:
 
     def update_button_state(self, button_name, state):
         """Updates the state of a button ('normal' or 'disabled')."""
-        if button_name == "start_rec" and hasattr(self, "start_rec_btn"):
+        if button_name == "start_rec" and self.start_rec_btn is not None:
             self.start_rec_btn.config(state=state)
-        elif button_name == "stop_rec" and hasattr(self, "stop_rec_btn"):
+        elif button_name == "stop_rec" and self.stop_rec_btn is not None:
             self.stop_rec_btn.config(state=state)
-        elif button_name == "process_video" and hasattr(self, "process_video_btn"):
+        elif button_name == "process_video" and self.process_video_btn is not None:
             self.process_video_btn.config(state=state)
-        elif button_name == "cancel_processing" and hasattr(self, "cancel_proc_btn"):
+        elif button_name == "cancel_processing" and self.cancel_proc_btn is not None:
             self.cancel_proc_btn.config(state=state)
 
     def ask_recording_details_unified(self):

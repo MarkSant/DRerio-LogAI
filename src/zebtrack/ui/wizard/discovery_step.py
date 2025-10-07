@@ -6,7 +6,6 @@ existing parquet files before scanning any videos.
 """
 
 from pathlib import Path
-
 from tkinter import (
     Button,
     Canvas,
@@ -26,8 +25,8 @@ from tkinter.ttk import Scrollbar
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
-from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 
 class DiscoveryStep(WizardStep):
@@ -525,7 +524,10 @@ class DiscoveryStep(WizardStep):
         if not template:
             messagebox.showerror(
                 "Carregar Template",
-                "Não foi possível carregar o template selecionado. Verifique o arquivo e tente novamente.",
+                (
+                    "Não foi possível carregar o template selecionado. "
+                    "Verifique o arquivo e tente novamente."
+                ),
                 parent=self,
             )
             return
@@ -581,7 +583,10 @@ class DiscoveryStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+            if (
+                self.template_info_label
+                and not self.template_info_label.winfo_ismapped()
+            ):
                 self.template_info_label.pack(fill="x", pady=(0, 15))
         else:
             self.template_info_var.set("")

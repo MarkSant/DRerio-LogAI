@@ -1961,6 +1961,240 @@ class AppController:
             "ao projeto.",
         )
 
+    def process_pending_project_videos(self):
+        """Processa vídeos já adicionados ao projeto que possuem dados pendentes."""
+        log.info("workflow.project_processing.resume_requested")
+
+        if self.processing_thread and self.processing_thread.is_alive():
+            self.view.show_warning(
+                "Análise em Andamento",
+                (
+                    "Um processamento já está ativo. Aguarde a conclusão ou "
+                    "cancele a análise atual antes de iniciar um novo lote."
+                ),
+            )
+            return
+
+        if not self.project_manager.project_path:
+            self.view.show_error("Erro", "Nenhum projeto carregado")
+            return
+
+        all_videos = self.project_manager.get_all_videos()
+        if not all_videos:
+            self.view.show_info(
+                "Processamento", "Nenhum vídeo cadastrado no projeto atualmente."
+            )
+            return
+
+        pending_entries = [
+            video
+            for video in all_videos
+            if video.get("status") not in {"processed", "complete"}
+        ]
+
+        if not pending_entries:
+            self.view.show_info(
+                "Processamento", "Nenhum vídeo pendente para ser processado."
+            )
+            return
+
+        video_paths: list[str] = []
+        for video in pending_entries:
+            path_value = video.get("path")
+            if isinstance(path_value, str) and path_value:
+                video_paths.append(path_value)
+        if not video_paths:
+            self.view.show_error(
+                "Erro",
+                "Não foi possível localizar caminhos válidos para os vídeos pendentes.",
+            )
+            return
+
+        scanned_videos = ProjectManager.scan_input_paths(video_paths)
+        info_by_path = {info["path"]: info for info in scanned_videos}
+
+        missing_files = [path for path in video_paths if path not in info_by_path]
+        if missing_files:
+            sample_names = [os.path.basename(path) for path in missing_files[:5]]
+            if len(missing_files) > 5:
+                sample_names.append(f"... (+{len(missing_files) - 5})")
+            self.view.show_warning(
+                "Vídeos Não Encontrados",
+                "Alguns vídeos foram ignorados porque não foram localizados:\n"
+                + "\n".join(sample_names),
+            )
+            log.warning(
+                "workflow.project_processing.missing_sources",
+                missing=len(missing_files),
+            )
+
+        ready_with_trajectory: list[dict] = []
+        ready_with_zones: list[dict] = []
+        arena_only: list[dict] = []
+        without_arena: list[dict] = []
+
+        data_changed = False
+
+        for video in pending_entries:
+            path = video.get("path")
+            info = info_by_path.get(path)
+            if not info:
+                continue
+
+            for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
+                new_value = info.get(key, False)
+                if video.get(key) != new_value:
+                    video[key] = new_value
+                    data_changed = True
+
+            if info.get("has_arena"):
+                if info.get("has_trajectory"):
+                    ready_with_trajectory.append(info)
+                elif info.get("has_rois"):
+                    ready_with_zones.append(info)
+                else:
+                    arena_only.append(info)
+            else:
+                without_arena.append(info)
+
+        if data_changed:
+            self.project_manager.save_project()
+
+        eligible_videos: list[dict] = []
+        eligible_videos.extend(ready_with_trajectory)
+        eligible_videos.extend(ready_with_zones)
+
+        summary_lines: list[str] = []
+        if ready_with_trajectory:
+            with_rois = sum(1 for info in ready_with_trajectory if info.get("has_rois"))
+            without_rois = len(ready_with_trajectory) - with_rois
+            if with_rois:
+                summary_lines.append(
+                    (
+                        f"• {with_rois} vídeo(s) com arena, ROIs e trajetória "
+                        "prontos para análise."
+                    )
+                )
+            if without_rois:
+                summary_lines.append(
+                    (
+                        f"• {without_rois} vídeo(s) com arena e trajetória "
+                        "(sem ROIs) serão analisados apenas pela arena."
+                    )
+                )
+        if ready_with_zones:
+            summary_lines.append(
+                (
+                    f"• {len(ready_with_zones)} vídeo(s) com arena e ROIs "
+                    "(trajetória será gerada automaticamente)."
+                )
+            )
+        if arena_only:
+            summary_lines.append(
+                f"• {len(arena_only)} vídeo(s) possuem apenas o parquet de arena."
+            )
+        if without_arena:
+            summary_lines.append(
+                (
+                    f"• {len(without_arena)} vídeo(s) não possuem arena "
+                    "detectada e foram ignorados."
+                )
+            )
+
+        if not summary_lines:
+            self.view.show_info(
+                "Processamento",
+                (
+                    "Nenhum vídeo elegível foi encontrado com dados "
+                    "suficientes para análise."
+                ),
+            )
+            return
+
+        summary_message = (
+            "Foram encontrados vídeos com dados pendentes:\n\n"
+            + "\n".join(summary_lines)
+            + "\n\nDeseja iniciar o processamento dos itens elegíveis?"
+        )
+
+        if not self.view.ask_ok_cancel("Processar Vídeos Pendentes", summary_message):
+            log.info("workflow.project_processing.resume_cancelled_by_user")
+            return
+
+        if arena_only:
+            arena_message = (
+                f"{len(arena_only)} vídeo(s) possuem apenas o parquet de arena.\n\n"
+                "Eles serão processados usando apenas o contorno principal.\n"
+                "Deseja incluí-los agora?"
+            )
+            if self.view.ask_ok_cancel(
+                "Incluir vídeos com apenas arena",
+                arena_message,
+            ):
+                eligible_videos.extend(arena_only)
+            else:
+                log.info(
+                    "workflow.project_processing.skip_arena_only",
+                    skipped=len(arena_only),
+                )
+
+        if not eligible_videos:
+            self.view.show_info(
+                "Processamento",
+                "Nenhum vídeo foi selecionado para processamento neste momento.",
+            )
+            return
+
+        zones_updated = False
+        for video_info in eligible_videos:
+            if video_info.get("has_arena") or video_info.get("has_rois"):
+                try:
+                    zone_data = ProjectManager.load_zones_from_parquet(video_info)
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.warning(
+                        "workflow.project_processing.zone_load_failed",
+                        video=os.path.basename(video_info.get("path", "")),
+                        error=str(exc),
+                    )
+                    zone_data = None
+                if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+                    self.project_manager.save_zone_data(
+                        zone_data, video_info["path"], persist=False
+                    )
+                    zones_updated = True
+
+        if zones_updated:
+            self.project_manager.save_project()
+
+        self.cancel_event.clear()
+        self.processing_thread = threading.Thread(
+            target=self._process_videos,
+            args=(eligible_videos, self.project_manager.project_path),
+            daemon=True,
+        )
+        self.processing_thread.start()
+
+        for video_info in eligible_videos:
+            self.project_manager.update_video_status(video_info["path"], "complete")
+
+        self.view.set_status(
+            f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."
+        )
+        self.view.show_info(
+            "Processamento Iniciado",
+            (
+                f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em "
+                "segundo plano."
+            ),
+        )
+
+        log.info(
+            "workflow.project_processing.resume_started",
+            total=len(eligible_videos),
+            with_trajectory=len(ready_with_trajectory),
+            with_zones=len(ready_with_zones),
+        )
+
     def _run_tracking_if_needed(
         self,
         video_path: str,

@@ -6,7 +6,7 @@ Shows table of videos with checkboxes for arena/ROIs/trajectory import.
 """
 
 from pathlib import Path
-from tkinter import Label, LabelFrame, Radiobutton, Scrollbar, StringVar, ttk
+from tkinter import Label, LabelFrame, Radiobutton, StringVar, ttk
 from tkinter import font as tkfont
 
 import structlog
@@ -18,8 +18,8 @@ from zebtrack.ui.wizard.enums import (
     WizardStepID,
     derive_import_action,
 )
-from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.ui.wizard.templates import format_template_banner
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 STATUS_SYMBOLS = {
     "arena": "\U0001F3DF",  # 🏟
@@ -100,7 +100,7 @@ class ImportConfigStep(WizardStep):
         table_frame.pack(fill="both", expand=True, pady=(0, 15))
 
         # Create Treeview with scrollbar
-        tree_scroll = Scrollbar(table_frame)
+        tree_scroll = ttk.Scrollbar(table_frame)
         tree_scroll.pack(side="right", fill="y")
 
         self.video_tree = ttk.Treeview(
@@ -428,7 +428,10 @@ class ImportConfigStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+            if (
+                self.template_info_label
+                and not self.template_info_label.winfo_ismapped()
+            ):
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")

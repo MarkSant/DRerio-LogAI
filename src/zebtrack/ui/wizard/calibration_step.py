@@ -20,8 +20,8 @@ from tkinter import (
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
-from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.ui.wizard.templates import format_template_banner
+from zebtrack.ui.wizard.tooltip import ToolTip
 
 
 class CalibrationStep(WizardStep):
@@ -273,7 +273,10 @@ class CalibrationStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+            if (
+                self.template_info_label
+                and not self.template_info_label.winfo_ismapped()
+            ):
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")
