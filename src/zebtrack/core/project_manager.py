@@ -25,6 +25,220 @@ class ProjectManager:
         self.project_path = None
         self.project_data = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
+        self._active_zone_video: str | None = None
+        self._last_zone_source_video: str | None = None
+
+    # ------------------------------------------------------------------
+    # Internal helpers for zone management
+    # ------------------------------------------------------------------
+
+    def _ensure_zone_structures(self) -> None:
+        """Ensure zone-related structures exist in project data."""
+
+        if "detection_zones" not in self.project_data:
+            self.project_data["detection_zones"] = {}
+        if "zones_by_video" not in self.project_data:
+            self.project_data["zones_by_video"] = {}
+
+    def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
+        """Serialize ZoneData into a JSON-friendly dictionary."""
+
+        if not zone_data:
+            return {
+                "polygon": [],
+                "roi_polygons": [],
+                "roi_names": [],
+                "roi_colors": [],
+            }
+
+        serialized = {
+            "polygon": [list(point) for point in (zone_data.polygon or [])],
+            "roi_polygons": [
+                [list(point) for point in polygon]
+                for polygon in (zone_data.roi_polygons or [])
+            ],
+            "roi_names": list(zone_data.roi_names or []),
+            "roi_colors": [list(color) for color in (zone_data.roi_colors or [])],
+        }
+        return serialized
+
+    def _zone_data_from_dict(self, data: dict | None) -> ZoneData:
+        """Deserialize zone data stored in JSON back into ZoneData."""
+
+        if not data:
+            return ZoneData()
+
+        polygon = [list(point) for point in data.get("polygon", [])]
+        roi_polygons = []
+        for polygon_points in data.get("roi_polygons", []):
+            roi_polygons.append([list(point) for point in polygon_points])
+
+        roi_names = list(data.get("roi_names", []))
+        roi_colors = [tuple(color) for color in data.get("roi_colors", [])]
+
+        return ZoneData(
+            polygon=polygon,
+            roi_polygons=roi_polygons,
+            roi_names=roi_names,
+            roi_colors=roi_colors,
+        )
+
+    def _update_video_zone_flags(
+        self,
+        video_path: str,
+        zone_data: ZoneData | None,
+    ) -> None:
+        """Update has_arena/has_rois flags for a given video entry."""
+
+        if not self.project_data:
+            return
+
+        has_arena = bool(zone_data and zone_data.polygon)
+        has_rois = bool(zone_data and zone_data.roi_polygons)
+
+        for batch in self.project_data.get("batches", []):
+            for video in batch.get("videos", []):
+                if video.get("path") == video_path:
+                    video["has_arena"] = has_arena
+                    video["has_rois"] = has_rois
+                    video["zones_finalized"] = False
+                    return
+
+    def _refresh_last_zone_source(self, removed_path: str | None = None) -> None:
+        """Refresh cache for last zone source video when data changes."""
+
+        zones_map = self.project_data.get("zones_by_video", {})
+
+        if removed_path and self._last_zone_source_video == removed_path:
+            self._last_zone_source_video = None
+
+        if self._last_zone_source_video and self._last_zone_source_video in zones_map:
+            return
+
+        # Pick the most recently inserted entry in zones_by_video
+        if zones_map:
+            self._last_zone_source_video = next(reversed(zones_map.keys()))
+        else:
+            self._last_zone_source_video = None
+
+    # ------------------------------------------------------------------
+    # Public helpers for zone lifecycle
+    # ------------------------------------------------------------------
+
+    def set_active_zone_video(self, video_path: str | None) -> None:
+        """Set the video whose zones should be considered active in memory."""
+
+        self._active_zone_video = video_path
+        self._ensure_zone_structures()
+
+        if video_path is None:
+            return
+
+        zones_map = self.project_data.get("zones_by_video", {})
+        stored = zones_map.get(video_path)
+
+        if stored:
+            # Clone stored zones into detection_zones so edits stay isolated
+            zone_copy = self._zone_data_from_dict(stored)
+            self.project_data["detection_zones"] = self._zone_data_to_dict(
+                zone_copy
+            )
+        else:
+            # Reset detection_zones to a clean slate for this video
+            self.project_data["detection_zones"] = self._zone_data_to_dict(
+                ZoneData()
+            )
+
+    def get_active_zone_video(self) -> str | None:
+        """Return the currently active video for zone operations."""
+
+        return self._active_zone_video
+
+    def get_last_zone_video(self, exclude: str | None = None) -> str | None:
+        """Return the last video that had zones saved, excluding optional target."""
+
+        if (
+            self._last_zone_source_video
+            and self._last_zone_source_video != exclude
+            and self._last_zone_source_video
+            in self.project_data.get("zones_by_video", {})
+        ):
+            return self._last_zone_source_video
+
+        for path in reversed(list(self.project_data.get("zones_by_video", {}).keys())):
+            if path != exclude:
+                return path
+
+        return None
+
+    def has_zone_data(self, video_path: str | None) -> bool:
+        """Check whether the given video currently stores arena or ROI data."""
+
+        if not video_path:
+            return False
+
+        self._ensure_zone_structures()
+        stored = self.project_data.get("zones_by_video", {}).get(video_path)
+
+        if not stored:
+            return False
+
+        zone_data = self._zone_data_from_dict(stored)
+        return bool(zone_data.polygon or zone_data.roi_polygons)
+
+    def save_zone_data(
+        self,
+        zone_data: ZoneData,
+        video_path: str | None = None,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """Persist zone data for the active video and project defaults."""
+
+        self._ensure_zone_structures()
+
+        target_video = video_path if video_path is not None else self._active_zone_video
+
+        serialized = self._zone_data_to_dict(zone_data)
+        self.project_data["detection_zones"] = serialized
+
+        if target_video:
+            self.project_data["zones_by_video"][target_video] = serialized
+            self._last_zone_source_video = target_video
+            self._update_video_zone_flags(target_video, zone_data)
+
+        if persist:
+            self.save_project()
+
+    def clear_zone_data_for_video(
+        self,
+        video_path: str,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """Remove stored zone data for a specific video."""
+
+        self._ensure_zone_structures()
+
+        if video_path in self.project_data["zones_by_video"]:
+            del self.project_data["zones_by_video"][video_path]
+
+        if self._active_zone_video == video_path:
+            self.project_data["detection_zones"] = self._zone_data_to_dict(
+                ZoneData()
+            )
+
+        self._update_video_zone_flags(video_path, None)
+        self._refresh_last_zone_source(removed_path=video_path)
+
+        if persist:
+            self.save_project()
+
+    def clone_zone_data_from_video(self, video_path: str) -> ZoneData:
+        """Return a deep copy of zone data stored for another video."""
+
+        zones_map = self.project_data.get("zones_by_video", {})
+        return self._zone_data_from_dict(zones_map.get(video_path))
 
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict]:
@@ -303,8 +517,6 @@ class ProjectManager:
                     "parquet_files", {}
                 )
 
-        # Get current zone data
-        zone_data = self.get_zone_data()
         imported_count = {"arena": 0, "rois": 0, "trajectory": 0}
 
         try:
@@ -332,6 +544,12 @@ class ProjectManager:
                         video=Path(video_path).name,
                     )
                     continue
+
+                # Start from existing per-video zone data if available
+                zone_data = self.get_zone_data(
+                    video_path=video_path,
+                    fallback_to_global=False,
+                )
 
                 # Import arena
                 if import_arena:
@@ -437,6 +655,9 @@ class ProjectManager:
                                     strategy=roi_merge_strategy,
                                 )
 
+                # Persist zone data in memory for this video
+                self.save_zone_data(zone_data, video_path, persist=False)
+
                 # Import trajectory (copy parquet to project folder)
                 if import_trajectory:
                     trajectory_path = parquet_files.get("trajectory")
@@ -469,8 +690,6 @@ class ProjectManager:
                         )
 
             # Save updated zone data to project
-            from dataclasses import asdict
-            self.project_data["detection_zones"] = asdict(zone_data)
             self.save_project()
 
             log.info(
@@ -601,6 +820,8 @@ class ProjectManager:
             "use_arduino": safe_use_arduino,
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
+            "detection_zones": {},
+            "zones_by_video": {},
         }
 
         # Add wizard metadata if provided (from wizard v1.5+)
@@ -669,6 +890,7 @@ class ProjectManager:
                         has_data,
                     )
                 ),
+                "zones_finalized": False,
             }
 
             if metadata:
@@ -913,19 +1135,29 @@ class ProjectManager:
     def get_project_type(self):
         return self.project_data.get("project_type")
 
-    def get_zone_data(self) -> ZoneData:
-        """
-        Retrieves zone data from the project configuration, returning a ZoneData object.
-        """
-        zone_dict = self.project_data.get("detection_zones", {})
-        if zone_dict:
-            # Pydantic dataclasses can be instantiated from dictionaries
-            return ZoneData(**zone_dict)
-        return ZoneData()
+    def get_zone_data(
+        self,
+        video_path: str | None = None,
+        *,
+        fallback_to_global: bool = True,
+    ) -> ZoneData:
+        """Retrieve zone data for a specific video or fallback to project defaults."""
+
+        self._ensure_zone_structures()
+
+        target_video = video_path if video_path is not None else self._active_zone_video
+        zones_map = self.project_data.get("zones_by_video", {})
+
+        if target_video and target_video in zones_map:
+            return self._zone_data_from_dict(zones_map[target_video])
+
+        if target_video and not fallback_to_global:
+            return ZoneData()
+
+        return self._zone_data_from_dict(self.project_data.get("detection_zones"))
 
     def update_main_polygon(self, points: list):
         """Atualiza ou define o polígono principal nos dados do projeto."""
-        from dataclasses import asdict
 
         log.info(
             "project_manager.polygon.updating",
@@ -957,12 +1189,10 @@ class ProjectManager:
                 new_points=len(points),
             )
 
-            # Salvar estrutura atualizada
-            self.project_data["detection_zones"] = asdict(zone_data)
+            # Persistir alterações
+            self.save_zone_data(zone_data)
             log.debug("project_manager.polygon.data_structure_updated")
 
-            # Persistir no arquivo
-            self.save_project()
             log.info(
                 "project_manager.polygon.saved_successfully",
                 project_file=f"{self.project_path}/project.json"
@@ -991,7 +1221,9 @@ class ProjectManager:
             except Exception as e:
                 self.metadata = None
                 log.error(
-                    "project.metadata.load_error", path=metadata_path, error=str(e)
+                    "project.metadata.load_error",
+                    path=metadata_path,
+                    error=str(e),
                 )
                 messagebox.showwarning(
                     "Aviso de Metadados",

@@ -1081,6 +1081,7 @@ class ApplicationGUI:
         self.pending_single_video_path = None
         self.pending_single_video_config = None
         self.start_single_analysis_btn = None
+        self._zone_prompt_history: set[str] = set()
 
         # ROI Tab Widgets
         self.roi_listbox = None
@@ -2511,13 +2512,8 @@ class ApplicationGUI:
             # Update the ROI polygon
             zone_data.roi_polygons[roi_index] = self.edited_polygon_points
 
-            # Save to project
-            from dataclasses import asdict
-
-            self.controller.project_manager.project_data["detection_zones"] = asdict(
-                zone_data
-            )
-            self.controller.project_manager.save_project()
+            # Save to project using new zone persistence helper
+            self.controller.project_manager.save_zone_data(zone_data)
 
             self.set_status(f"ROI '{roi_name}' salva com sucesso.")
         else:
@@ -2576,6 +2572,20 @@ class ApplicationGUI:
         and adjusts the window size.
         """
         try:
+            if not video_path or not os.path.exists(video_path):
+                log.error(
+                    "gui.display_roi_frame.invalid_path",
+                    path=video_path,
+                )
+                self.controller.project_manager.set_active_zone_video(None)
+                self.show_error(
+                    "Erro",
+                    "O vídeo selecionado não foi encontrado ou está inacessível.",
+                )
+                return
+
+            self.controller.project_manager.set_active_zone_video(video_path)
+
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 self.show_error("Erro", "Não foi possível abrir o vídeo.")
@@ -2748,9 +2758,12 @@ class ApplicationGUI:
 
         if not video_path or not os.path.exists(video_path):
             log.error("gui.load_frame.no_video")
+            self.controller.project_manager.set_active_zone_video(None)
             return False
 
         try:
+            self.controller.project_manager.set_active_zone_video(video_path)
+
             cap = cv2.VideoCapture(video_path)
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
             ret, frame = cap.read()
@@ -2986,6 +2999,7 @@ class ApplicationGUI:
         success = self.load_video_frame_to_canvas(video_path, frame_number=0)
 
         if success:
+            self._maybe_offer_zone_reuse(video_path)
             self.redraw_zones_from_project_data()
             filename = os.path.basename(video_path)
             self.set_status(f"✓ Frame carregado: {filename}")
@@ -2994,6 +3008,50 @@ class ApplicationGUI:
             self.show_error(
                 "Erro ao Carregar",
                 f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )
+
+    def _maybe_offer_zone_reuse(self, video_path: str) -> None:
+        """Prompt user to reuse the last zones when the current video has none."""
+
+        if not video_path:
+            return
+
+        if video_path in self._zone_prompt_history:
+            return
+
+        pm = self.controller.project_manager
+        if pm.has_zone_data(video_path):
+            return
+
+        last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
+        if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
+            return
+
+        self._zone_prompt_history.add(video_path)
+
+        current_name = os.path.basename(video_path)
+        last_name = os.path.basename(last_video_with_zones)
+
+        reuse = messagebox.askyesno(
+            "Reutilizar zonas existentes?",
+            (
+                f"O vídeo \"{current_name}\" não possui arena ou ROIs salvas.\n\n"
+                f"Deseja reutilizar as zonas desenhadas para \"{last_name}\"?\n"
+                "Escolha \"Sim\" para reutilizar ou \"Não\" para começar do zero."
+            ),
+            icon="question",
+        )
+
+        if reuse:
+            cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
+            pm.save_zone_data(cloned_zone_data, video_path=video_path)
+            self.set_status(
+                f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
+            )
+        else:
+            pm.clear_zone_data_for_video(video_path, persist=False)
+            self.set_status(
+                "Comece a desenhar a arena e as ROIs para este vídeo."
             )
 
     def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
@@ -4731,6 +4789,9 @@ class ApplicationGUI:
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
+        # Ensure zone edits persist under the selected video
+        self.controller.project_manager.set_active_zone_video(video_path)
+
         # Open the main project view if it is not already open
         if not self.notebook:
             self._create_main_control_frame()
@@ -5247,13 +5308,8 @@ class ApplicationGUI:
                 idx = zone_data.roi_names.index(old_name)
                 zone_data.roi_names[idx] = new_name
 
-                # Salva
-                from dataclasses import asdict
-
-                self.controller.project_manager.project_data["detection_zones"] = (
-                    asdict(zone_data)
-                )
-                self.controller.project_manager.save_project()
+                # Persist updated ROI name
+                self.controller.project_manager.save_zone_data(zone_data)
 
                 # Atualiza visualização
                 self.redraw_zones_from_project_data()
@@ -5286,13 +5342,8 @@ class ApplicationGUI:
             idx = zone_data.roi_names.index(old_name)
             zone_data.roi_colors[idx] = new_color
 
-            # Salva
-            from dataclasses import asdict
-
-            self.controller.project_manager.project_data["detection_zones"] = asdict(
-                zone_data
-            )
-            self.controller.project_manager.save_project()
+            # Persist color change
+            self.controller.project_manager.save_zone_data(zone_data)
 
             # Atualiza visualização
             self.redraw_zones_from_project_data()
@@ -5341,13 +5392,8 @@ class ApplicationGUI:
                 if idx < len(zone_data.roi_colors):
                     zone_data.roi_colors.pop(idx)
 
-                # Salva
-                from dataclasses import asdict
-
-                self.controller.project_manager.project_data["detection_zones"] = (
-                    asdict(zone_data)
-                )
-                self.controller.project_manager.save_project()
+                # Persist removals
+                self.controller.project_manager.save_zone_data(zone_data)
 
                 # Atualiza visualização
                 self.redraw_zones_from_project_data()

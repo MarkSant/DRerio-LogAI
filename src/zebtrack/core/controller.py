@@ -1021,6 +1021,8 @@ class AppController:
                 )
                 return
 
+            self.project_manager.set_active_zone_video(video_path)
+
             # Display the first frame of the video as a preview background
             self.view.display_roi_video_frame(video_path)
 
@@ -1111,7 +1113,7 @@ class AppController:
 
             # Validação 3: Estrutura de dados
             if "detection_zones" not in self.project_manager.project_data:
-                self.project_manager.project_data["detection_zones"] = {}
+                self.project_manager.save_zone_data(ZoneData(), persist=False)
                 log.info("controller.polygon.initialized_detection_zones")
 
             # Salva
@@ -1136,18 +1138,9 @@ class AppController:
         """Updates the main arena polygon in the project's zone data."""
         log.info("controller.zone.update_arena", points=len(polygon_points))
 
-        # Ensure the detection_zones dictionary exists
-        if "detection_zones" not in self.project_manager.project_data:
-            self.project_manager.project_data["detection_zones"] = {}
-
         zone_data = self.project_manager.get_zone_data()
         zone_data.polygon = polygon_points
-
-        # Convert dataclass to dict and save
-        from dataclasses import asdict
-
-        self.project_manager.project_data["detection_zones"] = asdict(zone_data)
-        self.project_manager.save_project()
+        self.project_manager.save_zone_data(zone_data)
 
         # After updating, we need to reload the zones in the detector
         self.setup_detector_zones()
@@ -1273,13 +1266,8 @@ class AppController:
             zone_data.roi_names.append(name)
             zone_data.roi_colors.append(color)
 
-            # Convert the dataclass back to a dict for JSON serialization
-            from dataclasses import asdict
-
-            self.project_manager.project_data["detection_zones"] = asdict(zone_data)
-
             # Save the project and reload the zones in the active detector
-            self.project_manager.save_project()
+            self.project_manager.save_zone_data(zone_data)
             self.setup_detector_zones()
             log.info("controller.zone.add_roi.success", name=name)
             return True
@@ -1394,6 +1382,9 @@ class AppController:
     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
         """Starts a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
+
+        # Live recordings rely on project-wide zones, not per-video ones
+        self.project_manager.set_active_zone_video(None)
 
         # Reset any previous waiting state before starting a new session
         self._clear_external_trigger_wait()
@@ -1629,6 +1620,8 @@ class AppController:
         """Prepares the UI for zone definition in the single video workflow."""
         log.info("workflow.single_video.setup_start", video=video_path)
 
+        self.project_manager.set_active_zone_video(video_path)
+
         # Use detection methods from config if provided, otherwise fall back to
         # global settings
         animal_method = config.get(
@@ -1675,6 +1668,8 @@ class AppController:
     ):
         """Starts the actual processing for a single video after zone setup."""
         log.info("workflow.single_video.processing_start", video=video_path)
+
+        self.project_manager.set_active_zone_video(video_path)
 
         # Enable single animal mode if animals_per_aquarium == 1
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
@@ -2284,6 +2279,9 @@ class AppController:
                 ),
             )
 
+            # Default to project-wide zones until a video is activated
+            self.project_manager.set_active_zone_video(None)
+
             for i, video_info in enumerate(videos_to_process):
                 if self.cancel_event.is_set():
                     was_cancelled = True
@@ -2292,6 +2290,8 @@ class AppController:
 
                 video_path = video_info["path"]
                 experiment_id = os.path.splitext(os.path.basename(video_path))[0]
+
+                self.project_manager.set_active_zone_video(video_path)
 
                 def progress_callback(
                     progress_fraction, status_message, frame=None, stats=None
@@ -2511,6 +2511,7 @@ class AppController:
                 ),
             )
         finally:
+            self.project_manager.set_active_zone_video(None)
             self.root.after(0, self.view.stop_analysis_view_mode)
             self.root.after(0, self.view.hide_progress_bar)
             if was_cancelled:
