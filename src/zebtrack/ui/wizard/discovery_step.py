@@ -6,6 +6,7 @@ existing parquet files before scanning any videos.
 """
 
 from tkinter import (
+    Canvas,
     Frame,
     IntVar,
     Label,
@@ -16,6 +17,7 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
+from tkinter.ttk import Scrollbar
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -53,25 +55,60 @@ class DiscoveryStep(WizardStep):
 
     def build_ui(self):
         """Build discovery step UI."""
+        background_color = self.cget("background")
+
+        self.scroll_canvas = Canvas(
+            self, highlightthickness=0, bg=background_color, borderwidth=0
+        )
+        self.scrollbar = Scrollbar(
+            self, orient="vertical", command=self.scroll_canvas.yview
+        )
+        self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.scroll_canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.content_frame = Frame(self.scroll_canvas, bg=background_color)
+        self.content_frame.bind(
+            "<Configure>",
+            lambda event: self.scroll_canvas.configure(
+                scrollregion=self.scroll_canvas.bbox("all")
+            ),
+        )
+        self._canvas_window = self.scroll_canvas.create_window(
+            (0, 0), window=self.content_frame, anchor="nw"
+        )
+
+        self.scroll_canvas.bind("<Configure>", self._on_canvas_configure)
+        self.scroll_canvas.bind("<Enter>", self._bind_mousewheel)
+        self.scroll_canvas.bind("<Leave>", self._unbind_mousewheel)
+
+        self.content_container = Frame(self.content_frame, bg=background_color)
+        self.content_container.pack(fill="both", expand=True, padx=10, pady=10)
+
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(
-            self, text="Bem-vindo ao Assistente de Criação de Projeto", font=title_font
+            self.content_container,
+            text="Bem-vindo ao Assistente de Criação de Projeto",
+            font=title_font,
         )
         title.pack(pady=(0, 20))
 
         subtitle = Label(
-            self,
+            self.content_container,
             text="Vamos começar entendendo o contexto do seu projeto.",
             fg="gray",
         )
         subtitle.pack(pady=(0, 20))
 
         # Question 1: Project Type
-        q1_header = Frame(self)
+        q1_header = Frame(self.content_container)
         q1_header.pack(fill="x", pady=(0, 5))
 
-        self.q1_frame = LabelFrame(self, text="1. Tipo de Projeto", padx=15, pady=10)
+        self.q1_frame = LabelFrame(
+            self.content_container, text="1. Tipo de Projeto", padx=15, pady=10
+        )
         self.q1_frame.pack(fill="x", pady=(0, 15))
 
         rb1 = Radiobutton(
@@ -118,7 +155,7 @@ class DiscoveryStep(WizardStep):
 
         # Question 2: Folder Organization (only for experimental)
         self.q2_frame = LabelFrame(
-            self, text="2. Organização de Pastas", padx=15, pady=10
+            self.content_container, text="2. Organização de Pastas", padx=15, pady=10
         )
         self.q2_frame.pack(fill="x", pady=(0, 15))
 
@@ -157,7 +194,10 @@ class DiscoveryStep(WizardStep):
 
         # Question 3: Existing Parquet Files
         self.q3_frame = LabelFrame(
-            self, text="3. Arquivos Parquet Existentes", padx=15, pady=10
+            self.content_container,
+            text="3. Arquivos Parquet Existentes",
+            padx=15,
+            pady=10,
         )
         self.q3_frame.pack(fill="x", pady=(0, 15))
 
@@ -230,7 +270,7 @@ class DiscoveryStep(WizardStep):
 
         # Glossary / Help text explaining technical terms
         glossary_frame = LabelFrame(
-            self,
+            self.content_container,
             text="O que significam esses termos?",
             padx=15,
             pady=10,
@@ -258,6 +298,63 @@ class DiscoveryStep(WizardStep):
 
         # Update UI state
         self._on_project_type_change()
+
+        self.after(0, self._initialize_scroll_area)
+
+    def _on_canvas_configure(self, event):
+        self.scroll_canvas.itemconfig(self._canvas_window, width=event.width)
+
+    def _bind_mousewheel(self, _event=None):
+        self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.scroll_canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self.scroll_canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event=None):
+        self.scroll_canvas.unbind_all("<MouseWheel>")
+        self.scroll_canvas.unbind_all("<Button-4>")
+        self.scroll_canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event):
+        if getattr(event, "delta", 0) != 0:
+            delta = -1 * int(event.delta / 120)
+            if delta != 0:
+                self.scroll_canvas.yview_scroll(delta, "units")
+        else:
+            num = getattr(event, "num", None)
+            if num == 4:
+                self.scroll_canvas.yview_scroll(-1, "units")
+            elif num == 5:
+                self.scroll_canvas.yview_scroll(1, "units")
+
+    def _initialize_scroll_area(self):
+        if not hasattr(self, "scroll_canvas"):
+            return
+
+        self.update_idletasks()
+
+        requested_width = self.content_container.winfo_reqwidth() + 20
+        requested_height = self.content_container.winfo_reqheight() + 20
+
+        screen_width = self.winfo_toplevel().winfo_screenwidth()
+        screen_height = self.winfo_toplevel().winfo_screenheight()
+
+        preferred_width = min(max(requested_width, 760), screen_width - 160)
+        preferred_height = min(max(requested_height, 520), screen_height - 200)
+
+        # Ensure sane fallbacks when running on very small displays
+        preferred_width = max(preferred_width, 520)
+        preferred_height = max(preferred_height, 420)
+
+        self.scroll_canvas.configure(width=preferred_width, height=preferred_height)
+
+        toplevel = self.winfo_toplevel()
+        if toplevel is not None:
+            toplevel.update_idletasks()
+
+            min_width = min(preferred_width + 60, screen_width - 60)
+            min_height = min(preferred_height + 160, screen_height - 60)
+
+            toplevel.minsize(min_width, min_height)
 
     def _on_project_type_change(self):
         """Handle project type change - show/hide questions based on project type."""
@@ -370,3 +467,13 @@ class DiscoveryStep(WizardStep):
 
         # Update UI visibility
         self._on_project_type_change()
+
+    def on_show(self):
+        super().on_show()
+        if hasattr(self, "scroll_canvas"):
+            self.scroll_canvas.update_idletasks()
+            self.scroll_canvas.yview_moveto(0)
+
+    def on_hide(self):
+        super().on_hide()
+        self._unbind_mousewheel()
