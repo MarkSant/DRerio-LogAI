@@ -242,7 +242,7 @@ class TestDetectionStep(unittest.TestCase):
 
     @patch.object(DetectionStep, "_detect_design")
     def test_custom_regex_from_editor_recalculates_design(self, mock_detect):
-        """Custom regex updates triggered from the editor should refresh the design immediately."""
+        """Custom regex updates from the editor should refresh the design promptly."""
         wizard_data = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "video_paths": [str(self.video1)],

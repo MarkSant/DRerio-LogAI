@@ -6,17 +6,8 @@ Shows table of videos with checkboxes for arena/ROIs/trajectory import.
 """
 
 from pathlib import Path
-from tkinter import (
-    Label,
-    LabelFrame,
-    Radiobutton,
-    Scrollbar,
-    StringVar,
-    ttk,
-)
-from tkinter import (
-    font as tkfont,
-)
+from tkinter import Label, LabelFrame, Radiobutton, Scrollbar, StringVar, ttk
+from tkinter import font as tkfont
 
 import structlog
 
@@ -28,6 +19,12 @@ from zebtrack.ui.wizard.enums import (
     derive_import_action,
 )
 from zebtrack.ui.wizard.tooltip import ToolTip
+
+STATUS_SYMBOLS = {
+    "arena": "\U0001F3DF",  # 🏟
+    "rois": "\U0001F3AF",  # 🎯
+    "trajectory": "\U0001F9ED",  # 🧭
+}
 
 log = structlog.get_logger()
 
@@ -190,16 +187,21 @@ class ImportConfigStep(WizardStep):
         legend_frame = LabelFrame(self, text="Legenda", padx=10, pady=5)
         legend_frame.pack(fill="x", pady=(10, 0))
 
-        legend_text = Label(
+        self.legend_label = Label(
             legend_frame,
             text=(
-                "✓ = Disponível e será importado  |  ○ = Disponível mas não "
-                "importado  |  — = Não disponível"
+                "Legenda:\n"
+                "🏟 Arena disponível | 🏟 ✗ Arena ausente\n"
+                "🎯 ROIs disponíveis | 🎯 ✗ ROIs ausentes\n"
+                "🧭 Trajetória disponível | 🧭 ✗ Trajetória ausente\n"
+                "🏟 ✓ / 🎯 ✓ / 🧭 ✓ Importando parquet\n"
+                "🏟 ⏸ / 🎯 ⏸ / 🧭 ⏸ Disponível, não importar"
             ),
             fg="gray",
             font=("TkDefaultFont", 9),
+            justify="left",
         )
-        legend_text.pack()
+        self.legend_label.pack(anchor="w")
 
         # Help text
         help_text = Label(
@@ -288,22 +290,25 @@ class ImportConfigStep(WizardStep):
         for idx, config in enumerate(self.video_configs):
             video_name = Path(config["video"]).name
 
-            # Format checkbox symbols with availability indicators
-            # ✓ = available AND will import
-            # ○ = available but NOT importing
-            # — = not available
-            def format_status(has_parquet: bool, importing: bool) -> str:
+            # Format glyphs with availability indicators
+            def format_status(
+                has_parquet: bool, importing: bool, symbol_key: str
+            ) -> str:
+                symbol = STATUS_SYMBOLS[symbol_key]
                 if not has_parquet:
-                    return "—"  # Not available
-                elif importing:
-                    return "✓"  # Available and importing
-                else:
-                    return "○"  # Available but not importing
+                    return f"{symbol} ✗"
 
-            arena_str = format_status(config["has_arena"], config["import_arena"])
-            rois_str = format_status(config["has_rois"], config["import_rois"])
+                suffix = "✓" if importing else "⏸"
+                return f"{symbol} {suffix}"
+
+            arena_str = format_status(
+                config["has_arena"], config["import_arena"], "arena"
+            )
+            rois_str = format_status(
+                config["has_rois"], config["import_rois"], "rois"
+            )
             traj_str = format_status(
-                config["has_trajectory"], config["import_trajectory"]
+                config["has_trajectory"], config["import_trajectory"], "trajectory"
             )
 
             # Action name (user-friendly)

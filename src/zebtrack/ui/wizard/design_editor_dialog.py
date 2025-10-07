@@ -17,7 +17,6 @@ from tkinter import (
 )
 from tkinter import font as tkfont
 from tkinter.simpledialog import Dialog
-
 from typing import Callable
 
 import structlog
@@ -307,7 +306,13 @@ class DesignEditorDialog(Dialog):
                 textvariable=name_var,
                 relief="groove",
             )
-            name_entry.grid(row=index, column=1, sticky="nsew", padx=(0, 1), pady=(0, 1))
+            name_entry.grid(
+                row=index,
+                column=1,
+                sticky="nsew",
+                padx=(0, 1),
+                pady=(0, 1),
+            )
             self.group_name_vars.append(name_var)
             self.group_name_entries.append(name_entry)
 

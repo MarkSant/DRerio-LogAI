@@ -37,6 +37,13 @@ from zebtrack.settings import settings
 log = structlog.get_logger()
 
 
+STATUS_SYMBOLS = {
+    "arena": "\U0001F3DF",  # 🏟
+    "rois": "\U0001F3AF",  # 🎯
+    "trajectory": "\U0001F9ED",  # 🧭
+}
+
+
 class CalibrationDialog(simpledialog.Dialog):
     """Dialog for model calibration and diagnostics."""
 
@@ -1976,7 +1983,7 @@ class ApplicationGUI:
         self.video_selector_tree.column("#0", width=220, stretch=True)
         self.video_selector_tree.column(
             "status",
-            width=90,
+            width=120,
             anchor="center",
             stretch=False,
         )
@@ -2006,7 +2013,13 @@ class ApplicationGUI:
         legend_frame.pack(fill="x", pady=(5, 0))
         ttk.Label(
             legend_frame,
-            text="Legenda: 🟢 Arena | 🟢 ROIs | 🟢 Trajetória | ⚫ Não disponível",
+            text=(
+                "Legenda: "
+                f"{STATUS_SYMBOLS['arena']} ✓ Arena | "
+                f"{STATUS_SYMBOLS['rois']} ✓ ROIs | "
+                f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória | "
+                "✗ Ausente"
+            ),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(anchor="w")
@@ -2865,6 +2878,10 @@ class ApplicationGUI:
 
         displayed_videos = 0
 
+        def format_status(has_parquet: bool, symbol_key: str) -> str:
+            symbol = STATUS_SYMBOLS[symbol_key]
+            return f"{symbol} ✓" if has_parquet else f"{symbol} ✗"
+
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
@@ -2905,10 +2922,14 @@ class ApplicationGUI:
 
                     subject_label = _format_subject(video_entry.get("subject"))
 
-                    status_tokens = (
-                        ("🟢" if video_entry["has_arena"] else "⚫")
-                        + ("🟢" if video_entry["has_rois"] else "⚫")
-                        + ("🟢" if video_entry["has_trajectory"] else "⚫")
+                    status_tokens = " ".join(
+                        (
+                            format_status(video_entry["has_arena"], "arena"),
+                            format_status(video_entry["has_rois"], "rois"),
+                            format_status(
+                                video_entry["has_trajectory"], "trajectory"
+                            ),
+                        )
                     )
 
                     self.video_selector_tree.insert(
