@@ -136,6 +136,26 @@ class TestConfirmationStep(unittest.TestCase):
         # Should contain parquet summary
         self.assertIn("Arena: 5", summary)
 
+    def test_summary_includes_template_metadata(self):
+        """Summary should mention loaded template when metadata is present."""
+        wizard_data = {
+            "video_count": 3,
+            "template_metadata": {
+                "name": "Template Especial",
+                "path": str(Path(self.temp_dir) / "template_especial.json"),
+            },
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        summary = step.summary_text
+
+        self.assertIn("Template", summary)
+        self.assertIn("Template Especial", summary)
+        self.assertIn("Template carregado", step.template_info_var.get())
+
     def test_validate_succeeds_with_valid_data(self):
         """Validation should succeed with valid project name and location."""
         wizard_data = {

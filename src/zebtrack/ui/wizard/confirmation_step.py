@@ -27,7 +27,7 @@ import structlog
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
-from zebtrack.ui.wizard.templates import TemplateManager
+from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
 
 log = structlog.get_logger()
 
@@ -61,6 +61,8 @@ class ConfirmationStep(WizardStep):
         self.project_location_var = StringVar(value=str(Path.home() / "Documents"))
         self.summary_text = ""
         self.template_manager = TemplateManager()
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build confirmation step UI."""
@@ -78,6 +80,16 @@ class ConfirmationStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
+        self._update_template_banner()
 
         # Project name
         name_frame = Frame(self)
@@ -159,6 +171,7 @@ class ConfirmationStep(WizardStep):
         """Called when step becomes visible - generate summary."""
         self._generate_default_project_name()
         self._generate_summary()
+        self._update_template_banner()
 
     def _generate_default_project_name(self):
         """Generate default project name based on project type."""
@@ -199,6 +212,16 @@ class ConfirmationStep(WizardStep):
     def _generate_summary(self):
         """Generate summary text from all wizard data."""
         lines = []
+
+        metadata = self.wizard_data.get("template_metadata")
+        if metadata:
+            lines.append("📝 Template Carregado:")
+            banner_text = format_template_banner(metadata)
+            if banner_text:
+                lines.append(f"  • {banner_text.replace('Template carregado: ', '')}")
+            if metadata.get("created_at"):
+                lines.append(f"  • Criado em: {metadata['created_at']}")
+            lines.append("")
 
         # Project type summary
         project_type = self.wizard_data.get("project_type", "experimental")
@@ -385,12 +408,32 @@ class ConfirmationStep(WizardStep):
         if not template_name:
             return  # User cancelled
 
+        suggested_filename = (
+            self.template_manager._sanitize_name(template_name) or "template"
+        ) + ".json"
+
+        file_path = filedialog.asksaveasfilename(
+            title="Salvar Template do Wizard",
+            defaultextension=".json",
+            filetypes=[("Templates do Wizard", "*.json"), ("JSON", "*.json")],
+            initialdir=str(self.template_manager.templates_dir),
+            initialfile=suggested_filename,
+        )
+
+        if not file_path:
+            return
+
         # Save template
-        success = self.template_manager.save_template(template_name, self.wizard_data)
+        success = self.template_manager.save_template(
+            template_name,
+            self.wizard_data,
+            destination_path=file_path,
+        )
 
         if success:
             template_message = (
                 f"Template '{template_name}' salvo com sucesso!\n\n"
+                f"Arquivo: {file_path}\n\n"
                 "Você poderá carregar este template no futuro "
                 "para criar projetos similares rapidamente."
             )
@@ -489,3 +532,17 @@ class ConfirmationStep(WizardStep):
 
         # Regenerate summary
         self._generate_summary()
+        self._update_template_banner()
+
+    def _update_template_banner(self):
+        metadata = self.wizard_data.get("template_metadata")
+        banner_text = format_template_banner(metadata)
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 15))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()

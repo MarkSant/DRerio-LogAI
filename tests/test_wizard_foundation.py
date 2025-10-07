@@ -13,6 +13,7 @@ import unittest
 from tkinter import Tk
 
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.enums import (
     ImportAction,
     ProjectType,
@@ -149,6 +150,36 @@ class TestWizardFoundation(unittest.TestCase):
         # Verify UI restored
         self.assertEqual(step.project_type_var.get(), ProjectType.EXPLORATORY.value)
         self.assertEqual(step.parquet_scope_var.get(), 2)  # 2 = zones
+
+    def test_discovery_step_template_banner(self):
+        """Template metadata should surface in the discovery banner."""
+        wizard_data = {
+            "template_metadata": {
+                "name": "Template Inicial",
+                "path": "C:/temp/template_inicial.json",
+            }
+        }
+
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        self.assertIn("Template Inicial", step.template_info_var.get())
+
+    def test_file_selection_step_template_banner(self):
+        """Template metadata should surface in the file selection banner."""
+        wizard_data = {
+            "template_metadata": {
+                "name": "Template Seleção",
+                "path": "C:/temp/template_selecao.json",
+            }
+        }
+
+        step = FileSelectionStep(self.root, wizard_data)
+        step.build_ui()
+        step.on_show()
+
+        self.assertIn("Template Seleção", step.template_info_var.get())
 
 
 class TestEnums(unittest.TestCase):

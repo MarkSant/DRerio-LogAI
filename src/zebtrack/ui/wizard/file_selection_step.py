@@ -23,6 +23,7 @@ from tkinter import (
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.templates import format_template_banner
 
 
 class FileSelectionStep(WizardStep):
@@ -51,6 +52,8 @@ class FileSelectionStep(WizardStep):
         # UI state
         self.video_paths = []  # Mixed: files and folders
         self.summary_var = StringVar(value="Nenhum vídeo/pasta selecionado.")
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build file selection UI."""
@@ -71,6 +74,15 @@ class FileSelectionStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Selection buttons
         button_frame = Frame(self)
@@ -173,6 +185,7 @@ class FileSelectionStep(WizardStep):
             justify="left",
         )
         help_text.pack(pady=(15, 0))
+        self._update_template_banner()
 
     def _select_video_files(self):
         """Open file dialog to select video files."""
@@ -307,8 +320,22 @@ class FileSelectionStep(WizardStep):
         if "video_paths" in data:
             self.video_paths = data["video_paths"]
             self._update_display()
+        self._update_template_banner()
 
     def on_show(self):
         """Called when step becomes visible."""
         # Refresh display in case data changed
         self._update_display()
+        self._update_template_banner()
+
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 10))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()

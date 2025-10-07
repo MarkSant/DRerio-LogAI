@@ -12,6 +12,7 @@ from tkinter import (
     IntVar,
     Label,
     LabelFrame,
+    StringVar,
 )
 from tkinter import (
     font as tkfont,
@@ -20,6 +21,7 @@ from tkinter import (
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.templates import format_template_banner
 
 
 class CalibrationStep(WizardStep):
@@ -50,6 +52,8 @@ class CalibrationStep(WizardStep):
         self.animals_per_aquarium_var = IntVar(value=1)
         self.aquarium_width_var = DoubleVar(value=10.0)
         self.aquarium_height_var = DoubleVar(value=10.0)
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build calibration UI."""
@@ -70,6 +74,15 @@ class CalibrationStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Video and animal configuration
         video_frame = LabelFrame(
@@ -157,6 +170,7 @@ class CalibrationStep(WizardStep):
             justify="left",
         )
         help_text.pack()
+        self._update_template_banner()
 
     def validate(self) -> tuple[bool, str]:
         """
@@ -226,12 +240,42 @@ class CalibrationStep(WizardStep):
         if "aquarium_height_cm" in data:
             self.aquarium_height_var.set(data["aquarium_height_cm"])
 
+        self._update_template_banner()
+
     def on_show(self):
         """Called when step becomes visible."""
+        self._update_template_banner()
+
+        if "num_aquariums" in self.wizard_data:
+            self.num_aquariums_var.set(self.wizard_data["num_aquariums"])
+
+        if "animals_per_aquarium" in self.wizard_data:
+            self.animals_per_aquarium_var.set(
+                self.wizard_data["animals_per_aquarium"]
+            )
+
+        if "aquarium_width_cm" in self.wizard_data:
+            self.aquarium_width_var.set(self.wizard_data["aquarium_width_cm"])
+
+        if "aquarium_height_cm" in self.wizard_data:
+            self.aquarium_height_var.set(self.wizard_data["aquarium_height_cm"])
+
         # Auto-detect number of aquariums from video count
         video_count = self.wizard_data.get("video_count", 0)
-        if video_count > 0:
+        if video_count > 0 and "num_aquariums" not in self.wizard_data:
             # Only set if user hasn't modified it yet
             current_value = self.num_aquariums_var.get()
             if current_value == 1 and video_count > 1:
                 self.num_aquariums_var.set(video_count)
+
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 10))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()

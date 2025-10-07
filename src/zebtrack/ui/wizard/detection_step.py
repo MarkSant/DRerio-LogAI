@@ -25,6 +25,7 @@ from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
 from zebtrack.ui.wizard.design_editor_dialog import DesignEditorDialog
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
+from zebtrack.ui.wizard.templates import format_template_banner
 
 log = structlog.get_logger()
 
@@ -70,6 +71,8 @@ class DetectionStep(WizardStep):
         self.status_var = StringVar(value="Aguardando análise...")
         self.custom_regex_patterns = None  # User-defined regex patterns
         self.design_editor_confirmed = False
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build detection step UI."""
@@ -85,6 +88,15 @@ class DetectionStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Status message
         status_frame = Frame(self)
@@ -153,9 +165,13 @@ class DetectionStep(WizardStep):
             justify="left",
         )
         help_text.pack(pady=(15, 0))
+        self._update_template_banner()
 
     def on_show(self):
         """Called when step becomes visible - run detection automatically."""
+        self._update_template_banner()
+        if self.wizard_data.get("custom_regex_patterns"):
+            self.custom_regex_patterns = self.wizard_data.get("custom_regex_patterns")
         self._run_detection()
 
     def _run_detection(self):
@@ -931,3 +947,16 @@ class DetectionStep(WizardStep):
             self.status_var.set(
                 "Resultados anteriores (use Re-analisar para atualizar)"
             )
+        self._update_template_banner()
+
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 10))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()

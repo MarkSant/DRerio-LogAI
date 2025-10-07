@@ -5,7 +5,10 @@ Gathers initial context about project type, folder organization, and
 existing parquet files before scanning any videos.
 """
 
+from pathlib import Path
+
 from tkinter import (
+    Button,
     Canvas,
     Frame,
     IntVar,
@@ -13,6 +16,8 @@ from tkinter import (
     LabelFrame,
     Radiobutton,
     StringVar,
+    filedialog,
+    messagebox,
 )
 from tkinter import (
     font as tkfont,
@@ -22,6 +27,7 @@ from tkinter.ttk import Scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
 
 
 class DiscoveryStep(WizardStep):
@@ -52,6 +58,9 @@ class DiscoveryStep(WizardStep):
         self.project_type_var = StringVar(value=ProjectType.EXPERIMENTAL.value)
         self.folder_organization_var = IntVar(value=1)  # 1=experimental, 2=org, 3=none
         self.parquet_scope_var = IntVar(value=0)  # 0=none, 1=zones, 2=all
+        self.template_manager = TemplateManager()
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build discovery step UI."""
@@ -101,6 +110,26 @@ class DiscoveryStep(WizardStep):
             fg="gray",
         )
         subtitle.pack(pady=(0, 20))
+
+        actions_frame = Frame(self.content_container, bg=background_color)
+        actions_frame.pack(fill="x", pady=(0, 10))
+
+        Button(
+            actions_frame,
+            text="📂 Carregar Template...",
+            command=self._load_template,
+            width=24,
+        ).pack(side="right")
+
+        self.template_info_label = Label(
+            self.content_container,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            bg=background_color,
+            wraplength=520,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Question 1: Project Type
         q1_header = Frame(self.content_container)
@@ -300,6 +329,7 @@ class DiscoveryStep(WizardStep):
         self._on_project_type_change()
 
         self.after(0, self._initialize_scroll_area)
+        self._update_template_banner()
 
     def _on_canvas_configure(self, event):
         self.scroll_canvas.itemconfig(self._canvas_window, width=event.width)
@@ -467,9 +497,11 @@ class DiscoveryStep(WizardStep):
 
         # Update UI visibility
         self._on_project_type_change()
+        self._update_template_banner()
 
     def on_show(self):
         super().on_show()
+        self._update_template_banner()
         if hasattr(self, "scroll_canvas"):
             self.scroll_canvas.update_idletasks()
             self.scroll_canvas.yview_moveto(0)
@@ -477,3 +509,81 @@ class DiscoveryStep(WizardStep):
     def on_hide(self):
         super().on_hide()
         self._unbind_mousewheel()
+
+    def _load_template(self):
+        template_path = filedialog.askopenfilename(
+            title="Carregar Template do Wizard",
+            filetypes=[("Templates do Wizard", "*.json"), ("JSON", "*.json")],
+            initialdir=str(self.template_manager.templates_dir),
+        )
+
+        if not template_path:
+            return
+
+        template = self.template_manager.load_template_from_path(template_path)
+
+        if not template:
+            messagebox.showerror(
+                "Carregar Template",
+                "Não foi possível carregar o template selecionado. Verifique o arquivo e tente novamente.",
+                parent=self,
+            )
+            return
+
+        self._apply_template_data(template, template_path)
+
+        messagebox.showinfo(
+            "Template Carregado",
+            "Configurações carregadas. Revise cada etapa antes de continuar.",
+            parent=self,
+        )
+
+    def _apply_template_data(self, template: dict, template_path: str):
+        template_name = template.get("name") or Path(template_path).stem
+
+        metadata = {
+            "name": template_name,
+            "path": template_path,
+            "created_at": template.get("created_at"),
+        }
+        self.wizard_data["template_metadata"] = metadata
+
+        mappings = {
+            "project_type": template.get("project_type"),
+            "num_aquariums": template.get("num_aquariums"),
+            "animals_per_aquarium": template.get("animals_per_aquarium"),
+            "aquarium_width_cm": template.get("aquarium_width_cm"),
+            "aquarium_height_cm": template.get("aquarium_height_cm"),
+            "parquet_import_scope": template.get("parquet_import_scope"),
+            "detected_design": template.get("detected_design"),
+            "custom_regex_patterns": template.get("custom_regex_patterns"),
+        }
+
+        for key, value in mappings.items():
+            if value is not None:
+                self.wizard_data[key] = value
+
+        # Update local UI state
+        parquet_scope = self.wizard_data.get("parquet_import_scope")
+        self.wizard_data["has_parquets"] = bool(parquet_scope)
+
+        discovery_data = {
+            "project_type": self.wizard_data.get("project_type"),
+            "parquet_import_scope": parquet_scope,
+            "has_parquets": bool(parquet_scope),
+        }
+
+        self.set_data(discovery_data)
+        self._update_template_banner()
+
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(fill="x", pady=(0, 15))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()

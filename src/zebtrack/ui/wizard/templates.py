@@ -43,7 +43,12 @@ class TemplateManager:
 
         log.info("template_manager.initialized", templates_dir=str(self.templates_dir))
 
-    def save_template(self, name: str, wizard_data: dict) -> bool:
+    def save_template(
+        self,
+        name: str,
+        wizard_data: dict,
+        destination_path: Optional[str | Path] = None,
+    ) -> bool:
         """
         Save wizard configuration as a template.
 
@@ -56,8 +61,14 @@ class TemplateManager:
         """
         try:
             # Sanitize template name
-            safe_name = self._sanitize_name(name)
-            template_path = self.templates_dir / f"{safe_name}.json"
+            if destination_path:
+                template_path = Path(destination_path)
+                if template_path.suffix.lower() != ".json":
+                    template_path = template_path.with_suffix(".json")
+                template_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                safe_name = self._sanitize_name(name)
+                template_path = self.templates_dir / f"{safe_name}.json"
 
             # Extract relevant fields for template
             template = {
@@ -121,6 +132,44 @@ class TemplateManager:
             log.error(
                 "template_manager.load_error",
                 name=name,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+
+    def load_template_from_path(self, path: str | Path) -> Optional[dict]:
+        """
+        Load a template directly from a filesystem path.
+
+        Args:
+            path: Full path to template file
+
+        Returns:
+            dict | None: Template data or None if load fails
+        """
+        try:
+            template_path = Path(path)
+            if not template_path.exists():
+                log.warning(
+                    "template_manager.template_not_found",
+                    name=str(template_path.name),
+                )
+                return None
+
+            with open(template_path, "r", encoding="utf-8") as f:
+                template = json.load(f)
+
+            log.info(
+                "template_manager.template_loaded",
+                name=template.get("name", template_path.stem),
+                path=str(template_path),
+            )
+            return template
+
+        except Exception as e:
+            log.error(
+                "template_manager.load_error",
+                name=str(path),
                 error=str(e),
                 exc_info=True,
             )
@@ -213,3 +262,26 @@ class TemplateManager:
         # Remove consecutive underscores
         safe_name = "_".join(filter(None, safe_name.split("_")))
         return safe_name or "template"
+
+
+def format_template_banner(metadata: Optional[dict]) -> str:
+    """Format banner text for loaded templates."""
+
+    if not metadata:
+        return ""
+
+    name = metadata.get("name") or metadata.get("template_name")
+    path = metadata.get("path")
+
+    if not name and path:
+        name = Path(path).stem
+
+    if not name:
+        return ""
+
+    banner = f"Template carregado: {name}"
+
+    if path:
+        banner += f"  ({Path(path).name})"
+
+    return banner

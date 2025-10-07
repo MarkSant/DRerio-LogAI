@@ -19,6 +19,7 @@ from zebtrack.ui.wizard.enums import (
     derive_import_action,
 )
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.templates import format_template_banner
 
 STATUS_SYMBOLS = {
     "arena": "\U0001F3DF",  # 🏟
@@ -65,6 +66,8 @@ class ImportConfigStep(WizardStep):
         self.video_configs = []  # List of per-video config dicts
         self.roi_merge_strategy_var = StringVar(value=ROIMergeStrategy.REPLACE.value)
         self.summary_var = StringVar(value="")
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build import configuration UI."""
@@ -82,6 +85,15 @@ class ImportConfigStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 15))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Video table
         table_frame = LabelFrame(self, text="Vídeos e Estratégias", padx=10, pady=10)
@@ -216,12 +228,15 @@ class ImportConfigStep(WizardStep):
         )
         help_text.pack(pady=(5, 0))
 
+        self._update_template_banner()
+
     def on_show(self):
         """Called when step becomes visible - compute smart defaults."""
         self._compute_smart_defaults()
         self._populate_table()
         self._update_summary()
         self._update_roi_frame_visibility()
+        self._update_template_banner()
 
     def _compute_smart_defaults(self):
         """
@@ -408,6 +423,18 @@ class ImportConfigStep(WizardStep):
             "\n".join(lines) if lines else "Nenhum vídeo configurado"
         )
 
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 10))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()
+
     def _update_roi_frame_visibility(self):
         """Hide ROI merge strategy frame if no ROIs are being imported."""
         # Check if any video is configured to import ROIs
@@ -496,3 +523,4 @@ class ImportConfigStep(WizardStep):
         # Refresh UI
         self._populate_table()
         self._update_summary()
+        self._update_template_banner()

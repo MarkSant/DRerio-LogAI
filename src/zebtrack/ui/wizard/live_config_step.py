@@ -26,6 +26,7 @@ import structlog
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.templates import format_template_banner
 
 log = structlog.get_logger()
 
@@ -69,6 +70,8 @@ class LiveConfigStep(WizardStep):
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras = []
         self.available_ports = []
+        self.template_info_var = StringVar(value="")
+        self.template_info_label = None
 
     def build_ui(self):
         """Build live configuration UI."""
@@ -86,6 +89,15 @@ class LiveConfigStep(WizardStep):
             wraplength=500,
         )
         subtitle.pack(pady=(0, 20))
+
+        self.template_info_label = Label(
+            self,
+            textvariable=self.template_info_var,
+            fg="#555555",
+            wraplength=500,
+            justify="left",
+        )
+        self.template_info_label.pack_forget()
 
         # Camera configuration
         camera_frame = LabelFrame(self, text="Configuração de Câmera", padx=15, pady=10)
@@ -285,12 +297,27 @@ class LiveConfigStep(WizardStep):
         )
         help_text.pack()
 
+        self._update_template_banner()
+
     def on_show(self):
         """Called when step becomes visible."""
+        self._update_template_banner()
         # Update UI state based on checkboxes
         self._on_arduino_toggle()
         self._on_timed_toggle()
         self._on_countdown_toggle()
+
+    def _update_template_banner(self):
+        banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
+
+        if banner_text:
+            self.template_info_var.set(banner_text)
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack(pady=(0, 10))
+        else:
+            self.template_info_var.set("")
+            if self.template_info_label and self.template_info_label.winfo_ismapped():
+                self.template_info_label.pack_forget()
 
     def _on_arduino_toggle(self):
         """Enable/disable Arduino controls based on checkbox."""
