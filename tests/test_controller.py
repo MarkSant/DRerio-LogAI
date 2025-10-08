@@ -83,6 +83,28 @@ class TestAppController(unittest.TestCase):
         self.assertTrue(info["inheriting_globals"])
         self.assertFalse(info["overrides_active"])
 
+    def test_get_project_data_dict_normalizes_non_dict(self):
+        self.mock_pm.project_data = None
+
+        project_data = self.controller._get_project_data_dict()
+
+        self.assertIsInstance(project_data, dict)
+        self.assertIs(self.mock_pm.project_data, project_data)
+
+    def test_ensure_project_overrides_record_initializes_defaults(self):
+        self.mock_pm.project_data = {}
+
+        overrides = self.controller._ensure_project_overrides_record()
+
+        self.assertEqual(
+            overrides,
+            {"active_weight": None, "use_openvino": None},
+        )
+        self.assertIs(
+            self.controller.project_manager.project_data["model_overrides"],
+            overrides,
+        )
+
     def test_copy_global_model_settings_to_project(self):
         self.mock_pm.project_path = "/project"
         self.mock_pm.project_data = {}
