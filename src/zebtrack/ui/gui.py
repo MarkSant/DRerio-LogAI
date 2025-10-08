@@ -2163,14 +2163,14 @@ class ApplicationGUI:
             show="tree headings",
             height=10,
         )
-        self.project_overview_tree.heading("#0", text="Lotes e Vídeos")
+        self.project_overview_tree.heading("#0", text="Estrutura do Projeto")
         self.project_overview_tree.heading("status", text="Status")
         self.project_overview_tree.heading("data", text="Dados")
-        self.project_overview_tree.column("#0", width=260, stretch=True)
+        self.project_overview_tree.column("#0", width=320, stretch=True)
         self.project_overview_tree.column(
             "status", width=180, anchor="w", stretch=False
         )
-        self.project_overview_tree.column("data", width=240, anchor="w", stretch=True)
+        self.project_overview_tree.column("data", width=260, anchor="w", stretch=True)
 
         scrollbar = ttk.Scrollbar(
             tree_container, orient="vertical", command=self.project_overview_tree.yview
@@ -2361,62 +2361,89 @@ class ApplicationGUI:
         for item in self.project_overview_tree.get_children():
             self.project_overview_tree.delete(item)
 
-        project_data = getattr(project_manager, "project_data", {}) or {}
-        batches = project_data.get("batches") or []
-
-        if not batches:
+        if not all_videos:
             return
 
-        for index, batch in enumerate(batches, start=1):
-            videos = list(batch.get("videos") or [])
-            if not videos:
+        hierarchy = self._build_video_hierarchy_data(all_videos, "")
+
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            days_dict = group_data.get("days") or {}
+            group_entries = [
+                entry for videos in days_dict.values() for entry in videos or []
+            ]
+            if not group_entries:
                 continue
 
-            batch_counts: Counter = Counter(
-                (str(video.get("status") or "pending")).strip().lower()
-                for video in videos
+            group_counts: Counter = Counter(
+                (str(entry.get("status") or "pending")).strip().lower()
+                for entry in group_entries
             )
-            status_summary = self._format_status_summary(batch_counts)
-            data_summary = self._summarize_batch_data(videos)
+            status_summary = self._format_status_summary(group_counts)
+            data_summary = self._summarize_batch_data(group_entries)
 
-            timestamp = batch.get("timestamp")
-            batch_label = f"Lote {index}"
-            if timestamp:
-                batch_label = f"{batch_label} – {timestamp}"
-
-            batch_node = self.project_overview_tree.insert(
+            group_node = self.project_overview_tree.insert(
                 "",
                 "end",
-                text=f"🗂️ {batch_label}",
+                text=f"🏷️ {group_data['display']}",
                 values=(status_summary, data_summary),
-                open=False,
+                open=True,
             )
 
-            for video in sorted(
-                videos,
-                key=lambda item: os.path.basename(item.get("path", "")).lower(),
+            for day_id, entries in sorted(
+                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
             ):
-                path = video.get("path") or ""
-                filename = os.path.basename(path) if path else "(sem arquivo)"
-                metadata = video.get("metadata") or {}
-                meta_snippet = self._format_video_metadata(metadata)
-                display_name = f"🎬 {filename}"
-                if meta_snippet:
-                    display_name = f"{display_name} [{meta_snippet}]"
+                entries = entries or []
+                if not entries:
+                    continue
 
-                status_key = str(video.get("status") or "pending").strip().lower()
-                status_display = self._format_status_label(status_key)
-                data_badges = self._format_data_badges(video)
-
-                tags = tuple(tag for tag in (path, f"status_{status_key}") if tag)
-
-                self.project_overview_tree.insert(
-                    batch_node,
-                    "end",
-                    text=display_name,
-                    values=(status_display, data_badges),
-                    tags=tags,
+                day_counts: Counter = Counter(
+                    (str(entry.get("status") or "pending")).strip().lower()
+                    for entry in entries
                 )
+                day_status = self._format_status_summary(day_counts)
+                day_data = self._summarize_batch_data(entries)
+
+                day_node = self.project_overview_tree.insert(
+                    group_node,
+                    "end",
+                    text=f"📅 Dia {day_id}",
+                    values=(day_status, day_data),
+                    open=False,
+                )
+
+                for entry in sorted(
+                    entries,
+                    key=lambda item: self._video_sort_key(item.get("subject")),
+                ):
+                    path = entry.get("path") or ""
+                    filename = entry.get("filename") or (
+                        os.path.basename(path) if path else "(sem arquivo)"
+                    )
+                    metadata = entry.get("metadata") or {}
+                    meta_snippet = self._format_video_metadata(metadata)
+
+                    subject_label = self._format_subject_label(entry.get("subject"))
+                    display_name = f"🐟 Sujeito {subject_label}"
+                    if filename:
+                        display_name = f"{display_name} ({filename})"
+                    if meta_snippet:
+                        display_name = f"{display_name} [{meta_snippet}]"
+
+                    status_key = str(entry.get("status") or "pending").strip().lower()
+                    status_display = self._format_status_label(status_key)
+                    data_badges = self._format_data_badges(entry)
+
+                    tags = tuple(tag for tag in (path, f"status_{status_key}") if tag)
+
+                    self.project_overview_tree.insert(
+                        day_node,
+                        "end",
+                        text=display_name,
+                        values=(status_display, data_badges),
+                        tags=tags,
+                    )
 
     def _format_status_label(self, status_key: str) -> str:
         icon, label = self._get_status_meta(status_key)
@@ -3256,37 +3283,44 @@ class ApplicationGUI:
         listing_frame.pack(fill="both", expand=True)
 
         columns = ("rois", "trajectory", "summary", "status")
+        tree_container = ttk.Frame(listing_frame)
+        tree_container.pack(fill="both", expand=True)
+
         self.pipeline_video_tree = ttk.Treeview(
-            listing_frame,
+            tree_container,
             columns=columns,
-            show="headings",
+            show="tree headings",
             height=12,
             selectmode="extended",
         )
+        self.pipeline_video_tree.heading("#0", text="Estrutura do Projeto")
         self.pipeline_video_tree.heading("rois", text="📍 ROIs")
         self.pipeline_video_tree.heading("trajectory", text="📈 Trajetória")
         self.pipeline_video_tree.heading("summary", text="Σ Sumário")
         self.pipeline_video_tree.heading("status", text="Status")
 
-        self.pipeline_video_tree.column("rois", width=90, anchor="center")
-        self.pipeline_video_tree.column("trajectory", width=110, anchor="center")
-        self.pipeline_video_tree.column("summary", width=120, anchor="center")
-        self.pipeline_video_tree.column("status", width=280, anchor="w")
+        self.pipeline_video_tree.column("#0", width=320, stretch=True)
+        self.pipeline_video_tree.column("rois", width=100, anchor="center")
+        self.pipeline_video_tree.column("trajectory", width=120, anchor="center")
+        self.pipeline_video_tree.column("summary", width=130, anchor="center")
+        self.pipeline_video_tree.column("status", width=240, anchor="w")
 
         tree_scroll = ttk.Scrollbar(
-            listing_frame, orient="vertical", command=self.pipeline_video_tree.yview
+            tree_container, orient="vertical", command=self.pipeline_video_tree.yview
         )
         self.pipeline_video_tree.configure(yscrollcommand=tree_scroll.set)
         self.pipeline_video_tree.pack(side="left", fill="both", expand=True)
         tree_scroll.pack(side="right", fill="y")
 
-        ttk.Label(
+        self.pipeline_legend_label = ttk.Label(
             listing_frame,
             text=self._build_status_icon_legend(include_summary=True),
             font=("TkDefaultFont", 8),
             foreground="#555555",
             justify="left",
-        ).pack(anchor="w", pady=(6, 0))
+            wraplength=520,
+        )
+        self.pipeline_legend_label.pack(fill="x", anchor="w", pady=(6, 0))
 
         self.pipeline_video_tree.bind(
             "<<TreeviewSelect>>", self._on_pipeline_selection_changed
@@ -3412,40 +3446,35 @@ class ApplicationGUI:
         if all_videos is None and pm is not None:
             all_videos = pm.get_all_videos() or []
 
-        eligible_videos: list[dict] = []
-        for video in all_videos or []:
-            if video.get("has_arena") and video.get("path"):
-                eligible_videos.append(video)
-
         for item in self.pipeline_video_tree.get_children():
             self.pipeline_video_tree.delete(item)
 
+        prepared_videos: list[dict] = []
         self.pipeline_video_vars = {}
         summary_total = 0
 
-        for video in sorted(
-            eligible_videos,
-            key=lambda item: os.path.basename(item.get("path", "")).lower(),
-        ):
+        for video in all_videos or []:
             path = video.get("path")
-            if not path:
+            if not path or not video.get("has_arena"):
                 continue
 
-            rois_label = "✓" if video.get("has_rois") else "✗"
-            traj_label = "✓" if video.get("has_trajectory") else "✗"
             summary_exists = self._pipeline_summary_exists(video)
-            summary_label = "✓" if summary_exists else "✗"
 
-            status_key = str(video.get("status") or "pending").strip().lower()
-            status_display = self._format_status_label(status_key)
-
-            iid = path
-            self.pipeline_video_tree.insert(
-                "",
-                "end",
-                iid=iid,
-                values=(rois_label, traj_label, summary_label, status_display),
+            prepared = dict(video)
+            prepared["path"] = path
+            prepared["metadata"] = video.get("metadata") or {}
+            prepared["has_arena"] = bool(video.get("has_arena"))
+            prepared["has_rois"] = bool(video.get("has_rois"))
+            prepared["has_trajectory"] = bool(video.get("has_trajectory"))
+            prepared["has_complete_data"] = bool(video.get("has_complete_data")) or (
+                prepared["has_arena"]
+                and prepared["has_rois"]
+                and prepared["has_trajectory"]
             )
+            prepared["has_summary"] = bool(summary_exists)
+            prepared["filename"] = os.path.basename(path)
+
+            prepared_videos.append(prepared)
 
             self.pipeline_video_vars[path] = {
                 "info": video,
@@ -3454,11 +3483,114 @@ class ApplicationGUI:
             if summary_exists:
                 summary_total += 1
 
+        hierarchy = self._build_video_hierarchy_data(prepared_videos, "")
+
+        def _count(entries: list[dict], key: str) -> int:
+            return sum(1 for entry in entries if entry.get(key))
+
+        def _summary_count(entries: list[dict]) -> int:
+            return sum(
+                1
+                for entry in entries
+                if entry.get("has_summary") or entry.get("has_complete_data")
+            )
+
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            days_dict = group_data.get("days") or {}
+            group_entries = [
+                entry for videos in days_dict.values() for entry in videos or []
+            ]
+            if not group_entries:
+                continue
+
+            total_group = len(group_entries)
+            group_node = self.pipeline_video_tree.insert(
+                "",
+                "end",
+                text=f"🏷️ {group_data['display']}",
+                values=(
+                    self._format_status_ratio(
+                        "rois", _count(group_entries, "has_rois"), total_group
+                    ),
+                    self._format_status_ratio(
+                        "trajectory",
+                        _count(group_entries, "has_trajectory"),
+                        total_group,
+                    ),
+                    self._format_status_ratio(
+                        "summary", _summary_count(group_entries), total_group
+                    ),
+                    f"{total_group} vídeos",
+                ),
+                open=True,
+            )
+
+            for day_id, entries in sorted(
+                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
+            ):
+                entries = entries or []
+                if not entries:
+                    continue
+
+                total_day = len(entries)
+                day_node = self.pipeline_video_tree.insert(
+                    group_node,
+                    "end",
+                    text=f"📅 Dia {day_id}",
+                    values=(
+                        self._format_status_ratio(
+                            "rois", _count(entries, "has_rois"), total_day
+                        ),
+                        self._format_status_ratio(
+                            "trajectory", _count(entries, "has_trajectory"), total_day
+                        ),
+                        self._format_status_ratio(
+                            "summary", _summary_count(entries), total_day
+                        ),
+                        f"{total_day} vídeos",
+                    ),
+                    open=False,
+                )
+
+                for entry in sorted(
+                    entries,
+                    key=lambda item: self._video_sort_key(item.get("subject")),
+                ):
+                    path = entry.get("path")
+                    if not path:
+                        continue
+
+                    rois_label = "✓" if entry.get("has_rois") else "✗"
+                    traj_label = "✓" if entry.get("has_trajectory") else "✗"
+                    summary_label = "✓" if entry.get("has_summary") else "✗"
+
+                    status_key = str(entry.get("status") or "pending").strip().lower()
+                    status_display = self._format_status_label(status_key)
+
+                    subject_label = self._format_subject_label(entry.get("subject"))
+                    filename = entry.get("filename")
+                    node_text = f"🐟 Sujeito {subject_label}"
+                    if filename:
+                        node_text = f"{node_text} ({filename})"
+
+                    self.pipeline_video_tree.insert(
+                        day_node,
+                        "end",
+                        iid=path,
+                        text=node_text,
+                        values=(rois_label, traj_label, summary_label, status_display),
+                        tags=(path,),
+                    )
+
         log.info(
             "gui.pipeline_table.refreshed",
-            eligible=len(eligible_videos),
-            with_rois=sum(1 for v in eligible_videos if v.get("has_rois")),
-            with_trajectory=sum(1 for v in eligible_videos if v.get("has_trajectory")),
+            eligible=len(prepared_videos),
+            with_rois=sum(1 for entry in prepared_videos if entry.get("has_rois")),
+            with_trajectory=sum(
+                1 for entry in prepared_videos if entry.get("has_trajectory")
+            ),
             with_summary=summary_total,
         )
 
@@ -4357,12 +4489,30 @@ class ApplicationGUI:
             )
             days_dict = group_data["days"]
 
+            has_arena = bool(video.get("has_arena"))
+            has_rois = bool(video.get("has_rois"))
+            has_trajectory = bool(video.get("has_trajectory"))
+            has_complete = bool(video.get("has_complete_data")) or (
+                has_arena and has_rois and has_trajectory
+            )
+            has_summary = any(
+                bool(video.get(field))
+                for field in (
+                    "has_summary",
+                    "has_summary_parquet",
+                    "has_summary_file",
+                    "has_summary_data",
+                )
+            )
+
             video_entry = {
                 "path": video.get("path"),
                 "metadata": metadata,
-                "has_arena": bool(video.get("has_arena")),
-                "has_rois": bool(video.get("has_rois")),
-                "has_trajectory": bool(video.get("has_trajectory")),
+                "has_arena": has_arena,
+                "has_rois": has_rois,
+                "has_trajectory": has_trajectory,
+                "has_complete_data": has_complete,
+                "has_summary": has_summary,
                 "filename": filename,
                 "status": status_label,
                 "subject": subject_id,
@@ -4868,7 +5018,7 @@ class ApplicationGUI:
                 1
                 for items in videos_by_day.values()
                 for entry in items
-                if entry["has_complete_data"]
+                if entry["has_complete_data"] or entry.get("has_summary")
             )
 
             group_node = self.reports_tree.insert(
@@ -4901,7 +5051,9 @@ class ApplicationGUI:
                     1 for entry in entries if entry["has_trajectory"]
                 )
                 day_complete = sum(
-                    1 for entry in entries if entry["has_complete_data"]
+                    1
+                    for entry in entries
+                    if entry["has_complete_data"] or entry.get("has_summary")
                 )
 
                 day_node = self.reports_tree.insert(
@@ -4943,7 +5095,9 @@ class ApplicationGUI:
                                 entry["has_trajectory"], "trajectory"
                             ),
                             self._format_status_token(
-                                entry["has_complete_data"], "summary"
+                                entry.get("has_summary")
+                                or entry.get("has_complete_data"),
+                                "summary",
                             ),
                             entry["status"],
                         ),

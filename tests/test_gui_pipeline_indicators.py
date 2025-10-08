@@ -18,16 +18,41 @@ class DummyVar:
 
 class DummyTree:
     def __init__(self):
-        self.items = []
+        self.items: dict[str, dict[str, Any]] = {}
+        self.children: dict[str, list[str]] = {"": []}
+        self._counter = 0
 
-    def get_children(self):
-        return [item["iid"] for item in self.items]
+    def get_children(self, item: str | None = None):
+        key = item or ""
+        return list(self.children.get(key, []))
 
     def delete(self, iid):
-        self.items = [item for item in self.items if item["iid"] != iid]
+        iid_str = str(iid)
+        for child in list(self.children.get(iid_str, [])):
+            self.delete(child)
+        self.children.pop(iid_str, None)
 
-    def insert(self, parent, index, iid=None, values=None):
-        self.items.append({"iid": iid, "values": values})
+        info = self.items.pop(iid_str, None)
+        parent = info["parent"] if info else ""
+        if parent in self.children:
+            self.children[parent] = [c for c in self.children[parent] if c != iid_str]
+
+    def insert(self, parent, index, iid=None, text="", values=None, tags=(), **kwargs):
+        if iid is None:
+            self._counter += 1
+            iid = f"auto_{self._counter}"
+
+        iid_str = str(iid)
+        parent_str = str(parent or "")
+        self.items[iid_str] = {
+            "parent": parent_str,
+            "text": text,
+            "values": values,
+            "tags": tags,
+        }
+        self.children.setdefault(parent_str, []).append(iid_str)
+        self.children.setdefault(iid_str, [])
+        return iid_str
 
     def selection(self):
         return []
@@ -148,15 +173,16 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
 
     # Tree rows should match sorted by filename (vid1, vid2)
     tree = cast(DummyTree, inst_any.pipeline_video_tree)
-    assert len(tree.items) == 2
+    assert str(video1) in tree.items
+    assert str(video2) in tree.items
 
-    first_row = tree.items[0]["values"]
+    first_row = tree.items[str(video1)]["values"]
     assert first_row[0] == "✓"  # ROIs
     assert first_row[1] == "✓"  # Trajectory
     assert first_row[2] == "✓"  # Summary column reflects existing parquet
     assert first_row[3].startswith("✅")
 
-    second_row = tree.items[1]["values"]
+    second_row = tree.items[str(video2)]["values"]
     assert second_row[0] == "✗"
     assert second_row[1] == "✗"
     assert second_row[2] == "✗"
