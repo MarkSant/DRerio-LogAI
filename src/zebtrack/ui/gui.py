@@ -1455,8 +1455,13 @@ class ApplicationGUI:
         self.notebook = None
         self.main_controls_frame = None
         self.zone_tab_frame = None
-    self.zone_summary_frame: ttk.LabelFrame | None = None
-    self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
+        self.zone_summary_frame: ttk.LabelFrame | None = None
+        self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
+        self.pipeline_tab_frame: ttk.Frame | None = None
+        self.pipeline_video_tree: ttk.Treeview | None = None
+        self.pipeline_video_vars: dict[str, dict[str, StringVar]] = {}
+        self.pipeline_selection_label: ttk.Label | None = None
+        self.pipeline_action_buttons: dict[str, ttk.Button] = {}
         self.drawing_instruction_label = None
         self.current_drawing_type = None
         self.status_var = StringVar()
@@ -1782,6 +1787,8 @@ class ApplicationGUI:
         if self.controller.project_manager.get_project_type() == "live":
             self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
+        if self.controller.project_manager.get_project_type() == "pre-recorded":
+            self._create_pipeline_processing_tab()
         self._create_analysis_tab()
         self._create_reports_tab()
 
@@ -2055,6 +2062,7 @@ class ApplicationGUI:
 
         self._update_project_overview_summary(counts, total)
         self._update_project_overview_tree(pm, all_videos)
+        self._refresh_zone_indicators(all_videos)
 
         if self._pending_overview_status is not None:
             summary_line = self._compose_overview_status_line(total, counts)
@@ -2569,27 +2577,6 @@ class ApplicationGUI:
 
     def _create_zone_control_widgets(self):
         """Create all the zone control widgets in the scrollable frame."""
-        project_type = self.controller.project_manager.get_project_type()
-        if project_type == "pre-recorded":
-            if self.process_video_btn and self.process_video_btn.winfo_exists():
-                try:
-                    self.process_video_btn.destroy()
-                except Exception:
-                    pass
-            self.process_video_btn = ttk.Button(
-                self.fixed_button_frame,
-                text="Gerar Trajetórias e Sumários Pendentes...",
-                command=self.controller.process_pending_project_videos,
-            )
-            self.process_video_btn.pack(side="top", fill="x", pady=(0, 5))
-        else:
-            if self.process_video_btn and self.process_video_btn.winfo_exists():
-                try:
-                    self.process_video_btn.destroy()
-                except Exception:
-                    pass
-            self.process_video_btn = None
-
         self._create_zone_summary_cards_section()
 
         # --- Drawing Actions ---
@@ -2976,6 +2963,106 @@ class ApplicationGUI:
 
         self._update_zone_summary_cards()
 
+    def _create_pipeline_processing_tab(self) -> None:
+        """Cria a aba dedicada ao pipeline de trajetórias e sumários."""
+        if not self.notebook:
+            return
+
+        if self.pipeline_tab_frame and self.pipeline_tab_frame.winfo_exists():
+            try:
+                self.pipeline_tab_frame.destroy()
+            except Exception:
+                pass
+
+        self.pipeline_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(
+            self.pipeline_tab_frame, text="Trajetórias e Sumários"
+        )
+
+        header = ttk.Label(
+            self.pipeline_tab_frame,
+            text=(
+                "Separe o desenho das zonas do processamento em lote. "
+                "Selecione os vídeos com arena válida para gerar "
+                "trajetórias completas ou apenas sumários parquet."
+            ),
+            wraplength=620,
+            justify="left",
+        )
+        header.pack(fill="x", pady=(0, 10))
+
+        listing_frame = ttk.LabelFrame(
+            self.pipeline_tab_frame,
+            text="Vídeos com arena válida",
+            padding=10,
+        )
+        listing_frame.pack(fill="both", expand=True)
+
+        columns = ("rois", "trajectory", "summary", "status")
+        self.pipeline_video_tree = ttk.Treeview(
+            listing_frame,
+            columns=columns,
+            show="headings",
+            height=12,
+            selectmode="extended",
+        )
+        self.pipeline_video_tree.heading("rois", text="📍 ROIs")
+        self.pipeline_video_tree.heading("trajectory", text="📈 Trajetória")
+        self.pipeline_video_tree.heading("summary", text="Σ Sumário")
+        self.pipeline_video_tree.heading("status", text="Status")
+
+        self.pipeline_video_tree.column("rois", width=90, anchor="center")
+        self.pipeline_video_tree.column("trajectory", width=110, anchor="center")
+        self.pipeline_video_tree.column("summary", width=120, anchor="center")
+        self.pipeline_video_tree.column("status", width=280, anchor="w")
+
+        tree_scroll = ttk.Scrollbar(
+            listing_frame, orient="vertical", command=self.pipeline_video_tree.yview
+        )
+        self.pipeline_video_tree.configure(yscrollcommand=tree_scroll.set)
+        self.pipeline_video_tree.pack(side="left", fill="both", expand=True)
+        tree_scroll.pack(side="right", fill="y")
+
+        self.pipeline_video_tree.bind(
+            "<<TreeviewSelect>>", self._on_pipeline_selection_changed
+        )
+
+        footer = ttk.Frame(self.pipeline_tab_frame, padding=(0, 10))
+        footer.pack(fill="x")
+
+        self.pipeline_selection_label = ttk.Label(
+            footer,
+            text="Nenhum vídeo elegível listado.",
+            justify="left",
+        )
+        self.pipeline_selection_label.pack(side="left")
+
+        actions_frame = ttk.Frame(footer)
+        actions_frame.pack(side="right")
+
+        traj_btn = ttk.Button(
+            actions_frame,
+            text="▶️ Gerar Trajetórias",
+            command=self._trigger_batch_trajectory_processing,
+            state="disabled",
+        )
+        traj_btn.pack(side="left", padx=(0, 6))
+
+        summary_btn = ttk.Button(
+            actions_frame,
+            text="Σ Exportar Sumários (Parquet)",
+            command=self._trigger_parquet_summaries,
+            state="disabled",
+        )
+        summary_btn.pack(side="left")
+
+        self.pipeline_action_buttons = {
+            "trajectories": traj_btn,
+            "summaries": summary_btn,
+        }
+
+        self._refresh_pipeline_video_table()
+
     def _update_zone_summary_cards(self, all_videos=None) -> None:
         """Atualiza os cartões de resumo com base na lista de vídeos."""
         if not self.zone_summary_cards:
@@ -2988,8 +3075,8 @@ class ApplicationGUI:
             else:
                 all_videos = []
 
-    all_videos = list(all_videos or [])
-    total_videos = len(all_videos)
+        all_videos = list(all_videos or [])
+        total_videos = len(all_videos)
 
         if total_videos == 0:
             for card in self.zone_summary_cards.values():
@@ -3032,6 +3119,162 @@ class ApplicationGUI:
             if ready_total
             else "Sem arenas/ROIs disponíveis"
         )
+
+    def _refresh_pipeline_video_table(self, all_videos=None) -> None:
+        if not self.pipeline_video_tree or not self.pipeline_tab_frame:
+            return
+
+        controller = getattr(self, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+
+        if all_videos is None and pm is not None:
+            all_videos = pm.get_all_videos() or []
+
+        eligible_videos: list[dict] = []
+        for video in all_videos or []:
+            if video.get("has_arena") and video.get("path"):
+                eligible_videos.append(video)
+
+        for item in self.pipeline_video_tree.get_children():
+            self.pipeline_video_tree.delete(item)
+
+        self.pipeline_video_vars = {}
+
+        for video in sorted(
+            eligible_videos,
+            key=lambda item: os.path.basename(item.get("path", "")).lower(),
+        ):
+            path = video.get("path")
+            if not path:
+                continue
+
+            rois_label = "✓" if video.get("has_rois") else "✗"
+            traj_label = "✓" if video.get("has_trajectory") else "✗"
+            summary_exists = self._pipeline_summary_exists(video)
+            summary_label = "✓" if summary_exists else "✗"
+
+            status_key = str(video.get("status") or "pending").strip().lower()
+            status_display = self._format_status_label(status_key)
+
+            iid = path
+            self.pipeline_video_tree.insert(
+                "",
+                "end",
+                iid=iid,
+                values=(rois_label, traj_label, summary_label, status_display),
+            )
+
+            self.pipeline_video_vars[path] = {
+                "info": video,
+                "summary": summary_exists,
+            }
+
+        listed = len(self.pipeline_video_vars)
+        if listed == 0:
+            selection_text = "Nenhum vídeo elegível listado."
+        else:
+            selection_text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+
+        if self.pipeline_selection_label:
+            self.pipeline_selection_label.config(text=selection_text)
+
+        self._update_pipeline_buttons_state()
+
+    def _pipeline_summary_exists(self, video_info: dict) -> bool:
+        controller = getattr(self, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        path = video_info.get("path")
+        if not pm or not path:
+            return False
+
+        experiment_id = os.path.splitext(os.path.basename(path))[0]
+        base_dir = pm.project_path or os.path.dirname(path)
+        summary_path = os.path.join(
+            base_dir,
+            f"{experiment_id}_results",
+            f"{experiment_id}_summary.parquet",
+        )
+        return os.path.exists(summary_path)
+
+    def _get_selected_pipeline_video_paths(self) -> list[str]:
+        if not self.pipeline_video_tree:
+            return []
+        selected = self.pipeline_video_tree.selection()
+        return [item for item in selected if item in self.pipeline_video_vars]
+
+    def _on_pipeline_selection_changed(self, event=None) -> None:
+        del event
+        selections = self._get_selected_pipeline_video_paths()
+        listed = len(self.pipeline_video_vars)
+
+        if self.pipeline_selection_label:
+            if not selections:
+                if listed == 0:
+                    text = "Nenhum vídeo elegível listado."
+                else:
+                    text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+            else:
+                text = f"{listed} vídeo(s) elegível(is) • {len(selections)} selecionado(s)."
+            self.pipeline_selection_label.config(text=text)
+
+        self._update_pipeline_buttons_state(selections)
+
+    def _update_pipeline_buttons_state(self, selections=None) -> None:
+        if not self.pipeline_action_buttons:
+            return
+        if selections is None:
+            selections = self._get_selected_pipeline_video_paths()
+
+        has_selection = bool(selections)
+        for button in self.pipeline_action_buttons.values():
+            button.config(state="normal" if has_selection else "disabled")
+
+        if has_selection:
+            all_have_trajectory = all(
+                bool(
+                    self.pipeline_video_vars.get(path, {})
+                    .get("info", {})
+                    .get("has_trajectory")
+                )
+                for path in selections
+            )
+            self.pipeline_action_buttons["summaries"].config(
+                state="normal" if all_have_trajectory else "disabled"
+            )
+
+    def _trigger_batch_trajectory_processing(self) -> None:
+        selections = self._get_selected_pipeline_video_paths()
+        if not selections:
+            if not self.pipeline_video_vars:
+                self.show_info(
+                    "Processamento",
+                    "Nenhum vídeo elegível foi encontrado com arena válida.",
+                )
+                return
+            selections = list(self.pipeline_video_vars.keys())
+
+        self.controller.process_pending_project_videos(video_paths=selections)
+        self._request_overview_refresh()
+
+    def _trigger_parquet_summaries(self) -> None:
+        selections = self._get_selected_pipeline_video_paths()
+        if not selections:
+            self.show_info(
+                "Sumários",
+                "Selecione ao menos um vídeo com trajetória para exportar o sumário.",
+            )
+            return
+
+        self.controller.generate_parquet_summaries(selections)
+        self._refresh_pipeline_video_table()
+
+    def _refresh_zone_indicators(self, videos=None) -> None:
+        controller = getattr(self, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        if videos is None:
+            videos = pm.get_all_videos() if pm else []
+        self._update_zone_summary_cards(videos)
+        self._refresh_pipeline_video_table(videos)
 
     def _create_analysis_tab(self):
         """Creates the dedicated tab for video playback and progress stats."""
@@ -3488,6 +3731,7 @@ class ApplicationGUI:
         self._clear_interactive_polygon()
         self.redraw_zones_from_project_data()
         self.update_zone_listbox()
+        self._refresh_zone_indicators()
 
     def _on_discard_arena(self):
         """Discards the interactive polygon."""
@@ -4135,6 +4379,7 @@ class ApplicationGUI:
         if reuse:
             cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
             pm.save_zone_data(cloned_zone_data, video_path=video_path)
+            self._refresh_zone_indicators()
             status_message = (
                 f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
             )
