@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+.ruff_cache/
 .venv/
 build/
 dist/
@@ -23,12 +24,20 @@ openvino_model_cache/
 
 # Log files
 *.log
+*.log.*
 
 # OS-specific files
 .DS_Store
+Thumbs.db
 
-# Miscellaneous
-=8.3.179,
+# Editor & assistant settings
+.vscode/
+.idea/
+.claude/
+
+# Transient mock/cache data
+MagicMock/
+_UL/
 
 # No arquivo .gitignore
 *.mp4

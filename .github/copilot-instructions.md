@@ -5,7 +5,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 ### Quick Start Workflow
 
 1. Launch GUI: `python -m zebtrack` (entry point `core/controller.AppController`).
-2. Create/select a project via the legacy dialog (`core/project_manager.py`) or the 5-step wizard (`ui/wizard`), depending on the `ui_features.use_wizard_for_project_creation` feature flag.
+2. Use the project wizard (`ui/wizard`) to create/select a project; the legacy dialog remains available only for backwards compatibility hooks in `core/project_manager.py`.
 3. Choose a detector plugin from `plugins/` (registry in `plugins/__init__.py`).
 4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
 5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
@@ -44,10 +44,10 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Project Creation Wizard
 
-- The wizard is gated by `settings.ui_features.use_wizard_for_project_creation` (default `false`). Enable per-machine via `config.local.yaml`.
+- The wizard is now the default path (v1.6+). The `settings.ui_features.use_wizard_for_project_creation` flag is retained for legacy scenarios but should remain enabled for parity with current UI flows.
 - Wizard flow lives under `src/zebtrack/ui/wizard/` (steps, dialog, adapter). It feeds controller inputs through `wizard_adapter.adapt_wizard_data_to_controller_format()` to preserve backward compatibility.
 - Maintain parity with the legacy dialogs: every wizard change must still populate `ProjectManager.project_data` fields expected elsewhere (intervals, batches, calibration defaults).
-- Update wizard-specific tests when modifying the flow or adapter logic: `tests/test_wizard_adapter.py`, `tests/test_wizard_confirmation.py`, `tests/test_wizard_integration.py`, and related step tests.
+- Update wizard-specific tests when modifying the flow or adapter logic: `tests/test_wizard_adapter.py`, `tests/test_wizard_confirmation.py`, `tests/test_wizard_integration.py`, related step tests, and the controller regression `tests/test_controller.py::TestAppController::test_open_project_workflow_success_loads_view_and_zones` when project-loading side effects change.
 - Manual wizard scenarios now reside in `test_scenarios/` (documentation) and `tests/manual/`; legacy generator scripts were removed.
 
 ### Analysis Progress & Intervals

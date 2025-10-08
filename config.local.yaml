@@ -1,5 +1,0 @@
-# Local configuration overrides
-# This file overrides values from config.yaml without modifying it
-
-ui_features:
-  use_wizard_for_project_creation: true  # Enables the 5-step wizard for project creation

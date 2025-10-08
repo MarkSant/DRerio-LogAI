@@ -64,7 +64,7 @@ graph TD
 | Componente | Responsabilidade principal |
 |------------|---------------------------|
 | `ApplicationGUI` | Interfaces Tkinter, coleta de input do usuário, exibição de progresso e overlays. |
-| `WizardDialog` 🧙 | Assistente de 5 etapas para criação inteligente de projetos com auto-detecção de design experimental e importação de parquets. |
+| `WizardDialog` 🧙 | Assistente de 5 etapas (padrão desde v1.6) para criação inteligente de projetos com auto-detecção de design experimental e importação de parquets. |
 | `wizard_adapter` | Traduz saída do wizard (formato rico) para formato esperado pelo controller (compatibilidade retroativa). |
 | `AppController` | Orquestra o fluxo end-to-end, agenda threads e callbacks (`root.after`). |
 | `ProjectManager` | Persistência de metadados, batches de vídeos, zonas, intervalos, snapshots de configuração e detecção granular de parquets (`scan_input_paths()`). |
@@ -116,7 +116,7 @@ sequenceDiagram
 | AD-04 | **Configuração via Pydantic (`settings.py`)** | Validar `config.yaml` em runtime e suportar overrides (`config.local.yaml`). |
 | AD-05 | **Progresso granular** | `progress_callback` propaga métricas (frames totais/processados/detectados) para alimentar `update_processing_stats`. |
 | AD-06 | **Projétil orientado a projetos** | Persistir `ProjectManager.project_data` mantendo batches e intervalos por projeto. |
-| AD-07 | **Wizard com feature flag e adapter pattern** 🧙 | Rollout gradual via `UIFeatureFlags.use_wizard_for_project_creation` com compatibilidade total via `wizard_adapter`, permitindo evolução sem quebrar fluxo legado. |
+| AD-07 | **Wizard padrão com fallback controlado por flag** 🧙 | O fluxo guiado é a experiência padrão (v1.6+); a flag `UIFeatureFlags.use_wizard_for_project_creation` permanece apenas para cenários legados, com compatibilidade assegurada pelo `wizard_adapter`. |
 
 ## 5. Pontos de extensão
 

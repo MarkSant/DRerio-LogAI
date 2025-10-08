@@ -28,8 +28,8 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
 ## 2. Fluxo operacional completo
 
 1. **Criação ou abertura de projeto**
-   - Wizard (`ui/wizard/`) se `settings.ui_features.use_wizard_for_project_creation = true`.
-   - Dialog legado (`ApplicationGUI.create_project_dialog()`) quando o wizard está desabilitado.
+   - Wizard (`ui/wizard/`) é o fluxo padrão (v1.6+); mantenha `settings.ui_features.use_wizard_for_project_creation = true`.
+   - Dialog legado (`ApplicationGUI.create_project_dialog()`) só deve ser acionado ao desabilitar manualmente a flag para cenários de suporte.
    - O `ProjectManager` persiste metadados em `project_config.json` e snapshot das configurações ativas em `config_snapshot.yaml`.
 
 2. **Seleção de vídeos ou fonte ao vivo**
@@ -223,7 +223,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 ### Tutorial A — Projeto com vídeos pré-gravados
 
 1. Execute `poetry run zebtrack`.
-2. Ative o wizard (via `config.local.yaml`) ou use **Novo Projeto**.
+2. O wizard abrirá automaticamente (mantendo `ui_features.use_wizard_for_project_creation = true`). Use o diálogo legado apenas se tiver desabilitado a flag manualmente.
 3. Informe nome, pasta de saída e dimensões físicas do aquário.
 4. Selecione os vídeos (`.mp4/.avi/.mov`) e confirme.
 5. Desenhe arena e ROIs (ou importe parquets detectados automaticamente).
@@ -264,7 +264,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 | **Como ajustar o limiar de freezing?** | Edite `config.local.yaml` → `analysis.freezing_vel_threshold` e `analysis.freezing_min_duration`. Reinicie o app para aplicar. |
 | **Posso usar o app sem Arduino?** | Sim. Deixe `use_arduino` desmarcado; o fluxo funciona integralmente offline. |
 | **Por que meu relatório não tem colunas `x_cm`/`y_cm`?** | A calibração não estava disponível ao gravar o Parquet. Gere uma nova sessão com homografia configurada. |
-| **Como ativar o wizard?** | Crie `config.local.yaml` com `ui_features.use_wizard_for_project_creation: true`. |
+| **Como voltar ao diálogo legado?** | Defina `ui_features.use_wizard_for_project_creation: false` em `config.local.yaml` (não recomendado para fluxos padrão). |
 | **O que significa `has_data` na seleção de vídeos?** | Indica que já existe `3_CoordMovimento_<video>.parquet` e permite decidir entre reaproveitar ou reprocessar. |
 | **Como adicionar novos detectores?** | Implemente `DetectorPlugin` em `plugins/`, registre em `plugins/__init__.py` e forneça `process_frame()` + `draw_overlay()`. |
 

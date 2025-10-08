@@ -231,6 +231,48 @@ class TestAppController(unittest.TestCase):
         )
         self.mock_view._load_project_view.assert_not_called()
 
+    def test_open_project_workflow_success_loads_view_and_zones(self):
+        project_path = "/fake/project"
+        self.mock_pm.load_project.return_value = True
+        self.mock_pm.get_detector_state.return_value = None
+        self.mock_pm.get_zone_data.return_value = ZoneData(
+            polygon=[[0, 0], [1, 0], [1, 1], [0, 1]],
+            roi_polygons=[[[0, 0], [1, 0], [1, 1]]],
+            roi_names=["ROI"],
+            roi_colors=[(255, 0, 0)],
+        )
+        self.mock_pm.get_all_videos.return_value = [
+            {"path": "video1.mp4", "status": "pending"}
+        ]
+
+        with (
+            patch.object(
+                self.controller,
+                "apply_project_model_overrides",
+                return_value=("best_seg.pt", False),
+            ) as apply_overrides,
+            patch.object(self.controller, "setup_detector", return_value=True),
+            patch.object(self.controller, "setup_detector_zones") as setup_zones,
+            patch.object(self.controller, "update_openvino_status") as update_status,
+        ):
+            result = self.controller.open_project_workflow(project_path)
+
+        self.assertTrue(result)
+        self.mock_pm.load_project.assert_called_once_with(project_path)
+        apply_overrides.assert_called_once()
+        update_status.assert_called_once()
+        self.mock_view.update_openvino_checkbox.assert_called_once_with(
+            self.controller.use_openvino
+        )
+        self.mock_view.set_active_weight_in_dropdown.assert_called_once_with(
+            self.controller.active_weight_name
+        )
+        self.mock_view._load_project_view.assert_called_once()
+        setup_zones.assert_called_once()
+        self.mock_view.redraw_zones_from_project_data.assert_called_once()
+        self.mock_view.update_zone_listbox.assert_called_once()
+        self.mock_view.show_info.assert_called_once()
+
     def test_save_project_model_overrides_applies_settings(self):
         self.mock_pm.project_data = {
             "model_overrides": {"active_weight": None, "use_openvino": None},

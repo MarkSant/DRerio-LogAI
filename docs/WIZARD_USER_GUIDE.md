@@ -1,11 +1,11 @@
 # Wizard de Criação de Projetos - Guia do Usuário
 
-**Versão:** 1.5
-**Última Atualização:** 2025-10-04
+**Versão:** 1.6
+**Última Atualização:** 2025-10-08
 
 ## Visão Geral
 
-O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no ZebTrack-AI. Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
+O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no ZebTrack-AI. Desde a versão 1.6 ele é a experiência padrão (a flag `ui_features.use_wizard_for_project_creation` deve permanecer habilitada). Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
 
 ### Benefícios
 
@@ -259,7 +259,7 @@ O wizard funcionará normalmente, mas não detectará design automaticamente. Vo
 
 ### 2. Posso editar a detecção de design?
 
-Na versão 1.5, a detecção é automática e não editável. Se a confiança for baixa (<70%), considere reorganizar pastas ou renomear arquivos para seguir um dos 4 padrões suportados.
+Na versão 1.6, a detecção é automática e não editável. Se a confiança for baixa (<70%), considere reorganizar pastas ou renomear arquivos para seguir um dos 4 padrões suportados.
 
 ### 3. O que é a "confiança" de detecção?
 
@@ -385,6 +385,6 @@ Para reportar problemas ou sugerir melhorias:
 
 ---
 
-**Versão do Wizard:** 1.5
+**Versão do Wizard:** 1.6
 **Schema Version:** 1
 **Última Atualização:** 2025-10-04
