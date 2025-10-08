@@ -1083,6 +1083,15 @@ class ApplicationGUI:
         self.start_single_analysis_btn = None
         self._zone_prompt_history: set[str] = set()
 
+        # Model management state (reflected across welcome + project views)
+        self._available_weight_names: list[str] = []
+        self._active_weight_display_var = StringVar(
+            value="Peso ativo: Nenhum peso selecionado."
+        )
+        self._openvino_display_var = StringVar(value="OpenVINO: Desativado.")
+        self._openvino_enabled = False
+        self._openvino_status_message = "Desativado."
+
         # ROI Tab Widgets
         self.roi_listbox = None
         self.run_analysis_btn = None
@@ -1154,6 +1163,10 @@ class ApplicationGUI:
         self.external_trigger_notice_label = None
         self._external_notice_default_bg = None
         self._external_notice_default_fg = None
+
+        self.set_active_weight_in_dropdown(self.controller.active_weight_name)
+        self.update_openvino_checkbox(self.controller.use_openvino)
+        self.update_openvino_status_display(self.controller.get_openvino_status())
 
         self._create_welcome_frame()
 
@@ -1291,6 +1304,22 @@ class ApplicationGUI:
             command=self._open_project_workflow,
         ).pack(fill="x", padx=10, pady=5)
 
+        # --- Modelo ativo e status do OpenVINO ---
+        model_status_frame = ttk.LabelFrame(
+            self.welcome_frame,
+            text="Estado do Modelo de Detecção",
+            padding=10,
+        )
+        model_status_frame.pack(fill="x", pady=10, expand=True)
+        ttk.Label(
+            model_status_frame,
+            textvariable=self._active_weight_display_var,
+        ).pack(anchor="w")
+        ttk.Label(
+            model_status_frame,
+            textvariable=self._openvino_display_var,
+        ).pack(anchor="w", pady=(4, 0))
+
     def _open_calibration_window(self):
         CalibrationDialog(self.root, self.controller)
 
@@ -1420,6 +1449,26 @@ class ApplicationGUI:
             text="Fechar Projeto",
             command=self.controller.close_project,
         ).pack(side="right", padx=5)
+
+        model_status_frame = ttk.LabelFrame(
+            self.main_controls_frame,
+            text="Estado do Modelo de Detecção",
+            padding=10,
+        )
+        model_status_frame.pack(fill="x", pady=(10, 10))
+        ttk.Label(
+            model_status_frame,
+            textvariable=self._active_weight_display_var,
+        ).pack(anchor="w")
+        ttk.Label(
+            model_status_frame,
+            textvariable=self._openvino_display_var,
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Button(
+            model_status_frame,
+            text="Abrir Calibração e Diagnóstico...",
+            command=self._open_calibration_window,
+        ).pack(anchor="w", pady=(6, 0))
 
         if project_type == "live":
             self.external_trigger_notice_label = Label(
@@ -4611,6 +4660,47 @@ class ApplicationGUI:
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""
         ManageWeightsDialog(self.root, self.controller)
+
+    def update_weights_dropdown(self, weights: list[str]):
+        """Caches available weights so summaries stay consistent."""
+        self._available_weight_names = list(weights or [])
+        if (
+            self.controller.active_weight_name
+            and self.controller.active_weight_name in self._available_weight_names
+        ):
+            self._update_active_weight_display(self.controller.active_weight_name)
+        elif not self._available_weight_names:
+            self._update_active_weight_display("")
+
+    def set_active_weight_in_dropdown(self, weight_name: str | None):
+        """Updates the active weight summary."""
+        self._update_active_weight_display(weight_name or "")
+
+    def update_openvino_checkbox(self, enabled: bool):
+        """Synchronizes OpenVINO toggle state with the summary label."""
+        self._openvino_enabled = bool(enabled)
+        self._refresh_openvino_summary()
+
+    def update_openvino_status_display(self, status: str):
+        """Updates the detailed OpenVINO status shown in the UI."""
+        self._openvino_status_message = status or ""
+        self._refresh_openvino_summary()
+
+    def _refresh_openvino_summary(self):
+        state_text = "Ativado" if self._openvino_enabled else "Desativado"
+        status_text = self._openvino_status_message.strip()
+        if status_text:
+            self._openvino_display_var.set(f"OpenVINO: {state_text} — {status_text}")
+        else:
+            self._openvino_display_var.set(f"OpenVINO: {state_text}")
+
+    def _update_active_weight_display(self, weight_name: str):
+        if weight_name:
+            self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
+        else:
+            self._active_weight_display_var.set(
+                "Peso ativo: Nenhum peso selecionado."
+            )
 
     def _create_project_workflow(self):
         """

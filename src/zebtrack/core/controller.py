@@ -41,9 +41,17 @@ log = structlog.get_logger()
 class AppController:
     def __init__(self, root):
         self.root = root
-        self.view = ApplicationGUI(root, self)
         self.project_manager = ProjectManager()
         self.weight_manager = WeightManager()
+
+        # New state variables for model management (must exist before view)
+        self.active_weight_name, _ = self.weight_manager.get_default_weight()
+        if self.active_weight_name is None:
+            self.active_weight_name = ""
+            log.warning("controller.init.no_default_weight")
+        self.use_openvino = False  # Default to not using OpenVINO
+
+        # Core runtime attributes
         self.detector = None
         self.recorder = Recorder()
         self.arduino: Arduino | None = None
@@ -52,6 +60,9 @@ class AppController:
         self.report_results_paths = {}
         self.is_recording = False
         self.timed_recording_job = None
+
+        # Create view after core state is ready so it can reflect it
+        self.view = ApplicationGUI(root, self)
         # Other initializations...
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
@@ -59,13 +70,6 @@ class AppController:
         self.pending_single_video_analysis = None
 
         self._pending_external_trigger: dict | None = None
-
-        # New state variables for model management
-        self.active_weight_name, _ = self.weight_manager.get_default_weight()
-        if self.active_weight_name is None:
-            self.active_weight_name = ""
-            log.warning("controller.init.no_default_weight")
-        self.use_openvino = False  # Default to not using OpenVINO
 
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
@@ -957,21 +961,42 @@ class AppController:
         self.view.set_active_weight_in_dropdown(name)
         self.set_active_weight(name, None)
 
-    def set_active_weight(self, name: str, dialog):
+    def set_active_weight(self, name: str, dialog=None):
         if name and name in self.get_all_weight_names():
             self.active_weight_name = name
             log.info("controller.active_weight.set", name=name)
+            if hasattr(self.view, "set_active_weight_in_dropdown"):
+                try:
+                    self.view.set_active_weight_in_dropdown(name)
+                except Exception:
+                    log.warning(
+                        "controller.active_weight.view_update_failed", exc_info=True
+                    )
             self.update_openvino_status(dialog)
             if self.use_openvino:
                 self.convert_active_weight_to_openvino(dialog)
         else:
             log.warning("controller.active_weight.not_found", name=name)
             self.active_weight_name = None
+            if hasattr(self.view, "set_active_weight_in_dropdown"):
+                try:
+                    self.view.set_active_weight_in_dropdown("")
+                except Exception:
+                    log.warning(
+                        "controller.active_weight.view_update_failed", exc_info=True
+                    )
             self.update_openvino_status(dialog)
 
     def set_openvino_usage(self, use_openvino: bool, dialog):
         self.use_openvino = use_openvino
         log.info("controller.openvino_usage.set", enabled=use_openvino)
+        if hasattr(self.view, "update_openvino_checkbox"):
+            try:
+                self.view.update_openvino_checkbox(self.use_openvino)
+            except Exception:
+                log.warning(
+                    "controller.openvino_usage.view_update_failed", exc_info=True
+                )
         if use_openvino and self.active_weight_name:
             # Trigger conversion if switching to OpenVINO and model isn't converted
             self.convert_active_weight_to_openvino(dialog)
@@ -986,11 +1011,18 @@ class AppController:
         self.update_openvino_status(dialog)
         self.view.set_status("Verificação de conversão concluída. Pronto.")
 
-    def update_openvino_status(self, dialog):
+    def update_openvino_status(self, dialog=None):
         """Updates the status label in the GUI based on the current state."""
         status = self.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
+        if hasattr(self.view, "update_openvino_status_display"):
+            try:
+                self.view.update_openvino_status_display(status)
+            except Exception:
+                log.warning(
+                    "controller.openvino_status.view_update_failed", exc_info=True
+                )
 
     def run_aquarium_detection(
         self,
