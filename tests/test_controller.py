@@ -39,6 +39,10 @@ class TestAppController(unittest.TestCase):
         self.controller.view = self.mock_view
         self.controller.weight_manager = self.mock_wm
 
+        self.mock_pm.project_path = None
+        self.mock_pm.project_data = {}
+        self.mock_pm.get_project_name.return_value = "Projeto Teste"
+
         # Stub Arduino manager factory for tests
         self.mock_arduino_manager = MagicMock()
         self.mock_arduino_manager.connect.return_value = True
@@ -63,6 +67,61 @@ class TestAppController(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         pass
+
+    def test_get_calibration_scope_info_global_without_project(self):
+        info = self.controller.get_calibration_scope_info()
+        self.assertEqual(info["scope"], "global")
+        self.assertFalse(info["project_loaded"])
+
+    def test_get_calibration_scope_info_project_inheriting(self):
+        self.mock_pm.project_path = "/project"
+        self.mock_pm.project_data = {}
+        self.controller._using_project_overrides = True
+
+        info = self.controller.get_calibration_scope_info()
+        self.assertEqual(info["scope"], "project")
+        self.assertTrue(info["inheriting_globals"])
+        self.assertFalse(info["overrides_active"])
+
+    def test_copy_global_model_settings_to_project(self):
+        self.mock_pm.project_path = "/project"
+        self.mock_pm.project_data = {}
+        self.controller._global_model_defaults["active_weight"] = "best_seg.pt"
+        self.controller._global_model_defaults["use_openvino"] = True
+        self.mock_pm.save_project.reset_mock()
+
+        with patch.object(self.controller, "refresh_project_views") as refresh_mock:
+            result = self.controller.copy_global_model_settings_to_project()
+
+        self.assertEqual(result, ("best_seg.pt", True))
+        project_data = getattr(self.controller.project_manager, "project_data", {})
+        overrides = project_data["model_overrides"]
+        self.assertEqual(overrides["active_weight"], "best_seg.pt")
+        self.assertTrue(overrides["use_openvino"])
+        self.assertEqual(project_data["active_weight"], "best_seg.pt")
+        self.assertTrue(project_data["use_openvino"])
+        self.mock_pm.save_project.assert_called()
+        refresh_mock.assert_called()
+
+    def test_save_current_calibration_to_project(self):
+        self.mock_pm.project_path = "/project"
+        self.mock_pm.project_data = {}
+        self.controller.active_weight_name = "backup.pt"
+        self.controller.use_openvino = False
+        self.mock_pm.save_project.reset_mock()
+
+        with patch.object(self.controller, "refresh_project_views") as refresh_mock:
+            result = self.controller.save_current_calibration_to_project()
+
+        self.assertEqual(result, ("backup.pt", False))
+        project_data = getattr(self.controller.project_manager, "project_data", {})
+        overrides = project_data["model_overrides"]
+        self.assertEqual(overrides["active_weight"], "backup.pt")
+        self.assertFalse(overrides["use_openvino"])
+        self.assertEqual(project_data["active_weight"], "backup.pt")
+        self.assertFalse(project_data["use_openvino"])
+        self.mock_pm.save_project.assert_called()
+        refresh_mock.assert_called()
 
     def test_refresh_project_views_schedules_on_ui(self):
         refresh_mock = MagicMock()

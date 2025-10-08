@@ -1079,6 +1079,137 @@ class AppController:
             "use_openvino": self._global_model_defaults.get("use_openvino", False),
         }
 
+    def _get_project_data_dict(self) -> dict:
+        project_data = getattr(self.project_manager, "project_data", None)
+        if not isinstance(project_data, dict):
+            project_data = {} if not project_data else dict(project_data)
+            self.project_manager.project_data = project_data
+        return project_data
+
+    def _ensure_project_overrides_record(self) -> dict:
+        project_data = self._get_project_data_dict()
+        overrides = project_data.get("model_overrides")
+        if not isinstance(overrides, dict):
+            overrides = {"active_weight": None, "use_openvino": None}
+            project_data["model_overrides"] = overrides
+        return overrides
+
+    def has_project_override_settings(self) -> bool:
+        if not getattr(self.project_manager, "project_path", None):
+            return False
+        overrides = self._ensure_project_overrides_record()
+        return any(value not in (None, "", "inherit") for value in overrides.values())
+
+    def get_calibration_scope_info(self) -> dict:
+        project_path = getattr(self.project_manager, "project_path", None)
+        project_loaded = bool(project_path)
+        project_name = None
+        if project_loaded and hasattr(self.project_manager, "get_project_name"):
+            try:
+                project_name = self.project_manager.get_project_name()
+            except Exception:  # pragma: no cover - defensive
+                project_name = None
+
+        overrides_active = self.has_project_override_settings()
+        inheriting_globals = project_loaded and not overrides_active
+        scope = "project" if project_loaded and self._using_project_overrides else "global"
+
+        if scope == "project":
+            label = (
+                f"Escopo: Projeto ({project_name})"
+                if project_name
+                else "Escopo: Projeto"
+            )
+            if overrides_active:
+                detail = (
+                    "Este projeto usa overrides salvos. Ajustes nesta janela são "
+                    "persistidos apenas neste projeto."
+                )
+            else:
+                detail = (
+                    "Este projeto está herdando os padrões globais. Ao salvar aqui, "
+                    "os valores se tornam overrides específicos."
+                )
+        else:
+            label = "Escopo: Configuração Global"
+            if project_loaded:
+                detail = (
+                    "Alterações atualizam o padrão global. Use a ação de cópia para "
+                    "fixar estes valores no projeto atual."
+                )
+            else:
+                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
+
+        return {
+            "scope": scope,
+            "project_loaded": project_loaded,
+            "project_name": project_name,
+            "overrides_active": overrides_active,
+            "inheriting_globals": inheriting_globals,
+            "label": label,
+            "detail": detail,
+        }
+
+    def _persist_project_model_settings(
+        self, weight: str | None, use_openvino: bool
+    ) -> dict:
+        project_data = self._get_project_data_dict()
+        overrides = self._ensure_project_overrides_record()
+        overrides["active_weight"] = weight
+        overrides["use_openvino"] = use_openvino
+        project_data["active_weight"] = weight
+        project_data["use_openvino"] = bool(use_openvino)
+        self.project_manager.project_data = project_data
+        if getattr(self.project_manager, "project_path", None):
+            self.project_manager.save_project()
+        return overrides
+
+    def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
+        if not getattr(self.project_manager, "project_path", None):
+            if hasattr(self.view, "show_warning"):
+                self.view.show_warning(
+                    "Nenhum Projeto",
+                    "Abra um projeto antes de copiar configurações globais.",
+                )
+            return None
+
+        defaults = self.get_global_model_defaults()
+        weight = defaults.get("active_weight") or (self.active_weight_name or None)
+        use_openvino = bool(defaults.get("use_openvino", False))
+
+        overrides = self._persist_project_model_settings(weight, use_openvino)
+
+        message = "Configurações globais aplicadas ao projeto."
+        if hasattr(self.view, "set_status"):
+            self.view.set_status(message)
+        self.refresh_project_views(reason=message, append_summary=True)
+
+        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+
+    def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
+        if not getattr(self.project_manager, "project_path", None):
+            if hasattr(self.view, "show_warning"):
+                self.view.show_warning(
+                    "Nenhum Projeto",
+                    "Abra um projeto antes de salvar overrides de calibração.",
+                )
+            return None
+
+        overrides = self._persist_project_model_settings(
+            self.active_weight_name or None,
+            bool(self.use_openvino),
+        )
+
+        # Garantir que o estado em memória reflita os overrides recém-salvos
+        self.apply_project_model_overrides(overrides)
+
+        message = "Overrides do projeto atualizados a partir desta calibração."
+        if hasattr(self.view, "set_status"):
+            self.view.set_status(message)
+        self.refresh_project_views(reason=message, append_summary=True)
+
+        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+
     def _apply_model_settings(
         self, weight_name: str | None, use_openvino: bool, dialog=None
     ) -> None:

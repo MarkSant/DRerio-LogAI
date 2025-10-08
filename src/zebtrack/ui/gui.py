@@ -76,6 +76,10 @@ class CalibrationDialog(simpledialog.Dialog):
         self.active_weight_var = StringVar()
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
+        self.scope_info = controller.get_calibration_scope_info()
+        self.scope_label_var = StringVar(value=self.scope_info["label"])
+        self.scope_detail_var = StringVar(value=self.scope_info["detail"])
+        self.scope_action_button = None
 
         # --- Vars for diagnostic ---
         self.frames_to_analyze_var = StringVar(value="10")
@@ -90,6 +94,32 @@ class CalibrationDialog(simpledialog.Dialog):
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
+        scope_frame = ttk.LabelFrame(
+            master, text="Contexto da Calibração", padding=10
+        )
+        scope_frame.pack(fill="x", pady=(5, 0), padx=5)
+
+        ttk.Label(
+            scope_frame,
+            textvariable=self.scope_label_var,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
+        ttk.Label(
+            scope_frame,
+            textvariable=self.scope_detail_var,
+            wraplength=460,
+            justify="left",
+        ).pack(anchor="w", pady=(2, 0))
+
+        action_text = self._get_scope_action_text(self.scope_info)
+        if action_text:
+            self.scope_action_button = ttk.Button(
+                scope_frame,
+                text=action_text,
+                command=self._on_scope_primary_action,
+            )
+            self.scope_action_button.pack(anchor="e", pady=(8, 0))
+
         # --- Frame for model configuration ---
         model_frame = ttk.LabelFrame(master, text="Configuração do Modelo", padding=10)
         model_frame.pack(fill="x", pady=5, padx=5)
@@ -357,6 +387,54 @@ class CalibrationDialog(simpledialog.Dialog):
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
         box.pack()
+
+    def _get_scope_action_text(self, scope_info: dict) -> str | None:
+        if not scope_info.get("project_loaded"):
+            return None
+        if scope_info.get("scope") == "global":
+            return "Copiar globais para o projeto"
+        return "Salvar calibração neste projeto"
+
+    def _refresh_scope_context(self) -> None:
+        self.scope_info = self.controller.get_calibration_scope_info()
+        self.scope_label_var.set(self.scope_info["label"])
+        self.scope_detail_var.set(self.scope_info["detail"])
+        if self.scope_action_button:
+            action_text = self._get_scope_action_text(self.scope_info)
+            if action_text:
+                self.scope_action_button.config(text=action_text, state="normal")
+            else:
+                self.scope_action_button.config(state="disabled")
+
+    def _on_scope_primary_action(self) -> None:
+        if not self.scope_info.get("project_loaded"):
+            return
+
+        project_name = self.scope_info.get("project_name") or "projeto"
+        if self.scope_info.get("scope") == "global":
+            result = self.controller.copy_global_model_settings_to_project()
+            if result:
+                messagebox.showinfo(
+                    "Projeto atualizado",
+                    (
+                        "Os padrões globais foram copiados para o projeto "
+                        f"{project_name}."
+                    ),
+                )
+        else:
+            result = self.controller.save_current_calibration_to_project()
+            if result:
+                messagebox.showinfo(
+                    "Overrides salvos",
+                    (
+                        "A calibração atual foi salva como override para o projeto "
+                        f"{project_name}."
+                    ),
+                )
+
+        self._populate_weights_dropdown()
+        self.use_openvino_var.set(self.controller.use_openvino)
+        self._refresh_scope_context()
 
 
 class ProjectModelOverridesDialog(simpledialog.Dialog):
@@ -1780,6 +1858,19 @@ class ApplicationGUI:
         with self.controller.global_calibration_session():
             CalibrationDialog(self.root, self.controller)
 
+    def _open_project_calibration_window(self):
+        if not getattr(self.controller.project_manager, "project_path", None):
+            self.show_warning(
+                "Nenhum Projeto",
+                "Abra um projeto antes de ajustar a calibração específica.",
+            )
+            return
+
+        CalibrationDialog(self.root, self.controller)
+        self.update_openvino_checkbox(self.controller.use_openvino)
+        self.set_active_weight_in_dropdown(self.controller.active_weight_name)
+        self.update_openvino_status_display(self.controller.get_openvino_status())
+
     def _open_project_model_preferences(self):
         if not getattr(self.controller.project_manager, "project_path", None):
             self.show_warning(
@@ -1946,6 +2037,12 @@ class ApplicationGUI:
             text="Calibração Global...",
             command=self._open_global_calibration_window,
         ).pack(side="left", padx=(0, 6))
+        if getattr(self.controller.project_manager, "project_path", None):
+            ttk.Button(
+                button_row,
+                text="Calibração do Projeto...",
+                command=self._open_project_calibration_window,
+            ).pack(side="left", padx=(0, 6))
         ttk.Button(
             button_row,
             text="Preferências deste Projeto...",
