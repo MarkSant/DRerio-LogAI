@@ -6,6 +6,7 @@ import os
 import queue
 import threading
 import time
+from collections import Counter
 from tkinter import (
     BooleanVar,
     Button,
@@ -42,6 +43,24 @@ STATUS_SYMBOLS = {
     "rois": "\U0001F3AF",  # 🎯
     "trajectory": "\U0001F9ED",  # 🧭
 }
+
+PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
+    "pending": ("⏳", "Pendentes"),
+    "processing": ("🔁", "Processando"),
+    "processed": ("📦", "Com dados"),
+    "complete": ("✅", "Concluídos"),
+    "failed": ("⚠️", "Com falha"),
+}
+
+PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
+    "total",
+    "pending",
+    "processing",
+    "processed",
+    "complete",
+    "failed",
+    "others",
+)
 
 
 class CalibrationDialog(simpledialog.Dialog):
@@ -1331,6 +1350,16 @@ class ApplicationGUI:
         self._video_selector_filter = ""
         self._pending_readiness_snapshot = {}
 
+        # Project overview widgets/state
+        self.project_overview_frame = None
+        self.project_overview_tree = None
+        self.project_status_vars = {}
+        self._project_status_containers = {}
+        self._overview_refresh_job = None
+        self._pending_overview_status = None
+        self._overview_status_append = False
+        self._last_overview_counts = {}
+
         # Arduino dashboard state (live projects)
         self.arduino_dashboard_frame = None
         self.arduino_status_var = StringVar(value="Desconectado")
@@ -1438,6 +1467,17 @@ class ApplicationGUI:
                 self.arduino_last_command_var.set("-")
             except Exception:
                 pass
+            if self._overview_refresh_job is not None:
+                try:
+                    self.root.after_cancel(self._overview_refresh_job)
+                except Exception:
+                    pass
+                self._overview_refresh_job = None
+            self.project_overview_frame = None
+            self.project_overview_tree = None
+            self.project_status_vars.clear()
+            self._project_status_containers.clear()
+            self._last_overview_counts = {}
 
         self.analysis_tab_frame = None
 
@@ -1628,6 +1668,8 @@ class ApplicationGUI:
             command=self.controller.close_project,
         ).pack(side="right", padx=5)
 
+        self._create_project_overview_panel(self.main_controls_frame)
+
         model_status_frame = ttk.LabelFrame(
             self.main_controls_frame,
             text="Estado do Modelo de Detecção",
@@ -1668,6 +1710,373 @@ class ApplicationGUI:
 
             self._build_arduino_dashboard(self.main_controls_frame)
             self.clear_external_trigger_notice()
+
+        self._request_overview_refresh()
+
+    def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
+        if not parent:
+            return
+
+        if self.project_overview_frame and self.project_overview_frame.winfo_exists():
+            try:
+                self.project_overview_frame.destroy()
+            except Exception:
+                pass
+
+        self.project_overview_frame = ttk.LabelFrame(
+            parent, text="Resumo do Projeto", padding=10
+        )
+        self.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
+
+        summary_frame = ttk.Frame(self.project_overview_frame)
+        summary_frame.pack(fill="x", pady=(0, 8))
+
+        self._project_status_containers.clear()
+
+        for key in PROJECT_STATUS_WIDGET_ORDER:
+            icon, label = self._get_status_meta(key)
+            container = ttk.Frame(summary_frame)
+            container.pack(side="left", padx=(0, 12))
+            ttk.Label(container, text=f"{icon} {label}:", anchor="w").pack(
+                side="left"
+            )
+            var = self.project_status_vars.get(key)
+            if not var:
+                var = StringVar(value="0")
+                self.project_status_vars[key] = var
+            ttk.Label(
+                container,
+                textvariable=var,
+                font=("Segoe UI", 10, "bold"),
+            ).pack(side="left", padx=(4, 0))
+            self._project_status_containers[key] = container
+
+        tree_container = ttk.Frame(self.project_overview_frame)
+        tree_container.pack(fill="both", expand=True)
+
+        self.project_overview_tree = ttk.Treeview(
+            tree_container,
+            columns=("status", "data"),
+            show="tree headings",
+            height=10,
+        )
+        self.project_overview_tree.heading("#0", text="Lotes e Vídeos")
+        self.project_overview_tree.heading("status", text="Status")
+        self.project_overview_tree.heading("data", text="Dados")
+        self.project_overview_tree.column("#0", width=260, stretch=True)
+        self.project_overview_tree.column("status", width=180, anchor="w", stretch=False)
+        self.project_overview_tree.column("data", width=240, anchor="w", stretch=True)
+
+        scrollbar = ttk.Scrollbar(
+            tree_container, orient="vertical", command=self.project_overview_tree.yview
+        )
+        self.project_overview_tree.configure(yscrollcommand=scrollbar.set)
+        self.project_overview_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.project_overview_tree.tag_configure("status_pending", foreground="#92400e")
+        self.project_overview_tree.tag_configure(
+            "status_processing", foreground="#b45309"
+        )
+        self.project_overview_tree.tag_configure(
+            "status_processed", foreground="#0f5132"
+        )
+        self.project_overview_tree.tag_configure(
+            "status_complete", foreground="#166534"
+        )
+        self.project_overview_tree.tag_configure("status_failed", foreground="#b91c1c")
+
+        self.project_overview_tree.bind(
+            "<Double-Button-1>", self._on_project_overview_tree_double_click
+        )
+
+    @staticmethod
+    def _get_status_meta(status_key: str) -> tuple[str, str]:
+        if status_key == "total":
+            return "🧮", "Total"
+        if status_key == "others":
+            return "➕", "Outros"
+        return PROJECT_STATUS_META.get(status_key, ("•", status_key.title()))
+
+    def _request_overview_refresh(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        if reason is not None:
+            self._pending_overview_status = reason
+            self._overview_status_append = append_summary
+
+        if self._overview_refresh_job is not None:
+            try:
+                self.root.after_cancel(self._overview_refresh_job)
+            except Exception:
+                pass
+            self._overview_refresh_job = None
+
+        if immediate:
+            self._refresh_project_overview()
+            return
+
+        try:
+            self._overview_refresh_job = self.root.after(
+                150, self._refresh_project_overview
+            )
+        except Exception:
+            self._refresh_project_overview()
+
+    def _refresh_project_overview(self) -> None:
+        self._overview_refresh_job = None
+
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
+            return
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+
+        counts: Counter = Counter(
+            (str(video.get("status") or "pending")).strip().lower()
+            for video in all_videos
+        )
+        total = sum(counts.values())
+
+        self._update_project_overview_summary(counts, total)
+        self._update_project_overview_tree(pm, all_videos)
+
+        if self._pending_overview_status is not None:
+            summary_line = self._compose_overview_status_line(total, counts)
+            if summary_line:
+                if self._overview_status_append and self._pending_overview_status:
+                    message = f"{self._pending_overview_status} • {summary_line}"
+                elif self._pending_overview_status:
+                    message = f"{self._pending_overview_status} — {summary_line}"
+                else:
+                    message = summary_line
+                self.set_status(message)
+            self._pending_overview_status = None
+            self._overview_status_append = False
+
+    def _compose_overview_status_line(self, total: int, counts: Counter) -> str:
+        if total <= 0:
+            return "Nenhum vídeo cadastrado."
+
+        parts: list[str] = [f"🧮 {total} vídeo(s)"]
+        for key in ("pending", "processing", "processed", "complete", "failed"):
+            value = counts.get(key, 0)
+            if value:
+                icon, _ = PROJECT_STATUS_META.get(key, ("•", key.title()))
+                parts.append(f"{icon} {value}")
+
+        others = sum(
+            count for status, count in counts.items() if status not in PROJECT_STATUS_META
+        )
+        if others:
+            parts.append(f"➕ {others}")
+
+        return " • ".join(parts)
+
+    def _update_project_overview_summary(self, counts: Counter, total: int) -> None:
+        if not self.project_overview_frame or not self.project_overview_frame.winfo_exists():
+            return
+
+        known_statuses = set(PROJECT_STATUS_META.keys())
+        others_count = sum(
+            value for status, value in counts.items() if status not in known_statuses
+        )
+
+        for key in PROJECT_STATUS_WIDGET_ORDER:
+            if key == "total":
+                value = total
+            elif key == "others":
+                value = others_count
+            else:
+                value = counts.get(key, 0)
+
+            var = self.project_status_vars.setdefault(key, StringVar(value="0"))
+            var.set(str(value))
+
+            container = self._project_status_containers.get(key)
+            if not container:
+                continue
+
+            should_show = key == "total" or value > 0
+            if should_show:
+                if not container.winfo_ismapped():
+                    container.pack(side="left", padx=(0, 12))
+            else:
+                if container.winfo_ismapped():
+                    container.pack_forget()
+
+    def _update_project_overview_tree(
+        self, project_manager, all_videos: list[dict]
+    ) -> None:
+        if not self.project_overview_tree or not self.project_overview_tree.winfo_exists():
+            return
+
+        for item in self.project_overview_tree.get_children():
+            self.project_overview_tree.delete(item)
+
+        project_data = getattr(project_manager, "project_data", {}) or {}
+        batches = project_data.get("batches") or []
+
+        if not batches:
+            return
+
+        for index, batch in enumerate(batches, start=1):
+            videos = list(batch.get("videos") or [])
+            if not videos:
+                continue
+
+            batch_counts: Counter = Counter(
+                (str(video.get("status") or "pending")).strip().lower()
+                for video in videos
+            )
+            status_summary = self._format_status_summary(batch_counts)
+            data_summary = self._summarize_batch_data(videos)
+
+            timestamp = batch.get("timestamp")
+            batch_label = f"Lote {index}"
+            if timestamp:
+                batch_label = f"{batch_label} – {timestamp}"
+
+            batch_node = self.project_overview_tree.insert(
+                "",
+                "end",
+                text=f"🗂️ {batch_label}",
+                values=(status_summary, data_summary),
+                open=False,
+            )
+
+            for video in sorted(
+                videos,
+                key=lambda item: os.path.basename(item.get("path", "")).lower(),
+            ):
+                path = video.get("path") or ""
+                filename = os.path.basename(path) if path else "(sem arquivo)"
+                metadata = video.get("metadata") or {}
+                meta_snippet = self._format_video_metadata(metadata)
+                display_name = f"🎬 {filename}"
+                if meta_snippet:
+                    display_name = f"{display_name} [{meta_snippet}]"
+
+                status_key = str(video.get("status") or "pending").strip().lower()
+                status_display = self._format_status_label(status_key)
+                data_badges = self._format_data_badges(video)
+
+                tags = tuple(tag for tag in (path, f"status_{status_key}") if tag)
+
+                self.project_overview_tree.insert(
+                    batch_node,
+                    "end",
+                    text=display_name,
+                    values=(status_display, data_badges),
+                    tags=tags,
+                )
+
+    def _format_status_label(self, status_key: str) -> str:
+        icon, label = self._get_status_meta(status_key)
+        return f"{icon} {label}"
+
+    def _format_status_summary(self, counts: Counter) -> str:
+        parts: list[str] = []
+        for key in PROJECT_STATUS_META:
+            value = counts.get(key, 0)
+            if value:
+                icon, _ = PROJECT_STATUS_META[key]
+                parts.append(f"{icon} {value}")
+
+        others = sum(
+            count for status, count in counts.items() if status not in PROJECT_STATUS_META
+        )
+        if others:
+            parts.append(f"➕ {others}")
+
+        return " | ".join(parts) if parts else "-"
+
+    def _summarize_batch_data(self, videos: list[dict]) -> str:
+        if not videos:
+            return "-"
+
+        total = len(videos)
+        arena_count = sum(1 for video in videos if video.get("has_arena"))
+        roi_count = sum(1 for video in videos if video.get("has_rois"))
+        traj_count = sum(1 for video in videos if video.get("has_trajectory"))
+
+        return (
+            f"{STATUS_SYMBOLS['arena']} {arena_count}/{total}  "
+            f"{STATUS_SYMBOLS['rois']} {roi_count}/{total}  "
+            f"{STATUS_SYMBOLS['trajectory']} {traj_count}/{total}"
+        )
+
+    def _format_data_badges(self, video: dict) -> str:
+        markers = [
+            f"{STATUS_SYMBOLS['arena']} {'✓' if video.get('has_arena') else '✗'}",
+            f"{STATUS_SYMBOLS['rois']} {'✓' if video.get('has_rois') else '✗'}",
+            f"{STATUS_SYMBOLS['trajectory']} {'✓' if video.get('has_trajectory') else '✗'}",
+        ]
+        return "  ".join(markers)
+
+    def _format_video_metadata(self, metadata: dict) -> str:
+        if not metadata:
+            return ""
+
+        parts: list[str] = []
+        group = metadata.get("group")
+        if group not in (None, ""):
+            parts.append(f"G:{group}")
+
+        day = metadata.get("day")
+        if day not in (None, ""):
+            parts.append(f"D:{day}")
+
+        subject = metadata.get("subject")
+        if subject not in (None, ""):
+            parts.append(f"S:{self._format_subject_label(subject)}")
+
+        return " ".join(parts)
+
+    def _on_project_overview_tree_double_click(self, event) -> None:  # noqa: D401
+        """Handle double-click events on the overview tree."""
+
+        del event
+
+        if not self.project_overview_tree:
+            return
+
+        item_id = self.project_overview_tree.focus()
+        if not item_id:
+            return
+
+        tags = self.project_overview_tree.item(item_id, "tags") or ()
+        if not tags:
+            return
+
+        video_path = tags[0]
+        if not video_path or video_path.startswith("status_"):
+            return
+
+        if not os.path.exists(video_path):
+            self.show_warning(
+                "Arquivo não encontrado",
+                f"O vídeo selecionado não foi localizado:\n{video_path}",
+            )
+            return
+
+        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+        if success:
+            self._maybe_offer_zone_reuse(video_path)
+            self.redraw_zones_from_project_data()
+            message = f"Frame carregado: {os.path.basename(video_path)}"
+            self.set_status(message)
+            self._request_overview_refresh(reason=message, append_summary=True)
+        else:
+            self.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )
 
     def _build_arduino_dashboard(self, parent: Frame):
         """Creates the Arduino monitoring dashboard."""
@@ -2702,9 +3111,13 @@ class ApplicationGUI:
         if self.current_editing_zone == "arena":
             # Save main arena
             self.controller.save_manual_arena(self.edited_polygon_points)
-            self.set_status("Arena principal salva com sucesso.")
+            status_message = "Arena principal salva com sucesso."
+            self.set_status(status_message)
             # Enable ROI button after main arena is saved
             self._enable_roi_button_if_arena_exists()
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
+            )
         elif (
             isinstance(self.current_editing_zone, tuple)
             and self.current_editing_zone[0] == "roi"
@@ -2719,13 +3132,21 @@ class ApplicationGUI:
             # Save to project using new zone persistence helper
             self.controller.project_manager.save_zone_data(zone_data)
 
-            self.set_status(f"ROI '{roi_name}' salva com sucesso.")
+            status_message = f"ROI '{roi_name}' salva com sucesso."
+            self.set_status(status_message)
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
+            )
         else:
             # Fallback - assume arena (legacy behavior)
             self.controller.save_manual_arena(self.edited_polygon_points)
-            self.set_status("Zona salva com sucesso.")
+            status_message = "Zona salva com sucesso."
+            self.set_status(status_message)
             # Enable ROI button after main arena is saved
             self._enable_roi_button_if_arena_exists()
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
+            )
 
         # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
@@ -3263,6 +3684,8 @@ class ApplicationGUI:
             displayed=displayed_videos,
         )
 
+        self._request_overview_refresh()
+
     def _filter_video_tree(self):
         """Filtra a árvore com base no texto de busca."""
         if self.video_search_var is None:
@@ -3372,13 +3795,19 @@ class ApplicationGUI:
         if reuse:
             cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
             pm.save_zone_data(cloned_zone_data, video_path=video_path)
-            self.set_status(
+            status_message = (
                 f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
+            )
+            self.set_status(status_message)
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
             )
         else:
             pm.clear_zone_data_for_video(video_path, persist=False)
-            self.set_status(
-                "Comece a desenhar a arena e as ROIs para este vídeo."
+            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
+            self.set_status(status_message)
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
             )
 
     def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
@@ -4050,11 +4479,15 @@ class ApplicationGUI:
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
-                    self.set_status("✓ Arena principal definida com sucesso!")
+                    status_message = "✓ Arena principal definida com sucesso!"
+                    self.set_status(status_message)
                     self.show_info(
                         "Sucesso",
                         f"Arena principal criada com "
                         f"{len(self.current_polygon_points)} pontos.",
+                    )
+                    self._request_overview_refresh(
+                        reason=status_message, append_summary=True
                     )
                 else:
                     self.set_status("❌ Erro ao salvar arena principal.")
@@ -4108,14 +4541,18 @@ class ApplicationGUI:
                     self.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
-                    self.set_status(
+                    status_message = (
                         f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada "
                         "com sucesso!"
                     )
+                    self.set_status(status_message)
                     self.show_info(
                         "Sucesso",
                         f"Área de interesse '{roi_name}' ({color_name}) criada com "
                         f"{len(self.current_polygon_points)} pontos.",
+                    )
+                    self._request_overview_refresh(
+                        reason=status_message, append_summary=True
                     )
                 else:
                     self.set_status(
@@ -4627,7 +5064,11 @@ class ApplicationGUI:
         elif project_type == "pre-recorded":
             self.update_reports_tree()
             self._populate_video_selector_tree()
-            self.set_status(f"Projeto: {pm.get_project_name()} - Pronto.")
+            ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
+            self.set_status(ready_message)
+            self._request_overview_refresh(
+                reason=ready_message, append_summary=True
+            )
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
@@ -5624,6 +6065,11 @@ class ApplicationGUI:
                 # Atualiza visualização
                 self.redraw_zones_from_project_data()
                 self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
+                status_message = f"ROI renomeada para '{new_name}'."
+                self.set_status(status_message)
+                self._request_overview_refresh(
+                    reason=status_message, append_summary=True
+                )
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")
@@ -5659,6 +6105,13 @@ class ApplicationGUI:
             self.redraw_zones_from_project_data()
             self.show_info(
                 "Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}"
+            )
+            status_message = (
+                f"Cor da ROI '{old_name}' alterada para {color_name}."
+            )
+            self.set_status(status_message)
+            self._request_overview_refresh(
+                reason=status_message, append_summary=True
             )
 
         except ValueError:
@@ -5708,6 +6161,11 @@ class ApplicationGUI:
                 # Atualiza visualização
                 self.redraw_zones_from_project_data()
                 self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
+                status_message = f"ROI '{roi_name}' removida com sucesso."
+                self.set_status(status_message)
+                self._request_overview_refresh(
+                    reason=status_message, append_summary=True
+                )
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")
