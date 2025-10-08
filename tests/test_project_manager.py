@@ -67,6 +67,26 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
+    def test_create_new_project_initial_model_overrides(self):
+        """Test to ensure project creation initializes model overrides with inherit defaults."""
+        pm = ProjectManager()
+        project_path = os.path.join(self.test_dir, "overrides_project")
+        success = pm.create_new_project(project_path, "live")
+
+        self.assertTrue(success)
+        config_path = os.path.join(project_path, CONFIG_FILE_NAME)
+        with open(config_path, "r") as f:
+            data = json.load(f)
+
+        self.assertIn("model_overrides", data)
+        self.assertEqual(
+            data["model_overrides"], {"active_weight": None, "use_openvino": None}
+        )
+        self.assertEqual(
+            pm.project_data["model_overrides"],
+            {"active_weight": None, "use_openvino": None},
+        )
+
     def test_add_video_batch_persists_metadata(self):
         """Video batches should persist experimental metadata and flags."""
         pm = ProjectManager()
@@ -205,6 +225,10 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(
             pm.project_data["calibration"]["animals_per_aquarium"], 1
         )  # Default value added
+        self.assertEqual(
+            pm.project_data["model_overrides"],
+            {"active_weight": None, "use_openvino": None},
+        )
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):
         """Legacy projects missing interval/camera fields should gain safe defaults."""
@@ -254,6 +278,10 @@ class TestProjectManager(unittest.TestCase):
 
         self.assertEqual(saved_data["arduino_port"], "")
         self.assertIn("file_hash", saved_data)
+        self.assertEqual(
+            pm.project_data["model_overrides"],
+            {"active_weight": None, "use_openvino": None},
+        )
 
     def test_load_project(self):
         """Test loading an existing project configuration."""

@@ -4,6 +4,7 @@ import os
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from tkinter import Label, Toplevel
 
 import cv2
@@ -50,6 +51,11 @@ class AppController:
             self.active_weight_name = ""
             log.warning("controller.init.no_default_weight")
         self.use_openvino = False  # Default to not using OpenVINO
+        self._global_model_defaults = {
+            "active_weight": self.active_weight_name or None,
+            "use_openvino": self.use_openvino,
+        }
+        self._using_project_overrides = False
 
         # Core runtime attributes
         self.detector = None
@@ -302,6 +308,9 @@ class AppController:
                 )
 
     def close_project(self):
+        # Restore global defaults before clearing project state
+        self._restore_global_model_defaults()
+
         # Reset project manager
         self.project_manager = ProjectManager()
         # _create_welcome_frame handles all UI cleanup
@@ -364,6 +373,10 @@ class AppController:
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
 
         if self.project_manager.create_new_project(**filtered_kwargs):
+            # Projects always start by inheriting global settings unless overridden later
+            self._using_project_overrides = True
+            self.apply_project_model_overrides()
+
             # Execute parquet import if wizard provided import configuration
             wizard_metadata = kwargs.get("_wizard_metadata", {})
             if wizard_metadata:
@@ -392,6 +405,9 @@ class AppController:
             # Pass animal_method to setup_detector if it was specified in dialog
             if self.setup_detector(temp_animal_method=animal_method):
                 self.view._load_project_view()
+                self.view.update_openvino_checkbox(self.use_openvino)
+                self.view.set_active_weight_in_dropdown(self.active_weight_name)
+                self.update_openvino_status()
 
                 if wizard_metadata:
                     self._show_post_creation_guide(wizard_metadata)
@@ -561,24 +577,19 @@ class AppController:
             self.view.show_error("Erro", "Não foi possível carregar o projeto")
             return False
 
-        # Auto-configura o detector com o peso do projeto
-        self.active_weight_name = self.project_manager.project_data.get("active_weight")
-        if self.active_weight_name:
-            log.info(
-                "controller.load_project.weight_restored",
-                weight=self.active_weight_name,
-            )
+        # Apply project-specific overrides (or inherit global defaults)
+        self._using_project_overrides = True
+        resolved_weight, resolved_openvino = self.apply_project_model_overrides()
 
-        # Auto-configura OpenVINO se estava ativo
-        self.use_openvino = self.project_manager.project_data.get("use_openvino", False)
         log.info(
-            "controller.load_project.openvino_restored", use_openvino=self.use_openvino
+            "controller.load_project.model_settings_applied",
+            resolved_weight=resolved_weight,
+            resolved_openvino=resolved_openvino,
         )
 
-        # Atualiza interface com configurações restauradas
+        # Ensure UI reflects the restored state before detector setup
         self.view.update_openvino_checkbox(self.use_openvino)
-        if self.active_weight_name:
-            self.view.set_active_weight_in_dropdown(self.active_weight_name)
+        self.view.set_active_weight_in_dropdown(self.active_weight_name)
         self.update_openvino_status()
 
         # Inicializa detector
@@ -718,7 +729,7 @@ class AppController:
 
         return True
 
-    def setup_detector(self, temp_animal_method: str = None) -> bool:
+    def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """Initializes the detector instance based on the animal method selection.
 
         Args:
@@ -915,11 +926,10 @@ class AppController:
         log.info("controller.setup_zones.success")
 
         # Informa ao plugin se o aquário está definido
-        if self.detector and hasattr(
-            self.detector.plugin, "set_aquarium_region_defined"
-        ):
+        plugin = getattr(self.detector, "plugin", None)
+        if plugin and hasattr(plugin, "set_aquarium_region_defined"):
             has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            plugin.set_aquarium_region_defined(has_aquarium)
             log.info("detector.aquarium_status", defined=has_aquarium)
 
         if not zone_data.polygon:
@@ -961,13 +971,16 @@ class AppController:
         self.view.set_active_weight_in_dropdown(name)
         self.set_active_weight(name, None)
 
-    def set_active_weight(self, name: str, dialog=None):
-        if name and name in self.get_all_weight_names():
-            self.active_weight_name = name
-            log.info("controller.active_weight.set", name=name)
+    def set_active_weight(self, name: str | None, dialog=None):
+        candidate = name or ""
+        available = set(self.get_all_weight_names())
+
+        if candidate and candidate in available:
+            self.active_weight_name = candidate
+            log.info("controller.active_weight.set", name=candidate)
             if hasattr(self.view, "set_active_weight_in_dropdown"):
                 try:
-                    self.view.set_active_weight_in_dropdown(name)
+                    self.view.set_active_weight_in_dropdown(candidate)
                 except Exception:
                     log.warning(
                         "controller.active_weight.view_update_failed", exc_info=True
@@ -976,8 +989,9 @@ class AppController:
             if self.use_openvino:
                 self.convert_active_weight_to_openvino(dialog)
         else:
-            log.warning("controller.active_weight.not_found", name=name)
-            self.active_weight_name = None
+            if candidate:
+                log.warning("controller.active_weight.not_found", name=name)
+            self.active_weight_name = ""
             if hasattr(self.view, "set_active_weight_in_dropdown"):
                 try:
                     self.view.set_active_weight_in_dropdown("")
@@ -987,9 +1001,14 @@ class AppController:
                     )
             self.update_openvino_status(dialog)
 
-    def set_openvino_usage(self, use_openvino: bool, dialog):
-        self.use_openvino = use_openvino
-        log.info("controller.openvino_usage.set", enabled=use_openvino)
+        if not self._using_project_overrides:
+            self._global_model_defaults["active_weight"] = (
+                self.active_weight_name or None
+            )
+
+    def set_openvino_usage(self, use_openvino: bool, dialog=None):
+        self.use_openvino = bool(use_openvino)
+        log.info("controller.openvino_usage.set", enabled=self.use_openvino)
         if hasattr(self.view, "update_openvino_checkbox"):
             try:
                 self.view.update_openvino_checkbox(self.use_openvino)
@@ -997,10 +1016,13 @@ class AppController:
                 log.warning(
                     "controller.openvino_usage.view_update_failed", exc_info=True
                 )
-        if use_openvino and self.active_weight_name:
+        if self.use_openvino and self.active_weight_name:
             # Trigger conversion if switching to OpenVINO and model isn't converted
             self.convert_active_weight_to_openvino(dialog)
         self.update_openvino_status(dialog)
+
+        if not self._using_project_overrides:
+            self._global_model_defaults["use_openvino"] = self.use_openvino
 
     def convert_active_weight_to_openvino(self, dialog):
         if not self.active_weight_name:
@@ -1023,6 +1045,159 @@ class AppController:
                 log.warning(
                     "controller.openvino_status.view_update_failed", exc_info=True
                 )
+
+    @property
+    def are_project_overrides_active(self) -> bool:
+        return bool(self._using_project_overrides)
+
+    def get_global_model_defaults(self) -> dict:
+        return {
+            "active_weight": self._global_model_defaults.get("active_weight"),
+            "use_openvino": self._global_model_defaults.get("use_openvino", False),
+        }
+
+    def _apply_model_settings(
+        self, weight_name: str | None, use_openvino: bool, dialog=None
+    ) -> None:
+        if weight_name:
+            self.set_active_weight(weight_name, dialog)
+        else:
+            self.set_active_weight("", dialog)
+        self.set_openvino_usage(bool(use_openvino), dialog)
+
+    def resolve_project_model_settings(
+        self, overrides: dict | None = None
+    ) -> tuple[str | None, bool]:
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        base_overrides = project_data.get("model_overrides") or {}
+        if overrides is not None:
+            merged_overrides = base_overrides.copy()
+            merged_overrides.update(overrides)
+        else:
+            merged_overrides = base_overrides
+
+        weight_override = merged_overrides.get("active_weight")
+        if isinstance(weight_override, str):
+            weight_override = weight_override.strip() or None
+
+        openvino_override = merged_overrides.get("use_openvino")
+        if isinstance(openvino_override, str):
+            lowered = openvino_override.strip().lower()
+            if lowered in {"", "inherit", "auto"}:
+                openvino_override = None
+            else:
+                openvino_override = lowered in {"true", "1", "yes", "on"}
+
+        resolved_weight = weight_override
+        if not resolved_weight:
+            resolved_weight = project_data.get("active_weight") or None
+        if not resolved_weight:
+            resolved_weight = self._global_model_defaults.get("active_weight")
+        if not resolved_weight:
+            default_weight, _ = self.weight_manager.get_default_weight()
+            resolved_weight = default_weight
+
+        available_weights = set(self.get_all_weight_names())
+        if resolved_weight and resolved_weight not in available_weights:
+            log.warning(
+                "controller.project_overrides.weight_missing",
+                weight=resolved_weight,
+                available=list(available_weights),
+            )
+            fallback_weight = self._global_model_defaults.get("active_weight")
+            if fallback_weight and fallback_weight in available_weights:
+                resolved_weight = fallback_weight
+            else:
+                default_weight, _ = self.weight_manager.get_default_weight()
+                resolved_weight = default_weight if default_weight else None
+
+        if openvino_override is None:
+            if project_data.get("use_openvino") is not None:
+                resolved_openvino = bool(project_data.get("use_openvino"))
+            else:
+                resolved_openvino = bool(
+                    self._global_model_defaults.get("use_openvino", False)
+                )
+        else:
+            resolved_openvino = bool(openvino_override)
+
+        return resolved_weight, resolved_openvino
+
+    def apply_project_model_overrides(
+        self, overrides: dict | None = None
+    ) -> tuple[str | None, bool]:
+        if not getattr(self.project_manager, "project_data", None):
+            return self.active_weight_name or None, bool(self.use_openvino)
+
+        resolved_weight, resolved_openvino = self.resolve_project_model_settings(
+            overrides
+        )
+
+        self._using_project_overrides = True
+        self._apply_model_settings(resolved_weight, resolved_openvino)
+
+        updated = False
+        if (
+            self.project_manager.project_data.get("active_weight")
+            != resolved_weight
+        ):
+            self.project_manager.project_data["active_weight"] = resolved_weight
+            updated = True
+        if (
+            self.project_manager.project_data.get("use_openvino")
+            != resolved_openvino
+        ):
+            self.project_manager.project_data["use_openvino"] = resolved_openvino
+            updated = True
+
+        if updated and getattr(self.project_manager, "project_path", None):
+            self.project_manager.save_project()
+
+        return resolved_weight, resolved_openvino
+
+    def save_project_model_overrides(
+        self, active_weight_override: str | None, use_openvino_override: bool | None
+    ) -> tuple[str | None, bool]:
+        if not getattr(self.project_manager, "project_path", None):
+            log.warning("controller.project_overrides.no_project_loaded")
+            return self.active_weight_name or None, self.use_openvino
+
+        overrides = self.project_manager.project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None},
+        )
+        overrides["active_weight"] = active_weight_override or None
+        overrides["use_openvino"] = use_openvino_override
+
+        resolved_weight, resolved_openvino = self.apply_project_model_overrides(
+            overrides
+        )
+
+        self.project_manager.project_data["model_overrides"] = overrides
+        self.project_manager.save_project()
+
+        return resolved_weight, resolved_openvino
+
+    def _restore_global_model_defaults(self) -> None:
+        target_weight = self._global_model_defaults.get("active_weight")
+        target_openvino = bool(self._global_model_defaults.get("use_openvino", False))
+        self._using_project_overrides = False
+        self._apply_model_settings(target_weight, target_openvino)
+
+    @contextmanager
+    def global_calibration_session(self):
+        previous_flag = self._using_project_overrides
+        self._using_project_overrides = False
+        try:
+            yield
+        finally:
+            self._global_model_defaults["active_weight"] = (
+                self.active_weight_name or None
+            )
+            self._global_model_defaults["use_openvino"] = self.use_openvino
+            self._using_project_overrides = previous_flag
+            if previous_flag and getattr(self.project_manager, "project_path", None):
+                self.apply_project_model_overrides()
 
     def run_aquarium_detection(
         self,

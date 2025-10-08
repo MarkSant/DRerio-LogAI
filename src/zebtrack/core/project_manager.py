@@ -803,6 +803,10 @@ class ProjectManager:
             },
             "use_openvino": use_openvino,
             "active_weight": active_weight,
+            "model_overrides": {
+                "active_weight": None,
+                "use_openvino": None,
+            },
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
             "use_countdown": use_countdown,
@@ -1009,6 +1013,24 @@ class ProjectManager:
                 loaded_data["external_trigger_mode"] = False
                 migration_applied = True
                 migrated_fields.append("external_trigger_mode")
+
+            overrides = loaded_data.get("model_overrides")
+            overrides_updated = False
+            if not isinstance(overrides, dict):
+                overrides = {"active_weight": None, "use_openvino": None}
+                overrides_updated = True
+            else:
+                if "active_weight" not in overrides:
+                    overrides["active_weight"] = None
+                    overrides_updated = True
+                if "use_openvino" not in overrides:
+                    overrides["use_openvino"] = None
+                    overrides_updated = True
+
+            if overrides_updated:
+                loaded_data["model_overrides"] = overrides
+                migration_applied = True
+                migrated_fields.append("model_overrides")
             # --- End Backward Compatibility ---
 
             self.project_path = project_path

@@ -27,6 +27,10 @@ class TestAppController(unittest.TestCase):
             "best_seg.pt",
             "/fake/path/best_seg.pt",
         )
+        self.mock_wm.get_all_weights.return_value = [
+            "best_seg.pt",
+            "backup.pt",
+        ]
 
         self.controller = AppController(self.root)
 
@@ -117,6 +121,51 @@ class TestAppController(unittest.TestCase):
             "Erro", "Falha ao criar o novo projeto."
         )
         self.mock_view._load_project_view.assert_not_called()
+
+    def test_save_project_model_overrides_applies_settings(self):
+        self.mock_pm.project_data = {
+            "model_overrides": {"active_weight": None, "use_openvino": None},
+            "active_weight": None,
+            "use_openvino": False,
+        }
+        self.mock_pm.project_path = "/fake/project"
+        self.mock_pm.save_project.return_value = True
+
+        resolved_weight, resolved_openvino = self.controller.save_project_model_overrides(
+            "backup.pt", True
+        )
+
+        self.assertEqual(resolved_weight, "backup.pt")
+        self.assertTrue(resolved_openvino)
+        self.assertEqual(
+            self.mock_pm.project_data["model_overrides"],
+            {"active_weight": "backup.pt", "use_openvino": True},
+        )
+        self.assertEqual(self.controller.active_weight_name, "backup.pt")
+        self.assertTrue(self.controller.use_openvino)
+        self.assertTrue(self.controller.are_project_overrides_active)
+        self.mock_pm.save_project.assert_called()
+
+    def test_global_calibration_session_reapplies_project_overrides(self):
+        self.mock_pm.project_data = {
+            "model_overrides": {"active_weight": "backup.pt", "use_openvino": False},
+            "active_weight": "backup.pt",
+            "use_openvino": False,
+        }
+        self.mock_pm.project_path = "/fake/project"
+        self.mock_pm.save_project.return_value = True
+
+        self.controller.apply_project_model_overrides()
+        self.assertEqual(self.controller.active_weight_name, "backup.pt")
+        self.assertFalse(self.controller.use_openvino)
+
+        with self.controller.global_calibration_session():
+            self.controller.set_active_weight("best_seg.pt")
+            self.controller.set_openvino_usage(True)
+
+        # Overrides should be reapplied after the global session ends
+        self.assertEqual(self.controller.active_weight_name, "backup.pt")
+        self.assertFalse(self.controller.use_openvino)
 
     def test_run_tracking_with_intervals(self):
         """Test that _run_tracking_if_needed accepts and uses analysis/display
