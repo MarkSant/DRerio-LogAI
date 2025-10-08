@@ -2,8 +2,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-import pytest
-
 from zebtrack.ui import gui
 
 
@@ -50,22 +48,51 @@ def _make_zone_summary_gui():
 def test_update_zone_summary_cards_populates_metrics():
     gui_instance = _make_zone_summary_gui()
     videos = [
-        {"path": "a.mp4", "has_arena": True, "has_rois": True, "has_trajectory": False},
-        {"path": "b.mp4", "has_arena": True, "has_rois": True, "has_trajectory": True},
-        {"path": "c.mp4", "has_arena": True, "has_rois": False, "has_trajectory": False},
-        {"path": "d.mp4", "has_arena": False, "has_rois": False, "has_trajectory": False},
+        {
+            "path": "a.mp4",
+            "has_arena": True,
+            "has_rois": True,
+            "has_trajectory": False,
+        },
+        {
+            "path": "b.mp4",
+            "has_arena": True,
+            "has_rois": True,
+            "has_trajectory": True,
+        },
+        {
+            "path": "c.mp4",
+            "has_arena": True,
+            "has_rois": False,
+            "has_trajectory": False,
+        },
+        {
+            "path": "d.mp4",
+            "has_arena": False,
+            "has_rois": False,
+            "has_trajectory": False,
+        },
     ]
 
     gui_instance._update_zone_summary_cards(videos)
 
     assert gui_instance.zone_summary_cards["arena_missing"]["value"].get() == "1"
-    assert gui_instance.zone_summary_cards["arena_missing"]["detail"].get() == "3 com arena salva"
+    assert (
+        gui_instance.zone_summary_cards["arena_missing"]["detail"].get()
+        == "3 com arena salva"
+    )
 
     assert gui_instance.zone_summary_cards["rois_missing"]["value"].get() == "2"
-    assert gui_instance.zone_summary_cards["rois_missing"]["detail"].get() == "2 com ROIs salvas"
+    assert (
+        gui_instance.zone_summary_cards["rois_missing"]["detail"].get()
+        == "2 com ROIs salvas"
+    )
 
     assert gui_instance.zone_summary_cards["ready_for_processing"]["value"].get() == "1"
-    assert gui_instance.zone_summary_cards["ready_for_processing"]["detail"].get() == "1 já com trajetórias"
+    assert (
+        gui_instance.zone_summary_cards["ready_for_processing"]["detail"].get()
+        == "1 já com trajetórias"
+    )
 
 
 def test_update_zone_summary_cards_handles_empty_input():

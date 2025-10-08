@@ -240,8 +240,8 @@ class TestAppController(unittest.TestCase):
         self.mock_pm.project_path = "/fake/project"
         self.mock_pm.save_project.return_value = True
 
-        resolved_weight, resolved_openvino = self.controller.save_project_model_overrides(
-            "backup.pt", True
+        resolved_weight, resolved_openvino = (
+            self.controller.save_project_model_overrides("backup.pt", True)
         )
 
         self.assertEqual(resolved_weight, "backup.pt")

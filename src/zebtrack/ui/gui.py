@@ -572,7 +572,9 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
             ),
         ).pack(anchor="w", pady=(4, 0))
 
-        self.weight_dropdown.bind("<<ComboboxSelected>>", lambda *_: self._update_preview())
+        self.weight_dropdown.bind(
+            "<<ComboboxSelected>>", lambda *_: self._update_preview()
+        )
         self._update_preview()
 
         return self.weight_dropdown
@@ -596,12 +598,19 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
 
     def _update_preview(self):
         weight_override, openvino_override = self._get_override_values()
-        resolved_weight, resolved_openvino = self.controller.resolve_project_model_settings(
-            {"active_weight": weight_override, "use_openvino": openvino_override}
+        resolved_weight, resolved_openvino = (
+            self.controller.resolve_project_model_settings(
+                {
+                    "active_weight": weight_override,
+                    "use_openvino": openvino_override,
+                }
+            )
         )
 
         self.effective_weight_var.set(resolved_weight or "Nenhum peso disponível")
-        self.effective_openvino_var.set("Ativado" if resolved_openvino else "Desativado")
+        self.effective_openvino_var.set(
+            "Ativado" if resolved_openvino else "Desativado"
+        )
 
     def apply(self):
         weight_override, openvino_override = self._get_override_values()
@@ -785,7 +794,9 @@ class PendingVideosDialog(simpledialog.Dialog):
             ttk.Checkbutton(
                 master,
                 text=(
-                    f"Incluir {len(self.arena_only)} vídeo(s) com apenas arena no processamento."
+                    "Incluir "
+                    f"{len(self.arena_only)} vídeo(s) com apenas arena no "
+                    "processamento."
                 ),
                 variable=self.include_arena_only_var,
             ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 12))
@@ -839,7 +850,10 @@ class PendingVideosDialog(simpledialog.Dialog):
                 "",
                 "end",
                 text=group.get("label", ""),
-                values=(group.get("status_label", ""), group.get("filename_display", "")),
+                values=(
+                    group.get("status_label", ""),
+                    group.get("filename_display", ""),
+                ),
                 open=True,
             )
             for day in group.get("children", []):
@@ -857,7 +871,10 @@ class PendingVideosDialog(simpledialog.Dialog):
                         day_node,
                         "end",
                         text=video.get("label", ""),
-                        values=(video.get("status_label", ""), video.get("filename", "")),
+                        values=(
+                            video.get("status_label", ""),
+                            video.get("filename", ""),
+                        ),
                         tags=tags,
                     )
 
@@ -1662,8 +1679,9 @@ class ApplicationGUI:
     @staticmethod
     def _get_zone_summary_helper_text() -> str:
         return (
-            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar trajetórias "
-            "(arena e ROIs salvos). O valor mostra quantos ainda aguardam processamento."
+            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar "
+            "trajetórias (arena e ROIs salvos). O valor mostra quantos ainda "
+            "aguardam processamento."
         )
 
     def _cleanup_single_analysis_button(self):
@@ -1870,7 +1888,10 @@ class ApplicationGUI:
             bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
         )
 
-        style.configure("Zebtrack.TNotebook.Tab", focuscolor="" if current_theme else "")
+        style.configure(
+            "Zebtrack.TNotebook.Tab",
+            focuscolor="" if current_theme else "",
+        )
         style.configure("Zebtrack.TNotebook", padding=(4, 4))
 
     def _open_global_calibration_window(self):
@@ -1913,11 +1934,15 @@ class ApplicationGUI:
             return
 
         current_tab = self.notebook.select()
-        analysis_tab_id = str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
+        analysis_tab_id = (
+            str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
+        )
 
         if self.analysis_active:
             self.canvas_view_mode = (
-                "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
+                "analysis"
+                if analysis_tab_id and current_tab == analysis_tab_id
+                else "zones"
             )
             if self.toggle_view_btn:
                 if current_tab == analysis_tab_id:
@@ -2142,7 +2167,9 @@ class ApplicationGUI:
         self.project_overview_tree.heading("status", text="Status")
         self.project_overview_tree.heading("data", text="Dados")
         self.project_overview_tree.column("#0", width=260, stretch=True)
-        self.project_overview_tree.column("status", width=180, anchor="w", stretch=False)
+        self.project_overview_tree.column(
+            "status", width=180, anchor="w", stretch=False
+        )
         self.project_overview_tree.column("data", width=240, anchor="w", stretch=True)
 
         scrollbar = ttk.Scrollbar(
@@ -2278,7 +2305,9 @@ class ApplicationGUI:
                 parts.append(f"{icon} {value}")
 
         others = sum(
-            count for status, count in counts.items() if status not in PROJECT_STATUS_META
+            count
+            for status, count in counts.items()
+            if status not in PROJECT_STATUS_META
         )
         if others:
             parts.append(f"➕ {others}")
@@ -2286,7 +2315,10 @@ class ApplicationGUI:
         return " • ".join(parts)
 
     def _update_project_overview_summary(self, counts: Counter, total: int) -> None:
-        if not self.project_overview_frame or not self.project_overview_frame.winfo_exists():
+        if (
+            not self.project_overview_frame
+            or not self.project_overview_frame.winfo_exists()
+        ):
             return
 
         known_statuses = set(PROJECT_STATUS_META.keys())
@@ -2320,7 +2352,10 @@ class ApplicationGUI:
     def _update_project_overview_tree(
         self, project_manager, all_videos: list[dict]
     ) -> None:
-        if not self.project_overview_tree or not self.project_overview_tree.winfo_exists():
+        if (
+            not self.project_overview_tree
+            or not self.project_overview_tree.winfo_exists()
+        ):
             return
 
         for item in self.project_overview_tree.get_children():
@@ -2396,7 +2431,9 @@ class ApplicationGUI:
                 parts.append(f"{icon} {value}")
 
         others = sum(
-            count for status, count in counts.items() if status not in PROJECT_STATUS_META
+            count
+            for status, count in counts.items()
+            if status not in PROJECT_STATUS_META
         )
         if others:
             parts.append(f"➕ {others}")
@@ -2408,7 +2445,9 @@ class ApplicationGUI:
         symbol = STATUS_SYMBOLS[symbol_key]
         safe_total = max(total, 0)
         clamped_completed = max(0, min(completed, safe_total)) if safe_total else 0
-        return f"{symbol} {clamped_completed}/{safe_total}" if safe_total else f"{symbol} 0/0"
+        if safe_total:
+            return f"{symbol} {clamped_completed}/{safe_total}"
+        return f"{symbol} 0/0"
 
     def _summarize_batch_data(self, videos: list[dict]) -> str:
         if not videos:
@@ -3427,7 +3466,9 @@ class ApplicationGUI:
         if listed == 0:
             selection_text = "Nenhum vídeo elegível listado."
         else:
-            selection_text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+            selection_text = (
+                f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+            )
 
         if self.pipeline_selection_label:
             self.pipeline_selection_label.config(text=selection_text)
@@ -3466,9 +3507,14 @@ class ApplicationGUI:
                 if listed == 0:
                     text = "Nenhum vídeo elegível listado."
                 else:
-                    text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+                    text = (
+                        f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
+                    )
             else:
-                text = f"{listed} vídeo(s) elegível(is) • {len(selections)} selecionado(s)."
+                text = (
+                    f"{listed} vídeo(s) elegível(is) • "
+                    f"{len(selections)} selecionado(s)."
+                )
             self.pipeline_selection_label.config(text=text)
 
         self._update_pipeline_buttons_state(selections)
@@ -4835,7 +4881,9 @@ class ApplicationGUI:
                     self._format_status_ratio(
                         "trajectory", total_trajectory, total_videos
                     ),
-                    self._format_status_ratio("summary", total_complete, total_videos),
+                    self._format_status_ratio(
+                        "summary", total_complete, total_videos
+                    ),
                     f"{total_videos} vídeos",
                 ),
                 open=True,
@@ -4866,7 +4914,9 @@ class ApplicationGUI:
                         self._format_status_ratio(
                             "trajectory", day_trajectory, len(entries)
                         ),
-                        self._format_status_ratio("summary", day_complete, len(entries)),
+                        self._format_status_ratio(
+                            "summary", day_complete, len(entries)
+                        ),
                         f"{len(entries)} vídeos",
                     ),
                     open=False,

@@ -68,7 +68,7 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
     def test_create_new_project_initial_model_overrides(self):
-        """Test to ensure project creation initializes model overrides with inherit defaults."""
+        """Project creation should initialize model overrides as inherited defaults."""
         pm = ProjectManager()
         project_path = os.path.join(self.test_dir, "overrides_project")
         success = pm.create_new_project(project_path, "live")

@@ -46,7 +46,8 @@ class AppController:
         self.weight_manager = WeightManager()
 
         # New state variables for model management (must exist before view)
-        self.active_weight_name, _ = self.weight_manager.get_default_weight()
+        default_weight, _ = self._safe_get_default_weight()
+        self.active_weight_name = default_weight if default_weight is not None else ""
         if self.active_weight_name is None:
             self.active_weight_name = ""
             log.warning("controller.init.no_default_weight")
@@ -396,7 +397,7 @@ class AppController:
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
 
         if self.project_manager.create_new_project(**filtered_kwargs):
-            # Projects always start by inheriting global settings unless overridden later
+            # Projects start by inheriting global settings unless overrides apply later
             self._using_project_overrides = True
             self.apply_project_model_overrides()
 
@@ -970,6 +971,25 @@ class AppController:
 
     # --- New Methods for Weight Management ---
 
+    def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:
+        manager = getattr(self, "weight_manager", None)
+        if manager is None:
+            return None, None
+        try:
+            result = manager.get_default_weight()
+        except Exception:
+            log.warning("controller.default_weight.safe_get_failed", exc_info=True)
+            return None, None
+        if isinstance(result, tuple):
+            if not result:
+                return None, None
+            if len(result) == 1:
+                return result[0], None
+            return result[0], result[1]
+        if result:
+            return result, None
+        return None, None
+
     def get_all_weight_names(self) -> list:
         return self.weight_manager.get_all_weights()
 
@@ -990,7 +1010,7 @@ class AppController:
         self.weight_manager.delete_weight(name)
         # Refresh UI
         self.view.update_weights_dropdown(self.get_all_weight_names())
-        name, _ = self.weight_manager.get_default_weight()
+        name, _ = self._safe_get_default_weight()
         self.view.set_active_weight_in_dropdown(name)
         self.set_active_weight(name, None)
 
@@ -1112,7 +1132,11 @@ class AppController:
 
         overrides_active = self.has_project_override_settings()
         inheriting_globals = project_loaded and not overrides_active
-        scope = "project" if project_loaded and self._using_project_overrides else "global"
+        scope = (
+            "project"
+            if project_loaded and self._using_project_overrides
+            else "global"
+        )
 
         if scope == "project":
             label = (
@@ -1127,8 +1151,8 @@ class AppController:
                 )
             else:
                 detail = (
-                    "Este projeto está herdando os padrões globais. Ao salvar aqui, "
-                    "os valores se tornam overrides específicos."
+                    "Este projeto está herdando os padrões globais. Ao salvar "
+                    "aqui, os valores se tornam overrides específicos."
                 )
         else:
             label = "Escopo: Configuração Global"
@@ -1138,7 +1162,10 @@ class AppController:
                     "fixar estes valores no projeto atual."
                 )
             else:
-                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
+                detail = (
+                    "Nenhum projeto carregado; ajustes atualizam os padrões "
+                    "globais."
+                )
 
         return {
             "scope": scope,
@@ -1248,7 +1275,7 @@ class AppController:
         if not resolved_weight:
             resolved_weight = self._global_model_defaults.get("active_weight")
         if not resolved_weight:
-            default_weight, _ = self.weight_manager.get_default_weight()
+            default_weight, _ = self._safe_get_default_weight()
             resolved_weight = default_weight
 
         available_weights = set(self.get_all_weight_names())
@@ -1262,7 +1289,7 @@ class AppController:
             if fallback_weight and fallback_weight in available_weights:
                 resolved_weight = fallback_weight
             else:
-                default_weight, _ = self.weight_manager.get_default_weight()
+                default_weight, _ = self._safe_get_default_weight()
                 resolved_weight = default_weight if default_weight else None
 
         if openvino_override is None:
@@ -2426,7 +2453,10 @@ class AppController:
         if not candidate_paths:
             self.view.show_error(
                 "Erro",
-                "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
+                (
+                    "Não foi possível localizar caminhos válidos para os vídeos "
+                    "selecionados."
+                ),
             )
             return
 
@@ -2609,7 +2639,10 @@ class AppController:
         if self.processing_thread and self.processing_thread.is_alive():
             self.view.show_warning(
                 "Processamento em andamento",
-                "Aguarde a conclusão do processamento atual antes de gerar os sumários.",
+                (
+                    "Aguarde a conclusão do processamento atual antes de gerar "
+                    "os sumários."
+                ),
             )
             return
 
@@ -2884,8 +2917,9 @@ class AppController:
                     self.view.show_info(
                         "Sumários Gerados",
                         (
-                            f"Sumários parquet atualizados para {len(completed)} vídeo(s)."
-                            "\n" + "\n".join(f"• {item}" for item in completed)
+                            "Sumários parquet atualizados para "
+                            f"{len(completed)} vídeo(s).\n"
+                            + "\n".join(f"• {item}" for item in completed)
                         ),
                     )
                     status_msg = (

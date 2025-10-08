@@ -151,7 +151,10 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.assertFalse(self.gui.analysis_active)
         self.assertEqual(self.gui.notebook.select(), str(self.gui.zone_tab_frame))
         self.assertFalse(self.gui.progress_frame.winfo_viewable())
-        self.assertEqual(self.gui.analysis_status_var.get(), "Nenhuma análise em andamento.")
+        self.assertEqual(
+            self.gui.analysis_status_var.get(),
+            "Nenhuma análise em andamento.",
+        )
 
     def test_start_analysis_mode(self):
         self.gui.start_analysis_view_mode()
@@ -181,7 +184,11 @@ class TestAnalysisViewToggle(unittest.TestCase):
             self.gui.analysis_status_var.get(), "Nenhuma análise em andamento."
         )
 
-        states = [call.kwargs for call in self.gui.toggle_view_btn.config.call_args_list if "state" in call.kwargs]
+        states = [
+            call.kwargs
+            for call in self.gui.toggle_view_btn.config.call_args_list
+            if "state" in call.kwargs
+        ]
         self.assertIn({"state": "disabled"}, states)
 
     def test_toggle_during_analysis(self):
