@@ -1142,6 +1142,147 @@ class ProjectManager:
             all_vids.extend(batch.get("videos", []))
         return all_vids
 
+    def _iter_project_videos(self):
+        """Yield (batch_dict, video_dict) pairs for every registered video."""
+
+        for batch in self.project_data.get("batches", []):
+            videos = batch.get("videos", [])
+            for video in videos:
+                yield batch, video
+
+    def find_video_entry(
+        self,
+        *,
+        path: str | None = None,
+        experiment_id: str | None = None,
+    ) -> dict | None:
+        """Return the project entry for a given video path or experiment id."""
+
+        if not self.project_data:
+            return None
+
+        normalized_target = None
+        if path:
+            normalized_target = os.path.normcase(os.path.normpath(path))
+
+        for _batch, video in self._iter_project_videos():
+            candidate_path = video.get("path")
+            if candidate_path and normalized_target:
+                candidate_norm = os.path.normcase(os.path.normpath(candidate_path))
+                if candidate_norm == normalized_target:
+                    return video
+
+            if experiment_id:
+                candidate_id = os.path.splitext(os.path.basename(candidate_path or ""))[0]
+                if candidate_id == experiment_id:
+                    return video
+
+        return None
+
+    def derive_processing_metadata(
+        self,
+        experiment_id: str,
+        video_path: str | None = None,
+    ) -> dict:
+        """Construct metadata for processing when metadata.csv has no entry."""
+
+        metadata: dict = {}
+
+        video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
+        if video_entry:
+            metadata.update(dict(video_entry.get("metadata") or {}))
+
+            for key in ("group", "group_display_name", "day", "subject"):
+                value = video_entry.get(key)
+                if (
+                    value is not None
+                    and (value != "" or isinstance(value, (int, float)))
+                    and key not in metadata
+                ):
+                    metadata[key] = value
+
+        metadata.setdefault("experiment_id", experiment_id)
+        metadata.setdefault("video_name", experiment_id)
+
+        if metadata.get("group") and not metadata.get("group_id"):
+            metadata["group_id"] = metadata["group"]
+        if metadata.get("group_display_name") and not metadata.get("group_label"):
+            metadata["group_label"] = metadata["group_display_name"]
+
+        return metadata
+
+    def register_processing_outputs(
+        self,
+        video_path: str,
+        *,
+        results_dir: str | None = None,
+        trajectory_path: str | None = None,
+        summary_parquet: str | None = None,
+        summary_excel: str | None = None,
+        report_path: str | None = None,
+    ) -> bool:
+        """Update project metadata with freshly generated analysis artifacts."""
+
+        video_entry = self.find_video_entry(path=video_path)
+        if not video_entry:
+            log.warning(
+                "project.outputs.video_not_found",
+                video_path=video_path,
+            )
+            return False
+
+        if results_dir:
+            video_entry["results_dir"] = results_dir
+
+        parquet_files = video_entry.setdefault("parquet_files", {})
+        changed = False
+
+        if trajectory_path:
+            if parquet_files.get("trajectory") != trajectory_path:
+                parquet_files["trajectory"] = trajectory_path
+                changed = True
+            if not video_entry.get("has_trajectory"):
+                video_entry["has_trajectory"] = True
+                changed = True
+
+        if summary_parquet:
+            if parquet_files.get("summary") != summary_parquet:
+                parquet_files["summary"] = summary_parquet
+                changed = True
+            if not video_entry.get("has_summary"):
+                video_entry["has_summary"] = True
+                changed = True
+
+        if summary_excel:
+            if parquet_files.get("summary_excel") != summary_excel:
+                parquet_files["summary_excel"] = summary_excel
+                changed = True
+
+        if report_path:
+            if parquet_files.get("report_docx") != report_path:
+                parquet_files["report_docx"] = report_path
+                changed = True
+
+        if (
+            video_entry.get("has_arena")
+            and video_entry.get("has_rois")
+            and video_entry.get("has_trajectory")
+            and not video_entry.get("has_complete_data")
+        ):
+            video_entry["has_complete_data"] = True
+            changed = True
+
+        if changed:
+            log.info(
+                "project.outputs.registered",
+                video=os.path.basename(video_path),
+                trajectory=bool(trajectory_path),
+                summary=bool(summary_parquet or summary_excel or report_path),
+            )
+            self.save_project()
+
+        return True
+
     def get_next_video(self):
         """
         Returns the path of the next video with 'pending' status from all batches.

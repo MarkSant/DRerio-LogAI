@@ -2386,6 +2386,8 @@ class AppController:
             if isinstance(path_value, str) and path_value:
                 videos_by_norm[os.path.normpath(path_value)] = video
 
+        skip_dialog = bool(video_paths)
+
         if video_paths:
             normalized_targets: list[str] = []
             raw_lookup: dict[str, str] = {}
@@ -2536,36 +2538,70 @@ class AppController:
             )
             return
 
-        dialog_result = self.view.show_pending_videos_dialog(
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
-
-        if not dialog_result or not dialog_result.get("confirmed"):
-            log.info("workflow.project_processing.resume_cancelled_by_user")
-            return
-
-        include_arena_only = bool(dialog_result.get("include_arena_only"))
-
         eligible_videos: list[dict] = []
-        eligible_videos.extend(ready_with_trajectory)
-        eligible_videos.extend(ready_with_zones)
-        if include_arena_only:
-            eligible_videos.extend(arena_only)
-        elif arena_only:
-            log.info(
-                "workflow.project_processing.skip_arena_only",
-                skipped=len(arena_only),
+
+        if skip_dialog:
+            eligible_videos.extend(ready_with_trajectory)
+            eligible_videos.extend(ready_with_zones)
+
+            if arena_only:
+                skipped_names = [
+                    os.path.basename(info.get("path", "")) or "(desconhecido)"
+                    for info in arena_only[:5]
+                ]
+                if len(arena_only) > 5:
+                    skipped_names.append(f"... (+{len(arena_only) - 5})")
+                self.view.show_warning(
+                    "Processamento",
+                    (
+                        "Alguns vídeos selecionados foram ignorados porque não "
+                        "possuem ROIs desenhadas:\n"
+                        + "\n".join(f"• {name}" for name in skipped_names)
+                    ),
+                )
+
+            if not eligible_videos:
+                self.view.show_info(
+                    "Processamento",
+                    (
+                        "Nenhum dos vídeos selecionados contém arena e ROIs "
+                        "suficientes para gerar trajetórias."
+                    ),
+                )
+                return
+        else:
+            dialog_result = self.view.show_pending_videos_dialog(
+                ready_with_trajectory=ready_with_trajectory,
+                ready_with_zones=ready_with_zones,
+                arena_only=arena_only,
+                without_arena=without_arena,
             )
 
-        if not eligible_videos:
-            self.view.show_info(
-                "Processamento",
-                "Nenhum vídeo foi selecionado para processamento neste momento.",
-            )
-            return
+            if not dialog_result or not dialog_result.get("confirmed"):
+                log.info("workflow.project_processing.resume_cancelled_by_user")
+                return
+
+            include_arena_only = bool(dialog_result.get("include_arena_only"))
+
+            eligible_videos.extend(ready_with_trajectory)
+            eligible_videos.extend(ready_with_zones)
+            if include_arena_only:
+                eligible_videos.extend(arena_only)
+            elif arena_only:
+                log.info(
+                    "workflow.project_processing.skip_arena_only",
+                    skipped=len(arena_only),
+                )
+
+            if not eligible_videos:
+                self.view.show_info(
+                    "Processamento",
+                    (
+                        "Nenhum vídeo foi selecionado para processamento "
+                        "neste momento."
+                    ),
+                )
+                return
 
         zones_updated = False
         for video_info in eligible_videos:
@@ -3411,15 +3447,15 @@ class AppController:
                         experiment_id
                     )
                     if not metadata:
-                        self.root.after(
-                            0,
-                            lambda: self.view.show_warning(
-                                "Processamento Ignorado",
-                                f"Metadados não fornecidos para {experiment_id}. "
-                                "Ignorando vídeo.",
-                            ),
+                        metadata = self.project_manager.derive_processing_metadata(
+                            experiment_id,
+                            video_path,
                         )
-                        continue
+                        log.info(
+                            "controller.processing.metadata_fallback", 
+                            experiment_id=experiment_id,
+                            fields=list(metadata.keys()),
+                        )
 
                 zone_data = self.project_manager.get_zone_data()
                 if not all([width_cm, height_cm, arena_polygon_px]):
@@ -3479,18 +3515,42 @@ class AppController:
                     freezing_threshold=fz_thresh,
                     freezing_duration=fz_dur,
                 )
+                summary_parquet_path = os.path.join(
+                    results_dir, f"{experiment_id}_summary.parquet"
+                )
+                summary_excel_path = os.path.join(
+                    results_dir, f"{experiment_id}_summary.xlsx"
+                )
+                report_docx_path = os.path.join(
+                    results_dir, f"{experiment_id}_report.docx"
+                )
+
                 reporter.export_summary_data(
-                    os.path.join(results_dir, f"{experiment_id}_summary.parquet"),
+                    summary_parquet_path,
                     format="parquet",
                 )
                 reporter.export_summary_data(
-                    os.path.join(results_dir, f"{experiment_id}_summary.xlsx"),
+                    summary_excel_path,
                     format="excel",
                 )
                 reporter.export_individual_report_step_by_step(
-                    os.path.join(results_dir, f"{experiment_id}_report.docx"),
+                    report_docx_path,
                     progress_callback,
                 )
+
+                if not single_video_config:
+                    self.project_manager.register_processing_outputs(
+                        video_path,
+                        results_dir=results_dir,
+                        trajectory_path=trajectory_path,
+                        summary_parquet=summary_parquet_path,
+                        summary_excel=summary_excel_path,
+                        report_path=report_docx_path,
+                    )
+                    self.refresh_project_views(
+                        reason="processing_progress",
+                        append_summary=True,
+                    )
 
         except Exception as e:
             log.error("controller.processing.error", error=str(e), exc_info=True)

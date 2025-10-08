@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import unittest
+from unittest.mock import MagicMock
 
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
 
@@ -379,6 +380,105 @@ class TestProjectManager(unittest.TestCase):
 
         next_vid_after_update = pm_loader.get_next_video()
         self.assertNotEqual(next_vid, next_vid_after_update)
+
+    def test_register_processing_outputs_updates_flags(self):
+        pm = ProjectManager()
+        pm.project_path = self.test_dir
+        video_path = os.path.join(self.test_dir, "metadata_sample.mp4")
+        pm.project_data = {
+            "batches": [
+                {
+                    "videos": [
+                        {
+                            "path": video_path,
+                            "status": "pending",
+                            "has_arena": True,
+                            "has_rois": True,
+                            "has_trajectory": False,
+                            "has_complete_data": False,
+                            "parquet_files": {},
+                        }
+                    ]
+                }
+            ]
+        }
+
+        pm.save_project = MagicMock(return_value=True)
+
+        results_dir = os.path.join(self.test_dir, "metadata_sample_results")
+        trajectory_path = os.path.join(
+            results_dir, "3_CoordMovimento_metadata_sample.parquet"
+        )
+        summary_path = os.path.join(results_dir, "metadata_sample_summary.parquet")
+        excel_path = os.path.join(results_dir, "metadata_sample_summary.xlsx")
+        report_path = os.path.join(results_dir, "metadata_sample_report.docx")
+
+        updated = pm.register_processing_outputs(
+            video_path,
+            results_dir=results_dir,
+            trajectory_path=trajectory_path,
+            summary_parquet=summary_path,
+            summary_excel=excel_path,
+            report_path=report_path,
+        )
+
+        self.assertTrue(updated)
+        video_entry = pm.project_data["batches"][0]["videos"][0]
+        self.assertTrue(video_entry.get("has_trajectory"))
+        self.assertTrue(video_entry.get("has_summary"))
+        self.assertTrue(video_entry.get("has_complete_data"))
+        self.assertEqual(video_entry.get("results_dir"), results_dir)
+        self.assertEqual(
+            video_entry["parquet_files"].get("trajectory"), trajectory_path
+        )
+        self.assertEqual(video_entry["parquet_files"].get("summary"), summary_path)
+        self.assertEqual(
+            video_entry["parquet_files"].get("summary_excel"), excel_path
+        )
+        self.assertEqual(
+            video_entry["parquet_files"].get("report_docx"), report_path
+        )
+        pm.save_project.assert_called_once()
+
+    def test_derive_processing_metadata_falls_back_to_project_entry(self):
+        pm = ProjectManager()
+        video_path = os.path.join(self.test_dir, "GroupA_subject4.mp4")
+        pm.project_data = {
+            "batches": [
+                {
+                    "videos": [
+                        {
+                            "path": video_path,
+                            "metadata": {"group": "GroupA"},
+                            "day": 2,
+                            "subject": "4",
+                        }
+                    ]
+                }
+            ]
+        }
+
+        metadata = pm.derive_processing_metadata(
+            "GroupA_subject4",
+            video_path,
+        )
+
+        self.assertEqual(metadata["experiment_id"], "GroupA_subject4")
+        self.assertEqual(metadata["video_name"], "GroupA_subject4")
+        self.assertEqual(metadata["group"], "GroupA")
+        self.assertEqual(metadata["day"], 2)
+        self.assertEqual(metadata["subject"], "4")
+        self.assertEqual(metadata["group_id"], "GroupA")
+
+    def test_derive_processing_metadata_defaults_when_missing(self):
+        pm = ProjectManager()
+        pm.project_data = {"batches": []}
+
+        metadata = pm.derive_processing_metadata("CECT_4", None)
+
+        self.assertEqual(metadata["experiment_id"], "CECT_4")
+        self.assertEqual(metadata["video_name"], "CECT_4")
+        self.assertNotIn("group", metadata)
 
     def test_detector_state_persistence(self):
         """Test detector state save and retrieve functionality."""

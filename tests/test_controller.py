@@ -41,6 +41,14 @@ class TestAppController(unittest.TestCase):
 
         self.mock_pm.project_path = None
         self.mock_pm.project_data = {}
+        self.mock_pm.get_metadata_for_experiment.return_value = {}
+        self.mock_pm.derive_processing_metadata.side_effect = (
+            lambda experiment_id, video_path=None: {
+                "experiment_id": experiment_id,
+                "video_name": experiment_id,
+            }
+        )
+        self.mock_pm.register_processing_outputs.return_value = True
         self.mock_pm.get_project_name.return_value = "Projeto Teste"
 
         # Stub Arduino manager factory for tests
@@ -506,6 +514,66 @@ class TestAppController(unittest.TestCase):
 
             mock_thread.assert_called_once()
             self.assertTrue(thread_instance.start.called)
+
+            eligible = mock_thread.call_args.kwargs["args"][0]
+            self.assertEqual(len(eligible), 1)
+            self.assertEqual(eligible[0]["path"], "/videos/full.mp4")
+
+            self.mock_pm.update_video_status.assert_called_once_with(
+                "/videos/full.mp4", "complete"
+            )
+
+            self.mock_view.show_info.assert_any_call(
+                "Processamento Iniciado",
+                ANY,
+            )
+
+        @patch("zebtrack.core.controller.threading.Thread")
+        @patch("zebtrack.core.controller.ProjectManager.load_zones_from_parquet")
+        @patch("zebtrack.core.controller.ProjectManager.scan_input_paths")
+        def test_process_pending_project_videos_skip_dialog_for_selection(
+            self, mock_scan, mock_load_zones, mock_thread
+        ):
+            self.mock_view.reset_mock()
+            self.mock_pm.reset_mock()
+
+            self.mock_pm.project_path = "/project"
+            self.mock_pm.get_all_videos.return_value = [
+                {"path": "/videos/full.mp4", "status": "pending"},
+                {"path": "/videos/arena.mp4", "status": "pending"},
+            ]
+
+            mock_scan.return_value = [
+                {
+                    "path": "/videos/full.mp4",
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": False,
+                    "has_complete_data": False,
+                },
+                {
+                    "path": "/videos/arena.mp4",
+                    "has_arena": True,
+                    "has_rois": False,
+                    "has_trajectory": False,
+                    "has_complete_data": False,
+                },
+            ]
+
+            mock_load_zones.return_value = ZoneData(
+                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
+            )
+
+            thread_instance = MagicMock()
+            mock_thread.return_value = thread_instance
+
+            self.controller.process_pending_project_videos(
+                ["/videos/full.mp4", "/videos/arena.mp4"]
+            )
+
+            self.mock_view.show_pending_videos_dialog.assert_not_called()
+
+            self.mock_view.show_warning.assert_any_call("Processamento", ANY)
 
             eligible = mock_thread.call_args.kwargs["args"][0]
             self.assertEqual(len(eligible), 1)
