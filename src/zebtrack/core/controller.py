@@ -2092,48 +2092,7 @@ class AppController:
         if data_changed:
             self.project_manager.save_project()
 
-        eligible_videos: list[dict] = []
-        eligible_videos.extend(ready_with_trajectory)
-        eligible_videos.extend(ready_with_zones)
-
-        summary_lines: list[str] = []
-        if ready_with_trajectory:
-            with_rois = sum(1 for info in ready_with_trajectory if info.get("has_rois"))
-            without_rois = len(ready_with_trajectory) - with_rois
-            if with_rois:
-                summary_lines.append(
-                    (
-                        f"• {with_rois} vídeo(s) com arena, ROIs e trajetória "
-                        "prontos para análise."
-                    )
-                )
-            if without_rois:
-                summary_lines.append(
-                    (
-                        f"• {without_rois} vídeo(s) com arena e trajetória "
-                        "(sem ROIs) serão analisados apenas pela arena."
-                    )
-                )
-        if ready_with_zones:
-            summary_lines.append(
-                (
-                    f"• {len(ready_with_zones)} vídeo(s) com arena e ROIs "
-                    "(trajetória será gerada automaticamente)."
-                )
-            )
-        if arena_only:
-            summary_lines.append(
-                f"• {len(arena_only)} vídeo(s) possuem apenas o parquet de arena."
-            )
-        if without_arena:
-            summary_lines.append(
-                (
-                    f"• {len(without_arena)} vídeo(s) não possuem arena "
-                    "detectada e foram ignorados."
-                )
-            )
-
-        if not summary_lines:
+        if not (ready_with_trajectory or ready_with_zones or arena_only):
             self.view.show_info(
                 "Processamento",
                 (
@@ -2143,32 +2102,29 @@ class AppController:
             )
             return
 
-        summary_message = (
-            "Foram encontrados vídeos com dados pendentes:\n\n"
-            + "\n".join(summary_lines)
-            + "\n\nDeseja iniciar o processamento dos itens elegíveis?"
+        dialog_result = self.view.show_pending_videos_dialog(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
         )
 
-        if not self.view.ask_ok_cancel("Processar Vídeos Pendentes", summary_message):
+        if not dialog_result or not dialog_result.get("confirmed"):
             log.info("workflow.project_processing.resume_cancelled_by_user")
             return
 
-        if arena_only:
-            arena_message = (
-                f"{len(arena_only)} vídeo(s) possuem apenas o parquet de arena.\n\n"
-                "Eles serão processados usando apenas o contorno principal.\n"
-                "Deseja incluí-los agora?"
+        include_arena_only = bool(dialog_result.get("include_arena_only"))
+
+        eligible_videos: list[dict] = []
+        eligible_videos.extend(ready_with_trajectory)
+        eligible_videos.extend(ready_with_zones)
+        if include_arena_only:
+            eligible_videos.extend(arena_only)
+        elif arena_only:
+            log.info(
+                "workflow.project_processing.skip_arena_only",
+                skipped=len(arena_only),
             )
-            if self.view.ask_ok_cancel(
-                "Incluir vídeos com apenas arena",
-                arena_message,
-            ):
-                eligible_videos.extend(arena_only)
-            else:
-                log.info(
-                    "workflow.project_processing.skip_arena_only",
-                    skipped=len(arena_only),
-                )
 
         if not eligible_videos:
             self.view.show_info(
@@ -2212,13 +2168,22 @@ class AppController:
         self.view.set_status(
             f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."
         )
-        self.view.show_info(
-            "Processamento Iniciado",
-            (
-                f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em "
-                "segundo plano."
-            ),
+        display_names = [
+            os.path.basename(video_info.get("path", "")) or "(arquivo desconhecido)"
+            for video_info in eligible_videos
+        ]
+        preview_lines = [f"• {name}" for name in display_names[:5]]
+        if len(display_names) > 5:
+            preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
+
+        message = (
+            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em "
+            "segundo plano."
         )
+        if preview_lines:
+            message += "\n\nFila:\n" + "\n".join(preview_lines)
+
+        self.view.show_info("Processamento Iniciado", message)
 
         log.info(
             "workflow.project_processing.resume_started",

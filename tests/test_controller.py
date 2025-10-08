@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from typing import cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from zebtrack.core.controller import AppController
 from zebtrack.core.detector import ZoneData
@@ -50,6 +50,11 @@ class TestAppController(unittest.TestCase):
             type[ArduinoManager], self.mock_arduino_manager_cls
         )
         self.controller.arduino_manager = None
+
+        self.mock_view.show_pending_videos_dialog.return_value = {
+            "confirmed": True,
+            "include_arena_only": True,
+        }
 
     def tearDown(self):
         """Clean up after each test."""
@@ -220,12 +225,15 @@ class TestAppController(unittest.TestCase):
             thread_instance = MagicMock()
             mock_thread.return_value = thread_instance
 
-            self.mock_view.ask_ok_cancel.side_effect = [True, True]
+            self.mock_view.show_pending_videos_dialog.return_value = {
+                "confirmed": True,
+                "include_arena_only": True,
+            }
 
             self.controller.process_pending_project_videos()
 
             mock_scan.assert_called_once_with(["/videos/full.mp4", "/videos/arena.mp4"])
-            self.assertEqual(self.mock_view.ask_ok_cancel.call_count, 2)
+            self.mock_view.show_pending_videos_dialog.assert_called_once()
 
             kwargs = mock_thread.call_args.kwargs
             eligible = kwargs["args"][0]
@@ -244,7 +252,72 @@ class TestAppController(unittest.TestCase):
 
             self.mock_view.show_info.assert_any_call(
                 "Processamento Iniciado",
-                "O processamento de 2 vídeo(s) foi iniciado em segundo plano.",
+                ANY,
+            )
+
+        @patch("zebtrack.core.controller.threading.Thread")
+        @patch("zebtrack.core.controller.ProjectManager.load_zones_from_parquet")
+        @patch("zebtrack.core.controller.ProjectManager.scan_input_paths")
+        def test_process_pending_project_videos_excludes_arena_only_when_not_selected(
+            self, mock_scan, mock_load_zones, mock_thread
+        ):
+            self.mock_view.reset_mock()
+            self.mock_pm.reset_mock()
+
+            self.mock_pm.project_path = "/project"
+            self.mock_pm.get_all_videos.return_value = [
+                {"path": "/videos/full.mp4", "status": "pending"},
+                {"path": "/videos/arena.mp4", "status": "pending"},
+            ]
+
+            mock_scan.return_value = [
+                {
+                    "path": "/videos/full.mp4",
+                    "has_arena": True,
+                    "has_rois": True,
+                    "has_trajectory": True,
+                    "has_complete_data": True,
+                },
+                {
+                    "path": "/videos/arena.mp4",
+                    "has_arena": True,
+                    "has_rois": False,
+                    "has_trajectory": False,
+                    "has_complete_data": False,
+                },
+            ]
+
+            mock_load_zones.return_value = ZoneData(
+                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
+            )
+
+            thread_instance = MagicMock()
+            mock_thread.return_value = thread_instance
+
+            self.mock_view.show_pending_videos_dialog.return_value = {
+                "confirmed": True,
+                "include_arena_only": False,
+            }
+
+            self.controller.process_pending_project_videos()
+
+            mock_scan.assert_called_once()
+            self.mock_view.show_pending_videos_dialog.assert_called_once()
+
+            mock_thread.assert_called_once()
+            self.assertTrue(thread_instance.start.called)
+
+            eligible = mock_thread.call_args.kwargs["args"][0]
+            self.assertEqual(len(eligible), 1)
+            self.assertEqual(eligible[0]["path"], "/videos/full.mp4")
+
+            self.mock_pm.update_video_status.assert_called_once_with(
+                "/videos/full.mp4", "complete"
+            )
+
+            self.mock_view.show_info.assert_any_call(
+                "Processamento Iniciado",
+                ANY,
             )
 
         def test_process_pending_project_videos_without_pending(self):

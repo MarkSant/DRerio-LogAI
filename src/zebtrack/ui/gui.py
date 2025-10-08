@@ -420,6 +420,183 @@ class ManageWeightsDialog(simpledialog.Dialog):
         box.pack()
 
 
+class PendingVideosDialog(simpledialog.Dialog):
+    """Dialog para revisar vídeos pendentes em formato hierárquico."""
+
+    TAG_STYLES = {
+        "ready_full": {"background": "#d4edda", "foreground": "#1e4620"},
+        "ready_partial": {"background": "#fff3cd", "foreground": "#5c470b"},
+        "ready_missing": {"background": "#f8d7da", "foreground": "#842029"},
+    }
+
+    def __init__(
+        self,
+        parent,
+        hierarchy_builder,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ):
+        self.hierarchy_builder = hierarchy_builder
+        self.ready_with_trajectory = ready_with_trajectory or []
+        self.ready_with_zones = ready_with_zones or []
+        self.arena_only = arena_only or []
+        self.without_arena = without_arena or []
+        self.include_arena_only_var = BooleanVar(value=False)
+        self.result = {"confirmed": False, "include_arena_only": False}
+        super().__init__(parent, "Processar Vídeos Pendentes")
+
+    def body(self, master):
+        master.columnconfigure(0, weight=1)
+        master.rowconfigure(1, weight=1)
+
+        ttk.Label(
+            master,
+            text=(
+                "Revise a lista hierárquica e confirme os itens que deseja processar."
+            ),
+            wraplength=560,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
+
+        container = ttk.Frame(master)
+        container.grid(row=1, column=0, sticky="nsew", padx=12)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(0, weight=1)
+
+        columns = ("status", "arquivo")
+        self.tree = ttk.Treeview(
+            container,
+            columns=columns,
+            show="tree headings",
+            height=15,
+            selectmode="none",
+        )
+        self.tree.heading("#0", text="Hierarquia")
+        self.tree.heading("status", text="Dados")
+        self.tree.heading("arquivo", text="Arquivo")
+        self.tree.column("#0", width=260, stretch=True)
+        self.tree.column("status", width=180, anchor="center", stretch=False)
+        self.tree.column("arquivo", width=220, stretch=True)
+
+        vsb = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(container, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+
+        for tag, style in self.TAG_STYLES.items():
+            self.tree.tag_configure(tag, **style)
+        self.tree.tag_configure("ready_optional", foreground="#5f4b00")
+
+        self._populate_tree()
+
+        legend = ttk.Frame(master)
+        legend.grid(row=2, column=0, sticky="w", padx=12, pady=(8, 4))
+        ttk.Label(legend, text="Legenda:").pack(side="left", padx=(0, 6))
+        self._add_legend_chip(legend, "#d4edda", "#1e4620", "Pronto")
+        self._add_legend_chip(legend, "#fff3cd", "#5c470b", "Parcial")
+        self._add_legend_chip(legend, "#f8d7da", "#842029", "Ignorado")
+
+        if self.arena_only:
+            ttk.Checkbutton(
+                master,
+                text=(
+                    f"Incluir {len(self.arena_only)} vídeo(s) com apenas arena no processamento."
+                ),
+                variable=self.include_arena_only_var,
+            ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 12))
+        else:
+            ttk.Frame(master).grid(row=3, column=0, pady=(0, 12))
+
+        return self.tree
+
+    def buttonbox(self):
+        box = ttk.Frame(self)
+        box.pack(pady=(0, 12))
+        ttk.Button(box, text="Cancelar", command=self.cancel).pack(
+            side="right", padx=6
+        )
+        ttk.Button(box, text="Processar", command=self.ok, default="active").pack(
+            side="right", padx=6
+        )
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+    def apply(self):
+        self.result = {
+            "confirmed": True,
+            "include_arena_only": bool(self.include_arena_only_var.get())
+            if self.arena_only
+            else False,
+        }
+
+    def cancel(self, event=None):
+        self.result = {"confirmed": False, "include_arena_only": False}
+        super().cancel(event)
+
+    def _populate_tree(self) -> None:
+        hierarchy = self.hierarchy_builder() if callable(self.hierarchy_builder) else []
+
+        readiness_map: dict[str, tuple[str, ...]] = {}
+
+        def _assign(entries: list[dict], *tags: str):
+            for info in entries or []:
+                path = info.get("path")
+                if path:
+                    readiness_map[path] = tuple(tags)
+
+        _assign(self.ready_with_trajectory, "ready_full")
+        _assign(self.ready_with_zones, "ready_partial")
+        _assign(self.arena_only, "ready_partial", "ready_optional")
+        _assign(self.without_arena, "ready_missing")
+
+        for group in hierarchy:
+            group_node = self.tree.insert(
+                "",
+                "end",
+                text=group.get("label", ""),
+                values=(group.get("status_label", ""), group.get("filename_display", "")),
+                open=True,
+            )
+            for day in group.get("children", []):
+                day_node = self.tree.insert(
+                    group_node,
+                    "end",
+                    text=day.get("label", ""),
+                    values=(day.get("status_label", ""), ""),
+                    open=False,
+                )
+                for video in day.get("children", []):
+                    path = video.get("path")
+                    tags = readiness_map.get(path, ()) if path else ()
+                    self.tree.insert(
+                        day_node,
+                        "end",
+                        text=video.get("label", ""),
+                        values=(video.get("status_label", ""), video.get("filename", "")),
+                        tags=tags,
+                    )
+
+    @staticmethod
+    def _add_legend_chip(parent, background: str, foreground: str, text: str) -> None:
+        chip = ttk.Frame(parent)
+        chip.pack(side="left", padx=4)
+        swatch = Frame(
+            chip,
+            width=14,
+            height=14,
+            bg=background,
+            highlightbackground="#c0c0c0",
+            highlightthickness=1,
+        )
+        swatch.pack(side="left", padx=(0, 4))
+        swatch.pack_propagate(False)
+        ttk.Label(chip, text=text, foreground=foreground).pack(side="left")
+
+
 class CreateProjectDialog(simpledialog.Dialog):
     """A custom dialog to gather all new project information."""
 
@@ -1152,6 +1329,7 @@ class ApplicationGUI:
         self.video_selector_tree = None
         self.video_search_var = None
         self._video_selector_filter = ""
+        self._pending_readiness_snapshot = {}
 
         # Arduino dashboard state (live projects)
         self.arduino_dashboard_frame = None
@@ -2814,47 +2992,40 @@ class ApplicationGUI:
             log.error("gui.load_frame.error", error=str(e))
             return False
 
-    def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Popula a árvore hierárquica do seletor de vídeos."""
+    @staticmethod
+    def _video_sort_key(value):
+        try:
+            return (0, int(value))
+        except (TypeError, ValueError):
+            value_str = str(value) if value is not None else ""
+            return (1, value_str.lower())
 
-        if not self.video_selector_tree:
-            return
-
-        # Determine filter text priority: argument > entry value > stored filter
-        if filter_text is None:
-            if self.video_search_var is not None:
-                filter_text = self.video_search_var.get()
-            elif self._video_selector_filter:
-                filter_text = self._video_selector_filter
-            else:
-                filter_text = ""
-
-        search_text = (filter_text or "").strip().lower()
-        self._video_selector_filter = search_text
-
-        for item in self.video_selector_tree.get_children():
-            self.video_selector_tree.delete(item)
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            return
-
-        pm = controller.project_manager
-        if not pm.project_path:
-            return
-
-        all_videos = pm.get_all_videos()
-        if not all_videos:
-            return
-
-        def _sort_key(value):
+    @staticmethod
+    def _format_subject_label(value):
+        if value is None:
+            return "??"
+        if isinstance(value, int):
+            return f"{value:02d}"
+        if isinstance(value, float) and value.is_integer():
+            return f"{int(value):02d}"
+        value_str = str(value).strip()
+        if not value_str:
+            return "??"
+        if value_str.isdigit():
             try:
-                return (0, int(value))
-            except (TypeError, ValueError):
-                value_str = str(value) if value is not None else ""
-                return (1, value_str.lower())
+                return f"{int(value_str):02d}"
+            except ValueError:
+                return value_str
+        return value_str
 
-        hierarchy = {}
+    def _build_video_hierarchy_data(
+        self,
+        all_videos: list[dict],
+        search_text: str,
+    ) -> dict[str, dict]:
+        hierarchy: dict[str, dict] = {}
+
+        normalized = search_text.strip().lower()
 
         for video in all_videos:
             metadata = video.get("metadata") or {}
@@ -2865,17 +3036,17 @@ class ApplicationGUI:
             filename = os.path.basename(video.get("path", ""))
             status_label = video.get("status", "")
 
-            searchable_values = [
-                group_id,
-                group_display,
+            searchable_values = (
+                str(group_id),
+                str(group_display),
                 str(day_id),
                 str(subject_id) if subject_id is not None else "",
                 filename,
                 status_label,
-            ]
+            )
 
-            if search_text and not any(
-                search_text in str(value).lower() for value in searchable_values
+            if normalized and not any(
+                normalized in str(value).lower() for value in searchable_values
             ):
                 continue
 
@@ -2898,22 +3069,118 @@ class ApplicationGUI:
 
             days_dict.setdefault(day_id, []).append(video_entry)
 
-        def _format_subject(value):
-            if value is None:
-                return "??"
-            if isinstance(value, int):
-                return f"{value:02d}"
-            if isinstance(value, float) and value.is_integer():
-                return f"{int(value):02d}"
-            value_str = str(value).strip()
-            if not value_str:
-                return "??"
-            if value_str.isdigit():
-                try:
-                    return f"{int(value_str):02d}"
-                except ValueError:
-                    return value_str
-            return value_str
+        return hierarchy
+
+    def _build_video_hierarchy_snapshot(self) -> list[dict]:
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
+            return []
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+        hierarchy = self._build_video_hierarchy_data(all_videos, "")
+
+        snapshot: list[dict] = []
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            group_entry = {
+                "label": f"🏷️ {group_data['display']} ({group_id})",
+                "status_label": "",
+                "filename_display": "",
+                "children": [],
+            }
+            for day_id, videos in sorted(
+                group_data["days"].items(),
+                key=lambda item: self._video_sort_key(item[0]),
+            ):
+                day_entry = {
+                    "label": f"📅 Dia {day_id}",
+                    "status_label": "",
+                    "children": [],
+                }
+                for video_entry in sorted(
+                    videos,
+                    key=lambda entry: self._video_sort_key(entry.get("subject")),
+                ):
+                    subject_label = self._format_subject_label(
+                        video_entry.get("subject")
+                    )
+                    has_arena = video_entry.get("has_arena", False)
+                    has_rois = video_entry.get("has_rois", False)
+                    has_traj = video_entry.get("has_trajectory", False)
+                    status_tokens = " ".join(
+                        [
+                            self._format_status_token(has_arena, "arena"),
+                            self._format_status_token(has_rois, "rois"),
+                            self._format_status_token(has_traj, "trajectory"),
+                        ]
+                    )
+                    day_entry["children"].append(
+                        {
+                            "path": video_entry.get("path"),
+                            "label": f"🐟 Sujeito {subject_label}",
+                            "filename": video_entry.get("filename", ""),
+                            "status_label": status_tokens,
+                        }
+                    )
+                group_entry["children"].append(day_entry)
+            snapshot.append(group_entry)
+
+        return snapshot
+
+    @staticmethod
+    def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
+        symbol = STATUS_SYMBOLS[symbol_key]
+        return f"{symbol} ✓" if has_parquet else f"{symbol} ✗"
+
+    def _populate_video_selector_tree(self, filter_text: str | None = None):
+        """Popula a árvore hierárquica do seletor de vídeos."""
+
+        if not self.video_selector_tree:
+            return
+
+        # Determine filter text priority: argument > entry value > stored filter
+        if filter_text is None:
+            if self.video_search_var is not None:
+                filter_text = self.video_search_var.get()
+            elif self._video_selector_filter:
+                filter_text = self._video_selector_filter
+            else:
+                filter_text = ""
+
+        search_text = (filter_text or "").strip().lower()
+        self._video_selector_filter = search_text
+
+        for item in self.video_selector_tree.get_children():
+            self.video_selector_tree.delete(item)
+
+        # Configure readiness color tags
+        self.video_selector_tree.tag_configure(
+            "ready_full", background="#d4edda", foreground="#1e4620"
+        )
+        self.video_selector_tree.tag_configure(
+            "ready_partial", background="#fff3cd", foreground="#5c470b"
+        )
+        self.video_selector_tree.tag_configure(
+            "ready_missing", background="#f8d7da", foreground="#842029"
+        )
+        self.video_selector_tree.tag_configure("ready_optional", foreground="#5f4b00")
+
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
+            return
+
+        pm = controller.project_manager
+        if not pm.project_path:
+            return
+
+        all_videos = pm.get_all_videos()
+        if not all_videos:
+            return
+
+        hierarchy = self._build_video_hierarchy_data(all_videos, search_text)
+        readiness_tags = self._pending_readiness_snapshot or {}
 
         displayed_videos = 0
 
@@ -2938,7 +3205,7 @@ class ApplicationGUI:
             )
 
             for day_id, videos in sorted(
-                days_dict.items(), key=lambda item: _sort_key(item[0])
+                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
             ):
                 if not videos:
                     continue
@@ -2953,13 +3220,15 @@ class ApplicationGUI:
 
                 for video_entry in sorted(
                     videos,
-                    key=lambda entry: _sort_key(entry.get("subject")),
+                    key=lambda entry: self._video_sort_key(entry.get("subject")),
                 ):
                     video_path = video_entry.get("path") or ""
                     if not video_path:
                         continue
 
-                    subject_label = _format_subject(video_entry.get("subject"))
+                    subject_label = self._format_subject_label(
+                        video_entry.get("subject")
+                    )
 
                     status_tokens = " ".join(
                         (
@@ -2971,12 +3240,18 @@ class ApplicationGUI:
                         )
                     )
 
+                    extra_tags = readiness_tags.get(video_path, ())
+                    if extra_tags:
+                        tag_tuple = (video_path, *extra_tags)
+                    else:
+                        tag_tuple = (video_path,)
+
                     self.video_selector_tree.insert(
                         day_node,
                         "end",
                         text=f"🐟 Sujeito {subject_label}",
                         values=(status_tokens, video_entry["filename"]),
-                        tags=(video_path,),
+                        tags=tag_tuple,
                     )
                     displayed_videos += 1
 
@@ -2993,6 +3268,32 @@ class ApplicationGUI:
         if self.video_search_var is None:
             return
         self._populate_video_selector_tree(self.video_search_var.get())
+
+    def apply_pending_readiness_snapshot(
+        self,
+        *,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> None:
+        mapping: dict[str, tuple[str, ...]] = {}
+
+        def _assign(entries: list[dict], *tags: str) -> None:
+            for info in entries or []:
+                path = info.get("path")
+                if path:
+                    mapping[path] = tuple(tags)
+
+        _assign(ready_with_trajectory, "ready_full")
+        _assign(ready_with_zones, "ready_partial")
+        _assign(arena_only, "ready_partial", "ready_optional")
+        _assign(without_arena, "ready_missing")
+
+        self._pending_readiness_snapshot = mapping
+
+        if self.video_selector_tree:
+            self._populate_video_selector_tree(self._video_selector_filter)
 
     def _load_selected_video_frame(self, event=None):
         """Carrega o frame do vídeo selecionado no canvas principal."""
@@ -5154,6 +5455,34 @@ class ApplicationGUI:
     def show_info(self, title, message):
         """Shows an info message box."""
         messagebox.showinfo(title, message)
+
+    def show_pending_videos_dialog(
+        self,
+        *,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> dict | None:
+        """Exibe o diálogo hierárquico de vídeos pendentes."""
+
+        self.apply_pending_readiness_snapshot(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
+
+        dialog = PendingVideosDialog(
+            self.root,
+            hierarchy_builder=self._build_video_hierarchy_snapshot,
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
+
+        return dialog.result
 
     def ask_ok_cancel(self, title, message):
         """Shows a confirmation dialog."""
