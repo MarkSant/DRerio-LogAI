@@ -1104,6 +1104,10 @@ class ApplicationGUI:
         self.cancel_proc_btn: Button | None = None
         self.progress_labels: dict[str, StringVar] = {}
         self.video_label: Label | None = None
+        self.analysis_tab_frame: ttk.Frame | None = None
+        self.analysis_video_label: Label | None = None
+        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
+        self.analysis_status_label: ttk.Label | None = None
 
         # User options
         self.processing_interval_var = StringVar(
@@ -1119,7 +1123,6 @@ class ApplicationGUI:
         self.canvas_view_mode = "zones"  # "zones" or "analysis"
         self.analysis_active = False
         self.toggle_view_btn = None
-        self.analysis_overlay_frame = None
         self.start_rec_btn: Button | None = None
         self.stop_rec_btn: Button | None = None
         self.process_video_btn: ttk.Button | None = None
@@ -1172,53 +1175,32 @@ class ApplicationGUI:
         # This ensures all scheduled callbacks are executed
         self.root.update_idletasks()
 
-        # Clean up all overlay-related widgets and their references
-        # This must be done before destroying the notebook
-        # IMPORTANT: First pack_forget ALL widgets to prevent them from being
-        # re-parented when their parents are destroyed
-
-        # Step 1: Unpack all child widgets in reverse order (deepest first)
+        # Reset analysis tab widgets before destroying the notebook
         if hasattr(self, 'analysis_video_label') and self.analysis_video_label:
             try:
                 if self.analysis_video_label.winfo_exists():
-                    self.analysis_video_label.pack_forget()
+                    self.analysis_video_label.configure(image="")
+                    self.analysis_video_label.image = None
             except Exception:
                 pass
 
-        if hasattr(self, 'overlay_cancel_btn') and self.overlay_cancel_btn:
-            try:
-                if self.overlay_cancel_btn.winfo_exists():
-                    self.overlay_cancel_btn.pack_forget()
-            except Exception:
-                pass
+        # Ensure progress UI is hidden and status reset
+        try:
+            self.hide_progress_bar()
+        except Exception:
+            pass
 
-        if hasattr(self, 'overlay_progress_bar') and self.overlay_progress_bar:
-            try:
-                if self.overlay_progress_bar.winfo_exists():
-                    self.overlay_progress_bar.pack_forget()
-            except Exception:
-                pass
+        try:
+            self.analysis_status_var.set("Nenhuma análise em andamento.")
+        except Exception:
+            pass
 
-        if hasattr(self, 'overlay_status_label') and self.overlay_status_label:
-            try:
-                if self.overlay_status_label.winfo_exists():
-                    self.overlay_status_label.pack_forget()
-            except Exception:
-                pass
-
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
-            try:
-                if self.overlay_progress_frame.winfo_exists():
-                    self.overlay_progress_frame.pack_forget()
-            except Exception:
-                pass
-
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.pack_forget()
-            except Exception:
-                pass
+        if hasattr(self, 'progress_labels') and self.progress_labels:
+            for var in self.progress_labels.values():
+                try:
+                    var.set("-")
+                except Exception:
+                    pass
 
         if hasattr(self, 'roi_canvas') and self.roi_canvas:
             try:
@@ -1226,52 +1208,6 @@ class ApplicationGUI:
                     self.roi_canvas.pack_forget()
             except Exception:
                 pass
-
-        # Force GUI update after unpacking
-        self.root.update_idletasks()
-
-        # Step 2: Clear widget references
-        if hasattr(self, 'overlay_progress_bar'):
-            self.overlay_progress_bar = None
-        if hasattr(self, 'overlay_status_label'):
-            self.overlay_status_label = None
-        if hasattr(self, 'overlay_cancel_btn'):
-            self.overlay_cancel_btn = None
-        if hasattr(self, 'overlay_progress_labels'):
-            self.overlay_progress_labels = {}
-        if hasattr(self, 'analysis_video_label'):
-            self.analysis_video_label = None
-
-        # Step 3: Destroy widgets (from deepest to shallowest)
-        # Destroy all child widgets of overlay_progress_frame first
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
-            try:
-                if self.overlay_progress_frame.winfo_exists():
-                    # Destroy all children first
-                    for child in self.overlay_progress_frame.winfo_children():
-                        try:
-                            child.destroy()
-                        except Exception:
-                            pass
-                    self.overlay_progress_frame.destroy()
-            except Exception:
-                pass
-            self.overlay_progress_frame = None
-
-        # Destroy analysis_overlay_frame (child of viz_frame)
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    # Destroy all children first
-                    for child in self.analysis_overlay_frame.winfo_children():
-                        try:
-                            child.destroy()
-                        except Exception:
-                            pass
-                    self.analysis_overlay_frame.destroy()
-            except Exception:
-                pass
-            self.analysis_overlay_frame = None
 
         # Destroy viz_frame (parent frame)
         if hasattr(self, 'viz_frame') and self.viz_frame:
@@ -1311,6 +1247,8 @@ class ApplicationGUI:
                 self.arduino_last_command_var.set("-")
             except Exception:
                 pass
+
+        self.analysis_tab_frame = None
 
         # Force final GUI update before creating welcome frame
         self.root.update_idletasks()
@@ -1361,21 +1299,21 @@ class ApplicationGUI:
         Handle tab change event to ensure analysis overlay is hidden when not on
         analysis tab.
         """
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            # If analysis overlay is currently visible, hide it when switching
-            # away from zones tab
-            try:
-                if self.analysis_overlay_frame.winfo_ismapped():
-                    current_tab = self.notebook.select()
-                    # Check if we're NOT on the zones tab
-                    if hasattr(self, 'zone_tab_frame'):
-                        zone_tab_id = str(self.zone_tab_frame)
-                        if current_tab != zone_tab_id:
-                            # Switch back to zones view to hide analysis overlay
-                            if self.canvas_view_mode == "analysis":
-                                self._switch_to_zones_view()
-            except Exception:
-                pass
+        if not self.notebook:
+            return
+
+        current_tab = self.notebook.select()
+        analysis_tab_id = str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
+
+        if self.analysis_active:
+            self.canvas_view_mode = (
+                "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
+            )
+            if self.toggle_view_btn:
+                if current_tab == analysis_tab_id:
+                    self.toggle_view_btn.config(text="Ver Configuração de Zonas")
+                else:
+                    self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def _create_main_control_frame(self):
         """Creates the main UI with tabs for controlling the app."""
@@ -1394,6 +1332,7 @@ class ApplicationGUI:
         if self.controller.project_manager.get_project_type() == "live":
             self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
+        self._create_analysis_tab()
         self._create_reports_tab()
 
         # Status frame below the notebook
@@ -1414,8 +1353,8 @@ class ApplicationGUI:
         status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
         Label(status_frame, textvariable=self.status_var).pack()
 
-        # Progress + video frame (hidden until needed)
-        self._build_progress_frame()
+        # Ensure analysis UI starts hidden
+        self.hide_progress_bar()
 
     def _create_main_controls_tab(self):
         """Creates the tab with the main project controls."""
@@ -1751,69 +1690,7 @@ class ApplicationGUI:
         # Bind canvas resize event for proper image scaling
         self.roi_canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # 6. Create analysis overlay frame (initially hidden)
-        self.analysis_overlay_frame = Frame(self.viz_frame, bg="black")
-
-        # Progress info in overlay - pack this FIRST so it stays at bottom
-        self.overlay_progress_frame = Frame(self.analysis_overlay_frame, bg="black")
-        self.overlay_progress_frame.pack(side="bottom", fill="x", padx=10, pady=5)
-
-        self.overlay_progress_bar = ttk.Progressbar(
-            self.overlay_progress_frame, orient="horizontal", mode="determinate"
-        )
-        self.overlay_progress_bar.pack(fill="x", pady=2)
-
-        self.overlay_status_label = Label(
-            self.overlay_progress_frame,
-            text="Preparando análise...",
-            bg="black",
-            fg="white",
-        )
-        self.overlay_status_label.pack()
-
-        # Statistics in overlay - organized in grid for better visibility
-        overlay_stats_container = Frame(self.overlay_progress_frame, bg="black")
-        overlay_stats_container.pack(fill="x", pady=5)
-        self.overlay_progress_labels = {}
-
-        stats_items = [
-            ("total", "Total de Frames:"),
-            ("processed", "Processados:"),
-            ("detected", "Frames Detectados:"),
-            ("percent", "Concluído:"),
-            ("elapsed", "Tempo Decorrido:"),
-            ("eta", "Tempo Estimado:"),
-        ]
-
-        # Create 2 rows x 3 columns grid
-        for idx, (key, label_text) in enumerate(stats_items):
-            row = idx // 3
-            col = idx % 3
-            f = Frame(overlay_stats_container, bg="black")
-            f.grid(row=row, column=col, padx=10, pady=2, sticky="w")
-            Label(
-                f, text=label_text, bg="black", fg="white", font=("Arial", 9)
-            ).pack(side="left")
-            var = StringVar(value="-")
-            Label(
-                f, textvariable=var, bg="black", fg="white",
-                font=("Arial", 9, "bold")
-            ).pack(side="left", padx=5)
-            self.overlay_progress_labels[key] = var
-
-        # Cancel Analysis Button
-        self.overlay_cancel_btn = ttk.Button(
-            self.overlay_progress_frame,
-            text="Cancelar Análise",
-            command=self.controller.cancel_current_analysis
-        )
-        self.overlay_cancel_btn.pack(pady=5)
-
-        # Video label for analysis frames - pack this AFTER progress frame
-        self.analysis_video_label = Label(self.analysis_overlay_frame, bg="black")
-        self.analysis_video_label.pack(expand=True, fill="both")
-
-        # 7. Create all the zone control widgets in the scrollable frame
+        # 6. Create all the zone control widgets in the scrollable frame
         self._create_zone_control_widgets()
 
     def _on_canvas_configure(self, event=None):
@@ -2183,6 +2060,81 @@ class ApplicationGUI:
         )
         self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
         # This frame is packed later when needed
+
+    def _create_analysis_tab(self):
+        """Creates the dedicated tab for video playback and progress stats."""
+        if not self.notebook:
+            return
+
+        if self.analysis_tab_frame and self.analysis_tab_frame.winfo_exists():
+            self.analysis_tab_frame.destroy()
+
+        self.analysis_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.analysis_tab_frame, text="Análise de Vídeo")
+
+        # Video display area
+        video_container = ttk.Frame(self.analysis_tab_frame)
+        video_container.pack(expand=True, fill="both")
+
+        self.analysis_video_label = Label(video_container, bg="black")
+        self.analysis_video_label.pack(expand=True, fill="both")
+        # Maintain backward compatibility with code using video_label
+        self.video_label = self.analysis_video_label
+
+        # Status text
+        self.analysis_status_var.set("Nenhuma análise em andamento.")
+        self.analysis_status_label = ttk.Label(
+            self.analysis_tab_frame,
+            textvariable=self.analysis_status_var,
+            padding=(0, 6),
+        )
+        self.analysis_status_label.pack(fill="x")
+
+        # Progress components (initially hidden)
+        self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
+        self.progress_bar = ttk.Progressbar(
+            self.progress_frame,
+            orient="horizontal",
+            mode="determinate",
+        )
+        self.progress_bar.pack(fill="x", pady=3)
+
+        stats_container = ttk.Frame(self.progress_frame)
+        stats_container.pack(fill="x")
+        stats_container.columnconfigure((0, 1, 2), weight=1)
+
+        self.progress_labels = {}
+        stats_items = [
+            ("total", "Total de Frames:"),
+            ("processed", "Processados:"),
+            ("detected", "Frames Detectados:"),
+            ("percent", "Concluído:"),
+            ("elapsed", "Tempo Decorrido:"),
+            ("eta", "Tempo Estimado:"),
+        ]
+
+        for idx, (key, label_text) in enumerate(stats_items):
+            row = idx // 3
+            col = idx % 3
+            cell = ttk.Frame(stats_container, padding=(0, 2))
+            cell.grid(row=row, column=col, padx=5, sticky="w")
+            ttk.Label(cell, text=label_text).pack(anchor="w")
+            var = StringVar(value="-")
+            ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(
+                anchor="w"
+            )
+            self.progress_labels[key] = var
+
+        self.cancel_proc_btn = ttk.Button(
+            self.progress_frame,
+            text="Cancelar Análise",
+            command=self.controller.cancel_current_analysis,
+            state="disabled",
+        )
+        self.cancel_proc_btn.pack(pady=(5, 0), anchor="e")
+
+        # Hide progress frame until analysis starts
+        self.progress_frame.pack_forget()
 
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame for the zone controls."""
@@ -4246,82 +4198,20 @@ class ApplicationGUI:
 
         self._stop_drawing()
 
-    def _build_progress_frame(self):
-        if self.progress_frame:
-            self.progress_frame.destroy()
-        self.progress_frame = Frame(self.root)
-        # Video preview area
-        self.video_label = Label(self.progress_frame)
-        self.video_label.pack(pady=3)
-        # Progress bar
-        self.progress_bar = ttk.Progressbar(
-            self.progress_frame, orient="horizontal", length=400, mode="determinate"
-        )
-        self.progress_bar.pack(pady=3, fill="x", expand=True)
-        # Stats container
-        stats_container = Frame(self.progress_frame)
-        stats_container.pack(fill="x")
-        for key, label_text in [
-            ("total", "Total de Frames:"),
-            ("processed", "Processados:"),
-            ("detected", "Frames Detectados:"),
-            ("percent", "Concluído:"),
-            ("elapsed", "Tempo Decorrido:"),
-            ("eta", "Tempo Estimado:"),
-        ]:
-            f = Frame(stats_container)
-            f.pack(side="left", padx=5)
-            Label(f, text=label_text).pack(anchor="w")
-            var = StringVar(value="-")
-            Label(f, textvariable=var).pack(anchor="w")
-            self.progress_labels[key] = var
-
-        # Cancel Button
-        self.cancel_proc_btn = ttk.Button(
-            self.progress_frame,
-            text="Cancelar Análise",
-            command=self.controller.cancel_current_analysis,
-        )
-        self.cancel_proc_btn.pack(pady=5)
-        self.progress_frame.pack_forget()
-
     def _load_project_view(self):
         """
         Transitions from the welcome screen to the main control view and
         initializes the detector with the appropriate plugin.
         """
-        # Clean up any analysis overlay from single video workflow
-        # First pack_forget to prevent re-parenting issues
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+        # Reset analysis display state from single video workflow
+        self.hide_progress_bar()
+        self.analysis_status_var.set("Nenhuma análise em andamento.")
+        if self.analysis_video_label:
             try:
-                if self.overlay_progress_frame.winfo_exists():
-                    self.overlay_progress_frame.pack_forget()
+                self.analysis_video_label.configure(image="")
+                self.analysis_video_label.image = None
             except Exception:
                 pass
-
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.pack_forget()
-            except Exception:
-                pass
-
-        # Then destroy
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
-            try:
-                if self.overlay_progress_frame.winfo_exists():
-                    self.overlay_progress_frame.destroy()
-            except Exception:
-                pass
-            self.overlay_progress_frame = None
-
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.destroy()
-            except Exception:
-                pass
-            self.analysis_overlay_frame = None
 
         pm = self.controller.project_manager
 
@@ -4778,38 +4668,15 @@ class ApplicationGUI:
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
-        # Clean up any previous analysis overlay before starting new analysis
-        # First pack_forget to prevent re-parenting issues
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
+        # Reset analysis UI elements for a clean setup
+        self.hide_progress_bar()
+        self.analysis_status_var.set("Nenhuma análise em andamento.")
+        if self.analysis_video_label:
             try:
-                if self.overlay_progress_frame.winfo_exists():
-                    self.overlay_progress_frame.pack_forget()
+                self.analysis_video_label.configure(image="")
+                self.analysis_video_label.image = None
             except Exception:
                 pass
-
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.pack_forget()
-            except Exception:
-                pass
-
-        # Then destroy
-        if hasattr(self, 'overlay_progress_frame') and self.overlay_progress_frame:
-            try:
-                if self.overlay_progress_frame.winfo_exists():
-                    self.overlay_progress_frame.destroy()
-            except Exception:
-                pass
-            self.overlay_progress_frame = None
-
-        if hasattr(self, 'analysis_overlay_frame') and self.analysis_overlay_frame:
-            try:
-                if self.analysis_overlay_frame.winfo_exists():
-                    self.analysis_overlay_frame.destroy()
-            except Exception:
-                pass
-            self.analysis_overlay_frame = None
 
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
@@ -5037,39 +4904,49 @@ class ApplicationGUI:
 
     def _toggle_canvas_view(self):
         """Toggle between zone drawing view and analysis progress view."""
-        if self.canvas_view_mode == "zones":
+        if not self.notebook or not self.analysis_tab_frame or not self.zone_tab_frame:
+            return
+
+        current_tab = self.notebook.select()
+        analysis_tab_id = str(self.analysis_tab_frame)
+
+        if current_tab != analysis_tab_id:
             self._switch_to_analysis_view()
         else:
             self._switch_to_zones_view()
 
     def _switch_to_analysis_view(self):
         """Switch to analysis progress view."""
-        if self.analysis_overlay_frame:
-            self.canvas_view_mode = "analysis"
-            self.roi_canvas.pack_forget()
-            self.analysis_overlay_frame.pack(expand=True, fill="both")
+        if not self.notebook or not self.analysis_tab_frame:
+            return
 
-            if self.toggle_view_btn:
-                self.toggle_view_btn.config(text="Ver Desenhos das Zonas")
+        self.canvas_view_mode = "analysis"
+        self.notebook.select(self.analysis_tab_frame)
+
+        if self.toggle_view_btn:
+            self.toggle_view_btn.config(text="Ver Configuração de Zonas")
 
     def _switch_to_zones_view(self):
         """Switch to zone drawing view."""
-        if self.analysis_overlay_frame:
-            self.canvas_view_mode = "zones"
-            self.analysis_overlay_frame.pack_forget()
-            self.roi_canvas.pack(expand=True, fill="both")
+        if not self.notebook or not self.zone_tab_frame:
+            return
 
-            if self.toggle_view_btn:
-                self.toggle_view_btn.config(text="Ver Análise em Progresso")
+        self.canvas_view_mode = "zones"
+        self.notebook.select(self.zone_tab_frame)
+
+        if self.toggle_view_btn:
+            self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def start_analysis_view_mode(self):
         """Called when analysis starts - immediately switch to analysis view and
         enable toggle."""
         self.analysis_active = True
+        self.analysis_status_var.set("Preparando análise...")
+        self.show_progress_bar()
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="normal")
-        if hasattr(self, 'overlay_cancel_btn'):
-            self.overlay_cancel_btn.config(state="normal")
+        if self.cancel_proc_btn:
+            self.cancel_proc_btn.config(state="normal")
         self._switch_to_analysis_view()
 
     def stop_analysis_view_mode(self):
@@ -5077,8 +4954,10 @@ class ApplicationGUI:
         self.analysis_active = False
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="disabled")
-        if hasattr(self, 'overlay_cancel_btn'):
-            self.overlay_cancel_btn.config(state="disabled")
+        if self.cancel_proc_btn:
+            self.cancel_proc_btn.config(state="disabled")
+        self.hide_progress_bar()
+        self.analysis_status_var.set("Nenhuma análise em andamento.")
         self._switch_to_zones_view()
 
     def display_analysis_frame(self, frame):
@@ -5107,12 +4986,10 @@ class ApplicationGUI:
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
-        if self.overlay_progress_bar:
-            self.overlay_progress_bar["value"] = (
-                value * 100
-            )  # Convert fraction to percentage
-        if status_text and self.overlay_status_label:
-            self.overlay_status_label.config(text=status_text)
+        if self.progress_bar:
+            self.progress_bar["value"] = value * 100
+        if status_text:
+            self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
     def update_processing_stats(
@@ -5124,56 +5001,45 @@ class ApplicationGUI:
         current_frame=None
     ):
         """Update processing statistics in real-time during video analysis."""
-        # Update both progress_labels (zones view) and overlay_progress_labels
-        # (analysis view)
-        labels_to_update = []
-        if self.progress_labels:
-            labels_to_update.append(self.progress_labels)
-        if hasattr(self, 'overlay_progress_labels') and self.overlay_progress_labels:
-            labels_to_update.append(self.overlay_progress_labels)
-
-        if not labels_to_update:
+        if not self.progress_labels:
             return
 
         # Update frame counters in all label sets
-        for labels in labels_to_update:
-            if total_frames is not None:
-                labels["total"].set(str(total_frames))
-            if processed_frames is not None:
-                labels["processed"].set(str(processed_frames))
-            if detected_frames is not None:
-                labels["detected"].set(str(detected_frames))
+        labels = self.progress_labels
+        if total_frames is not None:
+            labels["total"].set(str(total_frames))
+        if processed_frames is not None:
+            labels["processed"].set(str(processed_frames))
+        if detected_frames is not None:
+            labels["detected"].set(str(detected_frames))
 
-            # Calculate and update percentage based on actual frame position
-            # Use current_frame if available, otherwise fall back to processed_frames
-            if total_frames:
-                frame_for_percent = (
-                    current_frame if current_frame is not None else processed_frames
-                )
-                if frame_for_percent is not None:
-                    percent = (frame_for_percent / total_frames) * 100
-                    labels["percent"].set(f"{percent:.1f}%")
+        # Calculate and update percentage based on actual frame position
+        if total_frames:
+            frame_for_percent = (
+                current_frame if current_frame is not None else processed_frames
+            )
+            if frame_for_percent is not None:
+                percent = (frame_for_percent / total_frames) * 100
+                labels["percent"].set(f"{percent:.1f}%")
 
-            # Calculate elapsed time and ETA
-            if start_time:
-                import time
-                elapsed = time.time() - start_time
-                labels["elapsed"].set(self._format_time(elapsed))
+        # Calculate elapsed time and ETA
+        if start_time:
+            import time
 
-                # Calculate ETA based on actual frames processed (not analysis
-                # interval). Use current_frame if provided, otherwise fall back
-                # to processed_frames
-                frame_for_eta = (
-                    current_frame if current_frame is not None else processed_frames
-                )
-                if frame_for_eta and total_frames and frame_for_eta > 0:
-                    rate = frame_for_eta / elapsed
-                    remaining_frames = total_frames - frame_for_eta
-                    if rate > 0:
-                        eta = remaining_frames / rate
-                        labels["eta"].set(self._format_time(eta))
-                    else:
-                        labels["eta"].set("-")
+            elapsed = time.time() - start_time
+            labels["elapsed"].set(self._format_time(elapsed))
+
+            frame_for_eta = (
+                current_frame if current_frame is not None else processed_frames
+            )
+            if frame_for_eta and total_frames and frame_for_eta > 0:
+                rate = frame_for_eta / elapsed
+                remaining_frames = total_frames - frame_for_eta
+                if rate > 0:
+                    eta = remaining_frames / rate
+                    labels["eta"].set(self._format_time(eta))
+                else:
+                    labels["eta"].set("-")
 
     @staticmethod
     def _format_time(seconds: float) -> str:

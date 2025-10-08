@@ -5,178 +5,229 @@ import unittest
 from unittest.mock import Mock
 
 
-class MockApplicationGUI:
-    """Mock ApplicationGUI for testing toggle functionality."""
+class MockVar:
+    """Simple stand-in for tkinter.StringVar used in tests."""
+
+    def __init__(self, value="-"):
+        self._value = value
+
+    def set(self, value):
+        self._value = value
+
+    def get(self):
+        return self._value
+
+
+class MockFrame:
+    """Frame that tracks visibility through pack operations."""
 
     def __init__(self):
-        # Initialize the same state variables as the real GUI
+        self.visible = False
+
+    def pack(self, *_, **__):
+        self.visible = True
+
+    def pack_forget(self):
+        self.visible = False
+
+    def winfo_viewable(self):
+        return self.visible
+
+
+class MockProgressBar:
+    """Progress bar that stores its numeric value."""
+
+    def __init__(self):
+        self.value = 0
+
+    def __setitem__(self, key, val):
+        if key == "value":
+            self.value = val
+
+    def __getitem__(self, key):
+        if key == "value":
+            return self.value
+        raise KeyError(key)
+
+
+class MockNotebook:
+    """Notebook that only tracks the selected tab."""
+
+    def __init__(self, zone_id, analysis_id):
+        self.selected = str(zone_id)
+        self.zone_id = str(zone_id)
+        self.analysis_id = str(analysis_id)
+
+    def select(self, tab=None):
+        if tab is None:
+            return self.selected
+        self.selected = str(tab)
+        return self.selected
+
+
+class MockApplicationGUI:
+    """Mock ApplicationGUI for testing the tab-based analysis view."""
+
+    def __init__(self):
+        self.zone_tab_frame = "zone"
+        self.analysis_tab_frame = "analysis"
+        self.notebook = MockNotebook(self.zone_tab_frame, self.analysis_tab_frame)
+
         self.canvas_view_mode = "zones"
         self.analysis_active = False
 
-        # Mock UI components
         self.toggle_view_btn = Mock()
-        self.roi_canvas = Mock()
-        self.analysis_overlay_frame = Mock()
-        self.overlay_progress_bar = Mock()
-        self.overlay_status_label = Mock()
+        self.cancel_proc_btn = Mock()
+        self.analysis_status_var = MockVar("Nenhuma análise em andamento.")
+
+        self.progress_frame = MockFrame()
+        self.progress_bar = MockProgressBar()
+        self.progress_labels = {
+            key: MockVar("-")
+            for key in ["total", "processed", "detected", "percent", "elapsed", "eta"]
+        }
+
         self.analysis_video_label = Mock()
 
-        # Track visibility states for testing
-        self._canvas_visible = True
-        self._overlay_visible = False
+        # Zone editing hooks (overridden in tests when needed)
+        self._start_main_arena_drawing = Mock(return_value=True)
+        self._start_roi_drawing = Mock(return_value=True)
+        self._on_auto_detect_clicked = Mock(return_value=True)
+
+    def show_progress_bar(self):
+        if not self.progress_frame.winfo_viewable():
+            self.progress_frame.pack()
+            self.progress_bar["value"] = 0
+
+    def hide_progress_bar(self):
+        if self.progress_frame.winfo_viewable():
+            self.progress_frame.pack_forget()
+            self.progress_bar["value"] = 0
 
     def _switch_to_analysis_view(self):
-        """Switch to analysis progress view."""
         self.canvas_view_mode = "analysis"
-        self._canvas_visible = False
-        self._overlay_visible = True
-        self.toggle_view_btn.config(text="Ver Desenhos das Zonas")
+        self.notebook.select(self.analysis_tab_frame)
+        self.toggle_view_btn.config(text="Ver Configuração de Zonas")
 
     def _switch_to_zones_view(self):
-        """Switch to zone drawing view."""
         self.canvas_view_mode = "zones"
-        self._overlay_visible = False
-        self._canvas_visible = True
+        self.notebook.select(self.zone_tab_frame)
         self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
-    def start_analysis_view_mode(self):
-        """Called when analysis starts."""
-        self.analysis_active = True
-        self.toggle_view_btn.config(state="normal")
-        self._switch_to_analysis_view()
-
-    def stop_analysis_view_mode(self):
-        """Called when analysis stops."""
-        self.analysis_active = False
-        self.toggle_view_btn.config(state="disabled")
-        self._switch_to_zones_view()
-
     def _toggle_canvas_view(self):
-        """Toggle between views."""
-        if self.canvas_view_mode == "zones":
+        if self.notebook.select() != str(self.analysis_tab_frame):
             self._switch_to_analysis_view()
         else:
             self._switch_to_zones_view()
 
-    def show_warning(self, title, message):
-        """Mock warning dialog."""
+    def start_analysis_view_mode(self):
+        self.analysis_active = True
+        self.analysis_status_var.set("Preparando análise...")
+        self.show_progress_bar()
+        self.toggle_view_btn.config(state="normal")
+        self.cancel_proc_btn.config(state="normal")
+        self._switch_to_analysis_view()
+
+    def stop_analysis_view_mode(self):
+        self.analysis_active = False
+        self.hide_progress_bar()
+        self.analysis_status_var.set("Nenhuma análise em andamento.")
+        self.toggle_view_btn.config(state="disabled")
+        self.cancel_proc_btn.config(state="disabled")
+        self._switch_to_zones_view()
+
+    def show_warning(self, _title, _message):
         pass
 
 
 class TestAnalysisViewToggle(unittest.TestCase):
-    """Test cases for the analysis view toggle functionality."""
+    """Test cases for the tab-based analysis view toggle functionality."""
 
     def setUp(self):
-        """Set up test fixtures."""
         self.gui = MockApplicationGUI()
 
     def test_initial_state(self):
-        """Test that the GUI starts in the correct initial state."""
         self.assertEqual(self.gui.canvas_view_mode, "zones")
         self.assertFalse(self.gui.analysis_active)
-        self.assertTrue(self.gui._canvas_visible)
-        self.assertFalse(self.gui._overlay_visible)
+        self.assertEqual(self.gui.notebook.select(), str(self.gui.zone_tab_frame))
+        self.assertFalse(self.gui.progress_frame.winfo_viewable())
+        self.assertEqual(self.gui.analysis_status_var.get(), "Nenhuma análise em andamento.")
 
     def test_start_analysis_mode(self):
-        """Test starting analysis mode."""
         self.gui.start_analysis_view_mode()
 
         self.assertTrue(self.gui.analysis_active)
         self.assertEqual(self.gui.canvas_view_mode, "analysis")
-        self.assertFalse(self.gui._canvas_visible)
-        self.assertTrue(self.gui._overlay_visible)
+        self.assertEqual(self.gui.notebook.select(), str(self.gui.analysis_tab_frame))
+        self.assertTrue(self.gui.progress_frame.winfo_viewable())
+        self.assertEqual(self.gui.progress_bar["value"], 0)
+        self.assertEqual(self.gui.analysis_status_var.get(), "Preparando análise...")
 
-        # Check that toggle button is enabled and has correct text
-        self.gui.toggle_view_btn.config.assert_called_with(
-            text="Ver Desenhos das Zonas"
+        # Last call should set tab text
+        self.assertEqual(
+            self.gui.toggle_view_btn.config.call_args_list[-1].kwargs["text"],
+            "Ver Configuração de Zonas",
         )
 
     def test_stop_analysis_mode(self):
-        """Test stopping analysis mode."""
-        # First start analysis
         self.gui.start_analysis_view_mode()
-
-        # Then stop it
         self.gui.stop_analysis_view_mode()
 
         self.assertFalse(self.gui.analysis_active)
         self.assertEqual(self.gui.canvas_view_mode, "zones")
-        self.assertTrue(self.gui._canvas_visible)
-        self.assertFalse(self.gui._overlay_visible)
+        self.assertEqual(self.gui.notebook.select(), str(self.gui.zone_tab_frame))
+        self.assertFalse(self.gui.progress_frame.winfo_viewable())
+        self.assertEqual(
+            self.gui.analysis_status_var.get(), "Nenhuma análise em andamento."
+        )
 
-        # Check that toggle button is disabled
-        calls = self.gui.toggle_view_btn.config.call_args_list
-        # Should have been called with state="disabled" at some point
-        disabled_call = any(
-            "state" in str(call) and "disabled" in str(call) for call in calls
-        )
-        self.assertTrue(
-            disabled_call, "Toggle button should be disabled when analysis stops"
-        )
+        states = [call.kwargs for call in self.gui.toggle_view_btn.config.call_args_list if "state" in call.kwargs]
+        self.assertIn({"state": "disabled"}, states)
 
     def test_toggle_during_analysis(self):
-        """Test toggling between views during analysis."""
-        # Start analysis (should switch to analysis view)
         self.gui.start_analysis_view_mode()
-        self.assertEqual(self.gui.canvas_view_mode, "analysis")
-
-        # Toggle to zones view
         self.gui._toggle_canvas_view()
         self.assertEqual(self.gui.canvas_view_mode, "zones")
-        self.assertTrue(self.gui._canvas_visible)
-        self.assertFalse(self.gui._overlay_visible)
+        self.assertEqual(self.gui.notebook.select(), str(self.gui.zone_tab_frame))
 
-        # Toggle back to analysis view
         self.gui._toggle_canvas_view()
         self.assertEqual(self.gui.canvas_view_mode, "analysis")
-        self.assertFalse(self.gui._canvas_visible)
-        self.assertTrue(self.gui._overlay_visible)
+        self.assertEqual(self.gui.notebook.select(), str(self.gui.analysis_tab_frame))
 
     def test_toggle_button_text_changes(self):
-        """Test that toggle button text changes appropriately."""
-        # Start analysis
         self.gui.start_analysis_view_mode()
-
-        # Should show "Ver Desenhos das Zonas" when in analysis view
-        self.gui.toggle_view_btn.config.assert_called_with(
-            text="Ver Desenhos das Zonas"
+        self.assertEqual(
+            self.gui.toggle_view_btn.config.call_args_list[-1].kwargs["text"],
+            "Ver Configuração de Zonas",
         )
 
-        # Toggle to zones view
         self.gui._toggle_canvas_view()
-
-        # Should show "Ver Análise em Progresso" when in zones view during analysis
-        self.gui.toggle_view_btn.config.assert_called_with(
-            text="Ver Análise em Progresso"
+        self.assertEqual(
+            self.gui.toggle_view_btn.config.call_args_list[-1].kwargs["text"],
+            "Ver Análise em Progresso",
         )
 
     def test_analysis_state_persistence(self):
-        """Test that analysis_active state is managed correctly."""
         self.assertFalse(self.gui.analysis_active)
-
         self.gui.start_analysis_view_mode()
         self.assertTrue(self.gui.analysis_active)
 
-        # Toggling views shouldn't change analysis_active
         self.gui._toggle_canvas_view()
         self.assertTrue(self.gui.analysis_active)
 
         self.gui._toggle_canvas_view()
         self.assertTrue(self.gui.analysis_active)
 
-        # Only stopping analysis should set it to False
         self.gui.stop_analysis_view_mode()
         self.assertFalse(self.gui.analysis_active)
 
 
 class TestZoneEditingPrevention(unittest.TestCase):
-    """Test cases for preventing zone editing during analysis."""
+    """Ensure zone editing actions are blocked while analysis is active."""
 
     def setUp(self):
-        """Set up test fixtures."""
         self.gui = MockApplicationGUI()
 
-        # Add methods that should be prevented during analysis
         def mock_start_drawing_method():
             if self.gui.analysis_active:
                 self.gui.show_warning(
@@ -185,18 +236,16 @@ class TestZoneEditingPrevention(unittest.TestCase):
                 return False
             return True
 
-        self.gui._start_main_arena_drawing = mock_start_drawing_method
-        self.gui._start_roi_drawing = mock_start_drawing_method
-        self.gui._on_auto_detect_clicked = mock_start_drawing_method
+        self.gui._start_main_arena_drawing.side_effect = mock_start_drawing_method
+        self.gui._start_roi_drawing.side_effect = mock_start_drawing_method
+        self.gui._on_auto_detect_clicked.side_effect = mock_start_drawing_method
 
     def test_zone_editing_allowed_when_not_analyzing(self):
-        """Test that zone editing is allowed when analysis is not active."""
         self.assertTrue(self.gui._start_main_arena_drawing())
         self.assertTrue(self.gui._start_roi_drawing())
         self.assertTrue(self.gui._on_auto_detect_clicked())
 
     def test_zone_editing_prevented_during_analysis(self):
-        """Test that zone editing is prevented during analysis."""
         self.gui.start_analysis_view_mode()
 
         self.assertFalse(self.gui._start_main_arena_drawing())

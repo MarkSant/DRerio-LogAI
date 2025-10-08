@@ -21,13 +21,25 @@ def test_gui_zone_config_structure():
     assert 'self.viz_frame = ttk.Frame(' in gui_code, \
         "viz_frame should be stored as self.viz_frame"
 
-    # Test that analysis overlay is created in _create_roi_analysis_tab
+    # Test that analysis tab factory exists and is separate from ROI tab
+    assert 'def _create_analysis_tab(self):' in gui_code, \
+        "_create_analysis_tab should exist"
+    analysis_tab_section = gui_code.split('def _create_analysis_tab(self):')[1]
+    analysis_tab_section = analysis_tab_section.split(
+        'def _create_scrollable_controls_frame(self, parent):'
+    )[0]
+    assert 'self.analysis_tab_frame = ttk.Frame(' in analysis_tab_section, \
+        "Analysis tab should create a ttk.Frame"
+    assert 'ttk.Progressbar(' in analysis_tab_section, \
+        "Analysis tab should include a progress bar"
+
+    # Ensure ROI tab no longer inlines analysis overlay widgets
     create_roi_section = gui_code.split('def _create_roi_analysis_tab(self):')[1]
     create_roi_section = create_roi_section.split(
         'def _on_canvas_configure(self, event=None):'
     )[0]
-    assert 'self.analysis_overlay_frame = Frame(' in create_roi_section, \
-        "analysis_overlay_frame should be created in _create_roi_analysis_tab"
+    assert 'analysis_overlay_frame' not in create_roi_section, \
+        "ROI tab should not define analysis overlay components"
 
     # Test that _on_canvas_configure is clean and only handles resizing
     on_canvas_section = gui_code.split('def _on_canvas_configure(self, event=None):')[1]
