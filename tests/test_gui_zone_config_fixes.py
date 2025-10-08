@@ -68,6 +68,27 @@ def test_gui_zone_config_structure():
         "_create_zone_control_widgets should create ROI Inclusion Rule Panel"
 
 
+def test_zone_summary_cards_section_present():
+    """Ensure that the new zone summary cards section is rendered."""
+    gui_file_path = os.path.join(
+        os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py"
+    )
+
+    with open(gui_file_path, 'r', encoding="utf-8") as f:
+        gui_code = f.read()
+
+    assert "STATUS_SYMBOLS['summary']" in gui_code, \
+        "Summary status symbol should be registered"
+    assert "Indicadores de Preparação" in gui_code, \
+        "Zone summary cards section should include its label"
+    assert "Arenas pendentes" in gui_code, \
+        "Zone summary cards should surface arena pending label"
+    assert "ROIs pendentes" in gui_code, \
+        "Zone summary cards should surface ROI pending label"
+    assert "Prontos para trajetórias" in gui_code, \
+        "Zone summary cards should surface ready-for-processing label"
+
+
 def test_gui_attribute_guards():
     """Test that proper attribute guards have been added."""
     gui_file_path = os.path.join(

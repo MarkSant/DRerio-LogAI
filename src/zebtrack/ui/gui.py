@@ -42,6 +42,7 @@ STATUS_SYMBOLS = {
     "arena": "\U0001F3DF",  # 🏟
     "rois": "\U0001F3AF",  # 🎯
     "trajectory": "\U0001F9ED",  # 🧭
+    "summary": "\u03A3",  # Σ
 }
 
 PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
@@ -1454,6 +1455,8 @@ class ApplicationGUI:
         self.notebook = None
         self.main_controls_frame = None
         self.zone_tab_frame = None
+    self.zone_summary_frame: ttk.LabelFrame | None = None
+    self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
         self.drawing_instruction_label = None
         self.current_drawing_type = None
         self.status_var = StringVar()
@@ -1629,6 +1632,8 @@ class ApplicationGUI:
             except Exception:
                 pass
             self.zone_tab_frame = None
+            self.zone_summary_frame = None
+            self.zone_summary_cards = {}
 
         # Destroy notebook and main controls
         if self.notebook:
@@ -2573,7 +2578,7 @@ class ApplicationGUI:
                     pass
             self.process_video_btn = ttk.Button(
                 self.fixed_button_frame,
-                text="Processar Vídeos Pendentes...",
+                text="Gerar Trajetórias e Sumários Pendentes...",
                 command=self.controller.process_pending_project_videos,
             )
             self.process_video_btn.pack(side="top", fill="x", pady=(0, 5))
@@ -2584,6 +2589,8 @@ class ApplicationGUI:
                 except Exception:
                     pass
             self.process_video_btn = None
+
+        self._create_zone_summary_cards_section()
 
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(
@@ -2901,6 +2908,130 @@ class ApplicationGUI:
         )
         self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
         # This frame is packed later when needed
+
+    def _create_zone_summary_cards_section(self) -> None:
+        """Renderiza os cartões com indicadores numéricos da etapa de zonas."""
+        if not getattr(self, "zone_controls_frame", None):
+            return
+
+        if self.zone_summary_frame and self.zone_summary_frame.winfo_exists():
+            try:
+                self.zone_summary_frame.destroy()
+            except Exception:
+                pass
+
+        self.zone_summary_cards = {}
+        self.zone_summary_frame = ttk.LabelFrame(
+            self.zone_controls_frame,
+            text=f"{STATUS_SYMBOLS['summary']} Indicadores de Preparação",
+            padding=10,
+        )
+        self.zone_summary_frame.pack(fill="x", pady=(0, 5))
+
+        cards_container = ttk.Frame(self.zone_summary_frame)
+        cards_container.pack(fill="x")
+
+        card_specs = [
+            (
+                "arena_missing",
+                f"{STATUS_SYMBOLS['arena']} Arenas pendentes",
+            ),
+            (
+                "rois_missing",
+                f"{STATUS_SYMBOLS['rois']} ROIs pendentes",
+            ),
+            (
+                "ready_for_processing",
+                f"{STATUS_SYMBOLS['summary']} Prontos para trajetórias",
+            ),
+        ]
+
+        for idx, (key, title) in enumerate(card_specs):
+            card = ttk.Frame(cards_container, padding=10, relief="ridge", borderwidth=1)
+            card.grid(row=0, column=idx, padx=5, pady=5, sticky="nsew")
+            cards_container.columnconfigure(idx, weight=1)
+
+            value_var = StringVar(value="0")
+            detail_var = StringVar(value="Nenhum vídeo listado")
+
+            ttk.Label(card, text=title, font=("Segoe UI", 9, "bold")).pack(
+                anchor="w"
+            )
+            ttk.Label(
+                card,
+                textvariable=value_var,
+                font=("Segoe UI", 22, "bold"),
+            ).pack(anchor="center", pady=(4, 0))
+            ttk.Label(
+                card,
+                textvariable=detail_var,
+                font=("Segoe UI", 8),
+                foreground="#555555",
+            ).pack(anchor="w", pady=(4, 0))
+
+            self.zone_summary_cards[key] = {
+                "value": value_var,
+                "detail": detail_var,
+            }
+
+        self._update_zone_summary_cards()
+
+    def _update_zone_summary_cards(self, all_videos=None) -> None:
+        """Atualiza os cartões de resumo com base na lista de vídeos."""
+        if not self.zone_summary_cards:
+            return
+
+        if all_videos is None:
+            controller = getattr(self, "controller", None)
+            if controller and controller.project_manager:
+                all_videos = controller.project_manager.get_all_videos() or []
+            else:
+                all_videos = []
+
+    all_videos = list(all_videos or [])
+    total_videos = len(all_videos)
+
+        if total_videos == 0:
+            for card in self.zone_summary_cards.values():
+                card["value"].set("0")
+                card["detail"].set("Nenhum vídeo listado")
+            return
+
+        arenas_missing = sum(1 for video in all_videos if not video.get("has_arena"))
+        rois_missing = sum(1 for video in all_videos if not video.get("has_rois"))
+
+        ready_total = sum(
+            1
+            for video in all_videos
+            if video.get("has_arena") and video.get("has_rois")
+        )
+        ready_completed = sum(
+            1
+            for video in all_videos
+            if video.get("has_arena")
+            and video.get("has_rois")
+            and video.get("has_trajectory")
+        )
+        ready_pending = max(ready_total - ready_completed, 0)
+
+        self.zone_summary_cards["arena_missing"]["value"].set(str(arenas_missing))
+        self.zone_summary_cards["arena_missing"]["detail"].set(
+            f"{total_videos - arenas_missing} com arena salva"
+        )
+
+        self.zone_summary_cards["rois_missing"]["value"].set(str(rois_missing))
+        self.zone_summary_cards["rois_missing"]["detail"].set(
+            f"{total_videos - rois_missing} com ROIs salvas"
+        )
+
+        self.zone_summary_cards["ready_for_processing"]["value"].set(
+            str(ready_pending)
+        )
+        self.zone_summary_cards["ready_for_processing"]["detail"].set(
+            f"{ready_completed} já com trajetórias"
+            if ready_total
+            else "Sem arenas/ROIs disponíveis"
+        )
 
     def _create_analysis_tab(self):
         """Creates the dedicated tab for video playback and progress stats."""
@@ -3795,13 +3926,17 @@ class ApplicationGUI:
 
         controller = getattr(self, "controller", None)
         if not controller or not controller.project_manager:
+            self._update_zone_summary_cards([])
             return
 
         pm = controller.project_manager
         if not pm.project_path:
+            self._update_zone_summary_cards([])
             return
 
         all_videos = pm.get_all_videos()
+        self._update_zone_summary_cards(all_videos)
+
         if not all_videos:
             return
 
