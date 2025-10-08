@@ -1647,6 +1647,25 @@ class ApplicationGUI:
         self._configure_styles()
         self._create_welcome_frame()
 
+    def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
+        """Compose a compact legend string for the status glyphs."""
+        legend_parts = [
+            f"{STATUS_SYMBOLS['arena']} ✓ Arena",
+            f"{STATUS_SYMBOLS['rois']} ✓ ROIs",
+            f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória",
+        ]
+        if include_summary:
+            legend_parts.append(f"{STATUS_SYMBOLS['summary']} ✓ Sumário")
+        legend_parts.append("✗ Ausente")
+        return "Legenda: " + " | ".join(legend_parts)
+
+    @staticmethod
+    def _get_zone_summary_helper_text() -> str:
+        return (
+            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar trajetórias "
+            "(arena e ROIs salvos). O valor mostra quantos ainda aguardam processamento."
+        )
+
     def _cleanup_single_analysis_button(self):
         """Destroys the single analysis button if it exists."""
         if (
@@ -2194,6 +2213,13 @@ class ApplicationGUI:
         immediate: bool = False,
     ) -> None:
         """Refresh overview, pipeline, and reports panels in a single call."""
+
+        log.info(
+            "gui.project_refresh.dispatched",
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
 
         self._request_overview_refresh(
             reason=reason,
@@ -2940,13 +2966,7 @@ class ApplicationGUI:
         legend_frame.pack(fill="x", pady=(5, 0))
         ttk.Label(
             legend_frame,
-            text=(
-                "Legenda: "
-                f"{STATUS_SYMBOLS['arena']} ✓ Arena | "
-                f"{STATUS_SYMBOLS['rois']} ✓ ROIs | "
-                f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória | "
-                "✗ Ausente"
-            ),
+            text=self._build_status_icon_legend(),
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(anchor="w")
@@ -3150,6 +3170,15 @@ class ApplicationGUI:
                 "detail": detail_var,
             }
 
+        ttk.Label(
+            self.zone_summary_frame,
+            text=self._get_zone_summary_helper_text(),
+            font=("TkDefaultFont", 8),
+            foreground="#555555",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
         self._update_zone_summary_cards()
 
     def _create_pipeline_processing_tab(self) -> None:
@@ -3212,6 +3241,14 @@ class ApplicationGUI:
         self.pipeline_video_tree.pack(side="left", fill="both", expand=True)
         tree_scroll.pack(side="right", fill="y")
 
+        ttk.Label(
+            listing_frame,
+            text=self._build_status_icon_legend(include_summary=True),
+            font=("TkDefaultFont", 8),
+            foreground="#555555",
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
         self.pipeline_video_tree.bind(
             "<<TreeviewSelect>>", self._on_pipeline_selection_changed
         )
@@ -3271,6 +3308,14 @@ class ApplicationGUI:
             for card in self.zone_summary_cards.values():
                 card["value"].set("0")
                 card["detail"].set("Nenhum vídeo listado")
+            log.info(
+                "gui.zone_summary.cards_refresh",
+                total=0,
+                arenas_missing=0,
+                rois_missing=0,
+                ready_pending=0,
+                ready_completed=0,
+            )
             return
 
         arenas_missing = sum(1 for video in all_videos if not video.get("has_arena"))
@@ -3309,6 +3354,15 @@ class ApplicationGUI:
             else "Sem arenas/ROIs disponíveis"
         )
 
+        log.info(
+            "gui.zone_summary.cards_refresh",
+            total=total_videos,
+            arenas_missing=arenas_missing,
+            rois_missing=rois_missing,
+            ready_pending=ready_pending,
+            ready_completed=ready_completed,
+        )
+
     def _refresh_pipeline_video_table(self, all_videos=None) -> None:
         if not self.pipeline_video_tree or not self.pipeline_tab_frame:
             return
@@ -3328,6 +3382,7 @@ class ApplicationGUI:
             self.pipeline_video_tree.delete(item)
 
         self.pipeline_video_vars = {}
+        summary_total = 0
 
         for video in sorted(
             eligible_videos,
@@ -3357,6 +3412,16 @@ class ApplicationGUI:
                 "info": video,
                 "summary": summary_exists,
             }
+            if summary_exists:
+                summary_total += 1
+
+        log.info(
+            "gui.pipeline_table.refreshed",
+            eligible=len(eligible_videos),
+            with_rois=sum(1 for v in eligible_videos if v.get("has_rois")),
+            with_trajectory=sum(1 for v in eligible_videos if v.get("has_trajectory")),
+            with_summary=summary_total,
+        )
 
         listed = len(self.pipeline_video_vars)
         if listed == 0:

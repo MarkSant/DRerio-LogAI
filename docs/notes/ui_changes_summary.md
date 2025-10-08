@@ -60,3 +60,13 @@ Tipo de Projeto: (•) Pré-gravado ( ) Ao Vivo
    - Project Creation: Values stored in project_data → loaded during batch processing
 
 The changes maintain full backward compatibility while giving users control over processing performance and visual feedback frequency.
+
+### Status Glyph Legend & Telemetry (2025-10-08)
+
+- Added standardized legend strings across zone summaries, video selectors, and the pipeline tab, clarifying the meaning of the Σ symbol (sumário gerado) alongside existing arena/ROI/trajectory icons.
+- Updated zone summary cards with helper text indicating that Σ reflects arenas e ROIs salvos ainda pendentes para trajetórias.
+- Introduced structured log entries for refresh workflows:
+   - `gui.project_refresh.dispatched`
+   - `gui.zone_summary.cards_refresh`
+   - `gui.pipeline_table.refreshed`
+   These events surface in structlog with the `domain.action.result` pattern, improving traceability for project UI updates and batch readiness summaries.
