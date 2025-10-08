@@ -2214,6 +2214,13 @@ class ApplicationGUI:
 
         return " | ".join(parts) if parts else "-"
 
+    @staticmethod
+    def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
+        symbol = STATUS_SYMBOLS[symbol_key]
+        safe_total = max(total, 0)
+        clamped_completed = max(0, min(completed, safe_total)) if safe_total else 0
+        return f"{symbol} {clamped_completed}/{safe_total}" if safe_total else f"{symbol} 0/0"
+
     def _summarize_batch_data(self, videos: list[dict]) -> str:
         if not videos:
             return "-"
@@ -2222,18 +2229,37 @@ class ApplicationGUI:
         arena_count = sum(1 for video in videos if video.get("has_arena"))
         roi_count = sum(1 for video in videos if video.get("has_rois"))
         traj_count = sum(1 for video in videos if video.get("has_trajectory"))
+        complete_count = sum(
+            1
+            for video in videos
+            if video.get("has_complete_data")
+            or (
+                video.get("has_arena")
+                and video.get("has_rois")
+                and video.get("has_trajectory")
+            )
+        )
 
         return (
-            f"{STATUS_SYMBOLS['arena']} {arena_count}/{total}  "
-            f"{STATUS_SYMBOLS['rois']} {roi_count}/{total}  "
-            f"{STATUS_SYMBOLS['trajectory']} {traj_count}/{total}"
+            f"{self._format_status_ratio('arena', arena_count, total)}  "
+            f"{self._format_status_ratio('rois', roi_count, total)}  "
+            f"{self._format_status_ratio('trajectory', traj_count, total)}  "
+            f"{self._format_status_ratio('summary', complete_count, total)}"
         )
 
     def _format_data_badges(self, video: dict) -> str:
+        has_arena = bool(video.get("has_arena"))
+        has_rois = bool(video.get("has_rois"))
+        has_trajectory = bool(video.get("has_trajectory"))
+        has_complete = bool(video.get("has_complete_data")) or (
+            has_arena and has_rois and has_trajectory
+        )
+
         markers = [
-            f"{STATUS_SYMBOLS['arena']} {'✓' if video.get('has_arena') else '✗'}",
-            f"{STATUS_SYMBOLS['rois']} {'✓' if video.get('has_rois') else '✗'}",
-            f"{STATUS_SYMBOLS['trajectory']} {'✓' if video.get('has_trajectory') else '✗'}",
+            self._format_status_token(has_arena, "arena"),
+            self._format_status_token(has_rois, "rois"),
+            self._format_status_token(has_trajectory, "trajectory"),
+            self._format_status_token(has_complete, "summary"),
         ]
         return "  ".join(markers)
 
@@ -4413,7 +4439,7 @@ class ApplicationGUI:
 
         self.reports_tree = ttk.Treeview(
             list_frame,
-            columns=("arena", "rois", "trajectory", "status"),
+            columns=("arena", "rois", "trajectory", "summary", "status"),
             show="tree headings",
         )
 
@@ -4422,6 +4448,9 @@ class ApplicationGUI:
         self.reports_tree.heading("arena", text="🏛️ Arena")
         self.reports_tree.heading("rois", text="📍 ROIs")
         self.reports_tree.heading("trajectory", text="📈 Trajetória")
+        self.reports_tree.heading(
+            "summary", text=f"{STATUS_SYMBOLS['summary']} Sumário"
+        )
         self.reports_tree.heading("status", text="Status")
 
         # Larguras e alinhamentos
@@ -4429,6 +4458,7 @@ class ApplicationGUI:
         self.reports_tree.column("arena", width=80, anchor="center")
         self.reports_tree.column("rois", width=80, anchor="center")
         self.reports_tree.column("trajectory", width=100, anchor="center")
+        self.reports_tree.column("summary", width=90, anchor="center")
         self.reports_tree.column("status", width=120, anchor="center")
 
         self.reports_tree.pack(side="left", fill="both", expand=True)
@@ -4509,11 +4539,19 @@ class ApplicationGUI:
             group_display = metadata.get("group_display_name") or group_id
             day_id = metadata.get("day") or "Sem Dia"
 
+            has_arena = bool(video.get("has_arena"))
+            has_rois = bool(video.get("has_rois"))
+            has_trajectory = bool(video.get("has_trajectory"))
+            has_complete = bool(video.get("has_complete_data")) or (
+                has_arena and has_rois and has_trajectory
+            )
+
             entry = {
                 "path": video.get("path"),
-                "has_arena": bool(video.get("has_arena")),
-                "has_rois": bool(video.get("has_rois")),
-                "has_trajectory": bool(video.get("has_trajectory")),
+                "has_arena": has_arena,
+                "has_rois": has_rois,
+                "has_trajectory": has_trajectory,
+                "has_complete_data": has_complete,
                 "status": video.get("status", "pending"),
                 "filename": os.path.basename(video.get("path", "")),
                 "subject": metadata.get("subject"),
@@ -4552,15 +4590,24 @@ class ApplicationGUI:
                 for entry in items
                 if entry["has_trajectory"]
             )
+            total_complete = sum(
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_complete_data"]
+            )
 
             group_node = self.reports_tree.insert(
                 "",
                 "end",
                 text=f"🏷️ {group_data['display']}",
                 values=(
-                    f"{total_arena}/{total_videos}",
-                    f"{total_rois}/{total_videos}",
-                    f"{total_trajectory}/{total_videos}",
+                    self._format_status_ratio("arena", total_arena, total_videos),
+                    self._format_status_ratio("rois", total_rois, total_videos),
+                    self._format_status_ratio(
+                        "trajectory", total_trajectory, total_videos
+                    ),
+                    self._format_status_ratio("summary", total_complete, total_videos),
                     f"{total_videos} vídeos",
                 ),
                 open=True,
@@ -4574,16 +4621,24 @@ class ApplicationGUI:
 
                 day_arena = sum(1 for entry in entries if entry["has_arena"])
                 day_rois = sum(1 for entry in entries if entry["has_rois"])
-                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
+                day_trajectory = sum(
+                    1 for entry in entries if entry["has_trajectory"]
+                )
+                day_complete = sum(
+                    1 for entry in entries if entry["has_complete_data"]
+                )
 
                 day_node = self.reports_tree.insert(
                     group_node,
                     "end",
                     text=f"📅 Dia {day_id}",
                     values=(
-                        f"{day_arena}/{len(entries)}",
-                        f"{day_rois}/{len(entries)}",
-                        f"{day_trajectory}/{len(entries)}",
+                        self._format_status_ratio("arena", day_arena, len(entries)),
+                        self._format_status_ratio("rois", day_rois, len(entries)),
+                        self._format_status_ratio(
+                            "trajectory", day_trajectory, len(entries)
+                        ),
+                        self._format_status_ratio("summary", day_complete, len(entries)),
                         f"{len(entries)} vídeos",
                     ),
                     open=False,
@@ -4604,9 +4659,14 @@ class ApplicationGUI:
                         "end",
                         text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
                         values=(
-                            "✓" if entry["has_arena"] else "✗",
-                            "✓" if entry["has_rois"] else "✗",
-                            "✓" if entry["has_trajectory"] else "✗",
+                            self._format_status_token(entry["has_arena"], "arena"),
+                            self._format_status_token(entry["has_rois"], "rois"),
+                            self._format_status_token(
+                                entry["has_trajectory"], "trajectory"
+                            ),
+                            self._format_status_token(
+                                entry["has_complete_data"], "summary"
+                            ),
                             entry["status"],
                         ),
                         tags=(video_path,),
