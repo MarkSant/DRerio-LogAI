@@ -2089,6 +2089,27 @@ class ApplicationGUI:
         except Exception:
             self._refresh_project_overview()
 
+    def refresh_project_views(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Refresh overview, pipeline, and reports panels in a single call."""
+
+        self._request_overview_refresh(
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
+
+        if getattr(self, "pipeline_video_tree", None):
+            self._refresh_pipeline_video_table()
+
+        if getattr(self, "reports_tree", None):
+            self.update_reports_tree()
+
     def _refresh_project_overview(self) -> None:
         self._overview_refresh_job = None
 

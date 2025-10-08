@@ -64,6 +64,34 @@ class TestAppController(unittest.TestCase):
         """Clean up after each test."""
         pass
 
+    def test_refresh_project_views_schedules_on_ui(self):
+        refresh_mock = MagicMock()
+        self.mock_view.refresh_project_views = refresh_mock
+
+        with patch.object(self.controller, "_schedule_on_ui") as schedule_mock:
+            self.controller.refresh_project_views(
+                "Atualizado",
+                append_summary=True,
+                immediate=True,
+            )
+
+        schedule_mock.assert_called_once()
+        scheduled_fn, reason = schedule_mock.call_args.args[:2]
+        self.assertIs(scheduled_fn, refresh_mock)
+        self.assertEqual(reason, "Atualizado")
+        self.assertEqual(
+            schedule_mock.call_args.kwargs,
+            {"append_summary": True, "immediate": True},
+        )
+
+    def test_refresh_project_views_noop_without_view_method(self):
+        self.mock_view.refresh_project_views = None
+
+        with patch.object(self.controller, "_schedule_on_ui") as schedule_mock:
+            self.controller.refresh_project_views("ignored")
+
+        schedule_mock.assert_not_called()
+
     def test_create_project_workflow_success(self):
         """
         Test the successful creation of a new project through the controller.

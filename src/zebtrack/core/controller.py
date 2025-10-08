@@ -148,6 +148,29 @@ class AppController:
         except Exception:
             func(*args, **kwargs)
 
+    def refresh_project_views(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Request a refresh of project-related UI components on the main thread."""
+
+        if not getattr(self, "view", None):
+            return
+
+        refresh_fn = getattr(self.view, "refresh_project_views", None)
+        if not callable(refresh_fn):
+            return
+
+        self._schedule_on_ui(
+            refresh_fn,
+            reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
+
     def _clear_external_trigger_wait(self):
         if not self._pending_external_trigger:
             return
@@ -2748,9 +2771,10 @@ class AppController:
                     )
 
                 self.view.set_status(status_msg)
-                refresh_fn = getattr(self.view, "_request_overview_refresh", None)
-                if callable(refresh_fn):
-                    refresh_fn(reason=status_msg, append_summary=True)
+                self.refresh_project_views(
+                    reason=status_msg,
+                    append_summary=True,
+                )
                 self.processing_thread = None
 
             self.root.after(0, finalize)
@@ -3326,6 +3350,7 @@ class AppController:
                 msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
                 self.root.after(0, lambda: self.view.show_info("Sucesso", msg))
             self.root.after(0, lambda: self.view.set_status("Pronto."))
+            self.refresh_project_views()
 
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
         """
