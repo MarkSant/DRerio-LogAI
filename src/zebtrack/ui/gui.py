@@ -1566,6 +1566,7 @@ class ApplicationGUI:
         self.update_openvino_checkbox(self.controller.use_openvino)
         self.update_openvino_status_display(self.controller.get_openvino_status())
 
+        self._configure_styles()
         self._create_welcome_frame()
 
     def _cleanup_single_analysis_button(self):
@@ -1731,6 +1732,50 @@ class ApplicationGUI:
             textvariable=self._openvino_display_var,
         ).pack(anchor="w", pady=(4, 0))
 
+    def _configure_styles(self) -> None:
+        """Configura estilos personalizados para os componentes ttk usados pela GUI."""
+        style = ttk.Style(self.root)
+        self._style = style
+
+        try:
+            current_theme = style.theme_use()
+        except Exception:  # pragma: no cover - defensive safeguard
+            current_theme = "default"
+            style.theme_use("default")
+
+        base_background = style.lookup("TNotebook", "background") or "#f6f7fb"
+        accent_background = "#ffffff"
+        tab_inactive = "#dce3ee"
+        border_color = "#c5ccd9"
+        text_active = "#1d2733"
+        text_inactive = "#4a5568"
+
+        style.configure(
+            "Zebtrack.TNotebook",
+            background=base_background,
+            borderwidth=0,
+            tabmargins=(10, 6, 10, 0),
+        )
+
+        style.configure(
+            "Zebtrack.TNotebook.Tab",
+            background=tab_inactive,
+            padding=(18, 10),
+            font=("Segoe UI", 10, "bold"),
+            foreground=text_inactive,
+            bordercolor=border_color,
+        )
+
+        style.map(
+            "Zebtrack.TNotebook.Tab",
+            background=[("selected", accent_background), ("!selected", tab_inactive)],
+            foreground=[("selected", text_active), ("!selected", text_inactive)],
+            bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
+        )
+
+        style.configure("Zebtrack.TNotebook.Tab", focuscolor="" if current_theme else "")
+        style.configure("Zebtrack.TNotebook", padding=(4, 4))
+
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():
             CalibrationDialog(self.root, self.controller)
@@ -1776,7 +1821,7 @@ class ApplicationGUI:
             self.welcome_frame.destroy()
         self.root.geometry("")  # Let it resize
 
-        self.notebook = ttk.Notebook(self.root)
+        self.notebook = ttk.Notebook(self.root, style="Zebtrack.TNotebook")
         self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
         # Bind tab change event to hide analysis overlay when switching tabs
