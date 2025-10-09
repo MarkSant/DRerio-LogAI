@@ -12,13 +12,15 @@ from tkinter import (
     Label,
     LabelFrame,
     Listbox,
-    Scrollbar,
     StringVar,
     filedialog,
     ttk,
 )
-from tkinter import font as tkfont
+from tkinter import (
+    font as tkfont,
+)
 
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -168,7 +170,7 @@ class FileSelectionStep(WizardStep):
         list_frame.pack(fill="both", expand=True)
 
         # Scrollable listbox
-        scrollbar = Scrollbar(list_frame)
+        scrollbar = create_scrollbar(list_frame)
         scrollbar.pack(side="right", fill="y")
 
         self.paths_listbox = Listbox(
@@ -188,7 +190,7 @@ class FileSelectionStep(WizardStep):
         )
         tree_frame.pack(fill="both", expand=True, pady=(10, 0))
 
-        tree_scroll = Scrollbar(tree_frame)
+        tree_scroll = create_scrollbar(tree_frame)
         tree_scroll.pack(side="right", fill="y")
 
         self.folder_tree = ttk.Treeview(

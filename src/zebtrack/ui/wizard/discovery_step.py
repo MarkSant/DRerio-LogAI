@@ -21,8 +21,8 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
-from tkinter.ttk import Scrollbar
 
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
@@ -68,7 +68,7 @@ class DiscoveryStep(WizardStep):
         self.scroll_canvas = Canvas(
             self, highlightthickness=0, bg=background_color, borderwidth=0
         )
-        self.scrollbar = Scrollbar(
+        self.scrollbar = create_scrollbar(
             self, orient="vertical", command=self.scroll_canvas.yview
         )
         self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)

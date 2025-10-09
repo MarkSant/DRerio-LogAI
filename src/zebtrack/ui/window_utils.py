@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+from tkinter import TclError, ttk
 from typing import Any, Callable
+
+try:
+    import ttkbootstrap as ttkb
+except Exception:  # pragma: no cover - optional dependency
+    ttkb = None
 
 
 def _try_actions(window: Any, actions: tuple[Callable[[], None], ...]) -> bool:
@@ -75,3 +81,48 @@ def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
         window.geometry(geometry)
     except Exception:
         pass
+
+
+
+def _ttkbootstrap_style_needs_reset() -> bool:
+    if ttkb is None:
+        return False
+
+    try:
+        from ttkbootstrap.style import Style
+    except Exception:
+        return False
+
+    style = getattr(Style, "instance", None)
+    if style is None:
+        return False
+
+    try:
+        master = getattr(style, "master", None)
+        return not (master and master.winfo_exists())
+    except Exception:
+        return True
+
+
+def _clear_ttkbootstrap_style() -> None:
+    if ttkb is None:
+        return
+
+    try:
+        from ttkbootstrap.style import Style
+    except Exception:
+        return
+
+    setattr(Style, "instance", None)
+
+
+def create_scrollbar(parent: Any, **kwargs: Any):
+    """Create a ttk Scrollbar resilient to destroyed Tk masters."""
+    try:
+        return ttk.Scrollbar(parent, **kwargs)
+    except TclError as exc:
+        if "application has been destroyed" not in str(exc):
+            raise
+        if _ttkbootstrap_style_needs_reset():
+            _clear_ttkbootstrap_style()
+        return ttk.Scrollbar(parent, **kwargs)

@@ -2663,7 +2663,10 @@ class ApplicationGUI:
 
         ttk.Label(
             self.config_tab_frame,
-            text="As validações avançadas (offset < intervalo, polyorder < janela, etc.) são aplicadas automaticamente ao salvar.",
+            text=(
+                "As validações avançadas (offset < intervalo, polyorder < janela, "
+                "etc.) são aplicadas automaticamente ao salvar."
+            ),
             wraplength=560,
             justify="left",
             font=("TkDefaultFont", 8),
@@ -2687,46 +2690,82 @@ class ApplicationGUI:
         )
         self.config_processing_interval_var.set(
             str(
-                self._extract_setting(current, ("video_processing", "processing_interval"), 10)
+                self._extract_setting(
+                    current,
+                    ("video_processing", "processing_interval"),
+                    10,
+                )
             )
         )
         self.config_processing_offset_var.set(
             str(
-                self._extract_setting(current, ("video_processing", "processing_offset"), 0)
+                self._extract_setting(
+                    current,
+                    ("video_processing", "processing_offset"),
+                    0,
+                )
             )
         )
         self.config_flush_interval_var.set(
             str(
-                self._extract_setting(current, ("recorder", "flush_interval_seconds"), 5.0)
+                self._extract_setting(
+                    current,
+                    ("recorder", "flush_interval_seconds"),
+                    5.0,
+                )
             )
         )
         self.config_flush_rows_var.set(
             str(
-                self._extract_setting(current, ("recorder", "flush_row_threshold"), 500)
+                self._extract_setting(
+                    current,
+                    ("recorder", "flush_row_threshold"),
+                    500,
+                )
             )
         )
         self.config_window_length_var.set(
             str(
-                self._extract_setting(current, ("trajectory_smoothing", "window_length"), 7)
+                self._extract_setting(
+                    current,
+                    ("trajectory_smoothing", "window_length"),
+                    7,
+                )
             )
         )
         self.config_polyorder_var.set(
             str(
-                self._extract_setting(current, ("trajectory_smoothing", "polyorder"), 3)
+                self._extract_setting(
+                    current,
+                    ("trajectory_smoothing", "polyorder"),
+                    3,
+                )
             )
         )
 
         self.roi_inclusion_rule_var.set(
-            self._extract_setting(current, ("roi_inclusion_rule",), self.roi_inclusion_rule_var.get())
+            self._extract_setting(
+                current,
+                ("roi_inclusion_rule",),
+                self.roi_inclusion_rule_var.get(),
+            )
         )
         self.roi_buffer_radius_var.set(
             str(
-                self._extract_setting(current, ("roi_buffer_radius_value",), float(self.roi_buffer_radius_var.get() or 0.5))
+                self._extract_setting(
+                    current,
+                    ("roi_buffer_radius_value",),
+                    float(self.roi_buffer_radius_var.get() or 0.5),
+                )
             )
         )
         self.roi_overlap_ratio_var.set(
             str(
-                self._extract_setting(current, ("roi_min_bbox_overlap_ratio",), float(self.roi_overlap_ratio_var.get() or 0.1))
+                self._extract_setting(
+                    current,
+                    ("roi_min_bbox_overlap_ratio",),
+                    float(self.roi_overlap_ratio_var.get() or 0.1),
+                )
             )
         )
 
@@ -2747,7 +2786,10 @@ class ApplicationGUI:
     def _on_reset_global_config_form(self) -> None:
         """Reset form fields to reflect current settings object."""
         self._reload_config_editor_values()
-        self.show_info("Valores recarregados", "Campos atualizados com os valores atuais do config.")
+        self.show_info(
+            "Valores recarregados",
+            "Campos atualizados com os valores atuais do config.",
+        )
 
     def _on_save_global_config(self) -> None:
         """Persist configuration overrides and reload global settings."""
@@ -2831,9 +2873,17 @@ class ApplicationGUI:
             else:
                 override_content = {}
 
-            merged_override = self._deep_merge_dicts(override_content, update_payload)
+            merged_override = self._deep_merge_dicts(
+                override_content,
+                update_payload,
+            )
             with open(override_path, "w", encoding="utf-8") as handle:
-                yaml.safe_dump(merged_override, handle, sort_keys=False, allow_unicode=True)
+                yaml.safe_dump(
+                    merged_override,
+                    handle,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
         except Exception as exc:
             self.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
@@ -6883,7 +6933,11 @@ class ApplicationGUI:
                     min_distance = edge_snap['distance']
                     closest_point = (edge_snap['x'], edge_snap['y'])
 
-        anchors: list[tuple[float, float]] = [tuple(vertex) for polygon in all_polygons for vertex in polygon]
+        anchors: list[tuple[float, float]] = [
+            tuple(vertex)
+            for polygon in all_polygons
+            for vertex in polygon
+        ]
         axis_centers: list[tuple[float, float]] = []
 
         if zone_data.polygon:
@@ -6904,7 +6958,9 @@ class ApplicationGUI:
         )
 
         if axis_snap is not None:
-            axis_dist = np.sqrt((canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2)
+            axis_dist = np.sqrt(
+                (canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2
+            )
             if axis_dist < min_distance:
                 closest_point = axis_snap
                 min_distance = axis_dist
@@ -6923,7 +6979,11 @@ class ApplicationGUI:
             templates = []
 
         self._roi_templates_cache = templates
-        names = [template.get("name", "") for template in templates if template.get("name")]
+        names = [
+            template.get("name", "")
+            for template in templates
+            if template.get("name")
+        ]
 
         if self.roi_template_combobox:
             self.roi_template_combobox.configure(values=names)
@@ -6969,7 +7029,10 @@ class ApplicationGUI:
         self.roi_template_var.set(metadata.get("name", ""))
         self.show_info(
             "Template salvo",
-            f"Template '{metadata.get('name', name)}' disponível para uso em outros vídeos.",
+            (
+                "Template '"
+                f"{metadata.get('name', name)}' disponível para uso em outros vídeos."
+            ),
         )
 
     def _on_import_roi_template(self) -> None:
@@ -6995,7 +7058,10 @@ class ApplicationGUI:
         self.roi_template_var.set(metadata.get("name", ""))
         self.show_info(
             "Template importado",
-            f"Template '{metadata.get('name', Path(file_path).stem)}' importado com sucesso.",
+            (
+                "Template '"
+                f"{metadata.get('name', Path(file_path).stem)}' importado com sucesso."
+            ),
         )
 
     def _on_apply_roi_template(self) -> None:
@@ -7023,15 +7089,26 @@ class ApplicationGUI:
             template_zone = pm.load_roi_template(template_name)
             pm.save_zone_data(template_zone, video_path=active_video)
         except FileNotFoundError as exc:
-            log.error("gui.roi_templates.file_missing", template=template_name, error=str(exc))
+            log.error(
+                "gui.roi_templates.file_missing",
+                template=template_name,
+                error=str(exc),
+            )
             self.show_error(
                 "Arquivo não encontrado",
-                "O arquivo associado ao template não foi encontrado. Remova ou importe novamente o template.",
+                (
+                    "O arquivo associado ao template não foi encontrado. "
+                    "Remova ou importe novamente o template."
+                ),
             )
             self._refresh_roi_templates()
             return
         except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.apply_failed", error=str(exc), template=template_name)
+            log.error(
+                "gui.roi_templates.apply_failed",
+                error=str(exc),
+                template=template_name,
+            )
             self.show_error("Erro ao aplicar template", str(exc))
             return
 
@@ -8636,7 +8713,10 @@ class ApplicationGUI:
             percentages = stats.get("social_time_percentage") or {}
             if isinstance(percentages, dict) and percentages:
                 formatted = []
-                for key, value in sorted(percentages.items(), key=lambda item: str(item[0])):
+                for key, value in sorted(
+                    percentages.items(),
+                    key=lambda item: str(item[0]),
+                ):
                     if isinstance(value, (int, float)):
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
@@ -8655,7 +8735,11 @@ class ApplicationGUI:
             self.social_summary_var.set("Interações sociais: aguardando dados.")
 
         if tracks:
-            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
+            normalized_tracks = [
+                str(track).strip()
+                for track in tracks
+                if str(track).strip()
+            ]
             if normalized_tracks:
                 self._update_track_options(["Todos"] + normalized_tracks)
 
@@ -8696,11 +8780,17 @@ class ApplicationGUI:
     def _render_last_analysis_frame(self) -> None:
         if self._last_analysis_frame is None:
             return
-        frame = self._annotate_selected_tracks(self._last_analysis_frame.copy())
+        frame = self._annotate_selected_tracks(
+            self._last_analysis_frame.copy()
+        )
         self._show_analysis_frame_image(frame)
 
     def _annotate_selected_tracks(self, frame):
-        selected = self.track_selector_var.get() if hasattr(self, "track_selector_var") else "Todos"
+        selected = (
+            self.track_selector_var.get()
+            if hasattr(self, "track_selector_var")
+            else "Todos"
+        )
         selected = str(selected).strip()
         if not selected or selected.lower() == "todos":
             return frame

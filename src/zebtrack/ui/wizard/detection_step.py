@@ -8,7 +8,6 @@ from tkinter import (
     Frame,
     Label,
     LabelFrame,
-    Scrollbar,
     StringVar,
     Text,
     messagebox,
@@ -21,6 +20,7 @@ from typing import Optional
 import structlog
 
 from zebtrack.core.project_manager import ProjectManager
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
 from zebtrack.ui.wizard.design_editor_dialog import DesignEditorDialog
@@ -112,7 +112,7 @@ class DetectionStep(WizardStep):
         results_frame.pack(fill="both", expand=True, pady=(0, 15))
 
         # Scrollable text widget for results
-        scrollbar = Scrollbar(results_frame)
+        scrollbar = create_scrollbar(results_frame)
         scrollbar.pack(side="right", fill="y")
 
         self.results_text = Text(

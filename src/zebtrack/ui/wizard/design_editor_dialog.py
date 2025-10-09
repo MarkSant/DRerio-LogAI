@@ -11,16 +11,18 @@ from tkinter import (
     Frame,
     Label,
     Listbox,
-    Scrollbar,
     StringVar,
     messagebox,
 )
-from tkinter import font as tkfont
+from tkinter import (
+    font as tkfont,
+)
 from tkinter.simpledialog import Dialog
 from typing import Callable
 
 import structlog
 
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
 
 log = structlog.get_logger()
@@ -143,7 +145,7 @@ class DesignEditorDialog(Dialog):
             borderwidth=0,
             highlightthickness=0,
         )
-        groups_scrollbar = Scrollbar(
+        groups_scrollbar = create_scrollbar(
             table_container,
             orient="vertical",
             command=self.groups_canvas.yview,
@@ -212,7 +214,7 @@ class DesignEditorDialog(Dialog):
         days_list_frame = Frame(days_frame)
         days_list_frame.pack(fill="both", expand=True, pady=5)
 
-        days_scrollbar = Scrollbar(days_list_frame)
+        days_scrollbar = create_scrollbar(days_list_frame)
         days_scrollbar.pack(side="right", fill="y")
 
         self.days_listbox = Listbox(

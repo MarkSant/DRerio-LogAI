@@ -11,6 +11,7 @@ from tkinter import font as tkfont
 
 import structlog
 
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import (
     ImportAction,
@@ -100,7 +101,7 @@ class ImportConfigStep(WizardStep):
         table_frame.pack(fill="both", expand=True, pady=(0, 15))
 
         # Create Treeview with scrollbar
-        tree_scroll = ttk.Scrollbar(table_frame)
+        tree_scroll = create_scrollbar(table_frame)
         tree_scroll.pack(side="right", fill="y")
 
         self.video_tree = ttk.Treeview(
