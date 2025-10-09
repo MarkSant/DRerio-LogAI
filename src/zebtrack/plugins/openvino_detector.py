@@ -192,21 +192,32 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        # 2. For single animal mode with large frame intervals, skip ByteTrack.
-        # ByteTrack needs continuous frames to maintain tracks, so with a large
-        # interval (e.g., 30 frames) it fails.
-        # Instead, directly convert detections to predictions with fixed track_id.
+        img_h, img_w = frame.shape[:2]
+        if detections:
+            det_array = np.array(
+                [[x1, y1, x2, y2, score] for x1, y1, x2, y2, score, _ in detections],
+                dtype=np.float32,
+            )
+        else:
+            det_array = np.empty((0, 5), dtype=np.float32)
+
+        online_targets = self.tracker.update(
+            det_array,
+            (img_h, img_w),
+            self.model_input_shape,
+        )
+
         predictions = []
-        for det in detections:
-            x1, y1, x2, y2, conf, class_id = det
+        for track in online_targets:
+            x1, y1, x2, y2 = track.tlbr
             predictions.append(
                 (
                     int(x1),
                     int(y1),
                     int(x2),
                     int(y2),
-                    float(conf),
-                    1,  # Fixed track_id for single animal
+                    float(track.score),
+                    int(track.track_id),
                 )
             )
 
