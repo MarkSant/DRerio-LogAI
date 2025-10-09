@@ -7,7 +7,7 @@ This directory holds interactive or high-level verification scripts that supplem
 - `overlay_integration_validation.py` – Static checks that confirm GUI and detector overlays include the expected logic.
 - `progress_stats_manual_check.py` – Exercises the progress statistics GUI updates with a real Tkinter root window.
 - `progress_stats_sanity.py` – Lightweight sanity checks for progress statistics calculations and imports.
-- `verify_interval_frames.py` – Validates that interval frame configuration fields and storage remain in place.
+- `verify_interval_frames.py` – Legacy shim that points to the automated pytest coverage for interval frame settings.
 - `verify_overlay_integration.py` – Expanded overlay verification with step-by-step validation output.
 - `visual_overlay_test.py` – Textual walkthrough of the overlay flow and expected visuals.
 
