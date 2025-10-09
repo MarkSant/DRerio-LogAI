@@ -198,6 +198,53 @@ class TestProjectManager(unittest.TestCase):
             os.path.normpath(expected_results_rois),
         )
 
+    def test_save_roi_template_persists_file_and_metadata(self):
+        pm, video_path, _ = self._create_manager_with_assets()
+        zone_data = pm.get_zone_data(video_path=video_path)
+
+        metadata = pm.save_roi_template("Template Principal", zone_data)
+        self.assertIsNotNone(pm.project_path)
+        project_path = Path(pm.project_path or self.test_dir)
+
+        templates = pm.list_roi_templates()
+        self.assertTrue(any(t["name"] == "Template Principal" for t in templates))
+
+        template_path = project_path / metadata["file"]
+        self.assertTrue(template_path.exists())
+
+        loaded_zone = pm.load_roi_template("Template Principal")
+        self.assertEqual(loaded_zone.polygon, zone_data.polygon)
+        self.assertEqual(loaded_zone.roi_polygons, zone_data.roi_polygons)
+
+    def test_import_roi_template_registers_metadata(self):
+        pm, _, _ = self._create_manager_with_assets(name="import_test")
+        template_dir = Path(self.test_dir) / "external"
+        template_dir.mkdir(parents=True, exist_ok=True)
+
+        payload = {
+            "version": 1,
+            "name": "Template Importado",
+            "data": {
+                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "roi_polygons": [],
+                "roi_names": [],
+                "roi_colors": [],
+            },
+        }
+
+        external_path = template_dir / "import_template.json"
+        external_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        metadata = pm.import_roi_template(str(external_path))
+        self.assertIsNotNone(pm.project_path)
+        project_path = Path(pm.project_path or self.test_dir)
+
+        self.assertEqual(metadata["name"], "Template Importado")
+        self.assertTrue((project_path / metadata["file"]).exists())
+
+        loaded_zone = pm.load_roi_template("Template Importado")
+        self.assertEqual(len(loaded_zone.polygon), 4)
+
     def test_scan_input_paths_uses_directory_cache(self):
         ProjectManager.clear_scan_cache()
         video_dir = os.path.join(self.test_dir, "videos")

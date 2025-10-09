@@ -46,6 +46,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
+from zebtrack.utils import polygon_centroid, snap_point_to_axes
 from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
@@ -1762,6 +1763,7 @@ class ApplicationGUI:
         # ROI Tab Widgets
         self.roi_listbox = None
         self.run_analysis_btn = None
+        self.roi_template_combobox = None
 
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
@@ -1773,6 +1775,8 @@ class ApplicationGUI:
         self.roi_overlap_ratio_var = StringVar(
             value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10)
         )
+        self.roi_template_var = StringVar(value="")
+        self._roi_templates_cache: list[dict[str, Any]] = []
 
         # Progress + stats (created later)
         self.progress_frame: Frame | None = None
@@ -3534,6 +3538,60 @@ class ApplicationGUI:
         )
         self.toggle_view_btn.pack(fill="x", pady=2)
 
+        template_frame = ttk.LabelFrame(
+            self.zone_controls_frame,
+            text="Templates de ROI",
+            padding=10,
+        )
+        template_frame.pack(fill="x", pady=5)
+
+        template_selector = ttk.Frame(template_frame)
+        template_selector.pack(fill="x", pady=(0, 6))
+
+        ttk.Label(template_selector, text="Template atual:").pack(
+            side="left", padx=(0, 5)
+        )
+        self.roi_template_combobox = ttk.Combobox(
+            template_selector,
+            state="readonly",
+            textvariable=self.roi_template_var,
+            values=[],
+            width=25,
+        )
+        self.roi_template_combobox.pack(side="left", fill="x", expand=True)
+
+        ttk.Button(
+            template_selector,
+            text="Aplicar",
+            command=self._on_apply_roi_template,
+        ).pack(side="left", padx=4)
+
+        template_actions = ttk.Frame(template_frame)
+        template_actions.pack(fill="x")
+
+        ttk.Button(
+            template_actions,
+            text="Salvar Atual",
+            command=self._on_save_roi_template,
+        ).pack(side="left")
+        ttk.Button(
+            template_actions,
+            text="Importar...",
+            command=self._on_import_roi_template,
+        ).pack(side="left", padx=4)
+
+        ttk.Label(
+            template_frame,
+            text=(
+                "Templates armazenam o polígono principal e todas as ROIs "
+                "para reutilizar em outros vídeos do projeto."
+            ),
+            wraplength=280,
+            style="Small.TLabel",
+        ).pack(anchor="w", pady=(6, 0))
+
+        self._refresh_roi_templates()
+
         # --- Video Selector ---
         video_selector_frame = ttk.LabelFrame(
             self.zone_controls_frame,
@@ -4853,6 +4911,7 @@ class ApplicationGUI:
                 return
 
             self.controller.project_manager.set_active_zone_video(video_path)
+            self._refresh_roi_templates()
 
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
@@ -6308,7 +6367,167 @@ class ApplicationGUI:
                     min_distance = edge_snap['distance']
                     closest_point = (edge_snap['x'], edge_snap['y'])
 
+        anchors: list[tuple[float, float]] = [tuple(vertex) for polygon in all_polygons for vertex in polygon]
+        axis_centers: list[tuple[float, float]] = []
+
+        if zone_data.polygon:
+            centroid = polygon_centroid(zone_data.polygon)
+            if centroid:
+                axis_centers.append(self._video_to_canvas(*centroid))
+
+        for roi_polygon in zone_data.roi_polygons or []:
+            centroid = polygon_centroid(roi_polygon)
+            if centroid:
+                axis_centers.append(self._video_to_canvas(*centroid))
+
+        axis_snap = snap_point_to_axes(
+            (canvas_x, canvas_y),
+            anchors=anchors,
+            centers=axis_centers,
+            threshold=float(snap_threshold),
+        )
+
+        if axis_snap is not None:
+            axis_dist = np.sqrt((canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2)
+            if axis_dist < min_distance:
+                closest_point = axis_snap
+                min_distance = axis_dist
+
         return closest_point
+
+    def _refresh_roi_templates(self) -> None:
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        try:
+            templates = pm.list_roi_templates()
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("gui.roi_templates.refresh_failed", error=str(exc))
+            templates = []
+
+        self._roi_templates_cache = templates
+        names = [template.get("name", "") for template in templates if template.get("name")]
+
+        if self.roi_template_combobox:
+            self.roi_template_combobox.configure(values=names)
+
+        if names:
+            if self.roi_template_var.get() not in names:
+                self.roi_template_var.set(names[0])
+        else:
+            self.roi_template_var.set("")
+
+    def _on_save_roi_template(self) -> None:
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        zone_data = pm.get_zone_data()
+        if not zone_data or not zone_data.polygon:
+            self.show_warning(
+                "Template incompleto",
+                "Desenhe a arena principal antes de salvar um template de ROI.",
+            )
+            return
+
+        name = self.ask_string(
+            "Salvar Template",
+            "Digite um nome para o template de ROIs:",
+            initialvalue=self.roi_template_var.get() or "",
+        )
+        if not name:
+            return
+
+        try:
+            metadata = pm.save_roi_template(name.strip(), zone_data)
+        except ValueError as exc:
+            self.show_warning("Template inválido", str(exc))
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error("gui.roi_templates.save_failed", error=str(exc))
+            self.show_error("Erro ao salvar", str(exc))
+            return
+
+        self._refresh_roi_templates()
+        self.roi_template_var.set(metadata.get("name", ""))
+        self.show_info(
+            "Template salvo",
+            f"Template '{metadata.get('name', name)}' disponível para uso em outros vídeos.",
+        )
+
+    def _on_import_roi_template(self) -> None:
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        file_path = filedialog.askopenfilename(
+            title="Importar Template de ROI",
+            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+
+        try:
+            metadata = pm.import_roi_template(file_path)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
+            self.show_error("Erro ao importar", str(exc))
+            return
+
+        self._refresh_roi_templates()
+        self.roi_template_var.set(metadata.get("name", ""))
+        self.show_info(
+            "Template importado",
+            f"Template '{metadata.get('name', Path(file_path).stem)}' importado com sucesso.",
+        )
+
+    def _on_apply_roi_template(self) -> None:
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        template_name = (self.roi_template_var.get() or "").strip()
+        if not template_name:
+            self.show_warning(
+                "Nenhum template selecionado",
+                "Escolha um template para aplicar nas áreas de interesse.",
+            )
+            return
+
+        active_video = pm.get_active_zone_video()
+        if not active_video:
+            self.show_warning(
+                "Vídeo não selecionado",
+                "Selecione um vídeo na lista antes de aplicar o template.",
+            )
+            return
+
+        try:
+            template_zone = pm.load_roi_template(template_name)
+            pm.save_zone_data(template_zone, video_path=active_video)
+        except FileNotFoundError as exc:
+            log.error("gui.roi_templates.file_missing", template=template_name, error=str(exc))
+            self.show_error(
+                "Arquivo não encontrado",
+                "O arquivo associado ao template não foi encontrado. Remova ou importe novamente o template.",
+            )
+            self._refresh_roi_templates()
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error("gui.roi_templates.apply_failed", error=str(exc), template=template_name)
+            self.show_error("Erro ao aplicar template", str(exc))
+            return
+
+        self.redraw_zones_from_project_data()
+        self.update_zone_listbox()
+        self._refresh_zone_indicators()
+        self._enable_roi_button_if_arena_exists()
+        self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
+        self.show_info(
+            "Template aplicado",
+            f"As zonas foram atualizadas com o template '{template_name}'.",
+        )
 
     def _point_to_segment_distance(self, px, py, x1, y1, x2, y2):
         """

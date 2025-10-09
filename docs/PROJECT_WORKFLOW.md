@@ -692,6 +692,31 @@ if match:
             "subject": int(match.group(3))}
 ```
 
+### 7.3 Modelos de ROI (ROI Templates)
+
+Para acelerar a configuração de experimentos recorrentes, o projeto mantém **modelos reutilizáveis de zonas/ROIs**:
+
+- Diretório dedicado: `<pasta_projeto>/roi_templates/`
+- Cada template é salvo como JSON (`<slug>.json`) com estrutura:
+
+```json
+{
+    "version": 1,
+    "name": "Template Centro x Bordas",
+    "data": {
+        "polygon": [[x1, y1], ...],
+        "roi_polygons": [[[x1, y1], ...], ...],
+        "roi_names": ["Centro", "Perímetro"],
+        "roi_colors": [[0, 255, 255], ...]
+    }
+}
+```
+
+- Metadados indexados em `project_config.json` (`project_data["roi_templates"]`), incluindo `name`, `file`, `created_at`, `hash`.
+- Persistência via `ProjectManager.save_roi_template()`, importação (`import_roi_template`) e carregamento (`load_roi_template`).
+- A UI exibe os modelos na nova combobox “ROI templates” (aba de zonas) permitindo **Aplicar**, **Salvar estado atual** ou **Importar JSON externos**.
+- Ao aplicar um template, a arena e ROIs carregadas substituem a seleção atual e disparam `save_zones()` automaticamente.
+
 ---
 
 ## 8. Arquivos de Saída
@@ -785,6 +810,12 @@ Se inverter, as barras de progresso ficam escondidas atrás do vídeo!
 
 **Referência**: `CLAUDE.md` linhas 61-72
 
+#### Snapping assistido de vértices
+
+- Ao editar arena/ROIs com a tecla `Shift` pressionada, o vértice em movimento alinha-se ao **centro atual** do polígono ou aos eixos `X`/`Y` mais próximos.
+- A lógica usa `zebtrack.utils.snap_point_to_axes` e `polygon_centroid` para evitar distorções quando os vértices estão quase alinhados.
+- Útil para manter arenas retangulares ou ROIs ortogonais consistentes entre vídeos.
+
 ### 9.3 Detector Context
 
 **Dois modos de operação:**
@@ -836,6 +867,14 @@ for i, video in enumerate(videos):
 ```
 
 **Referência**: `CLAUDE.md` linhas 110-116
+
+### 9.6 ROI Templates reutilizáveis na UI
+
+- Controles localizados na aba **Zones**: combobox “ROI templates”, botão **Apply**, **Save current** e **Import JSON**.
+- `Apply` carrega o template selecionado, atualiza o `ProjectManager` e redesenha automaticamente a arena/ROIs.
+- `Save current` persiste o estado atual (arena + ROIs) como novo template, com slug gerado automaticamente.
+- `Import JSON` aceita arquivos externos no formato mostrado na seção [7.3](#73-modelos-de-roi-roi-templates) e evita colisões de nome via slug incremental.
+- Após qualquer alteração, a lista é atualizada em tempo real (`_refresh_roi_templates`) para manter a combobox sincronizada com o disco.
 
 ---
 

@@ -8,7 +8,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Literal, Tuple
+from typing import Any, Iterable, Literal, Tuple
 
 from copy import deepcopy
 
@@ -22,6 +22,7 @@ from zebtrack.utils import IntegrityError, calculate_sha256
 
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
+ROI_TEMPLATE_VERSION = 1
 
 log = structlog.get_logger()
 
@@ -76,6 +77,158 @@ class ProjectManager:
             self.project_data["detection_zones"] = {}
         if "zones_by_video" not in self.project_data:
             self.project_data["zones_by_video"] = {}
+        if "roi_templates" not in self.project_data or not isinstance(
+            self.project_data.get("roi_templates"), list
+        ):
+            self.project_data["roi_templates"] = []
+
+    def _ensure_roi_template_dir(self) -> Path:
+        if not self.project_path:
+            raise ValueError("Projeto não inicializado para salvar templates de ROI.")
+        target = Path(self.project_path) / "roi_templates"
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+        normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
+        return normalized.lower() or "template"
+
+    def list_roi_templates(self) -> list[dict[str, Any]]:
+        self._ensure_zone_structures()
+        templates = self.project_data.get("roi_templates", [])
+        return sorted(
+            [deepcopy(item) for item in templates if isinstance(item, dict)],
+            key=lambda item: str(item.get("name", "")).lower(),
+        )
+
+    def _resolve_roi_template_entry(self, name: str) -> tuple[int, dict[str, Any]] | tuple[None, None]:
+        templates = self.project_data.get("roi_templates", [])
+        for idx, entry in enumerate(templates):
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("name") == name:
+                return idx, entry
+        return None, None
+
+    def save_roi_template(
+        self,
+        name: str,
+        zone_data: ZoneData,
+        *,
+        overwrite: bool = True,
+        persist: bool = True,
+    ) -> dict[str, Any]:
+        if not name or not name.strip():
+            raise ValueError("O nome do template não pode ficar vazio.")
+
+        if not zone_data or not zone_data.polygon:
+            raise ValueError("O template precisa conter ao menos a arena principal.")
+
+        self._ensure_zone_structures()
+        template_dir = self._ensure_roi_template_dir()
+        slug = self._slugify(name)
+
+        existing_index, existing_entry = self._resolve_roi_template_entry(name)
+        if existing_entry and not overwrite:
+            raise ValueError(f"Template '{name}' já existe.")
+
+        if existing_entry is None:
+            # Ensure slug uniqueness when name differs but slug matches
+            collision = any(
+                entry.get("slug") == slug for entry in self.project_data.get("roi_templates", [])
+            )
+            counter = 2
+            base_slug = slug
+            while collision:
+                slug = f"{base_slug}-{counter}"
+                collision = any(
+                    entry.get("slug") == slug for entry in self.project_data.get("roi_templates", [])
+                )
+                counter += 1
+
+        template_path = template_dir / f"{slug}.json"
+        now = datetime.utcnow().isoformat()
+
+        serialized = self._zone_data_to_dict(zone_data)
+        payload = {
+            "version": ROI_TEMPLATE_VERSION,
+            "name": name,
+            "created_at": existing_entry.get("created_at", now) if existing_entry else now,
+            "updated_at": now,
+            "data": serialized,
+        }
+
+        with open(template_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+        metadata = {
+            "name": name,
+            "slug": slug,
+            "file": os.path.relpath(template_path, self.project_path or template_path.parent),
+            "roi_count": len(serialized.get("roi_polygons", [])),
+            "updated_at": now,
+            "created_at": existing_entry.get("created_at", now) if existing_entry else now,
+        }
+
+        templates = self.project_data.setdefault("roi_templates", [])
+        if existing_index is not None:
+            templates[existing_index] = metadata
+        else:
+            templates.append(metadata)
+
+        if persist:
+            self.save_project()
+        return deepcopy(metadata)
+
+    def import_roi_template(
+        self,
+        file_path: str,
+        *,
+        name: str | None = None,
+        persist: bool = True,
+    ) -> dict[str, Any]:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(file_path)
+
+        with open(file_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+
+        data_block = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data_block, dict):
+            raise ValueError("Arquivo de template inválido: bloco 'data' ausente.")
+
+        zone_data = self._zone_data_from_dict(data_block)
+        template_name = name or payload.get("name") or Path(file_path).stem
+        return self.save_roi_template(template_name, zone_data, persist=persist)
+
+    def load_roi_template(self, name: str) -> ZoneData:
+        self._ensure_zone_structures()
+        _, entry = self._resolve_roi_template_entry(name)
+        if not entry:
+            raise ValueError(f"Template de ROI '{name}' não encontrado.")
+
+        relative_file = entry.get("file")
+        if not relative_file:
+            raise ValueError("Arquivo do template não registrado no projeto.")
+
+        template_path = (
+            Path(self.project_path) / relative_file
+            if self.project_path
+            else Path(relative_file)
+        )
+        if not template_path.exists():
+            raise FileNotFoundError(str(template_path))
+
+        with open(template_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+
+        data_block = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data_block, dict):
+            raise ValueError("Conteúdo do template inválido.")
+
+        return self._zone_data_from_dict(data_block)
 
     def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
         """Serialize ZoneData into a JSON-friendly dictionary."""
@@ -1074,6 +1227,7 @@ class ProjectManager:
             "detection_zones": {},
             "zones_by_video": {},
             "analysis_profiles": [self._default_analysis_profile()],
+            "roi_templates": [],
         }
 
         # Add wizard metadata if provided (from wizard v1.5+)
@@ -1247,6 +1401,13 @@ class ProjectManager:
                 ]
                 migration_applied = True
                 migrated_fields.append("analysis_profiles")
+
+            if "roi_templates" not in loaded_data or not isinstance(
+                loaded_data.get("roi_templates"), list
+            ):
+                loaded_data["roi_templates"] = []
+                migration_applied = True
+                migrated_fields.append("roi_templates")
 
             if "camera_index" not in loaded_data or loaded_data["camera_index"] is None:
                 loaded_data["camera_index"] = 0
