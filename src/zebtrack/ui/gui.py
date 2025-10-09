@@ -38,6 +38,11 @@ from pathlib import Path
 # Import custom modules
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
+from zebtrack.ui.window_utils import (
+    reset_geometry_if_not_maximized,
+    schedule_maximize,
+    set_geometry_if_not_maximized,
+)
 
 log = structlog.get_logger()
 
@@ -103,6 +108,7 @@ class CalibrationDialog(simpledialog.Dialog):
         super().__init__(parent, "Calibração e Diagnóstico")
 
     def body(self, master):
+        schedule_maximize(self)
         scope_frame = ttk.LabelFrame(
             master, text="Contexto da Calibração", padding=10
         )
@@ -579,6 +585,7 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         super().__init__(parent, "Preferências do Projeto")
 
     def body(self, master):
+        schedule_maximize(self)
         master.columnconfigure(1, weight=1)
 
         ttk.Label(
@@ -759,6 +766,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         super().__init__(parent, "Gerenciar Pesos de Detecção")
 
     def body(self, master):
+        schedule_maximize(self)
         self.listbox = ttk.Treeview(
             master, columns=("name", "is_default"), show="headings", height=5
         )
@@ -1025,6 +1033,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         super().__init__(parent, "Criar Novo Projeto")
 
     def body(self, master):
+        schedule_maximize(self)
         self.project_name_var = StringVar()
         self.num_aquariums_var = StringVar(value="1")
         self.animals_per_aquarium_var = StringVar(value="1")
@@ -1932,7 +1941,7 @@ class ApplicationGUI:
         # Force final GUI update before creating welcome frame
         self.root.update_idletasks()
 
-        self.root.geometry("")  # Let it resize
+    reset_geometry_if_not_maximized(self.root)
         self.welcome_frame = ttk.Frame(self.root, padding="10")
         self.welcome_frame.pack(expand=True, fill="both")
 
@@ -2093,7 +2102,7 @@ class ApplicationGUI:
         """Creates the main UI with tabs for controlling the app."""
         if self.welcome_frame:
             self.welcome_frame.destroy()
-        self.root.geometry("")  # Let it resize
+    reset_geometry_if_not_maximized(self.root)
 
         self.notebook = ttk.Notebook(self.root, style="Zebtrack.TNotebook")
         self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
@@ -4406,7 +4415,7 @@ class ApplicationGUI:
             screen_h = self.root.winfo_screenheight()
             win_w = min(int(screen_w * 0.8), w + 400)  # Account for controls space
             win_h = min(int(screen_h * 0.8), h + 150)  # Account for window decorations
-            self.root.geometry(f"{win_w}x{win_h}")
+            set_geometry_if_not_maximized(self.root, f"{win_w}x{win_h}")
             self.root.update_idletasks()
 
             # Convert the frame for display

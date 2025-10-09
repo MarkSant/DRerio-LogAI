@@ -20,6 +20,7 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
+from zebtrack.ui.window_utils import maximize_window, schedule_maximize
 
 log = structlog.get_logger()
 
@@ -96,6 +97,7 @@ class WizardDialog(Dialog):
         Returns:
             Widget: Widget to receive initial focus (or None)
         """
+        schedule_maximize(self)
         try:
             self.resizable(True, True)
         except Exception as exc:  # pragma: no cover - defensive
@@ -315,6 +317,7 @@ class WizardDialog(Dialog):
         self.minsize(int(min_width), int(min_height))
 
         self._geometry_initialized = True
+        maximize_window(self)
 
     def _update_minimum_size(self):
         """Refresh minimum size to accommodate the current step content."""

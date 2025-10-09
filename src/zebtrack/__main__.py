@@ -8,6 +8,7 @@ import structlog
 
 from zebtrack.core.controller import AppController
 from zebtrack.settings import settings
+from zebtrack.ui.window_utils import maximize_window
 from zebtrack.utils import set_seed
 
 
@@ -80,6 +81,7 @@ def main():
 
     try:
         root = tk.Tk()
+        maximize_window(root)
         controller = AppController(root)
         controller.run()
     except Exception:
