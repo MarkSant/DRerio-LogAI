@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from pathlib import Path
 from typing import cast
 from unittest.mock import ANY, MagicMock, patch
 
@@ -77,6 +78,35 @@ class TestAppController(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         pass
+
+    def test_prepare_results_directory_archives_existing_run(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            results_dir = Path(tmp_dir) / "video_results"
+            results_dir.mkdir()
+            (results_dir / "summary.xlsx").write_text("data")
+            nested_dir = results_dir / "nested"
+            nested_dir.mkdir()
+            (nested_dir / "trajectory.parquet").write_text("trajectory")
+
+            self.controller._prepare_results_directory(str(results_dir))
+
+            history_dir = results_dir / "history"
+            self.assertTrue(history_dir.exists())
+
+            history_runs = list(history_dir.iterdir())
+            self.assertEqual(len(history_runs), 1)
+            archived_run = history_runs[0]
+            self.assertTrue((archived_run / "summary.xlsx").exists())
+            self.assertTrue(
+                (archived_run / "nested" / "trajectory.parquet").exists()
+            )
+
+            remaining_items = [p for p in results_dir.iterdir() if p.name != "history"]
+            self.assertEqual(remaining_items, [])
+
+            # Second invocation should be a no-op because only history remains
+            self.controller._prepare_results_directory(str(results_dir))
+            self.assertEqual(len(list(history_dir.iterdir())), 1)
 
     def test_get_calibration_scope_info_global_without_project(self):
         info = self.controller.get_calibration_scope_info()

@@ -7721,9 +7721,15 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         self.subjects_per_group = subjects_per_group
         self.completed_subjects = completed_subjects
         self.result = None  # This will be the selected subject_id
-    day_display = ApplicationGUI._format_day_display(day) or day
-    day_title = f"Dia {day_display}" if str(day_display).strip().lower() != "sem dia" else "Sem Dia"
-    super().__init__(parent, f"Selecionar Cobaia para o {day_title} - {group_name}")
+
+        day_display = ApplicationGUI._format_day_display(day) or day
+        day_title = (
+            f"Dia {day_display}"
+            if str(day_display).strip().lower() != "sem dia"
+            else "Sem Dia"
+        )
+
+        super().__init__(parent, f"Selecionar Cobaia para o {day_title} - {group_name}")
 
     def body(self, master):
         master.config(padx=10, pady=10)

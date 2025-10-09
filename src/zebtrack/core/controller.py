@@ -4,6 +4,7 @@ import os
 import tempfile
 import threading
 import time
+from datetime import datetime
 from contextlib import contextmanager
 from tkinter import Label, Toplevel
 
@@ -12,6 +13,8 @@ import numpy as np
 import pandas as pd
 import structlog
 from shapely.geometry import Polygon
+from pathlib import Path
+import shutil
 
 try:
     from ultralytics import YOLO
@@ -2106,7 +2109,7 @@ class AppController:
 
         video_name = os.path.splitext(os.path.basename(video_path))[0]
         output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
-        os.makedirs(output_dir, exist_ok=True)
+        self._prepare_results_directory(output_dir)
 
         # 3. Call the processing in a background thread
         self.cancel_event.clear()
@@ -3191,7 +3194,7 @@ class AppController:
             )
 
             try:
-                os.makedirs(results_dir, exist_ok=True)
+                self._prepare_results_directory(results_dir)
 
                 # Salva configurações completas do projeto
                 settings_file = os.path.join(results_dir, "project_settings.json")
@@ -3248,6 +3251,31 @@ class AppController:
         )
 
         return settings_applied == len(videos)
+
+    def _prepare_results_directory(self, results_dir: str) -> None:
+        """Ensure per-video results are written to a clean folder and archive older runs."""
+        path = Path(results_dir)
+        path.mkdir(parents=True, exist_ok=True)
+
+        existing_items = [item for item in path.iterdir() if item.name != "history"]
+        if not existing_items:
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        history_root = path / "history"
+        archive_dir = history_root / timestamp
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        for item in existing_items:
+            target = archive_dir / item.name
+            shutil.move(str(item), str(target))
+
+        log.info(
+            "controller.results.archive_previous_run",
+            results_dir=str(path),
+            archive_dir=str(archive_dir),
+            item_count=len(existing_items),
+        )
 
     def _process_videos(
         self,
