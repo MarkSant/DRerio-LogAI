@@ -23,6 +23,11 @@ OPENVINO_CACHE_DIR = "openvino_model_cache"
 
 log = structlog.get_logger()
 
+OPENVINO_STATUS_NOT_CONVERTED = "not_converted"
+OPENVINO_STATUS_CONVERTING = "converting"
+OPENVINO_STATUS_READY = "ready"
+OPENVINO_STATUS_FAILED = "failed"
+
 
 class WeightManager:
     def __init__(self, config_dir="."):
@@ -55,6 +60,17 @@ class WeightManager:
                         log.info(
                             "weights.migration.type_added", name=name, type=weight_type
                         )
+
+                    if "openvino_status" not in details:
+                        if details.get("openvino_path"):
+                            details["openvino_status"] = OPENVINO_STATUS_READY
+                        else:
+                            details["openvino_status"] = OPENVINO_STATUS_NOT_CONVERTED
+                        migrated = True
+
+                    if "last_conversion_error" not in details:
+                        details["last_conversion_error"] = None
+                        migrated = True
 
                 if migrated:
                     self.save_weights()
@@ -172,6 +188,8 @@ class WeightManager:
                 "is_default_det": final_type == "det",
                 "openvino_path": "",
                 "openvino_hash": "",
+                "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+                "last_conversion_error": None,
             }
             weights_found = True
             log.info(
@@ -289,7 +307,9 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default.set", name=name_to_set)
 
-    def add_weight(self, new_path: str, set_as_default: bool, weight_type: str = None):
+    def add_weight(
+        self, new_path: str, set_as_default: bool, weight_type: str | None = None
+    ):
         """
         Adds a new weight from a given path after performing security checks.
 
@@ -371,6 +391,8 @@ class WeightManager:
             "is_default_det": weight_type == "det" and set_as_default,
             "openvino_path": "",
             "openvino_hash": "",
+            "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+            "last_conversion_error": None,
         }
         self.save_weights()
         log.info("weights.add.success", name=new_name, path=new_path, type=weight_type)
@@ -434,6 +456,8 @@ class WeightManager:
             log.info("openvino.cache.found", path=cached_model_dir)
             # Ensure the path is absolute for consistency
             details["openvino_path"] = os.path.abspath(cached_model_dir)
+            details["openvino_status"] = OPENVINO_STATUS_READY
+            details["last_conversion_error"] = None
             self.save_weights()
             return details["openvino_path"]
 
@@ -441,12 +465,24 @@ class WeightManager:
         temp_export_path = None
 
         if not ULTRALYTICS_AVAILABLE:
+            details["openvino_status"] = OPENVINO_STATUS_FAILED
+            details["last_conversion_error"] = (
+                "Ultralytics package is required for OpenVINO export"
+            )
+            details["openvino_path"] = ""
+            details["openvino_hash"] = ""
+            self.save_weights()
             raise ImportError(
                 "Ultralytics is not available for OpenVINO export. "
                 "Please install ultralytics package."
             )
 
+        details["openvino_status"] = OPENVINO_STATUS_CONVERTING
+        details["last_conversion_error"] = None
+        self.save_weights()
+
         try:
+            assert YOLO is not None  # Satisfy type checkers after availability guard
             model = YOLO(pt_path)
             # The 'half=True' argument enables FP16 quantization.
             # The export will create a directory named e.g., 'yolov8n_openvino_model'.
@@ -496,6 +532,8 @@ class WeightManager:
 
             details["openvino_path"] = openvino_model_path
             details["openvino_hash"] = model_hash
+            details["openvino_status"] = OPENVINO_STATUS_READY
+            details["last_conversion_error"] = None
             self.save_weights()
 
             log.info(
@@ -510,6 +548,11 @@ class WeightManager:
             # Clean up any partial export directory if it exists
             if os.path.exists(cached_model_dir):
                 shutil.rmtree(cached_model_dir, ignore_errors=True)
+            details["openvino_path"] = ""
+            details["openvino_hash"] = ""
+            details["openvino_status"] = OPENVINO_STATUS_FAILED
+            details["last_conversion_error"] = str(e)
+            self.save_weights()
             messagebox.showerror(
                 "Erro na Exportação OpenVINO",
                 f"Falha ao converter '{name}' para o formato OpenVINO.\n\nErro: {e}",

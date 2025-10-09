@@ -3,11 +3,12 @@ import json
 import os
 import re
 import shutil
+import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Literal, Tuple
+from typing import Any, Literal, Tuple
 
 import pandas as pd
 import structlog
@@ -26,6 +27,9 @@ AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class ProjectManager:
+    _SCAN_CACHE_TTL_SECONDS = 30.0
+    _scan_cache: dict[str, dict[str, Any]] = {}
+
     def __init__(self):
         self.project_path = None
         self.project_data = {}
@@ -389,21 +393,29 @@ class ProjectManager:
                 }
             }, ...]
         """
-        video_files = []
+        video_files: set[Path] = set()
         video_extensions = {".mp4", ".avi", ".mov"}
 
         for p_str in paths:
             p = Path(p_str)
+            if not p.exists():
+                log.debug(
+                    "project_manager.scan_input_paths.missing_path",
+                    path=str(p),
+                )
+                continue
+
             if p.is_dir():
-                # Recursively find all video files in the directory
-                for video_path in p.rglob("*"):
-                    if video_path.suffix.lower() in video_extensions:
-                        video_files.append(video_path)
+                video_files.update(
+                    ProjectManager._scan_directory_for_videos(p, video_extensions)
+                )
             elif p.is_file() and p.suffix.lower() in video_extensions:
-                video_files.append(p)
+                video_files.update(
+                    ProjectManager._scan_file_entry(p, video_extensions)
+                )
 
         results = []
-        for video_path in sorted(list(set(video_files))):  # Sorted unique list
+        for video_path in sorted(video_files):
             parent_dir = video_path.parent
             base_name = video_path.stem
 
@@ -470,6 +482,88 @@ class ProjectManager:
             )
 
         return results
+
+    @classmethod
+    def _scan_directory_for_videos(
+        cls, directory: Path, video_extensions: set[str]
+    ) -> list[Path]:
+        cache_key = str(directory.resolve())
+        signature = cls._compute_path_signature(directory)
+        now = time.time()
+
+        cached = cls._scan_cache.get(cache_key)
+        if (
+            cached
+            and cached["signature"] == signature
+            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
+        ):
+            return [Path(item) for item in cached["videos"]]
+
+        videos: list[Path] = []
+        try:
+            for video_path in directory.rglob("*"):
+                if video_path.suffix.lower() in video_extensions:
+                    videos.append(video_path)
+        except (OSError, PermissionError) as exc:
+            log.warning(
+                "project_manager.scan_input_paths.directory_error",
+                directory=str(directory),
+                error=str(exc),
+            )
+
+        cls._scan_cache[cache_key] = {
+            "signature": signature,
+            "timestamp": now,
+            "videos": [str(video) for video in videos],
+        }
+        return videos
+
+    @classmethod
+    def _scan_file_entry(
+        cls, file_path: Path, video_extensions: set[str]
+    ) -> list[Path]:
+        if file_path.suffix.lower() not in video_extensions:
+            return []
+
+        cache_key = str(file_path.resolve())
+        signature = cls._compute_path_signature(file_path)
+        now = time.time()
+
+        cached = cls._scan_cache.get(cache_key)
+        if (
+            cached
+            and cached["signature"] == signature
+            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
+        ):
+            return [Path(item) for item in cached["videos"]]
+
+        videos = [file_path]
+
+        cls._scan_cache[cache_key] = {
+            "signature": signature,
+            "timestamp": now,
+            "videos": [str(file_path)],
+        }
+        return videos
+
+    @staticmethod
+    def _compute_path_signature(path: Path) -> tuple[str, int]:
+        try:
+            stat_result = path.stat()
+        except FileNotFoundError:
+            return ("missing", 0)
+
+        return (str(stat_result.st_mtime_ns), stat_result.st_size)
+
+    @classmethod
+    def clear_scan_cache(cls, target_path: str | None = None) -> None:
+        if target_path is None:
+            cls._scan_cache.clear()
+            return
+
+        resolved = str(Path(target_path).resolve())
+        cls._scan_cache.pop(resolved, None)
+        cls._scan_cache.pop(target_path, None)
 
     @staticmethod
     def load_zones_from_parquet(video_info: dict) -> ZoneData | None:

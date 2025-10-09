@@ -2,8 +2,10 @@ import json
 import os
 import shutil
 import sys
+import time
 import unittest
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
@@ -195,6 +197,65 @@ class TestProjectManager(unittest.TestCase):
             os.path.normpath(parquet_map.get("rois", "")),
             os.path.normpath(expected_results_rois),
         )
+
+    def test_scan_input_paths_uses_directory_cache(self):
+        ProjectManager.clear_scan_cache()
+        video_dir = os.path.join(self.test_dir, "videos")
+        os.makedirs(video_dir, exist_ok=True)
+
+        video_path = os.path.join(video_dir, "sample.mp4")
+        with open(video_path, "wb") as handle:
+            handle.write(b"")
+
+        original_rglob = Path.rglob
+        call_count = {"count": 0}
+
+        def wrapped(self, pattern):
+            call_count["count"] += 1
+            return original_rglob(self, pattern)
+
+        with patch("pathlib.Path.rglob", new=wrapped):
+            first_scan = ProjectManager.scan_input_paths([video_dir])
+            self.assertEqual(len(first_scan), 1)
+            first_count = call_count["count"]
+
+            second_scan = ProjectManager.scan_input_paths([video_dir])
+            self.assertEqual(len(second_scan), 1)
+            self.assertEqual(call_count["count"], first_count)
+
+        ProjectManager.clear_scan_cache()
+
+    def test_scan_input_paths_cache_invalidation_on_directory_change(self):
+        ProjectManager.clear_scan_cache()
+        video_dir = os.path.join(self.test_dir, "videos_invalidation")
+        os.makedirs(video_dir, exist_ok=True)
+
+        video_path = os.path.join(video_dir, "sample.mp4")
+        with open(video_path, "wb") as handle:
+            handle.write(b"")
+
+        call_count = {"count": 0}
+        original_rglob = Path.rglob
+
+        def wrapped(self, pattern):
+            call_count["count"] += 1
+            return original_rglob(self, pattern)
+
+        with patch("pathlib.Path.rglob", new=wrapped):
+            initial_scan = ProjectManager.scan_input_paths([video_dir])
+            self.assertEqual(len(initial_scan), 1)
+            initial_count = call_count["count"]
+
+            time.sleep(1.1)
+            second_video = os.path.join(video_dir, "second.mp4")
+            with open(second_video, "wb") as handle:
+                handle.write(b"")
+
+            updated_scan = ProjectManager.scan_input_paths([video_dir])
+            self.assertEqual(len(updated_scan), 2)
+            self.assertGreater(call_count["count"], initial_count)
+
+        ProjectManager.clear_scan_cache()
 
     def test_create_new_live_project(self):
         """Test the creation of a new 'live' project."""
