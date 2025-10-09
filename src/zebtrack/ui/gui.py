@@ -1941,7 +1941,7 @@ class ApplicationGUI:
         # Force final GUI update before creating welcome frame
         self.root.update_idletasks()
 
-    reset_geometry_if_not_maximized(self.root)
+        reset_geometry_if_not_maximized(self.root)
         self.welcome_frame = ttk.Frame(self.root, padding="10")
         self.welcome_frame.pack(expand=True, fill="both")
 
@@ -2102,7 +2102,7 @@ class ApplicationGUI:
         """Creates the main UI with tabs for controlling the app."""
         if self.welcome_frame:
             self.welcome_frame.destroy()
-    reset_geometry_if_not_maximized(self.root)
+        reset_geometry_if_not_maximized(self.root)
 
         self.notebook = ttk.Notebook(self.root, style="Zebtrack.TNotebook")
         self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
@@ -5175,6 +5175,8 @@ class ApplicationGUI:
         self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
         self.reports_tree.bind("<Double-1>", self._on_report_item_double_click)
 
+        self._report_tree_metadata: dict[str, dict] = {}
+
         # --- Actions Panel ---
         actions_frame = ttk.LabelFrame(reports_tab_frame, text="Ações", padding=10)
         actions_frame.pack(fill="x", pady=5)
@@ -5198,6 +5200,11 @@ class ApplicationGUI:
         """Atualiza a árvore de relatórios com estrutura hierárquica."""
         for item in self.reports_tree.get_children():
             self.reports_tree.delete(item)
+
+        if not hasattr(self, "_report_tree_metadata"):
+            self._report_tree_metadata = {}
+        else:
+            self._report_tree_metadata.clear()
 
         controller = getattr(self, "controller", None)
         if not controller or not controller.project_manager:
@@ -5260,6 +5267,8 @@ class ApplicationGUI:
                 "filename": os.path.basename(video.get("path", "")),
                 "subject": metadata.get("subject"),
                 "results_dir": video.get("results_dir"),
+                "metadata": dict(metadata),
+                "parquet_files": dict(video.get("parquet_files") or {}),
             }
 
             if not entry["results_dir"] and entry["path"]:
@@ -5334,6 +5343,11 @@ class ApplicationGUI:
                 open=True,
             )
 
+            self._report_tree_metadata[group_node] = {
+                "type": "group",
+                "identifier": group_id,
+            }
+
             for day_id, entries in sorted(
                 videos_by_day.items(), key=lambda item: _sort_key(item[0])
             ):
@@ -5371,6 +5385,12 @@ class ApplicationGUI:
                     open=False,
                 )
 
+                self._report_tree_metadata[day_node] = {
+                    "type": "day",
+                    "identifier": day_id,
+                    "group_id": group_id,
+                }
+
                 for entry in sorted(
                     entries,
                     key=lambda item: _sort_key(item.get("subject")),
@@ -5381,7 +5401,7 @@ class ApplicationGUI:
 
                     subject_label = _format_subject(entry.get("subject"))
 
-                    self.reports_tree.insert(
+                    video_node = self.reports_tree.insert(
                         day_node,
                         "end",
                         text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
@@ -5398,8 +5418,18 @@ class ApplicationGUI:
                             ),
                             entry["status"],
                         ),
-                        tags=(video_path, entry.get("results_dir") or ""),
+                        tags=("video-node",),
                     )
+
+                    self._report_tree_metadata[video_node] = {
+                        "type": "video",
+                        "video_path": video_path,
+                        "results_dir": entry.get("results_dir") or "",
+                        "parquet_files": entry.get("parquet_files") or {},
+                        "metadata": entry.get("metadata") or {},
+                    }
+
+                    self._append_report_artifacts(video_node, entry)
 
         log.info(
             "gui.reports_tree.updated",
@@ -5410,9 +5440,73 @@ class ApplicationGUI:
         # Mantenha o seletor hierárquico sincronizado com a lista de relatórios
         self._populate_video_selector_tree()
 
+    def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
+        tree = getattr(self, "reports_tree", None)
+        if not tree:
+            return
+
+        video_path = entry.get("path")
+        if not video_path:
+            return
+
+        results_dir = entry.get("results_dir") or ""
+        parquet_files = entry.get("parquet_files") or {}
+        experiment_id = Path(video_path).stem if video_path else None
+
+        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
+            if candidate and os.path.exists(candidate):
+                return candidate
+            if results_dir and experiment_id:
+                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
+                if guess_path.exists():
+                    return str(guess_path)
+            return None
+
+        docx_path = _resolve_artifact(
+            parquet_files.get("report_docx"),
+            "report.docx",
+        )
+        excel_path = _resolve_artifact(
+            parquet_files.get("summary_excel"),
+            "summary.xlsx",
+        )
+
+        artifacts: list[tuple[str, str, str]] = []
+        if docx_path:
+            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
+        if excel_path:
+            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
+
+        if not artifacts:
+            return
+
+        for _kind, artifact_path, label in artifacts:
+            child_id = tree.insert(
+                parent_id,
+                "end",
+                text=label,
+                values=("", "", "", "", "Abrir"),
+                tags=("report-file",),
+            )
+            self._report_tree_metadata[child_id] = {
+                "type": "file",
+                "path": artifact_path,
+                "parent_video": video_path,
+            }
+
+        tree.item(parent_id, open=True)
+
     def _on_report_item_select(self, event=None):
         """Enables or disables the partial report button based on selection."""
-        if self.reports_tree.selection():
+        selection = self.reports_tree.selection()
+        has_video = False
+        for item_id in selection:
+            metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+            if metadata and metadata.get("type") == "video":
+                has_video = True
+                break
+
+        if has_video:
             self.generate_partial_report_btn.config(state="normal")
         else:
             self.generate_partial_report_btn.config(state="disabled")
@@ -5433,11 +5527,30 @@ class ApplicationGUI:
         if not item_id:
             return
 
-        item_tags = tree.item(item_id).get("tags") or ()
-        if not item_tags:
+        metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+        if not metadata:
             return
 
-        video_path = item_tags[0]
+        node_type = metadata.get("type")
+
+        if node_type == "file":
+            artifact_path = metadata.get("path")
+            if artifact_path and os.path.exists(artifact_path):
+                self._open_path_in_explorer(artifact_path)
+            else:
+                self.show_warning(
+                    "Arquivo não encontrado",
+                    (
+                        "O relatório selecionado não foi localizado no disco. "
+                        "Gere novamente o relatório para restaurar o arquivo."
+                    ),
+                )
+            return
+
+        if node_type != "video":
+            return
+
+        video_path = metadata.get("video_path")
         if not video_path:
             return
 
@@ -5446,8 +5559,8 @@ class ApplicationGUI:
         if not pm:
             return
 
-        results_dir = item_tags[1] if len(item_tags) > 1 else ""
         entry = pm.find_video_entry(path=video_path)
+        results_dir = metadata.get("results_dir") or ""
         metadata_hint: dict = {}
         has_results = False
 
@@ -5456,10 +5569,7 @@ class ApplicationGUI:
             if not results_dir:
                 results_dir = entry.get("results_dir") or ""
             for key in ("group", "group_display_name", "day", "subject"):
-                if (
-                    entry.get(key) is not None
-                    and key not in metadata_hint
-                ):
+                if entry.get(key) is not None and key not in metadata_hint:
                     metadata_hint[key] = entry[key]
             parquet_files = entry.get("parquet_files") or {}
             for key in ("summary", "summary_excel", "report_docx"):
@@ -5527,13 +5637,14 @@ class ApplicationGUI:
         all_videos = self.controller.project_manager.get_all_videos()
 
         for item_id in selected_items:
-            # The video path is stored as the first tag
             if not self.reports_tree.exists(item_id):
                 continue
-            item_tags = self.reports_tree.item(item_id)["tags"]
-            if not item_tags:
+            metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+            if not metadata or metadata.get("type") != "video":
                 continue
-            video_path = item_tags[0]
+            video_path = metadata.get("video_path")
+            if not video_path:
+                continue
             for video_data in all_videos:
                 if video_data["path"] == video_path:
                     selected_videos.append(video_data)
