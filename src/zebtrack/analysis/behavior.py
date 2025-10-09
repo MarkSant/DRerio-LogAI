@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import shapely
 from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 
@@ -514,8 +515,34 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return np.nan if path_distance > 0 else 1.0
 
     def get_thigmotaxis_timeseries(self) -> pd.Series:
-        # Not implemented for this concrete class
-        raise NotImplementedError("Thigmotaxis is not implemented in this class.")
+        df = self._trajectory_data
+        if df.empty:
+            return pd.Series(
+                [], dtype=np.float64, index=df.index, name="distance_to_wall_cm"
+            )
+
+        # Prefer smoothed coordinates but gracefully fall back to raw cm values
+        x_series = df.get("x_cm_smoothed", pd.Series(dtype=np.float64))
+        y_series = df.get("y_cm_smoothed", pd.Series(dtype=np.float64))
+
+        if x_series.empty or x_series.isna().all():
+            x_series = df.get("x_cm", pd.Series(dtype=np.float64))
+        if y_series.empty or y_series.isna().all():
+            y_series = df.get("y_cm", pd.Series(dtype=np.float64))
+
+        coords = np.column_stack((x_series.to_numpy(), y_series.to_numpy()))
+        valid_mask = ~np.isnan(coords).any(axis=1)
+        distances = np.full(len(df), np.nan, dtype=np.float64)
+
+        if valid_mask.any() and not self._arena_polygon_cm.is_empty:
+            boundary = self._arena_polygon_cm.boundary
+            valid_points = shapely.points(
+                coords[valid_mask, 0], coords[valid_mask, 1]
+            )
+            distances_valid = shapely.distance(valid_points, boundary)
+            distances[valid_mask] = np.asarray(distances_valid, dtype=np.float64)
+
+        return pd.Series(distances, index=df.index, name="distance_to_wall_cm")
 
     def calculate_speed_bursts(
         self,

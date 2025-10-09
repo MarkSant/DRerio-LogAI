@@ -9,7 +9,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.analysis.behavior import BehavioralAnalyzer
+from shapely.geometry import Point
+
+from zebtrack.analysis.behavior import BehavioralAnalyzer, ConcreteBehavioralAnalyzer
 
 
 # -- Test Data and Fixtures --
@@ -78,7 +80,11 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
         return pd.DataFrame({"v_mag": v_mag})
 
     def detect_freezing_episodes(
-        self, vel_threshold: float, min_duration: float
+        self,
+        min_duration: float,
+        vel_threshold: Optional[float] = None,
+        threshold_method: str = "absolute",
+        quantile: float = 0.1,
     ) -> List[Dict[str, float]]:
         return [{"start_time": 1.0, "end_time": 2.5, "duration": 1.5}]
 
@@ -197,6 +203,37 @@ def test_calculate_thigmotaxis_index_raises_error(sample_trajectory_data):
         analyzer.calculate_thigmotaxis_index(method="time_near_wall")
 
 
+def test_concrete_thigmotaxis_timeseries_matches_boundary_distance(
+    sample_trajectory_data,
+):
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteBehavioralAnalyzer(**analyzer_args, window_length=5, polyorder=2)
+
+    series = analyzer.get_thigmotaxis_timeseries()
+
+    assert isinstance(series, pd.Series)
+    assert len(series) == len(analyzer.trajectory_data)
+    assert (series >= 0).all()
+
+    first_point = Point(
+        analyzer.trajectory_data["x_cm_smoothed"].iloc[0],
+        analyzer.trajectory_data["y_cm_smoothed"].iloc[0],
+    )
+    expected_distance = first_point.distance(analyzer.arena_polygon_cm.boundary)
+    assert np.isclose(series.iloc[0], expected_distance)
+
+
+def test_thigmotaxis_timeseries_falls_back_to_raw_coordinates(sample_trajectory_data):
+    analyzer_args = prep_data_for_analyzer(sample_trajectory_data)
+    analyzer = ConcreteBehavioralAnalyzer(**analyzer_args)
+
+    analyzer._trajectory_data["x_cm_smoothed"] = np.nan
+    analyzer._trajectory_data["y_cm_smoothed"] = np.nan
+
+    series = analyzer.get_thigmotaxis_timeseries()
+    assert not series.isna().all()
+
+
 def test_preprocess_data_handles_duplicate_timestamps():
     """
     Tests that the preprocessing step correctly handles duplicate timestamps
@@ -246,6 +283,9 @@ def test_preprocess_data_handles_duplicate_timestamps():
     assert np.isclose(consolidated_row["confidence"], 0.95), (
         "confidence should be the max of the duplicates."
     )
-    assert consolidated_row["track_id"] == 1, (
+    track_value = consolidated_row["track_id"]
+    if isinstance(track_value, pd.Series):
+        track_value = track_value.iloc[0]
+    assert track_value == 1, (
         "track_id should be the first of the duplicates."
     )

@@ -8367,6 +8367,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.freeze_dur_var = StringVar(
             value=str(settings.video_processing.freezing_min_duration_s)
         )
+        self.smoothing_window_var = StringVar(
+            value=str(settings.trajectory_smoothing.window_length)
+        )
+        self.smoothing_polyorder_var = StringVar(
+            value=str(settings.trajectory_smoothing.polyorder)
+        )
 
         # Frame interval configuration variables
         self.analysis_interval_var = StringVar(value="10")
@@ -8445,6 +8451,31 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         ttk.Entry(behavior_frame, textvariable=self.freeze_dur_var, width=10).grid(
             row=2, column=1, sticky="w", padx=5
         )
+
+        ttk.Label(behavior_frame, text="Janela de Suavização (frames):").grid(
+            row=3, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            behavior_frame, textvariable=self.smoothing_window_var, width=10
+        ).grid(row=3, column=1, sticky="w", padx=5)
+
+        ttk.Label(behavior_frame, text="Ordem do Polinômio:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            behavior_frame, textvariable=self.smoothing_polyorder_var, width=10
+        ).grid(row=4, column=1, sticky="w", padx=5)
+
+        ttk.Label(
+            behavior_frame,
+            text=(
+                "Savitzky-Golay suaviza trajetórias preservando picos. "
+                "Use janela ímpar ≥ 3 e ordem < janela para evitar distorções."
+            ),
+            wraplength=260,
+            font=("TkDefaultFont", 8),
+            foreground="#444",
+        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=5, pady=(4, 0))
 
         # --- Frame Interval Settings ---
         interval_frame = ttk.LabelFrame(
@@ -8527,12 +8558,24 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             float(self.sharp_turn_var.get())
             float(self.freeze_thresh_var.get())
             float(self.freeze_dur_var.get())
+            smoothing_window = int(self.smoothing_window_var.get())
+            smoothing_polyorder = int(self.smoothing_polyorder_var.get())
             analysis_interval = int(self.analysis_interval_var.get())
             display_interval = int(self.display_interval_var.get())
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")
             if analysis_interval <= 0 or display_interval <= 0:
                 raise ValueError("Os intervalos devem ser números inteiros positivos.")
+            if smoothing_window <= 0:
+                raise ValueError("A janela de suavização deve ser positiva.")
+            if smoothing_window % 2 == 0:
+                raise ValueError("A janela de suavização deve ser um número ímpar.")
+            if smoothing_polyorder < 1:
+                raise ValueError("A ordem do polinômio deve ser pelo menos 1.")
+            if smoothing_polyorder >= smoothing_window:
+                raise ValueError(
+                    "A ordem do polinômio deve ser menor que a janela de suavização."
+                )
         except ValueError as e:
             messagebox.showerror(
                 "Erro",
@@ -8559,6 +8602,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
             "freezing_velocity_threshold": float(self.freeze_thresh_var.get()),
             "freezing_min_duration_s": float(self.freeze_dur_var.get()),
+            "smoothing_window_length": int(self.smoothing_window_var.get()),
+            "smoothing_polyorder": int(self.smoothing_polyorder_var.get()),
             "analysis_interval_frames": analysis_interval,
             "display_interval_frames": display_interval,
             "aquarium_method": self.aquarium_method_var.get(),

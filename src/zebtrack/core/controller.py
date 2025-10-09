@@ -3175,12 +3175,8 @@ class AppController:
                     rois: list[ROI] = []
                     for idx, roi_points in enumerate(roi_polygons):
                         warped_points = cal.transform_points(roi_points)
-                        roi_points_cm = [
-                            (
-                                x / pixelcm_x,
-                                (video_height_px - y) / pixelcm_y,
-                            )
-                            for x, y in warped_points
+                        roi_polygon_px = [
+                            (float(x), float(y)) for x, y in warped_points
                         ]
                         roi_name = (
                             roi_names[idx]
@@ -3188,7 +3184,11 @@ class AppController:
                             else f"ROI {idx + 1}"
                         )
                         rois.append(
-                            ROI(name=roi_name, geometry=Polygon(roi_points_cm))
+                            ROI(
+                                name=roi_name,
+                                geometry=Polygon(roi_polygon_px),
+                                coordinate_space="px",
+                            )
                         )
 
                     roi_colors = {
@@ -3222,6 +3222,8 @@ class AppController:
                         sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
                         freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
                         freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
+                        smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
+                        smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
                     )
 
                     os.makedirs(results_dir, exist_ok=True)
@@ -3779,7 +3781,16 @@ class AppController:
         metadata_context: dict | None,
         experiment_id: str,
         video_path: str,
-    ) -> tuple[dict, float | None, float | None, float, float, float]:
+    ) -> tuple[
+        dict,
+        float | None,
+        float | None,
+        float,
+        float,
+        float,
+        int,
+        int,
+    ]:
         if single_video_config:
             metadata = dict(single_video_config)
             metadata.setdefault("experiment_id", experiment_id)
@@ -3801,6 +3812,14 @@ class AppController:
                 "freezing_min_duration_s",
                 settings.video_processing.freezing_min_duration_s,
             )
+            smoothing_window = single_video_config.get(
+                "smoothing_window_length",
+                settings.trajectory_smoothing.window_length,
+            )
+            smoothing_polyorder = single_video_config.get(
+                "smoothing_polyorder",
+                settings.trajectory_smoothing.polyorder,
+            )
         else:
             project_data = getattr(self.project_manager, "project_data", {}) or {}
             calibration = project_data.get("calibration", {})
@@ -3809,6 +3828,8 @@ class AppController:
             sharp_turn_threshold = settings.video_processing.sharp_turn_threshold_deg_s
             freezing_threshold = settings.video_processing.freezing_velocity_threshold
             freezing_duration = settings.video_processing.freezing_min_duration_s
+            smoothing_window = settings.trajectory_smoothing.window_length
+            smoothing_polyorder = settings.trajectory_smoothing.polyorder
 
             metadata = dict(metadata_context or {})
             csv_metadata = self.project_manager.get_metadata_for_experiment(
@@ -3834,6 +3855,8 @@ class AppController:
             sharp_turn_threshold,
             freezing_threshold,
             freezing_duration,
+            smoothing_window,
+            smoothing_polyorder,
         )
 
     def _prepare_calibration_context(
@@ -3868,16 +3891,19 @@ class AppController:
         rois: list[ROI] = []
         for i, polygon in enumerate(zone_data.roi_polygons):
             warped_points = cal.transform_points(polygon)
-            roi_points_cm = [
-                (x / pixelcm_x, (video_height_px - y) / pixelcm_y)
-                for x, y in warped_points
-            ]
+            roi_points_px = [(float(x), float(y)) for x, y in warped_points]
             roi_name = (
                 zone_data.roi_names[i]
                 if i < len(zone_data.roi_names)
                 else f"ROI {i + 1}"
             )
-            rois.append(ROI(name=roi_name, geometry=Polygon(roi_points_cm)))
+            rois.append(
+                ROI(
+                    name=roi_name,
+                    geometry=Polygon(roi_points_px),
+                    coordinate_space="px",
+                )
+            )
 
         roi_colors = {
             (
@@ -3964,6 +3990,8 @@ class AppController:
             sharp_turn_threshold,
             freezing_threshold,
             freezing_duration,
+            smoothing_window,
+            smoothing_polyorder,
         ) = self._collect_analysis_parameters(
             single_video_config=single_video_config,
             metadata_context=metadata_context,
@@ -4027,6 +4055,8 @@ class AppController:
             sharp_turn_threshold=sharp_turn_threshold,
             freezing_threshold=freezing_threshold,
             freezing_duration=freezing_duration,
+            smoothing_window_length=smoothing_window,
+            smoothing_polyorder=smoothing_polyorder,
         )
 
         (

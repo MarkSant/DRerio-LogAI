@@ -26,7 +26,7 @@ def _build_reporter(tmp_path, metadata_override=None):
     if metadata_override:
         metadata.update(metadata_override)
 
-    rois = [ROI(name="zone1", geometry=box(1, 1, 2, 2))]
+    rois = [ROI(name="zone1", geometry=box(1, 1, 2, 2), coordinate_space="px")]
 
     with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
         mock_analyzer = MagicMock()

@@ -4,23 +4,30 @@ This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import numpy as np
 import pandas as pd
 import shapely
-from shapely import prepare
+from shapely import affinity, prepare
 from shapely.geometry import Point, Polygon, box
+from shapely.geometry.base import BaseGeometry
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
 
 
 class ROI:
-    """A simple class to hold ROI data (name and geometry)."""
+    """A simple class to hold ROI data (name, geometry, and coordinate space)."""
 
-    def __init__(self, name: str, geometry: Polygon):
+    def __init__(
+        self,
+        name: str,
+    geometry: BaseGeometry,
+        coordinate_space: Literal["px", "cm"] = "px",
+    ):
         self.name = name
         self.geometry = geometry
+        self.coordinate_space = coordinate_space
 
 
 class ROIAnalyzer:
@@ -61,6 +68,7 @@ class ROIAnalyzer:
         self._buffer_radius_value = buffer_radius_value or 0.5
         self._min_bbox_overlap_ratio = min_bbox_overlap_ratio or 0.10
         self._buffered_rois_cache = {}  # Cache for buffered ROI geometries
+        self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
         self._calculate_presence_in_rois()
 
@@ -74,8 +82,62 @@ class ROIAnalyzer:
         if not self._rois:
             raise ValueError("ROI list cannot be empty.")
         for name, roi in self._rois.items():
-            if not isinstance(roi.geometry, Polygon) or roi.geometry.is_empty:
+            geometry = self._roi_geometries_px[name]
+            if not isinstance(geometry, BaseGeometry) or geometry.is_empty:
                 raise ValueError(f"ROI '{name}' has invalid geometry.")
+
+    def _normalize_roi_geometries(self) -> Dict[str, BaseGeometry]:
+        """Converts ROI geometries to warped pixel space when necessary."""
+        normalized: Dict[str, BaseGeometry] = {}
+        pixelcm_x = getattr(self._b_analyzer, "_pixelcm_x", 1.0)
+        pixelcm_y = getattr(self._b_analyzer, "_pixelcm_y", 1.0)
+        height_px = getattr(self._b_analyzer, "_video_height_px", 0)
+
+        for name, roi in self._rois.items():
+            geometry = roi.geometry
+            if roi.coordinate_space == "cm":
+                geometry = affinity.affine_transform(
+                    geometry,
+                    [
+                        float(pixelcm_x),
+                        0.0,
+                        0.0,
+                        float(-pixelcm_y),
+                        0.0,
+                        float(height_px),
+                    ],
+                )
+            normalized[name] = geometry
+
+        return normalized
+
+    def _buffer_radius_px(self) -> float:
+        px_per_cm_x = getattr(self._b_analyzer, "_pixelcm_x", 1.0)
+        px_per_cm_y = getattr(self._b_analyzer, "_pixelcm_y", 1.0)
+        return float(self._buffer_radius_value) * np.sqrt(px_per_cm_x * px_per_cm_y)
+
+    def _get_centers_px(self) -> tuple[np.ndarray, np.ndarray]:
+        if (
+            "x_center_px" in self._trajectory.columns
+            and "y_center_px" in self._trajectory.columns
+            and not self._trajectory["x_center_px"].isna().all()
+        ):
+            x_coords = self._trajectory["x_center_px"].to_numpy()
+            y_coords = self._trajectory["y_center_px"].to_numpy()
+            return x_coords, y_coords
+
+        if all(col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]):
+            x_coords = (
+                (self._trajectory["x1"] + self._trajectory["x2"]) / 2
+            ).to_numpy()
+            y_coords = (
+                (self._trajectory["y1"] + self._trajectory["y2"]) / 2
+            ).to_numpy()
+            return x_coords, y_coords
+
+        raise ValueError(
+            "Cannot find suitable pixel coordinate columns in trajectory data"
+        )
 
     def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
         """
@@ -121,46 +183,11 @@ class ROIAnalyzer:
         self._trajectory["dt"] = self._trajectory.index.to_series().diff()
 
         # Determine coordinate space and extract coordinates
-        use_cm_coords = (
-            "x_cm_smoothed" in self._trajectory.columns
-            and "y_cm_smoothed" in self._trajectory.columns
-            and not self._trajectory["x_cm_smoothed"].isna().all()
-        )
+        x_coords, y_coords = self._get_centers_px()
 
-        if use_cm_coords:
-            x_coords = self._trajectory["x_cm_smoothed"].to_numpy()
-            y_coords = self._trajectory["y_cm_smoothed"].to_numpy()
-            coord_space = "cm"
-        else:
-            # Try x_center_px/y_center_px first, then derive from bbox
-            if (
-                "x_center_px" in self._trajectory.columns
-                and "y_center_px" in self._trajectory.columns
-                and not self._trajectory["x_center_px"].isna().all()
-            ):
-                x_coords = self._trajectory["x_center_px"].to_numpy()
-                y_coords = self._trajectory["y_center_px"].to_numpy()
-            elif all(
-                col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]
-            ):
-                x_coords = (
-                    (self._trajectory["x1"] + self._trajectory["x2"]) / 2
-                ).to_numpy()
-                y_coords = (
-                    (self._trajectory["y1"] + self._trajectory["y2"]) / 2
-                ).to_numpy()
-            else:
-                raise ValueError(
-                    "Cannot find suitable coordinate columns in trajectory data"
-                )
-            coord_space = "px"
-
-        # Convert ROI geometries to appropriate coordinate space if needed
-        rois_in_coord_space = self._get_rois_in_coordinate_space(coord_space)
-
-        for name, roi_geometry in rois_in_coord_space.items():
+        for name, roi_geometry in self._roi_geometries_px.items():
             raw_presence = self._calculate_roi_presence_by_rule(
-                roi_geometry, name, x_coords, y_coords, coord_space
+                roi_geometry, name, x_coords, y_coords
             )
 
             self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
@@ -173,43 +200,12 @@ class ROIAnalyzer:
             stable_col = f"in_{name}_stable"
             self._trajectory.loc[self._trajectory[stable_col], "stable_roi"] = name
 
-    def _get_rois_in_coordinate_space(self, coord_space: str) -> Dict[str, Polygon]:
-        """
-        Ensures ROI geometries are in the correct coordinate space for analysis.
-        Assumes that ROIs are originally defined in 'cm' space.
-        """
-        # If the analysis is happening in 'cm' space, ROIs are already correct.
-        if coord_space == "cm":
-            return {name: roi.geometry for name, roi in self._rois.items()}
-
-        # If analysis is in 'px' space, convert ROIs from 'cm' to 'px'.
-        elif coord_space == "px":
-            if hasattr(self._b_analyzer, "pixelcm_x") and hasattr(
-                self._b_analyzer, "pixelcm_y"
-            ):
-                rois_in_px = {}
-                for name, roi in self._rois.items():
-                    coords = list(roi.geometry.exterior.coords)
-                    px_coords = [
-                        (x * self._b_analyzer.pixelcm_x, y * self._b_analyzer.pixelcm_y)
-                        for x, y in coords
-                    ]
-                    rois_in_px[name] = Polygon(px_coords)
-                return rois_in_px
-            else:
-                # If no calibration, cannot convert. Assume ROIs are already in px.
-                return {name: roi.geometry for name, roi in self._rois.items()}
-        else:
-            # Fallback: return original geometries if coord_space is unknown
-            return {name: roi.geometry for name, roi in self._rois.items()}
-
     def _calculate_roi_presence_by_rule(
         self,
-        roi_geometry: Polygon,
+        roi_geometry: BaseGeometry,
         roi_name: str,
         x_coords: np.ndarray,
         y_coords: np.ndarray,
-        coord_space: str,
     ) -> pd.Series:
         """
         Calculate presence in ROI based on the configured inclusion rule.
@@ -218,7 +214,7 @@ class ROIAnalyzer:
             return self._calculate_centroid_in(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "centroid_in_on_buffered_roi":
             return self._calculate_centroid_in_buffered(
-                roi_geometry, roi_name, x_coords, y_coords, coord_space
+                roi_geometry, roi_name, x_coords, y_coords
             )
         elif self._inclusion_rule == "bbox_intersects":
             return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
@@ -228,7 +224,7 @@ class ROIAnalyzer:
             raise ValueError(f"Unknown inclusion rule: {self._inclusion_rule}")
 
     def _calculate_centroid_in(
-        self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray
+        self, roi_geometry: BaseGeometry, x_coords: np.ndarray, y_coords: np.ndarray
     ) -> pd.Series:
         """Calculate presence using centroid inclusion (current behavior)."""
         prepare(roi_geometry)
@@ -238,19 +234,16 @@ class ROIAnalyzer:
 
     def _calculate_centroid_in_buffered(
         self,
-        roi_geometry: Polygon,
+        roi_geometry: BaseGeometry,
         roi_name: str,
         x_coords: np.ndarray,
         y_coords: np.ndarray,
-        coord_space: str,
     ) -> pd.Series:
         """Calculate presence using buffered ROI and centroid inclusion."""
         # Use cached buffered geometry if available
-        cache_key = f"{roi_name}_{coord_space}_{self._buffer_radius_value}"
+        cache_key = f"{roi_name}_px_{self._buffer_radius_value}"
         if cache_key not in self._buffered_rois_cache:
-            buffer_radius = self._buffer_radius_value
-            # Note: buffer_radius is interpreted in cm when coord_space is cm,
-            # px when coord_space is px
+            buffer_radius = self._buffer_radius_px()
             self._buffered_rois_cache[cache_key] = roi_geometry.buffer(buffer_radius)
 
         buffered_roi = self._buffered_rois_cache[cache_key]
@@ -260,7 +253,7 @@ class ROIAnalyzer:
         return pd.Series(raw_presence_np, index=self._trajectory.index)
 
     def _calculate_bbox_intersects(
-        self, roi_geometry: Polygon, x_coords: np.ndarray, y_coords: np.ndarray
+        self, roi_geometry: BaseGeometry, x_coords: np.ndarray, y_coords: np.ndarray
     ) -> pd.Series:
         """Calculate presence based on bbox intersection with ROI."""
         # Require bbox columns
@@ -278,23 +271,19 @@ class ROIAnalyzer:
         prepare(roi_geometry)
         raw_presence_list = []
 
-        # Get video height for Y-axis inversion
-        video_height_px = self._b_analyzer._video_height_px
-
         # Process frame by frame for bbox intersection calculation
         # TODO: This could be optimized for very large trajectories by chunking
         for idx, row in self._trajectory.iterrows():
             # Convert bbox from warped pixel space to cm, inverting Y-axis
-            x1_cm = row["x1"] / self._b_analyzer._pixelcm_x
-            y1_cm = (video_height_px - row["y1"]) / self._b_analyzer._pixelcm_y
-            x2_cm = row["x2"] / self._b_analyzer._pixelcm_x
-            y2_cm = (video_height_px - row["y2"]) / self._b_analyzer._pixelcm_y
+            x1_px = row["x1"]
+            y1_px = row["y1"]
+            x2_px = row["x2"]
+            y2_px = row["y2"]
 
-            # Ensure min/max order (after Y inversion, y1 and y2 may swap)
-            min_x = min(x1_cm, x2_cm)
-            max_x = max(x1_cm, x2_cm)
-            min_y = min(y1_cm, y2_cm)
-            max_y = max(y1_cm, y2_cm)
+            min_x = min(x1_px, x2_px)
+            max_x = max(x1_px, x2_px)
+            min_y = min(y1_px, y2_px)
+            max_y = max(y1_px, y2_px)
 
             bbox = box(min_x, min_y, max_x, max_y)
             intersection = roi_geometry.intersection(bbox)
@@ -306,7 +295,7 @@ class ROIAnalyzer:
 
         return pd.Series(raw_presence_list, index=self._trajectory.index)
 
-    def _calculate_seg_overlap(self, roi_geometry: Polygon) -> pd.Series:
+    def _calculate_seg_overlap(self, roi_geometry: BaseGeometry) -> pd.Series:
         """Calculate presence based on segmentation mask overlap."""
         # Check for segmentation data columns
         # Note: We don't persist segmentation masks in this PR,
@@ -637,8 +626,10 @@ class ROIAnalyzer:
         periphery_poly = arena.difference(center_poly)
 
         # Create temporary ROIs
-        center_roi = ROI(name="Center", geometry=center_poly)
-        periphery_roi = ROI(name="Periphery", geometry=periphery_poly)
+        center_roi = ROI(name="Center", geometry=center_poly, coordinate_space="cm")
+        periphery_roi = ROI(
+            name="Periphery", geometry=periphery_poly, coordinate_space="cm"
+        )
 
         # Create a temporary analyzer instance to run the analysis
         temp_analyzer = ROIAnalyzer(

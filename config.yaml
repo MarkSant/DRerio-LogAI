@@ -68,6 +68,10 @@ roi_inclusion_rule: "bbox_intersects"
 roi_buffer_radius_value: 0.5
 roi_min_bbox_overlap_ratio: 0.05  # Reduced from 0.10 to detect more tangential entries
 
+trajectory_smoothing:
+  window_length: 7
+  polyorder: 3
+
 ui_features:
   # Enable the wizard flow (v1.6+ default) while allowing legacy fallback when needed.
   use_wizard_for_project_creation: true

@@ -8,7 +8,13 @@ from typing import List, Literal, Tuple
 
 import structlog
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 log = structlog.get_logger()
 
@@ -104,6 +110,42 @@ class VideoProcessingSettings(BaseModel):
         description="When True, forces consistent track_id=1 for single animal "
         "scenarios.",
     )
+
+
+class TrajectorySmoothingSettings(BaseModel):
+    """Smoothing parameters applied to trajectory preprocessing."""
+
+    window_length: int = Field(
+        7,
+        ge=3,
+        description=(
+            "Odd-sized window used by the Savitzky-Golay filter during trajectory "
+            "smoothing."
+        ),
+    )
+    polyorder: int = Field(
+        3,
+        ge=1,
+        description=(
+            "Polynomial order for the Savitzky-Golay filter. Must be strictly "
+            "less than the window length."
+        ),
+    )
+
+    @field_validator("window_length")
+    @classmethod
+    def _ensure_odd_window(cls, value: int) -> int:
+        if value % 2 == 0:
+            raise ValueError("trajectory_smoothing.window_length must be an odd integer.")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_polyorder(self) -> "TrajectorySmoothingSettings":
+        if self.polyorder >= self.window_length:
+            raise ValueError(
+                "trajectory_smoothing.polyorder must be less than window_length."
+            )
+        return self
 
 
 class DetectionZonesSettings(BaseModel):
@@ -231,6 +273,10 @@ class Settings(BaseModel):
     ui_features: UIFeatureFlags = Field(
         default_factory=UIFeatureFlags,  # type: ignore[arg-type]
         description="Feature flags for UI experiments and gradual rollouts"
+    )
+    trajectory_smoothing: TrajectorySmoothingSettings = Field(
+        default_factory=TrajectorySmoothingSettings,  # type: ignore[arg-type]
+        description="Smoothing parameters applied to trajectory preprocessing.",
     )
 
 

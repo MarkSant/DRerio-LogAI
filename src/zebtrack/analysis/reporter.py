@@ -222,6 +222,8 @@ class Reporter:
         sharp_turn_threshold: float = 90.0,
         freezing_threshold: float = 1.5,
         freezing_duration: float = 1.0,
+        smoothing_window_length: int | None = None,
+        smoothing_polyorder: int | None = None,
     ):
         self.metadata = metadata
         self.roi_colors = roi_colors if roi_colors else {}
@@ -247,6 +249,8 @@ class Reporter:
             fps=fps,
             freezing_vel_threshold=freezing_threshold,
             freezing_min_duration=freezing_duration,
+            smoothing_window_length=smoothing_window_length,
+            smoothing_polyorder=smoothing_polyorder,
         )
 
         # Store for plotting methods that still need them

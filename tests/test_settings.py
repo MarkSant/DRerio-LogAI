@@ -32,6 +32,9 @@ reproducibility:
 roi_inclusion_rule: "bbox_intersects"
 roi_buffer_radius_value: 0.5
 roi_min_bbox_overlap_ratio: 0.10
+trajectory_smoothing:
+  window_length: 7
+  polyorder: 3
 """
 
     def test_load_settings_success_without_zones(self):
@@ -171,6 +174,8 @@ yolo_model:
                 self.assertEqual(settings.roi_inclusion_rule, "bbox_intersects")
                 self.assertEqual(settings.roi_buffer_radius_value, 0.5)
                 self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.10)
+                self.assertEqual(settings.trajectory_smoothing.window_length, 7)
+                self.assertEqual(settings.trajectory_smoothing.polyorder, 3)
 
     def test_roi_inclusion_settings_override(self):
         """Test that ROI inclusion settings can be overridden."""
@@ -179,6 +184,9 @@ yolo_model:
 roi_inclusion_rule: "centroid_in"
 roi_buffer_radius_value: 1.5
 roi_min_bbox_overlap_ratio: 0.25
+trajectory_smoothing:
+  window_length: 9
+  polyorder: 3
 """
 
         def mock_open_side_effect(path, *args, **kwargs):
@@ -195,6 +203,8 @@ roi_min_bbox_overlap_ratio: 0.25
                 self.assertEqual(settings.roi_inclusion_rule, "centroid_in")
                 self.assertEqual(settings.roi_buffer_radius_value, 1.5)
                 self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.25)
+                self.assertEqual(settings.trajectory_smoothing.window_length, 9)
+                self.assertEqual(settings.trajectory_smoothing.polyorder, 3)
 
     def test_ui_feature_flag_override(self):
         base_yaml = self.mock_yaml_content
@@ -215,6 +225,18 @@ ui_features:
 
         self.assertTrue(loaded.ui_features.use_wizard_for_project_creation)
         self.assertTrue(loaded.ui_features.enable_event_queue)
+
+    def test_trajectory_smoothing_validation(self):
+        invalid_yaml = self.mock_yaml_content + """
+trajectory_smoothing:
+  window_length: 6
+  polyorder: 5
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
 
 
 if __name__ == "__main__":

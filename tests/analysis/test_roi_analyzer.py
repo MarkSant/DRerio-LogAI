@@ -47,7 +47,9 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
 
         # Create a simple rectangular ROI from x=10-20cm, y=10-20cm
         self.roi_polygon = Polygon([(10, 10), (20, 10), (20, 20), (10, 20)])
-        self.test_roi = ROI(name="TestROI", geometry=self.roi_polygon)
+        self.test_roi = ROI(
+            name="TestROI", geometry=self.roi_polygon, coordinate_space="cm"
+        )
 
     def test_centroid_in_rule(self):
         """Test the centroid_in rule (behaves like the original implementation)."""
@@ -150,7 +152,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
 
         # ROI in px coordinates (scaled up by 10x from cm)
         roi_polygon_px = Polygon([(100, 100), (200, 100), (200, 200), (100, 200)])
-        roi_px = ROI(name="TestROI", geometry=roi_polygon_px)
+        roi_px = ROI(name="TestROI", geometry=roi_polygon_px, coordinate_space="px")
 
         # Should work with px coordinates
         analyzer = ROIAnalyzer(
@@ -174,7 +176,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
 
         # ROI in px coordinates
         roi_polygon_px = Polygon([(200, 100), (300, 100), (300, 200), (200, 200)])
-        roi_px = ROI(name="TestROI", geometry=roi_polygon_px)
+        roi_px = ROI(name="TestROI", geometry=roi_polygon_px, coordinate_space="px")
 
         # Should work by deriving center from bbox
         analyzer = ROIAnalyzer(
