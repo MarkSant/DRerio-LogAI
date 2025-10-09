@@ -27,6 +27,7 @@ from tkinter import (
     simpledialog,
     ttk,
 )
+from tkinter import font as tkfont
 
 import cv2
 import numpy as np
@@ -1783,6 +1784,9 @@ class ApplicationGUI:
         self._pending_overview_status = None
         self._overview_status_append = False
         self._last_overview_counts = {}
+    self._overview_video_index: dict[str, dict] = {}
+    self._overview_context_menu: Menu | None = None
+    self._overview_menu_font: tkfont.Font | None = None
 
         # Arduino dashboard state (live projects)
         self.arduino_dashboard_frame = None
@@ -2342,6 +2346,12 @@ class ApplicationGUI:
         self.project_overview_tree.bind(
             "<Double-Button-1>", self._on_project_overview_tree_double_click
         )
+        self.project_overview_tree.bind(
+            "<Button-3>", self._on_project_overview_right_click
+        )
+        self.project_overview_tree.bind(
+            "<Control-Button-1>", self._on_project_overview_right_click
+        )
 
     @staticmethod
     def _get_status_meta(status_key: str) -> tuple[str, str]:
@@ -2509,6 +2519,8 @@ class ApplicationGUI:
         for item in self.project_overview_tree.get_children():
             self.project_overview_tree.delete(item)
 
+        self._overview_video_index = {}
+
         if not all_videos:
             return
 
@@ -2594,6 +2606,9 @@ class ApplicationGUI:
                         values=(status_display, data_badges),
                         tags=tags,
                     )
+
+                    if path:
+                        self._overview_video_index[path] = dict(entry)
 
     def _format_status_label(self, status_key: str) -> str:
         icon, label = self._get_status_meta(status_key)
@@ -2727,6 +2742,213 @@ class ApplicationGUI:
                 "Erro ao Carregar",
                 f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
             )
+
+    def _on_project_overview_right_click(self, event) -> None:
+        tree = self.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return
+
+        item_id = tree.identify_row(event.y)
+        column_id = tree.identify_column(event.x)
+
+        if not item_id or not column_id:
+            return
+
+        tree.selection_set(item_id)
+
+        tags = tree.item(item_id, "tags") or ()
+        video_path = None
+        for tag in tags:
+            if tag and not tag.startswith("status_"):
+                video_path = tag
+                break
+
+        if not video_path:
+            return
+
+        asset = None
+        if column_id == "#0":
+            asset = "video"
+        elif column_id == "#2":
+            asset = self._resolve_overview_asset_from_click(item_id, event.x)
+
+        if not asset:
+            return
+
+        self._show_overview_context_menu(event, video_path, asset)
+
+    def _get_overview_badge_font(self) -> tkfont.Font:
+        if self._overview_menu_font is None:
+            tree = self.project_overview_tree
+            font_name = tree.cget("font") if tree else ""
+            try:
+                if font_name:
+                    self._overview_menu_font = tkfont.Font(font=font_name)
+                else:
+                    self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
+            except Exception:
+                self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
+
+        return self._overview_menu_font
+
+    def _resolve_overview_asset_from_click(self, item_id: str, event_x: int) -> str | None:
+        tree = self.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return None
+
+        bbox = tree.bbox(item_id, "#2")
+        if not bbox:
+            return None
+
+        cell_x = event_x - bbox[0]
+        if cell_x < 0:
+            return None
+
+        data_text = tree.set(item_id, "data")
+        if not data_text:
+            return None
+
+        tokens = [token for token in data_text.split("  ") if token.strip()]
+        assets = ("arena", "rois", "trajectory", "summary")
+        font = self._get_overview_badge_font()
+        cursor = 0
+
+        for token, asset in zip(tokens, assets):
+            segment = token.strip()
+            if not segment:
+                continue
+            display = f"{segment}  "
+            segment_width = font.measure(display)
+            if cursor <= cell_x <= cursor + segment_width:
+                return asset
+            cursor += segment_width
+
+        return None
+
+    def _show_overview_context_menu(
+        self,
+        event,
+        video_path: str,
+        asset: str,
+    ) -> None:
+        tree = self.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return
+
+        if self._overview_context_menu is None:
+            self._overview_context_menu = Menu(tree, tearoff=0)
+
+        labels = {
+            "arena": "Apagar arena",
+            "rois": "Apagar ROIs",
+            "trajectory": "Apagar trajetória",
+            "summary": "Apagar relatórios/sumários",
+            "video": "Remover vídeo do projeto",
+        }
+
+        menu = self._overview_context_menu
+        menu.delete(0, "end")
+        menu.add_command(
+            label=labels.get(asset, f"Remover {asset}"),
+            command=lambda: self._handle_overview_asset_removal(video_path, asset),
+        )
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _handle_overview_asset_removal(self, video_path: str, asset: str) -> None:
+        allowed, reason = self.controller.can_remove_project_asset(video_path, asset)
+        if not allowed:
+            self.show_warning(
+                "Ação indisponível",
+                reason or "Não é possível remover o item selecionado neste momento.",
+            )
+            return
+
+        basename = os.path.basename(video_path) or video_path
+        prompts = {
+            "arena": (
+                "Remover arena",
+                "Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas.",
+            ),
+            "rois": (
+                "Remover ROIs",
+                "Deseja remover todas as ROIs salvas para este vídeo?",
+            ),
+            "trajectory": (
+                "Remover trajetória",
+                "Deseja remover a trajetória gerada para este vídeo?",
+            ),
+            "summary": (
+                "Remover relatórios",
+                "Deseja remover os relatórios e sumários associados a este vídeo?",
+            ),
+            "video": (
+                "Remover vídeo do projeto",
+                "Deseja remover este vídeo do projeto? As arenas, ROIs e trajetórias já removidas não poderão ser recuperadas automaticamente.",
+            ),
+        }
+
+        title, message = prompts.get(
+            asset,
+            (
+                "Remover item",
+                "Confirma a remoção do item selecionado?",
+            ),
+        )
+
+        confirm = messagebox.askyesno(
+            title,
+            f"{message}\n\nVídeo: {basename}",
+            icon="warning",
+        )
+        if not confirm:
+            return
+
+        delete_files = True
+        if asset == "video":
+            delete_files = messagebox.askyesno(
+                "Excluir arquivo do disco?",
+                (
+                    "Deseja também remover o arquivo de vídeo do disco? Essa ação "
+                    "não poderá ser desfeita."
+                ),
+                icon="question",
+            )
+
+        if asset == "video":
+            success = self.controller.delete_project_asset(
+                video_path,
+                asset,
+                delete_source=delete_files,
+            )
+        else:
+            success = self.controller.delete_project_asset(video_path, asset)
+
+        if not success:
+            self.show_error(
+                "Remoção não realizada",
+                "Não foi possível remover o item selecionado. Consulte os logs para mais detalhes.",
+            )
+            return
+
+        status_labels = {
+            "arena": "Arena removida",
+            "rois": "ROIs removidas",
+            "trajectory": "Trajetória removida",
+            "summary": "Relatórios removidos",
+            "video": "Vídeo removido do projeto",
+        }
+
+        status_message = f"{status_labels.get(asset, 'Item removido')} • {basename}"
+        self.set_status(status_message)
+        self.refresh_project_views(
+            reason=status_message,
+            append_summary=True,
+            immediate=True,
+        )
 
     def _build_arduino_dashboard(self, parent: Frame):
         """Creates the Arduino monitoring dashboard."""

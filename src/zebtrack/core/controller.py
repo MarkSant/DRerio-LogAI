@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from contextlib import contextmanager
 from tkinter import Label, Toplevel
+from typing import cast
 
 import cv2
 import numpy as np
@@ -29,7 +30,7 @@ from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -1876,6 +1877,55 @@ class AppController:
 
         except Exception as e:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
+            return False
+
+    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
+        """Validate whether a project asset can be safely removed."""
+
+        try:
+            asset_type = cast(AssetType, asset)
+            return self.project_manager.can_remove_asset(video_path, asset_type)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            log.error(
+                "controller.project_asset.can_remove_failed",
+                asset=asset,
+                video=video_path,
+                error=str(exc),
+            )
+            return False, "Não foi possível validar a remoção solicitada."
+
+    def delete_project_asset(
+        self,
+        video_path: str,
+        asset: str,
+        *,
+        delete_source: bool = True,
+    ) -> bool:
+        """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo)."""
+
+        try:
+            asset_type = cast(AssetType, asset)
+            removed = self.project_manager.remove_asset(
+                video_path,
+                asset_type,
+                delete_files=delete_source,
+            )
+            log.info(
+                "controller.project_asset.removal_result",
+                asset=asset,
+                video=video_path,
+                removed=removed,
+                delete_source=delete_source,
+            )
+            return removed
+        except Exception as exc:  # pragma: no cover - defensive logging
+            log.error(
+                "controller.project_asset.remove_failed",
+                asset=asset,
+                video=video_path,
+                error=str(exc),
+                exc_info=True,
+            )
             return False
 
     def run_live_calibration(self, temp_aquarium_method: str = None):

@@ -6,6 +6,7 @@ import shutil
 import unicodedata
 from datetime import datetime
 from pathlib import Path
+from typing import Literal, Tuple
 from tkinter import messagebox
 
 import pandas as pd
@@ -20,6 +21,8 @@ CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 
 log = structlog.get_logger()
+
+AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class ProjectManager:
@@ -325,10 +328,10 @@ class ProjectManager:
                 )
                 continue
 
-            destination_dirs = {target_parent}
+            destination_dirs: list[Path] = [target_parent]
 
             if hierarchical_results_dir:
-                destination_dirs.add(Path(hierarchical_results_dir))
+                destination_dirs.append(Path(hierarchical_results_dir))
 
             for dest_dir in destination_dirs:
                 dest_dir.mkdir(parents=True, exist_ok=True)
@@ -1275,6 +1278,255 @@ class ProjectManager:
             videos = batch.get("videos", [])
             for video in videos:
                 yield batch, video
+
+    def _video_has_asset(self, video_entry: dict, asset: AssetType) -> bool:
+        parquet_files = video_entry.get("parquet_files") or {}
+
+        if asset == "arena":
+            return bool(video_entry.get("has_arena") or parquet_files.get("arena"))
+        if asset == "rois":
+            return bool(video_entry.get("has_rois") or parquet_files.get("rois"))
+        if asset == "trajectory":
+            return bool(
+                video_entry.get("has_trajectory") or parquet_files.get("trajectory")
+            )
+        if asset == "summary":
+            return bool(
+                video_entry.get("has_summary")
+                or parquet_files.get("summary")
+                or parquet_files.get("summary_excel")
+                or parquet_files.get("report_docx")
+            )
+        if asset == "video":
+            return bool(video_entry.get("path"))
+
+        raise ValueError(f"Asset type '{asset}' desconhecido.")
+
+    @staticmethod
+    def _refresh_complete_flag(video_entry: dict) -> None:
+        video_entry["has_complete_data"] = bool(
+            video_entry.get("has_arena")
+            and video_entry.get("has_rois")
+            and video_entry.get("has_trajectory")
+        )
+
+    def _delete_file_if_exists(self, path: str | None) -> bool:
+        if not path:
+            return False
+
+        try:
+            os.remove(path)
+            log.info("project_manager.asset.file_deleted", path=path)
+            return True
+        except FileNotFoundError:
+            log.debug("project_manager.asset.file_missing", path=path)
+            return False
+        except Exception as exc:  # pragma: no cover - defensive logging
+            log.warning(
+                "project_manager.asset.file_delete_failed",
+                path=path,
+                error=str(exc),
+            )
+            return False
+
+    def can_remove_asset(self, video_path: str, asset: AssetType) -> Tuple[bool, str | None]:
+        video_entry = self.find_video_entry(path=video_path)
+        if not video_entry:
+            return False, "Vídeo não encontrado no projeto."
+
+        has_summary_outputs = self._video_has_asset(video_entry, "summary")
+
+        if asset in {"arena", "rois", "trajectory"}:
+            if has_summary_outputs:
+                return (
+                    False,
+                    "Remova os relatórios e sumários antes de apagar arena, ROIs ou trajetórias.",
+                )
+            if not self._video_has_asset(video_entry, asset):
+                labels = {
+                    "arena": "arena",
+                    "rois": "ROIs",
+                    "trajectory": "trajetória",
+                }
+                return False, f"Não há {labels.get(asset, asset)} registrada para este vídeo."
+
+        if asset == "summary" and not has_summary_outputs:
+            return False, "Não há relatórios ou sumários para remover."
+
+        if asset == "video":
+            if has_summary_outputs:
+                return False, "Remova relatórios e sumários antes de excluir o vídeo."
+            if any(
+                self._video_has_asset(video_entry, dependency)
+                for dependency in ("trajectory", "rois", "arena")
+            ):
+                return (
+                    False,
+                    "Remova arena, ROIs e trajetórias antes de excluir o vídeo do projeto.",
+                )
+
+        return True, None
+
+    def remove_asset(
+        self,
+        video_path: str,
+        asset: AssetType,
+        *,
+        delete_files: bool = True,
+    ) -> bool:
+        video_entry = self.find_video_entry(path=video_path)
+        if not video_entry:
+            log.warning("project_manager.asset.remove_video_missing", path=video_path)
+            return False
+
+        if asset == "arena":
+            changed = self._remove_arena_asset(video_path, video_entry, delete_files)
+        elif asset == "rois":
+            changed = self._remove_rois_asset(video_path, video_entry, delete_files)
+        elif asset == "trajectory":
+            changed = self._remove_trajectory_asset(video_entry, delete_files)
+        elif asset == "summary":
+            changed = self._remove_summary_asset(video_entry, delete_files)
+        elif asset == "video":
+            changed = self._remove_video_entry(video_path, video_entry, delete_files)
+        else:  # pragma: no cover - guarded by type
+            raise ValueError(f"Asset type '{asset}' desconhecido.")
+
+        if changed:
+            self.save_project()
+
+        return changed
+
+    def _remove_arena_asset(
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+    ) -> bool:
+        changed = False
+
+        self.clear_zone_data_for_video(video_path, persist=False)
+        parquet_files = video_entry.get("parquet_files") or {}
+
+        for key in ("arena", "rois"):
+            file_path = parquet_files.pop(key, None)
+            if file_path:
+                changed = True
+                if delete_files:
+                    self._delete_file_if_exists(file_path)
+
+        if video_entry.get("has_arena"):
+            video_entry["has_arena"] = False
+            changed = True
+        if video_entry.get("has_rois"):
+            video_entry["has_rois"] = False
+            changed = True
+
+        self._refresh_complete_flag(video_entry)
+
+        return changed
+
+    def _remove_rois_asset(
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+    ) -> bool:
+        changed = False
+
+        zone_data = self.get_zone_data(video_path, fallback_to_global=False)
+        if zone_data and zone_data.roi_polygons:
+            zone_data.roi_polygons = []
+            zone_data.roi_names = []
+            zone_data.roi_colors = []
+            self.save_zone_data(zone_data, video_path=video_path, persist=False)
+            changed = True
+
+        parquet_files = video_entry.get("parquet_files") or {}
+        roi_path = parquet_files.pop("rois", None)
+        if roi_path:
+            changed = True
+            if delete_files:
+                self._delete_file_if_exists(roi_path)
+
+        if video_entry.get("has_rois"):
+            video_entry["has_rois"] = False
+            changed = True
+
+        self._refresh_complete_flag(video_entry)
+
+        return changed
+
+    def _remove_trajectory_asset(
+        self,
+        video_entry: dict,
+        delete_files: bool,
+    ) -> bool:
+        changed = False
+
+        parquet_files = video_entry.get("parquet_files") or {}
+        trajectory_path = parquet_files.pop("trajectory", None)
+        if trajectory_path:
+            changed = True
+            if delete_files:
+                self._delete_file_if_exists(trajectory_path)
+
+        if video_entry.get("has_trajectory"):
+            video_entry["has_trajectory"] = False
+            changed = True
+
+        self._refresh_complete_flag(video_entry)
+
+        return changed
+
+    def _remove_summary_asset(
+        self,
+        video_entry: dict,
+        delete_files: bool,
+    ) -> bool:
+        changed = False
+        parquet_files = video_entry.get("parquet_files") or {}
+
+        for key in ("summary", "summary_excel", "report_docx"):
+            file_path = parquet_files.pop(key, None)
+            if file_path:
+                changed = True
+                if delete_files:
+                    self._delete_file_if_exists(file_path)
+
+        if video_entry.get("has_summary"):
+            video_entry["has_summary"] = False
+            changed = True
+
+        return changed
+
+    def _remove_video_entry(
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+    ) -> bool:
+        changed = False
+
+        parquet_files = dict(video_entry.get("parquet_files") or {})
+        if delete_files:
+            for path in parquet_files.values():
+                self._delete_file_if_exists(path)
+
+        self.clear_zone_data_for_video(video_path, persist=False)
+
+        for batch in self.project_data.get("batches", []):
+            original_count = len(batch.get("videos", []))
+            batch["videos"] = [
+                item for item in batch.get("videos", []) if item.get("path") != video_path
+            ]
+            if len(batch["videos"]) != original_count:
+                changed = True
+
+        if changed:
+            self._refresh_last_zone_source(removed_path=video_path)
+
+        return changed
 
     def find_video_entry(
         self,

@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
+from zebtrack.core.detector import ZoneData
 
 
 class TestProjectManager(unittest.TestCase):
@@ -24,6 +25,83 @@ class TestProjectManager(unittest.TestCase):
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
         sys.modules["tkinter.messagebox"].showerror = self.original_showerror  # type: ignore[attr-defined]
+
+    def _create_manager_with_assets(
+        self,
+        name: str = "proj",
+        *,
+        include_summary: bool = True,
+    ) -> tuple[ProjectManager, str, dict[str, str | None]]:
+        project_root = os.path.join(self.test_dir, name)
+        os.makedirs(project_root, exist_ok=True)
+
+        pm = ProjectManager()
+        pm.project_path = project_root
+
+        video_path = os.path.join(project_root, "sample.mp4")
+        with open(video_path, "wb") as handle:
+            handle.write(b"")
+
+        artifact_dir = os.path.join(project_root, "artifacts")
+        os.makedirs(artifact_dir, exist_ok=True)
+
+        arena_path = os.path.join(artifact_dir, "1_ProcessingArea_sample.parquet")
+        rois_path = os.path.join(artifact_dir, "2_AreasOfInterest_sample.parquet")
+        trajectory_path = os.path.join(artifact_dir, "3_CoordMovimento_sample.parquet")
+        for path in (arena_path, rois_path, trajectory_path):
+            with open(path, "wb") as handle:
+                handle.write(b"data")
+
+        summary_path = os.path.join(artifact_dir, "sample_summary.parquet")
+        report_path = os.path.join(artifact_dir, "sample_report.docx")
+        if include_summary:
+            for path in (summary_path, report_path):
+                with open(path, "wb") as handle:
+                    handle.write(b"data")
+
+        video_entry = {
+            "path": video_path,
+            "status": "processed",
+            "has_arena": True,
+            "has_rois": True,
+            "has_trajectory": True,
+            "has_summary": include_summary,
+            "has_complete_data": True,
+            "parquet_files": {
+                "arena": arena_path,
+                "rois": rois_path,
+                "trajectory": trajectory_path,
+            },
+        }
+
+        if include_summary:
+            video_entry["parquet_files"]["summary"] = summary_path
+            video_entry["parquet_files"]["report_docx"] = report_path
+
+        pm.project_data = {
+            "project_name": "test",
+            "project_type": "pre-recorded",
+            "batches": [{"videos": [video_entry]}],
+            "zones_by_video": {},
+            "detection_zones": {},
+        }
+
+        zone_data = ZoneData(
+            polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+            roi_polygons=[[[10, 10], [50, 10], [50, 50], [10, 50]]],
+            roi_names=["ROI-1"],
+            roi_colors=[(255, 0, 0)],
+        )
+        pm.save_zone_data(zone_data, video_path=video_path, persist=False)
+        pm.save_project()
+
+        return pm, video_path, {
+            "arena": arena_path,
+            "rois": rois_path,
+            "trajectory": trajectory_path,
+            "summary": summary_path if include_summary else None,
+            "report": report_path if include_summary else None,
+        }
 
     def test_copy_zone_parquet_files_replicates_artifacts(self):
         pm = ProjectManager()
@@ -391,6 +469,83 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(loader_pm.get_project_name(), "load_test_project")
         self.assertEqual(loader_pm.get_project_type(), "pre-recorded")
         self.assertEqual(len(loader_pm.get_all_videos()), 1)
+
+    def test_can_remove_arena_blocked_by_summary(self):
+        pm, video_path, _ = self._create_manager_with_assets(
+            "proj_summary_block", include_summary=True
+        )
+
+        allowed, reason = pm.can_remove_asset(video_path, "arena")
+
+        self.assertFalse(allowed)
+        self.assertIn("relatórios", reason or "")
+
+    def test_remove_rois_clears_zone_and_file(self):
+        pm, video_path, files = self._create_manager_with_assets(
+            "proj_remove_rois", include_summary=False
+        )
+
+        allowed, _ = pm.can_remove_asset(video_path, "rois")
+        self.assertTrue(allowed)
+
+        removed = pm.remove_asset(video_path, "rois")
+        self.assertTrue(removed)
+
+        video_entry = pm.find_video_entry(path=video_path)
+        assert video_entry is not None
+        self.assertFalse(video_entry.get("has_rois"))
+        self.assertNotIn("rois", video_entry.get("parquet_files", {}))
+        rois_path = files["rois"]
+        assert rois_path is not None
+        self.assertFalse(os.path.exists(rois_path))
+        self.assertEqual(pm.get_zone_data(video_path).roi_polygons, [])
+        self.assertFalse(video_entry.get("has_complete_data"))
+
+    def test_remove_summary_asset_clears_files(self):
+        pm, video_path, files = self._create_manager_with_assets(
+            "proj_remove_summary", include_summary=True
+        )
+
+        allowed, _ = pm.can_remove_asset(video_path, "summary")
+        self.assertTrue(allowed)
+
+        removed = pm.remove_asset(video_path, "summary")
+        self.assertTrue(removed)
+
+        video_entry = pm.find_video_entry(path=video_path)
+        assert video_entry is not None
+        self.assertFalse(video_entry.get("has_summary"))
+        self.assertNotIn("summary", video_entry.get("parquet_files", {}))
+        self.assertNotIn("report_docx", video_entry.get("parquet_files", {}))
+        if files["summary"]:
+            self.assertFalse(os.path.exists(files["summary"]))
+        if files["report"]:
+            self.assertFalse(os.path.exists(files["report"]))
+        self.assertTrue(video_entry.get("has_complete_data"))
+
+    def test_remove_video_requires_dependencies_removed(self):
+        pm, video_path, _ = self._create_manager_with_assets(
+            "proj_remove_video", include_summary=False
+        )
+
+        allowed, _ = pm.can_remove_asset(video_path, "video")
+        self.assertFalse(allowed)
+
+        pm.remove_asset(video_path, "trajectory")
+        pm.remove_asset(video_path, "rois")
+        pm.remove_asset(video_path, "arena")
+
+        allowed_after, reason = pm.can_remove_asset(video_path, "video")
+        self.assertTrue(allowed_after, msg=reason)
+
+        removed = pm.remove_asset(video_path, "video", delete_files=False)
+        self.assertTrue(removed)
+
+        self.assertIsNone(pm.find_video_entry(path=video_path))
+        batch_videos = pm.project_data.get("batches", [])[0]["videos"]
+        self.assertEqual(len(batch_videos), 0)
+        self.assertFalse(pm.project_data.get("zones_by_video"))
+        self.assertTrue(os.path.exists(video_path))
 
     def test_load_nonexistent_project(self):
         """Test loading from a directory with no config file."""
