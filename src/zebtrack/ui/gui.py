@@ -36,6 +36,11 @@ import serial.tools.list_ports
 import structlog
 from PIL import Image, ImageTk
 
+try:
+    import ttkbootstrap as ttkb
+except ImportError:  # pragma: no cover - optional dependency fallback
+    ttkb = None
+
 # Import custom modules
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
@@ -1715,6 +1720,10 @@ class ApplicationGUI:
         self.root.title("Controlador Zebtrack")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
+        self._ttkbootstrap_style = None
+        self._ttkbootstrap_theme = None
+        self._initialize_theme()
+
         # Dynamic widgets / state variables
         self.welcome_frame = None
         self.notebook = None
@@ -2038,6 +2047,40 @@ class ApplicationGUI:
             textvariable=self._openvino_display_var,
         ).pack(anchor="w", pady=(4, 0))
 
+    def _initialize_theme(self) -> None:
+        """Apply a modern ttkbootstrap theme if the library is available."""
+        if ttkb is None:
+            log.debug("ui.theme.bootstrap_missing")
+            return
+
+        preferred_theme = (
+            getattr(settings, "ui_theme_name", None)
+            or getattr(settings, "ui_theme", None)
+        )
+        theme_name = preferred_theme or "cosmo"
+
+        try:
+            self._ttkbootstrap_style = ttkb.Style(
+                theme=theme_name,
+                master=self.root,
+            )
+            active_theme = self._ttkbootstrap_style.theme_use()
+            self._ttkbootstrap_theme = active_theme
+
+            frame_bg = self._ttkbootstrap_style.lookup("TFrame", "background")
+            if frame_bg:
+                self.root.configure(background=frame_bg)
+
+            log.debug("ui.theme.bootstrap_applied", theme=active_theme)
+        except Exception:
+            log.warning(
+                "ui.theme.bootstrap_failed",
+                theme=theme_name,
+                exc_info=True,
+            )
+            self._ttkbootstrap_style = None
+            self._ttkbootstrap_theme = None
+
     def _configure_styles(self) -> None:
         """Configura estilos personalizados para os componentes ttk usados pela GUI."""
         style = ttk.Style(self.root)
@@ -2049,12 +2092,37 @@ class ApplicationGUI:
             current_theme = "default"
             style.theme_use("default")
 
-        base_background = style.lookup("TNotebook", "background") or "#f6f7fb"
-        accent_background = "#ffffff"
-        tab_inactive = "#dce3ee"
-        border_color = "#c5ccd9"
-        text_active = "#1d2733"
-        text_inactive = "#4a5568"
+        base_background = (
+            style.lookup("TNotebook", "background", None)
+            or (
+                self._ttkbootstrap_style.lookup("TFrame", "background")
+                if self._ttkbootstrap_style is not None
+                else None
+            )
+            or "#f6f7fb"
+        )
+        accent_background = (
+            style.lookup("TNotebook.Tab", "background", None, ("selected",))
+            or style.lookup("TFrame", "background", None)
+            or "#ffffff"
+        )
+        tab_inactive = (
+            style.lookup("TNotebook.Tab", "background", None)
+            or "#dce3ee"
+        )
+        border_color = (
+            style.lookup("TNotebook", "bordercolor", None)
+            or style.lookup("TNotebook", "lightcolor", None)
+            or "#c5ccd9"
+        )
+        text_active = (
+            style.lookup("TNotebook.Tab", "foreground", None, ("selected",))
+            or "#1d2733"
+        )
+        text_inactive = (
+            style.lookup("TNotebook.Tab", "foreground", None)
+            or "#4a5568"
+        )
 
         style.configure(
             "Zebtrack.TNotebook",

@@ -199,7 +199,10 @@ class Recorder:
     def _should_flush(self) -> bool:
         if not self.detection_data:
             return False
-        if self._flush_row_threshold > 0 and len(self.detection_data) >= self._flush_row_threshold:
+        if (
+            self._flush_row_threshold > 0
+            and len(self.detection_data) >= self._flush_row_threshold
+        ):
             return True
         if self._flush_interval_seconds <= 0:
             return False
@@ -293,7 +296,10 @@ class Recorder:
                 if df.empty:
                     log.info("recorder.save_parquet.no_data")
                 else:
-                    df = df.reindex(columns=self._parquet_columns or self._determine_parquet_columns())
+                    df = df.reindex(
+                        columns=
+                        self._parquet_columns or self._determine_parquet_columns()
+                    )
                     table = pa.Table.from_pandas(df, preserve_index=False)
                     pq.write_table(table, parquet_path)
                     log.info("recorder.save_parquet.success", path=parquet_path)

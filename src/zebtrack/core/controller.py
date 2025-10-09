@@ -3613,7 +3613,9 @@ class AppController:
         total_videos: int,
         experiment_id: str,
     ):
-        def progress_callback(progress_fraction, status_message, frame=None, stats=None):
+        def progress_callback(
+            progress_fraction, status_message, frame=None, stats=None
+        ):
             if self.cancel_event.is_set():
                 return
 
@@ -3877,7 +3879,9 @@ class AppController:
 
         reporter.export_summary_data(summary_parquet_path, format="parquet")
         reporter.export_summary_data(summary_excel_path, format="excel")
-        reporter.export_individual_report_step_by_step(report_docx_path, progress_callback)
+        reporter.export_individual_report_step_by_step(
+            report_docx_path, progress_callback
+        )
 
         return summary_parquet_path, summary_excel_path, report_docx_path
 
@@ -4464,7 +4468,7 @@ class AppController:
                     "Converter Modelo?",
                     "O modelo OpenVINO não foi encontrado. Deseja convertê-lo agora?",
                 ):
-                    self.convert_active_weight_to_openvino()
+                    self.convert_active_weight_to_openvino(dialog=None)
                     # Refresh details after conversion
                     active_weight_details = self.weight_manager.get_weight_details(
                         self.active_weight_name

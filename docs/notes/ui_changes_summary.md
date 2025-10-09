@@ -77,3 +77,4 @@ The changes maintain full backward compatibility while giving users control over
 - Replaced verbose `root.after` lambdas with `functools.partial` in `ApplicationGUI` to keep scheduling readable while preserving existing async behavior.
 - Hardened report-tree helpers by centralizing metadata lookups (`metadata_store = getattr(...)`) and reusing those caches for selection/double-click handlers.
 - `update_analysis_metadata` now guards via `getattr` and reuses the resolved `StringVar`, preventing attribute errors when the widget tree is rehydrated late in the pipeline tab lifecycle.
+- Adopted the `ttkbootstrap` “cosmo” theme (with automatic fallback to vanilla ttk) so dialogs inherit a modern palette while preserving the bespoke `Zebtrack.TNotebook` styling.

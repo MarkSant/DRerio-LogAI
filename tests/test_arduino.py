@@ -66,7 +66,11 @@ def test_scan_available_ports_prefers_handshake(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "serial", serial_module)
     monkeypatch.setitem(sys.modules, "serial.tools", serial_tools_module)
-    monkeypatch.setitem(sys.modules, "serial.tools.list_ports", serial_list_ports_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "serial.tools.list_ports",
+        serial_list_ports_module,
+    )
     monkeypatch.setattr(arduino, "serial", serial_module, raising=False)
 
     def fake_probe(cls, port, baud_rate, timeout=1.5):

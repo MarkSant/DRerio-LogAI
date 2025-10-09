@@ -604,7 +604,9 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         episodes = self._extract_velocity_episodes(mask, min_duration)
         total_duration = float(sum(ep["duration"] for ep in episodes))
 
-        overall_duration_td = self._trajectory_data.index[-1] - self._trajectory_data.index[0]
+        overall_duration_td = (
+            self._trajectory_data.index[-1] - self._trajectory_data.index[0]
+        )
         overall_duration_s = overall_duration_td.total_seconds()
         percentage = (
             (total_duration / overall_duration_s) * 100
