@@ -28,7 +28,7 @@ This directory contains test data files used by the ZebTrack-AI test suite.
 
 - **sample_detections.parquet** - Pre-recorded detection results
   - Schema: `timestamp, frame, track_id, x1, y1, x2, y2, confidence`
-  - Used by: `test_behavioral_analyzer.py`, `test_reporter.py`
+  - Used by: `test_concrete_behavioral_analyzer.py`, `test_reporter.py`
   - Purpose: Analysis and reporting tests without running full detection
 
 - **sample_detections_with_calibration.parquet** - Detections with cm coordinates

@@ -127,6 +127,11 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 | `desvio_padrao_velocidade_cm_s` | $\sigma = \sqrt{\frac{1}{n-1}\sum (v_i - \bar v)^2}$ | Variabilidade da velocidade. | Idem |
 | `contagem_curvas_acentuadas` | Contagem de $|\omega_i| > \theta$ | Número de frames onde a velocidade angular $\omega_i$ excede o limiar ($\theta = 90^\circ/s$). | `ConcreteBehavioralAnalyzer.calculate_sharp_turns()` |
 | `curvas_acentuadas_por_minuto` | $\frac{\text{count}}{\text{duração (min)}}$ | Frequência de curvas acentuadas por minuto. | Idem |
+| `rajadas_velocidade_contagem` | Contagem de episódios $v_i \geq v_\text{lim}$ | Número de períodos contínuos com velocidade acima do limiar dinâmico/absoluto. | `ConcreteBehavioralAnalyzer.calculate_speed_bursts()` |
+| `rajadas_velocidade_duracao_total_s` | $\sum \Delta t_\text{rajada}$ | Duração acumulada (s) das rajadas de velocidade. | Idem |
+| `periodos_inatividade_contagem` | Contagem de episódios $v_i \leq v_\text{lim}$ | Número de períodos consecutivos abaixo do limiar de inatividade. | `ConcreteBehavioralAnalyzer.calculate_inactivity_periods()` |
+| `periodos_inatividade_duracao_total_s` | $\sum \Delta t_\text{inativo}$ | Duração acumulada (s) em inatividade. | Idem |
+| `periodos_inatividade_percentual_registro` | $\frac{\sum \Delta t_\text{inativo}}{t_\text{total}} \times 100$ | Percentual do experimento passado abaixo do limiar de atividade. | Idem |
 | `episodios_congelamento` | Ver seção 5.3 | Lista de episódios com `start_time`, `end_time`, `duration`. | `ConcreteBehavioralAnalyzer.detect_freezing_episodes()` |
 | `tortuosidade` | $T = \frac{d_\text{total}}{\|p_n - p_1\|}$ | Relação caminho real / linha reta. | `ConcreteBehavioralAnalyzer.get_tortuosity()` |
 
@@ -285,7 +290,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 
 | Caminho | Observação | Ação sugerida |
 |---------|------------|---------------|
-| `src/zebtrack/analysis/behavioral_analyzer.py` | Implementação antiga que retorna métricas randômicas; não é referenciada desde a introdução do `AnalysisService`. | Considerar remoção ou migração para `tests/manual/` caso sirva como mock. |
+| `src/zebtrack/analysis/analysis_service.py` | Serviço que instancia `ConcreteBehavioralAnalyzer` e `ROIAnalyzer`, retornando relatório coeso. | Extensões devem conectar novas métricas aqui para aparecerem em relatórios. |
 | `MagicMock/ProjectManager().project_path/` | Pasta gerada por inspeções anteriores contendo dados fictícios (`*_results` sintéticos). | Avaliar se ainda é necessária; mover para `tests/manual/` ou arquivar externamente. |
 | `debug/` scripts | Úteis apenas para diagnóstico pontual. | Documentar uso em `docs/notes/` ou remover se permanecerem obsoletos. |
 

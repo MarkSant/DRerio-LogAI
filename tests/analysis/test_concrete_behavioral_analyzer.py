@@ -176,3 +176,83 @@ def test_detect_freezing_episodes_value_error(sample_trajectory_data):
         ValueError, match="vel_threshold must be set for 'absolute' method."
     ):
         analyzer.detect_freezing_episodes(min_duration=1, threshold_method="absolute")
+
+
+def test_calculate_speed_bursts(sample_trajectory_data):
+    """Ensures speed burst detection returns the expected episode."""
+    timestamps = np.linspace(0, 10, 101)
+    x_cm = np.zeros_like(timestamps)
+
+    for idx, t in enumerate(timestamps):
+        if t <= 3:
+            x_cm[idx] = t * 1.0  # 1 cm/s baseline
+        elif t <= 5:
+            x_cm[idx] = 3 + (t - 3) * 10.0  # 10 cm/s burst
+        else:
+            x_cm[idx] = 23 + (t - 5) * 1.0  # back to baseline
+
+    x_px = x_cm * sample_trajectory_data["pixelcm_x"]
+    y_px = np.zeros_like(x_px)
+
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_px,
+            "y_center_px": y_px,
+            "x1": x_px - 1,
+            "y1": y_px - 1,
+            "x2": x_px + 1,
+            "y2": y_px + 1,
+        }
+    )
+
+    sample_trajectory_data.update({
+        "trajectory_df": df,
+        "window_length": 1,
+        "polyorder": 0,
+    })
+
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    result = analyzer.calculate_speed_bursts(threshold_cm_s=8.0, min_duration=1.0)
+
+    assert result["count"] == 1
+    assert result["threshold_cm_s"] == pytest.approx(8.0)
+    assert result["total_duration_s"] == pytest.approx(2.0, abs=0.2)
+
+
+def test_calculate_inactivity_periods(sample_trajectory_data):
+    """Validates inactivity detection using a long stationary segment."""
+    timestamps = np.linspace(0, 10, 101)
+    x_cm = np.concatenate([
+        np.zeros(31),  # 0-3s stationary
+        np.linspace(0, 10, 70),
+    ])
+    x_px = x_cm * sample_trajectory_data["pixelcm_x"]
+    y_px = np.zeros_like(x_px)
+
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_px,
+            "y_center_px": y_px,
+            "x1": x_px - 1,
+            "y1": y_px - 1,
+            "x2": x_px + 1,
+            "y2": y_px + 1,
+        }
+    )
+
+    sample_trajectory_data.update({
+        "trajectory_df": df,
+        "window_length": 1,
+        "polyorder": 0,
+    })
+
+    analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
+    result = analyzer.calculate_inactivity_periods(
+        velocity_threshold_cm_s=0.2, min_duration=2.0
+    )
+
+    assert result["count"] == 1
+    assert result["total_duration_s"] == pytest.approx(3.0, abs=0.2)
+    assert result["percentage_of_recording"] == pytest.approx(30.0, abs=2.0)

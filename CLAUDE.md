@@ -175,7 +175,7 @@ log.error("recorder.save_parquet.error", error=str(e))
 - `src/zebtrack/ui/wizard/` - **5-step wizard** (v1.5): Discovery, File Selection, Detection, Import Config, Confirmation
 - `src/zebtrack/ui/wizard/wizard_adapter.py` - Adapter translating wizard output to controller format
 - `src/zebtrack/io/recorder.py` - Parquet/MP4 schema enforcement
-- `src/zebtrack/analysis/behavioral_analyzer.py` - Behavioral metrics orchestration
+- `src/zebtrack/analysis/analysis_service.py` - Behavioral & ROI metrics orchestration
 - `src/zebtrack/analysis/reporter.py` - Excel/Word report generation
 - `src/zebtrack/plugins/` - Detector implementations
 - `src/zebtrack/settings.py` - Configuration models + **feature flags** (UIFeatureFlags)

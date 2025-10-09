@@ -4,7 +4,7 @@ This module provides a unified service for performing comprehensive behavioral
 and ROI-based analysis.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -32,7 +32,7 @@ class AnalysisService:
         # Analysis-specific parameters
         freezing_vel_threshold: float,
         freezing_min_duration: float,
-    ) -> Tuple[Dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer]:
+    ) -> Tuple[Dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
         """
         Runs a complete analysis pipeline on the given trajectory data.
 
@@ -54,7 +54,7 @@ class AnalysisService:
             A tuple containing:
             - A nested dictionary with the full analysis report.
             - The instance of ConcreteBehavioralAnalyzer used.
-            - The instance of ROIAnalyzer used.
+            - The instance of ROIAnalyzer used, or ``None`` when no ROIs were provided.
         """
         # 1. Initialize the core behavioral analyzer
         b_analyzer = ConcreteBehavioralAnalyzer(
@@ -67,15 +67,17 @@ class AnalysisService:
         )
 
         # 2. Initialize the behavioral report
-        report = {
+        report: Dict[str, Any] = {
             "comportamento_geral": {
                 "distancia_total_cm": b_analyzer.calculate_total_distance(),
                 "estatisticas_velocidade": b_analyzer.get_velocity_stats(),
+                "rajadas_velocidade": b_analyzer.calculate_speed_bursts(),
                 "episodios_congelamento": b_analyzer.detect_freezing_episodes(
                     vel_threshold=freezing_vel_threshold,
                     min_duration=freezing_min_duration,
                 ),
                 "tortuosidade": b_analyzer.get_tortuosity(),
+                "periodos_inatividade": b_analyzer.calculate_inactivity_periods(),
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
                     90.0
                 ),  # Assuming 90 as default

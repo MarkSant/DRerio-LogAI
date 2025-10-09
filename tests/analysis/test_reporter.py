@@ -41,6 +41,19 @@ def _build_reporter(tmp_path, metadata_override=None):
                     "median": 10.0,
                     "std_dev": 1.0,
                 },
+                "rajadas_velocidade": {
+                    "count": 2,
+                    "total_duration_s": 1.5,
+                    "threshold_cm_s": 12.0,
+                    "episodes": [],
+                },
+                "periodos_inatividade": {
+                    "count": 1,
+                    "total_duration_s": 4.0,
+                    "percentage_of_recording": 40.0,
+                    "threshold_cm_s": 0.8,
+                    "episodes": [],
+                },
                 "curvas_acentuadas": {
                     "sharp_turns_count": 5,
                     "sharp_turns_per_minute": 30.0,
@@ -101,6 +114,8 @@ def test_reporter_create_tidy_dataframe(reporter_setup):
     assert tidy_df["total_distance_cm"].iloc[0] == 100.0
     assert tidy_df["mean_speed_cm_s"].iloc[0] == 10.0
     assert tidy_df["sharp_turns_count"].iloc[0] == 5
+    assert tidy_df["speed_burst_count"].iloc[0] == 2
+    assert tidy_df["inactivity_percentage_of_recording"].iloc[0] == 40.0
     assert tidy_df["time_in_zone1_s"].iloc[0] == 5.0
     assert tidy_df["entries_in_zone1"].iloc[0] == 1
     assert "analysis_timestamp" in tidy_df.columns

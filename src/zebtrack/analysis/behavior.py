@@ -517,6 +517,109 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         # Not implemented for this concrete class
         raise NotImplementedError("Thigmotaxis is not implemented in this class.")
 
+    def calculate_speed_bursts(
+        self,
+        threshold_cm_s: Optional[float] = None,
+        min_duration: float = 0.5,
+        quantile: float = 0.9,
+    ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+        """
+        Detects episodes where the animal exceeds a velocity threshold.
+
+        Args:
+            threshold_cm_s: Absolute velocity threshold in cm/s. When ``None``,
+                the threshold is inferred from the provided quantile of the
+                velocity magnitude distribution.
+            min_duration: Minimum duration (seconds) for an episode to be
+                considered a burst.
+            quantile: Quantile to use when inferring the threshold. Must be in
+                the interval (0, 1).
+
+        Returns:
+            A dictionary containing the threshold applied, episode count, total
+            duration in seconds, and a detailed list of episodes.
+        """
+
+        self.calculate_velocity_timeseries()
+        if self._trajectory_data.empty:
+            inferred_threshold = np.nan if threshold_cm_s is None else threshold_cm_s
+            return {
+                "threshold_cm_s": float(inferred_threshold)
+                if inferred_threshold is not None and not np.isnan(inferred_threshold)
+                else inferred_threshold,
+                "count": 0,
+                "total_duration_s": 0.0,
+                "episodes": [],
+            }
+
+        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
+        if threshold_cm_s is None:
+            if not 0 < quantile < 1:
+                raise ValueError("quantile must be between 0 and 1 when used.")
+            threshold_cm_s = float(v_mag.quantile(quantile))
+
+        mask = v_mag >= float(threshold_cm_s)
+        episodes = self._extract_velocity_episodes(mask, min_duration)
+        total_duration = float(sum(ep["duration"] for ep in episodes))
+
+        return {
+            "threshold_cm_s": float(threshold_cm_s),
+            "count": len(episodes),
+            "total_duration_s": total_duration,
+            "episodes": episodes,
+        }
+
+    def calculate_inactivity_periods(
+        self,
+        velocity_threshold_cm_s: float = 1.0,
+        min_duration: float = 1.0,
+    ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+        """
+        Detects inactivity episodes where the velocity stays below a threshold.
+
+        Args:
+            velocity_threshold_cm_s: Maximum velocity magnitude (cm/s) to be
+                considered inactive.
+            min_duration: Minimum duration (seconds) required to register an
+                inactivity episode.
+
+        Returns:
+            A dictionary containing the threshold applied, episode count,
+            cumulative inactivity duration, percentage of the recording spent
+            inactive, and the detailed list of episodes.
+        """
+
+        self.calculate_velocity_timeseries()
+        if self._trajectory_data.empty:
+            return {
+                "threshold_cm_s": float(velocity_threshold_cm_s),
+                "count": 0,
+                "total_duration_s": 0.0,
+                "percentage_of_recording": np.nan,
+                "episodes": [],
+            }
+
+        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
+        mask = v_mag <= float(velocity_threshold_cm_s)
+        episodes = self._extract_velocity_episodes(mask, min_duration)
+        total_duration = float(sum(ep["duration"] for ep in episodes))
+
+        overall_duration_td = self._trajectory_data.index[-1] - self._trajectory_data.index[0]
+        overall_duration_s = overall_duration_td.total_seconds()
+        percentage = (
+            (total_duration / overall_duration_s) * 100
+            if overall_duration_s > 0
+            else np.nan
+        )
+
+        return {
+            "threshold_cm_s": float(velocity_threshold_cm_s),
+            "count": len(episodes),
+            "total_duration_s": total_duration,
+            "percentage_of_recording": percentage,
+            "episodes": episodes,
+        }
+
     def calculate_sharp_turns(
         self, threshold_deg_s: float, cooldown_s: float = 0.5
     ) -> Dict[str, Union[float, pd.Index]]:
@@ -582,3 +685,35 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             "sharp_turns_per_minute": sharp_turns_per_minute,
             "sharp_turns_timestamps": pd.Index(sharp_turn_timestamps),
         }
+
+    def _extract_velocity_episodes(
+        self, mask: pd.Series, min_duration: float
+    ) -> List[Dict[str, float]]:
+        if min_duration < 0:
+            raise ValueError("min_duration must be non-negative.")
+
+        aligned_mask = mask.reindex(self._trajectory_data.index, fill_value=False)
+        change_groups = aligned_mask.ne(aligned_mask.shift()).cumsum()
+        min_duration_td = pd.to_timedelta(min_duration, unit="s")
+
+        episodes: List[Dict[str, float]] = []
+        for _, block in self._trajectory_data[aligned_mask].groupby(change_groups):
+            if block.empty:
+                continue
+
+            start_time = block.index[0]
+            end_time = block.index[-1]
+            duration_td = end_time - start_time
+
+            if duration_td < min_duration_td:
+                continue
+
+            episodes.append(
+                {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "duration": duration_td.total_seconds(),
+                }
+            )
+
+        return episodes

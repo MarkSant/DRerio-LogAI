@@ -139,7 +139,8 @@ sequenceDiagram
 | `core/project_manager.py` | Persistência (`project_config.json`), batches, metadados, zonas e detecção granular de parquets (`scan_input_paths()`). |
 | `core/detector.py` | Estado de zonas, interface com plugins, cálculo de bounding boxes e overlays. |
 | `io/recorder.py` | Escreve trajetórias (`pyarrow`/`pandas`) e vídeos com overlays. |
-| `analysis/behavioral_analyzer.py` | Orquestra métricas, congela ROI, consolida resultados. |
+| `analysis/behavior.py` | Implementa pré-processamento, métricas comportamentais e utilitários de trajetória. |
+| `analysis/analysis_service.py` | Orquestra métricas gerais e de ROI, consolida resultados para relatórios. |
 | `analysis/reporter.py` | Gera relatórios Excel/Word com gráficos (seaborn/matplotlib). |
 | `ui/gui.py` | Componentes da interface: dialogs, canvas, progress overlay, interval dialogs, integração com wizard. |
 | `ui/wizard/wizard_dialog.py` 🧙 | Orquestrador principal do wizard de 5 etapas (Discovery → File Selection → Detection → Import Config → Confirmation). |

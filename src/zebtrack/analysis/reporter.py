@@ -31,6 +31,13 @@ COLUMN_MAPPING = {
     "curvas_acentuadas_por_minuto": "sharp_turns_per_minute",
     "total_entradas_roi": "total_roi_entries",
     "data_hora_analise": "analysis_timestamp",
+    "rajadas_velocidade_contagem": "speed_burst_count",
+    "rajadas_velocidade_duracao_total_s": "speed_burst_total_duration_s",
+    "rajadas_velocidade_limiar_cm_s": "speed_burst_threshold_cm_s",
+    "periodos_inatividade_contagem": "inactivity_count",
+    "periodos_inatividade_duracao_total_s": "inactivity_total_duration_s",
+    "periodos_inatividade_percentual_registro": "inactivity_percentage_of_recording",
+    "periodos_inatividade_limiar_cm_s": "inactivity_threshold_cm_s",
 }
 
 DYNAMIC_PREFIX_MAPPINGS = (
@@ -302,6 +309,26 @@ class Reporter:
         )
         combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get(
             "sharp_turns_per_minute"
+        )
+        speed_bursts = general_behavior.get("rajadas_velocidade", {})
+        combined_data["rajadas_velocidade_contagem"] = speed_bursts.get("count")
+        combined_data["rajadas_velocidade_duracao_total_s"] = speed_bursts.get(
+            "total_duration_s"
+        )
+        combined_data["rajadas_velocidade_limiar_cm_s"] = speed_bursts.get(
+            "threshold_cm_s"
+        )
+
+        inactivity = general_behavior.get("periodos_inatividade", {})
+        combined_data["periodos_inatividade_contagem"] = inactivity.get("count")
+        combined_data["periodos_inatividade_duracao_total_s"] = inactivity.get(
+            "total_duration_s"
+        )
+        combined_data["periodos_inatividade_percentual_registro"] = inactivity.get(
+            "percentage_of_recording"
+        )
+        combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get(
+            "threshold_cm_s"
         )
 
         # --- ROI-Specific Metrics (only if ROI analysis was performed) ---

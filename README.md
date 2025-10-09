@@ -129,7 +129,7 @@ Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de compon
 - **`ui/wizard/`** 🧙: Wizard de 5 etapas para criação inteligente de projetos com auto-detecção de design e importação de parquets.
 - **`core/project_manager.py`**: Detecção granular de parquets (`scan_input_paths()`) e importação seletiva de zonas.
 - **`io/recorder.py`**: garante esquema Parquet fixo (`timestamp, frame, track_id, x1, y1, x2, y2, confidence, ...`).
-- **`analysis/behavioral_analyzer.py` & `analysis/reporter.py`**: calculam métricas e fabricam relatórios multi-formato.
+- **`analysis/behavior.py` & `analysis/analysis_service.py` com `analysis/reporter.py`**: calculam métricas comportamentais e fabricam relatórios multi-formato.
 - **`plugins/`**: novos detectores devem implementar `DetectorPlugin` e ser registrados em `plugins/__init__.py`.
 - **`tests/test_wizard*.py`**: 91 testes cobrindo wizard (83) + adapter (8) com 100% de sucesso.
 

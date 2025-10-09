@@ -10,7 +10,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
 5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
 6. Results stream to `io/recorder.py` (Parquet + optional MP4).
-7. Analysis happens in `analysis/behavioral_analyzer.py`, `analysis/behavior.py`, and `analysis/roi.py`.
+7. Analysis happens in `analysis/behavior.py`, `analysis/analysis_service.py`, and `analysis/roi.py`.
 8. Reports are generated via `analysis/reporter.py`.
 
 ### Environment & Tooling
@@ -59,7 +59,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Behavioral & ROI Analysis
 
-- Behavioral metrics live in `analysis/behavior.py`; orchestration in `analysis/behavioral_analyzer.py`.
+- Behavioral metrics live in `analysis/behavior.py`; orchestration in `analysis/analysis_service.py`.
 - ROI logic is in `analysis/roi.py`. Supported inclusion rules: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects` (default), `seg_overlap`.
 - Reporting is centralized in `analysis/reporter.py`. Adding a metric requires wiring it through analyzer → reporter and creating a synthetic trajectory test under `tests/analysis/`.
 
