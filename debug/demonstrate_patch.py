@@ -60,7 +60,7 @@ def main():
     plugin._context = "tracking"
     plugin._aquarium_region_defined = False
     plugin.conf_threshold = 0.5
-    plugin.nms_threshold = 0.4
+    plugin.nms_threshold = 0.5
     plugin.output_layer = "output"
 
     # Add our new methods

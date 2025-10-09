@@ -41,6 +41,9 @@ from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
+DEFAULT_TRACK_THRESHOLD = 0.25
+DEFAULT_MATCH_THRESHOLD = 0.6
+
 
 class AppController:
     def __init__(self, root):
@@ -666,6 +669,50 @@ class AppController:
                             type="nms",
                         )
 
+                # Restore ByteTrack thresholds when supported by the plugin
+                restore_track = "track_threshold" in saved_detector_config
+                restore_match = "match_threshold" in saved_detector_config
+                if (restore_track or restore_match) and (
+                    hasattr(plugin, "track_threshold")
+                    or hasattr(plugin, "set_tracking_parameters")
+                ):
+                    old_track = getattr(plugin, "track_threshold", None)
+                    old_match = getattr(plugin, "match_threshold", None)
+                    track_value = saved_detector_config.get(
+                        "track_threshold", old_track
+                    )
+                    match_value = saved_detector_config.get(
+                        "match_threshold", old_match
+                    )
+
+                    if hasattr(plugin, "set_tracking_parameters"):
+                        plugin.set_tracking_parameters(
+                            track_threshold=track_value if restore_track else None,
+                            match_threshold=match_value if restore_match else None,
+                        )
+                    else:
+                        if restore_track:
+                            plugin.track_threshold = track_value
+                        if restore_match:
+                            plugin.match_threshold = match_value
+
+                    if restore_track and track_value != old_track:
+                        settings_changed = True
+                        log.info(
+                            "controller.detector.threshold.restored",
+                            old=old_track,
+                            new=track_value,
+                            type="track_threshold",
+                        )
+                    if restore_match and match_value != old_match:
+                        settings_changed = True
+                        log.info(
+                            "controller.detector.threshold.restored",
+                            old=old_match,
+                            new=match_value,
+                            type="match_threshold",
+                        )
+
                 # Restore context
                 if "context" in saved_detector_config and hasattr(
                     plugin, "set_context"
@@ -700,6 +747,14 @@ class AppController:
                         "nms_threshold": plugin.nms_threshold,
                         "context": getattr(plugin, "_context", "tracking"),
                     }
+                    if hasattr(plugin, "track_threshold"):
+                        track_val = getattr(plugin, "track_threshold", None)
+                        if track_val is not None:
+                            current_config["track_threshold"] = float(track_val)
+                    if hasattr(plugin, "match_threshold"):
+                        match_val = getattr(plugin, "match_threshold", None)
+                        if match_val is not None:
+                            current_config["match_threshold"] = float(match_val)
                     self.project_manager.save_detector_state(current_config)
                 else:
                     log.info("controller.detector.state.no_changes_needed")
@@ -861,6 +916,15 @@ class AppController:
                     "nms_threshold": plugin_instance.nms_threshold,
                     "context": getattr(plugin_instance, "_context", "tracking"),
                 }
+
+                if hasattr(plugin_instance, "track_threshold"):
+                    track_val = getattr(plugin_instance, "track_threshold", None)
+                    if track_val is not None:
+                        detector_config["track_threshold"] = float(track_val)
+                if hasattr(plugin_instance, "match_threshold"):
+                    match_val = getattr(plugin_instance, "match_threshold", None)
+                    if match_val is not None:
+                        detector_config["match_threshold"] = float(match_val)
 
                 if hasattr(plugin_instance, "get_context_info"):
                     # For plugins that provide more detailed context info
@@ -1179,6 +1243,153 @@ class AppController:
             "label": label,
             "detail": detail,
         }
+
+    def get_current_detector_parameters(self) -> dict[str, float]:
+        """Return the active detector thresholds, falling back to saved or default values."""
+
+        params = {
+            "confidence_threshold": float(settings.yolo_model.confidence_threshold),
+            "nms_threshold": float(settings.yolo_model.nms_threshold),
+            "track_threshold": DEFAULT_TRACK_THRESHOLD,
+            "match_threshold": DEFAULT_MATCH_THRESHOLD,
+        }
+
+        plugin = getattr(getattr(self, "detector", None), "plugin", None)
+        saved_config: dict | None = None
+        if hasattr(self.project_manager, "get_detector_state"):
+            try:
+                saved_config = self.project_manager.get_detector_state() or {}
+            except Exception:  # pragma: no cover - defensive
+                saved_config = {}
+        else:
+            saved_config = {}
+
+        if plugin:
+            if hasattr(plugin, "conf_threshold"):
+                params["confidence_threshold"] = float(plugin.conf_threshold)
+            elif saved_config.get("confidence_threshold") is not None:
+                params["confidence_threshold"] = float(
+                    saved_config["confidence_threshold"]
+                )
+
+            if hasattr(plugin, "nms_threshold"):
+                params["nms_threshold"] = float(plugin.nms_threshold)
+            elif saved_config.get("nms_threshold") is not None:
+                params["nms_threshold"] = float(saved_config["nms_threshold"])
+
+            if hasattr(plugin, "track_threshold"):
+                params["track_threshold"] = float(plugin.track_threshold)
+            elif saved_config.get("track_threshold") is not None:
+                params["track_threshold"] = float(saved_config["track_threshold"])
+
+            if hasattr(plugin, "match_threshold"):
+                params["match_threshold"] = float(plugin.match_threshold)
+            elif saved_config.get("match_threshold") is not None:
+                params["match_threshold"] = float(saved_config["match_threshold"])
+        elif saved_config:
+            for key in params.keys():
+                if saved_config.get(key) is not None:
+                    params[key] = float(saved_config[key])
+
+        return params
+
+    def update_detector_parameters(self, params: dict[str, float]) -> bool:
+        """Apply detector threshold updates and persist them when possible."""
+
+        detector = getattr(self, "detector", None)
+        plugin = getattr(detector, "plugin", None)
+        if not plugin:
+            log.warning("controller.detector.update.no_plugin")
+            return False
+
+        def _validate(name: str, value: float | None) -> None:
+            if value is None:
+                return
+            if not 0.0 < value < 1.0:
+                raise ValueError(f"{name} fora do intervalo esperado (0, 1): {value}")
+
+        confidence = params.get("confidence_threshold")
+        nms = params.get("nms_threshold")
+        track_thresh = params.get("track_threshold")
+        match_thresh = params.get("match_threshold")
+
+        _validate("confidence_threshold", confidence)
+        _validate("nms_threshold", nms)
+        _validate("track_threshold", track_thresh)
+        _validate("match_threshold", match_thresh)
+
+        updated = False
+
+        if confidence is not None and hasattr(plugin, "conf_threshold"):
+            if float(plugin.conf_threshold) != float(confidence):
+                plugin.conf_threshold = float(confidence)
+                updated = True
+
+        if nms is not None and hasattr(plugin, "nms_threshold"):
+            if float(plugin.nms_threshold) != float(nms):
+                plugin.nms_threshold = float(nms)
+                updated = True
+
+        if track_thresh is not None or match_thresh is not None:
+            old_track = getattr(plugin, "track_threshold", None)
+            old_match = getattr(plugin, "match_threshold", None)
+            if hasattr(plugin, "set_tracking_parameters"):
+                plugin.set_tracking_parameters(
+                    track_threshold=track_thresh,
+                    match_threshold=match_thresh,
+                )
+            else:
+                if track_thresh is not None:
+                    setattr(plugin, "track_threshold", track_thresh)
+                if match_thresh is not None:
+                    setattr(plugin, "match_threshold", match_thresh)
+
+            if (track_thresh is not None and track_thresh != old_track) or (
+                match_thresh is not None and match_thresh != old_match
+            ):
+                updated = True
+
+        if not updated:
+            log.info("controller.detector.update.no_changes")
+            return False
+
+        detector_config = {
+            "plugin_name": plugin.get_name() if hasattr(plugin, "get_name") else None,
+            "context": getattr(plugin, "_context", "tracking"),
+        }
+
+        if hasattr(plugin, "conf_threshold"):
+            detector_config["confidence_threshold"] = float(plugin.conf_threshold)
+        if hasattr(plugin, "nms_threshold"):
+            detector_config["nms_threshold"] = float(plugin.nms_threshold)
+        if hasattr(plugin, "track_threshold"):
+            track_val = getattr(plugin, "track_threshold", None)
+            if track_val is not None:
+                detector_config["track_threshold"] = float(track_val)
+        if hasattr(plugin, "match_threshold"):
+            match_val = getattr(plugin, "match_threshold", None)
+            if match_val is not None:
+                detector_config["match_threshold"] = float(match_val)
+
+        save_success = False
+        if hasattr(self.project_manager, "save_detector_state"):
+            try:
+                save_success = bool(
+                    self.project_manager.save_detector_state(detector_config)
+                )
+            except Exception:  # pragma: no cover - defensive
+                save_success = False
+
+        log.info(
+            "controller.detector.parameters_updated",
+            config=detector_config,
+            persisted=save_success,
+        )
+
+        if hasattr(self.view, "set_status"):
+            self.view.set_status("Parâmetros do detector atualizados.")
+
+        return True
 
     def _persist_project_model_settings(
         self, weight: str | None, use_openvino: bool

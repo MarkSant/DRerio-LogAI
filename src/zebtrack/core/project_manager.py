@@ -1706,7 +1706,8 @@ class ProjectManager:
 
         Args:
             detector_config: Dictionary with keys plugin_name, confidence_threshold,
-                           nms_threshold, context, last_updated
+                           nms_threshold, optional track_threshold,
+                           optional match_threshold, context, last_updated
 
         Returns:
             bool: True if saved successfully, False otherwise

@@ -38,10 +38,10 @@ def test_config_threshold():
         else:
             print(f"   AVISO: Confidence esperado 0.05, encontrado {conf_thresh}")
 
-        if nms_thresh == 0.4:
-            print("   SUCESSO: NMS ajustado para 0.4")
+        if nms_thresh == 0.5:
+            print("   SUCESSO: NMS ajustado para 0.5")
         else:
-            print(f"   AVISO: NMS esperado 0.4, encontrado {nms_thresh}")
+            print(f"   AVISO: NMS esperado 0.5, encontrado {nms_thresh}")
 
         return True
 
@@ -319,7 +319,7 @@ def main():
 
     print("\nMELHORIAS IMPLEMENTADAS:")
     print("• Confidence threshold global ajustado para 0.05")
-    print("• NMS threshold ajustado para 0.4")
+    print("• NMS threshold ajustado para 0.5")
     print("• Logging detalhado de confianca no detector aquario")
     print("• Validacao de confianca com fallback robusto")
     print("• Threshold otimizado para deteccao inicial de aquario")

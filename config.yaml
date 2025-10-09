@@ -21,7 +21,7 @@ yolo_model:
   # Lowered to 0.05 to work better with models that have lower confidence scores
   confidence_threshold: 0.05
   # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.
-  nms_threshold: 0.4
+  nms_threshold: 0.5
 
 video_processing:
   # Frames Per Second (FPS) used when saving video files.

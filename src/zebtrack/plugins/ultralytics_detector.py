@@ -32,6 +32,12 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 
+        # ByteTrack-related thresholds (used when running model.track)
+        self.track_threshold = 0.25
+        self.match_threshold = 0.6
+        self.track_buffer = 30
+        self._tracker_config_cache: dict[str, Any] | None = None
+
         # Context control for instance segmentation
         self._context = "tracking"  # 'tracking' or 'diagnostic'
         self._aquarium_region_defined = False
@@ -65,7 +71,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         results = self.model.track(
             frame,
             persist=True,
-            tracker="bytetrack.yaml",
+            tracker=self._build_tracker_config(),
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
@@ -214,3 +220,37 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # but 640 is the default and what's implicitly used.
         # For a more robust implementation, one might inspect the model's properties.
         return (640, 640)
+
+    def set_tracking_parameters(
+        self, *, track_threshold: float | None = None, match_threshold: float | None = None
+    ) -> None:
+        """Update internal ByteTrack thresholds used during tracking."""
+
+        updated = False
+        if track_threshold is not None and track_threshold > 0:
+            self.track_threshold = track_threshold
+            updated = True
+        if match_threshold is not None and match_threshold > 0:
+            self.match_threshold = match_threshold
+            updated = True
+
+        if updated:
+            self._tracker_config_cache = None
+
+    def _build_tracker_config(self) -> dict[str, Any]:
+        """Return the tracker configuration dictionary for Ultralytics ByteTrack."""
+
+        if self._tracker_config_cache is not None:
+            return dict(self._tracker_config_cache)
+
+        track_low = min(self.track_threshold, 0.1)
+        self._tracker_config_cache = {
+            "tracker_type": "bytetrack",
+            "track_high_thresh": self.track_threshold,
+            "track_low_thresh": track_low,
+            "new_track_thresh": self.track_threshold,
+            "track_buffer": self.track_buffer,
+            "match_thresh": self.match_threshold,
+            "fuse_score": True,
+        }
+        return dict(self._tracker_config_cache)

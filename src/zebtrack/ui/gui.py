@@ -88,12 +88,17 @@ class CalibrationDialog(simpledialog.Dialog):
         # --- Vars for diagnostic ---
         self.frames_to_analyze_var = StringVar(value="10")
         self.confidence_threshold_var = StringVar(value="0.25")
+        self.nms_threshold_var = StringVar(value="0.50")
+        self.track_threshold_var = StringVar(value="0.25")
+        self.match_threshold_var = StringVar(value="0.60")
         self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
 
         # --- Vars for sensitivity control ---
         self.sensitivity_var = StringVar(value="0.15")
+
+        self._prefill_detector_parameters()
 
         super().__init__(parent, "Calibração e Diagnóstico")
 
@@ -213,9 +218,30 @@ class CalibrationDialog(simpledialog.Dialog):
             params_frame, textvariable=self.confidence_threshold_var, width=10
         ).grid(row=1, column=1, sticky="w", padx=5)
 
+        ttk.Label(params_frame, text="Limiar NMS (IoU):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.nms_threshold_var, width=10
+        ).grid(row=2, column=1, sticky="w", padx=5)
+
+        ttk.Label(params_frame, text="ByteTrack - Track Thresh:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.track_threshold_var, width=10
+        ).grid(row=3, column=1, sticky="w", padx=5)
+
+        ttk.Label(params_frame, text="ByteTrack - Match Thresh:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=2
+        )
+        ttk.Entry(
+            params_frame, textvariable=self.match_threshold_var, width=10
+        ).grid(row=4, column=1, sticky="w", padx=5)
+
         # --- Model Selection for Diagnostic ---
         ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
-            row=2, column=0, sticky="w", padx=5, pady=2
+            row=5, column=0, sticky="w", padx=5, pady=2
         )
         self.model_test_dropdown = ttk.Combobox(
             params_frame,
@@ -224,15 +250,15 @@ class CalibrationDialog(simpledialog.Dialog):
             values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
             width=15,
         )
-        self.model_test_dropdown.grid(row=2, column=1, sticky="w", padx=5)
+        self.model_test_dropdown.grid(row=5, column=1, sticky="w", padx=5)
 
         # --- Row 3: Sensitivity Control ---
         ttk.Label(params_frame, text="Ajuste de Sensibilidade:").grid(
-            row=3, column=0, sticky="w", padx=5, pady=2
+            row=6, column=0, sticky="w", padx=5, pady=2
         )
 
         sensitivity_frame = ttk.Frame(params_frame)
-        sensitivity_frame.grid(row=3, column=1, sticky="w", padx=5)
+        sensitivity_frame.grid(row=6, column=1, sticky="w", padx=5)
 
         self.sensitivity_scale = ttk.Scale(
             sensitivity_frame,
@@ -247,9 +273,6 @@ class CalibrationDialog(simpledialog.Dialog):
         self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
         self.sensitivity_label.pack(side="left", padx=(5, 0))
 
-        # Set the default value after the label is created to avoid AttributeError
-        self.sensitivity_scale.set(0.15)  # Valor padrão para modelo com baixa confiança
-
         # --- Tooltip para sensibilidade ---
         tooltip_label = ttk.Label(
             params_frame,
@@ -257,13 +280,107 @@ class CalibrationDialog(simpledialog.Dialog):
             font=("Segoe UI", 8),
             foreground="gray",
         )
-        tooltip_label.grid(row=4, column=1, sticky="w", padx=5, pady=(0, 5))
+        tooltip_label.grid(row=7, column=1, sticky="w", padx=5, pady=(0, 5))
+
+        try:
+            slider_value = float(self.confidence_threshold_var.get())
+        except (TypeError, ValueError):
+            slider_value = 0.15
+        self.sensitivity_scale.set(slider_value)
+        self.sensitivity_label.config(text=f"{slider_value:.2f}")
+
+        ttk.Button(
+            diag_frame,
+            text="Aplicar Parâmetros",
+            command=self._apply_detector_parameters,
+        ).pack(fill="x", padx=10, pady=(0, 5))
 
         ttk.Button(
             diag_frame,
             text="Testar Modelo em Vídeo...",
             command=self._run_diagnostic_test,
         ).pack(fill="x", padx=10, pady=5)
+
+    def _prefill_detector_parameters(self) -> None:
+        try:
+            params = self.controller.get_current_detector_parameters()
+        except Exception:
+            params = {}
+
+        if not params:
+            return
+
+        conf = params.get("confidence_threshold")
+        if conf is not None:
+            self.confidence_threshold_var.set(f"{conf:.2f}")
+            self.sensitivity_var.set(f"{conf:.2f}")
+
+        nms = params.get("nms_threshold")
+        if nms is not None:
+            self.nms_threshold_var.set(f"{nms:.2f}")
+
+        track_thresh = params.get("track_threshold")
+        if track_thresh is not None:
+            self.track_threshold_var.set(f"{track_thresh:.2f}")
+
+        match_thresh = params.get("match_threshold")
+        if match_thresh is not None:
+            self.match_threshold_var.set(f"{match_thresh:.2f}")
+
+    def _apply_detector_parameters(self) -> None:
+        try:
+            conf = float(self.confidence_threshold_var.get())
+            nms = float(self.nms_threshold_var.get())
+            track_thresh = float(self.track_threshold_var.get())
+            match_thresh = float(self.match_threshold_var.get())
+        except (TypeError, ValueError):
+            messagebox.showerror(
+                "Erro",
+                "Insira valores numéricos válidos para os parâmetros do detector.",
+            )
+            return
+
+        for label, value in (
+            ("limiar de confiança", conf),
+            ("limiar NMS", nms),
+            ("track threshold", track_thresh),
+            ("match threshold", match_thresh),
+        ):
+            if not 0.0 < value < 1.0:
+                messagebox.showerror(
+                    "Erro",
+                    f"O {label} deve estar entre 0 e 1.",
+                )
+                return
+
+        try:
+            updated = self.controller.update_detector_parameters(
+                {
+                    "confidence_threshold": conf,
+                    "nms_threshold": nms,
+                    "track_threshold": track_thresh,
+                    "match_threshold": match_thresh,
+                }
+            )
+        except ValueError as exc:
+            messagebox.showerror("Erro", str(exc))
+            return
+
+        if updated:
+            self.confidence_threshold_var.set(f"{conf:.2f}")
+            self.sensitivity_scale.set(conf)
+            self.sensitivity_var.set(f"{conf:.2f}")
+            if hasattr(self, "sensitivity_label"):
+                self.sensitivity_label.config(text=f"{conf:.2f}")
+            messagebox.showinfo(
+                "Parâmetros do Detector",
+                "Parâmetros atualizados com sucesso.",
+            )
+        else:
+            messagebox.showinfo(
+                "Parâmetros do Detector",
+                "Nenhuma alteração necessária.",
+            )
 
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""

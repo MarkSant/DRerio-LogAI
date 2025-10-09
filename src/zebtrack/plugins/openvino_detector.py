@@ -109,12 +109,15 @@ class OpenVINOPlugin(DetectorPlugin):
 
         # Initialize ByteTrack
         tracker_args = SimpleNamespace(
-            track_thresh=0.1,  # Very low threshold to accept most detections
+            track_thresh=0.25,
             track_buffer=30,
-            match_thresh=0.8,
+            match_thresh=0.6,
             mot20=False,
         )
         self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
+        self.track_threshold = tracker_args.track_thresh
+        self.match_threshold = tracker_args.match_thresh
+        self.track_buffer = tracker_args.track_buffer
 
         # Carrega metadata se existir
         metadata_path = os.path.join(model_path, "metadata.json")
@@ -153,7 +156,21 @@ class OpenVINOPlugin(DetectorPlugin):
             "aquarium_region_defined": self._aquarium_region_defined,
             "conf_threshold": self.conf_threshold,
             "nms_threshold": self.nms_threshold,
+            "track_threshold": self.track_threshold,
+            "match_threshold": self.match_threshold,
         }
+
+    def set_tracking_parameters(
+        self, *, track_threshold: float | None = None, match_threshold: float | None = None
+    ) -> None:
+        """Update ByteTrack thresholds for the OpenVINO plugin."""
+
+        if track_threshold is not None and track_threshold > 0:
+            self.track_threshold = track_threshold
+            self.tracker.args.track_thresh = track_threshold
+        if match_threshold is not None and match_threshold > 0:
+            self.match_threshold = match_threshold
+            self.tracker.args.match_thresh = match_threshold
 
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
         """

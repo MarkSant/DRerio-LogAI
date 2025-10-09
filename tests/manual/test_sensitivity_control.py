@@ -172,7 +172,7 @@ def test_integration_concept():
     class MockDetectorPlugin:
         def __init__(self):
             self.conf_threshold = 0.25
-            self.nms_threshold = 0.4
+            self.nms_threshold = 0.5
 
         def set_threshold(self, threshold):
             old = self.conf_threshold

@@ -150,6 +150,77 @@ class TestAppController(unittest.TestCase):
         self.assertTrue(info["inheriting_globals"])
         self.assertFalse(info["overrides_active"])
 
+    def test_get_current_detector_parameters_with_plugin(self):
+        class DummyPlugin:
+            def __init__(self):
+                self.conf_threshold = 0.33
+                self.nms_threshold = 0.44
+                self.track_threshold = 0.25
+                self.match_threshold = 0.6
+
+            @staticmethod
+            def get_name():
+                return "dummy"
+
+        detector = MagicMock()
+        detector.plugin = DummyPlugin()
+        self.controller.detector = detector
+
+        params = self.controller.get_current_detector_parameters()
+
+        self.assertAlmostEqual(params["confidence_threshold"], 0.33)
+        self.assertAlmostEqual(params["nms_threshold"], 0.44)
+        self.assertAlmostEqual(params["track_threshold"], 0.25)
+        self.assertAlmostEqual(params["match_threshold"], 0.6)
+
+    def test_update_detector_parameters_updates_plugin_and_saves(self):
+        class DummyPlugin:
+            def __init__(self):
+                self.conf_threshold = 0.2
+                self.nms_threshold = 0.5
+                self.track_threshold = 0.25
+                self.match_threshold = 0.6
+                self._context = "tracking"
+
+            @staticmethod
+            def get_name():
+                return "dummy"
+
+            def set_tracking_parameters(
+                self, *, track_threshold=None, match_threshold=None
+            ):
+                if track_threshold is not None:
+                    self.track_threshold = track_threshold
+                if match_threshold is not None:
+                    self.match_threshold = match_threshold
+
+        plugin = DummyPlugin()
+        detector = MagicMock()
+        detector.plugin = plugin
+        self.controller.detector = detector
+        self.mock_pm.save_detector_state.return_value = True
+
+        updated = self.controller.update_detector_parameters(
+            {
+                "confidence_threshold": 0.3,
+                "nms_threshold": 0.55,
+                "track_threshold": 0.35,
+                "match_threshold": 0.7,
+            }
+        )
+
+        self.assertTrue(updated)
+        self.assertAlmostEqual(plugin.conf_threshold, 0.3)
+        self.assertAlmostEqual(plugin.nms_threshold, 0.55)
+        self.assertAlmostEqual(plugin.track_threshold, 0.35)
+        self.assertAlmostEqual(plugin.match_threshold, 0.7)
+        self.mock_pm.save_detector_state.assert_called_once()
+        saved_config = self.mock_pm.save_detector_state.call_args.args[0]
+        self.assertAlmostEqual(saved_config["confidence_threshold"], 0.3)
+        self.assertAlmostEqual(saved_config["nms_threshold"], 0.55)
+        self.assertAlmostEqual(saved_config["track_threshold"], 0.35)
+        self.assertAlmostEqual(saved_config["match_threshold"], 0.7)
+
     def test_get_project_data_dict_normalizes_non_dict(self):
         self.mock_pm.project_data = None
 
