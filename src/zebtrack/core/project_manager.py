@@ -5,12 +5,11 @@ import re
 import shutil
 import time
 import unicodedata
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Iterable, Literal, Tuple
-
-from copy import deepcopy
+from typing import Any, Literal, Tuple
 
 import pandas as pd
 import structlog
@@ -91,7 +90,11 @@ class ProjectManager:
 
     @staticmethod
     def _slugify(value: str) -> str:
-        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+        normalized = (
+            unicodedata.normalize("NFKD", value)
+            .encode("ascii", "ignore")
+            .decode()
+        )
         normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
         return normalized.lower() or "template"
 
@@ -103,7 +106,9 @@ class ProjectManager:
             key=lambda item: str(item.get("name", "")).lower(),
         )
 
-    def _resolve_roi_template_entry(self, name: str) -> tuple[int, dict[str, Any]] | tuple[None, None]:
+    def _resolve_roi_template_entry(
+        self, name: str
+    ) -> tuple[int, dict[str, Any]] | tuple[None, None]:
         templates = self.project_data.get("roi_templates", [])
         for idx, entry in enumerate(templates):
             if not isinstance(entry, dict):
@@ -137,14 +142,16 @@ class ProjectManager:
         if existing_entry is None:
             # Ensure slug uniqueness when name differs but slug matches
             collision = any(
-                entry.get("slug") == slug for entry in self.project_data.get("roi_templates", [])
+                entry.get("slug") == slug
+                for entry in self.project_data.get("roi_templates", [])
             )
             counter = 2
             base_slug = slug
             while collision:
                 slug = f"{base_slug}-{counter}"
                 collision = any(
-                    entry.get("slug") == slug for entry in self.project_data.get("roi_templates", [])
+                    entry.get("slug") == slug
+                    for entry in self.project_data.get("roi_templates", [])
                 )
                 counter += 1
 
@@ -155,7 +162,9 @@ class ProjectManager:
         payload = {
             "version": ROI_TEMPLATE_VERSION,
             "name": name,
-            "created_at": existing_entry.get("created_at", now) if existing_entry else now,
+            "created_at": (
+                existing_entry.get("created_at", now) if existing_entry else now
+            ),
             "updated_at": now,
             "data": serialized,
         }
@@ -166,10 +175,15 @@ class ProjectManager:
         metadata = {
             "name": name,
             "slug": slug,
-            "file": os.path.relpath(template_path, self.project_path or template_path.parent),
+            "file": os.path.relpath(
+                template_path,
+                self.project_path or template_path.parent,
+            ),
             "roi_count": len(serialized.get("roi_polygons", [])),
             "updated_at": now,
-            "created_at": existing_entry.get("created_at", now) if existing_entry else now,
+            "created_at": (
+                existing_entry.get("created_at", now) if existing_entry else now
+            ),
         }
 
         templates = self.project_data.setdefault("roi_templates", [])
@@ -1561,7 +1575,11 @@ class ProjectManager:
 
             expected_set = {
                 str(value).strip().lower()
-                for value in (expected_values if isinstance(expected_values, (list, tuple, set)) else [expected_values])
+                for value in (
+                    expected_values
+                    if isinstance(expected_values, (list, tuple, set))
+                    else [expected_values]
+                )
                 if value not in (None, "")
             }
             if not expected_set:

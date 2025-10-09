@@ -21,6 +21,12 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
+      - name: Build wizard template archive
+        run: |
+          poetry run python scripts/build_templates.py
+      - name: Compile translations
+        run: |
+          poetry run python scripts/compile_translations.py
       - name: Run ruff
         run: |
           poetry run ruff check .
@@ -43,6 +49,12 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
+      - name: Build wizard template archive
+        run: |
+          poetry run python scripts/build_templates.py
+      - name: Compile translations
+        run: |
+          poetry run python scripts/compile_translations.py
       - name: Run tests
         run: |
           xvfb-run --auto-servernum poetry run pytest

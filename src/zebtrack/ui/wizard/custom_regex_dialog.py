@@ -14,12 +14,10 @@ from tkinter import (
     StringVar,
     Text,
     messagebox,
+    ttk,
 )
-from tkinter import (
-    font as tkfont,
-)
+from tkinter import font as tkfont
 from tkinter.simpledialog import Dialog
-from tkinter import ttk
 
 import structlog
 
@@ -554,7 +552,12 @@ class CustomRegexDialog(Dialog):
             self.preview_tree.insert(
                 "",
                 "end",
-                values=(results["path"], results["group"], results["day"], results["subject"]),
+                values=(
+                    results["path"],
+                    results["group"],
+                    results["day"],
+                    results["subject"],
+                ),
             )
 
         if len(self.sample_paths) > len(display_paths):

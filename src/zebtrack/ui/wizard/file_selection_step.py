@@ -15,20 +15,18 @@ from tkinter import (
     Scrollbar,
     StringVar,
     filedialog,
+    ttk,
 )
-from tkinter import (
-    font as tkfont,
-)
-from tkinter import ttk
-
-MAX_TREE_DEPTH = 3
-MAX_TREE_CHILDREN = 12
-MAX_TREE_NODES = 120
+from tkinter import font as tkfont
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
+
+MAX_TREE_DEPTH = 3
+MAX_TREE_CHILDREN = 12
+MAX_TREE_NODES = 120
 
 
 class FileSelectionStep(WizardStep):
@@ -401,7 +399,12 @@ class FileSelectionStep(WizardStep):
         for entry in self.folder_preview_data:
             details = self._format_entry_details(entry.get("counts", {}))
             root_text = entry.get("label", entry.get("path", ""))
-            root_id = self.folder_tree.insert("", "end", text=root_text, values=(details,))
+            root_id = self.folder_tree.insert(
+                "",
+                "end",
+                text=root_text,
+                values=(details,),
+            )
             for node in entry.get("nodes", []):
                 self._insert_tree_node(root_id, node)
 
@@ -416,11 +419,20 @@ class FileSelectionStep(WizardStep):
     def _insert_tree_node(self, parent_id: str, node: dict):
         text = node.get("label", node.get("path", ""))
         details = self._format_entry_details(node.get("counts", {}))
-        node_id = self.folder_tree.insert(parent_id, "end", text=text, values=(details,))
+        node_id = self.folder_tree.insert(
+            parent_id,
+            "end",
+            text=text,
+            values=(details,),
+        )
         for child in node.get("children", []):
             self._insert_tree_node(node_id, child)
 
-    def _build_folder_preview_data(self, files: list[str], folders: list[str]) -> list[dict]:
+    def _build_folder_preview_data(
+        self,
+        files: list[str],
+        folders: list[str],
+    ) -> list[dict]:
         preview: list[dict] = []
 
         for folder in sorted(folders):
@@ -464,7 +476,13 @@ class FileSelectionStep(WizardStep):
             "truncated": truncated or budget["remaining"] <= 0,
         }
 
-    def _walk_folder(self, path: str, *, depth: int, budget: dict) -> tuple[list[dict], dict, bool]:
+    def _walk_folder(
+        self,
+        path: str,
+        *,
+        depth: int,
+        budget: dict,
+    ) -> tuple[list[dict], dict, bool]:
         counts = {"files": 0, "folders": 0}
         if depth >= MAX_TREE_DEPTH or budget["remaining"] <= 0:
             return [], counts, True

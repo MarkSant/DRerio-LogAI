@@ -1,0 +1,20 @@
+{
+  "name": "Baseline Exploratory",
+  "created_at": "2025-10-09T00:00:00",
+  "project_type": "exploratory",
+  "num_aquariums": 1,
+  "animals_per_aquarium": 3,
+  "aquarium_width_cm": 25.0,
+  "aquarium_height_cm": 15.0,
+  "parquet_import_scope": "none",
+  "detected_design": {
+    "groups": ["OpenField"],
+    "days": ["Day01"],
+    "subjects_per_group": 3
+  },
+  "custom_regex_patterns": {
+    "group": "^(OpenField)$",
+    "day": "^Day(\\d+)$",
+    "subject": "Fish(\\d+)"
+  }
+}

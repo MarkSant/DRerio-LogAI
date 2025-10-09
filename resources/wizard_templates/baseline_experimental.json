@@ -1,0 +1,20 @@
+{
+  "name": "Baseline Experimental",
+  "created_at": "2025-10-09T00:00:00",
+  "project_type": "experimental",
+  "num_aquariums": 2,
+  "animals_per_aquarium": 6,
+  "aquarium_width_cm": 40.0,
+  "aquarium_height_cm": 20.0,
+  "parquet_import_scope": "import_all",
+  "detected_design": {
+    "groups": ["Control", "Treatment"],
+    "days": ["Day01", "Day02"],
+    "subjects_per_group": 6
+  },
+  "custom_regex_patterns": {
+    "group": "^(Control|Treatment)$",
+    "day": "^Day(\\d+)$",
+    "subject": "Subject(\\d+)"
+  }
+}

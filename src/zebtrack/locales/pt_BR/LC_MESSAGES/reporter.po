@@ -1,0 +1,63 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: ZebTrack-AI 1.6\n"
+"POT-Creation-Date: 2025-10-09 00:00+0000\n"
+"PO-Revision-Date: 2025-10-09 00:00+0000\n"
+"Last-Translator: ZebTrack-AI Team <labs@zebtrack.ai>\n"
+"Language-Team: Portuguese <labs@zebtrack.ai>\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: ZebTrack-AI tooling\n"
+
+msgid "Time (s)"
+msgstr "Tempo (s)"
+
+msgid "Cumulative Distance (cm)"
+msgstr "Distância acumulada (cm)"
+
+msgid "Experiment Metadata"
+msgstr "Metadados do experimento"
+
+msgid "Metadata added"
+msgstr "Metadados adicionados"
+
+msgid "Metrics Summary"
+msgstr "Resumo de métricas"
+
+msgid "Metric"
+msgstr "Métrica"
+
+msgid "Value"
+msgstr "Valor"
+
+msgid "N/A"
+msgstr "N/D"
+
+msgid "Summary table added"
+msgstr "Tabela de resumo adicionada"
+
+msgid "ROI Reference Map"
+msgstr "Mapa de referência de ROI"
+
+msgid "ROI map added"
+msgstr "Mapa de ROI adicionado"
+
+msgid "Visualizations"
+msgstr "Visualizações"
+
+msgid "Trajectory"
+msgstr "Trajetória"
+
+msgid "Heatmap"
+msgstr "Mapa de calor"
+
+msgid "Position vs. Time"
+msgstr "Posição vs. tempo"
+
+msgid "Cumulative Distance"
+msgstr "Distância acumulada"
+
+msgid "Angular Velocity"
+msgstr "Velocidade angular"

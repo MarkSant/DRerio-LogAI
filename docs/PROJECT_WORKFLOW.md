@@ -573,6 +573,13 @@ self.project_manager.project_data["display_interval_frames"] = display_interval
 self.project_manager.save_project()
 ```
 
+### 5.3 Editor "Config. Avançadas"
+
+- A aba **Config. Avançadas** dentro da `ApplicationGUI` centraliza a edição dos parâmetros globais (FPS, intervalos, flush, suavização e ROI padrão) com validações Pydantic espelhadas do backend.
+- O formulário recarrega os valores vigentes através de `settings.load_settings()` e persiste overrides em `config.local.yaml` via `Settings.model_validate` (ver `gui._on_save_global_config`).
+- O pipeline de CI executa `scripts/build_templates.py` e `scripts/compile_translations.py` antes do lint/test para garantir que templates curados e catálogos gettext estejam sincronizados com os valores exibidos na aba.
+- Desenvolvedores devem rodar o checklist de QA pré-release (README) sempre que alterarem esses parâmetros — inclui a execução dos scripts manuais em `tests/manual/`.
+
 **Como são lidos:**
 ```python
 # controller.py:1778-1786
@@ -875,6 +882,13 @@ for i, video in enumerate(videos):
 - `Save current` persiste o estado atual (arena + ROIs) como novo template, com slug gerado automaticamente.
 - `Import JSON` aceita arquivos externos no formato mostrado na seção [7.3](#73-modelos-de-roi-roi-templates) e evita colisões de nome via slug incremental.
 - Após qualquer alteração, a lista é atualizada em tempo real (`_refresh_roi_templates`) para manter a combobox sincronizada com o disco.
+
+### 9.7 Automação de templates e QA manual
+
+- `scripts/build_templates.py` gera `dist/wizard_templates.zip` com os artefatos curados em `resources/wizard_templates/`. Sempre execute antes de publicar um release.
+- `scripts/compile_translations.py` converte todos os catálogos `.po` para `.mo`, garantindo que `gettext.translation` encontre o domínio `reporter` traduzido.
+- Os scripts manuais `tests/manual/wizard_release_check.py`, `tests/manual/analysis_profiles_matrix.py` e `tests/manual/roi_template_roundtrip.py` compõem o checklist interativo para fluxos críticos.
+- A pipeline de CI executa esses builders automaticamente; falhas nesses passos quebram o build mesmo que lint/testes tenham passado.
 
 ---
 

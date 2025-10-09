@@ -14,6 +14,7 @@ ZebTrack-AI é uma aplicação desktop construída com Tkinter que automatiza to
 - [🔧 Convenções de código](#-convenções-de-código)
 - [⚠️ Pontos de atenção importantes](#-pontos-de-atenção-importantes)
 - [🧪 Testes](#-testes)
+- [✅ Checklist de QA pré-release](#-checklist-de-qa-pré-release)
 - [🗂️ Dados e relatórios](#-dados-e-relatórios)
 - [📚 Documentação estendida](#-documentação-estendida)
 - [🤝 Contribuindo](#-contribuindo)
@@ -166,6 +167,24 @@ poetry run pytest tests/test_interval_frames_config.py
 ```
 
 Testes manuais (quando necessário) vivem em `tests/manual/`. Os antigos geradores automáticos de cenários do "Wizard" foram descontinuados; utilize os scripts atuais e fixtures de pytest para reproduzir contextos específicos.
+
+- `tests/manual/wizard_release_check.py` – valida os templates curados e sugere checklist manual do wizard.
+- `tests/manual/analysis_profiles_matrix.py` – gera um conjunto de perfis de análise para revisar fallback/resolução.
+- `tests/manual/roi_template_roundtrip.py` – garante round-trip completo dos templates de ROI (salvar/exportar/importar).
+
+## ✅ Checklist de QA pré-release
+
+1. **Atualizar artefatos compartilhados**
+  - `poetry run python scripts/build_templates.py`
+  - `poetry run python scripts/compile_translations.py`
+2. **Executar baterias automáticas**
+  - `poetry run pytest -q`
+  - `poetry run ruff check .`
+3. **Revisar fluxos manuais críticos**
+  - Rodar `python tests/manual/wizard_release_check.py`
+  - Rodar `python tests/manual/analysis_profiles_matrix.py`
+  - Rodar `python tests/manual/roi_template_roundtrip.py`
+4. **Confirmar documentação** – conferir entradas recentes em `docs/changelog.md` e nos guias de fluxo.
 
 ## 🗂️ Dados e relatórios
 

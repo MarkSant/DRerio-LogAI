@@ -298,7 +298,8 @@ class Settings(BaseModel):
             )
         if offset >= interval:
             raise ValueError(
-                "video_processing.processing_offset must be less than processing_interval."
+                "video_processing.processing_offset must be less than "
+                "processing_interval."
             )
 
         # Validate ROI parameters based on rule selection

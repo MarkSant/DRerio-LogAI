@@ -4023,7 +4023,9 @@ class AppController:
 
             if requested_track_ids:
                 requested_str = {
-                    str(track).strip() for track in requested_track_ids if track not in (None, "")
+                    str(track).strip()
+                    for track in requested_track_ids
+                    if track not in (None, "")
                 }
 
                 mask = trajectory_df["track_id"].astype(str).isin(requested_str)
@@ -4536,9 +4538,10 @@ class AppController:
                             video=experiment_id,
                             exc_info=True,
                         )
-                        analysis_profile = self.project_manager.resolve_analysis_profile(
-                            {}
+                        resolve_profile = (
+                            self.project_manager.resolve_analysis_profile
                         )
+                        analysis_profile = resolve_profile({})
 
                     profile_name = (
                         analysis_profile.get("name", "default")

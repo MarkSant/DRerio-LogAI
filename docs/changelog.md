@@ -1,5 +1,20 @@
 # Changelog
 
+## 2025-10-09 (Phase 8 & 9)
+
+### Added
+- Curated baseline wizard templates (`resources/wizard_templates/*.json`) now ship with the repo and are zipped automatically during CI.
+- Introduced Portuguese (`pt_BR`) translation catalog for reporter outputs with automated compilation via `scripts/compile_translations.py`.
+- Added manual verification helpers under `tests/manual/` covering wizard flows, analysis profile matrices, and ROI template round-trips.
+- Established a pre-release QA checklist documented in the README and referenced across flow guides.
+
+### Changed
+- README, project workflow guide, wizard guide, and reference guide refreshed to describe the advanced configuration tab and release automation steps.
+- CI workflow now packages wizard templates and compiles gettext catalogs before running lint/tests.
+
+### Testing
+- CI executes `poetry run python scripts/build_templates.py`, `poetry run python scripts/compile_translations.py`, `poetry run ruff check`, and full pytest as part of the release gate.
+
 ## 2025-10-09
 
 ### Added

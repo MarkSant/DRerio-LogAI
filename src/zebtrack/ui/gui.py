@@ -36,8 +36,8 @@ import cv2
 import numpy as np
 import serial.tools.list_ports
 import structlog
-from PIL import Image, ImageTk
 import yaml
+from PIL import Image, ImageTk
 from pydantic import ValidationError
 
 try:
@@ -46,17 +46,17 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = None
 
 # Import custom modules
+import zebtrack.settings as settings_module
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
-import zebtrack.settings as settings_module
 from zebtrack.settings import settings
-from zebtrack.utils import polygon_centroid, snap_point_to_axes
 from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
     schedule_maximize,
     set_geometry_if_not_maximized,
 )
+from zebtrack.utils import polygon_centroid, snap_point_to_axes
 
 log = structlog.get_logger()
 
@@ -1788,32 +1788,56 @@ class ApplicationGUI:
         )
         self.config_processing_interval_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("video_processing", "processing_interval"), 10)
+                self._extract_setting(
+                    settings,
+                    ("video_processing", "processing_interval"),
+                    10,
+                )
             )
         )
         self.config_processing_offset_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("video_processing", "processing_offset"), 0)
+                self._extract_setting(
+                    settings,
+                    ("video_processing", "processing_offset"),
+                    0,
+                )
             )
         )
         self.config_flush_interval_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("recorder", "flush_interval_seconds"), 5.0)
+                self._extract_setting(
+                    settings,
+                    ("recorder", "flush_interval_seconds"),
+                    5.0,
+                )
             )
         )
         self.config_flush_rows_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("recorder", "flush_row_threshold"), 500)
+                self._extract_setting(
+                    settings,
+                    ("recorder", "flush_row_threshold"),
+                    500,
+                )
             )
         )
         self.config_window_length_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("trajectory_smoothing", "window_length"), 7)
+                self._extract_setting(
+                    settings,
+                    ("trajectory_smoothing", "window_length"),
+                    7,
+                )
             )
         )
         self.config_polyorder_var = StringVar(
             value=str(
-                self._extract_setting(settings, ("trajectory_smoothing", "polyorder"), 3)
+                self._extract_setting(
+                    settings,
+                    ("trajectory_smoothing", "polyorder"),
+                    3,
+                )
             )
         )
         self._config_roi_rule_widgets: list[ttk.Combobox] = []
@@ -1993,7 +2017,10 @@ class ApplicationGUI:
         return current if current is not None else default
 
     @staticmethod
-    def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    def _deep_merge_dicts(
+        base: dict[str, Any],
+        override: dict[str, Any],
+    ) -> dict[str, Any]:
         result = copy.deepcopy(base)
         for key, value in override.items():
             if (

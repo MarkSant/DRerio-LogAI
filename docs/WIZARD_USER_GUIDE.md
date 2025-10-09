@@ -1,7 +1,7 @@
 # Wizard de Criação de Projetos - Guia do Usuário
 
 **Versão:** 1.6
-**Última Atualização:** 2025-10-08
+**Última Atualização:** 2025-10-09
 
 ## Visão Geral
 
@@ -126,6 +126,15 @@ Experimento_Canabidiol/
 4. **Baseado em Nome**: `Control_Day01_Subject01.mp4`
 
 💡 **Dica**: A confiança de detecção indica a consistência do padrão. Valores acima de 70% são confiáveis. Se a tabela de pré-visualização destacar "Erro", ajuste os padrões antes de confirmar.
+
+---
+
+## Templates curados e QA contínuo
+
+- O repositório distribui templates base (`resources/wizard_templates/*.json`) empacotados automaticamente por `scripts/build_templates.py`. O arquivo final `dist/wizard_templates.zip` é anexado pelo pipeline CI.
+- Antes de publicar um release execute `python tests/manual/wizard_release_check.py` para validar os templates, conferir traduções e seguir o checklist manual.
+- Use `scripts/compile_translations.py` para garantir que os relatórios Word/Excel gerados pelo wizard utilizem os catálogos atualizados (`pt_BR`).
+- Qualquer ajuste no wizard deve atualizar a documentação, rodar a suíte `tests/test_wizard*.py` e revisitar os scripts manuais descritos acima.
 
 ---
 
