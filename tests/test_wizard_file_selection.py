@@ -9,10 +9,11 @@ Validates:
 - Back navigation with data restoration
 """
 
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from tkinter import Tk
+from tkinter import TclError, Tk
 
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
@@ -23,8 +24,11 @@ class TestFileSelectionStep(unittest.TestCase):
 
     def setUp(self):
         """Create Tkinter root and temporary files for testing."""
-        self.root = Tk()
-        self.root.withdraw()  # Hide window during tests
+        try:
+            self.root = Tk()
+            self.root.withdraw()  # Hide window during tests
+        except TclError as exc:  # pragma: no cover - environment guard
+            self.skipTest(f"Tkinter not available: {exc}")
 
         # Create temporary directory with mock video files
         self.temp_dir = tempfile.mkdtemp()
@@ -35,12 +39,8 @@ class TestFileSelectionStep(unittest.TestCase):
 
     def tearDown(self):
         """Destroy Tkinter root and clean up temp files."""
-        # Clean up temp files
-        if self.video1.exists():
-            self.video1.unlink()
-        if self.video2.exists():
-            self.video2.unlink()
-        Path(self.temp_dir).rmdir()
+        if Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
 
         self.root.destroy()
 
@@ -65,6 +65,7 @@ class TestFileSelectionStep(unittest.TestCase):
         self.assertEqual(data["summary"]["total_files"], 0)
         self.assertEqual(data["summary"]["total_folders"], 0)
         self.assertEqual(data["summary"]["total_paths"], 0)
+        self.assertEqual(data["folder_preview"], [])
 
     def test_file_selection_step_validate_fails_when_no_videos(self):
         """Validation should fail when no videos are selected."""
@@ -134,6 +135,7 @@ class TestFileSelectionStep(unittest.TestCase):
         self.assertEqual(data["summary"]["total_files"], 1)
         self.assertEqual(data["summary"]["total_folders"], 1)
         self.assertEqual(data["summary"]["total_paths"], 2)
+        self.assertTrue(data["folder_preview"])
 
     def test_file_selection_step_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
@@ -201,6 +203,29 @@ class TestFileSelectionStep(unittest.TestCase):
         summary = step.summary_var.get()
         self.assertIn("1 arquivo(s)", summary)
         self.assertIn("1 pasta(s)", summary)
+
+    def test_file_selection_step_folder_preview_tree_populates(self):
+        """Folder preview tree should reflect selected directory structure."""
+        wizard_data = {}
+        step = FileSelectionStep(self.root, wizard_data)
+        step.build_ui()
+
+        nested_dir = Path(self.temp_dir) / "Day01"
+        nested_dir.mkdir()
+        (nested_dir / "Subject_S01.mp4").touch()
+
+        step.video_paths = [self.temp_dir]
+        step._update_display()
+
+        preview = step.folder_preview_data
+        self.assertTrue(preview)
+        self.assertIsNotNone(step.folder_tree)
+        folder_tree = step.folder_tree
+        assert folder_tree is not None
+        self.assertGreater(len(folder_tree.get_children()), 0)
+        root_entry = preview[0]
+        self.assertEqual(root_entry["counts"]["folders"], 1)
+        self.assertEqual(root_entry["counts"]["files"], 3)
 
 
 if __name__ == "__main__":

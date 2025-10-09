@@ -387,6 +387,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "roi_merge_strategy": wizard_data.get("roi_merge_strategy"),
         "parquet_summary": wizard_data.get("parquet_summary"),
         "video_count": wizard_data.get("video_count"),
+        "folder_preview": wizard_data.get("folder_preview"),
     }
 
     log.info(

@@ -13,7 +13,7 @@ Validates:
 import tempfile
 import unittest
 from pathlib import Path
-from tkinter import Tk
+from tkinter import TclError, Tk
 
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
@@ -24,8 +24,11 @@ class TestConfirmationStep(unittest.TestCase):
 
     def setUp(self):
         """Create Tkinter root and temp directory for testing."""
-        self.root = Tk()
-        self.root.withdraw()  # Hide window during tests
+        try:
+            self.root = Tk()
+            self.root.withdraw()  # Hide window during tests
+        except TclError as exc:  # pragma: no cover - environment guard
+            self.skipTest(f"Tkinter not available: {exc}")
 
         # Create temporary directory for project location
         self.temp_dir = tempfile.mkdtemp()
@@ -155,6 +158,37 @@ class TestConfirmationStep(unittest.TestCase):
         self.assertIn("Template", summary)
         self.assertIn("Template Especial", summary)
         self.assertIn("Template carregado", step.template_info_var.get())
+
+    def test_summary_includes_folder_preview(self):
+        """Summary should include folder preview details when provided."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 4,
+            "folder_preview": [
+                {
+                    "label": "📁 Estudo",
+                    "path": "/dados/Estudo",
+                    "counts": {"folders": 2, "files": 4},
+                    "nodes": [
+                        {
+                            "label": "📁 Dia01",
+                            "path": "/dados/Estudo/Dia01",
+                            "counts": {"folders": 0, "files": 2},
+                            "children": [],
+                        }
+                    ],
+                    "truncated": False,
+                }
+            ],
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+        self.assertIn("Estrutura de Pastas", summary)
+        self.assertIn("📁 Estudo", summary)
 
     def test_validate_succeeds_with_valid_data(self):
         """Validation should succeed with valid project name and location."""

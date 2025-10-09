@@ -67,6 +67,12 @@ O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que a
 - Selecione item na lista
 - Clique em "Remover Selecionado"
 
+**2.4 Pré-visualização da Estrutura**
+- A árvore "Pré-visualização da Estrutura" mostra as primeiras pastas/arquivos detectados
+- Útil para validar se escolheu a raiz correta antes de avançar
+- Prévia limitada a três níveis e 120 nós para manter a interface responsiva
+- Arquivos soltos aparecem agrupados em "Arquivos Individuais"
+
 #### Exemplo de Estrutura:
 
 ```
@@ -84,7 +90,7 @@ Experimento_Canabidiol/
         └── Subject02.mp4
 ```
 
-💡 **Dica**: Para projetos com estrutura de pastas, use "Adicionar Pasta..." na raiz - o wizard detectará o design automaticamente!
+💡 **Dica**: Para projetos com estrutura de pastas, use "Adicionar Pasta..." na raiz - a árvore mostrará a hierarquia e o wizard detectará o design automaticamente!
 
 ---
 
@@ -106,6 +112,12 @@ Experimento_Canabidiol/
 - **Trajetória**: `*_trajectory.parquet` (dados de rastreamento)
 - **Status por Vídeo**: Quais arquivos existem para cada vídeo
 
+**3.3 Regex Personalizado (Pré-visualização ao Vivo)**
+- Clique em "Regex Customizado" para editar padrões de grupos/dias/sujeitos
+- A tabela de pré-visualização atualiza automaticamente conforme você digita
+- Erros de regex aparecem em linha (sem pop-ups interruptivos)
+- O campo de teste também avalia automaticamente o caminho digitado
+
 #### Padrões de Detecção:
 
 1. **Grupos como Pastas**: `/Control/Day01/video.mp4`
@@ -113,7 +125,7 @@ Experimento_Canabidiol/
 3. **Pastas Mistas**: `/Control_Day01/video.mp4`
 4. **Baseado em Nome**: `Control_Day01_Subject01.mp4`
 
-💡 **Dica**: A confiança de detecção indica a consistência do padrão. Valores acima de 70% são confiáveis.
+💡 **Dica**: A confiança de detecção indica a consistência do padrão. Valores acima de 70% são confiáveis. Se a tabela de pré-visualização destacar "Erro", ajuste os padrões antes de confirmar.
 
 ---
 

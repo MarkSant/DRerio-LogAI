@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import shapely
 from shapely import affinity, prepare
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, box
 from shapely.geometry.base import BaseGeometry
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
@@ -22,8 +22,8 @@ class ROI:
     def __init__(
         self,
         name: str,
-    geometry: BaseGeometry,
-        coordinate_space: Literal["px", "cm"] = "px",
+        geometry: BaseGeometry,
+        coordinate_space: Literal["px", "cm"] = "cm",
     ):
         self.name = name
         self.geometry = geometry

@@ -19,6 +19,11 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
+from tkinter import ttk
+
+MAX_TREE_DEPTH = 3
+MAX_TREE_CHILDREN = 12
+MAX_TREE_NODES = 120
 
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
@@ -54,6 +59,9 @@ class FileSelectionStep(WizardStep):
         self.summary_var = StringVar(value="Nenhum vídeo/pasta selecionado.")
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
+        self.folder_tree = None
+        self.folder_tree_placeholder = None
+        self.folder_preview_data: list[dict] = []
 
     def build_ui(self):
         """Build file selection UI."""
@@ -173,6 +181,44 @@ class FileSelectionStep(WizardStep):
         self.paths_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.paths_listbox.yview)
 
+        # Folder preview tree
+        tree_frame = LabelFrame(
+            self,
+            text="Pré-visualização da Estrutura",
+            padx=10,
+            pady=10,
+        )
+        tree_frame.pack(fill="both", expand=True, pady=(10, 0))
+
+        tree_scroll = Scrollbar(tree_frame)
+        tree_scroll.pack(side="right", fill="y")
+
+        self.folder_tree = ttk.Treeview(
+            tree_frame,
+            columns=("detalhes",),
+            show="tree headings",
+            height=8,
+        )
+        self.folder_tree.column("#0", width=280, stretch=True)
+        self.folder_tree.column("detalhes", width=160, stretch=True)
+        self.folder_tree.heading("#0", text="Pasta / Arquivo")
+        self.folder_tree.heading("detalhes", text="Resumo")
+        self.folder_tree.pack(side="left", fill="both", expand=True)
+        self.folder_tree.config(yscrollcommand=tree_scroll.set)
+        tree_scroll.config(command=self.folder_tree.yview)
+
+        self.folder_tree_placeholder = Label(
+            tree_frame,
+            text=(
+                "Selecione pastas para visualizar a estrutura. Arquivos isolados "
+                "são listados automaticamente."
+            ),
+            fg="#666666",
+            wraplength=460,
+            justify="left",
+        )
+        self.folder_tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+
         # Help text
         help_text = Label(
             self,
@@ -244,6 +290,8 @@ class FileSelectionStep(WizardStep):
         # Update summary
         if not self.video_paths:
             self.summary_var.set("Nenhum vídeo/pasta selecionado.")
+            self.folder_preview_data = []
+            self._refresh_folder_preview()
             return
 
         # Count files and folders
@@ -264,6 +312,8 @@ class FileSelectionStep(WizardStep):
             summary += " (detecção de vídeos em pastas será feita na próxima etapa)"
 
         self.summary_var.set(summary)
+        self.folder_preview_data = self._build_folder_preview_data(files, folders)
+        self._refresh_folder_preview()
 
     def validate(self) -> tuple[bool, str]:
         """
@@ -301,6 +351,9 @@ class FileSelectionStep(WizardStep):
         files = [p for p in self.video_paths if os.path.isfile(p)]
         folders = [p for p in self.video_paths if os.path.isdir(p)]
 
+        if self.video_paths and not self.folder_preview_data:
+            self.folder_preview_data = self._build_folder_preview_data(files, folders)
+
         return {
             "video_paths": self.video_paths,
             "summary": {
@@ -308,6 +361,7 @@ class FileSelectionStep(WizardStep):
                 "total_folders": len(folders),
                 "total_paths": len(self.video_paths),
             },
+            "folder_preview": self.folder_preview_data,
         }
 
     def set_data(self, data: dict):
@@ -319,6 +373,7 @@ class FileSelectionStep(WizardStep):
         """
         if "video_paths" in data:
             self.video_paths = data["video_paths"]
+            self.folder_preview_data = data.get("folder_preview", [])
             self._update_display()
         self._update_template_banner()
 
@@ -327,6 +382,156 @@ class FileSelectionStep(WizardStep):
         # Refresh display in case data changed
         self._update_display()
         self._update_template_banner()
+
+    def _refresh_folder_preview(self):
+        if not self.folder_tree:
+            return
+
+        for item in self.folder_tree.get_children():
+            self.folder_tree.delete(item)
+
+        if not self.folder_preview_data:
+            if self.folder_tree_placeholder:
+                self.folder_tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+            return
+
+        if self.folder_tree_placeholder:
+            self.folder_tree_placeholder.place_forget()
+
+        for entry in self.folder_preview_data:
+            details = self._format_entry_details(entry.get("counts", {}))
+            root_text = entry.get("label", entry.get("path", ""))
+            root_id = self.folder_tree.insert("", "end", text=root_text, values=(details,))
+            for node in entry.get("nodes", []):
+                self._insert_tree_node(root_id, node)
+
+            if entry.get("truncated"):
+                self.folder_tree.insert(
+                    root_id,
+                    "end",
+                    text="…",
+                    values=("Prévia limitada",),
+                )
+
+    def _insert_tree_node(self, parent_id: str, node: dict):
+        text = node.get("label", node.get("path", ""))
+        details = self._format_entry_details(node.get("counts", {}))
+        node_id = self.folder_tree.insert(parent_id, "end", text=text, values=(details,))
+        for child in node.get("children", []):
+            self._insert_tree_node(node_id, child)
+
+    def _build_folder_preview_data(self, files: list[str], folders: list[str]) -> list[dict]:
+        preview: list[dict] = []
+
+        for folder in sorted(folders):
+            entry = self._scan_folder(folder)
+            preview.append(entry)
+
+        if files:
+            file_nodes = []
+            for path in sorted(files):
+                base = os.path.basename(path)
+                file_nodes.append(
+                    {
+                        "label": f"📄 {base}",
+                        "path": path,
+                        "counts": {"files": 1, "folders": 0},
+                        "children": [],
+                    }
+                )
+
+            preview.append(
+                {
+                    "label": "Arquivos Individuais",
+                    "path": "files",
+                    "counts": {"files": len(files), "folders": 0},
+                    "nodes": file_nodes,
+                    "truncated": False,
+                }
+            )
+
+        return preview
+
+    def _scan_folder(self, folder: str) -> dict:
+        budget = {"remaining": MAX_TREE_NODES}
+        nodes, counts, truncated = self._walk_folder(folder, depth=0, budget=budget)
+        label = f"📁 {os.path.basename(folder) or folder}"
+        return {
+            "label": label,
+            "path": folder,
+            "counts": counts,
+            "nodes": nodes,
+            "truncated": truncated or budget["remaining"] <= 0,
+        }
+
+    def _walk_folder(self, path: str, *, depth: int, budget: dict) -> tuple[list[dict], dict, bool]:
+        counts = {"files": 0, "folders": 0}
+        if depth >= MAX_TREE_DEPTH or budget["remaining"] <= 0:
+            return [], counts, True
+
+        try:
+            entries = sorted(
+                os.scandir(path),
+                key=lambda entry: (not entry.is_dir(), entry.name.lower()),
+            )
+        except (FileNotFoundError, PermissionError, NotADirectoryError):
+            return [], counts, False
+
+        nodes: list[dict] = []
+        truncated = False
+
+        for entry in entries:
+            if budget["remaining"] <= 0:
+                truncated = True
+                break
+            if len(nodes) >= MAX_TREE_CHILDREN:
+                truncated = True
+                break
+
+            budget["remaining"] -= 1
+
+            if entry.is_dir():
+                counts["folders"] += 1
+                child_nodes, child_counts, child_truncated = self._walk_folder(
+                    entry.path,
+                    depth=depth + 1,
+                    budget=budget,
+                )
+
+                counts["files"] += child_counts["files"]
+                counts["folders"] += child_counts["folders"]
+
+                node = {
+                    "label": f"📁 {entry.name}",
+                    "path": entry.path,
+                    "counts": child_counts,
+                    "children": child_nodes,
+                }
+                nodes.append(node)
+                truncated = truncated or child_truncated
+            else:
+                counts["files"] += 1
+                node = {
+                    "label": f"📄 {entry.name}",
+                    "path": entry.path,
+                    "counts": {"files": 1, "folders": 0},
+                    "children": [],
+                }
+                nodes.append(node)
+
+        return nodes, counts, truncated
+
+    def _format_entry_details(self, counts: dict) -> str:
+        files = counts.get("files", 0)
+        folders = counts.get("folders", 0)
+        parts = []
+        if folders:
+            parts.append(f"{folders} pasta(s)")
+        if files:
+            parts.append(f"{files} arquivo(s)")
+        if not parts:
+            return "vazio"
+        return ", ".join(parts)
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))

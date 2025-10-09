@@ -136,7 +136,9 @@ class TrajectorySmoothingSettings(BaseModel):
     @classmethod
     def _ensure_odd_window(cls, value: int) -> int:
         if value % 2 == 0:
-            raise ValueError("trajectory_smoothing.window_length must be an odd integer.")
+            raise ValueError(
+                "trajectory_smoothing.window_length must be an odd integer."
+            )
         return value
 
     @model_validator(mode="after")

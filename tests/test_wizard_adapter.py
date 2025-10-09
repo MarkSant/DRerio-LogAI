@@ -30,6 +30,7 @@ class TestWizardAdapter(unittest.TestCase):
             ],
             "has_parquets": False,
             "parquet_import_scope": None,
+            "folder_preview": [],
         }
 
         result = adapt_wizard_data_to_controller_format(wizard_data)
@@ -53,6 +54,7 @@ class TestWizardAdapter(unittest.TestCase):
         # Verify wizard metadata preserved
         self.assertIn("_wizard_metadata", result)
         self.assertEqual(result["_wizard_metadata"]["wizard_schema_version"], 1)
+        self.assertEqual(result["_wizard_metadata"].get("folder_preview"), [])
 
     def test_adapt_experimental_with_design(self):
         """Adapter should extract experimental design from detected_design."""
@@ -69,6 +71,15 @@ class TestWizardAdapter(unittest.TestCase):
             "has_folder_structure": True,
             "folder_meaning": "experimental",
             "has_parquets": False,
+            "folder_preview": [
+                {
+                    "label": "📁 Experimento",
+                    "path": "/path/to/Experiment_Control",
+                    "counts": {"folders": 2, "files": 1},
+                    "nodes": [],
+                    "truncated": False,
+                }
+            ],
             "detected_design": {
                 "groups": ["Control", "Treatment"],
                 "days": ["Day01", "Day02"],
@@ -106,6 +117,10 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertEqual(enriched_scanned[0]["group"], "Control")
         self.assertEqual(enriched_scanned[0]["metadata"]["subject"], "S01")
         self.assertEqual(enriched_scanned[0]["metadata"]["day_label"], "01")
+        folder_preview = result["_wizard_metadata"].get("folder_preview")
+        self.assertIsNotNone(folder_preview)
+        assert folder_preview is not None
+        self.assertEqual(folder_preview[0]["counts"]["files"], 1)
 
     def test_adapt_with_parquet_import(self):
         """Adapter should preserve parquet import configuration."""

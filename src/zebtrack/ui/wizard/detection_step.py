@@ -711,7 +711,11 @@ class DetectionStep(WizardStep):
     def _configure_custom_regex(self):
         """Open custom regex dialog to configure detection patterns."""
         # Open dialog with current patterns
-        dialog = CustomRegexDialog(self, self.custom_regex_patterns or {})
+        dialog = CustomRegexDialog(
+            self,
+            self.custom_regex_patterns or {},
+            sample_paths=self._get_sample_paths_for_regex(),
+        )
         result_patterns = dialog.get_result()
 
         if result_patterns is None:
@@ -719,6 +723,23 @@ class DetectionStep(WizardStep):
 
         self._set_custom_regex_patterns(result_patterns, source="detection_step")
         self._run_detection()
+
+    def _get_sample_paths_for_regex(self) -> list[str]:
+        """Collect sample paths for live regex preview."""
+        samples: list[str] = []
+
+        for video in self.scanned_videos or []:
+            path = video.get("path") if isinstance(video, dict) else None
+            if isinstance(path, str):
+                samples.append(path)
+
+        if not samples:
+            raw_paths = self.wizard_data.get("video_paths", [])
+            for raw in raw_paths:
+                if isinstance(raw, str):
+                    samples.append(raw)
+
+        return samples
 
     def _handle_custom_regex_from_editor(self, patterns: dict | None) -> dict | None:
         """Receive custom regex updates triggered from the design editor."""

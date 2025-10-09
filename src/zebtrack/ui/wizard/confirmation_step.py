@@ -280,6 +280,17 @@ class ConfirmationStep(WizardStep):
             if video_count > 0:
                 lines.append(f"  • Total de Vídeos: {video_count}")
 
+            folder_preview = self.wizard_data.get("folder_preview") or []
+            if folder_preview:
+                lines.append("")
+                lines.append("🌳 Estrutura de Pastas (prévia):")
+                for entry in folder_preview[:2]:
+                    lines.extend(self._render_folder_preview(entry))
+
+                remaining = len(folder_preview) - 2
+                if remaining > 0:
+                    lines.append(f"  • (+ {remaining} seleção(ões) adicional(is))")
+
         lines.append("")
 
         # Calibration summary
@@ -395,6 +406,44 @@ class ConfirmationStep(WizardStep):
 
         self.summary_text = "\n".join(lines)
         self.summary_label.config(text=self.summary_text)
+
+    def _render_folder_preview(self, entry: dict) -> list[str]:
+        """Convert folder preview structure into formatted summary lines."""
+        label = entry.get("label") or entry.get("path") or "(seleção)"
+        counts = entry.get("counts", {})
+        folders = counts.get("folders", 0)
+        files = counts.get("files", 0)
+
+        summary_bits: list[str] = []
+        if folders:
+            summary_bits.append(f"{folders} pasta(s)")
+        if files:
+            summary_bits.append(f"{files} arquivo(s)")
+
+        summary_text = ", ".join(summary_bits) if summary_bits else "vazio"
+        lines = [f"  • {label}: {summary_text}"]
+
+        def walk(nodes: list[dict], depth: int) -> None:
+            if depth >= 2:
+                return
+
+            max_children = 2 if depth == 0 else 1
+            child_count = len(nodes)
+            for index, node in enumerate(nodes[:max_children]):
+                prefix = "    " * (depth + 1)
+                node_label = node.get("label") or node.get("path") or "(item)"
+                lines.append(f"{prefix}- {node_label}")
+                walk(node.get("children", []), depth + 1)
+
+                if index == max_children - 1 and child_count > max_children:
+                    lines.append(f"{prefix}…")
+
+        walk(entry.get("nodes", []), 0)
+
+        if entry.get("truncated"):
+            lines.append("    … Prévia limitada (detalhes completos na etapa 2)")
+
+        return lines
 
     def _save_as_template(self):
         """Save current wizard configuration as a template."""
