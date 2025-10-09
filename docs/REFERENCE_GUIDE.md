@@ -202,6 +202,20 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 
 ---
 
+## 7. Configurações avançadas e validações
+
+| Item | Detalhes |
+|------|----------|
+| Aba **Config. Avançadas** | Disponível na tela principal do projeto. Centraliza ajustes persistidos em `config.local.yaml` (fps, intervalos de processamento, flush automático, suavização de trajetória e parâmetros padrão de ROI). |
+| Validações automáticas | Antes de salvar, a interface executa o mesmo conjunto de validações Pydantic do backend (ex.: `processing_offset < processing_interval`, `window_length` ímpar, `polyorder < window_length`, `roi_buffer_radius > 0` na regra com buffer). Mensagens de erro exibem detalhes do campo inválido. |
+| Persistência | As alterações são mescladas com `config.local.yaml`, preservando demais campos já existentes. O arquivo é criado automaticamente se ainda não existir. |
+| Recarregar valores | O botão **Recarregar valores atuais** sincroniza o formulário com o estado em disco, útil após editar o YAML manualmente ou trocar de máquina. |
+| Dicas contextuais | Cada campo inclui micro-help explicando impactos práticos (ex.: flush frequente vs. intervalos altos). As regras de ROI exibem tooltips resumindo as diferenças entre `centroid_in`, buffer e sobreposição de bbox/segmentação. |
+
+> **Workflow sugerido**: ajuste apenas os parâmetros globais aceitos pelo tab, salve, valide a mensagem de sucesso e reinicie o app quando alterar FPS ou intervalos críticos. Projetos existentes herdarão as novas configurações na próxima abertura.
+
+---
+
 ## 8. Integração com Arduino
 
 | Item | Detalhes |
@@ -266,6 +280,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 
 | Pergunta | Resposta |
 |----------|----------|
+| **Posso alterar FPS e intervalos sem editar YAML?** | Sim. Use a aba **Config. Avançadas** na tela principal; ela valida os valores e salva em `config.local.yaml`. |
 | **Como ajustar o limiar de freezing?** | Edite `config.local.yaml` → `analysis.freezing_vel_threshold` e `analysis.freezing_min_duration`. Reinicie o app para aplicar. |
 | **Posso usar o app sem Arduino?** | Sim. Deixe `use_arduino` desmarcado; o fluxo funciona integralmente offline. |
 | **Por que meu relatório não tem colunas `x_cm`/`y_cm`?** | A calibração não estava disponível ao gravar o Parquet. Gere uma nova sessão com homografia configurada. |

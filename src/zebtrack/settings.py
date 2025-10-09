@@ -281,6 +281,52 @@ class Settings(BaseModel):
         description="Smoothing parameters applied to trajectory preprocessing.",
     )
 
+    @model_validator(mode="after")
+    def _validate_advanced_constraints(self) -> "Settings":
+        """Ensure cross-field invariants that depend on multiple settings."""
+
+        # Validate processing interval/offset relationship
+        interval = self.video_processing.processing_interval
+        offset = self.video_processing.processing_offset
+        if interval <= 0:
+            raise ValueError(
+                "video_processing.processing_interval must be a positive integer."
+            )
+        if offset < 0:
+            raise ValueError(
+                "video_processing.processing_offset must be greater than or equal to 0."
+            )
+        if offset >= interval:
+            raise ValueError(
+                "video_processing.processing_offset must be less than processing_interval."
+            )
+
+        # Validate ROI parameters based on rule selection
+        if self.roi_inclusion_rule == "centroid_in_on_buffered_roi":
+            if self.roi_buffer_radius_value <= 0:
+                raise ValueError(
+                    "roi_buffer_radius_value must be greater than 0 when using "
+                    "centroid_in_on_buffered_roi."
+                )
+        elif self.roi_buffer_radius_value < 0:
+            raise ValueError("roi_buffer_radius_value cannot be negative.")
+
+        overlap_ratio = self.roi_min_bbox_overlap_ratio
+        if self.roi_inclusion_rule in {"bbox_intersects", "seg_overlap"}:
+            if not (0.0 < overlap_ratio <= 1.0):
+                raise ValueError(
+                    "roi_min_bbox_overlap_ratio must be within (0, 1] when using "
+                    "bbox_intersects or seg_overlap."
+                )
+        else:
+            if not (0.0 <= overlap_ratio <= 1.0):
+                raise ValueError(
+                    "roi_min_bbox_overlap_ratio must be within [0, 1] for the "
+                    "selected ROI inclusion rule."
+                )
+
+        return self
+
 
 def _merge_configs(base: dict, override: dict) -> dict:
     """Recursively merge two dictionaries."""

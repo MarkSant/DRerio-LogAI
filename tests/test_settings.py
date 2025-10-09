@@ -238,6 +238,54 @@ trajectory_smoothing:
                 with self.assertRaises(ValueError):
                     load_settings()
 
+    def test_processing_offset_must_be_less_than_interval(self):
+        invalid_yaml = self.mock_yaml_content + """
+video_processing:
+  fps: 30
+  processing_interval: 5
+  processing_offset: 5
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
+    def test_processing_interval_must_be_positive(self):
+        invalid_yaml = self.mock_yaml_content + """
+video_processing:
+  fps: 30
+  processing_interval: 0
+  processing_offset: 0
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
+    def test_buffer_radius_requires_positive_value_for_buffered_rule(self):
+        invalid_yaml = self.mock_yaml_content + """
+roi_inclusion_rule: "centroid_in_on_buffered_roi"
+roi_buffer_radius_value: 0
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
+    def test_overlap_ratio_bounds_respected(self):
+        invalid_yaml = self.mock_yaml_content + """
+roi_inclusion_rule: "bbox_intersects"
+roi_min_bbox_overlap_ratio: 1.5
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError):
+                    load_settings()
+
 
 if __name__ == "__main__":
     unittest.main()
