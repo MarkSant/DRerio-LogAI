@@ -52,6 +52,11 @@ roi_min_bbox_overlap_ratio: 0.10
                 self.assertEqual(settings.detection_zones.roi_polygons, [])
                 self.assertEqual(settings.detection_zones.roi_names, [])
                 self.assertEqual(settings.detection_zones.roi_colors, [])
+                # UI feature flags should fall back to defaults when not specified
+                self.assertFalse(
+                    settings.ui_features.use_wizard_for_project_creation
+                )
+                self.assertFalse(settings.ui_features.enable_event_queue)
                 # Should check for both default and override files
                 self.assertEqual(mock_is_file.call_count, 2)
                 # Should only open the default file
@@ -190,6 +195,26 @@ roi_min_bbox_overlap_ratio: 0.25
                 self.assertEqual(settings.roi_inclusion_rule, "centroid_in")
                 self.assertEqual(settings.roi_buffer_radius_value, 1.5)
                 self.assertEqual(settings.roi_min_bbox_overlap_ratio, 0.25)
+
+    def test_ui_feature_flag_override(self):
+        base_yaml = self.mock_yaml_content
+        override_yaml = """
+ui_features:
+  use_wizard_for_project_creation: true
+  enable_event_queue: true
+"""
+
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            return mock_open(read_data=base_yaml)()
+
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                loaded = load_settings()
+
+        self.assertTrue(loaded.ui_features.use_wizard_for_project_creation)
+        self.assertTrue(loaded.ui_features.enable_event_queue)
 
 
 if __name__ == "__main__":

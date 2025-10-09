@@ -182,6 +182,13 @@ class UIFeatureFlags(BaseModel):
         False,
         description="Use new 5-step wizard instead of legacy CreateProjectDialog"
     )
+    enable_event_queue: bool = Field(
+        False,
+        description=(
+            "Route controller→GUI interactions through the async event queue "
+            "instead of direct Tkinter calls"
+        ),
+    )
 
 
 class Settings(BaseModel):

@@ -117,6 +117,7 @@ sequenceDiagram
 | AD-05 | **Progresso granular** | `progress_callback` propaga métricas (frames totais/processados/detectados) para alimentar `update_processing_stats`. |
 | AD-06 | **Projétil orientado a projetos** | Persistir `ProjectManager.project_data` mantendo batches e intervalos por projeto. |
 | AD-07 | **Wizard padrão com fallback controlado por flag** 🧙 | O fluxo guiado é a experiência padrão (v1.6+); a flag `UIFeatureFlags.use_wizard_for_project_creation` permanece apenas para cenários legados, com compatibilidade assegurada pelo `wizard_adapter`. |
+| AD-08 | **Fila de eventos assíncrona (em implantação)** | `UIFeatureFlags.enable_event_queue` introduz um _event bus_ entre threads de processamento e o mainloop Tkinter, reduzindo `root.after` diretos e isolando efeitos de UI. |
 
 ## 5. Pontos de extensão
 
@@ -130,6 +131,7 @@ sequenceDiagram
 - **Intermitência de frames**: `analysis_interval_frames` e `display_interval_frames` determinam frequência de processamento; armazenados no projeto para repetibilidade.
 - **OpenVINO**: `WeightManager` verifica existência de `.xml/.bin` e hashes antes de habilitar aceleração.
 - **Threading**: detecção e análise pesadas rodam em threads separadas; interações com GUI devem ser reencaminhadas via `root.after` para o mainloop.
+- **Event bus planejado**: a próxima iteração adiciona `ui.event_bus.EventBus`, permitindo migrar gradualmente publicadores do controller. O feature flag `settings.ui_features.enable_event_queue` controla a adoção progressiva.
 
 ## 7. Bibliografia de módulos
 
