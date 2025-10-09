@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
@@ -290,8 +291,23 @@ class ProjectManager:
             "rois": f"2_AreasOfInterest_{target_stem}.parquet",
         }
 
-        source_results_dir_name = f"{source_stem}_results"
-        target_results_dir = target_parent / f"{target_stem}_results"
+        target_video_entry = self.find_video_entry(path=target_video_path)
+        metadata_hint: dict | None = None
+        if target_video_entry:
+            metadata_hint = dict(target_video_entry.get("metadata") or {})
+            for key in ("group", "group_display_name", "day", "subject"):
+                if (
+                    key in target_video_entry
+                    and key not in metadata_hint
+                    and target_video_entry[key] is not None
+                ):
+                    metadata_hint[key] = target_video_entry[key]
+
+        hierarchical_results_dir = self.resolve_results_directory(
+            target_stem,
+            video_path=target_video_path,
+            metadata=metadata_hint,
+        )
 
         updated_video_entry = False
 
@@ -309,14 +325,14 @@ class ProjectManager:
                 )
                 continue
 
-            destinations: list[Path] = [target_parent]
+            destination_dirs = {target_parent}
 
-            if source_file_path.parent.name == source_results_dir_name:
-                destinations.append(target_results_dir)
+            if hierarchical_results_dir:
+                destination_dirs.add(Path(hierarchical_results_dir))
 
-            for dest_dir in destinations:
+            for dest_dir in destination_dirs:
                 dest_dir.mkdir(parents=True, exist_ok=True)
-                dest_file_path = dest_dir / target_filename
+                dest_file_path = Path(dest_dir) / target_filename
                 try:
                     shutil.copy2(source_file_path, dest_file_path)
                     copied[key] = str(dest_file_path)
@@ -335,7 +351,9 @@ class ProjectManager:
                     )
 
         if updated_video_entry and copied:
-            video_entry = self.find_video_entry(path=target_video_path)
+            video_entry = target_video_entry or self.find_video_entry(
+                path=target_video_path
+            )
             if video_entry is not None:
                 parquet_map = video_entry.setdefault("parquet_files", {})
                 parquet_map.update(copied)
@@ -776,8 +794,11 @@ class ProjectManager:
                             )
                             continue
 
-                        results_dir = Path(self.project_path) / f"{video_name}_results"
-                        results_dir.mkdir(exist_ok=True)
+                        results_dir = self.resolve_results_directory(
+                            video_name,
+                            video_path=video_path,
+                        )
+                        results_dir.mkdir(parents=True, exist_ok=True)
 
                         dest_path = (
                             results_dir / f"3_CoordMovimento_{video_name}.parquet"
@@ -1315,6 +1336,137 @@ class ProjectManager:
             metadata["group_label"] = metadata["group_display_name"]
 
         return metadata
+
+    def resolve_results_directory(
+        self,
+        experiment_id: str,
+        *,
+        video_path: str | None = None,
+        metadata: dict | None = None,
+    ) -> Path:
+        """Compute the destination directory for analysis artifacts."""
+
+        experiment_source = experiment_id or (metadata or {}).get("experiment_id")
+        experiment_component = self._sanitize_path_component(
+            experiment_source,
+            fallback="experimento",
+        )
+
+        if self.project_path:
+            meta_lookup = metadata or {}
+            if not meta_lookup:
+                meta_lookup = self.get_metadata_for_experiment(experiment_id) or {}
+
+            if not meta_lookup and video_path:
+                meta_lookup = self.derive_processing_metadata(
+                    experiment_id,
+                    video_path,
+                )
+
+            group_component = self._format_group_component(meta_lookup)
+            day_component = self._format_day_component(meta_lookup)
+            subject_component = self._format_subject_component(meta_lookup)
+
+            return (
+                Path(self.project_path)
+                / group_component
+                / day_component
+                / subject_component
+                / experiment_component
+            )
+
+        base_dir = Path(video_path).parent if video_path else Path.cwd()
+        return base_dir / f"{experiment_component}_results"
+
+    @staticmethod
+    def _sanitize_path_component(value, *, fallback: str) -> str:
+        candidate = fallback if value is None else str(value).strip()
+        if not candidate:
+            candidate = fallback
+
+        normalized = unicodedata.normalize("NFKD", candidate)
+        normalized = "".join(
+            ch for ch in normalized if not unicodedata.combining(ch)
+        )
+
+        sanitized = re.sub(r"[<>:\"/\\|?*]", "_", normalized)
+        sanitized = re.sub(r"\s+", "_", sanitized)
+        sanitized = re.sub(r"_+", "_", sanitized)
+        sanitized = sanitized.strip("._")
+
+        return sanitized or fallback
+
+    def _format_group_component(self, metadata: dict | None) -> str:
+        if metadata:
+            for key in (
+                "group_display_name",
+                "group_label",
+                "group_name",
+                "group",
+            ):
+                value = metadata.get(key)
+                if value not in (None, ""):
+                    return "Grupo_" + self._sanitize_path_component(
+                        value, fallback="Sem_Grupo"
+                    )
+
+        return "Grupo_" + self._sanitize_path_component(
+            None, fallback="Sem_Grupo"
+        )
+
+    def _format_day_component(self, metadata: dict | None) -> str:
+        candidate = None
+        if metadata:
+            for key in ("day", "dia", "day_id"):
+                value = metadata.get(key)
+                if value not in (None, ""):
+                    candidate = value
+                    break
+
+        if candidate is None:
+            suffix = "Indefinido"
+        else:
+            try:
+                day_number = float(candidate)
+                if day_number.is_integer():
+                    suffix = f"{int(day_number):02d}"
+                else:
+                    suffix = self._sanitize_path_component(
+                        candidate, fallback="Indefinido"
+                    )
+            except (TypeError, ValueError):
+                suffix = self._sanitize_path_component(
+                    candidate, fallback="Indefinido"
+                )
+
+        return f"Dia_{suffix}"
+
+    def _format_subject_component(self, metadata: dict | None) -> str:
+        candidate = None
+        if metadata:
+            for key in ("subject", "subject_id", "animal", "sujeito"):
+                value = metadata.get(key)
+                if value not in (None, ""):
+                    candidate = value
+                    break
+
+        if candidate is None:
+            suffix = "Indefinido"
+        else:
+            try:
+                subject_number = float(candidate)
+                if subject_number.is_integer():
+                    suffix = f"{int(subject_number):02d}"
+                else:
+                    suffix = self._sanitize_path_component(
+                        candidate, fallback="Indefinido"
+                    )
+            except (TypeError, ValueError):
+                suffix = self._sanitize_path_component(
+                    candidate, fallback="Indefinido"
+                )
+
+        return f"Sujeito_{suffix}"
 
     def register_processing_outputs(
         self,

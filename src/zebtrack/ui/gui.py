@@ -5,6 +5,8 @@ Este módulo define a interface gráfica principal (GUI) para a aplicação Zebt
 import os
 import queue
 import re
+import subprocess
+import sys
 import threading
 import time
 from collections import Counter
@@ -31,6 +33,7 @@ import numpy as np
 import serial.tools.list_ports
 import structlog
 from PIL import Image, ImageTk
+from pathlib import Path
 
 # Import custom modules
 from zebtrack.io.camera import Camera
@@ -3621,14 +3624,16 @@ class ApplicationGUI:
         if not pm or not path:
             return False
 
-        experiment_id = os.path.splitext(os.path.basename(path))[0]
-        base_dir = pm.project_path or os.path.dirname(path)
-        summary_path = os.path.join(
-            base_dir,
-            f"{experiment_id}_results",
-            f"{experiment_id}_summary.parquet",
+        experiment_id = Path(path).stem
+        entry = pm.find_video_entry(path=path)
+        metadata_hint = dict(entry.get("metadata") or {}) if entry else {}
+        results_path = pm.resolve_results_directory(
+            experiment_id,
+            video_path=path,
+            metadata=metadata_hint,
         )
-        return os.path.exists(summary_path)
+        summary_path = Path(results_path) / f"{experiment_id}_summary.parquet"
+        return summary_path.exists()
 
     def _get_selected_pipeline_video_paths(self) -> list[str]:
         if not self.pipeline_video_tree:
@@ -5005,6 +5010,7 @@ class ApplicationGUI:
         scrollbar.pack(side="right", fill="y")
 
         self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
+        self.reports_tree.bind("<Double-1>", self._on_report_item_double_click)
 
         # --- Actions Panel ---
         actions_frame = ttk.LabelFrame(reports_tab_frame, text="Ações", padding=10)
@@ -5090,7 +5096,22 @@ class ApplicationGUI:
                 "status": video.get("status", "pending"),
                 "filename": os.path.basename(video.get("path", "")),
                 "subject": metadata.get("subject"),
+                "results_dir": video.get("results_dir"),
             }
+
+            if not entry["results_dir"] and entry["path"]:
+                try:
+                    computed_results = pm.resolve_results_directory(
+                        os.path.splitext(os.path.basename(entry["path"]))[0],
+                        video_path=entry["path"],
+                        metadata=metadata,
+                    )
+                    entry["results_dir"] = str(computed_results)
+                except Exception:  # pragma: no cover - defensive logging only
+                    log.debug(
+                        "gui.reports_tree.results_dir_compute_failed",
+                        video=entry["path"],
+                    )
 
             group_data = hierarchy.setdefault(
                 group_id,
@@ -5214,7 +5235,7 @@ class ApplicationGUI:
                             ),
                             entry["status"],
                         ),
-                        tags=(video_path,),
+                        tags=(video_path, entry.get("results_dir") or ""),
                     )
 
         log.info(
@@ -5232,6 +5253,104 @@ class ApplicationGUI:
             self.generate_partial_report_btn.config(state="normal")
         else:
             self.generate_partial_report_btn.config(state="disabled")
+
+    def _on_report_item_double_click(self, event=None):
+        """Open the results folder for the selected video when reports exist."""
+        tree = getattr(self, "reports_tree", None)
+        if not tree:
+            return
+
+        item_id = None
+        if event is not None:
+            item_id = tree.identify_row(event.y)
+        if not item_id:
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+        if not item_id:
+            return
+
+        item_tags = tree.item(item_id).get("tags") or ()
+        if not item_tags:
+            return
+
+        video_path = item_tags[0]
+        if not video_path:
+            return
+
+        controller = getattr(self, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        if not pm:
+            return
+
+        results_dir = item_tags[1] if len(item_tags) > 1 else ""
+        entry = pm.find_video_entry(path=video_path)
+        metadata_hint: dict = {}
+        has_results = False
+
+        if entry:
+            metadata_hint = dict(entry.get("metadata") or {})
+            if not results_dir:
+                results_dir = entry.get("results_dir") or ""
+            for key in ("group", "group_display_name", "day", "subject"):
+                if (
+                    entry.get(key) is not None
+                    and key not in metadata_hint
+                ):
+                    metadata_hint[key] = entry[key]
+            parquet_files = entry.get("parquet_files") or {}
+            for key in ("summary", "summary_excel", "report_docx"):
+                candidate_path = parquet_files.get(key)
+                if candidate_path and os.path.exists(candidate_path):
+                    has_results = True
+                    break
+
+        experiment_id = Path(video_path).stem
+        if not results_dir:
+            results_path = pm.resolve_results_directory(
+                experiment_id,
+                video_path=video_path,
+                metadata=metadata_hint,
+            )
+            results_dir = str(results_path)
+
+        if not has_results and results_dir:
+            summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
+            report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
+            excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
+            if (
+                summary_candidate.exists()
+                or report_candidate.exists()
+                or excel_candidate.exists()
+            ):
+                has_results = True
+
+        if not results_dir or not os.path.isdir(results_dir) or not has_results:
+            self.show_warning(
+                "Relatórios indisponíveis",
+                "Gere o relatório para este vídeo antes de abrir a pasta de resultados.",
+            )
+            return
+
+        self._open_path_in_explorer(results_dir)
+
+    def _open_path_in_explorer(self, target_path: str) -> None:
+        """Open the given directory in the user's file explorer."""
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(target_path)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", target_path])
+            else:
+                subprocess.Popen(["xdg-open", target_path])
+        except Exception as exc:  # pragma: no cover - GUI feedback
+            self.show_error(
+                "Erro ao abrir pasta",
+                (
+                    "Não foi possível abrir o diretório de resultados.\n"
+                    f"Caminho: {target_path}\n\nDetalhes: {exc}"
+                ),
+            )
 
     def _generate_partial_report(self):
         """

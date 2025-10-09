@@ -134,10 +134,6 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
     video1 = tmp_path / "vid1.mp4"
     video2 = tmp_path / "vid2.mp4"
 
-    summary_dir = tmp_path / "vid1_results"
-    summary_dir.mkdir()
-    (summary_dir / "vid1_summary.parquet").write_text("", encoding="utf-8")
-
     videos = [
         {
             "path": str(video1),
@@ -155,6 +151,35 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
         },
     ]
 
+    class DummyPM(SimpleNamespace):
+        def __init__(self, base_path: Path, payload: list[dict]):
+            super().__init__()
+            self.project_path = str(base_path)
+            self._videos = payload
+
+        def get_all_videos(self):
+            return self._videos
+
+        def find_video_entry(self, path: str):
+            for video in self._videos:
+                if video["path"] == path:
+                    return video
+            return None
+
+        def resolve_results_directory(self, experiment_id: str, *, video_path=None, metadata=None):
+            return (
+                Path(self.project_path)
+                / "Grupo_Sem_Grupo"
+                / "Dia_Indefinido"
+                / "Sujeito_Indefinido"
+                / experiment_id
+            )
+
+    dummy_pm = DummyPM(tmp_path, videos)
+    summary_dir = dummy_pm.resolve_results_directory("vid1", video_path=str(video1))
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    (summary_dir / "vid1_summary.parquet").write_text("", encoding="utf-8")
+
     instance = gui.ApplicationGUI.__new__(gui.ApplicationGUI)
     inst_any = cast(Any, instance)
     inst_any.pipeline_tab_frame = object()
@@ -162,12 +187,7 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
     inst_any.pipeline_video_vars = {}
     inst_any.pipeline_selection_label = None
     inst_any.pipeline_action_buttons = {}
-    inst_any.controller = SimpleNamespace(
-        project_manager=SimpleNamespace(
-            project_path=str(tmp_path),
-            get_all_videos=lambda: videos,
-        )
-    )
+    inst_any.controller = SimpleNamespace(project_manager=dummy_pm)
 
     instance._refresh_pipeline_video_table(videos)
 

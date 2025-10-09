@@ -2780,8 +2780,13 @@ class AppController:
                     continue
 
                 experiment_id = os.path.splitext(os.path.basename(path))[0]
-                base_dir = self.project_manager.project_path or os.path.dirname(path)
-                results_dir = os.path.join(base_dir, f"{experiment_id}_results")
+                metadata_hint = dict(video.get("metadata") or {})
+                results_path = self.project_manager.resolve_results_directory(
+                    experiment_id,
+                    video_path=path,
+                    metadata=metadata_hint,
+                )
+                results_dir = str(results_path)
 
                 parquet_info = video.get("parquet_files") or {}
                 trajectory_path = parquet_info.get("trajectory")
@@ -3218,18 +3223,17 @@ class AppController:
             if not video_path:
                 continue
 
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-
-            # Cria diretório de resultados
-            results_dir = os.path.join(
-                self.project_manager.project_path, f"{video_name}_results"
+            experiment_id = os.path.splitext(os.path.basename(video_path))[0]
+            results_path = self.project_manager.resolve_results_directory(
+                experiment_id,
+                video_path=video_path,
             )
 
             try:
-                self._prepare_results_directory(results_dir)
+                self._prepare_results_directory(str(results_path))
 
                 # Salva configurações completas do projeto
-                settings_file = os.path.join(results_dir, "project_settings.json")
+                settings_file = results_path / "project_settings.json"
                 settings_data = {
                     "project_name": self.project_manager.get_project_name(),
                     "active_weight": project_data.get("active_weight"),
@@ -3253,7 +3257,7 @@ class AppController:
 
                 # Salva zonas no diretório de resultados
                 if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-                    zones_file = os.path.join(results_dir, "zones.json")
+                    zones_file = results_path / "zones.json"
 
                     from dataclasses import asdict
 
@@ -3262,8 +3266,8 @@ class AppController:
 
                     log.info(
                         "controller.batch.zones_saved",
-                        video=video_name,
-                        zones_file=zones_file,
+                        video=experiment_id,
+                        zones_file=str(zones_file),
                         settings_file=settings_file,
                     )
 
@@ -3272,7 +3276,7 @@ class AppController:
             except Exception as e:
                 log.error(
                     "controller.batch.settings_save_error",
-                    video=video_name,
+                    video=experiment_id,
                     error=str(e),
                 )
 
@@ -3399,6 +3403,24 @@ class AppController:
                 video_path = video_info["path"]
                 experiment_id = os.path.splitext(os.path.basename(video_path))[0]
 
+                metadata_context: dict | None = None
+                if not single_video_config:
+                    metadata_context = dict(video_info.get("metadata") or {})
+                    try:
+                        derived_metadata = (
+                            self.project_manager.derive_processing_metadata(
+                                experiment_id,
+                                video_path,
+                            )
+                        )
+                        metadata_context.update(derived_metadata)
+                    except Exception:  # pragma: no cover - defensive fallback
+                        log.debug(
+                            "controller.processing.metadata_derive_failed",
+                            experiment=experiment_id,
+                            video_path=video_path,
+                        )
+
                 self.project_manager.set_active_zone_video(video_path)
 
                 def progress_callback(
@@ -3452,11 +3474,17 @@ class AppController:
                 except Exception as e:
                     log.warning("controller.progress.frame_display_error", error=str(e))
 
-                results_dir = output_base_dir
                 if self.project_manager.project_path and not single_video_config:
-                    results_dir = os.path.join(
-                        output_base_dir, f"{experiment_id}_results"
+                    results_path = self.project_manager.resolve_results_directory(
+                        experiment_id,
+                        video_path=video_path,
+                        metadata=metadata_context,
                     )
+                    results_dir = str(results_path)
+                else:
+                    results_dir = output_base_dir
+                    results_path = Path(results_dir)
+
                 os.makedirs(results_dir, exist_ok=True)
 
                 tracking_success, arena_polygon_px = self._run_tracking_if_needed(
@@ -3525,16 +3553,19 @@ class AppController:
                     st_thresh = settings.video_processing.sharp_turn_threshold_deg_s
                     fz_thresh = settings.video_processing.freezing_velocity_threshold
                     fz_dur = settings.video_processing.freezing_min_duration_s
-                    metadata = self.project_manager.get_metadata_for_experiment(
+                    metadata = dict(metadata_context or {})
+                    csv_metadata = self.project_manager.get_metadata_for_experiment(
                         experiment_id
                     )
+                    if csv_metadata:
+                        metadata.update(csv_metadata)
                     if not metadata:
                         metadata = self.project_manager.derive_processing_metadata(
                             experiment_id,
                             video_path,
                         )
                         log.info(
-                            "controller.processing.metadata_fallback", 
+                            "controller.processing.metadata_fallback",
                             experiment_id=experiment_id,
                             fields=list(metadata.keys()),
                         )
@@ -3688,18 +3719,30 @@ class AppController:
             project_path = os.path.dirname(videos[0]["path"])
 
         for video_info in videos:
-            experiment_id = os.path.splitext(os.path.basename(video_info["path"]))[0]
-            results_dir = os.path.join(project_path, f"{experiment_id}_results")
-            summary_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+            video_path = video_info.get("path")
+            if not isinstance(video_path, str) or not video_path:
+                log.warning(
+                    "reports.load.invalid_path",
+                    video_info=video_info,
+                )
+                continue
+            experiment_id = os.path.splitext(os.path.basename(video_path))[0]
+            metadata_hint = dict(video_info.get("metadata") or {})
+            results_path = self.project_manager.resolve_results_directory(
+                experiment_id,
+                video_path=video_path,
+                metadata=metadata_hint,
+            )
+            summary_path = results_path / f"{experiment_id}_summary.parquet"
 
-            if os.path.exists(summary_path):
+            if summary_path.exists():
                 try:
                     df = pd.read_parquet(summary_path)
                     all_tidy_data.append(df)
                 except Exception as e:
-                    log.warning("reports.load.error", path=summary_path, error=e)
+                    log.warning("reports.load.error", path=str(summary_path), error=e)
             else:
-                log.warning("reports.load.not_found", path=summary_path)
+                log.warning("reports.load.not_found", path=str(summary_path))
 
         if not all_tidy_data:
             self.view.show_error(

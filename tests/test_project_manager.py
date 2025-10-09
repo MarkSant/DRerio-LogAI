@@ -79,18 +79,20 @@ class TestProjectManager(unittest.TestCase):
         expected_parent_rois = os.path.join(
             target_parent, "2_AreasOfInterest_target.parquet"
         )
-        target_results_dir = os.path.join(target_parent, "target_results")
+        hierarchical_dir = pm.resolve_results_directory(
+            "target", video_path=target_video
+        )
         expected_results_arena = os.path.join(
-            target_results_dir, "1_ProcessingArea_target.parquet"
+            str(hierarchical_dir), "1_ProcessingArea_target.parquet"
         )
         expected_results_rois = os.path.join(
-            target_results_dir, "2_AreasOfInterest_target.parquet"
+            str(hierarchical_dir), "2_AreasOfInterest_target.parquet"
         )
 
         # Files should be duplicated to the parent directory
         self.assertTrue(os.path.exists(expected_parent_arena))
         self.assertTrue(os.path.exists(expected_parent_rois))
-        # And also to the mirrored _results directory when the source lived there
+        # And also to the hierarchical project results directory
         self.assertTrue(os.path.exists(expected_results_arena))
         self.assertTrue(os.path.exists(expected_results_rois))
 
