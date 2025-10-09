@@ -1,11 +1,13 @@
 from unittest.mock import MagicMock, PropertyMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 from shapely.geometry import box
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
+from zebtrack.core.calibration import Calibration
 
 
 def _build_reporter(tmp_path, metadata_override=None):
@@ -154,3 +156,28 @@ def test_reporter_export_summary_schema_validation(reporter_setup):
     with pytest.raises(ValueError, match="analysis_timestamp"):
         summary_path = tmp_path / "summary.parquet"
         reporter.export_summary_data(str(summary_path), format="parquet")
+
+
+def test_reporter_warp_trajectory_if_needed(tmp_path):
+    trajectory_df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime([0, 1, 2], unit="s"),
+            "frame": [0, 10, 20],
+            "track_id": [1, 1, 1],
+            "x1": [700.0, 710.0, 720.0],
+            "y1": [100.0, 110.0, 120.0],
+            "x2": [780.0, 790.0, 795.0],
+            "y2": [180.0, 190.0, 195.0],
+        }
+    )
+
+    arena_polygon = [[0, 0], [800, 0], [800, 400], [0, 400]]
+    calibration = Calibration(np.array(arena_polygon), 40.0, 20.0)
+
+    warped_df = Reporter._warp_trajectory_if_needed(trajectory_df, calibration)
+
+    expected_width, expected_height = calibration.target_dims_px
+    assert warped_df[["x1", "x2"]].max().max() <= expected_width + 1
+    assert warped_df[["y1", "y2"]].max().max() <= expected_height + 1
+    assert "x_center_px" in warped_df.columns
+    assert "y_center_px" in warped_df.columns

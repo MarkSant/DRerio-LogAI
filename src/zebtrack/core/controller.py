@@ -3059,9 +3059,14 @@ class AppController:
             # --- New: Calculate pixel/cm ratio before recording ---
             pixel_per_cm_ratio = None
             cal = None
-            if calibration_data:
-                width_cm = calibration_data.get("aquarium_width_cm")
-                height_cm = calibration_data.get("aquarium_height_cm")
+            calibration_source = calibration_data or (
+                self.project_manager.project_data.get("calibration")
+                if self.project_manager and self.project_manager.project_data
+                else None
+            )
+            if calibration_source:
+                width_cm = calibration_source.get("aquarium_width_cm")
+                height_cm = calibration_source.get("aquarium_height_cm")
                 if width_cm and height_cm and arena_polygon:
                     cal = Calibration(np.array(arena_polygon), width_cm, height_cm)
                     pixel_per_cm_ratio = cal.pixel_per_cm_ratio

@@ -3,6 +3,8 @@ import unittest
 from typing import cast
 from unittest.mock import ANY, MagicMock, patch
 
+import cv2
+
 from zebtrack.core.controller import AppController
 from zebtrack.core.detector import ZoneData
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -152,6 +154,60 @@ class TestAppController(unittest.TestCase):
         self.assertFalse(project_data["use_openvino"])
         self.mock_pm.save_project.assert_called()
         refresh_mock.assert_called()
+
+    @patch("zebtrack.core.controller.Recorder")
+    @patch("zebtrack.core.controller.cv2.VideoCapture")
+    def test_run_tracking_uses_project_calibration(self, mock_capture, mock_recorder_cls):
+        self.mock_pm.project_data = {
+            "calibration": {
+                "aquarium_width_cm": 50.0,
+                "aquarium_height_cm": 25.0,
+            }
+        }
+        zone_data = ZoneData(
+            polygon=[[0, 0], [800, 0], [800, 400], [0, 400]],
+            roi_polygons=[],
+        )
+        self.mock_pm.get_zone_data.return_value = zone_data
+
+        recorder_instance = mock_recorder_cls.return_value
+        recorder_instance.start_recording.return_value = True
+        recorder_instance.write_detection_data.return_value = None
+
+        cap_instance = mock_capture.return_value
+        cap_instance.isOpened.return_value = True
+
+        def fake_get(prop):
+            if prop in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT):
+                return 800 if prop == cv2.CAP_PROP_FRAME_WIDTH else 400
+            if prop == cv2.CAP_PROP_FRAME_COUNT:
+                return 1
+            if prop == cv2.CAP_PROP_POS_MSEC:
+                return 0
+            return 0
+
+        cap_instance.get.side_effect = fake_get
+        cap_instance.read.side_effect = [(False, None)]
+
+        detector_stub = MagicMock()
+        detector_stub.process_frame.return_value = ([], None)
+        detector_stub.draw_overlay.return_value = None
+        detector_stub.set_zones.return_value = None
+        detector_stub.plugin = MagicMock()
+        detector_stub.plugin.get_name.return_value = "stub"
+        self.controller.detector = detector_stub
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            success, _ = self.controller._run_tracking_if_needed(
+                video_path="dummy.mp4",
+                results_dir=tmp_dir,
+                experiment_id="exp1",
+            )
+
+        self.assertTrue(success)
+        kwargs = recorder_instance.start_recording.call_args.kwargs
+        self.assertIsNotNone(kwargs.get("pixel_per_cm_ratio"))
+        self.assertIsNotNone(kwargs.get("calibration"))
 
     def test_refresh_project_views_schedules_on_ui(self):
         refresh_mock = MagicMock()

@@ -1,6 +1,7 @@
 import io
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import cv2
 import matplotlib
@@ -13,6 +14,9 @@ import seaborn as sns
 from docx import Document
 from docx.shared import Inches
 from matplotlib import patches
+from matplotlib.axes import Axes
+from matplotlib.colorbar import Colorbar
+from matplotlib.figure import Figure
 from scipy.ndimage import gaussian_filter
 
 from zebtrack.analysis.analysis_service import AnalysisService
@@ -161,6 +165,12 @@ class Reporter:
         self.video_path = video_path
         self.calibration = calibration
 
+        # Ensure trajectory coordinates are aligned with calibration space before analysis
+        if calibration is not None:
+            trajectory_df = self._warp_trajectory_if_needed(
+                trajectory_df, calibration
+            )
+
         # Run the unified analysis via the service
         service = AnalysisService()
         self.report, self.b_analyzer, self.r_analyzer = service.run_full_analysis(
@@ -183,6 +193,93 @@ class Reporter:
         # Generate the tidy dataframe from the report
         tidy_df = self._create_tidy_dataframe()
         self.tidy_data = self._standardize_tidy_dataframe(tidy_df)
+
+    @staticmethod
+    def _warp_trajectory_if_needed(
+        trajectory_df: pd.DataFrame, calibration
+    ) -> pd.DataFrame:
+        """Warp bounding boxes to the calibrated space when raw coordinates leak through.
+
+        Some tracking runs saved detections using the original video reference instead of the
+        calibrated (warped) space. This causes ROI metrics, trajectory overlays, and heatmaps to
+        break because coordinates no longer align with the warped arena and ROI polygons.
+
+        We detect this scenario by checking whether any bounding-box coordinate exceeds the
+        expected warped dimensions. When that happens we transform every bbox using the
+        calibration homography so downstream analysis always operates in the calibrated frame.
+        """
+
+        if calibration is None or getattr(calibration, "homography_matrix", None) is None:
+            return trajectory_df
+
+        expected_width, expected_height = calibration.target_dims_px
+        if not expected_width or not expected_height:
+            return trajectory_df
+
+        required_columns = {"x1", "y1", "x2", "y2"}
+        if not required_columns.issubset(trajectory_df.columns):
+            return trajectory_df
+
+        tolerance = 2.0
+
+        def _max_safe(series_name: str) -> float:
+            if series_name not in trajectory_df.columns:
+                return float("-inf")
+            series = trajectory_df[series_name]
+            if series.empty:
+                return float("-inf")
+            return float(series.max(skipna=True))
+
+        max_x = max(
+            _max_safe(col)
+            for col in ("x1", "x2", "x_center_px")
+        )
+        max_y = max(
+            _max_safe(col)
+            for col in ("y1", "y2", "y_center_px")
+        )
+
+        if max_x <= expected_width + tolerance and max_y <= expected_height + tolerance:
+            return trajectory_df
+
+        warped_df = trajectory_df.copy()
+
+        x1_values = warped_df["x1"].to_numpy(copy=True)
+        y1_values = warped_df["y1"].to_numpy(copy=True)
+        x2_values = warped_df["x2"].to_numpy(copy=True)
+        y2_values = warped_df["y2"].to_numpy(copy=True)
+
+        for i, (x1, y1, x2, y2) in enumerate(
+            zip(x1_values, y1_values, x2_values, y2_values)
+        ):
+            if any(pd.isna(v) for v in (x1, y1, x2, y2)):
+                continue
+
+            x1_w, y1_w, x2_w, y2_w = calibration.transform_bbox(x1, y1, x2, y2)
+            x1_values[i] = x1_w
+            y1_values[i] = y1_w
+            x2_values[i] = x2_w
+            y2_values[i] = y2_w
+
+        warped_df["x1"] = x1_values
+        warped_df["y1"] = y1_values
+        warped_df["x2"] = x2_values
+        warped_df["y2"] = y2_values
+
+        # Recompute derived centers after the warp
+        warped_df["x_center_px"] = (
+            warped_df[["x1", "x2"]].mean(axis=1)
+        )
+        warped_df["y_center_px"] = (
+            warped_df[["y1", "y2"]].mean(axis=1)
+        )
+
+        # Drop any stale cm columns – they will be recomputed by the analyzer
+        for col in ("x_cm", "y_cm"):
+            if col in warped_df.columns:
+                warped_df.drop(columns=col, inplace=True)
+
+        return warped_df
 
     def _create_tidy_dataframe(self) -> pd.DataFrame:
         """Creates a flat, tidy DataFrame from the structured report dictionary."""
@@ -346,9 +443,10 @@ class Reporter:
             raise ValueError(f"Unsupported file format: {format}")
 
     def generate_trajectory_plot(
-        self, ax: plt.Axes = None, video_path: str | None = None
-    ) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+        self, ax: Axes | None = None, video_path: str | None = None
+    ) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -387,10 +485,10 @@ class Reporter:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
 
-                frame_extent = (
-                    0,  # left (x=0)
+                frame_extent: tuple[float, float, float, float] = (
+                    0.0,  # left (x=0)
                     frame_width_px / pixelcm_x,  # right (x=max)
-                    0,  # bottom (y=0)
+                    0.0,  # bottom (y=0)
                     frame_height_px / pixelcm_y,  # top (y=max)
                 )
                 ax.imshow(
@@ -437,8 +535,9 @@ class Reporter:
         ax.set_aspect("equal", adjustable="box")
         return fig
 
-    def generate_heatmap(self, ax: plt.Axes = None) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+    def generate_heatmap(self, ax: Axes | None = None) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -452,11 +551,17 @@ class Reporter:
             x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
         )
         heatmap = gaussian_filter(heatmap.T, sigma=2)
+        extent: tuple[float, float, float, float] = (
+            float(xedges[0]),
+            float(xedges[-1]),
+            float(yedges[0]),
+            float(yedges[-1]),
+        )
         im = ax.imshow(
             heatmap,
             cmap="hot",
             origin="lower",
-            extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+            extent=extent,
         )
         ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
@@ -464,12 +569,14 @@ class Reporter:
         ax.set_xlim(min_x - 1, max_x + 1)
         ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
-        if not any(isinstance(artist, plt.colorbar.Colorbar) for artist in fig.artists):
+        existing_artists = getattr(fig, "artists", [])
+        if not any(isinstance(artist, Colorbar) for artist in existing_artists):
             fig.colorbar(im, ax=ax, label="Occupancy Density")
         return fig
 
-    def generate_roi_reference_plot(self, ax: plt.Axes = None) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+    def generate_roi_reference_plot(self, ax: Axes | None = None) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -534,8 +641,9 @@ class Reporter:
         ax.set_aspect("equal", adjustable="box")
         return fig
 
-    def generate_angular_velocity_plot(self, ax: plt.Axes = None) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+    def generate_angular_velocity_plot(self, ax: Axes | None = None) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -554,7 +662,9 @@ class Reporter:
         sharp_turn_results = self.b_analyzer.calculate_sharp_turns(
             self.sharp_turn_threshold
         )
-        sharp_turn_times = sharp_turn_results["sharp_turns_timestamps"]
+        sharp_turn_times = cast(
+            pd.Series, sharp_turn_results["sharp_turns_timestamps"]
+        )
 
         time_seconds = (
             angular_velocity.index - angular_velocity.index[0]
@@ -583,8 +693,9 @@ class Reporter:
         ax.grid(True)
         return fig
 
-    def generate_position_vs_time_plot(self, ax: plt.Axes = None) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+    def generate_position_vs_time_plot(self, ax: Axes | None = None) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -609,8 +720,9 @@ class Reporter:
         ax.grid(True)
         return fig
 
-    def generate_cumulative_distance_plot(self, ax: plt.Axes = None) -> plt.Figure:
-        fig = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+    def generate_cumulative_distance_plot(self, ax: Axes | None = None) -> Figure:
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+        fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
 
@@ -626,10 +738,16 @@ class Reporter:
             ax.set_title("Cumulative Distance")
             return fig
 
-        distances = np.sqrt(
-            traj_data["x_cm_smoothed"].diff() ** 2
-            + traj_data["y_cm_smoothed"].diff() ** 2
+        x_smoothed = pd.to_numeric(
+            cast(pd.Series, traj_data["x_cm_smoothed"]), errors="coerce"
+        ).diff()
+        y_smoothed = pd.to_numeric(
+            cast(pd.Series, traj_data["y_cm_smoothed"]), errors="coerce"
+        ).diff()
+        distance_array = np.sqrt(
+            np.square(x_smoothed.to_numpy()) + np.square(y_smoothed.to_numpy())
         )
+        distances = pd.Series(distance_array, index=x_smoothed.index)
         cumulative_distance = distances.cumsum().fillna(0)
         time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
 
@@ -788,7 +906,7 @@ class Reporter:
     @staticmethod
     def _generate_comparative_boxplot(
         df: pd.DataFrame, metric: str, title: str
-    ) -> plt.Figure:
+    ) -> Figure:
         fig, ax = plt.subplots(figsize=(8, 6))
         sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
         sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)
