@@ -37,6 +37,7 @@ import structlog
 from PIL import Image, ImageTk
 
 # Import custom modules
+from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
 from zebtrack.ui.window_utils import (
@@ -1610,11 +1611,49 @@ class LiveConfigDialog(simpledialog.Dialog):
         # Detect serial ports
         try:
             log.info("device_detection.ports.start")
-            ports = serial.tools.list_ports.comports()
-            for port in ports:
-                # Use description for user-friendliness, device for connection
-                self.available_ports[f"{port.description}"] = port.device
-            log.info("device_detection.ports.found", ports=self.available_ports)
+            baud_rate = (
+                getattr(getattr(settings, "arduino", None), "baud_rate", 9600)
+                if settings
+                else 9600
+            )
+            handshake_ports, fallback_ports = Arduino.scan_available_ports(
+                baud_rate=baud_rate
+            )
+
+            def _add_port(info, *, handshake: bool) -> None:
+                device_id = getattr(info, "device", None)
+                if not device_id:
+                    return
+                description = getattr(info, "description", device_id)
+                suffix = " [Arduino]" if handshake else ""
+                if handshake_ports and not handshake:
+                    suffix = " [sem handshake]"
+                label = f"{description} ({device_id}){suffix}"
+                self.available_ports[label] = device_id
+
+            for port in handshake_ports:
+                _add_port(port, handshake=True)
+
+            if handshake_ports:
+                for port in fallback_ports:
+                    _add_port(port, handshake=False)
+            else:
+                if not handshake_ports and not fallback_ports:
+                    fallback_ports = []
+                if not fallback_ports:
+                    # Ensure we still list raw ports if probe yielded nothing
+                    try:
+                        fallback_ports = list(serial.tools.list_ports.comports())
+                    except Exception:  # pragma: no cover - already logged above
+                        fallback_ports = []
+                for port in fallback_ports:
+                    _add_port(port, handshake=False)
+
+            log.info(
+                "device_detection.ports.found",
+                ports=self.available_ports,
+                recognized=len(handshake_ports),
+            )
         except Exception as e:
             log.warning("device_detection.ports.error", error=str(e))
             self.available_ports = {}

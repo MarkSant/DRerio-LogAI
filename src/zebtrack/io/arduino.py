@@ -1,6 +1,6 @@
 import time
 from types import TracebackType
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 import serial
 import structlog
@@ -14,6 +14,9 @@ class Arduino:
     """
     Manages serial communication with an Arduino device.
     """
+
+    READY_SIGNAL = "Arduino is ready."
+    _PROBE_WARMUP_SECONDS = 0.1
 
     def __init__(self, port: str, baud_rate: int):
         """
@@ -34,7 +37,7 @@ class Arduino:
         try:
             self.ser = serial.Serial(self.port, self.baud_rate, timeout=2)
             ready_signal = self.ser.readline().decode("utf-8").strip()
-            if ready_signal == "Arduino is ready.":
+            if ready_signal == self.READY_SIGNAL:
                 log.info("arduino.connect.success", port=self.port)
                 return True
             else:
@@ -108,6 +111,86 @@ class Arduino:
             self.ser.close()
             log.info("arduino.connection.closed")
         self.ser = None
+
+    @classmethod
+    def probe_port(
+        cls,
+        port: str,
+        baud_rate: int,
+        *,
+        timeout: float = 1.5,
+        warmup: float | None = None,
+    ) -> bool:
+        """Attempts to verify that an Arduino responds on the given port."""
+        warmup_delay = cls._PROBE_WARMUP_SECONDS if warmup is None else max(warmup, 0)
+        try:
+            ser = serial.Serial(port, baud_rate, timeout=timeout)
+        except (serial.SerialException, OSError):
+            log.debug("arduino.probe.open_failed", port=port, exc_info=True)
+            return False
+
+        try:
+            try:
+                ser.reset_input_buffer()
+            except Exception:  # pragma: no cover - not all drivers support it
+                pass
+
+            if warmup_delay:
+                time.sleep(warmup_delay)
+
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    raw_line = ser.readline()
+                except Exception:  # pragma: no cover - serial driver quirks
+                    break
+                if not raw_line:
+                    continue
+                decoded = raw_line.decode("utf-8", errors="ignore").strip()
+                if not decoded:
+                    continue
+                if decoded == cls.READY_SIGNAL:
+                    log.debug("arduino.probe.success", port=port)
+                    return True
+            log.debug("arduino.probe.timeout", port=port)
+            return False
+        finally:
+            try:
+                ser.close()
+            except Exception:  # pragma: no cover - best effort close
+                pass
+
+    @classmethod
+    def scan_available_ports(
+        cls, baud_rate: int, *, timeout: float = 1.5
+    ) -> tuple[list[Any], list[Any]]:
+        """Returns ports that respond to the Arduino handshake and fallbacks."""
+        handshake_ports: list[object] = []
+        fallback_ports: list[object] = []
+
+        try:
+            from serial.tools import list_ports  # type: ignore
+        except Exception:  # pragma: no cover - pyserial not installed
+            log.warning("arduino.scan.list_ports_unavailable")
+            return handshake_ports, fallback_ports
+
+        try:
+            ports = list(list_ports.comports())
+        except Exception as exc:  # pragma: no cover - driver issues
+            log.warning("arduino.scan.list_ports_failed", exc_info=exc)
+            return handshake_ports, fallback_ports
+
+        for info in ports:
+            device = getattr(info, "device", None)
+            if not device:
+                fallback_ports.append(info)
+                continue
+            if cls.probe_port(device, baud_rate, timeout=timeout):
+                handshake_ports.append(info)
+            else:
+                fallback_ports.append(info)
+
+        return handshake_ports, fallback_ports
 
 
 def main():

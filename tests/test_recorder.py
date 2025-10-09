@@ -180,6 +180,34 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     assert row1["y_cm"] == pytest.approx(3.0)  # 30.0 / 10.0
 
 
+def test_periodic_flush_triggers_before_stop(recorder_setup):
+    """Recorder should flush buffered data to disk automatically."""
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    recorder._flush_row_threshold = 1
+    recorder._flush_interval_seconds = 0.0
+
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+    recorder.write_detection_data(0.5, 10, [(5, 5, 15, 15, 0.9, 42)])
+
+    # Data should have been flushed immediately, leaving the in-memory buffer empty
+    assert recorder.detection_data == []
+
+    recorder.stop_recording()
+
+    base_name = os.path.basename(output_folder)
+    parquet_path = os.path.join(
+        output_folder, f"3_CoordMovimento_{base_name}.parquet"
+    )
+    assert os.path.exists(parquet_path)
+
+    df = pd.read_parquet(parquet_path)
+    assert len(df) == 1
+    assert df.iloc[0]["track_id"] == 42
+
 def test_video_writing(recorder_setup):
     """Test that writing video frames increases file size."""
     from zebtrack.core.detector import ZoneData

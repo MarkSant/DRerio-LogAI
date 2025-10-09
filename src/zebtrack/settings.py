@@ -41,6 +41,21 @@ class ArduinoSettings(BaseModel):
     baud_rate: int = Field(..., description="The baud rate for serial communication.")
 
 
+class RecorderSettings(BaseModel):
+    """Settings for Parquet/video recorder behavior."""
+
+    flush_interval_seconds: float = Field(
+        5.0,
+        ge=0.0,
+        description="Interval between automatic flushes of detection data to disk.",
+    )
+    flush_row_threshold: int = Field(
+        500,
+        ge=1,
+        description="Number of detection rows buffered before forcing a flush.",
+    )
+
+
 class YOLOModelSettings(BaseModel):
     """Settings for the YOLO object detection model."""
 
@@ -174,6 +189,10 @@ class Settings(BaseModel):
 
     camera: CameraSettings
     arduino: ArduinoSettings
+    recorder: RecorderSettings = Field(
+        default_factory=RecorderSettings,  # type: ignore[arg-type]
+        description="Settings for Parquet/video recorder behavior",
+    )
     yolo_model: YOLOModelSettings
     video_processing: VideoProcessingSettings
     detection_zones: DetectionZonesSettings = Field(
@@ -183,11 +202,11 @@ class Settings(BaseModel):
 
     # New dual-weight selection settings
     model_selection: ModelSelectionSettings = Field(
-        default_factory=ModelSelectionSettings,
+        default_factory=ModelSelectionSettings,  # type: ignore[arg-type]
         description="Settings for selecting model types (seg/det) for different tasks",
     )
     weights: WeightsSelectionSettings = Field(
-        default_factory=WeightsSelectionSettings,
+        default_factory=WeightsSelectionSettings,  # type: ignore[arg-type]
         description="Settings for weight file selection by type",
     )
 
@@ -203,7 +222,7 @@ class Settings(BaseModel):
 
     # UI Feature Flags
     ui_features: UIFeatureFlags = Field(
-        default_factory=UIFeatureFlags,
+        default_factory=UIFeatureFlags,  # type: ignore[arg-type]
         description="Feature flags for UI experiments and gradual rollouts"
     )
 

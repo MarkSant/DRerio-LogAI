@@ -1,3 +1,4 @@
+import textwrap
 import unittest
 from unittest.mock import mock_open, patch
 
@@ -15,6 +16,9 @@ camera:
 arduino:
   port: 'COM5'
   baud_rate: 9600
+recorder:
+  flush_interval_seconds: 3.5
+  flush_row_threshold: 250
 yolo_model:
   path: 'test.pt'
   confidence_threshold: 0.5
@@ -41,6 +45,8 @@ roi_min_bbox_overlap_ratio: 0.10
                 self.assertIsInstance(settings, Settings)
                 self.assertEqual(settings.camera.index, 1)
                 self.assertEqual(settings.yolo_model.path, "test.pt")
+                self.assertEqual(settings.recorder.flush_interval_seconds, 3.5)
+                self.assertEqual(settings.recorder.flush_row_threshold, 250)
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
                 self.assertEqual(settings.detection_zones.roi_polygons, [])
@@ -61,6 +67,9 @@ camera:
 arduino:
   port: 'COM5'
   baud_rate: 9600
+recorder:
+  flush_interval_seconds: 2.0
+  flush_row_threshold: 100
 yolo_model:
   path: 'test.pt'
   confidence_threshold: 0.5
@@ -90,6 +99,8 @@ reproducibility:
                     [[10, 20], [30, 40], [15, 30]],
                 )
                 self.assertEqual(settings.detection_zones.roi_names[0], "ROI1")
+        self.assertEqual(settings.recorder.flush_interval_seconds, 2.0)
+        self.assertEqual(settings.recorder.flush_row_threshold, 100)
 
     def test_load_settings_file_not_found(self):
         """Test that a FileNotFoundError is raised if the default config is missing."""
@@ -111,12 +122,16 @@ yolo_model:
     def test_load_settings_with_override(self):
         """Test that override config correctly merges with base config."""
         base_yaml = self.mock_yaml_content
-        override_yaml = """
-camera:
-  index: 99
-yolo_model:
-  confidence_threshold: 0.8
-"""
+        override_yaml = textwrap.dedent(
+            """
+            camera:
+              index: 99
+            yolo_model:
+              confidence_threshold: 0.8
+            recorder:
+              flush_interval_seconds: 4.0
+            """
+        )
 
         # This mock handles opening either the base or override file
         def mock_open_side_effect(path, *args, **kwargs):
@@ -137,6 +152,9 @@ yolo_model:
                 self.assertEqual(settings.yolo_model.confidence_threshold, 0.8)
                 # Check that another nested value (not in override) is still present
                 self.assertEqual(settings.yolo_model.path, "test.pt")
+                # Recorder settings should merge correctly
+                self.assertEqual(settings.recorder.flush_interval_seconds, 4.0)
+                self.assertEqual(settings.recorder.flush_row_threshold, 250)
 
     def test_roi_inclusion_settings_defaults(self):
         """Test that ROI inclusion settings have correct defaults."""

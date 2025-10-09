@@ -31,6 +31,19 @@ class Recorder:
         self.detection_data = []
         self.pixel_per_cm_ratio = None
         self.calibration = None
+        self._parquet_writer: pq.ParquetWriter | None = None
+        self._parquet_schema: pa.Schema | None = None
+        self._parquet_columns: list[str] = []
+        self._parquet_filename: str = ""
+        self._last_flush_time: float = 0.0
+
+        recorder_settings = getattr(settings, "recorder", None)
+        self._flush_interval_seconds: float = float(
+            getattr(recorder_settings, "flush_interval_seconds", 5.0)
+        )
+        self._flush_row_threshold: int = int(
+            getattr(recorder_settings, "flush_row_threshold", 500)
+        )
 
     def start_recording(
         self,
@@ -73,10 +86,17 @@ class Recorder:
         self.base_name = base_name or os.path.basename(output_folder)
         self.detection_data = []
         log_context = log.bind(output_folder=output_folder, base_name=self.base_name)
+        self._parquet_writer = None
+        self._parquet_schema = None
+        self._parquet_columns = self._determine_parquet_columns()
+        self._parquet_filename = os.path.join(
+            self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
+        )
+        self._last_flush_time = time.time()
 
         if not is_video_file:
             video_filename = os.path.join(output_folder, f"{self.base_name}.mp4")
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
             self.video_writer = cv2.VideoWriter(
                 video_filename,
                 fourcc,
@@ -154,22 +174,143 @@ class Recorder:
             frame=frame_number,
         )
 
+        self._flush_detection_data()
+
+    def _determine_parquet_columns(self) -> list[str]:
+        columns = [
+            "timestamp",
+            "frame",
+            "track_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+        ]
+        if self.pixel_per_cm_ratio:
+            columns.extend([
+                "x_center_px",
+                "y_center_px",
+                "x_cm",
+                "y_cm",
+            ])
+        return columns
+
+    def _should_flush(self) -> bool:
+        if not self.detection_data:
+            return False
+        if self._flush_row_threshold > 0 and len(self.detection_data) >= self._flush_row_threshold:
+            return True
+        if self._flush_interval_seconds <= 0:
+            return False
+        return (time.time() - self._last_flush_time) >= self._flush_interval_seconds
+
+    def _flush_detection_data(self, force: bool = False) -> None:
+        if not self.detection_data:
+            return
+        if not force and not self._should_flush():
+            return
+
+        df = pd.DataFrame(self.detection_data)
+        if df.empty:
+            self.detection_data.clear()
+            self._last_flush_time = time.time()
+            return
+
+        if not self._parquet_columns:
+            self._parquet_columns = self._determine_parquet_columns()
+
+        df = df.reindex(columns=self._parquet_columns)
+
+        try:
+            if self._parquet_schema is None:
+                table = pa.Table.from_pandas(df, preserve_index=False)
+                self._parquet_schema = table.schema
+                self._parquet_writer = pq.ParquetWriter(
+                    self._parquet_filename, self._parquet_schema
+                )
+            else:
+                table = pa.Table.from_pandas(
+                    df, schema=self._parquet_schema, preserve_index=False
+                )
+                if self._parquet_writer is None:
+                    self._parquet_writer = pq.ParquetWriter(
+                        self._parquet_filename, self._parquet_schema
+                    )
+
+            assert self._parquet_writer is not None
+            self._parquet_writer.write_table(table)
+            self.detection_data.clear()
+            self._last_flush_time = time.time()
+            log.debug(
+                "recorder.flush.success",
+                rows=table.num_rows,
+                force=force,
+            )
+        except Exception as e:  # pragma: no cover - unexpected failures logged
+            log.error(
+                "recorder.flush.error",
+                path=self._parquet_filename,
+                exc_info=e,
+            )
+
+    def _close_parquet_writer(self) -> None:
+        if self._parquet_writer is None:
+            return
+        try:
+            self._parquet_writer.close()
+            log.info("recorder.parquet_writer.closed", path=self._parquet_filename)
+        except Exception as e:  # pragma: no cover - best effort close
+            log.error(
+                "recorder.parquet_writer.close_error",
+                path=self._parquet_filename,
+                exc_info=e,
+            )
+        finally:
+            self._parquet_writer = None
+            self._parquet_schema = None
+            self._parquet_columns = []
+
     def _save_detection_data(self):
         """Saves the collected detection data to a Parquet file."""
-        if not self.detection_data:
+        if not self.detection_data and self._parquet_writer is None:
             log.info("recorder.save_parquet.no_data")
             return
 
-        parquet_filename = os.path.join(
-            self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
-        )
-        try:
-            df = pd.DataFrame(self.detection_data)
-            table = pa.Table.from_pandas(df)
-            pq.write_table(table, parquet_filename)
-            log.info("recorder.save_parquet.success", path=parquet_filename)
-        except Exception as e:
-            log.error("recorder.save_parquet.error", path=parquet_filename, exc_info=e)
+        self._flush_detection_data(force=True)
+
+        if self._parquet_writer:
+            parquet_path = self._parquet_filename
+            self._close_parquet_writer()
+            log.info("recorder.save_parquet.success", path=parquet_path)
+            self._parquet_filename = ""
+            return
+
+        if self.detection_data:
+            parquet_path = self._parquet_filename
+            try:
+                df = pd.DataFrame(self.detection_data)
+                if df.empty:
+                    log.info("recorder.save_parquet.no_data")
+                else:
+                    df = df.reindex(columns=self._parquet_columns or self._determine_parquet_columns())
+                    table = pa.Table.from_pandas(df, preserve_index=False)
+                    pq.write_table(table, parquet_path)
+                    log.info("recorder.save_parquet.success", path=parquet_path)
+            except Exception as e:
+                log.error(
+                    "recorder.save_parquet.error",
+                    path=parquet_path,
+                    exc_info=e,
+                )
+            finally:
+                self.detection_data.clear()
+                self._parquet_columns = []
+                self._parquet_schema = None
+                self._parquet_filename = ""
+            return
+
+        log.info("recorder.save_parquet.no_data")
 
     def _save_area_definitions(self, folder_path: str, zones: ZoneData):
         """Saves processing and interest area definitions to Parquet files."""
@@ -238,7 +379,10 @@ if __name__ == "__main__":
     recorder = Recorder()
 
     # Test start recording
-    success = recorder.start_recording(test_output_dir, frame_width, frame_height)
+    mock_zones = ZoneData()
+    success = recorder.start_recording(
+        test_output_dir, frame_width, frame_height, zones=mock_zones
+    )
 
     if success:
         print("\nRecording started successfully.")
