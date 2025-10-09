@@ -4,6 +4,7 @@ Este módulo define a interface gráfica principal (GUI) para a aplicação Zebt
 
 import os
 import queue
+import re
 import threading
 import time
 from collections import Counter
@@ -2404,11 +2405,13 @@ class ApplicationGUI:
                 )
                 day_status = self._format_status_summary(day_counts)
                 day_data = self._summarize_batch_data(entries)
+                sample_metadata = entries[0].get("metadata") if entries else None
+                day_title = self._build_day_title(day_id, sample_metadata)
 
                 day_node = self.project_overview_tree.insert(
                     group_node,
                     "end",
-                    text=f"📅 Dia {day_id}",
+                    text=f"📅 {day_title}",
                     values=(day_status, day_data),
                     open=False,
                 )
@@ -2529,7 +2532,8 @@ class ApplicationGUI:
 
         day = metadata.get("day")
         if day not in (None, ""):
-            parts.append(f"D:{day}")
+            day_display = metadata.get("day_label") or self._format_day_display(day)
+            parts.append(f"D:{day_display or day}")
 
         subject = metadata.get("subject")
         if subject not in (None, ""):
@@ -2718,7 +2722,8 @@ class ApplicationGUI:
 
         descriptors = []
         if day is not None and group is not None and cobaia is not None:
-            descriptors.append(f"Dia {day}, Grupo {group}, Sujeito {cobaia}")
+            day_display = self._format_day_display(day) or day
+            descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
         if port:
             descriptors.append(f"Porta {port}")
 
@@ -3535,10 +3540,12 @@ class ApplicationGUI:
                     continue
 
                 total_day = len(entries)
+                sample_metadata = entries[0].get("metadata") if entries else None
+                day_title = self._build_day_title(day_id, sample_metadata)
                 day_node = self.pipeline_video_tree.insert(
                     group_node,
                     "end",
-                    text=f"📅 Dia {day_id}",
+                    text=f"📅 {day_title}",
                     values=(
                         self._format_status_ratio(
                             "rois", _count(entries, "has_rois"), total_day
@@ -4451,6 +4458,46 @@ class ApplicationGUI:
                 return value_str
         return value_str
 
+    @staticmethod
+    def _format_day_display(value):
+        if value in (None, ""):
+            return ""
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            try:
+                return f"{int(value):02d}"
+            except (TypeError, ValueError):
+                return str(value)
+        value_str = str(value).strip()
+        if not value_str:
+            return ""
+        lower_value = value_str.lower()
+        if lower_value == "sem dia":
+            return "Sem Dia"
+        match = re.search(r"(\d+)", value_str)
+        if match:
+            try:
+                return f"{int(match.group(1)):02d}"
+            except ValueError:
+                return value_str
+        return value_str
+
+    def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
+        metadata = metadata or {}
+        candidate = metadata.get("day_label") or ""
+        if not candidate and metadata.get("day") is not None:
+            candidate = self._format_day_display(metadata.get("day"))
+        if not candidate:
+            candidate = self._format_day_display(day_value)
+        if not candidate:
+            base_value = day_value if day_value not in (None, "") else None
+            candidate = str(base_value) if base_value is not None else "Sem Dia"
+        candidate_str = str(candidate).strip()
+        if not candidate_str:
+            candidate_str = "Sem Dia"
+        if candidate_str.lower() == "sem dia":
+            return "Sem Dia"
+        return f"Dia {candidate_str}"
+
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],
@@ -4465,6 +4512,7 @@ class ApplicationGUI:
             group_id = metadata.get("group") or "Sem Grupo"
             group_display = metadata.get("group_display_name") or group_id
             day_id = metadata.get("day") or "Sem Dia"
+            day_display = metadata.get("day_label") or self._format_day_display(day_id)
             subject_id = metadata.get("subject")
             filename = os.path.basename(video.get("path", ""))
             status_label = video.get("status", "")
@@ -4473,6 +4521,7 @@ class ApplicationGUI:
                 str(group_id),
                 str(group_display),
                 str(day_id),
+                str(day_display),
                 str(subject_id) if subject_id is not None else "",
                 filename,
                 status_label,
@@ -4502,6 +4551,7 @@ class ApplicationGUI:
             video_entry = {
                 "path": video.get("path"),
                 "metadata": metadata,
+                "day_label": day_display,
                 "has_arena": has_arena,
                 "has_rois": has_rois,
                 "has_trajectory": has_trajectory,
@@ -4539,8 +4589,10 @@ class ApplicationGUI:
                 group_data["days"].items(),
                 key=lambda item: self._video_sort_key(item[0]),
             ):
+                sample_metadata = videos[0].get("metadata") if videos else None
+                day_title = self._build_day_title(day_id, sample_metadata)
                 day_entry = {
-                    "label": f"📅 Dia {day_id}",
+                    "label": f"📅 {day_title}",
                     "status_label": "",
                     "children": [],
                 }
@@ -4659,10 +4711,12 @@ class ApplicationGUI:
                 if not videos:
                     continue
 
+                sample_metadata = videos[0].get("metadata") if videos else None
+                day_title = self._build_day_title(day_id, sample_metadata)
                 day_node = self.video_selector_tree.insert(
                     group_node,
                     "end",
-                    text=f"📅 Dia {day_id}",
+                    text=f"📅 {day_title}",
                     values=("", f"{len(videos)} vídeos"),
                     open=False,
                 )
@@ -5064,11 +5118,13 @@ class ApplicationGUI:
                     for entry in entries
                     if entry["has_complete_data"] or entry.get("has_summary")
                 )
+                sample_metadata = entries[0].get("metadata") if entries else None
+                day_title = self._build_day_title(day_id, sample_metadata)
 
                 day_node = self.reports_tree.insert(
                     group_node,
                     "end",
-                    text=f"📅 Dia {day_id}",
+                    text=f"📅 {day_title}",
                     values=(
                         self._format_status_ratio("arena", day_arena, len(entries)),
                         self._format_status_ratio("rois", day_rois, len(entries)),
@@ -6260,8 +6316,11 @@ class ApplicationGUI:
         # 4. Create grid cells
         for i in range(days):
             day = i + 1
+            day_title = self._build_day_title(day)
             ttk.Label(
-                self.grid_container, text=f"Dia {day}", font=("Helvetica", 10, "bold")
+                self.grid_container,
+                text=day_title,
+                font=("Helvetica", 10, "bold"),
             ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
 
             for j, group_name in enumerate(groups):
@@ -7662,7 +7721,9 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         self.subjects_per_group = subjects_per_group
         self.completed_subjects = completed_subjects
         self.result = None  # This will be the selected subject_id
-        super().__init__(parent, f"Selecionar Cobaia para o Dia {day} - {group_name}")
+    day_display = ApplicationGUI._format_day_display(day) or day
+    day_title = f"Dia {day_display}" if str(day_display).strip().lower() != "sem dia" else "Sem Dia"
+    super().__init__(parent, f"Selecionar Cobaia para o {day_title} - {group_name}")
 
     def body(self, master):
         master.config(padx=10, pady=10)

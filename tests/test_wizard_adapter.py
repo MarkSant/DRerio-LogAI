@@ -94,6 +94,7 @@ class TestWizardAdapter(unittest.TestCase):
         first_video = result["video_files"][0]
         self.assertEqual(first_video["metadata"]["group"], "Control")
         self.assertEqual(first_video["metadata"]["day"], "Day01")
+        self.assertEqual(first_video["metadata"]["day_label"], "01")
         self.assertEqual(first_video["metadata"]["subject"], "S01")
 
         # Verify metadata preserved
@@ -104,6 +105,7 @@ class TestWizardAdapter(unittest.TestCase):
         enriched_scanned = result["_wizard_metadata"]["scanned_videos"]
         self.assertEqual(enriched_scanned[0]["group"], "Control")
         self.assertEqual(enriched_scanned[0]["metadata"]["subject"], "S01")
+        self.assertEqual(enriched_scanned[0]["metadata"]["day_label"], "01")
 
     def test_adapt_with_parquet_import(self):
         """Adapter should preserve parquet import configuration."""
@@ -227,6 +229,7 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertEqual(enriched[0]["group"], "CBD_10mg")
         self.assertEqual(enriched[0]["metadata"]["group_display_name"], "CBD 10 mg")
         self.assertEqual(enriched[0]["day"], "Day05")
+        self.assertEqual(enriched[0]["metadata"]["day_label"], "05")
         self.assertEqual(enriched[0]["subject"], "S42")
 
     def test_adapt_raises_on_missing_required_fields(self):

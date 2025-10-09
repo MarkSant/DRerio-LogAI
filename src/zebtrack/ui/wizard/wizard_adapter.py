@@ -37,6 +37,33 @@ def _normalise_subject_id(raw_subject: str) -> str:
     return raw_subject
 
 
+def _normalise_day_label(day_value) -> str | None:
+    if day_value in (None, ""):
+        return None
+    if isinstance(day_value, (int, float)) and not isinstance(day_value, bool):
+        try:
+            return f"{int(day_value):02d}"
+        except (TypeError, ValueError):
+            return str(day_value)
+
+    value_str = str(day_value).strip()
+    if not value_str:
+        return None
+
+    lower_value = value_str.lower()
+    if lower_value == "sem dia":
+        return "Sem Dia"
+
+    match = re.search(r"(\d+)", value_str)
+    if match:
+        try:
+            return f"{int(match.group(1)):02d}"
+        except ValueError:
+            return value_str
+
+    return value_str
+
+
 def enrich_videos_with_design_metadata(
     scanned_videos: list[dict],
     detected_design: dict | None,
@@ -152,6 +179,10 @@ def enrich_videos_with_design_metadata(
         if day_value is not None:
             metadata["day"] = day_value
             enriched["day"] = day_value
+            day_label = _normalise_day_label(day_value)
+            if day_label:
+                metadata.setdefault("day_label", day_label)
+                enriched["day_label"] = day_label
 
         # --- Subject extraction -----------------------------------------------
         subject_value = metadata.get("subject") or enriched.get("subject")
