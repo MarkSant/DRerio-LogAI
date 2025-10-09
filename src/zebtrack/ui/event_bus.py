@@ -42,7 +42,13 @@ class EventBus:
     def __init__(self, maxsize: int = 0) -> None:
         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
 
-    def publish(self, event: UIEvent, *, block: bool = False, timeout: float | None = None) -> bool:
+    def publish(
+        self,
+        event: UIEvent,
+        *,
+        block: bool = False,
+        timeout: float | None = None,
+    ) -> bool:
         """Push an event onto the queue.
 
         Returns True when the event was enqueued; False when the queue was full.
@@ -71,7 +77,10 @@ class EventBus:
         )
         published = self.publish(event, block=block, timeout=timeout)
         if not published:
-            log.warning("event_bus.publish_callable.failed", callback=getattr(callback, "__name__", repr(callback)))
+            log.warning(
+                "event_bus.publish_callable.failed",
+                callback=getattr(callback, "__name__", repr(callback)),
+            )
         return published
 
     def drain(self, *, max_items: Optional[int] = None) -> List[UIEvent]:

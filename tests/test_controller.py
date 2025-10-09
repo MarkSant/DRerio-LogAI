@@ -315,9 +315,11 @@ class TestAppController(unittest.TestCase):
             def stop_event_bus_polling(self):
                 pass
 
-        with patch("zebtrack.core.controller.ProjectManager", return_value=self.mock_pm), patch(
-            "zebtrack.core.controller.WeightManager", return_value=self.mock_wm
-        ), patch("zebtrack.core.controller.ApplicationGUI", new=StubGUI):
+        with (
+            patch("zebtrack.core.controller.ProjectManager", return_value=self.mock_pm),
+            patch("zebtrack.core.controller.WeightManager", return_value=self.mock_wm),
+            patch("zebtrack.core.controller.ApplicationGUI", new=StubGUI),
+        ):
             settings.ui_features.enable_event_queue = True
             controller = AppController(self.root)
 

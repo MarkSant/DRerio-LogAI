@@ -1,7 +1,10 @@
+import gettext
 import io
+import locale
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import Callable, cast
 
 import cv2
 import matplotlib
@@ -11,8 +14,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import structlog
 from docx import Document
 from docx.shared import Inches
+from docxtpl import DocxTemplate
 from matplotlib import patches
 from matplotlib.axes import Axes
 from matplotlib.colorbar import Colorbar
@@ -21,6 +26,57 @@ from scipy.ndimage import gaussian_filter
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
+
+log = structlog.get_logger(__name__)
+
+_BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = _BASE_DIR.parent / "templates"
+LOCALES_DIR = _BASE_DIR.parent / "locales"
+REPORTER_DOMAIN = "reporter"
+INDIVIDUAL_REPORT_TEMPLATE = TEMPLATES_DIR / "individual_report_template.docx"
+PROJECT_REPORT_TEMPLATE = TEMPLATES_DIR / "project_report_template.docx"
+
+
+def _load_translator():
+    languages: list[str] = []
+
+    env_candidates: list[str] = []
+    for env_var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(env_var)
+        if value:
+            env_candidates.extend(lang for lang in value.split(":") if lang)
+
+    try:
+        current_locale = locale.getlocale()[0]
+    except (AttributeError, TypeError, ValueError):
+        current_locale = None
+
+    for candidate in [*env_candidates, current_locale]:
+        if not candidate:
+            continue
+        if candidate not in languages:
+            languages.append(candidate)
+        if "_" in candidate:
+            base = candidate.split("_", 1)[0]
+            if base not in languages:
+                languages.append(base)
+
+    try:
+        translator = gettext.translation(
+            REPORTER_DOMAIN,
+            localedir=str(LOCALES_DIR),
+            languages=languages if languages else None,
+            fallback=True,
+        )
+    except OSError:
+        translator = gettext.NullTranslations()
+
+    return translator.gettext
+_translator: Callable[[str], str] = _load_translator()
+
+
+def _(message: str) -> str:  # noqa: N802 - conventional gettext alias
+    return _translator(message)
 
 COLUMN_MAPPING = {
     "distancia_total_cm": "total_distance_cm",
@@ -781,13 +837,12 @@ class Reporter:
         time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
 
         ax.plot(time_seconds, cumulative_distance)
-        title = (
-            f"Cumulative Distance vs. Time - "
-            f"{self.metadata.get('experiment_id', 'Unknown')}"
-        )
+        title = _(
+            "Cumulative Distance vs. Time - {experiment_id}"
+        ).format(experiment_id=self.metadata.get("experiment_id", "Unknown"))
         ax.set_title(title)
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Cumulative Distance (cm)")
+        ax.set_xlabel(_("Time (s)"))
+        ax.set_ylabel(_("Cumulative Distance (cm)"))
         ax.grid(True)
         return fig
 
@@ -802,43 +857,64 @@ class Reporter:
         self, output_path: str, progress_callback
     ):
         total_steps = 10
-        document = Document()
+        template_path = INDIVIDUAL_REPORT_TEMPLATE
+        heading_text = _(
+            "Analysis Report - {experiment_id}"
+        ).format(experiment_id=self.metadata.get("experiment_id", "Unknown"))
 
-        # Step 1: Create document and add metadata
-        heading_text = (
-            f"Analysis Report - {self.metadata.get('experiment_id', 'Unknown')}"
-        )
-        document.add_heading(heading_text, level=1)
-        document.add_heading("Experiment Metadata", level=2)
+        doc_template: DocxTemplate | None = None
+        document: Document
+
+        if template_path.exists():
+            try:
+                doc_template = DocxTemplate(str(template_path))
+                doc_template.render({"title": heading_text})
+                document = doc_template.docx
+            except Exception:
+                log.warning(
+                    "analysis.reporter.template_render_failed",
+                    template=str(template_path),
+                    exc_info=True,
+                )
+                document = Document()
+        else:
+            log.warning(
+                "analysis.reporter.template_missing_fallback",
+                template=str(template_path),
+            )
+            document = Document()
+
+        if doc_template is None:
+            document.add_heading(heading_text, level=1)
+
+        # Step 1: Metadata section
+        document.add_heading(_("Experiment Metadata"), level=2)
         for key, value in self.metadata.items():
-            document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
-        progress_callback(1 / total_steps, "Metadata added")
+            document.add_paragraph(
+                f"{key.replace('_', ' ').title()}: {value}"
+            )
+        progress_callback(1 / total_steps, _("Metadata added"))
 
-        # Step 2: Add summary table (vertical format - 2 columns: Metric | Value)
-        document.add_heading("Metrics Summary", level=2)
+        # Step 2: Summary table
+        document.add_heading(_("Metrics Summary"), level=2)
         df = self.tidy_data.drop(
             columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
         )
 
-        # Create vertical table with 2 columns: Metric Name and Value
         table = document.add_table(rows=1, cols=2)
         table.style = "Table Grid"
-        # Header row
-        table.cell(0, 0).text = "Metric"
-        table.cell(0, 1).text = "Value"
+        table.cell(0, 0).text = _("Metric")
+        table.cell(0, 1).text = _("Value")
 
-        # Add each metric as a row
         for column_name in df.columns:
             row_cells = table.add_row().cells
-            # Format column name to be more readable
             formatted_name = column_name.replace("_", " ").title()
             row_cells[0].text = formatted_name
 
             value = df[column_name].iloc[0]
             if pd.isna(value):
-                row_cells[1].text = "N/A"
+                row_cells[1].text = _("N/A")
             elif isinstance(value, (int, float)):
-                # Format time columns (ending with _s) as MM:SS
                 if column_name.endswith("_s"):
                     row_cells[1].text = _format_time_minutes_seconds(value)
                 else:
@@ -847,31 +923,32 @@ class Reporter:
                 row_cells[1].text = str(value)
 
         document.add_page_break()
-        progress_callback(2 / total_steps, "Summary table added")
+        progress_callback(2 / total_steps, _("Summary table added"))
 
-        # Step 3: Add ROI Reference Map (if applicable)
+        # Step 3: ROI Reference Map (optional)
         if self.r_analyzer:
-            document.add_heading("ROI Reference Map", level=2)
+            document.add_heading(_("ROI Reference Map"), level=2)
             fig = self.generate_roi_reference_plot()
             memfile = io.BytesIO()
             fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
             plt.close(fig)
             memfile.seek(0)
-            document.add_picture(memfile, width=Inches(6.5))  # Larger image
-        progress_callback(3 / total_steps, "ROI map added")
+            document.add_picture(memfile, width=Inches(6.5))
+        progress_callback(3 / total_steps, _("ROI map added"))
 
-        # Step 4-8: Add visualization plots
-        document.add_heading("Visualizations", level=2)
+        # Step 4-8: Visualization plots
+        document.add_heading(_("Visualizations"), level=2)
         plot_configs = [
             (
                 lambda ax: self.generate_trajectory_plot(ax, self.video_path),
-                "Trajectory",
+                _("Trajectory"),
             ),
-            (self.generate_heatmap, "Heatmap"),
-            (self.generate_position_vs_time_plot, "Position vs. Time"),
-            (self.generate_cumulative_distance_plot, "Cumulative Distance"),
-            (self.generate_angular_velocity_plot, "Angular Velocity"),
+            (self.generate_heatmap, _("Heatmap")),
+            (self.generate_position_vs_time_plot, _("Position vs. Time")),
+            (self.generate_cumulative_distance_plot, _("Cumulative Distance")),
+            (self.generate_angular_velocity_plot, _("Angular Velocity")),
         ]
+
         for i, (plot_func, name) in enumerate(plot_configs):
             fig, ax = plt.subplots(figsize=(10, 6))
             plot_func(ax)
@@ -879,43 +956,43 @@ class Reporter:
             fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
             plt.close(fig)
             memfile.seek(0)
-            document.add_paragraph(f"Chart: {name}:")
+            document.add_paragraph(_("Chart: {name}:").format(name=name))
             document.add_picture(memfile, width=Inches(6.0))
-            progress_callback((4 + i) / total_steps, f"{name} plot added")
+            progress_callback(
+                (4 + i) / total_steps,
+                _("Visualization added: {name}").format(name=name),
+            )
 
-        # Step 9: Add ROI Event Log
+        # Step 9: ROI Event Log
         if self.r_analyzer:
             document.add_page_break()
-            document.add_heading("Appendix: ROI Event Log", level=2)
+            document.add_heading(_("Appendix: ROI Event Log"), level=2)
             event_log_df = self.r_analyzer.get_event_log()
             if not event_log_df.empty:
                 document.add_paragraph(
-                    "Chronological log of all entries and exits from defined ROIs."
+                    _(
+                        "Chronological log of all entries and exits from defined ROIs."
+                    )
                 )
 
-                # Rename columns to Portuguese
-                event_log_df = event_log_df.rename(columns={
-                    'roi_name': 'Área',
-                    'event': 'Evento'
-                })
+                event_log_df = event_log_df.rename(
+                    columns={"roi_name": "ROI", "event": _("Event")}
+                )
 
-                # Get the first timestamp as reference (start time)
-                start_time = event_log_df['timestamp'].iloc[0]
+                start_time = event_log_df["timestamp"].iloc[0]
 
                 table = document.add_table(rows=1, cols=len(event_log_df.columns))
                 table.style = "Table Grid"
                 for i, col_name in enumerate(event_log_df.columns):
-                    # Translate timestamp column header
-                    if col_name == 'timestamp':
-                        table.cell(0, i).text = 'Tempo (mm:ss)'
+                    if col_name == "timestamp":
+                        table.cell(0, i).text = _("Time (mm:ss)")
                     else:
                         table.cell(0, i).text = str(col_name)
 
-                for _, row in event_log_df.iterrows():
+                for _index, row in event_log_df.iterrows():
                     cells = table.add_row().cells
                     for i, (col_name, value) in enumerate(row.items()):
-                        if col_name == 'timestamp':
-                            # Calculate elapsed time from start in seconds
+                        if col_name == "timestamp":
                             elapsed = (value - start_time).total_seconds()
                             minutes = int(elapsed // 60)
                             seconds = elapsed % 60
@@ -923,14 +1000,19 @@ class Reporter:
                         else:
                             cells[i].text = str(value)
             else:
-                document.add_paragraph("No ROI entry or exit events were recorded.")
-        progress_callback(9 / total_steps, "Event log added")
+                document.add_paragraph(
+                    _("No ROI entry or exit events were recorded.")
+                )
+        progress_callback(9 / total_steps, _("Event log added"))
 
         # Step 10: Save the document
-        file_path = f"{output_path}"
-        document.save(file_path)
-        progress_callback(10 / total_steps, "Report saved")
-        print(f"Individual report saved to: {file_path}")
+        file_path = str(output_path)
+        if doc_template is not None:
+            doc_template.save(file_path)
+        else:
+            document.save(file_path)
+        progress_callback(10 / total_steps, _("Report saved"))
+        log.info("analysis.reporter.individual_saved", path=file_path)
 
     @staticmethod
     def _generate_comparative_boxplot(
