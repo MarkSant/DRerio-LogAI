@@ -4768,6 +4768,52 @@ class ApplicationGUI:
 
         self._request_overview_refresh()
 
+    def _refresh_video_selector_tree(self) -> None:
+        """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
+
+        if not self.video_selector_tree:
+            return
+
+        selected_tag = None
+        selection = self.video_selector_tree.selection()
+        if selection:
+            try:
+                tags = self.video_selector_tree.item(selection[0], "tags")
+                if tags:
+                    selected_tag = tags[0]
+            except Exception:
+                selected_tag = None
+
+        current_filter = getattr(self, "_video_selector_filter", "")
+        self._populate_video_selector_tree(current_filter)
+
+        if selected_tag:
+            self._reselect_video_tree_item(selected_tag)
+
+    def _reselect_video_tree_item(self, target_tag: str) -> None:
+        if not target_tag or not self.video_selector_tree:
+            return
+
+        def _walk(node: str) -> bool:
+            for child in self.video_selector_tree.get_children(node):
+                tags = self.video_selector_tree.item(child, "tags")
+                if tags and tags[0] == target_tag:
+                    # Ensure branch is visible before selecting
+                    parent = self.video_selector_tree.parent(child)
+                    while parent:
+                        self.video_selector_tree.item(parent, open=True)
+                        parent = self.video_selector_tree.parent(parent)
+
+                    self.video_selector_tree.selection_set(child)
+                    self.video_selector_tree.see(child)
+                    return True
+
+                if _walk(child):
+                    return True
+            return False
+
+        _walk("")
+
     def _filter_video_tree(self):
         """Filtra a árvore com base no texto de busca."""
         if self.video_search_var is None:
@@ -4884,6 +4930,7 @@ class ApplicationGUI:
             )
             pm.save_project()
             self._refresh_zone_indicators()
+            self._refresh_video_selector_tree()
             status_message = (
                 f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
             )
@@ -4907,6 +4954,7 @@ class ApplicationGUI:
             self._request_overview_refresh(
                 reason=status_message, append_summary=True
             )
+            self._refresh_video_selector_tree()
 
     def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
         """Callback para duplo clique no seletor de vídeos."""
