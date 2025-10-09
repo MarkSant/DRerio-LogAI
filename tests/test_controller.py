@@ -25,6 +25,10 @@ class TestAppController(unittest.TestCase):
         self.mock_pm = mock_pm.return_value
         self.mock_wm = mock_wm.return_value
 
+        self._single_animal_original = (
+            settings.video_processing.single_animal_per_aquarium
+        )
+
         # Configure the mock WeightManager to return a predictable default weight
         self.mock_wm.get_default_weight.return_value = (
             "best_seg.pt",
@@ -77,7 +81,30 @@ class TestAppController(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after each test."""
-        pass
+        settings.video_processing.single_animal_per_aquarium = (
+            self._single_animal_original
+        )
+
+    def test_resolve_single_animal_mode_single_video_config(self):
+        result = self.controller._resolve_single_animal_mode(
+            {"animals_per_aquarium": 1}
+        )
+
+        self.assertTrue(result)
+
+    def test_resolve_single_animal_mode_project_data(self):
+        self.mock_pm.project_data = {"calibration": {"animals_per_aquarium": 3}}
+
+        result = self.controller._resolve_single_animal_mode(None)
+
+        self.assertFalse(result)
+
+    def test_resolve_single_animal_mode_returns_none_when_unset(self):
+        self.mock_pm.project_data = {}
+
+        result = self.controller._resolve_single_animal_mode(None)
+
+        self.assertIsNone(result)
 
     def test_prepare_results_directory_archives_existing_run(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -2062,12 +2062,6 @@ class AppController:
 
         self.project_manager.set_active_zone_video(video_path)
 
-        # Enable single animal mode if animals_per_aquarium == 1
-        animals_per_aquarium = config.get("animals_per_aquarium", 1)
-        if animals_per_aquarium == 1:
-            settings.video_processing.single_animal_per_aquarium = True
-            log.info("controller.single_video.single_animal_mode_enabled")
-
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
@@ -3160,6 +3154,44 @@ class AppController:
             if cap.isOpened():
                 cap.release()
 
+    def _resolve_single_animal_mode(
+        self, single_video_config: dict | None
+    ) -> bool | None:
+        """Derive whether single-animal tracking mode should be active."""
+
+        def _coerce_to_int(value):
+            if value is None:
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        if single_video_config:
+            count = _coerce_to_int(single_video_config.get("animals_per_aquarium"))
+            if count is not None:
+                enabled = count == 1
+                log.debug(
+                    "controller.single_animal_mode.resolved_single_video",
+                    animals_per_aquarium=count,
+                    enabled=enabled,
+                )
+                return enabled
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        calibration = project_data.get("calibration") or {}
+        count = _coerce_to_int(calibration.get("animals_per_aquarium"))
+        if count is not None:
+            enabled = count == 1
+            log.debug(
+                "controller.single_animal_mode.resolved_project",
+                animals_per_aquarium=count,
+                enabled=enabled,
+            )
+            return enabled
+
+        return None
+
     def apply_project_settings_to_batch(self, videos: list):
         """Aplica configurações do projeto a novos vídeos"""
         if not self.project_manager.project_path:
@@ -3328,6 +3360,23 @@ class AppController:
 
         was_cancelled = False
         final_output_dir = output_base_dir
+        previous_single_animal_mode = (
+            settings.video_processing.single_animal_per_aquarium
+        )
+        resolved_single_animal_mode = self._resolve_single_animal_mode(
+            single_video_config
+        )
+        if resolved_single_animal_mode is not None:
+            if resolved_single_animal_mode != previous_single_animal_mode:
+                settings.video_processing.single_animal_per_aquarium = (
+                    resolved_single_animal_mode
+                )
+                log.info(
+                    "controller.processing.single_animal_mode",
+                    enabled=resolved_single_animal_mode,
+                    previous=previous_single_animal_mode,
+                    scope="single_video" if single_video_config else "project",
+                )
 
         try:
             self.root.after(0, self.view.show_progress_bar)
@@ -3597,6 +3646,17 @@ class AppController:
             self.project_manager.set_active_zone_video(None)
             self.root.after(0, self.view.stop_analysis_view_mode)
             self.root.after(0, self.view.hide_progress_bar)
+            if (
+                settings.video_processing.single_animal_per_aquarium
+                != previous_single_animal_mode
+            ):
+                settings.video_processing.single_animal_per_aquarium = (
+                    previous_single_animal_mode
+                )
+                log.info(
+                    "controller.processing.single_animal_mode_restored",
+                    restored=previous_single_animal_mode,
+                )
             if was_cancelled:
                 self.root.after(
                     0,
