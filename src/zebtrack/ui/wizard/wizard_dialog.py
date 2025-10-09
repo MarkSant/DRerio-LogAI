@@ -10,6 +10,7 @@ from tkinter.simpledialog import Dialog
 
 import structlog
 
+from zebtrack.ui.window_utils import maximize_window, schedule_maximize
 from zebtrack.ui.wizard.cache import WizardCache
 from zebtrack.ui.wizard.calibration_step import CalibrationStep
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
@@ -20,7 +21,6 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
-from zebtrack.ui.window_utils import maximize_window, schedule_maximize
 
 log = structlog.get_logger()
 

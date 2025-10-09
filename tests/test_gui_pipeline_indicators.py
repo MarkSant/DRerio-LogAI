@@ -166,7 +166,13 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
                     return video
             return None
 
-        def resolve_results_directory(self, experiment_id: str, *, video_path=None, metadata=None):
+        def resolve_results_directory(
+            self,
+            experiment_id: str,
+            *,
+            video_path=None,
+            metadata=None,
+        ):
             return (
                 Path(self.project_path)
                 / "Grupo_Sem_Grupo"

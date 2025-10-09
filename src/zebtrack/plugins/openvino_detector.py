@@ -161,7 +161,10 @@ class OpenVINOPlugin(DetectorPlugin):
         }
 
     def set_tracking_parameters(
-        self, *, track_threshold: float | None = None, match_threshold: float | None = None
+        self,
+        *,
+        track_threshold: float | None = None,
+        match_threshold: float | None = None,
     ) -> None:
         """Update ByteTrack thresholds for the OpenVINO plugin."""
 

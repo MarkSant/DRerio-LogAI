@@ -5,8 +5,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock
 
-from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
 
 
 class TestProjectManager(unittest.TestCase):

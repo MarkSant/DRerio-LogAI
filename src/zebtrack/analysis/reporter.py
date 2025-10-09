@@ -165,7 +165,8 @@ class Reporter:
         self.video_path = video_path
         self.calibration = calibration
 
-        # Ensure trajectory coordinates are aligned with calibration space before analysis
+        # Ensure trajectory coordinates stay aligned with calibration space
+        # before running any calculations.
         if calibration is not None:
             trajectory_df = self._warp_trajectory_if_needed(
                 trajectory_df, calibration
@@ -198,18 +199,19 @@ class Reporter:
     def _warp_trajectory_if_needed(
         trajectory_df: pd.DataFrame, calibration
     ) -> pd.DataFrame:
-        """Warp bounding boxes to the calibrated space when raw coordinates leak through.
+        """Warp bounding boxes into the calibrated space when raw points slip through.
 
-        Some tracking runs saved detections using the original video reference instead of the
-        calibrated (warped) space. This causes ROI metrics, trajectory overlays, and heatmaps to
-        break because coordinates no longer align with the warped arena and ROI polygons.
+    Some runs saved detections using the original video reference instead of the
+    warped view. Metrics then break because coordinates no longer align with the
+    arena and ROI polygons.
 
-        We detect this scenario by checking whether any bounding-box coordinate exceeds the
-        expected warped dimensions. When that happens we transform every bbox using the
-        calibration homography so downstream analysis always operates in the calibrated frame.
+    We detect the mismatch when any bbox coordinate exceeds the expected warped
+    dimensions. In that case we transform every bbox with the calibration
+    homography so downstream analysis always operates in the calibrated frame.
         """
 
-        if calibration is None or getattr(calibration, "homography_matrix", None) is None:
+        homography = getattr(calibration, "homography_matrix", None)
+        if calibration is None or homography is None:
             return trajectory_df
 
         expected_width, expected_height = calibration.target_dims_px

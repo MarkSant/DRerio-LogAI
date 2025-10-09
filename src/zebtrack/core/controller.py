@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import threading
 import time
-from datetime import datetime
 from contextlib import contextmanager
+from datetime import datetime
+from functools import partial
+from pathlib import Path
 from tkinter import Label, Toplevel
 from typing import cast
 
@@ -14,8 +17,6 @@ import numpy as np
 import pandas as pd
 import structlog
 from shapely.geometry import Polygon
-from pathlib import Path
-import shutil
 
 try:
     from ultralytics import YOLO
@@ -1246,7 +1247,7 @@ class AppController:
         }
 
     def get_current_detector_parameters(self) -> dict[str, float]:
-        """Return the active detector thresholds, falling back to saved or default values."""
+        """Return detector thresholds, falling back to saved or default values."""
 
         params = {
             "confidence_threshold": float(settings.yolo_model.confidence_threshold),
@@ -1879,7 +1880,9 @@ class AppController:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
+    def can_remove_project_asset(
+        self, video_path: str, asset: str
+    ) -> tuple[bool, str | None]:
         """Validate whether a project asset can be safely removed."""
 
         try:
@@ -3550,7 +3553,7 @@ class AppController:
         return settings_applied == len(videos)
 
     def _prepare_results_directory(self, results_dir: str) -> None:
-        """Ensure per-video results are written to a clean folder and archive older runs."""
+        """Keep per-video results folders clean and archive older runs."""
         path = Path(results_dir)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -3747,14 +3750,13 @@ class AppController:
                         metadata=meta
                     ),
                 )
-                self.root.after(
-                    0,
-                    lambda idx=i, total=total_videos, eid=experiment_id: self.view.update_analysis_task_status(
-                        index=idx,
-                        total=total,
-                        experiment_id=eid,
-                    ),
+                task_status_cb = partial(
+                    self.view.update_analysis_task_status,
+                    index=i,
+                    total=total_videos,
+                    experiment_id=experiment_id,
                 )
+                self.root.after(0, task_status_cb)
 
                 self.project_manager.set_active_zone_video(video_path)
 
@@ -3783,18 +3785,14 @@ class AppController:
                             self.view.update_analysis_progress(p, s)
                         ),
                     )
-                    self.root.after(
-                        0,
-                        lambda idx=i,
-                               total=total_videos,
-                               eid=experiment_id,
-                               step=status_message: self.view.update_analysis_task_status(
-                                   index=idx,
-                                   total=total,
-                                   experiment_id=eid,
-                                   step=step,
-                               ),
+                    status_callback = partial(
+                        self.view.update_analysis_task_status,
+                        index=i,
+                        total=total_videos,
+                        experiment_id=experiment_id,
+                        step=status_message,
                     )
+                    self.root.after(0, status_callback)
                     # Update processing statistics in real-time
                     if stats:
                         self.root.after(
@@ -4060,10 +4058,6 @@ class AppController:
             return
 
         all_tidy_data = []
-        if self.project_manager.project_path:
-            project_path = self.project_manager.project_path
-        else:
-            project_path = os.path.dirname(videos[0]["path"])
 
         for video_info in videos:
             video_path = video_info.get("path")

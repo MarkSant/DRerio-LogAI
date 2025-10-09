@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from tkinter import BooleanVar, Label, LabelFrame, StringVar
+from tkinter import BooleanVar, Label, LabelFrame, StringVar, ttk
 from tkinter import font as tkfont
-from tkinter import ttk
 
 import structlog
 
@@ -125,18 +124,27 @@ class ModelSelectionStep(WizardStep):
             self.animal_weight_var.set(self._default_weight_for_method(animal_method))
 
         detector_params = dict(self.wizard_data.get("detector_parameters", {}) or {})
-        self.confidence_var.set(
-            f"{float(detector_params.get('confidence_threshold', settings.yolo_model.confidence_threshold)):.3f}"
+        confidence_threshold = float(
+            detector_params.get(
+                "confidence_threshold", settings.yolo_model.confidence_threshold
+            )
         )
-        self.nms_var.set(
-            f"{float(detector_params.get('nms_threshold', settings.yolo_model.nms_threshold)):.3f}"
+        self.confidence_var.set(f"{confidence_threshold:.3f}")
+
+        nms_threshold = float(
+            detector_params.get("nms_threshold", settings.yolo_model.nms_threshold)
         )
-        self.track_var.set(
-            f"{float(detector_params.get('track_threshold', DEFAULT_TRACK_THRESHOLD)):.3f}"
+        self.nms_var.set(f"{nms_threshold:.3f}")
+
+        track_threshold = float(
+            detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD)
         )
-        self.match_var.set(
-            f"{float(detector_params.get('match_threshold', DEFAULT_MATCH_THRESHOLD)):.3f}"
+        self.track_var.set(f"{track_threshold:.3f}")
+
+        match_threshold = float(
+            detector_params.get("match_threshold", DEFAULT_MATCH_THRESHOLD)
         )
+        self.match_var.set(f"{match_threshold:.3f}")
 
     def _default_weight_for_method(self, method_key: str) -> str:
         if method_key == "seg":
@@ -397,7 +405,10 @@ class ModelSelectionStep(WizardStep):
                 continue
 
             method_key = self._method_key_from_label(method_var.get())
-            options = self.seg_weight_names if method_key == "seg" else self.det_weight_names
+            if method_key == "seg":
+                options = self.seg_weight_names
+            else:
+                options = self.det_weight_names
             combo.configure(values=options)
 
             if options:
@@ -438,15 +449,14 @@ class ModelSelectionStep(WizardStep):
     def set_data(self, data: dict):
         if not data:
             return
-        self.wizard_data.setdefault("model_selection", {}).update(
-            data.get("model_selection", {})
-        )
+        model_selection = self.wizard_data.setdefault("model_selection", {})
+        model_selection.update(data.get("model_selection", {}))
         if "aquarium_method" in data:
-            self.wizard_data.setdefault("model_selection", {})["aquarium_method"] = data["aquarium_method"]
+            model_selection["aquarium_method"] = data["aquarium_method"]
         if "animal_method" in data:
-            self.wizard_data.setdefault("model_selection", {})["animal_method"] = data["animal_method"]
+            model_selection["animal_method"] = data["animal_method"]
         if "use_openvino" in data:
-            self.wizard_data.setdefault("model_selection", {})["use_openvino"] = data["use_openvino"]
+            model_selection["use_openvino"] = data["use_openvino"]
         if "weight_assignments" in data:
             self.wizard_data["weight_assignments"] = data.get("weight_assignments")
         if "detector_parameters" in data:
@@ -460,14 +470,17 @@ class ModelSelectionStep(WizardStep):
         banner = format_template_banner(metadata)
         if banner:
             self.template_info_var.set(banner)
-            if self.template_info_label and not self.template_info_label.winfo_ismapped():
+            label = self.template_info_label
+            if label and not label.winfo_ismapped():
                 target = self._methods_frame
                 if target is not None:
-                    self.template_info_label.pack(before=target)
+                    label.pack(before=target)
                 else:
-                    self.template_info_label.pack()
-        elif self.template_info_label and self.template_info_label.winfo_ismapped():
-            self.template_info_label.pack_forget()
+                    label.pack()
+        else:
+            label = self.template_info_label
+            if label and label.winfo_ismapped():
+                label.pack_forget()
 
     # ------------------------------------------------------------------
     # Validation and data extraction
@@ -495,7 +508,10 @@ class ModelSelectionStep(WizardStep):
             ("animais", self.animal_method_var, self.animal_weight_var),
         ):
             method_key = self._method_key_from_label(method_var.get())
-            options = self.seg_weight_names if method_key == "seg" else self.det_weight_names
+            if method_key == "seg":
+                options = self.seg_weight_names
+            else:
+                options = self.det_weight_names
             if options and weight_var.get() not in options:
                 return False, (
                     f"Selecione um peso válido para {role}."

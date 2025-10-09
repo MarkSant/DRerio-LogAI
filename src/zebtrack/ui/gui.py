@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from collections import Counter
+from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
@@ -34,7 +35,6 @@ import numpy as np
 import serial.tools.list_ports
 import structlog
 from PIL import Image, ImageTk
-from pathlib import Path
 
 # Import custom modules
 from zebtrack.io.camera import Camera
@@ -1784,9 +1784,9 @@ class ApplicationGUI:
         self._pending_overview_status = None
         self._overview_status_append = False
         self._last_overview_counts = {}
-    self._overview_video_index: dict[str, dict] = {}
-    self._overview_context_menu: Menu | None = None
-    self._overview_menu_font: tkfont.Font | None = None
+        self._overview_video_index: dict[str, dict] = {}
+        self._overview_context_menu: Menu | None = None
+        self._overview_menu_font: tkfont.Font | None = None
 
         # Arduino dashboard state (live projects)
         self.arduino_dashboard_frame = None
@@ -2791,7 +2791,9 @@ class ApplicationGUI:
 
         return self._overview_menu_font
 
-    def _resolve_overview_asset_from_click(self, item_id: str, event_x: int) -> str | None:
+    def _resolve_overview_asset_from_click(
+        self, item_id: str, event_x: int
+    ) -> str | None:
         tree = self.project_overview_tree
         if not tree or not tree.winfo_exists():
             return None
@@ -2871,7 +2873,10 @@ class ApplicationGUI:
         prompts = {
             "arena": (
                 "Remover arena",
-                "Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas.",
+                (
+                    "Deseja remover a arena deste vídeo? As ROIs associadas "
+                    "também serão limpas."
+                ),
             ),
             "rois": (
                 "Remover ROIs",
@@ -2887,7 +2892,11 @@ class ApplicationGUI:
             ),
             "video": (
                 "Remover vídeo do projeto",
-                "Deseja remover este vídeo do projeto? As arenas, ROIs e trajetórias já removidas não poderão ser recuperadas automaticamente.",
+                (
+                    "Deseja remover este vídeo do projeto? As arenas, ROIs e "
+                    "trajetórias já removidas não poderão ser recuperadas "
+                    "automaticamente."
+                ),
             ),
         }
 
@@ -2930,7 +2939,10 @@ class ApplicationGUI:
         if not success:
             self.show_error(
                 "Remoção não realizada",
-                "Não foi possível remover o item selecionado. Consulte os logs para mais detalhes.",
+                (
+                    "Não foi possível remover o item selecionado. Consulte os "
+                    "logs para mais detalhes."
+                ),
             )
             return
 
@@ -5722,8 +5734,9 @@ class ApplicationGUI:
         """Enables or disables the partial report button based on selection."""
         selection = self.reports_tree.selection()
         has_video = False
+        metadata_store = getattr(self, "_report_tree_metadata", {})
         for item_id in selection:
-            metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+            metadata = metadata_store.get(item_id)
             if metadata and metadata.get("type") == "video":
                 has_video = True
                 break
@@ -5749,7 +5762,8 @@ class ApplicationGUI:
         if not item_id:
             return
 
-        metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+        metadata_store = getattr(self, "_report_tree_metadata", {})
+        metadata = metadata_store.get(item_id)
         if not metadata:
             return
 
@@ -5763,8 +5777,8 @@ class ApplicationGUI:
                 self.show_warning(
                     "Arquivo não encontrado",
                     (
-                        "O relatório selecionado não foi localizado no disco. "
-                        "Gere novamente o relatório para restaurar o arquivo."
+                        "O relatório selecionado não foi localizado no disco. Gere "
+                        "novamente o relatório para restaurar o arquivo."
                     ),
                 )
             return
@@ -5823,7 +5837,10 @@ class ApplicationGUI:
         if not results_dir or not os.path.isdir(results_dir) or not has_results:
             self.show_warning(
                 "Relatórios indisponíveis",
-                "Gere o relatório para este vídeo antes de abrir a pasta de resultados.",
+                (
+                    "Gere o relatório para este vídeo antes de abrir a pasta de "
+                    "resultados."
+                ),
             )
             return
 
@@ -5857,11 +5874,12 @@ class ApplicationGUI:
 
         selected_videos = []
         all_videos = self.controller.project_manager.get_all_videos()
+        metadata_store = getattr(self, "_report_tree_metadata", {})
 
         for item_id in selected_items:
             if not self.reports_tree.exists(item_id):
                 continue
-            metadata = self._report_tree_metadata.get(item_id) if hasattr(self, "_report_tree_metadata") else None
+            metadata = metadata_store.get(item_id)
             if not metadata or metadata.get("type") != "video":
                 continue
             video_path = metadata.get("video_path")
@@ -7691,7 +7709,8 @@ class ApplicationGUI:
 
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
-        if not hasattr(self, "analysis_metadata_var") or self.analysis_metadata_var is None:
+        analysis_var = getattr(self, "analysis_metadata_var", None)
+        if analysis_var is None:
             return
 
         metadata = metadata or {}
@@ -7699,8 +7718,11 @@ class ApplicationGUI:
         day_display = self._resolve_day_display(metadata)
         subject_display = self._resolve_subject_display(metadata)
 
-        self.analysis_metadata_var.set(
-            f"Grupo: {group_display} | Dia: {day_display} | Indivíduo: {subject_display}"
+        analysis_var.set(
+            (
+                f"Grupo: {group_display} | Dia: {day_display} | "
+                f"Indivíduo: {subject_display}"
+            )
         )
 
     def update_analysis_task_status(

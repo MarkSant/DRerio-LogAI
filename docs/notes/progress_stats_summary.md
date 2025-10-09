@@ -114,3 +114,13 @@ The following GUI labels now update in real-time during processing:
 - **Robust Implementation**: Thread-safe, error-handled, tested
 
 This implementation successfully transforms the progress display from a simple progress bar to a comprehensive real-time statistics dashboard, providing users with detailed insights into video processing performance as it happens.
+
+## 🔄 Follow-up Hardening (2025-10-09)
+
+- `ApplicationGUI.update_analysis_metadata` now resolves `analysis_metadata_var` via
+    `getattr` and exits early when the widget is absent. This prevents intermittent
+    `AttributeError` crashes when the pipeline tab is refreshed before the sidebar
+    labels are rebuilt.
+- The metadata banner string is assembled with multi-line f-strings capped at 88
+    columns, keeping Ruff happy without changing any Portuguese copy displayed to
+    operators.

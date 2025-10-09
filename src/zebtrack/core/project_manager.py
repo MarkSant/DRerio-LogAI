@@ -6,8 +6,8 @@ import shutil
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Tuple
 from tkinter import messagebox
+from typing import Literal, Tuple
 
 import pandas as pd
 import structlog
@@ -278,15 +278,11 @@ class ProjectManager:
             )
             return copied
 
-        source_path = Path(source_video_path)
         target_path = Path(target_video_path)
 
-        source_stem = source_path.stem
         target_stem = target_path.stem
 
-        source_parent = source_path.parent
         target_parent = target_path.parent
-
         target_parent.mkdir(parents=True, exist_ok=True)
 
         filename_map = {
@@ -1329,7 +1325,9 @@ class ProjectManager:
             )
             return False
 
-    def can_remove_asset(self, video_path: str, asset: AssetType) -> Tuple[bool, str | None]:
+    def can_remove_asset(
+        self, video_path: str, asset: AssetType
+    ) -> Tuple[bool, str | None]:
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             return False, "Vídeo não encontrado no projeto."
@@ -1340,7 +1338,10 @@ class ProjectManager:
             if has_summary_outputs:
                 return (
                     False,
-                    "Remova os relatórios e sumários antes de apagar arena, ROIs ou trajetórias.",
+                    (
+                        "Remova os relatórios e sumários antes de apagar "
+                        "arena, ROIs ou trajetórias."
+                    ),
                 )
             if not self._video_has_asset(video_entry, asset):
                 labels = {
@@ -1348,7 +1349,8 @@ class ProjectManager:
                     "rois": "ROIs",
                     "trajectory": "trajetória",
                 }
-                return False, f"Não há {labels.get(asset, asset)} registrada para este vídeo."
+                missing_label = labels.get(asset, asset)
+                return False, f"Não há {missing_label} registrada para este vídeo."
 
         if asset == "summary" and not has_summary_outputs:
             return False, "Não há relatórios ou sumários para remover."
@@ -1362,7 +1364,10 @@ class ProjectManager:
             ):
                 return (
                     False,
-                    "Remova arena, ROIs e trajetórias antes de excluir o vídeo do projeto.",
+                    (
+                        "Remova arena, ROIs e trajetórias antes de excluir o vídeo do "
+                        "projeto."
+                    ),
                 )
 
         return True, None
@@ -1518,7 +1523,9 @@ class ProjectManager:
         for batch in self.project_data.get("batches", []):
             original_count = len(batch.get("videos", []))
             batch["videos"] = [
-                item for item in batch.get("videos", []) if item.get("path") != video_path
+                item
+                for item in batch.get("videos", [])
+                if item.get("path") != video_path
             ]
             if len(batch["videos"]) != original_count:
                 changed = True
@@ -1551,7 +1558,8 @@ class ProjectManager:
                     return video
 
             if experiment_id:
-                candidate_id = os.path.splitext(os.path.basename(candidate_path or ""))[0]
+                candidate_name = os.path.basename(candidate_path or "")
+                candidate_id = os.path.splitext(candidate_name)[0]
                 if candidate_id == experiment_id:
                     return video
 
@@ -1566,7 +1574,9 @@ class ProjectManager:
 
         metadata: dict = {}
 
-        video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
+        video_entry = self.find_video_entry(
+            path=video_path, experiment_id=experiment_id
+        )
         if video_entry:
             metadata.update(dict(video_entry.get("metadata") or {}))
 

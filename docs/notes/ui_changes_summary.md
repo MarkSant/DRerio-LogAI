@@ -70,3 +70,10 @@ The changes maintain full backward compatibility while giving users control over
    - `gui.zone_summary.cards_refresh`
    - `gui.pipeline_table.refreshed`
    These events surface in structlog with the `domain.action.result` pattern, improving traceability for project UI updates and batch readiness summaries.
+
+### Maintenance Pass (2025-10-09)
+
+- Normalized long status/confirmation messages to stay within the Ruff 88-character cap so the linter passes on Windows.
+- Replaced verbose `root.after` lambdas with `functools.partial` in `ApplicationGUI` to keep scheduling readable while preserving existing async behavior.
+- Hardened report-tree helpers by centralizing metadata lookups (`metadata_store = getattr(...)`) and reusing those caches for selection/double-click handlers.
+- `update_analysis_metadata` now guards via `getattr` and reuses the resolved `StringVar`, preventing attribute errors when the widget tree is rehydrated late in the pipeline tab lifecycle.

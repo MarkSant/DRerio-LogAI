@@ -71,6 +71,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 ### Testing & Validation
 
 - Run the full test suite with `poetry run pytest -q`.
+- Run Ruff style checks with `poetry run ruff check` before handing off changes.
 - Tests mirror modules; consult them before modifying behavior (e.g., `tests/test_detector.py`, `tests/test_recorder.py`).
 - After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
 - UI/analysis workflows now have dedicated coverage: `tests/test_overlay_integration.py` (overlay preservation) and `tests/test_interval_frames_config.py` (interval dialogs + persistence). Keep them passing.

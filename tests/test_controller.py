@@ -285,7 +285,9 @@ class TestAppController(unittest.TestCase):
 
     @patch("zebtrack.core.controller.Recorder")
     @patch("zebtrack.core.controller.cv2.VideoCapture")
-    def test_run_tracking_uses_project_calibration(self, mock_capture, mock_recorder_cls):
+    def test_run_tracking_uses_project_calibration(
+        self, mock_capture, mock_recorder_cls
+    ):
         self.mock_pm.project_data = {
             "calibration": {
                 "aquarium_width_cm": 50.0,
