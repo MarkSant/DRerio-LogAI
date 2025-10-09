@@ -1,6 +1,11 @@
+import atexit
+import os
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
+import yaml
 
 try:
     from ultralytics import YOLO
@@ -37,6 +42,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.match_threshold = 0.6
         self.track_buffer = 30
         self._tracker_config_cache: dict[str, Any] | None = None
+        self._tracker_config_path: Path | None = None
 
         # Context control for instance segmentation
         self._context = "tracking"  # 'tracking' or 'diagnostic'
@@ -240,20 +246,64 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         if updated:
             self._tracker_config_cache = None
 
-    def _build_tracker_config(self) -> dict[str, Any]:
-        """Return the tracker configuration dictionary for Ultralytics ByteTrack."""
+    def _build_tracker_config(self) -> str:
+        """Return the YAML tracker config path expected by Ultralytics ByteTrack."""
 
-        if self._tracker_config_cache is not None:
-            return dict(self._tracker_config_cache)
-
-        track_low = min(self.track_threshold, 0.1)
-        self._tracker_config_cache = {
+        config: dict[str, Any] = {
             "tracker_type": "bytetrack",
             "track_high_thresh": self.track_threshold,
-            "track_low_thresh": track_low,
+            "track_low_thresh": min(self.track_threshold, 0.1),
             "new_track_thresh": self.track_threshold,
             "track_buffer": self.track_buffer,
             "match_thresh": self.match_threshold,
             "fuse_score": True,
         }
-        return dict(self._tracker_config_cache)
+
+        path_missing = (
+            self._tracker_config_path is None
+            or not self._tracker_config_path.exists()
+        )
+
+        if config != self._tracker_config_cache or path_missing:
+            self._tracker_config_cache = dict(config)
+            self._tracker_config_path = self._write_tracker_config(config)
+
+        return str(self._tracker_config_path)
+
+    def _write_tracker_config(self, config: dict[str, Any]) -> Path:
+        temp_dir = Path(tempfile.gettempdir()) / "zebtrack_bytetrack"
+        temp_dir.mkdir(exist_ok=True)
+
+        if self._tracker_config_path is not None:
+            try:
+                self._tracker_config_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            finally:
+                _TRACKER_TEMP_FILES.discard(self._tracker_config_path)
+
+        fd, path_str = tempfile.mkstemp(
+            dir=temp_dir, prefix="tracker_", suffix=".yaml"
+        )
+        path = Path(path_str)
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            yaml.safe_dump(config, tmp_file, sort_keys=False)
+
+        _TRACKER_TEMP_FILES.add(path)
+        return path
+
+
+_TRACKER_TEMP_FILES: set[Path] = set()
+
+
+def _cleanup_tracker_temp_files() -> None:
+    for path in list(_TRACKER_TEMP_FILES):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        finally:
+            _TRACKER_TEMP_FILES.discard(path)
+
+
+atexit.register(_cleanup_tracker_temp_files)
