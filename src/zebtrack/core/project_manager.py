@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
@@ -239,6 +240,110 @@ class ProjectManager:
 
         zones_map = self.project_data.get("zones_by_video", {})
         return self._zone_data_from_dict(zones_map.get(video_path))
+
+    def copy_zone_parquet_files(
+        self,
+        source_video_path: str,
+        target_video_path: str,
+        *,
+        persist: bool = True,
+    ) -> dict[str, str]:
+        """Copy arena/ROI parquet files from one video to another.
+
+        Returns a mapping with the copied parquet types and their new paths.
+        """
+
+        copied: dict[str, str] = {}
+
+        if not source_video_path or not target_video_path:
+            return copied
+
+        scan_results = self.scan_input_paths([source_video_path])
+        if not scan_results:
+            log.info(
+                "project_manager.zones.copy_missing_source_scan",
+                source=source_video_path,
+            )
+            return copied
+
+        parquet_files: dict[str, str] = scan_results[0].get("parquet_files", {})
+        if not parquet_files:
+            log.info(
+                "project_manager.zones.copy_no_parquets",
+                source=source_video_path,
+            )
+            return copied
+
+        source_path = Path(source_video_path)
+        target_path = Path(target_video_path)
+
+        source_stem = source_path.stem
+        target_stem = target_path.stem
+
+        source_parent = source_path.parent
+        target_parent = target_path.parent
+
+        target_parent.mkdir(parents=True, exist_ok=True)
+
+        filename_map = {
+            "arena": f"1_ProcessingArea_{target_stem}.parquet",
+            "rois": f"2_AreasOfInterest_{target_stem}.parquet",
+        }
+
+        source_results_dir_name = f"{source_stem}_results"
+        target_results_dir = target_parent / f"{target_stem}_results"
+
+        updated_video_entry = False
+
+        for key, target_filename in filename_map.items():
+            source_file = parquet_files.get(key)
+            if not source_file:
+                continue
+
+            source_file_path = Path(source_file)
+            if not source_file_path.exists():
+                log.warning(
+                    "project_manager.zones.copy_source_missing",
+                    file=source_file,
+                    key=key,
+                )
+                continue
+
+            destinations: list[Path] = [target_parent]
+
+            if source_file_path.parent.name == source_results_dir_name:
+                destinations.append(target_results_dir)
+
+            for dest_dir in destinations:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                dest_file_path = dest_dir / target_filename
+                try:
+                    shutil.copy2(source_file_path, dest_file_path)
+                    copied[key] = str(dest_file_path)
+                    log.info(
+                        "project_manager.zones.copy_success",
+                        source=source_file_path,
+                        destination=dest_file_path,
+                    )
+                    updated_video_entry = True
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.error(
+                        "project_manager.zones.copy_failed",
+                        source=source_file_path,
+                        destination=dest_file_path,
+                        error=str(exc),
+                    )
+
+        if updated_video_entry and copied:
+            video_entry = self.find_video_entry(path=target_video_path)
+            if video_entry is not None:
+                parquet_map = video_entry.setdefault("parquet_files", {})
+                parquet_map.update(copied)
+
+        if persist and updated_video_entry:
+            self.save_project()
+
+        return copied
 
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict]:

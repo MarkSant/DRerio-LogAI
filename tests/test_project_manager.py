@@ -25,6 +25,97 @@ class TestProjectManager(unittest.TestCase):
             shutil.rmtree(self.test_dir)
         sys.modules["tkinter.messagebox"].showerror = self.original_showerror  # type: ignore[attr-defined]
 
+    def test_copy_zone_parquet_files_replicates_artifacts(self):
+        pm = ProjectManager()
+        pm.project_path = self.test_dir
+
+        source_video = os.path.join(self.test_dir, "source.mp4")
+        target_video = os.path.join(self.test_dir, "target.mp4")
+
+        with open(source_video, "wb") as handle:
+            handle.write(b"")
+        with open(target_video, "wb") as handle:
+            handle.write(b"")
+
+        source_results_dir = os.path.join(self.test_dir, "source_results")
+        os.makedirs(source_results_dir, exist_ok=True)
+
+        arena_src = os.path.join(source_results_dir, "1_ProcessingArea_source.parquet")
+        rois_src = os.path.join(source_results_dir, "2_AreasOfInterest_source.parquet")
+        for path in (arena_src, rois_src):
+            with open(path, "wb") as handle:
+                handle.write(b"test")
+
+        pm.project_data = {
+            "batches": [
+                {
+                    "videos": [
+                        {
+                            "path": source_video,
+                            "parquet_files": {
+                                "arena": arena_src,
+                                "rois": rois_src,
+                            },
+                            "has_arena": True,
+                            "has_rois": True,
+                        },
+                        {
+                            "path": target_video,
+                            "parquet_files": {},
+                            "has_arena": False,
+                            "has_rois": False,
+                        },
+                    ]
+                }
+            ]
+        }
+
+        copied = pm.copy_zone_parquet_files(source_video, target_video, persist=False)
+
+        target_parent = os.path.dirname(target_video)
+        expected_parent_arena = os.path.join(
+            target_parent, "1_ProcessingArea_target.parquet"
+        )
+        expected_parent_rois = os.path.join(
+            target_parent, "2_AreasOfInterest_target.parquet"
+        )
+        target_results_dir = os.path.join(target_parent, "target_results")
+        expected_results_arena = os.path.join(
+            target_results_dir, "1_ProcessingArea_target.parquet"
+        )
+        expected_results_rois = os.path.join(
+            target_results_dir, "2_AreasOfInterest_target.parquet"
+        )
+
+        # Files should be duplicated to the parent directory
+        self.assertTrue(os.path.exists(expected_parent_arena))
+        self.assertTrue(os.path.exists(expected_parent_rois))
+        # And also to the mirrored _results directory when the source lived there
+        self.assertTrue(os.path.exists(expected_results_arena))
+        self.assertTrue(os.path.exists(expected_results_rois))
+
+        self.assertIn("arena", copied)
+        self.assertIn("rois", copied)
+        self.assertEqual(
+            os.path.normpath(copied["arena"]), os.path.normpath(expected_results_arena)
+        )
+        self.assertEqual(
+            os.path.normpath(copied["rois"]), os.path.normpath(expected_results_rois)
+        )
+
+        target_entry = pm.find_video_entry(path=target_video)
+        self.assertIsNotNone(target_entry)
+        assert target_entry is not None
+        parquet_map = target_entry.get("parquet_files", {})
+        self.assertEqual(
+            os.path.normpath(parquet_map.get("arena", "")),
+            os.path.normpath(expected_results_arena),
+        )
+        self.assertEqual(
+            os.path.normpath(parquet_map.get("rois", "")),
+            os.path.normpath(expected_results_rois),
+        )
+
     def test_create_new_live_project(self):
         """Test the creation of a new 'live' project."""
         pm = ProjectManager()

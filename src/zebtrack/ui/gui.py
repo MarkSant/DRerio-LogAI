@@ -4495,14 +4495,8 @@ class ApplicationGUI:
             has_complete = bool(video.get("has_complete_data")) or (
                 has_arena and has_rois and has_trajectory
             )
-            has_summary = any(
-                bool(video.get(field))
-                for field in (
-                    "has_summary",
-                    "has_summary_parquet",
-                    "has_summary_file",
-                    "has_summary_data",
-                )
+            has_summary = bool(video.get("has_summary")) or bool(
+                video.get("has_summary_parquet")
             )
 
             video_entry = {
@@ -4828,7 +4822,13 @@ class ApplicationGUI:
 
         if reuse:
             cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
-            pm.save_zone_data(cloned_zone_data, video_path=video_path)
+            pm.save_zone_data(
+                cloned_zone_data, video_path=video_path, persist=False
+            )
+            copied_files = pm.copy_zone_parquet_files(
+                last_video_with_zones, video_path, persist=False
+            )
+            pm.save_project()
             self._refresh_zone_indicators()
             status_message = (
                 f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
@@ -4837,6 +4837,15 @@ class ApplicationGUI:
             self._request_overview_refresh(
                 reason=status_message, append_summary=True
             )
+            if not copied_files:
+                self.show_warning(
+                    "Arquivos Parquet Indisponíveis",
+                    (
+                        "As zonas foram copiadas, mas não encontramos os arquivos "
+                        "Parquet originais para duplicar. Caso necessário, redesenhe "
+                        "as zonas e salve-as manualmente para gerar novos arquivos."
+                    ),
+                )
         else:
             pm.clear_zone_data_for_video(video_path, persist=False)
             status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
