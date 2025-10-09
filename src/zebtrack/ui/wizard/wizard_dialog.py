@@ -19,6 +19,7 @@ from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
+from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
 
 log = structlog.get_logger()
 
@@ -73,7 +74,7 @@ class WizardDialog(Dialog):
         self.active_steps = []  # Steps for current project type (updated dynamically)
         self.current_step_index = 0
         self.wizard_data = {
-            "wizard_schema_version": 2,  # v2.0: Live project support
+            "wizard_schema_version": 3,  # v3.0: Model selection & detector params
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self.cache = WizardCache()
@@ -119,6 +120,9 @@ class WizardDialog(Dialog):
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.DETECTION_VALIDATION: DetectionStep(
+                self.steps_container, self.wizard_data
+            ),
+            WizardStepID.MODEL_SELECTION: ModelSelectionStep(
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.IMPORT_CONFIG: ImportConfigStep(
@@ -201,19 +205,20 @@ class WizardDialog(Dialog):
         else:
             # Pre-recorded flow (experimental or exploratory):
             # Discovery -> File Selection -> Calibration -> Detection ->
-            # Import Config -> Confirmation
+            # Model Selection -> Import Config -> Confirmation
             self.active_steps = [
                 self.all_steps[WizardStepID.DISCOVERY],
                 self.all_steps[WizardStepID.FILE_SELECTION],
                 self.all_steps[WizardStepID.CALIBRATION],
                 self.all_steps[WizardStepID.DETECTION_VALIDATION],
+                self.all_steps[WizardStepID.MODEL_SELECTION],
                 self.all_steps[WizardStepID.IMPORT_CONFIG],
                 self.all_steps[WizardStepID.CONFIRMATION],
             ]
             log.info(
                 "wizard.active_steps_updated",
                 project_type=project_type,
-                step_count=6,
+                step_count=7,
             )
 
     def _show_step(self, step_index: int):

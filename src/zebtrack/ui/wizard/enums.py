@@ -80,8 +80,9 @@ class WizardStepID(Enum):
     LIVE_CONFIG = 3  # Only for live projects
     CALIBRATION = 4
     DETECTION_VALIDATION = 5
-    IMPORT_CONFIG = 6
-    CONFIRMATION = 7
+    MODEL_SELECTION = 6
+    IMPORT_CONFIG = 7
+    CONFIRMATION = 8
 
 
 def derive_import_action(
