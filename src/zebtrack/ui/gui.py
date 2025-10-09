@@ -1603,6 +1603,14 @@ class ApplicationGUI:
         self.analysis_video_label: Label | None = None
         self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
         self.analysis_status_label: ttk.Label | None = None
+        self.analysis_metadata_var = StringVar(
+            value=self._default_analysis_metadata_text()
+        )
+        self.analysis_task_var = StringVar(
+            value=self._default_analysis_task_text()
+        )
+        self.analysis_metadata_label: ttk.Label | None = None
+        self.analysis_task_label: ttk.Label | None = None
 
         # User options
         self.processing_interval_var = StringVar(
@@ -1723,6 +1731,16 @@ class ApplicationGUI:
 
         try:
             self.analysis_status_var.set("Nenhuma análise em andamento.")
+        except Exception:
+            pass
+
+        try:
+            self.analysis_task_var.set(self._default_analysis_task_text())
+        except Exception:
+            pass
+
+        try:
+            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
         except Exception:
             pass
 
@@ -3748,6 +3766,25 @@ class ApplicationGUI:
             padding=(0, 6),
         )
         self.analysis_status_label.pack(fill="x")
+
+        self.analysis_task_var.set(self._default_analysis_task_text())
+        self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+
+        info_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 2))
+        info_frame.pack(fill="x")
+
+        self.analysis_task_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_task_var,
+            padding=(0, 2),
+        )
+        self.analysis_task_label.pack(anchor="w")
+
+        self.analysis_metadata_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_metadata_var,
+        )
+        self.analysis_metadata_label.pack(anchor="w")
 
         # Progress components (initially hidden)
         self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
@@ -7086,6 +7123,10 @@ class ApplicationGUI:
         enable toggle."""
         self.analysis_active = True
         self.analysis_status_var.set("Preparando análise...")
+        if self.analysis_task_var is not None:
+            self.analysis_task_var.set("Preparando fila de análise...")
+        if self.analysis_metadata_var is not None:
+            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
         self.show_progress_bar()
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="normal")
@@ -7102,6 +7143,10 @@ class ApplicationGUI:
             self.cancel_proc_btn.config(state="disabled")
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
+        if self.analysis_task_var is not None:
+            self.analysis_task_var.set(self._default_analysis_task_text())
+        if self.analysis_metadata_var is not None:
+            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
         self._switch_to_zones_view()
 
     def display_analysis_frame(self, frame):
@@ -7184,6 +7229,128 @@ class ApplicationGUI:
                     labels["eta"].set(self._format_time(eta))
                 else:
                     labels["eta"].set("-")
+
+    def update_analysis_metadata(self, *, metadata: dict | None) -> None:
+        """Update the metadata display for the currently processed video."""
+        if not hasattr(self, "analysis_metadata_var") or self.analysis_metadata_var is None:
+            return
+
+        metadata = metadata or {}
+        group_display = self._resolve_group_display(metadata)
+        day_display = self._resolve_day_display(metadata)
+        subject_display = self._resolve_subject_display(metadata)
+
+        self.analysis_metadata_var.set(
+            f"Grupo: {group_display} | Dia: {day_display} | Indivíduo: {subject_display}"
+        )
+
+    def update_analysis_task_status(
+        self,
+        *,
+        index: int,
+        total: int,
+        experiment_id: str | None = None,
+        step: str | None = None,
+    ) -> None:
+        """Update the task summary indicating which video is being processed."""
+        if not hasattr(self, "analysis_task_var") or self.analysis_task_var is None:
+            return
+
+        total_videos = max(int(total) if total is not None else 0, 1)
+        current_index = max(int(index) if index is not None else 0, 0) + 1
+
+        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
+
+        if experiment_id:
+            exp_text = str(experiment_id).strip()
+            if exp_text:
+                parts.append(f"— {exp_text}")
+
+        if step:
+            step_text = str(step).strip()
+            if step_text:
+                if step_text.lower().startswith("etapa:"):
+                    step_text = step_text[6:].strip()
+                if step_text:
+                    parts.append(f"• {step_text}")
+
+        self.analysis_task_var.set(" ".join(parts))
+
+    @staticmethod
+    def _default_analysis_metadata_text() -> str:
+        return "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
+
+    @staticmethod
+    def _default_analysis_task_text() -> str:
+        return "Nenhuma tarefa em andamento."
+
+    def _resolve_group_display(self, metadata: dict) -> str:
+        for key in (
+            "group_display_name",
+            "group_label",
+            "group_name",
+            "group_id",
+            "group",
+        ):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text
+        return "Sem Grupo"
+
+    def _resolve_day_display(self, metadata: dict) -> str:
+        for key in ("day_label", "day_display_name"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text if text.lower().startswith("dia") else f"Dia {text}"
+
+        for key in ("day", "day_id", "dia"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                formatted = self._format_day_display(value)
+                if formatted.lower() == "sem dia":
+                    return "Sem Dia"
+                return f"Dia {formatted}"
+
+        return "Sem Dia"
+
+    def _resolve_subject_display(self, metadata: dict) -> str:
+        for key in (
+            "subject_label",
+            "subject_display_name",
+            "subject",
+            "subject_id",
+            "animal",
+            "animal_id",
+            "individual",
+            "individuo",
+            "cobaia",
+        ):
+            value = metadata.get(key)
+            if value in (None, "", "None"):
+                continue
+
+            if isinstance(value, bool):
+                text = str(value).strip()
+                if text:
+                    return text
+
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if float(value).is_integer():
+                    return f"{int(value):02d}"
+                return str(value)
+
+            text = str(value).strip()
+            if not text:
+                continue
+            if text.isdigit():
+                return f"{int(text):02d}"
+            return text
+
+        return "Não informado"
 
     @staticmethod
     def _format_time(seconds: float) -> str:

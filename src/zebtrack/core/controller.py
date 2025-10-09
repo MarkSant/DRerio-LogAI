@@ -3313,6 +3313,56 @@ class AppController:
             item_count=len(existing_items),
         )
 
+    def _compose_analysis_view_metadata(
+        self,
+        *,
+        experiment_id: str,
+        video_path: str,
+        metadata_context: dict | None,
+        single_video_config: dict | None,
+    ) -> dict:
+        combined: dict = {}
+
+        entry = self.project_manager.find_video_entry(
+            path=video_path,
+            experiment_id=experiment_id,
+        )
+        if entry:
+            combined.update(dict(entry.get("metadata") or {}))
+            for key in ("group", "group_display_name", "day", "subject"):
+                value = entry.get(key)
+                if value not in (None, "") and key not in combined:
+                    combined[key] = value
+
+        if metadata_context:
+            for key, value in metadata_context.items():
+                if value in (None, ""):
+                    continue
+                combined[key] = value
+
+        if single_video_config:
+            mapping = {
+                "group_display_name": "group_display_name",
+                "group_label": "group_display_name",
+                "group_name": "group_display_name",
+                "group_id": "group",
+                "group": "group",
+                "day": "day",
+                "day_id": "day",
+                "subject": "subject",
+                "subject_id": "subject",
+                "animal": "subject",
+                "cobaia": "subject",
+            }
+            for source_key, target_key in mapping.items():
+                value = single_video_config.get(source_key)
+                if value in (None, ""):
+                    continue
+                combined.setdefault(target_key, value)
+
+        combined.setdefault("experiment_id", experiment_id)
+        return combined
+
     def _process_videos(
         self,
         videos_to_process: list[dict],
@@ -3324,6 +3374,7 @@ class AppController:
         designed to be run in a background thread.
         """
         log.info("controller.processing.start", count=len(videos_to_process))
+        total_videos = max(len(videos_to_process), 1)
 
         # Resolve intervals from config
         analysis_interval_frames = 10  # default
@@ -3421,6 +3472,29 @@ class AppController:
                             video_path=video_path,
                         )
 
+                analysis_view_metadata = self._compose_analysis_view_metadata(
+                    experiment_id=experiment_id,
+                    video_path=video_path,
+                    metadata_context=metadata_context,
+                    single_video_config=single_video_config,
+                )
+
+                metadata_payload = dict(analysis_view_metadata)
+                self.root.after(
+                    0,
+                    lambda meta=metadata_payload: self.view.update_analysis_metadata(
+                        metadata=meta
+                    ),
+                )
+                self.root.after(
+                    0,
+                    lambda idx=i, total=total_videos, eid=experiment_id: self.view.update_analysis_task_status(
+                        index=idx,
+                        total=total,
+                        experiment_id=eid,
+                    ),
+                )
+
                 self.project_manager.set_active_zone_video(video_path)
 
                 def progress_callback(
@@ -3447,6 +3521,18 @@ class AppController:
                         lambda p=progress_fraction, s=step_status: (
                             self.view.update_analysis_progress(p, s)
                         ),
+                    )
+                    self.root.after(
+                        0,
+                        lambda idx=i,
+                               total=total_videos,
+                               eid=experiment_id,
+                               step=status_message: self.view.update_analysis_task_status(
+                                   index=idx,
+                                   total=total,
+                                   experiment_id=eid,
+                                   step=step,
+                               ),
                     )
                     # Update processing statistics in real-time
                     if stats:

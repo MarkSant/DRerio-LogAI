@@ -79,6 +79,10 @@ class MockApplicationGUI:
         self.toggle_view_btn = Mock()
         self.cancel_proc_btn = Mock()
         self.analysis_status_var = MockVar("Nenhuma análise em andamento.")
+        self.analysis_metadata_var = MockVar(
+            "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
+        )
+        self.analysis_task_var = MockVar("Nenhuma tarefa em andamento.")
 
         self.progress_frame = MockFrame()
         self.progress_bar = MockProgressBar()
@@ -123,6 +127,7 @@ class MockApplicationGUI:
     def start_analysis_view_mode(self):
         self.analysis_active = True
         self.analysis_status_var.set("Preparando análise...")
+        self.analysis_task_var.set("Preparando fila de análise...")
         self.show_progress_bar()
         self.toggle_view_btn.config(state="normal")
         self.cancel_proc_btn.config(state="normal")
@@ -132,6 +137,10 @@ class MockApplicationGUI:
         self.analysis_active = False
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
+        self.analysis_task_var.set("Nenhuma tarefa em andamento.")
+        self.analysis_metadata_var.set(
+            "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
+        )
         self.toggle_view_btn.config(state="disabled")
         self.cancel_proc_btn.config(state="disabled")
         self._switch_to_zones_view()
