@@ -2,6 +2,7 @@
 """Test the analysis view toggle functionality."""
 
 import unittest
+from typing import Callable
 from unittest.mock import Mock
 
 
@@ -65,6 +66,19 @@ class MockNotebook:
         return self.selected
 
 
+class DummyCombobox:
+    def __init__(self):
+        self.values: list[str] = []
+        self._callbacks: dict[str, Callable] = {}
+
+    def configure(self, **kwargs):
+        if "values" in kwargs:
+            self.values = list(kwargs["values"])
+
+    def bind(self, event, callback):
+        self._callbacks[event] = callback
+
+
 class MockApplicationGUI:
     """Mock ApplicationGUI for testing the tab-based analysis view."""
 
@@ -93,10 +107,33 @@ class MockApplicationGUI:
 
         self.analysis_video_label = Mock()
 
+        self.track_selector_var = MockVar("Todos")
+        self.track_selector_widget = DummyCombobox()
+        self._available_track_options = ("Todos",)
+        self._current_detections = []
+        self._last_analysis_frame = None
+        self._analysis_overlay_image = None
+
         # Zone editing hooks (overridden in tests when needed)
         self._start_main_arena_drawing = Mock(return_value=True)
         self._start_roi_drawing = Mock(return_value=True)
         self._on_auto_detect_clicked = Mock(return_value=True)
+
+        self._reset_analysis_controls()
+
+    def _update_track_options(self, options):
+        normalized = tuple(options)
+        self._available_track_options = normalized
+        self.track_selector_widget.configure(values=list(normalized))
+        if self.track_selector_var.get() not in normalized:
+            self.track_selector_var.set(normalized[0] if normalized else "Todos")
+
+    def _reset_analysis_controls(self):
+        self._current_detections = []
+        self._last_analysis_frame = None
+        self._analysis_overlay_image = None
+        self._update_track_options(["Todos"])
+        self.track_selector_var.set("Todos")
 
     def show_progress_bar(self):
         if not self.progress_frame.winfo_viewable():
@@ -174,6 +211,8 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.assertTrue(self.gui.progress_frame.winfo_viewable())
         self.assertEqual(self.gui.progress_bar["value"], 0)
         self.assertEqual(self.gui.analysis_status_var.get(), "Preparando análise...")
+        self.assertEqual(self.gui.track_selector_var.get(), "Todos")
+        self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
 
         # Last call should set tab text
         self.assertEqual(
@@ -192,6 +231,8 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.assertEqual(
             self.gui.analysis_status_var.get(), "Nenhuma análise em andamento."
         )
+        self.assertEqual(self.gui.track_selector_var.get(), "Todos")
+        self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
 
         states = [
             call.kwargs

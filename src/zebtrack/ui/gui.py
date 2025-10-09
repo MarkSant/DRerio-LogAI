@@ -1792,6 +1792,17 @@ class ApplicationGUI:
         )
         self.analysis_metadata_label: ttk.Label | None = None
         self.analysis_task_label: ttk.Label | None = None
+        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
+        self.analysis_profile_label: ttk.Label | None = None
+        self.track_selector_var = StringVar(value="Todos")
+        self.track_selector_widget: ttk.Combobox | None = None
+        self.social_summary_var = StringVar(
+            value="Interações sociais: aguardando dados."
+        )
+        self._available_track_options: tuple[str, ...] = ("Todos",)
+        self._current_detections: list[tuple] = []
+        self._last_analysis_frame = None
+        self._analysis_overlay_image = None
 
         # User options
         self.processing_interval_var = StringVar(
@@ -1968,7 +1979,7 @@ class ApplicationGUI:
             try:
                 if self.analysis_video_label.winfo_exists():
                     self.analysis_video_label.configure(image="")
-                    self.analysis_video_label.image = None
+                    self._analysis_overlay_image = None
             except Exception:
                 pass
 
@@ -4323,6 +4334,39 @@ class ApplicationGUI:
             textvariable=self.analysis_metadata_var,
         )
         self.analysis_metadata_label.pack(anchor="w")
+
+        self.analysis_profile_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_profile_var,
+        )
+        self.analysis_profile_label.pack(anchor="w")
+
+        controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
+        controls_frame.pack(fill="x", pady=(4, 0))
+
+        ttk.Label(controls_frame, text="Track ID ativo:").grid(
+            row=0, column=0, sticky="w"
+        )
+
+        self.track_selector_widget = ttk.Combobox(
+            controls_frame,
+            textvariable=self.track_selector_var,
+            state="readonly",
+            values=list(self._available_track_options),
+            width=14,
+        )
+        self.track_selector_widget.grid(row=0, column=1, padx=(6, 12), sticky="w")
+        self.track_selector_widget.bind(
+            "<<ComboboxSelected>>", self._on_track_selection_changed
+        )
+
+        ttk.Label(
+            controls_frame,
+            textvariable=self.social_summary_var,
+            wraplength=360,
+            justify="left",
+        ).grid(row=0, column=2, sticky="w")
+        controls_frame.columnconfigure(2, weight=1)
 
         # Progress components (initially hidden)
         self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
@@ -6997,7 +7041,7 @@ class ApplicationGUI:
         if self.analysis_video_label:
             try:
                 self.analysis_video_label.configure(image="")
-                self.analysis_video_label.image = None
+                self._analysis_overlay_image = None
             except Exception:
                 pass
 
@@ -7510,7 +7554,7 @@ class ApplicationGUI:
         if self.analysis_video_label:
             try:
                 self.analysis_video_label.configure(image="")
-                self.analysis_video_label.image = None
+                self._analysis_overlay_image = None
             except Exception:
                 pass
 
@@ -7782,6 +7826,7 @@ class ApplicationGUI:
             self.analysis_task_var.set("Preparando fila de análise...")
         if self.analysis_metadata_var is not None:
             self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+        self._reset_analysis_controls()
         self.show_progress_bar()
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="normal")
@@ -7802,24 +7847,14 @@ class ApplicationGUI:
             self.analysis_task_var.set(self._default_analysis_task_text())
         if self.analysis_metadata_var is not None:
             self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+        self._reset_analysis_controls()
         self._switch_to_zones_view()
 
     def display_analysis_frame(self, frame):
         """Display analysis frame in the overlay instead of separate progress bar."""
         try:
-            # During analysis, frames should already have overlays
-            # (detection boxes + zones) applied by the detector.draw_overlay in
-            # the controller. We use the frame as-is to preserve the detection
-            # bounding boxes.
-            frame_to_display = frame.copy()
-
-            # Converte e embute na análise overlay
-            frame_rgb = cv2.cvtColor(frame_to_display, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb)
-            imgtk = ImageTk.PhotoImage(image=img)
-            if self.analysis_video_label:
-                self.analysis_video_label.configure(image=imgtk)
-                self.analysis_video_label.image = imgtk  # keep reference
+            self._last_analysis_frame = frame.copy()
+            self._render_last_analysis_frame()
         except Exception:
             # Fallback to OpenCV window if Pillow not installed or other error
             try:
@@ -7827,6 +7862,144 @@ class ApplicationGUI:
                 cv2.waitKey(1)
             except Exception:
                 pass
+
+    def update_detection_overlay(self, detections: list[tuple]) -> None:
+        """Receive the latest detection batch for track selection overlays."""
+        if detections is None:
+            detections = []
+
+        self._current_detections = list(detections)
+
+        observed_ids = {
+            str(det[5])
+            for det in self._current_detections
+            if len(det) >= 6 and det[5] is not None
+        }
+
+        ordered_ids = sorted(observed_ids)
+        options = ["Todos"] + ordered_ids
+        self._update_track_options(options)
+
+        if self._last_analysis_frame is not None:
+            self._render_last_analysis_frame()
+
+    def update_analysis_profile(self, profile_name: str) -> None:
+        """Update the label describing the active analysis profile."""
+        text = (profile_name or "default").strip() or "default"
+        self.analysis_profile_var.set(f"Perfil de análise: {text}")
+        self._reset_analysis_controls()
+
+    def update_social_summary(
+        self,
+        *,
+        profile: str,
+        stats: dict | None,
+        tracks: list[str] | None,
+    ) -> None:
+        """Display aggregated social proximity statistics for the active video."""
+        if stats and isinstance(stats, dict):
+            percentages = stats.get("social_time_percentage") or {}
+            if isinstance(percentages, dict) and percentages:
+                formatted = []
+                for key, value in sorted(percentages.items(), key=lambda item: str(item[0])):
+                    if isinstance(value, (int, float)):
+                        formatted.append(f"ID {key}: {value:.1f}%")
+                if formatted:
+                    self.social_summary_var.set(
+                        "Interações sociais: " + ", ".join(formatted)
+                    )
+                else:
+                    self.social_summary_var.set(
+                        "Interações sociais: nenhum agrupamento registrado."
+                    )
+            else:
+                self.social_summary_var.set(
+                    "Interações sociais: nenhum agrupamento registrado."
+                )
+        else:
+            self.social_summary_var.set("Interações sociais: aguardando dados.")
+
+        if tracks:
+            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
+            if normalized_tracks:
+                self._update_track_options(["Todos"] + normalized_tracks)
+
+    def _reset_analysis_controls(self) -> None:
+        """Reset track selector state and cached frames."""
+        self._current_detections = []
+        self._last_analysis_frame = None
+        self._analysis_overlay_image = None
+        self.track_selector_var.set("Todos")
+        self._update_track_options(["Todos"])
+
+    def _update_track_options(self, options: list[str]) -> None:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for option in options:
+            option_str = str(option).strip() or "Todos"
+            if option_str not in seen:
+                cleaned.append(option_str)
+                seen.add(option_str)
+
+        if not cleaned:
+            cleaned = ["Todos"]
+
+        normalized = tuple(cleaned)
+        if normalized == self._available_track_options:
+            return
+
+        self._available_track_options = normalized
+        if self.track_selector_widget:
+            self.track_selector_widget.configure(values=list(normalized))
+
+        if self.track_selector_var.get() not in normalized:
+            self.track_selector_var.set(normalized[0] if normalized else "Todos")
+
+    def _on_track_selection_changed(self, _event=None) -> None:
+        self._render_last_analysis_frame()
+
+    def _render_last_analysis_frame(self) -> None:
+        if self._last_analysis_frame is None:
+            return
+        frame = self._annotate_selected_tracks(self._last_analysis_frame.copy())
+        self._show_analysis_frame_image(frame)
+
+    def _annotate_selected_tracks(self, frame):
+        selected = self.track_selector_var.get() if hasattr(self, "track_selector_var") else "Todos"
+        selected = str(selected).strip()
+        if not selected or selected.lower() == "todos":
+            return frame
+
+        for det in self._current_detections:
+            if len(det) < 6:
+                continue
+            x1, y1, x2, y2, _, track_id = det
+            if track_id is None or str(track_id).strip() != selected:
+                continue
+            try:
+                x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
+            except (TypeError, ValueError):
+                continue
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 3)
+            cv2.putText(
+                frame,
+                f"ID {track_id}",
+                (x1, max(y1 - 8, 12)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 215, 255),
+                2,
+            )
+
+        return frame
+
+    def _show_analysis_frame_image(self, frame) -> None:
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame_rgb)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self._analysis_overlay_image = imgtk
+        if self.analysis_video_label:
+            self.analysis_video_label.configure(image=imgtk)
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""

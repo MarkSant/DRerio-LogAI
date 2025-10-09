@@ -10,6 +10,8 @@ from pathlib import Path
 from tkinter import messagebox
 from typing import Any, Literal, Tuple
 
+from copy import deepcopy
+
 import pandas as pd
 import structlog
 import yaml
@@ -29,6 +31,32 @@ AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 class ProjectManager:
     _SCAN_CACHE_TTL_SECONDS = 30.0
     _scan_cache: dict[str, dict[str, Any]] = {}
+
+    _PROFILE_SYNONYMS: dict[str, tuple[str, ...]] = {
+        "group": (
+            "group",
+            "group_id",
+            "group_name",
+            "group_display_name",
+        ),
+        "day": (
+            "day",
+            "day_id",
+            "day_label",
+            "day_display_name",
+        ),
+        "subject": (
+            "subject",
+            "subject_id",
+            "subject_label",
+            "individual",
+            "individuo",
+            "animal",
+            "animal_id",
+            "cobaia",
+        ),
+        "experiment_id": ("experiment_id", "video_name"),
+    }
 
     def __init__(self):
         self.project_path = None
@@ -1045,6 +1073,7 @@ class ProjectManager:
             "external_trigger_mode": safe_external_trigger,
             "detection_zones": {},
             "zones_by_video": {},
+            "analysis_profiles": [self._default_analysis_profile()],
         }
 
         # Add wizard metadata if provided (from wizard v1.5+)
@@ -1210,6 +1239,15 @@ class ProjectManager:
                 migration_applied = True
                 migrated_fields.append("display_interval_frames")
 
+            if "analysis_profiles" not in loaded_data or not loaded_data.get(
+                "analysis_profiles"
+            ):
+                loaded_data["analysis_profiles"] = [
+                    self._default_analysis_profile()
+                ]
+                migration_applied = True
+                migrated_fields.append("analysis_profiles")
+
             if "camera_index" not in loaded_data or loaded_data["camera_index"] is None:
                 loaded_data["camera_index"] = 0
                 migration_applied = True
@@ -1324,6 +1362,73 @@ class ProjectManager:
                 f"pasta.\n\nErro: {e}",
             )
             return False
+
+    def _default_analysis_profile(self) -> dict:
+        return {
+            "name": "default",
+            "criteria": {},
+            "track_ids": [],
+            "social": {"enabled": False, "radius_cm": 5.0},
+        }
+
+    def get_analysis_profiles(self) -> list[dict]:
+        profiles = self.project_data.get("analysis_profiles")
+        if not profiles:
+            profiles = [self._default_analysis_profile()]
+            self.project_data["analysis_profiles"] = profiles
+        return deepcopy(profiles)
+
+    def resolve_analysis_profile(self, metadata: dict | None) -> dict:
+        metadata = metadata or {}
+        profiles = self.get_analysis_profiles()
+
+        fallback = profiles[0] if profiles else self._default_analysis_profile()
+        for profile in profiles:
+            criteria = profile.get("criteria") or {}
+            if not criteria:
+                fallback = profile
+                continue
+            if self._profile_matches(criteria, metadata):
+                return profile
+
+        return fallback
+
+    def _profile_matches(self, criteria: dict, metadata: dict) -> bool:
+        for key, expected_values in criteria.items():
+            if expected_values in (None, [], ()):  # pragma: no cover - defensive
+                continue
+
+            expected_set = {
+                str(value).strip().lower()
+                for value in (expected_values if isinstance(expected_values, (list, tuple, set)) else [expected_values])
+                if value not in (None, "")
+            }
+            if not expected_set:
+                continue
+
+            keys_to_check = [key]
+            if key in self._PROFILE_SYNONYMS:
+                keys_to_check.extend(self._PROFILE_SYNONYMS[key])
+
+            match_found = False
+            for metadata_key in keys_to_check:
+                if metadata_key not in metadata:
+                    continue
+                value = metadata.get(metadata_key)
+                if value in (None, ""):
+                    continue
+                if isinstance(value, (list, tuple, set)):
+                    candidates = [str(item).strip().lower() for item in value]
+                else:
+                    candidates = [str(value).strip().lower()]
+                if any(candidate in expected_set for candidate in candidates):
+                    match_found = True
+                    break
+
+            if not match_found:
+                return False
+
+        return True
 
     def update_video_status(self, video_path, new_status):
         """

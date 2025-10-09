@@ -27,7 +27,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.analysis.reporter import Reporter
-from zebtrack.analysis.roi import ROI
+from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
@@ -3435,7 +3435,11 @@ class AppController:
                     # Always draw overlay on processed frames
                     self.detector.draw_overlay(frame, detections)
                     progress_callback(
-                        progress_fraction, "Gerando trajetória...", frame, stats
+                        progress_fraction,
+                        "Gerando trajetória...",
+                        frame,
+                        stats,
+                        detections=detections,
                     )
 
                 frame_num += 1
@@ -3647,7 +3651,11 @@ class AppController:
         experiment_id: str,
     ):
         def progress_callback(
-            progress_fraction, status_message, frame=None, stats=None
+            progress_fraction,
+            status_message,
+            frame=None,
+            stats=None,
+            detections=None,
         ):
             if self.cancel_event.is_set():
                 return
@@ -3687,6 +3695,15 @@ class AppController:
                         detected_frames=stats.get("detected_frames"),
                         start_time=stats.get("start_time"),
                         current_frame=stats.get("current_frame"),
+                    ),
+                )
+
+            if detections is not None:
+                payload = [tuple(det) for det in detections]
+                self.root.after(
+                    0,
+                    lambda items=payload: self.view.update_detection_overlay(
+                        items
                     ),
                 )
 
@@ -3975,6 +3992,7 @@ class AppController:
         metadata_context: dict | None,
         single_video_config: dict | None,
         progress_callback,
+        analysis_profile: dict | None,
     ) -> bool:
         trajectory_path = os.path.join(
             results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
@@ -3982,6 +4000,48 @@ class AppController:
         trajectory_df = self._load_trajectory_dataframe(trajectory_path, experiment_id)
         if trajectory_df is None:
             return False
+
+        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
+        requested_track_ids_raw = profile_dict.get("track_ids", [])
+        if isinstance(requested_track_ids_raw, (list, tuple, set)):
+            requested_track_ids = list(requested_track_ids_raw)
+        elif requested_track_ids_raw in (None, ""):
+            requested_track_ids = []
+        else:
+            requested_track_ids = [requested_track_ids_raw]
+
+        filtered_df = trajectory_df
+        resolved_track_ids: list[str] = []
+
+        if "track_id" in trajectory_df.columns:
+            resolved_track_ids = sorted(
+                {
+                    str(track)
+                    for track in trajectory_df["track_id"].dropna().unique().tolist()
+                }
+            )
+
+            if requested_track_ids:
+                requested_str = {
+                    str(track).strip() for track in requested_track_ids if track not in (None, "")
+                }
+
+                mask = trajectory_df["track_id"].astype(str).isin(requested_str)
+                narrowed = trajectory_df[mask]
+                if narrowed.empty:
+                    log.warning(
+                        "controller.analysis.profile_track_miss",
+                        video=experiment_id,
+                        requested=list(requested_str),
+                    )
+                else:
+                    filtered_df = narrowed
+                    resolved_track_ids = sorted(requested_str)
+        elif requested_track_ids:
+            log.warning(
+                "controller.analysis.profile_track_column_missing",
+                video=experiment_id,
+            )
 
         (
             metadata,
@@ -3998,6 +4058,14 @@ class AppController:
             experiment_id=experiment_id,
             video_path=video_path,
         )
+
+        if isinstance(profile_dict, dict):
+            profile_name = profile_dict.get("name")
+            if profile_name and isinstance(metadata, dict):
+                metadata.setdefault("analysis_profile", profile_name)
+            track_list = profile_dict.get("track_ids")
+            if track_list and isinstance(metadata, dict):
+                metadata.setdefault("analysis_profile_tracks", list(track_list))
 
         zone_data = self.project_manager.get_zone_data()
         arena_polygon_px = self._ensure_arena_polygon(arena_polygon_px, video_path)
@@ -4041,7 +4109,7 @@ class AppController:
             return False
 
         reporter = Reporter(
-            trajectory_df=trajectory_df,
+            trajectory_df=filtered_df,
             metadata=metadata,
             pixelcm_x=pixelcm_x,
             pixelcm_y=pixelcm_y,
@@ -4068,6 +4136,53 @@ class AppController:
             experiment_id=experiment_id,
             results_dir=results_dir,
             progress_callback=progress_callback,
+        )
+
+        social_summary: dict | None = None
+        raw_social_config = (
+            profile_dict.get("social") if isinstance(profile_dict, dict) else {}
+        )
+        social_config = (
+            raw_social_config if isinstance(raw_social_config, dict) else {}
+        )
+        social_enabled = bool(social_config.get("enabled"))
+        if (
+            social_enabled
+            and pixelcm_x is not None
+            and pixelcm_y is not None
+            and "track_id" in filtered_df.columns
+        ):
+            active_tracks = filtered_df["track_id"].dropna().unique().tolist()
+            if len(active_tracks) > 1:
+                try:
+                    radius_cm = float(social_config.get("radius_cm", 5.0))
+                except (TypeError, ValueError):
+                    radius_cm = 5.0
+
+                try:
+                    social_summary = ROIAnalyzer.analyze_social_proximity(
+                        filtered_df,
+                        radius_cm,
+                        pixelcm_x,
+                        pixelcm_y,
+                    )
+                except Exception:  # pragma: no cover - defensive
+                    log.warning(
+                        "controller.analysis.social_failed",
+                        video=experiment_id,
+                        exc_info=True,
+                    )
+
+        profile_name = profile_dict.get("name", "default")
+        self.root.after(
+            0,
+            lambda name=profile_name,
+            stats=social_summary,
+            tracks=resolved_track_ids: self.view.update_social_summary(
+                profile=name,
+                stats=stats,
+                tracks=tracks,
+            ),
         )
 
         if not single_video_config:
@@ -4106,24 +4221,28 @@ class AppController:
         analysis_interval_frames: int,
         display_interval_frames: int,
         output_base_dir: str,
+        experiment_id: str,
+        metadata_context: dict | None,
+        analysis_profile: dict | None,
     ) -> tuple[bool, str | None]:
         video_path = video_info.get("path")
         if not video_path:
             return False, None
 
-        experiment_id = os.path.splitext(os.path.basename(video_path))[0]
-        metadata_context = self._build_metadata_context(
-            video_info=video_info,
-            single_video_config=single_video_config,
-            experiment_id=experiment_id,
-            video_path=video_path,
-        )
+        if metadata_context is None:
+            metadata_context = self._build_metadata_context(
+                video_info=video_info,
+                single_video_config=single_video_config,
+                experiment_id=experiment_id,
+                video_path=video_path,
+            )
 
         analysis_view_metadata = self._compose_analysis_view_metadata(
             experiment_id=experiment_id,
             video_path=video_path,
             metadata_context=metadata_context,
             single_video_config=single_video_config,
+            analysis_profile=analysis_profile,
         )
         self._schedule_analysis_metadata_update(analysis_view_metadata)
         self._notify_task_status_start(
@@ -4174,6 +4293,7 @@ class AppController:
             metadata_context=metadata_context,
             single_video_config=single_video_config,
             progress_callback=progress_callback,
+            analysis_profile=analysis_profile,
         )
 
         return analysis_success, results_dir
@@ -4301,6 +4421,7 @@ class AppController:
         video_path: str,
         metadata_context: dict | None,
         single_video_config: dict | None,
+        analysis_profile: dict | None,
     ) -> dict:
         combined: dict = {}
 
@@ -4342,6 +4463,15 @@ class AppController:
                 combined.setdefault(target_key, value)
 
         combined.setdefault("experiment_id", experiment_id)
+
+        if analysis_profile and isinstance(analysis_profile, dict):
+            profile_name = analysis_profile.get("name")
+            if profile_name:
+                combined["analysis_profile"] = profile_name
+            track_ids = analysis_profile.get("track_ids")
+            if track_ids:
+                combined["analysis_profile_tracks"] = list(track_ids)
+
         return combined
 
     def _process_videos(
@@ -4379,6 +4509,58 @@ class AppController:
                         log.info("controller.processing.cancelled_by_user")
                         break
 
+                    video_path = video_info.get("path")
+                    experiment_id = (
+                        os.path.splitext(os.path.basename(video_path))[0]
+                        if isinstance(video_path, str) and video_path
+                        else f"video_{index + 1}"
+                    )
+                    metadata_context = self._build_metadata_context(
+                        video_info=video_info,
+                        single_video_config=single_video_config,
+                        experiment_id=experiment_id,
+                        video_path=video_path or "",
+                    )
+
+                    profile_context = metadata_context or single_video_config or {}
+
+                    try:
+                        analysis_profile = (
+                            self.project_manager.resolve_analysis_profile(
+                                profile_context
+                            )
+                        )
+                    except Exception:  # pragma: no cover - defensive
+                        log.warning(
+                            "controller.processing.profile_resolve_failed",
+                            video=experiment_id,
+                            exc_info=True,
+                        )
+                        analysis_profile = self.project_manager.resolve_analysis_profile(
+                            {}
+                        )
+
+                    profile_name = (
+                        analysis_profile.get("name", "default")
+                        if isinstance(analysis_profile, dict)
+                        else "default"
+                    )
+
+                    self.root.after(
+                        0,
+                        lambda name=profile_name: self.view.update_analysis_profile(
+                            name
+                        ),
+                    )
+                    self.root.after(
+                        0,
+                        lambda name=profile_name: self.view.update_social_summary(
+                            profile=name,
+                            stats=None,
+                            tracks=[],
+                        ),
+                    )
+
                     processed, results_dir = self._process_single_video(
                         index=index,
                         total_videos=total_videos,
@@ -4387,6 +4569,9 @@ class AppController:
                         analysis_interval_frames=analysis_interval_frames,
                         display_interval_frames=display_interval_frames,
                         output_base_dir=output_base_dir,
+                        experiment_id=experiment_id,
+                        metadata_context=metadata_context,
+                        analysis_profile=analysis_profile,
                     )
 
                     if results_dir:
