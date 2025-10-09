@@ -19,6 +19,8 @@ class TestAppController(unittest.TestCase):
     def setUp(self, mock_gui, mock_pm, mock_wm):
         """Set up a test environment before each test."""
         self.root = MagicMock()
+        self.root.after = MagicMock()
+        self.root.after_cancel = MagicMock()
 
         # The patched classes are passed as arguments to setUp
         self.mock_view = mock_gui.return_value
@@ -28,6 +30,13 @@ class TestAppController(unittest.TestCase):
         self._single_animal_original = (
             settings.video_processing.single_animal_per_aquarium
         )
+        self._event_queue_flag_original = (
+            settings.ui_features.enable_event_queue
+            if settings and settings.ui_features
+            else False
+        )
+        if settings and settings.ui_features:
+            settings.ui_features.enable_event_queue = False
 
         # Configure the mock WeightManager to return a predictable default weight
         self.mock_wm.get_default_weight.return_value = (
@@ -84,6 +93,8 @@ class TestAppController(unittest.TestCase):
         settings.video_processing.single_animal_per_aquarium = (
             self._single_animal_original
         )
+        if settings and settings.ui_features:
+            settings.ui_features.enable_event_queue = self._event_queue_flag_original
 
     def test_resolve_single_animal_mode_single_video_config(self):
         result = self.controller._resolve_single_animal_mode(
@@ -282,6 +293,48 @@ class TestAppController(unittest.TestCase):
         self.assertFalse(project_data["use_openvino"])
         self.mock_pm.save_project.assert_called()
         refresh_mock.assert_called()
+
+    def test_schedule_on_ui_uses_event_bus_when_enabled(self):
+        if not settings or not settings.ui_features:
+            self.skipTest("UI feature settings unavailable")
+
+        class StubGUI:
+            def __init__(self, root, controller, event_bus=None):
+                self.root = root
+                self.controller = controller
+                self.event_bus = event_bus
+
+            def process_events(self):
+                if self.event_bus is None:
+                    return
+                for event in self.event_bus.drain():
+                    payload = event.payload
+                    if hasattr(payload, "execute"):
+                        payload.execute()
+
+            def stop_event_bus_polling(self):
+                pass
+
+        with patch("zebtrack.core.controller.ProjectManager", return_value=self.mock_pm), patch(
+            "zebtrack.core.controller.WeightManager", return_value=self.mock_wm
+        ), patch("zebtrack.core.controller.ApplicationGUI", new=StubGUI):
+            settings.ui_features.enable_event_queue = True
+            controller = AppController(self.root)
+
+        self.assertIsNotNone(controller.ui_event_bus)
+        event_bus = controller.ui_event_bus
+        self.assertIsInstance(controller.view, StubGUI)
+        mock_callback = MagicMock()
+
+        self.root.after.reset_mock()
+        controller._schedule_on_ui(mock_callback, 42, example="test")
+        self.root.after.assert_not_called()
+        assert event_bus is not None
+        self.assertEqual(event_bus.size(), 1)
+        stub_view = cast(StubGUI, controller.view)
+        stub_view.process_events()
+        self.assertEqual(event_bus.size(), 0)
+        mock_callback.assert_called_once_with(42, example="test")
 
     @patch("zebtrack.core.controller.Recorder")
     @patch("zebtrack.core.controller.cv2.VideoCapture")

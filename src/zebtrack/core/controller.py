@@ -38,6 +38,7 @@ from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
+from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.utils import IntegrityError
 
@@ -76,8 +77,20 @@ class AppController:
         self.is_recording = False
         self.timed_recording_job = None
 
+        ui_features = getattr(settings, "ui_features", None)
+        self._use_event_bus = bool(
+            ui_features and getattr(ui_features, "enable_event_queue", False)
+        )
+        self.ui_event_bus: EventBus | None = EventBus() if self._use_event_bus else None
+        if self._use_event_bus:
+            log.info("controller.event_bus.enabled")
+
         # Create view after core state is ready so it can reflect it
-        self.view = ApplicationGUI(root, self)
+        self.view = ApplicationGUI(
+            root,
+            self,
+            event_bus=self.ui_event_bus if self._use_event_bus else None,
+        )
         # Other initializations...
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
@@ -111,6 +124,11 @@ class AppController:
 
     def on_close(self):
         if self.view.ask_ok_cancel("Sair", "Deseja realmente sair?"):
+            if hasattr(self.view, "stop_event_bus_polling"):
+                try:
+                    self.view.stop_event_bus_polling()
+                except Exception:
+                    log.warning("controller.event_bus.stop_failed", exc_info=True)
             self.join_threads()
             self.root.destroy()
 
@@ -152,6 +170,19 @@ class AppController:
         self.arduino = None
 
     def _schedule_on_ui(self, func, *args, **kwargs):
+        if self.ui_event_bus is not None:
+            published = self.ui_event_bus.publish_callable(func, *args, **kwargs)
+            if not published:
+                log.warning(
+                    "controller.event_bus.publish_failed",
+                    callback=getattr(func, "__name__", repr(func)),
+                )
+                try:
+                    self.root.after(0, lambda: func(*args, **kwargs))
+                except Exception:
+                    func(*args, **kwargs)
+            return
+
         try:
             self.root.after(0, lambda: func(*args, **kwargs))
         except Exception:

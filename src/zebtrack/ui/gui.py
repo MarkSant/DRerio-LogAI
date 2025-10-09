@@ -29,6 +29,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
+from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
     schedule_maximize,
@@ -1711,12 +1713,16 @@ class ApplicationGUI:
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
-    def __init__(self, root, controller):
+    def __init__(self, root, controller, event_bus: EventBus | None = None):
         """
         Inicializa a ApplicationGUI.
         """
         self.root = root
         self.controller = controller
+        self.event_bus = event_bus
+        self._event_bus_after_id: int | None = None
+        self._event_bus_poll_interval_ms = 50
+        self._event_bus_handlers: dict[EventType, Callable[[Any], None]] = {}
         self.root.title("Controlador Zebtrack")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
@@ -1854,6 +1860,10 @@ class ApplicationGUI:
         self._configure_styles()
         self._create_welcome_frame()
 
+        if self.event_bus is not None:
+            self._register_event_bus_handlers()
+            self._schedule_event_bus_poll()
+
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
         """Compose a compact legend string for the status glyphs."""
         legend_parts = [
@@ -1865,6 +1875,67 @@ class ApplicationGUI:
             legend_parts.append(f"{STATUS_SYMBOLS['summary']} ✓ Sumário")
         legend_parts.append("✗ Ausente")
         return "Legenda: " + " | ".join(legend_parts)
+
+    # --- Event bus helpers -------------------------------------------------
+
+    def _register_event_bus_handlers(self) -> None:
+        self._event_bus_handlers = {
+            EventType.CALLABLE: self._handle_callable_event,
+        }
+
+    def _handle_callable_event(self, payload: CallableEvent) -> None:
+        try:
+            payload.execute()
+        except Exception:
+            log.warning("gui.event_bus.callable_failed", exc_info=True)
+
+    def _schedule_event_bus_poll(self) -> None:
+        if self.event_bus is None:
+            return
+        if self._event_bus_after_id is None:
+            self._event_bus_after_id = self.root.after(
+                self._event_bus_poll_interval_ms,
+                self._poll_event_bus,
+            )
+
+    def _poll_event_bus(self) -> None:
+        self._event_bus_after_id = None
+        if self.event_bus is None:
+            return
+
+        events = self.event_bus.drain(max_items=50)
+        processed = 0
+        for event in events:
+            handler = self._event_bus_handlers.get(event.type)
+            if handler is None:
+                log.warning(
+                    "gui.event_bus.unhandled_event",
+                    event_type=event.type.name,
+                )
+                continue
+            try:
+                handler(event.payload)
+                processed += 1
+            except Exception:
+                log.warning(
+                    "gui.event_bus.handler_error",
+                    event_type=event.type.name,
+                    exc_info=True,
+                )
+
+        if processed:
+            log.debug("gui.event_bus.processed", count=processed)
+
+        self._schedule_event_bus_poll()
+
+    def stop_event_bus_polling(self) -> None:
+        if self._event_bus_after_id is not None:
+            try:
+                self.root.after_cancel(self._event_bus_after_id)
+            except Exception:
+                log.warning("gui.event_bus.stop_failed", exc_info=True)
+            finally:
+                self._event_bus_after_id = None
 
     @staticmethod
     def _get_zone_summary_helper_text() -> str:
