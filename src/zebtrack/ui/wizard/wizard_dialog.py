@@ -10,7 +10,6 @@ from tkinter.simpledialog import Dialog
 
 import structlog
 
-from zebtrack.ui.window_utils import maximize_window, schedule_maximize
 from zebtrack.ui.wizard.cache import WizardCache
 from zebtrack.ui.wizard.calibration_step import CalibrationStep
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
@@ -97,7 +96,6 @@ class WizardDialog(Dialog):
         Returns:
             Widget: Widget to receive initial focus (or None)
         """
-        schedule_maximize(self)
         try:
             self.resizable(True, True)
         except Exception as exc:  # pragma: no cover - defensive
@@ -317,7 +315,6 @@ class WizardDialog(Dialog):
         self.minsize(int(min_width), int(min_height))
 
         self._geometry_initialized = True
-        maximize_window(self)
 
     def _update_minimum_size(self):
         """Refresh minimum size to accommodate the current step content."""
