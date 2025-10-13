@@ -393,6 +393,13 @@ class AppController:
         )
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
+        if "use_single_subject_tracker" not in kwargs:
+            kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
+        else:
+            kwargs["use_single_subject_tracker"] = bool(
+                kwargs["use_single_subject_tracker"]
+            )
+
         if animal_method == "det" and animals_per_aquarium != 1:
             self.view.show_error(
                 "Configuração Inválida",
@@ -434,6 +441,7 @@ class AppController:
             'recording_duration_s', 'use_countdown', 'countdown_duration_s',
             'analysis_interval_frames', 'display_interval_frames',
             'camera_index', 'use_arduino', 'arduino_port',
+            'use_single_subject_tracker',
             # Live project params (also valid for pre-recorded if user wants to
             # track design)
             'experiment_days', 'subjects_per_group', 'num_groups', 'group_names',

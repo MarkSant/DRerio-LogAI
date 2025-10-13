@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
+from zebtrack.settings import settings
 
 
 class TestProjectManager(unittest.TestCase):
@@ -430,6 +431,7 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["calibration"]["aquarium_height_cm"], 20.0)
             self.assertIn("tracking", data)
             self.assertIn("use_single_subject_tracker", data["tracking"])
+            self.assertFalse(data["tracking"]["use_single_subject_tracker"])
 
     def test_create_project_default_animals_per_aquarium(self):
         """Test creating a project with default animals_per_aquarium value."""
@@ -450,9 +452,9 @@ class TestProjectManager(unittest.TestCase):
             # Check default values
             self.assertEqual(data["calibration"]["num_aquariums"], 1)
             self.assertEqual(data["calibration"]["animals_per_aquarium"], 1)
-            self.assertFalse(
+            self.assertTrue(
                 data["tracking"]["use_single_subject_tracker"],
-                "Expected single-subject tracker to default to False",
+                "Expected single-subject tracker to enable for single-animal projects",
             )
 
     def test_create_project_persists_camera_and_arduino_settings(self):
@@ -518,6 +520,10 @@ class TestProjectManager(unittest.TestCase):
         self.assertIn("tracking", pm.project_data)
         self.assertIn(
             "use_single_subject_tracker", pm.project_data["tracking"]
+        )
+        self.assertEqual(
+            pm.project_data["tracking"]["use_single_subject_tracker"],
+            settings.tracking.use_single_subject_tracker,
         )
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):

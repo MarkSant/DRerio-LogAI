@@ -46,6 +46,7 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertEqual(result["num_aquariums"], 1)
         self.assertEqual(result["animals_per_aquarium"], 1)
         self.assertEqual(result["analysis_interval_frames"], 10)
+        self.assertTrue(result["use_single_subject_tracker"])
 
         # Verify no experimental design
         self.assertIsNone(result["experiment_days"])
@@ -100,6 +101,7 @@ class TestWizardAdapter(unittest.TestCase):
         self.assertEqual(result["experiment_days"], 2)
         # subjects_per_group should be calculated from max of subjects dict
         self.assertEqual(result["subjects_per_group"], 3)  # max(3, 3) = 3
+        self.assertTrue(result["use_single_subject_tracker"])
 
         # Verify per-video metadata enrichment
         first_video = result["video_files"][0]

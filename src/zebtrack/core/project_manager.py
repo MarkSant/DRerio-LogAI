@@ -1153,11 +1153,12 @@ class ProjectManager:
         recording_duration_s: int = 0,
         use_countdown: bool = False,
         countdown_duration_s: int = 0,
+        use_single_subject_tracker: bool | None = None,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
-    camera_index: int = 0,
-    use_arduino: bool = False,
-    arduino_port: str = "",
+        camera_index: int = 0,
+        use_arduino: bool = False,
+        arduino_port: str = "",
         external_trigger_mode: bool = False,
         # New live project params
         experiment_days: int | None = None,
@@ -1205,6 +1206,12 @@ class ProjectManager:
         safe_use_arduino = bool(use_arduino)
         safe_arduino_port = arduino_port or ""
         safe_external_trigger = bool(external_trigger_mode) and safe_use_arduino
+        if use_single_subject_tracker is None:
+            tracker_pref = animals_per_aquarium == 1 or bool(
+                settings.tracking.use_single_subject_tracker
+            )
+        else:
+            tracker_pref = bool(use_single_subject_tracker)
 
         self.project_data = {
             "project_name": os.path.basename(project_path),
@@ -1239,7 +1246,7 @@ class ProjectManager:
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
             "tracking": {
-                "use_single_subject_tracker": settings.tracking.use_single_subject_tracker,
+                "use_single_subject_tracker": tracker_pref,
             },
             "detection_zones": {},
             "zones_by_video": {},

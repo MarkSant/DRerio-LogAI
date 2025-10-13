@@ -286,12 +286,16 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         # Detection methods (use defaults from settings)
         "aquarium_method": "seg",
         "animal_method": "det",
+        "use_single_subject_tracker": False,
         # Experimental design (initialized to None, populated later if applicable)
         "experiment_days": None,
         "subjects_per_group": None,
         "num_groups": None,
         "group_names": None,
     }
+
+    animals_per_aquarium = controller_data["animals_per_aquarium"]
+    controller_data["use_single_subject_tracker"] = animals_per_aquarium == 1
 
     if "use_openvino" in wizard_data:
         controller_data["use_openvino"] = bool(wizard_data.get("use_openvino"))

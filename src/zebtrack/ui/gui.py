@@ -1539,12 +1539,15 @@ class CreateProjectDialog(simpledialog.Dialog):
         # Use video_paths if available, fallback to empty list
         video_paths = getattr(self, 'video_paths', [])
 
+        num_aquariums = int(self.num_aquariums_var.get())
+        animals_per_aquarium = int(self.animals_per_aquarium_var.get())
+
         self.result = {
             "project_path": self.project_path,
             "project_type": self.project_type_var.get(),
             "video_files": video_paths,  # Now can contain files AND folders
-            "num_aquariums": int(self.num_aquariums_var.get()),
-            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
+            "num_aquariums": num_aquariums,
+            "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "use_timed_recording": self.use_timed_recording_var.get(),
@@ -1555,6 +1558,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             "display_interval_frames": int(self.display_interval_var.get()),
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
+            "use_single_subject_tracker": animals_per_aquarium == 1,
             # Initialize new keys to None
             "experiment_days": None,
             "subjects_per_group": None,
@@ -9673,20 +9677,22 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 "Todos os campos de configuração devem ser números válidos e "
                 "positivos.",
             )
-            return 0
-        return 1
+            return False
+        return True
 
     def apply(self):
         analysis_interval = int(self.analysis_interval_var.get())
         display_interval = int(self.display_interval_var.get())
+        num_aquariums = int(self.num_aquariums_var.get())
+        animals_per_aquarium = int(self.animals_per_aquarium_var.get())
         log.info(
             "single_video_dialog.apply",
             analysis_interval=analysis_interval,
             display_interval=display_interval,
         )
         self.result = {
-            "num_aquariums": int(self.num_aquariums_var.get()),
-            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
+            "num_aquariums": num_aquariums,
+            "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
@@ -9699,6 +9705,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
             "use_openvino": self.use_openvino_var.get(),
+            "use_single_subject_tracker": animals_per_aquarium == 1,
         }
 
 
@@ -9762,8 +9769,8 @@ class StartRecordingDialog(simpledialog.Dialog):
     def validate(self):
         if not all([self.day_var.get(), self.group_var.get(), self.subject_var.get()]):
             messagebox.showerror("Erro", "Todos os campos são obrigatórios.")
-            return 0
-        return 1
+            return False
+        return True
 
     def apply(self):
         self.result = {
