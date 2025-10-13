@@ -1238,6 +1238,9 @@ class ProjectManager:
             "use_arduino": safe_use_arduino,
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
+            "tracking": {
+                "use_single_subject_tracker": settings.tracking.use_single_subject_tracker,
+            },
             "detection_zones": {},
             "zones_by_video": {},
             "analysis_profiles": [self._default_analysis_profile()],
@@ -1415,6 +1418,29 @@ class ProjectManager:
                 ]
                 migration_applied = True
                 migrated_fields.append("analysis_profiles")
+
+            tracking_defaults = {
+                "use_single_subject_tracker": settings.tracking.use_single_subject_tracker
+            }
+            if "tracking" not in loaded_data or not isinstance(
+                loaded_data.get("tracking"), dict
+            ):
+                loaded_data["tracking"] = dict(tracking_defaults)
+                migration_applied = True
+                migrated_fields.append("tracking")
+            else:
+                existing_tracking = loaded_data["tracking"]
+                if (
+                    "use_single_subject_tracker" not in existing_tracking
+                    or existing_tracking["use_single_subject_tracker"] is None
+                ):
+                    existing_tracking["use_single_subject_tracker"] = tracking_defaults[
+                        "use_single_subject_tracker"
+                    ]
+                    migration_applied = True
+                    migrated_fields.append(
+                        "tracking.use_single_subject_tracker"
+                    )
 
             if "roi_templates" not in loaded_data or not isinstance(
                 loaded_data.get("roi_templates"), list

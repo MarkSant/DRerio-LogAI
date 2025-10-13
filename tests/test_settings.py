@@ -52,6 +52,7 @@ trajectory_smoothing:
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
                 self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.25)
                 self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.15)
+                self.assertFalse(settings.tracking.use_single_subject_tracker)
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
                 self.assertEqual(settings.detection_zones.roi_polygons, [])
@@ -249,6 +250,24 @@ ui_features:
 
         self.assertTrue(loaded.ui_features.use_wizard_for_project_creation)
         self.assertTrue(loaded.ui_features.enable_event_queue)
+
+    def test_tracking_settings_override(self):
+        base_yaml = self.mock_yaml_content
+        override_yaml = """
+tracking:
+  use_single_subject_tracker: true
+"""
+
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            return mock_open(read_data=base_yaml)()
+
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                loaded = load_settings()
+
+        self.assertTrue(loaded.tracking.use_single_subject_tracker)
 
     def test_trajectory_smoothing_validation(self):
         invalid_yaml = self.mock_yaml_content + """

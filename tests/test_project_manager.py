@@ -428,6 +428,8 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["calibration"]["animals_per_aquarium"], 3)
             self.assertEqual(data["calibration"]["aquarium_width_cm"], 15.0)
             self.assertEqual(data["calibration"]["aquarium_height_cm"], 20.0)
+            self.assertIn("tracking", data)
+            self.assertIn("use_single_subject_tracker", data["tracking"])
 
     def test_create_project_default_animals_per_aquarium(self):
         """Test creating a project with default animals_per_aquarium value."""
@@ -448,6 +450,10 @@ class TestProjectManager(unittest.TestCase):
             # Check default values
             self.assertEqual(data["calibration"]["num_aquariums"], 1)
             self.assertEqual(data["calibration"]["animals_per_aquarium"], 1)
+            self.assertFalse(
+                data["tracking"]["use_single_subject_tracker"],
+                "Expected single-subject tracker to default to False",
+            )
 
     def test_create_project_persists_camera_and_arduino_settings(self):
         """Projects should persist camera index and Arduino configuration."""
@@ -508,6 +514,10 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(
             pm.project_data["model_overrides"],
             {"active_weight": None, "use_openvino": None},
+        )
+        self.assertIn("tracking", pm.project_data)
+        self.assertIn(
+            "use_single_subject_tracker", pm.project_data["tracking"]
         )
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):

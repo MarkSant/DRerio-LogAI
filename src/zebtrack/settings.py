@@ -173,6 +173,18 @@ class TrajectorySmoothingSettings(BaseModel):
         return self
 
 
+class TrackingSettings(BaseModel):
+    """Toggle options that affect tracker selection and behavior."""
+
+    use_single_subject_tracker: bool = Field(
+        False,
+        description=(
+            "When True, prefer the lightweight single-subject tracker instead of "
+            "ByteTrack for single-animal experiments."
+        ),
+    )
+
+
 class DetectionZonesSettings(BaseModel):
     """Defines the coordinates for areas of interest in the camera frame."""
 
@@ -273,6 +285,10 @@ class Settings(BaseModel):
         description="Default thresholds used by the ByteTrack tracker.",
     )
     video_processing: VideoProcessingSettings
+    tracking: TrackingSettings = Field(
+        default_factory=TrackingSettings,  # type: ignore[arg-type]
+        description="Tracker selection toggles and preferences.",
+    )
     detection_zones: DetectionZonesSettings = Field(
         default_factory=DetectionZonesSettings
     )
