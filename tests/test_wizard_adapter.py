@@ -165,6 +165,27 @@ class TestWizardAdapter(unittest.TestCase):
         )
         self.assertEqual(result["_wizard_metadata"]["roi_merge_strategy"], "replace")
 
+    def test_adapt_propagates_use_openvino_selection(self):
+        """Adapter should propagate OpenVINO toggles to controller data."""
+        wizard_data = {
+            "wizard_schema_version": 3,
+            "created_at": "2025-10-04T10:00:00Z",
+            "project_type": ProjectType.EXPLORATORY.value,
+            "project_name": "OpenVINO_Project",
+            "project_path": "/path/to/OpenVINO_Project",
+            "video_paths": ["/path/to/video1.mp4"],
+            "scanned_videos": [
+                {"path": "/path/to/video1.mp4", "has_complete_data": False}
+            ],
+            "use_openvino": True,
+        }
+
+        result = adapt_wizard_data_to_controller_format(wizard_data)
+
+        self.assertTrue(result["use_openvino"])
+        metadata = result.get("_wizard_metadata", {})
+        self.assertTrue(metadata.get("use_openvino"))
+
     def test_extract_parquet_import_plan(self):
         """extract_parquet_import_plan should extract import configuration."""
         wizard_data = {

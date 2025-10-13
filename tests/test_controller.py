@@ -455,6 +455,30 @@ class TestAppController(unittest.TestCase):
         )
         self.mock_view._load_project_view.assert_called_once()
 
+    def test_create_project_workflow_applies_openvino_flag(self):
+        """Controller should honour incoming OpenVINO toggle when creating project."""
+        self.mock_pm.create_new_project.reset_mock()
+        self.mock_pm.create_new_project.return_value = True
+
+        self.controller.use_openvino = False
+
+        with patch.object(self.controller, "setup_detector", return_value=True):
+            self.controller.create_project_workflow(
+                project_path="/fake/parent/openvino_project",
+                project_type="live",
+                use_openvino=True,
+                video_files=[],
+                num_aquariums=1,
+                animals_per_aquarium=1,
+                aquarium_width_cm=10.0,
+                aquarium_height_cm=10.0,
+            )
+
+        self.assertTrue(self.controller.use_openvino)
+        self.mock_pm.create_new_project.assert_called_once()
+        call_kwargs = self.mock_pm.create_new_project.call_args.kwargs
+        self.assertTrue(call_kwargs["use_openvino"])
+
     def test_create_project_workflow_failure(self):
         """
         Test the project creation workflow when the project manager fails.

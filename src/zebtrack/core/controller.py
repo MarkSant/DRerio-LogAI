@@ -410,6 +410,9 @@ class AppController:
                 animals_per_aquarium=animals_per_aquarium,
             )
 
+        if "use_openvino" in kwargs:
+            self.set_openvino_usage(kwargs["use_openvino"])
+
         # Add the currently selected model info to the project data
         kwargs["active_weight"] = self.active_weight_name
         kwargs["use_openvino"] = self.use_openvino

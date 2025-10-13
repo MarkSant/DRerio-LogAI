@@ -14,6 +14,7 @@ from typing import Optional
 import structlog
 
 from zebtrack.ui.wizard.enums import ProjectType
+from zebtrack.settings import settings
 
 log = structlog.get_logger()
 
@@ -292,6 +293,16 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "group_names": None,
     }
 
+    if "use_openvino" in wizard_data:
+        controller_data["use_openvino"] = bool(wizard_data.get("use_openvino"))
+    else:
+        use_openvino_default = False
+        try:
+            use_openvino_default = bool(settings.model_selection.use_openvino)
+        except AttributeError:
+            use_openvino_default = False
+        controller_data["use_openvino"] = use_openvino_default
+
     video_files: list[dict] = []
 
     detected_design = wizard_data.get("detected_design")
@@ -388,6 +399,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "parquet_summary": wizard_data.get("parquet_summary"),
         "video_count": wizard_data.get("video_count"),
         "folder_preview": wizard_data.get("folder_preview"),
+        "use_openvino": controller_data.get("use_openvino"),
     }
 
     log.info(
