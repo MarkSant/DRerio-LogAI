@@ -951,6 +951,17 @@ class AppController:
                 base_height=settings.camera.desired_height,
             )
 
+            tracker_pref = self._resolve_single_subject_tracker_preference(None)
+            if tracker_pref is None:
+                tracker_pref = settings.tracking.use_single_subject_tracker
+            else:
+                settings.tracking.use_single_subject_tracker = tracker_pref
+            self._configure_single_subject_tracker(tracker_pref)
+            log.info(
+                "detector.single_subject_tracker.configured",
+                enabled=tracker_pref,
+            )
+
             # Set context for tracking
             if hasattr(plugin_instance, "set_context"):
                 plugin_instance.set_context("tracking")
@@ -3656,6 +3667,16 @@ class AppController:
                 calibration=cal,
             )
 
+            if self.detector and hasattr(self.detector, "reset_tracking_state"):
+                try:
+                    self.detector.reset_tracking_state()
+                except Exception:  # pragma: no cover - defensive
+                    log.warning(
+                        "controller.tracking.reset_tracker_failed",
+                        plugin=getattr(self.detector.plugin, "__class__", type(self.detector)),
+                        exc_info=True,
+                    )
+
             frame_num = 0
             processed_frames_count = 0
             detected_frames_count = 0  # Frames that actually have detections
@@ -3676,7 +3697,6 @@ class AppController:
                     detections, _ = self.detector.process_frame(
                         frame, project_type="pre-recorded"
                     )
-                    detections = self._apply_single_animal_track_ids(detections)
 
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
@@ -3775,6 +3795,48 @@ class AppController:
 
         return None
 
+    def _resolve_single_subject_tracker_preference(
+        self, single_video_config: dict | None
+    ) -> bool | None:
+        """Determine if the lightweight single-subject tracker should be used."""
+
+        if single_video_config is not None:
+            if "use_single_subject_tracker" in single_video_config:
+                value = single_video_config.get("use_single_subject_tracker")
+                if value is not None:
+                    enabled = bool(value)
+                    log.debug(
+                        "controller.single_subject_tracker.resolved_single_video",
+                        enabled=enabled,
+                    )
+                    return enabled
+
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        tracking_config = project_data.get("tracking")
+        if isinstance(tracking_config, dict):
+            value = tracking_config.get("use_single_subject_tracker")
+            if value is not None:
+                enabled = bool(value)
+                log.debug(
+                    "controller.single_subject_tracker.resolved_project",
+                    enabled=enabled,
+                )
+                return enabled
+
+        return None
+
+    def _configure_single_subject_tracker(self, enabled: bool) -> None:
+        if not self.detector:
+            return
+
+        try:
+            self.detector.set_single_subject_mode(bool(enabled))
+        except AttributeError:  # pragma: no cover - detector without support
+            log.debug(
+                "controller.single_subject_tracker.unavailable",
+                plugin=getattr(self.detector, "plugin", "unknown"),
+            )
+
     def _determine_processing_intervals(
         self, single_video_config: dict | None
     ) -> tuple[int, int]:
@@ -3812,6 +3874,13 @@ class AppController:
         previous_mode = settings.video_processing.single_animal_per_aquarium
         resolved_mode = self._resolve_single_animal_mode(single_video_config)
 
+        previous_tracker_pref = settings.tracking.use_single_subject_tracker
+        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(
+            single_video_config
+        )
+        if resolved_tracker_pref is None:
+            resolved_tracker_pref = previous_tracker_pref
+
         if resolved_mode is not None and resolved_mode != previous_mode:
             settings.video_processing.single_animal_per_aquarium = resolved_mode
             log.info(
@@ -3820,6 +3889,20 @@ class AppController:
                 previous=previous_mode,
                 scope="single_video" if single_video_config else "project",
             )
+
+        tracker_changed = resolved_tracker_pref != previous_tracker_pref
+        if tracker_changed:
+            settings.tracking.use_single_subject_tracker = resolved_tracker_pref
+            log.info(
+                "controller.processing.single_subject_tracker",
+                enabled=resolved_tracker_pref,
+                previous=previous_tracker_pref,
+                scope="single_video" if single_video_config else "project",
+            )
+
+        self._configure_single_subject_tracker(
+            settings.tracking.use_single_subject_tracker
+        )
 
         try:
             yield settings.video_processing.single_animal_per_aquarium
@@ -3833,6 +3916,19 @@ class AppController:
                     "controller.processing.single_animal_mode_restored",
                     restored=previous_mode,
                 )
+
+            if tracker_changed:
+                settings.tracking.use_single_subject_tracker = (
+                    previous_tracker_pref
+                )
+                log.info(
+                    "controller.processing.single_subject_tracker_restored",
+                    restored=previous_tracker_pref,
+                )
+
+            self._configure_single_subject_tracker(
+                settings.tracking.use_single_subject_tracker
+            )
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
         self.root.after(0, self.view.show_progress_bar)
@@ -4469,20 +4565,6 @@ class AppController:
             )
 
         return True
-
-    def _apply_single_animal_track_ids(
-        self, detections: list[tuple]
-    ) -> list[tuple]:
-        if not settings.video_processing.single_animal_per_aquarium:
-            return detections
-
-        if not detections:
-            return detections
-
-        return [
-            (x1, y1, x2, y2, confidence, 1)
-            for x1, y1, x2, y2, confidence, _ in detections
-        ]
 
     def _process_single_video(
         self,

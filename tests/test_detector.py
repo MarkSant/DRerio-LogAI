@@ -13,6 +13,7 @@ class MockDetectorPlugin(DetectorPlugin):
     def __init__(self, model_path: str = "mock_model"):
         self.model_path = model_path
         self._detect_return_value = []
+        self.single_subject_mode = False
 
     def detect(self, frame: np.ndarray):
         # Allow configuring the return value for different test cases
@@ -29,6 +30,9 @@ class MockDetectorPlugin(DetectorPlugin):
     # Test helper to configure the mock's output
     def set_detect_return_value(self, value):
         self._detect_return_value = value
+
+    def set_use_single_subject_mode(self, enabled: bool) -> None:
+        self.single_subject_mode = bool(enabled)
 
 
 class TestDetector(unittest.TestCase):
@@ -85,6 +89,13 @@ class TestDetector(unittest.TestCase):
         self.detector.process_frame(dummy_frame, "live")
         self.mock_plugin.detect.assert_called_once_with(dummy_frame)
 
+    def test_set_single_subject_mode_configures_plugin(self):
+        self.detector.set_single_subject_mode(True)
+        self.assertTrue(self.mock_plugin.single_subject_mode)
+
+        self.detector.set_single_subject_mode(False)
+        self.assertFalse(self.mock_plugin.single_subject_mode)
+
     def test_is_inside_polygon(self):
         """Test the _is_inside_polygon helper method."""
         polygon = np.array([[100, 100], [200, 100], [200, 200], [100, 200]])
@@ -105,6 +116,52 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(len(detections), 1)
         # Assert that the entire tuple, including track_id, is passed through
         self.assertEqual(detections[0], (150, 150, 160, 160, 0.9, 123))
+
+    def test_single_subject_mode_assigns_constant_track_id(self):
+        dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.detector.set_single_subject_mode(True)
+
+        detections_frame1 = [
+            (10, 10, 30, 30, 0.6, None),
+            (100, 100, 120, 120, 0.9, None),
+        ]
+
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+            self.mock_plugin.set_detect_return_value(detections_frame1)
+            results1, _ = self.detector.process_frame(dummy_frame, "pre-recorded")
+
+        self.assertEqual(len(results1), 1)
+        self.assertEqual(results1[0][5], 1)
+        self.assertEqual(results1[0][:4], (100, 100, 120, 120))
+
+        detections_frame2 = [
+            (102, 102, 122, 122, 0.55, None),
+            (300, 300, 330, 330, 0.99, None),
+        ]
+
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+            self.mock_plugin.set_detect_return_value(detections_frame2)
+            results2, _ = self.detector.process_frame(dummy_frame, "pre-recorded")
+
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0][5], 1)
+        self.assertEqual(results2[0][:4], (102, 102, 122, 122))
+
+    def test_reset_tracking_state_clears_single_subject_tracker(self):
+        dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.detector.set_single_subject_mode(True)
+
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+            self.mock_plugin.set_detect_return_value([(50, 50, 80, 80, 0.8, None)])
+            self.detector.process_frame(dummy_frame, "pre-recorded")
+
+        self.detector.reset_tracking_state()
+
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
+            self.mock_plugin.set_detect_return_value([(300, 300, 320, 320, 0.7, None)])
+            results, _ = self.detector.process_frame(dummy_frame, "pre-recorded")
+
+        self.assertEqual(results[0][:4], (300, 300, 320, 320))
 
     def test_process_frame_with_empty_polygon(self):
         """

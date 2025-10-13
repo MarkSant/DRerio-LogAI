@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.single_subject_tracker import SingleSubjectTracker
 from zebtrack.plugins.base import DetectorPlugin
 
 log = structlog.get_logger()
@@ -63,6 +64,8 @@ class Detector:
         self.scaled_polygon: np.ndarray = np.array([])
         self.scaled_roi_polygons: List[np.ndarray] = []
         self._scaling_cache: dict = {}
+        self._single_subject_mode = False
+        self._single_subject_tracker = SingleSubjectTracker()
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
@@ -78,6 +81,7 @@ class Detector:
         self._scaling_cache.clear()
         self._update_scaling(actual_width, actual_height)
         log.info("detector.zones.set", count=len(self.zones.roi_polygons))
+        self._single_subject_tracker.reset()
 
     def _update_scaling(self, actual_width: int, actual_height: int):
         """
@@ -190,12 +194,11 @@ class Detector:
             cropped_frame = frame[y : y + h, x : x + w]
 
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
-            predictions_cropped = self.plugin.detect(cropped_frame)
-
-            # Translate predictions back to the original frame's coordinate system
             predictions = []
-            for det in predictions_cropped:
-                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = det
+            for det in self.plugin.detect(cropped_frame):
+                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = (
+                    self._ensure_track_tuple(det)
+                )
                 x1 = x1_crop + x
                 y1 = y1_crop + y
                 x2 = x2_crop + x
@@ -203,7 +206,9 @@ class Detector:
                 predictions.append((x1, y1, x2, y2, conf, track_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined
-            predictions = self.plugin.detect(frame)
+            predictions = [
+                self._ensure_track_tuple(det) for det in self.plugin.detect(frame)
+            ]
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
@@ -212,6 +217,7 @@ class Detector:
             for det in predictions:
                 x1, y1, x2, y2, confidence, track_id = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                confidence = float(confidence)
 
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                     detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id))
@@ -221,6 +227,11 @@ class Detector:
                         bbox=(x1, y1, x2, y2),
                         track_id=track_id,
                     )
+
+        if self._single_subject_mode:
+            detections_in_polygon = self._single_subject_tracker.assign(
+                detections_in_polygon
+            )
 
         end_time = time.perf_counter()
         log.debug(
@@ -232,6 +243,46 @@ class Detector:
         # The command logic has been removed as it was tied to the old square ROIs
         command_to_send = None
         return detections_in_polygon, command_to_send
+
+    def set_single_subject_mode(self, enabled: bool) -> None:
+        """Toggle lightweight single-subject tracking."""
+
+        enabled = bool(enabled)
+        if self._single_subject_mode == enabled:
+            return
+
+        self._single_subject_mode = enabled
+        self._single_subject_tracker.reset()
+        if hasattr(self.plugin, "set_use_single_subject_mode"):
+            try:
+                self.plugin.set_use_single_subject_mode(enabled)
+            except Exception:  # pragma: no cover - defensive
+                log.warning(
+                    "detector.single_subject_mode.plugin_update_failed",
+                    enabled=enabled,
+                    exc_info=True,
+                )
+
+    def reset_tracking_state(self) -> None:
+        """Reset tracker state between videos."""
+
+        if hasattr(self.plugin, "reset_tracking_state"):
+            try:
+                self.plugin.reset_tracking_state()
+            except Exception:  # pragma: no cover - defensive
+                log.warning(
+                    "detector.reset_tracking_state.plugin_failed", exc_info=True
+                )
+        self._single_subject_tracker.reset()
+
+    @staticmethod
+    def _ensure_track_tuple(detection):
+        if len(detection) == 5:
+            x1, y1, x2, y2, confidence = detection
+            track_id = None
+        else:
+            x1, y1, x2, y2, confidence, track_id = detection[:6]
+        return x1, y1, x2, y2, float(confidence), track_id
 
     def draw_overlay(self, frame, detections):
         """

@@ -88,11 +88,14 @@ class TestAppController(unittest.TestCase):
             "include_arena_only": True,
         }
 
+        self._tracker_flag_original = settings.tracking.use_single_subject_tracker
+
     def tearDown(self):
         """Clean up after each test."""
         settings.video_processing.single_animal_per_aquarium = (
             self._single_animal_original
         )
+        settings.tracking.use_single_subject_tracker = self._tracker_flag_original
         if settings and settings.ui_features:
             settings.ui_features.enable_event_queue = self._event_queue_flag_original
 
@@ -116,6 +119,16 @@ class TestAppController(unittest.TestCase):
         result = self.controller._resolve_single_animal_mode(None)
 
         self.assertIsNone(result)
+
+    def test_resolve_single_subject_tracker_from_single_video_config(self):
+        config = {"use_single_subject_tracker": True}
+        result = self.controller._resolve_single_subject_tracker_preference(config)
+        self.assertTrue(result)
+
+    def test_resolve_single_subject_tracker_from_project_data(self):
+        self.mock_pm.project_data = {"tracking": {"use_single_subject_tracker": False}}
+        result = self.controller._resolve_single_subject_tracker_preference(None)
+        self.assertFalse(result)
 
     def test_prepare_results_directory_archives_existing_run(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

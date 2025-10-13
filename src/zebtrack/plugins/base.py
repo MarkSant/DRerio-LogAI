@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -23,7 +23,9 @@ class DetectorPlugin(ABC):
         pass
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float]]:
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
         """
         Performs object detection on a single frame.
 
@@ -32,7 +34,9 @@ class DetectorPlugin(ABC):
 
         Returns:
             A list of detections. Each detection is a tuple containing:
-            (x1, y1, x2, y2, confidence).
+            (x1, y1, x2, y2, confidence, track_id).
+            ``track_id`` should be ``None`` when the underlying model does not
+            provide identity assignments for the detections.
         """
         pass
 

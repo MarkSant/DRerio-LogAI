@@ -2,7 +2,7 @@ import atexit
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
@@ -33,6 +33,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             raise ImportError(
                 "Ultralytics is not available. Please install ultralytics package."
             )
+        assert YOLO is not None
         self.model = YOLO(model_path)
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
@@ -47,8 +48,11 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # Context control for instance segmentation
         self._context = "tracking"  # 'tracking' or 'diagnostic'
         self._aquarium_region_defined = False
+        self._use_single_subject_mode = False
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
         """
         Performs object tracking using the YOLOv8 model with ByteTrack.
 
@@ -56,23 +60,38 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             A list of tuples, where each tuple contains:
             (x1, y1, x2, y2, confidence, track_id).
         """
-        # Dynamic class filtering based on context
-        if self._context == "diagnostic":
-            # Diagnostic mode: detect all classes
-            classes_param = None
-        elif self._context == "tracking" and not self._aquarium_region_defined:
-            # Tracking before aquarium: detect all classes
-            classes_param = None
-        else:
-            # Tracking after aquarium: only zebrafish
-            # Accept both class 0 and 1 as zebrafish (different models may use
-            # different indices)
-            zebrafish_classes = []
-            for class_id, class_name in self.model.names.items():
-                if "zebrafish" in class_name.lower():
-                    zebrafish_classes.append(class_id)
-            # If no zebrafish found in names, assume class 0
-            classes_param = zebrafish_classes if zebrafish_classes else [0]
+        classes_param = self._resolve_detection_classes()
+
+        if self._use_single_subject_mode:
+            results = self.model.predict(
+                frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.nms_threshold,
+                classes=classes_param,
+            )
+
+            predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
+            if results and results[0].boxes is not None:
+                boxes = results[0].boxes
+                xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
+                confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
+
+                for i in range(len(xyxys)):
+                    x1, y1, x2, y2 = xyxys[i]
+                    confidence = confs[i]
+                    predictions.append(
+                        (
+                            int(x1),
+                            int(y1),
+                            int(x2),
+                            int(y2),
+                            float(confidence),
+                            None,
+                        )
+                    )
+
+            return predictions
 
         results = self.model.track(
             frame,
@@ -81,21 +100,24 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
-            classes=classes_param,  # Use dynamic parameter
+            classes=classes_param,
         )
 
-        predictions = []
-        # Check if tracking IDs are available
-        if results[0].boxes.id is not None:
+        predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
+        if results and results[0].boxes is not None:
             boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            track_ids = boxes.id.cpu().numpy()
+            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
+            confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
+            if boxes.id is not None:
+                raw_track_ids = boxes.id.cpu().numpy()  # type: ignore[attr-defined]
+                track_id_values: List[Optional[int]] = [int(t) for t in raw_track_ids]
+            else:
+                track_id_values = [None] * len(xyxys)
 
             for i in range(len(xyxys)):
                 x1, y1, x2, y2 = xyxys[i]
                 confidence = confs[i]
-                track_id = track_ids[i]
+                track_id_value = track_id_values[i]
                 predictions.append(
                     (
                         int(x1),
@@ -103,7 +125,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         int(x2),
                         int(y2),
                         float(confidence),
-                        int(track_id),
+                        track_id_value,
                     )
                 )
 
@@ -128,8 +150,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         """
         self._aquarium_region_defined = bool(defined)
 
+    def set_use_single_subject_mode(self, enabled: bool) -> None:
+        """Switch between ByteTrack and raw detections."""
+
+        self._use_single_subject_mode = bool(enabled)
+        self.reset_tracking_state()
+
     def predict(
-        self, frame: np.ndarray, conf_threshold: float = None
+        self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> List[Dict[str, Any]]:
         """
         Method for diagnostic with instance segmentation support.
@@ -156,7 +184,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
                 # Process boxes and masks together
                 if result.boxes is not None:
-                    for i, box in enumerate(result.boxes):
+                    for i, box in enumerate(result.boxes):  # type: ignore[arg-type]
                         x1, y1, x2, y2 = box.xyxy[0].tolist()
                         class_id = int(box.cls)
                         confidence = float(box.conf)
@@ -164,8 +192,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         # Check if corresponding mask exists
                         has_mask = (
                             result.masks is not None
-                            and result.masks.xy is not None
-                            and i < len(result.masks.xy)
+                            and result.masks.xy is not None  # type: ignore[union-attr]
+                            and i < len(result.masks.xy)  # type: ignore[union-attr]
                         )
 
                         formatted_results.append(
@@ -177,17 +205,17 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                                     class_id, f"class_{class_id}"
                                 ),
                                 "has_mask": has_mask,
-                                "mask_points": len(result.masks.xy[i])
+                                "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
                                 if has_mask
                                 else 0,
                             }
                         )
 
                 # Process orphan masks (without boxes)
-                if result.masks is not None and result.masks.xy is not None:
+                if result.masks is not None and result.masks.xy is not None:  # type: ignore[union-attr]
                     num_boxes = len(result.boxes) if result.boxes else 0
-                    for i in range(num_boxes, len(result.masks.xy)):
-                        mask_xy = result.masks.xy[i]
+                    for i in range(num_boxes, len(result.masks.xy)):  # type: ignore[union-attr]
+                        mask_xy = result.masks.xy[i]  # type: ignore[union-attr]
                         x_min = int(mask_xy[:, 0].min())
                         y_min = int(mask_xy[:, 1].min())
                         x_max = int(mask_xy[:, 0].max())
@@ -263,6 +291,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         return str(self._tracker_config_path)
 
+    def reset_tracking_state(self) -> None:
+        """Clear internal tracker state."""
+
+        try:
+            self.model.tracker = None  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+
     def _write_tracker_config(self, config: dict[str, Any]) -> Path:
         temp_dir = Path(tempfile.gettempdir()) / "zebtrack_bytetrack"
         temp_dir.mkdir(exist_ok=True)
@@ -284,6 +320,19 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         _TRACKER_TEMP_FILES.add(path)
         return path
+
+    def _resolve_detection_classes(self) -> list[int] | None:
+        if self._context == "diagnostic":
+            return None
+        if self._context == "tracking" and not self._aquarium_region_defined:
+            return None
+
+        zebrafish_classes: list[int] = []
+        for class_id, class_name in self.model.names.items():
+            if "zebrafish" in class_name.lower():
+                zebrafish_classes.append(class_id)
+
+        return zebrafish_classes if zebrafish_classes else [0]
 
 
 _TRACKER_TEMP_FILES: set[Path] = set()
