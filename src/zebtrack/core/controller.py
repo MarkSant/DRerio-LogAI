@@ -1391,9 +1391,6 @@ class AppController:
 
         detector = getattr(self, "detector", None)
         plugin = getattr(detector, "plugin", None)
-        if not plugin:
-            log.warning("controller.detector.update.no_plugin")
-            return False
 
         def _validate(name: str, value: float | None) -> None:
             if value is None:
@@ -1410,6 +1407,64 @@ class AppController:
         _validate("nms_threshold", nms)
         _validate("track_threshold", track_thresh)
         _validate("match_threshold", match_thresh)
+
+        if not plugin:
+            current_defaults = self.get_current_detector_parameters()
+            payload: dict[str, float] = {}
+            has_change = False
+
+            for key, value in (
+                ("confidence_threshold", confidence),
+                ("nms_threshold", nms),
+                ("track_threshold", track_thresh),
+                ("match_threshold", match_thresh),
+            ):
+                if value is None:
+                    continue
+                payload[key] = float(value)
+                existing = current_defaults.get(key)
+                if existing is None or float(existing) != float(value):
+                    has_change = True
+
+            if not payload:
+                log.info("controller.detector.update.no_values_provided")
+                return False
+
+            if not has_change and not reset_overrides:
+                log.info("controller.detector.update.no_changes")
+                return False
+
+            self._persist_global_detector_defaults(
+                payload, reset=reset_overrides
+            )
+
+            save_success = False
+            if hasattr(self.project_manager, "save_detector_state"):
+                try:
+                    combined_config = {
+                        "plugin_name": None,
+                        "context": "global_defaults",
+                        **payload,
+                    }
+                    save_success = bool(
+                        self.project_manager.save_detector_state(combined_config)
+                    )
+                except Exception:  # pragma: no cover - defensive
+                    save_success = False
+            else:
+                combined_config = payload
+
+            log.info(
+                "controller.detector.update.defaults_applied",
+                config=combined_config,
+                persisted=save_success,
+                reset=reset_overrides,
+            )
+
+            if hasattr(self.view, "set_status"):
+                self.view.set_status("Parâmetros do detector atualizados.")
+
+            return True
 
         updated = False
 

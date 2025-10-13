@@ -280,6 +280,95 @@ class TestAppController(unittest.TestCase):
         args, kwargs = persist_mock.call_args
         self.assertTrue(kwargs["reset"])
 
+    def test_update_detector_parameters_without_plugin_updates_defaults(self):
+        self.controller.detector = None
+        self.mock_pm.save_detector_state.reset_mock()
+        self.mock_pm.save_detector_state.return_value = True
+
+        current_defaults = {
+            "confidence_threshold": 0.25,
+            "nms_threshold": 0.5,
+            "track_threshold": 0.25,
+            "match_threshold": 0.15,
+        }
+
+        with patch.object(
+            self.controller,
+            "get_current_detector_parameters",
+            return_value=current_defaults,
+        ), patch.object(
+            self.controller, "_persist_global_detector_defaults"
+        ) as persist_mock:
+            updated = self.controller.update_detector_parameters(
+                {
+                    "confidence_threshold": 0.3,
+                    "nms_threshold": 0.55,
+                    "track_threshold": 0.35,
+                    "match_threshold": 0.7,
+                }
+            )
+
+        self.assertTrue(updated)
+        persist_mock.assert_called_once_with(
+            {
+                "confidence_threshold": 0.3,
+                "nms_threshold": 0.55,
+                "track_threshold": 0.35,
+                "match_threshold": 0.7,
+            },
+            reset=False,
+        )
+        self.mock_pm.save_detector_state.assert_called_once()
+
+    def test_update_detector_parameters_without_plugin_no_changes_returns_false(self):
+        self.controller.detector = None
+        self.mock_pm.save_detector_state.reset_mock()
+
+        defaults = {
+            "confidence_threshold": 0.3,
+            "nms_threshold": 0.6,
+            "track_threshold": 0.35,
+            "match_threshold": 0.7,
+        }
+
+        with patch.object(
+            self.controller,
+            "get_current_detector_parameters",
+            return_value=defaults,
+        ), patch.object(
+            self.controller, "_persist_global_detector_defaults"
+        ) as persist_mock:
+            updated = self.controller.update_detector_parameters(defaults)
+
+        self.assertFalse(updated)
+        persist_mock.assert_not_called()
+        self.mock_pm.save_detector_state.assert_not_called()
+
+    def test_update_detector_parameters_without_plugin_reset_overrides(self):
+        self.controller.detector = None
+        self.mock_pm.save_detector_state.reset_mock()
+        defaults = {
+            "confidence_threshold": 0.25,
+            "nms_threshold": 0.5,
+            "track_threshold": 0.25,
+            "match_threshold": 0.15,
+        }
+
+        with patch.object(
+            self.controller,
+            "get_current_detector_parameters",
+            return_value=defaults,
+        ), patch.object(
+            self.controller, "_persist_global_detector_defaults"
+        ) as persist_mock:
+            updated = self.controller.update_detector_parameters(
+                defaults,
+                reset_overrides=True,
+            )
+
+        self.assertTrue(updated)
+        persist_mock.assert_called_once_with(defaults, reset=True)
+
     def test_get_project_data_dict_normalizes_non_dict(self):
         self.mock_pm.project_data = None
 

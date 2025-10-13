@@ -1874,8 +1874,18 @@ class ApplicationGUI:
         self.analysis_video_label: Label | None = None
         self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
         self.analysis_status_label: ttk.Label | None = None
+        (
+            default_group,
+            default_day,
+            default_subject,
+        ) = self._analysis_metadata_defaults()
         self.analysis_metadata_var = StringVar(
             value=self._default_analysis_metadata_text()
+        )
+        self.analysis_group_var = StringVar(value=f"Grupo: {default_group}")
+        self.analysis_day_var = StringVar(value=f"Dia: {default_day}")
+        self.analysis_subject_var = StringVar(
+            value=f"Indivíduo: {default_subject}"
         )
         self.analysis_task_var = StringVar(
             value=self._default_analysis_task_text()
@@ -2116,7 +2126,7 @@ class ApplicationGUI:
             pass
 
         try:
-            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+            self._set_analysis_metadata_defaults()
         except Exception:
             pass
 
@@ -4954,29 +4964,51 @@ class ApplicationGUI:
         self.analysis_status_label.pack(fill="x")
 
         self.analysis_task_var.set(self._default_analysis_task_text())
-        self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+        self._set_analysis_metadata_defaults()
 
         info_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 2))
         info_frame.pack(fill="x")
+        info_frame.columnconfigure(0, weight=1, uniform="analysis_info")
+        info_frame.columnconfigure(1, weight=1, uniform="analysis_info")
+        info_frame.columnconfigure(2, weight=1, uniform="analysis_info")
+        info_frame.columnconfigure(3, weight=1, uniform="analysis_info")
 
         self.analysis_task_label = ttk.Label(
             info_frame,
             textvariable=self.analysis_task_var,
             padding=(0, 2),
         )
-        self.analysis_task_label.pack(anchor="w")
-
-        self.analysis_metadata_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_metadata_var,
+        self.analysis_task_label.grid(
+            row=0,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            pady=(0, 2),
         )
-        self.analysis_metadata_label.pack(anchor="w")
+
+        self.analysis_group_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_group_var,
+        )
+        self.analysis_group_label.grid(row=1, column=0, sticky="w", padx=(0, 12))
+
+        self.analysis_day_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_day_var,
+        )
+        self.analysis_day_label.grid(row=1, column=1, sticky="w", padx=(0, 12))
+
+        self.analysis_subject_label = ttk.Label(
+            info_frame,
+            textvariable=self.analysis_subject_var,
+        )
+        self.analysis_subject_label.grid(row=1, column=2, sticky="w", padx=(0, 12))
 
         self.analysis_profile_label = ttk.Label(
             info_frame,
             textvariable=self.analysis_profile_var,
         )
-        self.analysis_profile_label.pack(anchor="w")
+        self.analysis_profile_label.grid(row=1, column=3, sticky="w")
 
         controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
         controls_frame.pack(fill="x", pady=(4, 0))
@@ -5007,16 +5039,25 @@ class ApplicationGUI:
 
         # Progress components (packed BEFORE video to stay visible above it)
         self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
+        self.progress_frame.columnconfigure(0, weight=1)
+        self.progress_frame.columnconfigure(1, weight=0)
+
         self.progress_bar = ttk.Progressbar(
             self.progress_frame,
             orient="horizontal",
             mode="determinate",
         )
-        self.progress_bar.pack(fill="x", pady=3)
+        self.progress_bar.grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+            pady=(0, 3),
+        )
 
         stats_container = ttk.Frame(self.progress_frame)
-        stats_container.pack(fill="x")
-        stats_container.columnconfigure((0, 1, 2), weight=1)
+        stats_container.grid(row=1, column=0, sticky="ew")
+        stats_container.columnconfigure((0, 1, 2), weight=1, uniform="analysis_stats")
 
         self.progress_labels = {}
         stats_items = [
@@ -5032,7 +5073,8 @@ class ApplicationGUI:
             row = idx // 3
             col = idx % 3
             cell = ttk.Frame(stats_container, padding=(0, 2))
-            cell.grid(row=row, column=col, padx=5, sticky="w")
+            pad_x = (0, 12) if col < 2 else (0, 0)
+            cell.grid(row=row, column=col, padx=pad_x, sticky="w")
             ttk.Label(cell, text=label_text).pack(anchor="w")
             var = StringVar(value="-")
             ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(
@@ -5046,7 +5088,7 @@ class ApplicationGUI:
             command=self.controller.cancel_current_analysis,
             state="disabled",
         )
-        self.cancel_proc_btn.pack(pady=(5, 0), anchor="e")
+        self.cancel_proc_btn.grid(row=1, column=1, sticky="ne", padx=(12, 0))
 
         # Hide progress frame until analysis starts
         self.progress_frame.pack_forget()
@@ -8664,8 +8706,7 @@ class ApplicationGUI:
         self.analysis_status_var.set("Preparando análise...")
         if self.analysis_task_var is not None:
             self.analysis_task_var.set("Preparando fila de análise...")
-        if self.analysis_metadata_var is not None:
-            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+        self._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self.show_progress_bar()
         if self.toggle_view_btn:
@@ -8685,8 +8726,7 @@ class ApplicationGUI:
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         if self.analysis_task_var is not None:
             self.analysis_task_var.set(self._default_analysis_task_text())
-        if self.analysis_metadata_var is not None:
-            self.analysis_metadata_var.set(self._default_analysis_metadata_text())
+        self._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self._switch_to_zones_view()
 
@@ -8913,20 +8953,15 @@ class ApplicationGUI:
 
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
-        analysis_var = getattr(self, "analysis_metadata_var", None)
-        if analysis_var is None:
-            return
-
         metadata = metadata or {}
         group_display = self._resolve_group_display(metadata)
         day_display = self._resolve_day_display(metadata)
         subject_display = self._resolve_subject_display(metadata)
 
-        analysis_var.set(
-            (
-                f"Grupo: {group_display} | Dia: {day_display} | "
-                f"Indivíduo: {subject_display}"
-            )
+        self._apply_analysis_metadata_strings(
+            group_display,
+            day_display,
+            subject_display,
         )
 
     def update_analysis_task_status(
@@ -8962,8 +8997,37 @@ class ApplicationGUI:
         self.analysis_task_var.set(" ".join(parts))
 
     @staticmethod
-    def _default_analysis_metadata_text() -> str:
-        return "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
+    def _analysis_metadata_defaults() -> tuple[str, str, str]:
+        return ("Sem Grupo", "Sem Dia", "Não informado")
+
+    @classmethod
+    def _default_analysis_metadata_text(cls) -> str:
+        group, day, subject = cls._analysis_metadata_defaults()
+        return f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+
+    def _set_analysis_metadata_defaults(self) -> None:
+        group, day, subject = self._analysis_metadata_defaults()
+        self._apply_analysis_metadata_strings(group, day, subject)
+
+    def _apply_analysis_metadata_strings(
+        self,
+        group: str,
+        day: str,
+        subject: str,
+    ) -> None:
+        combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+
+        if getattr(self, "analysis_metadata_var", None) is not None:
+            self.analysis_metadata_var.set(combined)
+
+        if getattr(self, "analysis_group_var", None) is not None:
+            self.analysis_group_var.set(f"Grupo: {group}")
+
+        if getattr(self, "analysis_day_var", None) is not None:
+            self.analysis_day_var.set(f"Dia: {day}")
+
+        if getattr(self, "analysis_subject_var", None) is not None:
+            self.analysis_subject_var.set(f"Indivíduo: {subject}")
 
     @staticmethod
     def _default_analysis_task_text() -> str:

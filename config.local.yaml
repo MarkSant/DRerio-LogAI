@@ -1,0 +1,6 @@
+yolo_model:
+  confidence_threshold: 0.15
+  nms_threshold: 0.3
+bytetrack:
+  track_threshold: 0.2
+  match_threshold: 0.1
