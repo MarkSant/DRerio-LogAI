@@ -110,8 +110,8 @@ class OpenVINOPlugin(DetectorPlugin):
         # Initialize ByteTrack
         tracker_args = SimpleNamespace(
             track_thresh=0.25,
-            track_buffer=30,
-            match_thresh=0.6,
+            track_buffer=60,
+            match_thresh=0.15,
             mot20=False,
         )
         self.tracker = BYTETracker(args=tracker_args, frame_rate=30)

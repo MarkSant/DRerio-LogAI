@@ -4,7 +4,9 @@
       "Bash(poetry run pytest:*)",
       "Bash(poetry run ruff:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(poetry show:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

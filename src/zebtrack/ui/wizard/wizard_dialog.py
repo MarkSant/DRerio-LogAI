@@ -103,7 +103,7 @@ class WizardDialog(Dialog):
 
         # Create container for steps
         self.steps_container = Frame(master)
-        self.steps_container.pack(fill="both", expand=True, padx=10, pady=10)
+        self.steps_container.pack(fill="both", expand=True, padx=8, pady=8)
 
         # Initialize ALL possible steps (not all will be shown)
         self.all_steps = {
@@ -144,9 +144,6 @@ class WizardDialog(Dialog):
         # Show first step
         self._show_step(0)
 
-        # Initialize geometry after widgets are realized
-        self.after_idle(self._initialize_geometry)
-
         # Return None (no specific focus)
         return None
 
@@ -178,6 +175,10 @@ class WizardDialog(Dialog):
         cancel_button.pack(side="right", padx=5)
 
         self._update_navigation_buttons()
+
+        # Force geometry initialization after buttonbox is created
+        # This ensures proper centering after Dialog has finished its setup
+        self.after(1, self._initialize_geometry)
 
     def _update_active_steps(self):
         """
@@ -276,8 +277,17 @@ class WizardDialog(Dialog):
             self.next_button.config(text="Próximo >")
 
     def _initialize_geometry(self):
-        """Configure initial geometry once the dialog is visible."""
-        if self._geometry_initialized or not self.winfo_exists():
+        """
+        Configure initial geometry with FIXED, conservative size.
+        Forces window to center on screen after Dialog construction.
+        """
+        if not self.winfo_exists():
+            return
+
+        # Allow re-initialization to force centering after Dialog positioning
+        if self._geometry_initialized:
+            # Just re-apply centering without changing size
+            self._center_window()
             return
 
         try:
@@ -290,64 +300,104 @@ class WizardDialog(Dialog):
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
 
-        available_w = max(screen_w - 120, 760)
-        available_h = max(screen_h - 160, 560)
+        # Reserve MORE space for taskbar and decorations to ensure buttons visible
+        # Vertical: 220px (taskbar ~40-50px + title bar ~30px + bottom margin ~100px)
+        # Horizontal: 80px (margins)
+        usable_w = screen_w - 80
+        usable_h = screen_h - 220
 
-        if hasattr(self, "steps_container") and self.steps_container.winfo_exists():
-            desired_width = self.steps_container.winfo_reqwidth() + 48
-            desired_height = self.steps_container.winfo_reqheight() + 180
-        else:
-            desired_width = 960
-            desired_height = 680
+        # FIXED SIZE STRATEGY: Wide window for 3-column horizontal layouts
+        # Target: 1150×600 (wide for 3 columns, tall enough for buttons)
 
-        width = min(max(desired_width, 900), available_w)
-        height = min(max(desired_height, 640), available_h)
+        target_width = 1150
+        target_height = 600
 
-        min_width = max(int(width * 0.7), 720)
-        min_height = max(int(height * 0.7), 540)
-        min_width = min(min_width, width)
-        min_height = min(min_height, height)
+        # But don't exceed available space on smaller screens
+        width = min(target_width, usable_w)
+        height = min(target_height, usable_h)
 
-        x = max((screen_w - width) // 2, 0)
-        y = max((screen_h - height) // 2, 0)
+        # Ensure absolute minimums for usability
+        width = max(width, 950)
+        height = max(height, 580)
+
+        # Set resizable bounds (75% to 120% of target)
+        min_width = max(int(target_width * 0.75), 900)
+        min_height = max(int(target_height * 0.75), 400)
+        max_width = int(target_width * 1.2)
+        max_height = int(target_height * 1.1)
+
+        # Center on screen with simple calculation
+        # Reserve space only for Windows taskbar (typically 40-60px)
+        taskbar_reserve = 70  # Conservative reserve for taskbar
+
+        x = (screen_w - width) // 2
+        # Center vertically but ensure bottom stays above taskbar
+        y_center = (screen_h - height) // 2
+        y_safe = screen_h - height - taskbar_reserve
+        y = min(y_center, y_safe)
+
+        # Ensure window doesn't go off top of screen
+        y = max(y, 20)
 
         self.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
         self.minsize(int(min_width), int(min_height))
+        self.maxsize(int(max_width), int(max_height))
 
         self._geometry_initialized = True
+        log.info(
+            "wizard.geometry_initialized",
+            size=f"{int(width)}×{int(height)}",
+            screen=f"{screen_w}×{screen_h}",
+            position=f"+{int(x)}+{int(y)}",
+            centered=True,
+        )
 
-    def _update_minimum_size(self):
-        """Refresh minimum size to accommodate the current step content."""
-        if not self._geometry_initialized or not self.winfo_exists():
-            return
-
-        if (
-            not hasattr(self, "steps_container")
-            or not self.steps_container.winfo_exists()
-        ):
-            return
-
+    def _center_window(self):
+        """
+        Center the window on screen using current window size.
+        Called after Dialog has positioned itself to force centering.
+        """
         self.update_idletasks()
 
+        # Get current window size
+        width = self.winfo_width()
+        height = self.winfo_height()
+
+        # Get screen dimensions
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
 
-        available_w = max(screen_w - 120, 760)
-        available_h = max(screen_h - 160, 560)
+        # Center on screen with simple calculation
+        # Reserve space only for Windows taskbar (typically 40-60px)
+        taskbar_reserve = 70  # Conservative reserve for taskbar
 
-        desired_width = self.steps_container.winfo_reqwidth() + 48
-        desired_height = self.steps_container.winfo_reqheight() + 180
+        x = (screen_w - width) // 2
+        # Center vertically but ensure bottom stays above taskbar
+        y_center = (screen_h - height) // 2
+        y_safe = screen_h - height - taskbar_reserve
+        y = min(y_center, y_safe)
 
-        current_width = max(self.winfo_width(), desired_width, 900)
-        current_height = max(self.winfo_height(), desired_height, 640)
+        # Ensure window doesn't go off top of screen
+        y = max(y, 20)
 
-        min_width = max(int(current_width * 0.7), 720)
-        min_height = max(int(current_height * 0.7), 540)
+        # Apply new position only (keep current size)
+        self.geometry(f"+{int(x)}+{int(y)}")
 
-        min_width = min(min_width, available_w, current_width)
-        min_height = min(min_height, available_h, current_height)
+        log.info(
+            "wizard.window_centered",
+            size=f"{width}×{height}",
+            position=f"+{int(x)}+{int(y)}",
+        )
 
-        self.minsize(int(min_width), int(min_height))
+    def _update_minimum_size(self):
+        """
+        Maintain fixed window size when step changes.
+
+        With fixed-size strategy, we DON'T resize the window between steps.
+        Steps should be designed to fit within the allocated space (950×620).
+        """
+        # No-op: window maintains fixed size
+        pass
 
     def _on_back(self):
         """Handle Back button click."""

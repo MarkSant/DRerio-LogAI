@@ -63,6 +63,7 @@ class CustomRegexDialog(Dialog):
         self._live_update_job: str | None = None
         self._compiled_patterns: dict[str, re.Pattern] = {}
         self._pattern_errors: dict[str, str] = {}
+        self._geometry_initialized = False
 
         self.group_pattern_var = StringVar(
             value=self.current_patterns.get("group_pattern", "") or ""
@@ -73,40 +74,60 @@ class CustomRegexDialog(Dialog):
         self.subject_pattern_var = StringVar(
             value=self.current_patterns.get("subject_pattern", "") or ""
         )
-        default_preview_path = (
-            self.sample_paths[0]
-            if self.sample_paths
-            else "/Control/Day01/Subject_S01.mp4"
-        )
+
+        # Use real path from sample_paths if available
+        if self.sample_paths:
+            default_preview_path = self.sample_paths[0]
+            log.info(
+                "custom_regex.init",
+                sample_count=len(self.sample_paths),
+                using_real_path=True,
+            )
+        else:
+            default_preview_path = "/Control/Day01/Subject_S01.mp4"
+            log.warning(
+                "custom_regex.init",
+                sample_count=0,
+                using_real_path=False,
+                message="No sample paths provided, using default example",
+            )
+
         self.test_path_var = StringVar(value=default_preview_path)
 
         super().__init__(parent, title="Configurar Padrões Regex Personalizados")
 
     def body(self, master):
         """Build dialog UI."""
+        # Enable resizing
+        try:
+            self.resizable(True, True)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("custom_regex.geometry.resizable_failed", error=str(exc))
+
         # Title
-        title_font = tkfont.Font(size=12, weight="bold")
+        title_font = tkfont.Font(size=10, weight="bold")
         Label(
             master,
             text="Padrões Regex Personalizados",
             font=title_font,
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, 3))
 
         subtitle = Label(
             master,
             text=(
-                "Defina padrões regex personalizados para detectar grupos, dias e "
-                "sujeitos.\nUse grupos de captura () para extrair os valores."
+                "Defina padrões regex para detectar grupos, dias e sujeitos. "
+                "Use grupos de captura ()."
             ),
             fg="gray",
             wraplength=500,
             justify="left",
+            font=("TkDefaultFont", 8),
         )
-        subtitle.pack(pady=(0, 15))
+        subtitle.pack(pady=(0, 5))
 
         # Group pattern
         group_frame = Frame(master)
-        group_frame.pack(fill="x", padx=10, pady=5)
+        group_frame.pack(fill="x", padx=10, pady=3)
 
         Label(
             group_frame,
@@ -117,7 +138,7 @@ class CustomRegexDialog(Dialog):
             group_frame,
             text="Ex: (Control|Treatment|Group\\d+) ou (\\w+)_Group",
             fg="gray",
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 8),
         ).pack(anchor="w")
 
         self.group_pattern_entry = Entry(
@@ -125,11 +146,11 @@ class CustomRegexDialog(Dialog):
             width=50,
             textvariable=self.group_pattern_var,
         )
-        self.group_pattern_entry.pack(fill="x", pady=5)
+        self.group_pattern_entry.pack(fill="x", pady=3)
 
         # Day pattern
         day_frame = Frame(master)
-        day_frame.pack(fill="x", padx=10, pady=5)
+        day_frame.pack(fill="x", padx=10, pady=3)
 
         Label(
             day_frame,
@@ -140,7 +161,7 @@ class CustomRegexDialog(Dialog):
             day_frame,
             text="Ex: Day(\\d+) ou D(\\d+) ou (\\d{4}-\\d{2}-\\d{2})",
             fg="gray",
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 8),
         ).pack(anchor="w")
 
         self.day_pattern_entry = Entry(
@@ -148,11 +169,11 @@ class CustomRegexDialog(Dialog):
             width=50,
             textvariable=self.day_pattern_var,
         )
-        self.day_pattern_entry.pack(fill="x", pady=5)
+        self.day_pattern_entry.pack(fill="x", pady=3)
 
         # Subject pattern
         subject_frame = Frame(master)
-        subject_frame.pack(fill="x", padx=10, pady=5)
+        subject_frame.pack(fill="x", padx=10, pady=3)
 
         Label(
             subject_frame,
@@ -163,7 +184,7 @@ class CustomRegexDialog(Dialog):
             subject_frame,
             text="Ex: S(\\d+) ou Subject(\\d+) ou Animal_(\\w+)",
             fg="gray",
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 8),
         ).pack(anchor="w")
 
         self.subject_pattern_entry = Entry(
@@ -171,26 +192,20 @@ class CustomRegexDialog(Dialog):
             width=50,
             textvariable=self.subject_pattern_var,
         )
-        self.subject_pattern_entry.pack(fill="x", pady=5)
+        self.subject_pattern_entry.pack(fill="x", pady=3)
 
         # Test section
         test_frame = Frame(master)
-        test_frame.pack(fill="both", expand=True, padx=10, pady=15)
+        test_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
         Label(
             test_frame,
             text="Testar Padrões:",
-            font=("TkDefaultFont", 10, "bold"),
-        ).pack(anchor="w")
-        Label(
-            test_frame,
-            text="Digite um caminho de exemplo para testar os padrões:",
-            fg="gray",
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
         test_input_frame = Frame(test_frame)
-        test_input_frame.pack(fill="x", pady=5)
+        test_input_frame.pack(fill="x", pady=2)
 
         self.test_path_entry = Entry(
             test_input_frame,
@@ -206,17 +221,17 @@ class CustomRegexDialog(Dialog):
         ).pack(side="left")
 
         # Test results
-        self.test_results_text = Text(test_frame, height=4, width=60, state="disabled")
-        self.test_results_text.pack(fill="both", expand=True, pady=5)
+        self.test_results_text = Text(test_frame, height=2, width=60, state="disabled")
+        self.test_results_text.pack(fill="both", expand=True, pady=2)
 
         # Live preview
         preview_frame = Frame(master)
-        preview_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        preview_frame.pack(fill="both", expand=True, padx=10, pady=(3, 5))
 
         Label(
             preview_frame,
-            text="Pré-visualização automática (Primeiros 15 caminhos)",
-            font=("TkDefaultFont", 10, "bold"),
+            text="Pré-visualização (Primeiros 15 caminhos)",
+            font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
         tree_outer = Frame(preview_frame)
@@ -226,7 +241,7 @@ class CustomRegexDialog(Dialog):
             tree_outer,
             columns=("path", "group", "day", "subject"),
             show="headings",
-            height=8,
+            height=4,
         )
         self.preview_tree.heading("path", text="Caminho")
         self.preview_tree.heading("group", text="Grupo")
@@ -246,33 +261,15 @@ class CustomRegexDialog(Dialog):
         preview_scroll.pack(side="right", fill="y")
         self.preview_tree.configure(yscrollcommand=preview_scroll.set)
 
-        # Help text
-        help_frame = Frame(master)
-        help_frame.pack(fill="x", padx=10, pady=10)
-
-        help_text = Label(
-            help_frame,
-            text=(
-                "💡 Dicas:\n"
-                "• Use grupos de captura () para extrair valores\n"
-                "• \\d+ = um ou mais dígitos\n"
-                "• \\w+ = um ou mais caracteres alfanuméricos\n"
-                "• | = OU lógico (Control|Treatment)\n"
-                "• Deixe em branco para usar detecção padrão"
-            ),
-            fg="gray",
-            wraplength=500,
-            justify="left",
-            font=("TkDefaultFont", 9),
-        )
-        help_text.pack(anchor="w")
-
         self._schedule_live_update(immediate=True)
 
         self.group_pattern_var.trace_add("write", self._on_pattern_change)
         self.day_pattern_var.trace_add("write", self._on_pattern_change)
         self.subject_pattern_var.trace_add("write", self._on_pattern_change)
         self.test_path_var.trace_add("write", self._on_pattern_change)
+
+        # Initialize geometry after widgets are realized
+        self.after_idle(self._initialize_geometry)
 
         return self.group_pattern_entry  # Initial focus
 
@@ -436,6 +433,63 @@ class CustomRegexDialog(Dialog):
     def get_result(self):
         """Get custom patterns (call after dialog closes)."""
         return self.result_patterns
+
+    def _initialize_geometry(self):
+        """
+        Configure initial geometry with conservative height.
+
+        Sets a fixed height to ensure buttons remain visible above taskbar.
+        """
+        if self._geometry_initialized or not self.winfo_exists():
+            return
+
+        try:
+            self.resizable(True, True)
+        except Exception:
+            return
+
+        self.update_idletasks()
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        # Reserve space for taskbar and decorations
+        usable_w = screen_w - 80
+        usable_h = screen_h - 220
+
+        # Target size: moderate width, sufficient height for all buttons
+        target_width = 800
+        target_height = 580
+
+        # Don't exceed available space on smaller screens
+        width = min(target_width, usable_w)
+        height = min(target_height, usable_h)
+
+        # Ensure absolute minimums
+        width = max(width, 700)
+        height = max(height, 560)
+
+        # Set resizable bounds
+        min_width = max(int(target_width * 0.85), 650)
+        min_height = max(int(target_height * 0.90), 430)
+        max_width = int(target_width * 1.20)
+        max_height = int(target_height * 1.15)
+
+        # Center on screen, but shift UP to avoid taskbar
+        x = max((screen_w - width) // 2, 0)
+        y = max((screen_h - height - 100) // 2, 0)  # Shift 100px higher
+
+        self.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
+        self.minsize(int(min_width), int(min_height))
+        self.maxsize(int(max_width), int(max_height))
+
+        self._geometry_initialized = True
+        log.info(
+            "custom_regex.geometry_initialized",
+            size=f"{int(width)}×{int(height)}",
+            screen=f"{screen_w}×{screen_h}",
+            position=f"+{int(x)}+{int(y)}",
+        )
 
     # ------------------------------------------------------------------
     # Live preview helpers

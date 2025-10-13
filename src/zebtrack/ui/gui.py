@@ -109,7 +109,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.confidence_threshold_var = StringVar(value="0.25")
         self.nms_threshold_var = StringVar(value="0.50")
         self.track_threshold_var = StringVar(value="0.25")
-        self.match_threshold_var = StringVar(value="0.60")
+        self.match_threshold_var = StringVar(value="0.15")
         self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
@@ -4922,16 +4922,7 @@ class ApplicationGUI:
         self.analysis_tab_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.analysis_tab_frame, text="Análise de Vídeo")
 
-        # Video display area
-        video_container = ttk.Frame(self.analysis_tab_frame)
-        video_container.pack(expand=True, fill="both")
-
-        self.analysis_video_label = Label(video_container, bg="black")
-        self.analysis_video_label.pack(expand=True, fill="both")
-        # Maintain backward compatibility with code using video_label
-        self.video_label = self.analysis_video_label
-
-        # Status text
+        # Status text (packed first - at the top)
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         self.analysis_status_label = ttk.Label(
             self.analysis_tab_frame,
@@ -4992,7 +4983,7 @@ class ApplicationGUI:
         ).grid(row=0, column=2, sticky="w")
         controls_frame.columnconfigure(2, weight=1)
 
-        # Progress components (initially hidden)
+        # Progress components (packed BEFORE video to stay visible above it)
         self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
         self.progress_bar = ttk.Progressbar(
             self.progress_frame,
@@ -5037,6 +5028,15 @@ class ApplicationGUI:
 
         # Hide progress frame until analysis starts
         self.progress_frame.pack_forget()
+
+        # Video display area (packed LAST so it fills remaining space)
+        self.video_container = ttk.Frame(self.analysis_tab_frame)
+        self.video_container.pack(expand=True, fill="both")
+
+        self.analysis_video_label = Label(self.video_container, bg="black")
+        self.analysis_video_label.pack(expand=True, fill="both")
+        # Maintain backward compatibility with code using video_label
+        self.video_label = self.analysis_video_label
 
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame for the zone controls."""
@@ -8497,7 +8497,13 @@ class ApplicationGUI:
     def show_progress_bar(self):
         """Shows the progress bar frame and cancel button."""
         if self.progress_frame and not self.progress_frame.winfo_viewable():
-            self.progress_frame.pack(pady=5, fill="x", padx=10)
+            # Pack progress_frame BEFORE video_container to ensure it stays visible
+            if hasattr(self, 'video_container') and self.video_container:
+                self.progress_frame.pack(
+                    before=self.video_container, pady=5, fill="x", padx=10
+                )
+            else:
+                self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = 0
         if self.cancel_proc_btn:
             self.cancel_proc_btn.config(state="normal")

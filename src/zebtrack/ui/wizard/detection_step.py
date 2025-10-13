@@ -297,6 +297,7 @@ class DetectionStep(WizardStep):
             self.detected_design,
             custom_regex_patterns=self.custom_regex_patterns,
             on_custom_regex_configured=self._handle_custom_regex_from_editor,
+            sample_paths=self._get_sample_paths_for_regex(),
         )
         edited_design = editor.get_result()
 
@@ -870,6 +871,7 @@ class DetectionStep(WizardStep):
             self.detected_design,
             custom_regex_patterns=self.custom_regex_patterns,
             on_custom_regex_configured=self._handle_custom_regex_from_editor,
+            sample_paths=self._get_sample_paths_for_regex(),
         )
         edited_design = editor.get_result()
 

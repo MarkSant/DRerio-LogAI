@@ -71,36 +71,73 @@ class ImportConfigStep(WizardStep):
         self.template_info_label = None
 
     def build_ui(self):
-        """Build import configuration UI."""
+        """Build import configuration UI with horizontal 2-column layout."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(
             self, text="Configuração de Importação", font=title_font
         )
-        title.pack(pady=(0, 10))
+        title.pack(pady=(0, 5))
 
         subtitle = Label(
             self,
             text="Configure o que importar para cada vídeo.",
             fg="gray",
-            wraplength=500,
+            wraplength=900,
         )
-        subtitle.pack(pady=(0, 15))
+        subtitle.pack(pady=(0, 8))
 
         self.template_info_label = Label(
             self,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=500,
+            wraplength=900,
             justify="left",
         )
         self.template_info_label.pack_forget()
 
-        # Video table
-        table_frame = LabelFrame(self, text="Vídeos e Estratégias", padx=10, pady=10)
-        table_frame.pack(fill="both", expand=True, pady=(0, 15))
+        # Main horizontal container: 2 columns
+        main_container = ttk.Frame(self)
+        main_container.pack(fill="both", expand=True, pady=(0, 5))
 
-        # Create Treeview with scrollbar
+        # LEFT COLUMN: Video table (wider)
+        left_column = ttk.Frame(main_container)
+        left_column.pack(side="left", fill="both", expand=True, padx=(0, 8))
+
+        table_frame = LabelFrame(
+            left_column, text="Vídeos e Estratégias", padx=8, pady=5
+        )
+        table_frame.pack(fill="both", expand=True)
+
+        # Bulk import buttons row
+        bulk_buttons_frame = ttk.Frame(table_frame)
+        bulk_buttons_frame.pack(fill="x", pady=(0, 5))
+
+        ttk.Button(
+            bulk_buttons_frame,
+            text="Importar Todas Arenas",
+            command=self._bulk_import_arenas,
+        ).pack(side="left", padx=2)
+
+        ttk.Button(
+            bulk_buttons_frame,
+            text="Importar Todos ROIs",
+            command=self._bulk_import_rois,
+        ).pack(side="left", padx=2)
+
+        ttk.Button(
+            bulk_buttons_frame,
+            text="Importar Todas Trajetórias",
+            command=self._bulk_import_trajectories,
+        ).pack(side="left", padx=2)
+
+        ttk.Button(
+            bulk_buttons_frame,
+            text="Importar Tudo",
+            command=self._bulk_import_all,
+        ).pack(side="left", padx=2)
+
+        # Create Treeview with scrollbar (increased height)
         tree_scroll = create_scrollbar(table_frame)
         tree_scroll.pack(side="right", fill="y")
 
@@ -109,7 +146,7 @@ class ImportConfigStep(WizardStep):
             columns=("video", "arena", "rois", "trajectory", "action"),
             show="headings",
             yscrollcommand=tree_scroll.set,
-            height=10,
+            height=12,  # Increased from 8 to 12
         )
         tree_scroll.config(command=self.video_tree.yview)
 
@@ -120,114 +157,107 @@ class ImportConfigStep(WizardStep):
         self.video_tree.heading("trajectory", text="Trajetória")
         self.video_tree.heading("action", text="Ação")
 
-        self.video_tree.column("video", width=250, anchor="w")
-        self.video_tree.column("arena", width=70, anchor="center")
-        self.video_tree.column("rois", width=70, anchor="center")
-        self.video_tree.column("trajectory", width=90, anchor="center")
-        self.video_tree.column("action", width=120, anchor="center")
+        self.video_tree.column("video", width=220, anchor="w")
+        self.video_tree.column("arena", width=65, anchor="center")
+        self.video_tree.column("rois", width=65, anchor="center")
+        self.video_tree.column("trajectory", width=80, anchor="center")
+        self.video_tree.column("action", width=100, anchor="center")
 
         self.video_tree.pack(fill="both", expand=True)
 
         # Bind double-click to toggle checkboxes
         self.video_tree.bind("<Double-1>", self._on_tree_double_click)
 
+        # Help text below table
+        help_text = Label(
+            left_column,
+            text="💡 Clique 2x na linha para alternar opções",
+            fg="gray",
+            font=("TkDefaultFont", 9),
+            justify="left",
+        )
+        help_text.pack(pady=(3, 0), anchor="w")
+
+        # RIGHT COLUMN: ROI strategy, Summary, Legend (narrower)
+        right_column = ttk.Frame(main_container)
+        right_column.pack(side="right", fill="both", padx=(0, 0))
+
         # ROI merge strategy (will be hidden if no parquets detected)
         self.roi_frame = LabelFrame(
-            self,
-            text="Estratégia de Importação de ROIs",
-            padx=10,
-            pady=10,
+            right_column,
+            text="Estratégia ROIs",
+            padx=8,
+            pady=5,
         )
-        self.roi_frame.pack(fill="x", pady=(0, 15))
+        self.roi_frame.pack(fill="x", pady=(0, 8))
 
         rb_replace = Radiobutton(
             self.roi_frame,
-            text="Replace - Substituir ROIs existentes pelos importados",
+            text="Replace (substituir)",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.REPLACE.value,
+            font=("TkDefaultFont", 9),
         )
-        rb_replace.pack(anchor="w", pady=2)
+        rb_replace.pack(anchor="w", pady=1)
         ToolTip(
             rb_replace,
-            (
-                "ROIs importados do Parquet substituirão completamente as ROIs "
-                "existentes no projeto."
-            ),
+            "ROIs importados substituem completamente as existentes.",
         )
 
         rb_merge = Radiobutton(
             self.roi_frame,
-            text="Merge - Manter ambos (renomear conflitos)",
+            text="Merge (manter ambos)",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MERGE.value,
+            font=("TkDefaultFont", 9),
         )
-        rb_merge.pack(anchor="w", pady=2)
+        rb_merge.pack(anchor="w", pady=1)
         ToolTip(
             rb_merge,
-            (
-                "Manter ROIs existentes e importadas. ROIs com mesmo nome "
-                "serão renomeadas (ex: 'Zone1', 'Zone1_imported')."
-            ),
+            "Manter ambos. Conflitos serão renomeados.",
         )
 
         rb_manual = Radiobutton(
             self.roi_frame,
-            text="Manual - Perguntar para cada conflito",
+            text="Manual (perguntar)",
             variable=self.roi_merge_strategy_var,
             value=ROIMergeStrategy.MANUAL.value,
+            font=("TkDefaultFont", 9),
         )
-        rb_manual.pack(anchor="w", pady=2)
+        rb_manual.pack(anchor="w", pady=1)
         ToolTip(
             rb_manual,
-            (
-                "Perguntar ao usuário como resolver cada conflito de nomes de "
-                "ROIs durante a importação."
-            ),
+            "Perguntar para cada conflito.",
         )
 
         # Summary
-        self.summary_frame = LabelFrame(self, text="Resumo", padx=10, pady=10)
-        self.summary_frame.pack(fill="x", pady=(0, 10))
+        self.summary_frame = LabelFrame(right_column, text="Resumo", padx=8, pady=5)
+        self.summary_frame.pack(fill="x", pady=(0, 8))
 
         Label(
             self.summary_frame,
             textvariable=self.summary_var,
             justify="left",
             fg="blue",
+            font=("TkDefaultFont", 9),
         ).pack(anchor="w")
 
-        # Legend
-        legend_frame = LabelFrame(self, text="Legenda", padx=10, pady=5)
-        legend_frame.pack(fill="x", pady=(10, 0))
+        # Legend (compact)
+        legend_frame = LabelFrame(right_column, text="Legenda", padx=8, pady=5)
+        legend_frame.pack(fill="x")
 
         self.legend_label = Label(
             legend_frame,
             text=(
-                "Legenda:\n"
-                "🏟 Arena disponível | 🏟 ✗ Arena ausente\n"
-                "🎯 ROIs disponíveis | 🎯 ✗ ROIs ausentes\n"
-                "🧭 Trajetória disponível | 🧭 ✗ Trajetória ausente\n"
-                "🏟 ✓ / 🎯 ✓ / 🧭 ✓ Importando parquet\n"
-                "🏟 ⏸ / 🎯 ⏸ / 🧭 ⏸ Disponível, não importar"
+                "🏟 Arena | 🎯 ROIs | 🧭 Trajetória\n"
+                "✓ Importar | ⏸ Não importar\n"
+                "✗ Não disponível"
             ),
             fg="gray",
-            font=("TkDefaultFont", 9),
+            font=("TkDefaultFont", 8),
             justify="left",
         )
         self.legend_label.pack(anchor="w")
-
-        # Help text
-        help_text = Label(
-            self,
-            text=(
-                "💡 Dica: Clique duas vezes em uma linha para alternar as "
-                "opções de importação."
-            ),
-            fg="gray",
-            wraplength=500,
-            justify="left",
-        )
-        help_text.pack(pady=(5, 0))
 
         self._update_template_banner()
 
@@ -449,11 +479,83 @@ class ImportConfigStep(WizardStep):
         if importing_rois:
             # Show ROI frame if importing ROIs
             if not self.roi_frame.winfo_ismapped():
-                self.roi_frame.pack(fill="x", pady=(0, 15), before=self.summary_frame)
+                self.roi_frame.pack(fill="x", pady=(0, 8), before=self.summary_frame)
         else:
             # Hide ROI frame if not importing any ROIs
             self.roi_frame.pack_forget()
             log.debug("import_config.roi_frame_hidden", reason="No ROIs being imported")
+
+    def _bulk_import_arenas(self):
+        """Enable import_arena for all videos that have arena data."""
+        count = 0
+        for config in self.video_configs:
+            if config.get("has_arena", False):
+                config["import_arena"] = True
+                count += 1
+
+        self._recalculate_all_actions()
+        log.info("wizard.import_config.bulk_import_arenas", count=count)
+
+    def _bulk_import_rois(self):
+        """Enable import_rois for all videos that have ROI data."""
+        count = 0
+        for config in self.video_configs:
+            if config.get("has_rois", False):
+                config["import_rois"] = True
+                count += 1
+
+        self._recalculate_all_actions()
+        log.info("wizard.import_config.bulk_import_rois", count=count)
+
+    def _bulk_import_trajectories(self):
+        """Enable import_trajectory for all videos that have trajectory data."""
+        count = 0
+        for config in self.video_configs:
+            if config.get("has_trajectory", False):
+                config["import_trajectory"] = True
+                count += 1
+
+        self._recalculate_all_actions()
+        log.info("wizard.import_config.bulk_import_trajectories", count=count)
+
+    def _bulk_import_all(self):
+        """Enable all imports for videos that have the respective data."""
+        count_arena = 0
+        count_rois = 0
+        count_traj = 0
+
+        for config in self.video_configs:
+            if config.get("has_arena", False):
+                config["import_arena"] = True
+                count_arena += 1
+            if config.get("has_rois", False):
+                config["import_rois"] = True
+                count_rois += 1
+            if config.get("has_trajectory", False):
+                config["import_trajectory"] = True
+                count_traj += 1
+
+        self._recalculate_all_actions()
+        log.info(
+            "wizard.import_config.bulk_import_all",
+            arenas=count_arena,
+            rois=count_rois,
+            trajectories=count_traj,
+        )
+
+    def _recalculate_all_actions(self):
+        """Recalculate actions for all videos and refresh UI."""
+        for config in self.video_configs:
+            action = derive_import_action(
+                config.get("import_arena", False),
+                config.get("import_rois", False),
+                config.get("import_trajectory", False),
+            )
+            config["action"] = action.value
+
+        self._populate_table()
+        self._update_summary()
+        self._update_roi_frame_visibility()
 
     def validate(self) -> tuple[bool, str]:
         """

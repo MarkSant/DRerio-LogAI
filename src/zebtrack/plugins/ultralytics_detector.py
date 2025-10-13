@@ -39,8 +39,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # ByteTrack-related thresholds (used when running model.track)
         self.track_threshold = 0.25
-        self.match_threshold = 0.6
-        self.track_buffer = 30
+        self.match_threshold = 0.15
+        self.track_buffer = 60
         self._tracker_config_cache: dict[str, Any] | None = None
         self._tracker_config_path: Path | None = None
 

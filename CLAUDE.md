@@ -148,6 +148,52 @@ log.error("recorder.save_parquet.error", error=str(e))
   - `tests/test_overlay_integration.py` (overlay preservation)
   - `tests/test_interval_frames_config.py` (interval dialogs + persistence)
 
+## Wizard UI Architecture
+
+The wizard dialog uses a **wide window with 3-column layout** (implemented in v1.7+):
+
+### Design Principles
+
+1. **Wide Window**: 1150×550px (wide aspect ratio for 3-column layouts, shorter to fit buttons)
+2. **3-Column Horizontal Distribution**: Steps organize content in 3 columns side-by-side
+3. **Taskbar-Safe**: Reserves 220px vertical space, ensuring navigation buttons always visible
+4. **Compact Spacing**: Reduced paddings (8px) and margins (3-5px) to maximize content area
+
+### Implementation Details (`wizard_dialog.py`)
+
+- **Target Size**: 1150×550px (2.09:1 aspect ratio)
+- **Available Space Calculation**:
+  - Horizontal: `screen_width - 80px` (margins)
+  - Vertical: `screen_height - 220px` (taskbar + title bar + bottom margin for buttons)
+- **Resize Bounds**:
+  - Minimum: 900×480px (still usable at smaller size)
+  - Maximum: 1380×605px (120% width, 110% height)
+- **Container Padding**: 8px (reduced from 10px)
+
+### Step Layouts (3-Column Distribution)
+
+- **Discovery Step**: All 3 questions in columns ([Q1: Tipo | Q2: Organização | Q3: Parquets])
+  - Padding reduced to 10px (from 15px)
+  - Column spacing: 3px between columns
+  - No vertical stacking of questions
+- **File Selection**: List and preview tree side-by-side (height=12 rows each)
+- **Other Steps**: Designed to fit within 1150px width without scrolling
+
+### Key Methods
+
+- `_initialize_geometry()`: Sets wide fixed size once (line 278)
+- `_update_minimum_size()`: No-op (maintains size between steps)
+
+### Why This Approach?
+
+**Problem**: Previous layouts stacked questions vertically, hiding buttons behind taskbar.
+
+**Solution**: Wide window with 3-column horizontal layout:
+- Maximum use of horizontal space (3 columns side-by-side)
+- Shorter height (550px) ensures buttons always visible
+- Compact spacing reduces wasted vertical space
+- Fits on 1366×768+ screens with guaranteed button visibility
+
 ## Common Pitfalls
 
 1. **UI blocking**: Never call long-running operations directly from GUI callbacks. Use threads and `root.after()` for updates.
@@ -167,18 +213,72 @@ log.error("recorder.save_parquet.error", error=str(e))
 
 5. **Missing hardware gracefully**: The app must work without Arduino or live cameras. Always check for hardware availability.
 
+6. **Wizard window size**: The wizard uses a wide fixed 1150×550px size (3-column layout) with 220px reserved for taskbar. Design steps with 3-column horizontal layouts - do NOT resize the window between steps or create vertically-stacked content that pushes buttons off-screen.
+
+## Recent Major Features (v1.7+)
+
+### 1. Advanced Configuration Tab
+- **Location**: `gui.py::_create_configuration_tab()`
+- **Purpose**: In-app editor for `config.local.yaml` overrides
+- **Features**:
+  - Live validation using Pydantic rules
+  - Tooltips explaining each setting
+  - Load/Save/Reset/Refresh handlers
+  - Syncs with global `settings` instance
+- **Documentation**: `REFERENCE_GUIDE.md`
+
+### 2. ROI Template System
+- **Location**: `gui.py` + `project_manager.py`
+- **Purpose**: Save/import/apply ROI designs across projects
+- **Features**:
+  - Template persistence in `templates/` folder
+  - Combobox selector with live refresh
+  - Centroid-aware snapping helpers in `utils/geometry.py`
+- **Tests**: `test_project_manager.py::test_save_roi_template_*`
+- **Documentation**: `PROJECT_WORKFLOW.md`
+
+### 3. Track-Specific Overlays
+- **Location**: `gui.py::update_detection_overlay()`
+- **Purpose**: Highlight individual tracks in analysis view
+- **Features**:
+  - Profile label showing active detection profile
+  - Track selector combobox (deduplicated track IDs)
+  - Social proximity percentages display
+  - Overlay preservation across view toggles
+- **Tests**: `test_overlay_integration.py`, `test_analysis_view_toggle.py`
+
+### 4. Event Bus System (Opt-in)
+- **Location**: `ui/event_bus.py`
+- **Purpose**: Decouple controller→GUI communication
+- **Flag**: `UIFeatureFlags.enable_event_queue` (default: False)
+- **Status**: Staged migration (use `root.after` for now)
+- **Future**: Will replace direct `root.after` calls in controller
+
+### 5. ttkbootstrap Scrollbar Resilience
+- **Location**: `ui/window_utils.py::create_scrollbar()`
+- **Purpose**: Handle ttkbootstrap Style singleton teardown in tests
+- **Functions**:
+  - `_ttkbootstrap_style_needs_reset()`: Detect dead Style singleton
+  - `_clear_ttkbootstrap_style()`: Reset singleton
+  - `create_scrollbar()`: Factory function with auto-recovery
+- **Usage**: Wizard steps that need internal scrollbars (e.g., file lists) use this factory
+
 ## Key Files
 
 - `src/zebtrack/core/controller.py` - Main workflow orchestration, `_process_videos()`, `_run_tracking_if_needed()`
-- `src/zebtrack/core/project_manager.py` - Project management, parquet scanning (`scan_input_paths()`), zone import
-- `src/zebtrack/ui/gui.py` - Tkinter interface, dual-view canvas, progress overlay system, wizard integration
+- `src/zebtrack/core/project_manager.py` - Project management, parquet scanning (`scan_input_paths()`), zone import, ROI templates
+- `src/zebtrack/ui/gui.py` - Tkinter interface, dual-view canvas, progress overlay system, wizard integration, config editor, ROI templates
 - `src/zebtrack/ui/wizard/` - **5-step wizard** (v1.5): Discovery, File Selection, Detection, Import Config, Confirmation
 - `src/zebtrack/ui/wizard/wizard_adapter.py` - Adapter translating wizard output to controller format
+- `src/zebtrack/ui/wizard/wizard_dialog.py` - Fixed-size window with scrollbar (v1.7+)
+- `src/zebtrack/ui/window_utils.py` - Window management utilities, ttkbootstrap scrollbar factory
+- `src/zebtrack/ui/event_bus.py` - Optional event bus for controller→GUI decoupling (opt-in via flag)
 - `src/zebtrack/io/recorder.py` - Parquet/MP4 schema enforcement
 - `src/zebtrack/analysis/analysis_service.py` - Behavioral & ROI metrics orchestration
 - `src/zebtrack/analysis/reporter.py` - Excel/Word report generation
 - `src/zebtrack/plugins/` - Detector implementations
 - `src/zebtrack/settings.py` - Configuration models + **feature flags** (UIFeatureFlags)
+- `src/zebtrack/utils/geometry.py` - Geometry helpers including centroid-aware snapping
 
 ## Additional Documentation
 

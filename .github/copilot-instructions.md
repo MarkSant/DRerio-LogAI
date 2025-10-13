@@ -46,6 +46,8 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 - The wizard is now the default path (v1.6+). The `settings.ui_features.use_wizard_for_project_creation` flag is retained for legacy scenarios but should remain enabled for parity with current UI flows.
 - Wizard flow lives under `src/zebtrack/ui/wizard/` (steps, dialog, adapter). It feeds controller inputs through `wizard_adapter.adapt_wizard_data_to_controller_format()` to preserve backward compatibility.
+- **v1.7+ UI Architecture**: The wizard dialog (`wizard_dialog.py`) uses a wide fixed-size window (1150×550px) designed for 3-column horizontal layouts. Discovery Step has all 3 questions side-by-side with compact spacing (padding 8-10px, column gaps 3px). Reserves 220px vertical space to ensure navigation buttons are never hidden by taskbar. Resizable 75%-120% width, 75%-110% height. Design steps with 3-column horizontal layouts - do NOT stack content vertically or create content that pushes buttons off-screen.
+- **Scrollbar Factory**: Wizard steps that need internal scrollbars (e.g., file lists) must use `window_utils.create_scrollbar()` instead of direct `ttk.Scrollbar()` to handle ttkbootstrap Style singleton teardown gracefully in tests.
 - Maintain parity with the legacy dialogs: every wizard change must still populate `ProjectManager.project_data` fields expected elsewhere (intervals, batches, calibration defaults).
 - Update wizard-specific tests when modifying the flow or adapter logic: `tests/test_wizard_adapter.py`, `tests/test_wizard_confirmation.py`, `tests/test_wizard_integration.py`, related step tests, and the controller regression `tests/test_controller.py::TestAppController::test_open_project_workflow_success_loads_view_and_zones` when project-loading side effects change.
 - Manual wizard scenarios now reside in `test_scenarios/` (documentation) and `tests/manual/`; legacy generator scripts were removed.
@@ -86,16 +88,29 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - Handle empty detection batches without creating output artifacts.
 - Guard for missing settings/configuration and absent hardware (e.g., Arduino).
 
+### Recent Features (v1.7+)
+
+- **Advanced Configuration Tab** (`gui.py::_create_configuration_tab()`): In-app editor for `config.local.yaml` with live Pydantic validation, tooltips, and load/save/reset handlers. See `REFERENCE_GUIDE.md` for user docs.
+- **ROI Template System** (`gui.py` + `project_manager.py`): Save/import/apply ROI designs across projects via combobox selector. Templates persist in `templates/` folder. Geometry helpers in `utils/geometry.py` support centroid-aware snapping. Tests in `test_project_manager.py::test_save_roi_template_*`.
+- **Track-Specific Overlays** (`gui.py::update_detection_overlay()`): Analysis view now supports profile labels, track selector comboboxes, and social proximity percentage display. Covered by `test_overlay_integration.py` and `test_analysis_view_toggle.py`.
+- **Event Bus (Opt-in)** (`ui/event_bus.py`): Optional controller→GUI decoupling via `UIFeatureFlags.enable_event_queue` (default: False). Still in staged migration—continue using `root.after` for UI updates.
+- **Window Utilities** (`ui/window_utils.py`): Centralized helpers for window maximization and `create_scrollbar()` factory that handles ttkbootstrap Style singleton teardown gracefully.
+
 ### Repository Landmarks
 
 - `src/zebtrack/core/controller.py`: Application workflow hub.
 - `src/zebtrack/core/detector.py`: Zone management and detection state machine.
+- `src/zebtrack/core/project_manager.py`: Project persistence, ROI templates, parquet scanning.
 - `src/zebtrack/io/recorder.py`: Parquet/MP4 writers.
 - `src/zebtrack/plugins/`: Detector implementations.
 - `src/zebtrack/analysis/`: Behavioral metrics, ROI analysis, reporting.
-- `src/zebtrack/settings.py`: Pydantic settings models.
+- `src/zebtrack/settings.py`: Pydantic settings models + feature flags.
+- `src/zebtrack/utils/geometry.py`: Geometry helpers including centroid-aware snapping.
 - `tests/`: Pytest suite (unit, integration, GUI regression tests).
+- `src/zebtrack/ui/gui.py`: Main application GUI with config editor, ROI templates, track overlays.
 - `src/zebtrack/ui/wizard/`: Wizard dialog, step implementations, and adapter.
+- `src/zebtrack/ui/window_utils.py`: Window management and scrollbar factory.
+- `src/zebtrack/ui/event_bus.py`: Optional event bus (staged migration).
 
 ### When in Doubt
 

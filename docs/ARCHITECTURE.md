@@ -118,6 +118,7 @@ sequenceDiagram
 | AD-06 | **Projétil orientado a projetos** | Persistir `ProjectManager.project_data` mantendo batches e intervalos por projeto. |
 | AD-07 | **Wizard padrão com fallback controlado por flag** 🧙 | O fluxo guiado é a experiência padrão (v1.6+); a flag `UIFeatureFlags.use_wizard_for_project_creation` permanece apenas para cenários legados, com compatibilidade assegurada pelo `wizard_adapter`. |
 | AD-08 | **Fila de eventos assíncrona (em implantação)** | `UIFeatureFlags.enable_event_queue` introduz um _event bus_ entre threads de processamento e o mainloop Tkinter, reduzindo `root.after` diretos e isolando efeitos de UI. |
+| AD-09 | **Wizard com janela larga e layout de 3 colunas** 🧙 | Para máximo aproveitamento horizontal sem ocultar botões, o wizard usa tamanho fixo de 1150×550px (aspecto wide, 2.09:1). Discovery Step organiza todas as 3 perguntas em colunas lado a lado. Espaçamentos compactos (padding 8-10px). Reserva 220px verticais para garantir que botões fiquem sempre visíveis. Redimensionável entre 75%-120% largura, 75%-110% altura. |
 
 ## 5. Pontos de extensão
 

@@ -53,6 +53,7 @@ class DesignEditorDialog(Dialog):
         *,
         custom_regex_patterns: dict | None = None,
         on_custom_regex_configured: Callable[[dict], dict | None] | None = None,
+        sample_paths: list[str] | None = None,
     ):
         """Prepare working copies before showing the dialog."""
         design = design or {}
@@ -63,6 +64,7 @@ class DesignEditorDialog(Dialog):
             custom_regex_patterns.copy() if custom_regex_patterns else None
         )
         self.on_custom_regex_configured = on_custom_regex_configured
+        self.sample_paths = sample_paths or []
 
         self.groups = list(design.get("groups", []))
         self.days = list(design.get("days", []) or [])
@@ -368,7 +370,11 @@ class DesignEditorDialog(Dialog):
                 pass
 
     def _open_custom_regex_dialog(self) -> None:
-        dialog = CustomRegexDialog(self, self.custom_regex_patterns or {})
+        dialog = CustomRegexDialog(
+            self,
+            self.custom_regex_patterns or {},
+            sample_paths=self.sample_paths,
+        )
         result_patterns = dialog.get_result()
 
         if result_patterns is None:

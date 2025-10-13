@@ -165,9 +165,15 @@ class FileSelectionStep(WizardStep):
             justify="left",
         ).pack(anchor="w")
 
-        # List of selected paths
-        list_frame = LabelFrame(self, text="Itens Selecionados", padx=10, pady=10)
-        list_frame.pack(fill="both", expand=True)
+        # Horizontal container for list and tree (side by side)
+        content_container = Frame(self)
+        content_container.pack(fill="both", expand=True)
+
+        # LEFT: List of selected paths
+        list_frame = LabelFrame(
+            content_container, text="Itens Selecionados", padx=10, pady=10
+        )
+        list_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
         # Scrollable listbox
         scrollbar = create_scrollbar(list_frame)
@@ -176,19 +182,19 @@ class FileSelectionStep(WizardStep):
         self.paths_listbox = Listbox(
             list_frame,
             yscrollcommand=scrollbar.set,
-            height=10,
+            height=12,
         )
         self.paths_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.paths_listbox.yview)
 
-        # Folder preview tree
+        # RIGHT: Folder preview tree
         tree_frame = LabelFrame(
-            self,
+            content_container,
             text="Pré-visualização da Estrutura",
             padx=10,
             pady=10,
         )
-        tree_frame.pack(fill="both", expand=True, pady=(10, 0))
+        tree_frame.pack(side="left", fill="both", expand=True, padx=(5, 0))
 
         tree_scroll = create_scrollbar(tree_frame)
         tree_scroll.pack(side="right", fill="y")
@@ -197,7 +203,7 @@ class FileSelectionStep(WizardStep):
             tree_frame,
             columns=("detalhes",),
             show="tree headings",
-            height=8,
+            height=12,
         )
         self.folder_tree.column("#0", width=280, stretch=True)
         self.folder_tree.column("detalhes", width=160, stretch=True)

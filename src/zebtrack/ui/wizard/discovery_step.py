@@ -92,26 +92,26 @@ class DiscoveryStep(WizardStep):
         self.scroll_canvas.bind("<Leave>", self._unbind_mousewheel)
 
         self.content_container = Frame(self.content_frame, bg=background_color)
-        self.content_container.pack(fill="both", expand=True, padx=10, pady=10)
+        self.content_container.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Title
-        title_font = tkfont.Font(size=14, weight="bold")
+        title_font = tkfont.Font(size=13, weight="bold")
         title = Label(
             self.content_container,
             text="Bem-vindo ao Assistente de Criação de Projeto",
             font=title_font,
         )
-        title.pack(pady=(0, 20))
+        title.pack(pady=(0, 8))
 
         subtitle = Label(
             self.content_container,
             text="Vamos começar entendendo o contexto do seu projeto.",
             fg="gray",
         )
-        subtitle.pack(pady=(0, 20))
+        subtitle.pack(pady=(0, 10))
 
         actions_frame = Frame(self.content_container, bg=background_color)
-        actions_frame.pack(fill="x", pady=(0, 10))
+        actions_frame.pack(fill="x", pady=(0, 5))
 
         Button(
             actions_frame,
@@ -130,14 +130,27 @@ class DiscoveryStep(WizardStep):
         )
         self.template_info_label.pack_forget()
 
-        # Question 1: Project Type
-        q1_header = Frame(self.content_container)
-        q1_header.pack(fill="x", pady=(0, 5))
+        # Create horizontal layout container for questions (3 columns)
+        questions_container = Frame(self.content_container, bg=background_color)
+        questions_container.pack(fill="both", expand=True, pady=(0, 5))
 
+        # Left column (Q1)
+        left_col = Frame(questions_container, bg=background_color)
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 3))
+
+        # Middle column (Q2)
+        middle_col = Frame(questions_container, bg=background_color)
+        middle_col.pack(side="left", fill="both", expand=True, padx=(3, 3))
+
+        # Right column (Q3)
+        right_col = Frame(questions_container, bg=background_color)
+        right_col.pack(side="left", fill="both", expand=True, padx=(3, 0))
+
+        # Question 1: Project Type (LEFT COLUMN)
         self.q1_frame = LabelFrame(
-            self.content_container, text="1. Tipo de Projeto", padx=15, pady=10
+            left_col, text="1. Tipo de Projeto", padx=10, pady=8
         )
-        self.q1_frame.pack(fill="x", pady=(0, 15))
+        self.q1_frame.pack(fill="both", expand=True)
 
         rb1 = Radiobutton(
             self.q1_frame,
@@ -181,11 +194,11 @@ class DiscoveryStep(WizardStep):
         )
         ToolTip(rb_live, live_tip)
 
-        # Question 2: Folder Organization (only for experimental)
+        # Question 2: Folder Organization (MIDDLE COLUMN)
         self.q2_frame = LabelFrame(
-            self.content_container, text="2. Organização de Pastas", padx=15, pady=10
+            middle_col, text="2. Organização de Pastas", padx=10, pady=8
         )
-        self.q2_frame.pack(fill="x", pady=(0, 15))
+        self.q2_frame.pack(fill="both", expand=True)
 
         rb3 = Radiobutton(
             self.q2_frame,
@@ -220,14 +233,14 @@ class DiscoveryStep(WizardStep):
         rb5_tip = "Todos os vídeos estão numa pasta plana, sem subpastas."
         ToolTip(rb5, rb5_tip)
 
-        # Question 3: Existing Parquet Files
+        # Question 3: Existing Parquet Files (RIGHT COLUMN)
         self.q3_frame = LabelFrame(
-            self.content_container,
+            right_col,
             text="3. Arquivos Parquet Existentes",
-            padx=15,
-            pady=10,
+            padx=10,
+            pady=8,
         )
-        self.q3_frame.pack(fill="x", pady=(0, 15))
+        self.q3_frame.pack(fill="both", expand=True)
 
         Label(
             self.q3_frame,
@@ -394,21 +407,16 @@ class DiscoveryStep(WizardStep):
             self.q2_frame.pack_forget()
             self.q3_frame.pack_forget()
         elif project_type == ProjectType.EXPERIMENTAL.value:
-            # Experimental: show both questions
+            # Experimental: show both questions (all in their columns)
             if not self.q2_frame.winfo_ismapped():
-                self.q2_frame.pack(
-                    fill="x",
-                    pady=(0, 15),
-                    after=self.q1_frame,
-                    before=self.q3_frame,
-                )
+                self.q2_frame.pack(fill="both", expand=True)
             if not self.q3_frame.winfo_ismapped():
-                self.q3_frame.pack(fill="x", pady=(0, 15), after=self.q2_frame)
+                self.q3_frame.pack(fill="both", expand=True)
         else:  # Exploratory
             # Hide folder organization, show parquets
             self.q2_frame.pack_forget()
             if not self.q3_frame.winfo_ismapped():
-                self.q3_frame.pack(fill="x", pady=(0, 15), after=self.q1_frame)
+                self.q3_frame.pack(fill="both", expand=True)
 
     def validate(self) -> tuple[bool, str]:
         """

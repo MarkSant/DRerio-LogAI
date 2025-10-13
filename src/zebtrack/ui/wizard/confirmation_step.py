@@ -130,18 +130,19 @@ class ConfirmationStep(WizardStep):
             command=self._browse_location,
         ).pack(side="left")
 
-        # Summary
+        # Summary (with controlled height to prevent button occlusion)
         summary_frame = LabelFrame(self, text="Resumo do Projeto", padx=10, pady=10)
-        summary_frame.pack(fill="both", expand=True, pady=(0, 10))
+        summary_frame.pack(fill="x", pady=(0, 10))
 
         self.summary_label = Label(
             summary_frame,
             text="",
             justify="left",
             anchor="nw",
-            wraplength=500,
+            wraplength=900,
+            height=18,
         )
-        self.summary_label.pack(fill="both", expand=True)
+        self.summary_label.pack(fill="x")
 
         # Template button
         template_btn_frame = Frame(self)

@@ -1,11 +1,13 @@
 # Wizard de Criação de Projetos - Guia do Usuário
 
-**Versão:** 1.6
-**Última Atualização:** 2025-10-09
+**Versão:** 1.7
+**Última Atualização:** 2025-10-12
 
 ## Visão Geral
 
 O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que automatiza a criação de projetos no ZebTrack-AI. Desde a versão 1.6 ele é a experiência padrão (a flag `ui_features.use_wizard_for_project_creation` deve permanecer habilitada). Ele detecta automaticamente o design experimental, importa zonas de arquivos Parquet existentes e configura estratégias de processamento otimizadas para cada vídeo.
+
+**Novidade v1.7:** A janela do wizard agora usa tamanho fixo largo (1150×550px) com layout de 3 colunas. Todas as perguntas da primeira etapa são exibidas lado a lado, maximizando o uso do espaço horizontal e minimizando a altura. Espaçamentos compactos e 220px de margem inferior garantem que os botões de navegação fiquem sempre visíveis. Compatível com telas 1366×768+.
 
 ### Benefícios
 

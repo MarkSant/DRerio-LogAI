@@ -45,7 +45,7 @@ from zebtrack.utils import IntegrityError
 log = structlog.get_logger()
 
 DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.6
+DEFAULT_MATCH_THRESHOLD = 0.15
 
 
 class AppController:

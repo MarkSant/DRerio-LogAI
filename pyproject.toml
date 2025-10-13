@@ -29,6 +29,10 @@ docxtpl = "^0.16.7"
 openpyxl = "^3.1.5"
 cython-bbox = "^0.1.3"
 ttkbootstrap = "^1.10.1"
+# Pin setuptools < 81 to prevent pkg_resources removal (docxcompose dependency)
+# docxcompose (used by docxtpl for Word reports) still uses deprecated pkg_resources
+# See: https://setuptools.pypa.io/en/latest/pkg_resources.html
+setuptools = "<81"
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
@@ -51,4 +55,7 @@ select = ["E", "F", "I", "W"]
 [tool.pytest.ini_options]
 pythonpath = [
   "src"
+]
+filterwarnings = [
+  "ignore::UserWarning",
 ]
