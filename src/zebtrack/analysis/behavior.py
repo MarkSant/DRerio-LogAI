@@ -114,6 +114,10 @@ class BehavioralAnalyzer(ABC):
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             df["timestamp"] = df["timestamp"] - df["timestamp"].iloc[0]
 
+        if "track_id" in df.columns:
+            numeric_ids = pd.to_numeric(df["track_id"], errors="coerce")
+            df["track_id"] = numeric_ids.astype("Int64")
+
         df.set_index("timestamp", inplace=True)
 
         # Calculate center coordinates if not present (fallback for older data)

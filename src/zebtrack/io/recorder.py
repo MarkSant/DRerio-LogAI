@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Any
 
 import cv2
 import numpy as np
@@ -141,6 +142,7 @@ class Recorder:
             return
 
         for x1, y1, x2, y2, confidence, track_id in detections:
+            normalised_track = self._normalise_track_id(track_id)
             # Transform coordinates from original video space to warped space
             # This aligns with COORDINATE_SYSTEMS.md: Original → Warped → CM
             if self.calibration:
@@ -150,7 +152,7 @@ class Recorder:
             data_point = {
                 "timestamp": timestamp,
                 "frame": frame_number,
-                "track_id": track_id,
+                "track_id": normalised_track,
                 "x1": x1,
                 "y1": y1,
                 "x2": x2,
@@ -175,6 +177,29 @@ class Recorder:
         )
 
         self._flush_detection_data()
+
+    @staticmethod
+    def _normalise_track_id(value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, (np.integer, int)):
+            return int(value)
+        if isinstance(value, (float, np.floating)):
+            if np.isnan(value):  # type: ignore[arg-type]
+                return None
+            return int(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return int(float(stripped))
+            except ValueError:
+                return None
+        try:
+            return int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
 
     def _determine_parquet_columns(self) -> list[str]:
         columns = [

@@ -208,10 +208,51 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
     assert len(df) == 1
     assert df.iloc[0]["track_id"] == 42
 
+
+def test_write_detection_data_coerces_track_id_types(recorder_setup):
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+    recorder.write_detection_data(0.0, 1, [(0, 0, 10, 10, 0.7, "7")])
+    recorder.stop_recording()
+
+    base_name = os.path.basename(output_folder)
+    parquet_path = os.path.join(
+        output_folder, f"3_CoordMovimento_{base_name}.parquet"
+    )
+    df = pd.read_parquet(parquet_path)
+    assert df.iloc[0]["track_id"] == 7
+
+
+def test_write_detection_data_handles_multiple_tracks(recorder_setup):
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+    recorder.write_detection_data(
+        0.1,
+        5,
+        [
+            (1, 1, 11, 11, 0.95, 1),
+            (2, 2, 12, 12, 0.85, "8"),
+        ],
+    )
+    recorder.stop_recording()
+
+    base_name = os.path.basename(output_folder)
+    parquet_path = os.path.join(
+        output_folder, f"3_CoordMovimento_{base_name}.parquet"
+    )
+    df = pd.read_parquet(parquet_path)
+    assert set(df["track_id"].tolist()) == {1, 8}
+
+
 def test_video_writing(recorder_setup):
     """Test that writing video frames increases file size."""
     from zebtrack.core.detector import ZoneData
-
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()
     recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)

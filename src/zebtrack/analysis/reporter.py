@@ -237,6 +237,11 @@ class Reporter:
                 trajectory_df, calibration
             )
 
+        if "track_id" in trajectory_df.columns:
+            track_ids = pd.to_numeric(trajectory_df["track_id"], errors="coerce")
+            trajectory_df = trajectory_df.copy()
+            trajectory_df["track_id"] = track_ids.astype("Int64")
+
         # Run the unified analysis via the service
         service = AnalysisService()
         self.report, self.b_analyzer, self.r_analyzer = service.run_full_analysis(

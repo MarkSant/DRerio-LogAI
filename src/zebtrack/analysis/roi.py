@@ -682,6 +682,11 @@ class ROIAnalyzer:
         radius_px = radius_cm * np.sqrt(pixelcm_x * pixelcm_y)
 
         df = full_trajectory_df.copy()
+        df["track_id"] = pd.to_numeric(df["track_id"], errors="coerce")
+        df = df.dropna(subset=["track_id"]).copy()
+        if df.empty:
+            return {"social_time_seconds": {}, "social_time_percentage": {}}
+        df["track_id"] = df["track_id"].astype(int)
         df["is_in_group"] = False
         df["group_id"] = -1
 
