@@ -18,7 +18,7 @@ def pytest_configure(config):
     - docxcompose v1.4.0 (latest as of 2025) uses deprecated pkg_resources API
     - docxcompose is an external dependency (required by docxtpl for Word reports)
     - We cannot fix their code, only wait for maintainers to migrate to importlib
-    - We pinned setuptools < 81 in pyproject.toml to ensure pkg_resources remains available
+    - We pinned setuptools < 81 in pyproject.toml so pkg_resources stays available
     - This suppression hides the warning noise while the upstream fix is pending
 
     Tracking issue: https://github.com/4teamwork/docxcompose/issues

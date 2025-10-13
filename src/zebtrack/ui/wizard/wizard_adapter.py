@@ -13,8 +13,8 @@ from typing import Optional
 
 import structlog
 
-from zebtrack.ui.wizard.enums import ProjectType
 from zebtrack.settings import settings
+from zebtrack.ui.wizard.enums import ProjectType
 
 log = structlog.get_logger()
 

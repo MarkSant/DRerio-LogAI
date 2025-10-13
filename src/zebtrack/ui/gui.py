@@ -114,9 +114,6 @@ class CalibrationDialog(simpledialog.Dialog):
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
 
-        # --- Vars for sensitivity control ---
-        self.sensitivity_var = StringVar(value="0.15")
-
         self._prefill_detector_parameters()
 
         super().__init__(parent, "Calibração e Diagnóstico")
@@ -223,6 +220,7 @@ class CalibrationDialog(simpledialog.Dialog):
         # --- Parameters ---
         params_frame = ttk.Frame(diag_frame, padding=5)
         params_frame.pack(fill="x", padx=10, pady=5)
+        params_frame.columnconfigure(2, weight=1)
 
         ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
@@ -237,6 +235,18 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Entry(
             params_frame, textvariable=self.confidence_threshold_var, width=10
         ).grid(row=1, column=1, sticky="w", padx=5)
+        ttk.Label(
+            params_frame,
+            text=(
+                "Aceita apenas detecções com confiança acima desse valor. "
+                "Reduza para detectar mais (com risco de falsos positivos) ou "
+                "aumente para filtrar ruídos."
+            ),
+            wraplength=280,
+            justify="left",
+            foreground="#555555",
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=2, sticky="w", padx=(10, 0))
 
         ttk.Label(params_frame, text="Limiar NMS (IoU):").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
@@ -244,6 +254,18 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Entry(
             params_frame, textvariable=self.nms_threshold_var, width=10
         ).grid(row=2, column=1, sticky="w", padx=5)
+        ttk.Label(
+            params_frame,
+            text=(
+                "Remove caixas muito sobrepostas. Valores menores mantêm apenas a "
+                "caixa mais confiante; valores maiores permitem múltiplas caixas "
+                "sobre o mesmo animal."
+            ),
+            wraplength=280,
+            justify="left",
+            foreground="#555555",
+            font=("Segoe UI", 9),
+        ).grid(row=2, column=2, sticky="w", padx=(10, 0))
 
         ttk.Label(params_frame, text="ByteTrack - Track Thresh:").grid(
             row=3, column=0, sticky="w", padx=5, pady=2
@@ -251,6 +273,18 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Entry(
             params_frame, textvariable=self.track_threshold_var, width=10
         ).grid(row=3, column=1, sticky="w", padx=5)
+        ttk.Label(
+            params_frame,
+            text=(
+                "Confiança mínima para manter uma trilha existente ativa. "
+                "Reduza para seguir animais mais ruidosos; aumente para evitar "
+                "rastros instáveis."
+            ),
+            wraplength=280,
+            justify="left",
+            foreground="#555555",
+            font=("Segoe UI", 9),
+        ).grid(row=3, column=2, sticky="w", padx=(10, 0))
 
         ttk.Label(params_frame, text="ByteTrack - Match Thresh:").grid(
             row=4, column=0, sticky="w", padx=5, pady=2
@@ -258,6 +292,18 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Entry(
             params_frame, textvariable=self.match_threshold_var, width=10
         ).grid(row=4, column=1, sticky="w", padx=5)
+        ttk.Label(
+            params_frame,
+            text=(
+                "Limite utilizado para ligar novas detecções às trilhas atuais na "
+                "segunda etapa do ByteTrack. Ajuste para controlar quantas "
+                "reassociações acontecem."
+            ),
+            wraplength=280,
+            justify="left",
+            foreground="#555555",
+            font=("Segoe UI", 9),
+        ).grid(row=4, column=2, sticky="w", padx=(10, 0))
 
         # --- Model Selection for Diagnostic ---
         ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
@@ -272,48 +318,18 @@ class CalibrationDialog(simpledialog.Dialog):
         )
         self.model_test_dropdown.grid(row=5, column=1, sticky="w", padx=5)
 
-        # --- Row 3: Sensitivity Control ---
-        ttk.Label(params_frame, text="Ajuste de Sensibilidade:").grid(
-            row=6, column=0, sticky="w", padx=5, pady=2
-        )
-
-        sensitivity_frame = ttk.Frame(params_frame)
-        sensitivity_frame.grid(row=6, column=1, sticky="w", padx=5)
-
-        self.sensitivity_scale = ttk.Scale(
-            sensitivity_frame,
-            from_=0.05,
-            to=0.50,
-            orient="horizontal",
-            length=150,
-            command=self._on_sensitivity_change,
-        )
-        self.sensitivity_scale.pack(side="left")
-
-        self.sensitivity_label = ttk.Label(sensitivity_frame, text="0.15")
-        self.sensitivity_label.pack(side="left", padx=(5, 0))
-
-        # --- Tooltip para sensibilidade ---
-        tooltip_label = ttk.Label(
-            params_frame,
-            text="(Valores menores detectam mais objetos)",
-            font=("Segoe UI", 8),
-            foreground="gray",
-        )
-        tooltip_label.grid(row=7, column=1, sticky="w", padx=5, pady=(0, 5))
-
-        try:
-            slider_value = float(self.confidence_threshold_var.get())
-        except (TypeError, ValueError):
-            slider_value = 0.15
-        self.sensitivity_scale.set(slider_value)
-        self.sensitivity_label.config(text=f"{slider_value:.2f}")
-
+        actions_frame = ttk.Frame(diag_frame)
+        actions_frame.pack(fill="x", padx=10, pady=(0, 5))
         ttk.Button(
-            diag_frame,
+            actions_frame,
             text="Aplicar Parâmetros",
             command=self._apply_detector_parameters,
-        ).pack(fill="x", padx=10, pady=(0, 5))
+        ).pack(side="left", expand=True, fill="x")
+        ttk.Button(
+            actions_frame,
+            text="Restaurar Padrões",
+            command=self._restore_detector_defaults,
+        ).pack(side="left", expand=True, fill="x", padx=(8, 0))
 
         ttk.Button(
             diag_frame,
@@ -333,7 +349,6 @@ class CalibrationDialog(simpledialog.Dialog):
         conf = params.get("confidence_threshold")
         if conf is not None:
             self.confidence_threshold_var.set(f"{conf:.2f}")
-            self.sensitivity_var.set(f"{conf:.2f}")
 
         nms = params.get("nms_threshold")
         if nms is not None:
@@ -388,10 +403,6 @@ class CalibrationDialog(simpledialog.Dialog):
 
         if updated:
             self.confidence_threshold_var.set(f"{conf:.2f}")
-            self.sensitivity_scale.set(conf)
-            self.sensitivity_var.set(f"{conf:.2f}")
-            if hasattr(self, "sensitivity_label"):
-                self.sensitivity_label.config(text=f"{conf:.2f}")
             messagebox.showinfo(
                 "Parâmetros do Detector",
                 "Parâmetros atualizados com sucesso.",
@@ -401,6 +412,33 @@ class CalibrationDialog(simpledialog.Dialog):
                 "Parâmetros do Detector",
                 "Nenhuma alteração necessária.",
             )
+
+    def _restore_detector_defaults(self) -> None:
+        try:
+            defaults = self.controller.get_factory_detector_parameters()
+        except ValueError as exc:
+            messagebox.showerror("Erro", str(exc))
+            return
+
+        self.confidence_threshold_var.set(
+            f"{defaults.get('confidence_threshold', 0.25):.2f}"
+        )
+        self.nms_threshold_var.set(f"{defaults.get('nms_threshold', 0.5):.2f}")
+        self.track_threshold_var.set(f"{defaults.get('track_threshold', 0.25):.2f}")
+        self.match_threshold_var.set(f"{defaults.get('match_threshold', 0.15):.2f}")
+
+        try:
+            self.controller.update_detector_parameters(
+                defaults, reset_overrides=True
+            )
+        except ValueError as exc:
+            messagebox.showerror("Erro", str(exc))
+            return
+
+        messagebox.showinfo(
+            "Parâmetros do Detector",
+            "Parâmetros padrão restaurados.",
+        )
 
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""
@@ -458,22 +496,6 @@ class CalibrationDialog(simpledialog.Dialog):
         if path:
             self.diagnostic_video_path = path
             self.video_path_label_var.set(os.path.basename(path))
-
-    def _on_sensitivity_change(self, value):
-        """Atualiza label quando threshold muda e aplica globalmente"""
-        threshold_value = float(value)
-        # Safety check to prevent AttributeError during initialization
-        if hasattr(self, "sensitivity_label"):
-            self.sensitivity_label.config(text=f"{threshold_value:.2f}")
-        self.sensitivity_var.set(f"{threshold_value:.2f}")
-
-        # Atualiza threshold globalmente no detector ativo
-        if hasattr(self.controller, "detector") and self.controller.detector:
-            if hasattr(self.controller.detector.plugin, "conf_threshold"):
-                self.controller.detector.plugin.conf_threshold = threshold_value
-
-        # Atualiza também a variável de confidence threshold para diagnósticos
-        self.confidence_threshold_var.set(f"{threshold_value:.2f}")
 
     def _run_diagnostic_test(self):
         # --- Validation ---

@@ -16,8 +16,13 @@ from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
 
-DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.15
+_bytetrack_defaults = getattr(settings, "bytetrack", None)
+DEFAULT_TRACK_THRESHOLD = float(
+    getattr(_bytetrack_defaults, "track_threshold", 0.25)
+)
+DEFAULT_MATCH_THRESHOLD = float(
+    getattr(_bytetrack_defaults, "match_threshold", 0.15)
+)
 _METHOD_OPTIONS: dict[str, str] = {
     "seg": "Segmentação (seg)",
     "det": "Detecção (det)",

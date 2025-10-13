@@ -50,6 +50,8 @@ trajectory_smoothing:
                 self.assertEqual(settings.yolo_model.path, "test.pt")
                 self.assertEqual(settings.recorder.flush_interval_seconds, 3.5)
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
+                self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.25)
+                self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.15)
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
                 self.assertEqual(settings.detection_zones.roi_polygons, [])
@@ -163,6 +165,28 @@ yolo_model:
                 # Recorder settings should merge correctly
                 self.assertEqual(settings.recorder.flush_interval_seconds, 4.0)
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
+
+    def test_bytetrack_override(self):
+        base_yaml = self.mock_yaml_content
+        override_yaml = textwrap.dedent(
+            """
+            bytetrack:
+              track_threshold: 0.35
+              match_threshold: 0.65
+            """
+        )
+
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            return mock_open(read_data=base_yaml)()
+
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                settings = load_settings()
+
+        self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.35)
+        self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.65)
 
     def test_roi_inclusion_settings_defaults(self):
         """Test that ROI inclusion settings have correct defaults."""

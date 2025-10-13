@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import structlog
+import yaml
 from shapely.geometry import Polygon
 
 try:
@@ -26,6 +27,7 @@ except ImportError:
     YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
+import zebtrack.settings as settings_module
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
@@ -44,8 +46,12 @@ from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
-DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.15
+try:
+    DEFAULT_TRACK_THRESHOLD = float(settings.bytetrack.track_threshold)
+    DEFAULT_MATCH_THRESHOLD = float(settings.bytetrack.match_threshold)
+except AttributeError:  # pragma: no cover - legacy settings fallback
+    DEFAULT_TRACK_THRESHOLD = 0.25
+    DEFAULT_MATCH_THRESHOLD = 0.15
 
 
 class AppController:
@@ -1283,11 +1289,22 @@ class AppController:
     def get_current_detector_parameters(self) -> dict[str, float]:
         """Return detector thresholds, falling back to saved or default values."""
 
+        track_default = DEFAULT_TRACK_THRESHOLD
+        match_default = DEFAULT_MATCH_THRESHOLD
+        bytetrack_settings = getattr(settings, "bytetrack", None)
+        if bytetrack_settings is not None:
+            track_default = float(
+                getattr(bytetrack_settings, "track_threshold", track_default)
+            )
+            match_default = float(
+                getattr(bytetrack_settings, "match_threshold", match_default)
+            )
+
         params = {
             "confidence_threshold": float(settings.yolo_model.confidence_threshold),
             "nms_threshold": float(settings.yolo_model.nms_threshold),
-            "track_threshold": DEFAULT_TRACK_THRESHOLD,
-            "match_threshold": DEFAULT_MATCH_THRESHOLD,
+            "track_threshold": track_default,
+            "match_threshold": match_default,
         }
 
         plugin = getattr(getattr(self, "detector", None), "plugin", None)
@@ -1329,7 +1346,47 @@ class AppController:
 
         return params
 
-    def update_detector_parameters(self, params: dict[str, float]) -> bool:
+    def get_factory_detector_parameters(self) -> dict[str, float]:
+        """Return detector thresholds defined in config.yaml without overrides."""
+
+        try:
+            factory_settings = settings_module.load_settings(
+                default_config_path=Path("config.yaml"),
+                override_config_path=Path("__factory_defaults__.yaml"),
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            log.error(
+                "controller.detector.defaults.load_failed",
+                error=str(exc),
+                exc_info=True,
+            )
+            raise ValueError(
+                "Não foi possível carregar os valores padrão do detector."
+            ) from exc
+
+        bytetrack_section = getattr(factory_settings, "bytetrack", None)
+        track_default = float(
+            getattr(bytetrack_section, "track_threshold", 0.25)
+        )
+        match_default = float(
+            getattr(bytetrack_section, "match_threshold", 0.15)
+        )
+
+        return {
+            "confidence_threshold": float(
+                factory_settings.yolo_model.confidence_threshold
+            ),
+            "nms_threshold": float(factory_settings.yolo_model.nms_threshold),
+            "track_threshold": track_default,
+            "match_threshold": match_default,
+        }
+
+    def update_detector_parameters(
+        self,
+        params: dict[str, float],
+        *,
+        reset_overrides: bool = False,
+    ) -> bool:
         """Apply detector threshold updates and persist them when possible."""
 
         detector = getattr(self, "detector", None)
@@ -1385,9 +1442,11 @@ class AppController:
             ):
                 updated = True
 
-        if not updated:
+        if not updated and not reset_overrides:
             log.info("controller.detector.update.no_changes")
             return False
+        if reset_overrides:
+            updated = True
 
         detector_config = {
             "plugin_name": plugin.get_name() if hasattr(plugin, "get_name") else None,
@@ -1406,6 +1465,10 @@ class AppController:
             match_val = getattr(plugin, "match_threshold", None)
             if match_val is not None:
                 detector_config["match_threshold"] = float(match_val)
+
+        self._persist_global_detector_defaults(
+            detector_config, reset=reset_overrides
+        )
 
         save_success = False
         if hasattr(self.project_manager, "save_detector_state"):
@@ -1426,6 +1489,148 @@ class AppController:
             self.view.set_status("Parâmetros do detector atualizados.")
 
         return True
+
+    def _persist_global_detector_defaults(
+        self,
+        detector_config: dict[str, float],
+        *,
+        reset: bool = False,
+    ) -> None:
+        """Sync in-memory settings and config.local.yaml with detector defaults."""
+
+        yolo_updates: dict[str, float] = {}
+        bytetrack_updates: dict[str, float] = {}
+
+        if "confidence_threshold" in detector_config:
+            yolo_updates["confidence_threshold"] = float(
+                detector_config["confidence_threshold"]
+            )
+        if "nms_threshold" in detector_config:
+            yolo_updates["nms_threshold"] = float(detector_config["nms_threshold"])
+        if "track_threshold" in detector_config:
+            bytetrack_updates["track_threshold"] = float(
+                detector_config["track_threshold"]
+            )
+        if "match_threshold" in detector_config:
+            bytetrack_updates["match_threshold"] = float(
+                detector_config["match_threshold"]
+            )
+
+        if not yolo_updates and not bytetrack_updates:
+            return
+
+        active_settings = settings_module.settings
+        if active_settings is None:
+            try:
+                active_settings = settings_module.load_settings()
+                settings_module.settings = active_settings
+            except Exception:  # pragma: no cover - defensive reload
+                log.warning(
+                    "controller.detector.persist_settings_reload_failed",
+                    exc_info=True,
+                )
+                active_settings = None
+
+        if active_settings is not None:
+            if yolo_updates:
+                for key, value in yolo_updates.items():
+                    setattr(active_settings.yolo_model, key, value)
+            if bytetrack_updates:
+                bytetrack_model = getattr(active_settings, "bytetrack", None)
+                if bytetrack_model is None:
+                    bytetrack_model = settings_module.ByteTrackSettings()
+                    active_settings.bytetrack = bytetrack_model
+                for key, value in bytetrack_updates.items():
+                    setattr(bytetrack_model, key, value)
+
+        override_path = Path("config.local.yaml")
+        try:
+            if override_path.exists():
+                with open(override_path, "r", encoding="utf-8") as handle:
+                    override_content = yaml.safe_load(handle) or {}
+            else:
+                override_content = {}
+        except Exception:  # pragma: no cover - defensive logging
+            log.warning(
+                "controller.detector.persist_override_load_failed",
+                exc_info=True,
+            )
+            return
+
+        if reset:
+            modified = False
+            if yolo_updates:
+                section = override_content.get("yolo_model")
+                if isinstance(section, dict):
+                    for key in yolo_updates:
+                        if key in section:
+                            section.pop(key)
+                            modified = True
+                    if not section:
+                        override_content.pop("yolo_model")
+                        modified = True
+            if bytetrack_updates:
+                section = override_content.get("bytetrack")
+                if isinstance(section, dict):
+                    for key in bytetrack_updates:
+                        if key in section:
+                            section.pop(key)
+                            modified = True
+                    if not section:
+                        override_content.pop("bytetrack")
+                        modified = True
+
+            if modified:
+                try:
+                    if override_content:
+                        with open(override_path, "w", encoding="utf-8") as handle:
+                            yaml.safe_dump(
+                                override_content,
+                                handle,
+                                sort_keys=False,
+                                allow_unicode=True,
+                            )
+                    else:
+                        override_path.unlink()
+                except FileNotFoundError:
+                    pass
+                except Exception:  # pragma: no cover - defensive logging
+                    log.warning(
+                        "controller.detector.persist_override_write_failed",
+                        exc_info=True,
+                    )
+            return
+
+        if not yolo_updates and not bytetrack_updates:
+            return
+
+        if yolo_updates:
+            section = override_content.setdefault("yolo_model", {})
+            if isinstance(section, dict):
+                section.update(yolo_updates)
+            else:  # pragma: no cover - guard against corrupted overrides
+                override_content["yolo_model"] = dict(yolo_updates)
+
+        if bytetrack_updates:
+            section = override_content.setdefault("bytetrack", {})
+            if isinstance(section, dict):
+                section.update(bytetrack_updates)
+            else:  # pragma: no cover - guard against corrupted overrides
+                override_content["bytetrack"] = dict(bytetrack_updates)
+
+        try:
+            with open(override_path, "w", encoding="utf-8") as handle:
+                yaml.safe_dump(
+                    override_content,
+                    handle,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+        except Exception:  # pragma: no cover - defensive logging
+            log.warning(
+                "controller.detector.persist_override_write_failed",
+                exc_info=True,
+            )
 
     def _persist_project_model_settings(
         self, weight: str | None, use_openvino: bool

@@ -211,14 +211,17 @@ class TestAppController(unittest.TestCase):
         self.controller.detector = detector
         self.mock_pm.save_detector_state.return_value = True
 
-        updated = self.controller.update_detector_parameters(
-            {
-                "confidence_threshold": 0.3,
-                "nms_threshold": 0.55,
-                "track_threshold": 0.35,
-                "match_threshold": 0.7,
-            }
-        )
+        with patch.object(
+            self.controller, "_persist_global_detector_defaults"
+        ) as persist_mock:
+            updated = self.controller.update_detector_parameters(
+                {
+                    "confidence_threshold": 0.3,
+                    "nms_threshold": 0.55,
+                    "track_threshold": 0.35,
+                    "match_threshold": 0.7,
+                }
+            )
 
         self.assertTrue(updated)
         self.assertAlmostEqual(plugin.conf_threshold, 0.3)
@@ -231,6 +234,51 @@ class TestAppController(unittest.TestCase):
         self.assertAlmostEqual(saved_config["nms_threshold"], 0.55)
         self.assertAlmostEqual(saved_config["track_threshold"], 0.35)
         self.assertAlmostEqual(saved_config["match_threshold"], 0.7)
+        persist_mock.assert_called_once_with(saved_config, reset=False)
+
+    def test_update_detector_parameters_reset_overrides_forces_persistence(self):
+        class DummyPlugin:
+            def __init__(self):
+                self.conf_threshold = 0.2
+                self.nms_threshold = 0.5
+                self.track_threshold = 0.25
+                self.match_threshold = 0.6
+                self._context = "tracking"
+
+            @staticmethod
+            def get_name():
+                return "dummy"
+
+            def set_tracking_parameters(
+                self, *, track_threshold=None, match_threshold=None
+            ):
+                if track_threshold is not None:
+                    self.track_threshold = track_threshold
+                if match_threshold is not None:
+                    self.match_threshold = match_threshold
+
+        plugin = DummyPlugin()
+        detector = MagicMock()
+        detector.plugin = plugin
+        self.controller.detector = detector
+
+        with patch.object(
+            self.controller, "_persist_global_detector_defaults"
+        ) as persist_mock:
+            updated = self.controller.update_detector_parameters(
+                {
+                    "confidence_threshold": 0.2,
+                    "nms_threshold": 0.5,
+                    "track_threshold": 0.25,
+                    "match_threshold": 0.6,
+                },
+                reset_overrides=True,
+            )
+
+        self.assertTrue(updated)
+        persist_mock.assert_called_once()
+        args, kwargs = persist_mock.call_args
+        self.assertTrue(kwargs["reset"])
 
     def test_get_project_data_dict_normalizes_non_dict(self):
         self.mock_pm.project_data = None

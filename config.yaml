@@ -28,6 +28,11 @@ yolo_model:
   # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.
   nms_threshold: 0.5
 
+bytetrack:
+  # Association thresholds usados pelo ByteTrack durante o rastreamento.
+  track_threshold: 0.25
+  match_threshold: 0.15
+
 video_processing:
   # Frames Per Second (FPS) used when saving video files.
   fps: 30

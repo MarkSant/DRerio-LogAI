@@ -85,6 +85,29 @@ class YOLOModelSettings(BaseModel):
     )
 
 
+class ByteTrackSettings(BaseModel):
+    """Association thresholds for the ByteTrack tracker."""
+
+    track_threshold: float = Field(
+        0.25,
+        gt=0,
+        lt=1,
+        description=(
+            "Minimum score required to keep a detection associated with an existing "
+            "track during the ByteTrack matching stage."
+        ),
+    )
+    match_threshold: float = Field(
+        0.15,
+        gt=0,
+        lt=1,
+        description=(
+            "Threshold used when linking unmatched detections to existing tracks in "
+            "ByteTrack's second association pass."
+        ),
+    )
+
+
 class VideoProcessingSettings(BaseModel):
     """Settings for processing video files or live streams."""
 
@@ -245,6 +268,10 @@ class Settings(BaseModel):
         description="Settings for Parquet/video recorder behavior",
     )
     yolo_model: YOLOModelSettings
+    bytetrack: ByteTrackSettings = Field(
+        default_factory=ByteTrackSettings,  # type: ignore[arg-type]
+        description="Default thresholds used by the ByteTrack tracker.",
+    )
     video_processing: VideoProcessingSettings
     detection_zones: DetectionZonesSettings = Field(
         default_factory=DetectionZonesSettings
