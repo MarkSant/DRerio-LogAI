@@ -102,11 +102,10 @@ class TestDetector(unittest.TestCase):
         self.assertTrue(self.detector._is_inside_polygon(150, 150, 160, 160, polygon))
         self.assertFalse(self.detector._is_inside_polygon(300, 300, 310, 310, polygon))
 
-    def test_process_frame_returns_correct_format(self):
-        """Test that process_frame returns detections with track_id."""
+    def test_process_frame_returns_tracked_detections(self):
+        """Detector should attach a track_id when plugin returns raw boxes."""
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        # Detection now includes a track_id (e.g., 123)
-        fake_detection = [(150, 150, 160, 160, 0.9, 123)]
+        fake_detection = [(150, 150, 160, 160, 0.9, None)]
         self.mock_plugin.set_detect_return_value(fake_detection)
 
         # Mock the polygon check to always be true for this test
@@ -114,8 +113,14 @@ class TestDetector(unittest.TestCase):
             detections, _ = self.detector.process_frame(dummy_frame, "pre-recorded")
 
         self.assertEqual(len(detections), 1)
-        # Assert that the entire tuple, including track_id, is passed through
-        self.assertEqual(detections[0], (150, 150, 160, 160, 0.9, 123))
+        x1, y1, x2, y2, confidence, track_id = detections[0]
+        self.assertIsInstance(track_id, int)
+        self.assertGreaterEqual(confidence, 0.0)
+        self.assertLessEqual(confidence, 1.0)
+        self.assertGreaterEqual(x1, 0)
+        self.assertGreaterEqual(y1, 0)
+        self.assertGreater(x2, x1)
+        self.assertGreater(y2, y1)
 
     def test_single_subject_mode_assigns_constant_track_id(self):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)

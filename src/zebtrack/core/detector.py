@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from types import SimpleNamespace
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -8,6 +9,8 @@ import structlog
 
 from zebtrack.core.single_subject_tracker import SingleSubjectTracker
 from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.settings import settings
+from zebtrack.tracker.byte_tracker import BYTETracker
 
 log = structlog.get_logger()
 
@@ -66,6 +69,8 @@ class Detector:
         self._scaling_cache: dict = {}
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
+        self._byte_tracker: Optional[BYTETracker] = None
+        self._byte_tracker_params: Optional[tuple[float, float, int]] = None
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
@@ -232,6 +237,10 @@ class Detector:
             detections_in_polygon = self._single_subject_tracker.assign(
                 detections_in_polygon
             )
+        else:
+            detections_in_polygon = self._apply_byte_tracking(
+                detections_in_polygon, frame.shape
+            )
 
         end_time = time.perf_counter()
         log.debug(
@@ -274,6 +283,8 @@ class Detector:
                     "detector.reset_tracking_state.plugin_failed", exc_info=True
                 )
         self._single_subject_tracker.reset()
+        self._byte_tracker = None
+        self._byte_tracker_params = None
 
     @staticmethod
     def _ensure_track_tuple(detection):
@@ -283,6 +294,120 @@ class Detector:
         else:
             x1, y1, x2, y2, confidence, track_id = detection[:6]
         return x1, y1, x2, y2, float(confidence), track_id
+
+    def _apply_byte_tracking(
+        self, detections: list[tuple], frame_shape: tuple[int, int, int]
+    ) -> list[tuple]:
+        if not detections:
+            tracker = self._ensure_byte_tracker()
+            if tracker is not None:
+                empty = np.empty((0, 5), dtype=np.float32)
+                tracker.update(
+                    empty,
+                    (frame_shape[0], frame_shape[1]),
+                    self._resolve_model_input_shape(),
+                )
+            return []
+
+        tracker = self._ensure_byte_tracker()
+        if tracker is None:
+            return [
+                (
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2),
+                    float(confidence),
+                    None,
+                )
+                for x1, y1, x2, y2, confidence, _ in detections
+            ]
+
+        det_array = np.array(
+            [
+                [float(x1), float(y1), float(x2), float(y2), float(confidence)]
+                for x1, y1, x2, y2, confidence, _ in detections
+            ],
+            dtype=np.float32,
+        )
+
+        tracks = tracker.update(
+            det_array,
+            (frame_shape[0], frame_shape[1]),
+            self._resolve_model_input_shape(),
+        )
+
+        results: list[tuple] = []
+        for track in tracks:
+            x1, y1, x2, y2 = track.tlbr
+            results.append(
+                (
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2),
+                    float(track.score),
+                    int(track.track_id),
+                )
+            )
+
+        return results
+
+    def _ensure_byte_tracker(self) -> Optional[BYTETracker]:
+        track_thresh = self._get_track_threshold()
+        match_thresh = self._get_match_threshold()
+        track_buffer = self._get_track_buffer()
+
+        params = (track_thresh, match_thresh, track_buffer)
+        if self._byte_tracker is not None and self._byte_tracker_params == params:
+            return self._byte_tracker
+
+        try:
+            args = SimpleNamespace(
+                track_thresh=track_thresh,
+                match_thresh=match_thresh,
+                track_buffer=track_buffer,
+                mot20=False,
+            )
+            frame_rate = getattr(settings.video_processing, "fps", 30) or 30
+            self._byte_tracker = BYTETracker(args=args, frame_rate=frame_rate)
+            self._byte_tracker_params = params
+        except Exception:  # pragma: no cover - defensive
+            log.warning("detector.bytetrack.init_failed", exc_info=True)
+            self._byte_tracker = None
+            self._byte_tracker_params = None
+
+        return self._byte_tracker
+
+    def _get_track_threshold(self) -> float:
+        value = getattr(self.plugin, "track_threshold", None)
+        if value is None:
+            return float(getattr(settings.bytetrack, "track_threshold", 0.25))
+        return float(value)
+
+    def _get_match_threshold(self) -> float:
+        value = getattr(self.plugin, "match_threshold", None)
+        if value is None:
+            return float(getattr(settings.bytetrack, "match_threshold", 0.15))
+        return float(value)
+
+    def _get_track_buffer(self) -> int:
+        value = getattr(self.plugin, "track_buffer", None)
+        if value is None:
+            return 60
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 60
+
+    def _resolve_model_input_shape(self) -> tuple[int, int]:
+        try:
+            shape = getattr(self.plugin, "model_input_shape", None)
+            if shape and len(shape) == 2:
+                return int(shape[0]), int(shape[1])
+        except Exception:  # pragma: no cover - defensive
+            log.debug("detector.model_input_shape.fallback", exc_info=True)
+        return int(self.base_height), int(self.base_width)
 
     def draw_overlay(self, frame, detections):
         """

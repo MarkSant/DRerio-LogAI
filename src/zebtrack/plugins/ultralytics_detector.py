@@ -1,11 +1,6 @@
-import atexit
-import os
-import tempfile
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import yaml
 
 try:
     from ultralytics import YOLO
@@ -38,12 +33,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
 
-        # ByteTrack-related thresholds (used when running model.track)
+        # ByteTrack threshold hints consumed by core.detector.Detector
         self.track_threshold = 0.25
         self.match_threshold = 0.15
         self.track_buffer = 60
-        self._tracker_config_cache: dict[str, Any] | None = None
-        self._tracker_config_path: Path | None = None
 
         # Context control for instance segmentation
         self._context = "tracking"  # 'tracking' or 'diagnostic'
@@ -54,49 +47,17 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self, frame: np.ndarray
     ) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
         """
-        Performs object tracking using the YOLOv8 model with ByteTrack.
+        Run the Ultralytics model and return raw detection boxes.
 
         Returns:
             A list of tuples, where each tuple contains:
             (x1, y1, x2, y2, confidence, track_id).
+            track_id remains ``None`` so Detector can run BYTETracker centrally.
         """
         classes_param = self._resolve_detection_classes()
 
-        if self._use_single_subject_mode:
-            results = self.model.predict(
-                frame,
-                verbose=False,
-                conf=self.conf_threshold,
-                iou=self.nms_threshold,
-                classes=classes_param,
-            )
-
-            predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
-            if results and results[0].boxes is not None:
-                boxes = results[0].boxes
-                xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
-                confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
-
-                for i in range(len(xyxys)):
-                    x1, y1, x2, y2 = xyxys[i]
-                    confidence = confs[i]
-                    predictions.append(
-                        (
-                            int(x1),
-                            int(y1),
-                            int(x2),
-                            int(y2),
-                            float(confidence),
-                            None,
-                        )
-                    )
-
-            return predictions
-
-        results = self.model.track(
+        results = self.model.predict(
             frame,
-            persist=True,
-            tracker=self._build_tracker_config(),
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
@@ -108,16 +69,10 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             boxes = results[0].boxes
             xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
             confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
-            if boxes.id is not None:
-                raw_track_ids = boxes.id.cpu().numpy()  # type: ignore[attr-defined]
-                track_id_values: List[Optional[int]] = [int(t) for t in raw_track_ids]
-            else:
-                track_id_values = [None] * len(xyxys)
 
             for i in range(len(xyxys)):
                 x1, y1, x2, y2 = xyxys[i]
                 confidence = confs[i]
-                track_id_value = track_id_values[i]
                 predictions.append(
                     (
                         int(x1),
@@ -125,7 +80,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         int(x2),
                         int(y2),
                         float(confidence),
-                        track_id_value,
+                        None,
                     )
                 )
 
@@ -151,7 +106,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._aquarium_region_defined = bool(defined)
 
     def set_use_single_subject_mode(self, enabled: bool) -> None:
-        """Switch between ByteTrack and raw detections."""
+        """Switch between single-subject heuristics and default tracking."""
 
         self._use_single_subject_mode = bool(enabled)
         self.reset_tracking_state()
@@ -256,70 +211,16 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
     ) -> None:
         """Update internal ByteTrack thresholds used during tracking."""
 
-        updated = False
         if track_threshold is not None and track_threshold > 0:
             self.track_threshold = track_threshold
-            updated = True
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
-            updated = True
-
-        if updated:
-            self._tracker_config_cache = None
-
-    def _build_tracker_config(self) -> str:
-        """Return the YAML tracker config path expected by Ultralytics ByteTrack."""
-
-        config: dict[str, Any] = {
-            "tracker_type": "bytetrack",
-            "track_high_thresh": self.track_threshold,
-            "track_low_thresh": min(self.track_threshold, 0.1),
-            "new_track_thresh": self.track_threshold,
-            "track_buffer": self.track_buffer,
-            "match_thresh": self.match_threshold,
-            "fuse_score": True,
-        }
-
-        path_missing = (
-            self._tracker_config_path is None
-            or not self._tracker_config_path.exists()
-        )
-
-        if config != self._tracker_config_cache or path_missing:
-            self._tracker_config_cache = dict(config)
-            self._tracker_config_path = self._write_tracker_config(config)
-
-        return str(self._tracker_config_path)
 
     def reset_tracking_state(self) -> None:
-        """Clear internal tracker state."""
+        """Compatibility shim for detector.reset_tracking_state."""
 
-        try:
-            self.model.tracker = None  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
-
-    def _write_tracker_config(self, config: dict[str, Any]) -> Path:
-        temp_dir = Path(tempfile.gettempdir()) / "zebtrack_bytetrack"
-        temp_dir.mkdir(exist_ok=True)
-
-        if self._tracker_config_path is not None:
-            try:
-                self._tracker_config_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-            finally:
-                _TRACKER_TEMP_FILES.discard(self._tracker_config_path)
-
-        fd, path_str = tempfile.mkstemp(
-            dir=temp_dir, prefix="tracker_", suffix=".yaml"
-        )
-        path = Path(path_str)
-        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
-            yaml.safe_dump(config, tmp_file, sort_keys=False)
-
-        _TRACKER_TEMP_FILES.add(path)
-        return path
+        # Ultralytics YOLO keeps minimal state across predict() calls, so no-op.
+        pass
 
     def _resolve_detection_classes(self) -> list[int] | None:
         if self._context == "diagnostic":
@@ -333,19 +234,3 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                 zebrafish_classes.append(class_id)
 
         return zebrafish_classes if zebrafish_classes else [0]
-
-
-_TRACKER_TEMP_FILES: set[Path] = set()
-
-
-def _cleanup_tracker_temp_files() -> None:
-    for path in list(_TRACKER_TEMP_FILES):
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        finally:
-            _TRACKER_TEMP_FILES.discard(path)
-
-
-atexit.register(_cleanup_tracker_temp_files)

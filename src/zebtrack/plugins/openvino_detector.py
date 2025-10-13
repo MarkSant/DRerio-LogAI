@@ -1,7 +1,6 @@
 import glob
 import json
 import os
-from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 
 import cv2
@@ -41,7 +40,6 @@ except ImportError:
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.settings import settings
-from zebtrack.tracker.byte_tracker import BYTETracker
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
@@ -67,6 +65,11 @@ class OpenVINOPlugin(DetectorPlugin):
             raise ImportError(
                 "OpenVINO is not available. Please install openvino package."
             )
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                "PyTorch is required for OpenVINO detection post-processing."
+            )
+        assert ov is not None
 
         self.conf_threshold = settings.yolo_model.confidence_threshold
         self.nms_threshold = settings.yolo_model.nms_threshold
@@ -107,24 +110,17 @@ class OpenVINOPlugin(DetectorPlugin):
         self.output_layer = self.compiled_model.output(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
-        # Initialize ByteTrack
-        tracker_args = SimpleNamespace(
-            track_thresh=0.25,
-            track_buffer=60,
-            match_thresh=0.15,
-            mot20=False,
-        )
-        self.tracker = BYTETracker(args=tracker_args, frame_rate=30)
-        self.track_threshold = tracker_args.track_thresh
-        self.match_threshold = tracker_args.match_thresh
-        self.track_buffer = tracker_args.track_buffer
+        # ByteTrack threshold hints consumed by core.detector.Detector
+        self.track_threshold = 0.25
+        self.match_threshold = 0.15
+        self.track_buffer = 60
 
         # Carrega metadata se existir
         metadata_path = os.path.join(model_path, "metadata.json")
         self.class_names = {0: "aquarium", 1: "zebrafish"}  # Default
         if os.path.exists(metadata_path):
             try:
-                with open(metadata_path, "r") as f:
+                with open(metadata_path, "r", encoding="utf-8") as f:
                     metadata = json.load(f)
                     if "class_names" in metadata:
                         self.class_names = {
@@ -166,65 +162,41 @@ class OpenVINOPlugin(DetectorPlugin):
         track_threshold: float | None = None,
         match_threshold: float | None = None,
     ) -> None:
-        """Update ByteTrack thresholds for the OpenVINO plugin."""
+        """Update ByteTrack threshold hints consumed by the detector."""
 
         if track_threshold is not None and track_threshold > 0:
             self.track_threshold = track_threshold
-            self.tracker.args.track_thresh = track_threshold
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
-            self.tracker.args.match_thresh = match_threshold
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int]]:
-        """
-        Performs inference using the OpenVINO model and tracks objects with ByteTrack.
+    def detect(
+        self, frame: np.ndarray
+    ) -> List[Tuple[int, int, int, int, float, int | None]]:
+        """Run inference using the OpenVINO model and return raw detections."""
 
-        Returns:
-            List[Tuple[int, int, int, int, float, int]]: A list of tuples, where
-            each tuple contains (x1, y1, x2, y2, score, track_id).
-            Note: The inclusion of track_id is a change from older versions
-            and necessary for tracking functionality.
-
-        """
-        # 1. Preprocess and get detections from OpenVINO
         input_tensor = self._preprocess(frame)
         self.infer_request.infer({self.input_layer.any_name: input_tensor})
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        img_h, img_w = frame.shape[:2]
-        if detections:
-            det_array = np.array(
-                [[x1, y1, x2, y2, score] for x1, y1, x2, y2, score, _ in detections],
-                dtype=np.float32,
-            )
-        else:
-            det_array = np.empty((0, 5), dtype=np.float32)
-
-        online_targets = self.tracker.update(
-            det_array,
-            (img_h, img_w),
-            self.model_input_shape,
-        )
-
-        predictions = []
-        for track in online_targets:
-            x1, y1, x2, y2 = track.tlbr
+        predictions: List[Tuple[int, int, int, int, float, int | None]] = []
+        for det in detections:
+            x1, y1, x2, y2, score = det[:5]
             predictions.append(
                 (
                     int(x1),
                     int(y1),
                     int(x2),
                     int(y2),
-                    float(track.score),
-                    int(track.track_id),
+                    float(score),
+                    None,
                 )
             )
 
         return predictions
 
     def predict(
-        self, frame: np.ndarray, conf_threshold: float = None
+        self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> List[Dict[str, Any]]:
         """
         Compatibility method for diagnostic workflow.
@@ -283,9 +255,10 @@ class OpenVINOPlugin(DetectorPlugin):
         input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)
         return input_tensor
 
-    def _postprocess(self, result: dict, original_frame_shape: tuple) -> list:
+    def _postprocess(self, result: Any, original_frame_shape: tuple) -> list:
         """Postprocesses the OpenVINO model's output."""
         output_tensor = result[self.output_layer]
+        assert torch is not None  # mypy: ensure torch is available
         preds = non_max_suppression(
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
