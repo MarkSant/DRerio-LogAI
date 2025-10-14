@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-file -->
 # Correção de Largura do Painel de Controle de Zonas
 
 ## 🎯 Problema Identificado
@@ -186,4 +187,4 @@ Esta correção complementa as mudanças anteriores em templates de ROI:
 
 **Status:** ✅ Implementado e testado  
 **Versão:** Implementado em 14/10/2025  
-**Relacionado:** `docs/TEMPLATE_WORKFLOW_FIX.md`, `TEMPLATE_FIX_SUMMARY.md`
+**Relacionado:** `docs/TEMPLATE_WORKFLOW_FIX.md`

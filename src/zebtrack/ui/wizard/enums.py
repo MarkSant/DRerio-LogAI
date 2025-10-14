@@ -31,7 +31,7 @@ class ImportAction(Enum):
     These values are computed automatically based on which parquet files
     the user chooses to import in Step 4.
 
-    Derivation rules (see docs/WIZARD_PROJECT_CREATION.md Section 3):
+    Derivation rules. See docs/WIZARD_USER_GUIDE.md (Etapa 4: Importação):
 
     | arena | rois | trajectory | Action        |
     |-------|------|------------|---------------|

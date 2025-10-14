@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-file -->
 # Guia de Referência Operacional do ZebTrack-AI
 
 Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de laboratório, mantenedores de software e auditores científicos. Aqui você encontra o fluxo completo de trabalho, tabelas de variáveis utilizadas nos relatórios, definições matemáticas, integrações com hardware (Arduino) e tutoriais passo a passo.
@@ -40,6 +41,8 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
    - `AppController.setup_detector()` carrega plugins YOLO/OpenVINO via registro `plugins.DETECTOR_PLUGINS`.
    - `Detector.set_zones()` recebe `ZoneData` (polígono da arena + ROIs) e ajusta para a resolução do vídeo/câmera.
    - Calibração opcional (`core/calibration.py`) calcula homografia e fator pixel/cm.
+   - Sistema de templates de ROI permite salvar/importar/aplicar layouts reutilizáveis (`templates/`), com refresh automático do canvas e atualização do detector.
+   - Modo de edição de ROIs oferece clamping de vértices e indicadores visuais (handles laranja/círculos) para pontos presos à arena, garantindo desenho válido.
 
 4. **Execução do rastreamento**
    - `AppController._process_videos()` roda em thread dedicada, respeitando `analysis_interval_frames` e `display_interval_frames`.
@@ -55,6 +58,10 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
 6. **Integração opcional com Arduino**
    - `ArduinoManager` abre a serial, escuta eventos e dispara comandos de relé para caixas/arenas.
    - Eventos externos (ex.: sensores) podem iniciar/parar gravações (`event_code == 1` inicia, `0` encerra).
+
+7. **Configuração avançada & overlays aprimorados**
+   - Aba "Configuração Avançada" permite editar `config.local.yaml` com validação Pydantic em tempo real, atalhos de reset e tooltips inline.
+   - Overlay de análise mostra estatísticas por frame, modo de rastreamento ativo (multi vs. single subject) e status dos perfis/ROI templates aplicados.
 
 ---
 

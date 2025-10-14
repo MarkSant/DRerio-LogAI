@@ -1,71 +1,93 @@
 # FAQ (Frequently Asked Questions)
 
-Here are answers to some common questions and troubleshooting tips for ZebTrack-AI.
+Common answers and troubleshooting tips for ZebTrack-AI users.
 
 ---
 
-### **Q: What should I do if the software is not detecting my animal?**
+## Q: The wizard is missing. How do I enable it?
 
-**A:** This is a common issue that can usually be solved by checking a few things:
+**A:** Since v1.6 the project creation wizard is enabled by default. If you disabled it previously, add the following to `config.local.yaml`:
 
-1.  **Lighting and Contrast:** The tracking models work best when there is good contrast between the animal and the background. Ensure your arena is well-lit and the background is a uniform color that is different from the animal.
-2.  **Processing Area:** Double-check that the Processing Area you drew completely covers the area where the animal is located. If the animal moves outside this boundary, it will not be detected.
-3.  **Model Confidence:** In the application settings, you can find a "Confidence Threshold". If this value is too high (e.g., 0.9), the model will only register very certain detections. Try lowering this value slightly (e.g., to 0.7 or 0.6) to see if detection improves. Be careful not to set it too low, as this can lead to false positives.
+```yaml
+ui_features:
+	use_wizard_for_project_creation: true
+```
 
-[Screenshot of the settings panel showing the confidence threshold]
-
----
-
-### **Q: What is the best video format to use?**
-
-**A:** ZebTrack-AI uses standard video libraries that support a wide range of formats. However, for best results and maximum compatibility, we recommend using **MP4 files with the H.264 codec**. This is a very common format that provides a good balance between file size and quality.
+Restart the application and the 5-step wizard will appear when you click **Create Project**.
 
 ---
 
-### **Q: How does the calibration work? Why is it important?**
+## Q: Detections are flaky or the animal disappears. What should I check?
 
-**A:** Calibration is the process of teaching the software how to convert measurements from pixels (the dots on your screen) into real-world units like centimeters (cm).
-
-You do this by drawing a line over an object of a known size in your video (like the width of the tank) and telling the software its true length.
-
-This step is **critical** for scientific accuracy. Without it, all your results (distance, velocity, etc.) would be in pixels, which are not comparable across different experiments or camera setups. Proper calibration ensures your data is reliable and reproducible.
-
----
-
-### **Q: Can I analyze videos that were recorded from an angle?**
-
-**A:** Yes. The software includes a perspective correction feature. When you draw the four corners of your rectangular arena (the "Processing Area"), the software automatically "warps" the image to create a flat, top-down view. This corrects for camera distortion and ensures that measurements are accurate even if the video was filmed from a slight angle.
+1. **Lighting & Contrast:** Ensure the arena background contrasts with the animal. Avoid reflections or strong shadows.
+2. **Processing Area:** Confirm the arena polygon fully covers the region where the animal moves. With the new clamping logic, the snap indicator stays inside the arena — if you cannot place a point, the arena is probably too small.
+3. **Confidence / NMS:** Lower the detector confidence threshold (e.g., from 0.85 to 0.65) or tweak NMS in the advanced configuration tab.
+4. **Single-subject mode:** Calibration and diagnostics force single-subject tracking. The overlay shows the active mode; make sure the correct mode is being used for your experiment.
 
 ---
 
-### **Q: I ran my analysis, but the "Reports" tab is empty. What happened?**
+## Q: What's the recommended video format?
 
-**A:** First, check the status bar at the bottom of the main window for any error messages that might have occurred during the analysis. If there are no errors, the most common reason is that you may need to manually load the results.
-
-Click the **"Load Project Results"** button in the main control panel. This will scan your project folder for any completed analysis files and populate the dropdown menu in the "Reports" tab.
+**A:** MP4 (H.264) at 25–30 fps offers the best balance between size and quality. Higher bitrates improve detection, but ensure your storage and GPU can keep up. Other formats (AVI, MOV) work as long as OpenCV can decode them.
 
 ---
 
-### **Q: What do the 'Sharp Turns' or 'Intra-ROI' metrics mean?**
+## Q: How do ROI templates work?
 
-**A:** These are new, advanced metrics designed to provide deeper insight into behavior:
+**A:** Draw the arena/ROIs once, then use **💾 Salvar Zonas Atuais** to store the layout in `templates/`. Later projects can:
 
-*   **Sharp Turns:** This metric counts how many times the animal's turning speed exceeds a set threshold (e.g., 90 degrees per second). It's a useful indicator of anxiety, stress, or startle responses, where an animal might suddenly and rapidly change direction.
-*   **Intra-ROI Metrics:** While older versions could tell you how much time was spent in a zone, the new version goes deeper. It calculates metrics like *total distance traveled*, *average speed*, and *time spent freezing* specifically and only *within each Region of Interest (ROI)* you define. This allows you to answer more complex questions, such as "Is the animal moving faster in the center of the tank compared to the edges?"
+- Select a saved template from **Templates salvos** and click **Aplicar**.
+- Import external JSON files via **📂 Importar e Aplicar Arquivo...** (applies immediately and saves to the library).
 
----
-
-### **Q: What is Parquet format and why should I use it?**
-
-**A:** Parquet is a modern, highly efficient file format for storing data. When you export your project summary, you now have the option to save as `.parquet` in addition to `.xlsx` (Excel) and `.csv`.
-
-*   **Why choose Parquet?** If you have a very large dataset (e.g., hundreds of videos), Parquet files will be much smaller and significantly faster to load into analysis software like Python (with pandas) or R (with the `arrow` package).
-*   **When to stick with Excel?** If you prefer to view your data directly or work primarily in Excel, the `.xlsx` format is still the best choice for you.
+Templates include arena, ROI polygons, names, and colors. The wizard also reuses templates when you import Parquet files containing zones.
 
 ---
 
-### **Q: Where are my final data files saved?**
+## Q: Do I still need to calibrate?
 
-**A:** All of your data is saved inside your Project Folder. For each video you analyze, a new subfolder named `{video_name}_results` is created. Inside, you will find plots and raw data for that specific trial.
+**A:** Yes. Calibration translates pixels into centimeters. Without it, distances and velocities are expressed in pixels. Use the calibration dialog (or wizard Step 4 for live projects) to record real-world dimensions. Once the calibration is saved, Recorder adds `x_cm`/`y_cm` columns and reports show metrics in centimeters.
 
-For a summary of your entire experiment, you can now choose your export format. Look for the file you saved (e.g., `project_summary.xlsx`, `project_summary.csv`, or `project_summary.parquet`) in the location you chose in the save dialog.
+---
+
+## Q: Can ZebTrack-AI handle videos recorded from an angle?
+
+**A:** Yes. Draw the arena corners in the zone editor; ZebTrack-AI computes a homography that warps coordinates into a normalized top-down plane. Metrics and ROI checks operate in this warped space, so moderate perspective skew is fine.
+
+---
+
+## Q: Reports tab is empty even after processing. How do I refresh it?
+
+**A:** The GUI automatically refreshes after each processing batch. If you still see an empty list:
+
+1. Check the status bar for errors while processing.
+2. Click **Atualizar** in the Reports tab to rescan the project folder.
+3. Confirm that the `<video>_results/` folder exists and that `3_CoordMovimento_*.parquet` was written (absence indicates processing failed earlier).
+
+---
+
+## Q: What do the new metrics (Sharp Turns, Social Proximity, etc.) mean?
+
+- **Sharp Turns:** Counts how often angular velocity exceeds the configured threshold (default 90°/s).
+- **Speed bursts / inactivity:** Duration and counts for periods above/below configurable thresholds.
+- **Intra-ROI metrics:** Distance, average speed, freezing, and transitions calculated solely within each ROI.
+- **Social proximity:** Percentage of time individuals remain inside dynamically computed proximity clusters (requires multi-animal tracking and calibration).
+
+See `docs/REFERENCE_GUIDE.md` Section 5 for formulas and exact definitions.
+
+---
+
+## Q: Where are the outputs stored?
+
+**A:** Each video produces a `<video_name>_results/` folder containing:
+
+- `1_ProcessingArea_*.parquet` (arena), `2_AreasOfInterest_*.parquet` (ROIs), `3_CoordMovimento_*.parquet` (trajectory)
+- Optional MP4 with overlays if recording was enabled
+- `{video}_summary.xlsx`, `{video}_report.docx`, plus optional CSV/Parquet exports
+
+Project-wide exports created from the **Relatórios** tab are saved wherever you point the file dialog. The wizard also keeps metadata in `project_config.json` and `config_snapshot.yaml` for reproducibility.
+
+---
+
+## Q: How do I report a bug or request a feature?
+
+Open an issue on GitHub describing your environment (OS, Python version, GPU), attach logs (`logs/` folder if present) and, if possible, include the wizard summary exported as JSON. Contributions and pull requests are welcome — read `CONTRIBUTING.md` for guidelines.

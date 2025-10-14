@@ -1,65 +1,97 @@
 # Installation Guide
 
-This guide provides step-by-step instructions for downloading and running ZebTrack-AI on your computer.
+ZebTrack-AI currently ships as a Poetry project. The recommended way to run the application is to clone the repository, install the dependencies with Poetry, and launch the GUI from the virtual environment.
 
-## For Windows
+## Prerequisites
 
-1.  **Download the Installer:**
-    *   Click the following link to download the latest version for Windows:
-    *   [Link to Windows Installer (coming soon)]
+- Python 3.12 (64-bit)
+- [Poetry](https://python-poetry.org/docs/#installation) available on your `PATH`
+- Git (to clone the repository)
+- GPU with CUDA (optional) or Intel OpenVINO runtime (optional) for accelerated inference
 
-2.  **Run the Installer:**
-    *   Once the download is complete, find the `.exe` file in your "Downloads" folder and double-click it.
-    *   The Windows Defender screen might appear. If it does, click "More info" and then "Run anyway".
-    *   Follow the on-screen instructions in the installation wizard.
+Confirm the versions:
 
-3.  **Launch ZebTrack-AI:**
-    *   After installation, a new icon for ZebTrack-AI will appear on your Desktop and in your Start Menu. Double-click it to start the program.
+```powershell
+python --version
+poetry --version
+git --version
+```
 
-    [Screenshot of the ZebTrack-AI icon on a Windows desktop]
+## Clone the repository
 
----
+```powershell
+git clone https://github.com/MarkSant/ZebTrack-AI.git
+cd ZebTrack-AI
+```
 
-## For macOS
+> 💡 On Windows, use **PowerShell** (the default shell in the project). On Linux/macOS, any POSIX-compatible shell works.
 
-1.  **Download the Application:**
-    *   Click the following link to download the latest version for macOS:
-    *   [Link to macOS Application (coming soon)]
+## Install dependencies with Poetry
 
-2.  **Move to Applications Folder:**
-    *   The download will be a `.dmg` file. Double-click it to open it.
-    *   A new window will appear showing the ZebTrack-AI application icon. Drag this icon into your "Applications" folder.
+```powershell
+poetry install
+```
 
-    [Screenshot of dragging the .app file into the Applications folder on macOS]
+The first run may take a few minutes while Poetry resolves and downloads all packages. The command creates an isolated virtual environment that will be reused in subsequent runs.
 
-3.  **First-Time Launch:**
-    *   The first time you open the app, you may see a security warning because it was downloaded from the internet.
-    *   To approve it, right-click (or Ctrl-click) the ZebTrack-AI icon in your Applications folder and select "Open". You will only need to do this once.
+## Launch the application
 
-4.  **Launch ZebTrack-AI:**
-    *   You can now launch the application directly from your Applications folder or by searching for it in Spotlight.
+```powershell
+poetry run zebtrack
+```
 
----
+This command opens the Tkinter GUI. The project creation wizard (5 steps) is enabled by default.
 
-## For Linux
+### Useful commands
 
-1.  **Download the Executable:**
-    *   Click the following link to download the latest version for Linux (provided as an AppImage):
-    *   [Link to Linux AppImage (coming soon)]
+```powershell
+# Inspect CLI options
+poetry run python -m zebtrack --help
 
-2.  **Make the File Executable:**
-    *   Open your terminal.
-    *   Navigate to the directory where you downloaded the file (e.g., `cd ~/Downloads`).
-    *   Run the following command to give the file permission to execute:
-        ```bash
-        chmod +x ZebTrack-AI-x86_64.AppImage
-        ```
+# Run the automated test suite
+poetry run pytest -q
 
-3.  **Launch ZebTrack-AI:**
-    *   You can now run the application directly from the terminal:
-        ```bash
-        ./ZebTrack-AI-x86_64.AppImage
-        ```
-    *   You can also double-click the AppImage file in your file manager to launch it.
+# Run Ruff static checks
+poetry run ruff check .
+```
 
-    [Screenshot of the AppImage file properties showing the "Allow executing file as program" permission is checked]
+## Platform notes
+
+### Windows
+
+- If you have multiple Python versions installed, ensure `python` maps to the 3.12 interpreter.
+- When Poetry prompts to install in the system-wide location, answer "Yes".
+- To keep dependencies isolated, prefer `poetry run ...` instead of manually activating the virtual environment.
+
+### macOS
+
+- Install Python 3.12 via [Homebrew](https://brew.sh/) (`brew install python@3.12`) or the official installer.
+- Install Poetry with `curl -sSL https://install.python-poetry.org | python3 -` (see Poetry docs for alternatives).
+- Launch the app with `poetry run zebtrack` from Terminal; the Tkinter window will appear in the Dock.
+
+### Linux
+
+- Ensure system packages for Tkinter are installed (e.g., `sudo apt install python3.12-tk` on Ubuntu-based distributions).
+- Make sure your user can access the GPU driver (if using CUDA).
+
+## Optional: local configuration overrides
+
+Create `config.local.yaml` in the project root to override specific settings (e.g., to enable experimental features):
+
+```yaml
+ui_features:
+  use_wizard_for_project_creation: true  # padrão
+```
+
+Other overrides (detector thresholds, Arduino port, event bus) are documented in `docs/REFERENCE_GUIDE.md` and `docs/PROJECT_WORKFLOW.md`.
+
+## Troubleshooting
+
+| Symptom | Suggested fix |
+|---------|---------------|
+| `poetry install` fails with compiler errors | Ensure you have build tools installed (Visual Studio Build Tools on Windows, `build-essential` on Linux, Xcode Command Line Tools on macOS). |
+| GUI does not open and no error appears | Confirm you ran `poetry run zebtrack` from inside the project folder; check `poetry env info` to ensure the virtual environment is created. |
+| Models are slow on CPU | Convert weights to OpenVINO (`python -m zebtrack.core.weight_manager`) or run on a CUDA-capable GPU. |
+| Wizard disabled unexpectedly | Delete `config.local.yaml` or set `ui_features.use_wizard_for_project_creation: true`. |
+
+For additional help, open an issue on GitHub or consult the reference documentation in `docs/`.

@@ -1,87 +1,86 @@
 # Full Tutorial: From Video to Results
 
-This tutorial will guide you through a complete analysis workflow in ZebTrack-AI, from setting up a new project to interpreting your final data.
-
-[Screenshot of the main ZebTrack-AI window when first opened]
+This tutorial walks through the complete ZebTrack-AI workflow: creating a project with the wizard, configuring arenas/ROIs, running detections, and generating reports.
 
 ---
 
-### Step 1: Create a New Project
+## Step 1 · Launch the wizard
 
-A "Project" in ZebTrack-AI is a folder that contains your videos, configuration, and all generated results.
+1. Open a terminal in the project root and run `poetry run zebtrack`.
+2. Click **"Create Project"**. The 5-step wizard (v1.7) opens automatically.
+3. Follow the discovery step:
+   - Choose **Experimental**, **Exploratory**, or **Live** mode.
+   - Tell the wizard whether you want to reuse existing Parquet files (arena/ROIs/trajectory).
+4. In step 2, add videos or folders. The preview tree summarizes the detected structure.
+5. Step 3 analyses the folder structure and proposes groups/days/subjects. Adjust the regex live if something looks off.
+6. Step 4 (Import Configuration) lets you decide per video what to do:
+   - `SKIP` when all Parquets are present.
+   - `IMPORT_ZONES` to reuse arena/ROIs but regenerate trajectories.
+   - `PARTIAL` to reuse only the arena.
+   - `FULL` when nothing should be imported.
+7. Step 5 shows a consolidated summary (design detected, processing plan, expected run time). Click **Create Project** to persist it.
 
-1.  **Start a New Project:**
-    *   Click the **"Create New Project"** button on the main screen.
-    *   The project creation dialog will appear.
-
-2.  **Configure Your Project:**
-    *   **Project Name & Folder:** Give your project a name and select a parent directory where the project folder will be created.
-    *   **Project Type:**
-        *   **Pre-recorded:** Choose this if you have existing video files to analyze.
-        *   **Live:** Choose this for real-time tracking and recording from a camera.
-    *   **Calibration:** Enter the real-world width and height of your arena in centimeters. This is crucial for accurate measurements.
-    *   **Live Options (for Live projects):**
-        *   **Timed Recording:** Set a fixed duration for your recordings.
-        *   **Countdown:** Enable a countdown timer that will appear on screen before a recording starts, ensuring you are ready.
-    *   **Experimental Design (for Live projects):** Define the structure of your experiment by specifying the number of days, groups, and subjects per group.
-
-    [Screenshot of the new Create Project Dialog]
-
-3.  **Load the Project:**
-    *   Once created, the project will load, and you will be taken to the main control view.
+> 📘 Need extra details? See `docs/WIZARD_USER_GUIDE.md` for screenshots of every step.
 
 ---
 
-### Step 2: Define Detection Zones
+## Step 2 · Configure arenas and ROIs
 
-Before analysis, you must tell ZebTrack-AI where to look for animals (the main processing area) and define any specific Regions of Interest (ROIs).
+1. Go to the **"Configuração de Zonas"** tab.
+2. Use **Detectar Aquário (Auto)** or draw the main arena manually.
+3. Apply previously saved templates with the **Templates salvos** combobox. Use **📂 Importar e Aplicar Arquivo...** to load templates directly from JSON files.
+4. Draw or edit ROIs. The editor now clamps vertices to the arena boundary and highlights clamped points (orange handles with extra circles), ensuring valid polygons.
+5. Save the current layout as a template with **💾 Salvar Zonas Atuais** so that future projects can reuse them.
 
-1.  **Navigate to the "Configuração de Zonas" Tab.**
-2.  **Define the Main Arena:**
-    *   Click **"Detectar Aquário (Auto)"** to let the AI find the main arena boundary automatically.
-    *   Alternatively, manually draw the boundary using the **"Desenhar Polígono Principal"** button. Click to add points and right-click to finish.
-3.  **Define Regions of Interest (ROIs):**
-    *   Click **"Desenhar Área de Interesse"** to draw rectangular ROIs inside your main arena. These are the zones for which detailed intra-ROI metrics will be calculated.
-    *   Give each ROI a unique name and assign it a color.
-
-    [Screenshot showing the Zone Configuration tab with a video, a main polygon, and several colored ROIs.]
+> 🛈 When editing ROIs, the cyan snapping indicator and the handles stay within the arena boundaries, preventing accidental drags outside the valid area.
 
 ---
 
-### Step 3: Process Videos and Generate Reports
+## Step 3 · Tune detector settings
 
-1.  **Add and Process Videos (for Pre-recorded projects):**
-    *   In the "Main Control" tab, click **"Add and Process New Videos/Folders..."**.
-    *   Select your video files. The application will first run detection and tracking, and then immediately perform the behavioral analysis.
-
-2.  **Start Recording (for Live projects):**
-    *   Go to the "Progresso do Experimento" tab to see your experimental grid.
-    *   Click on a cell to select a specific subject for a session.
-    *   Click **"Start Recording"** in the "Main Control" tab. If you enabled the countdown, it will appear now.
-    *   After recording, the analysis is run automatically.
+1. Open the **Configuração Avançada** tab to review `config.local.yaml` in-app. The editor validates values in real time using the Pydantic schema.
+2. Configure detector thresholds (confidence/NMS), choose between YOLO and OpenVINO weights, and enable optional features like the UI event queue or Arduino integration.
+3. Switch back to the main tab and pick the detector plugin you want to run.
 
 ---
 
-### Step 4: Explore and Interpret Your Results
+## Step 4 · Process videos (or record new ones)
 
-The "Reporting" tab is your hub for results.
+### Pre-recorded projects
 
-1.  **View Processed Videos:**
-    *   The list shows all videos that have been processed. You can select one or more videos to include in a report.
+1. In **Main Control**, click **"Adicionar e Processar Novos Vídeos/Pastas"**.
+2. Confirm the wizard’s processing plan. ZebTrack-AI handles detection → tracking → analysis automatically.
+3. The overlay view displays:
+   - Current frame with bounding boxes.
+   - Processing statistics (total frames, processed frames, detected frames, ETA).
+   - The active tracking mode (multi-animal vs. single subject). The track selector locks automatically when the controller forces single-subject mode (e.g., during calibration).
 
-2.  **Generate Reports:**
-    *   **Generate Report for Selected:** Creates a report for only the videos you have highlighted in the list.
-    *   **Generate Unified Report (All):** Creates a single report containing data from all videos in the project.
+### Live projects
 
-3.  **Export Formats:**
-    *   When saving, you can choose from several formats:
-        *   **Excel (`.xlsx`):** A tidy spreadsheet with all calculated metrics.
-        *   **CSV (`,csv`):** A simple comma-separated file for maximum compatibility.
-        *   **Parquet (`.parquet`):** A highly efficient, column-oriented format ideal for large datasets and analysis in Python or R.
-    *   A detailed **Word (`.docx`)** report is also generated alongside Excel/CSV exports, containing summary tables, plots, and an **Event Appendix**—a chronological log of every time the animal entered or exited an ROI.
+1. Use the **Progresso do Experimento** grid to select the subject/day.
+2. Configure countdowns or fixed durations if desired.
+3. Start the session from **Main Control**. Video recording and analysis happen in one pass.
 
-4.  **New Metrics to Explore:**
-    *   **Sharp Turns:** The number of times the animal exceeded a turning-rate threshold (e.g., 90 degrees/sec). Useful for measuring anxiety or startle responses.
-    *   **Intra-ROI Metrics:** For each ROI you defined, you now get specific metrics like distance traveled, average velocity, and time spent freezing *only within that zone*.
+---
 
-Congratulations! You have successfully completed a full analysis in ZebTrack-AI.
+## Step 5 · Review results and export reports
+
+1. Open the **Relatórios** tab once processing finishes.
+2. Select specific videos or use **Gerar Relatório Unificado (Todos)** for an aggregated summary.
+3. Choose the export format:
+   - Excel (`.xlsx`) tidy tables.
+   - CSV (`.csv`) for interoperability.
+   - Parquet (`.parquet`) for analysis in pandas/R.
+   - Word (`.docx`) document with plots, ROI maps, and an event appendix (enter/exit log).
+4. Each processed video also receives a `<video>_results/` folder containing raw Parquets (`1_`, `2_`, `3_`), diagnostic MP4 (optional), and Excel/Word outputs.
+
+---
+
+## Step 6 · Tips and QA
+
+- Run `poetry run pytest -q` and `poetry run ruff check .` before sharing results.
+- Use `tests/manual/wizard_release_check.py` to validate new templates and translations.
+- Keep `config.local.yaml` under version control (if it contains shared lab defaults) or document overrides in your project README.
+- Consult `docs/REFERENCE_GUIDE.md` for formulas, ROI metrics, Arduino integration, and troubleshooting checklists.
+
+You’re now ready to perform end-to-end experiments with ZebTrack-AI!

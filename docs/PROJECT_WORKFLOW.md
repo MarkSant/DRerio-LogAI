@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-file -->
 # Fluxo de Criação de Projetos e Análise de Vídeos em Lote
 
 > **📌 DOCUMENTO VIVO**: Este documento é atualizado automaticamente sempre que alterações no fluxo de projetos e análise em lote são implementadas com sucesso. Consulte a seção [Changelog](#changelog) para histórico de mudanças.
@@ -87,7 +88,7 @@ O ZebTrack-AI oferece **duas formas** de criar projetos:
     - **Importação de parquets**: Reutiliza arenas, ROIs e trajetórias de análises anteriores
     - **Arquivo**: `src/zebtrack/ui/wizard/wizard_dialog.py`
     - **Adaptador**: `src/zebtrack/ui/wizard/wizard_adapter.py` traduz saída para formato do controller
-    - **Documentação**: Ver `docs/WIZARD_INTEGRATION.md` e `docs/WIZARD_USER_GUIDE.md`
+    - **Documentação**: Ver `docs/WIZARD_USER_GUIDE.md` e a seção de wizard deste documento (`docs/PROJECT_WORKFLOW.md`)
 
 2. **Dialog de Criação Tradicional** - *Somente quando o wizard é desabilitado manualmente*
     - **Uso esperado**: Cenários de suporte legados ou automações que ainda dependem do fluxo antigo.
@@ -946,7 +947,7 @@ for i, video in enumerate(videos):
 - 📦 Importação granular de parquets (`*_arena.parquet`, `*_rois.parquet`, `*_trajectory.parquet`)
 - 🔄 Adapter pattern para compatibilidade total com controller existente
 - ✅ 91 testes (83 wizard + 8 adapter) com 100% de sucesso
-- 📚 Documentação completa: `WIZARD_INTEGRATION.md`, `WIZARD_USER_GUIDE.md`, `WIZARD_PROJECT_CREATION.md`
+- 📚 Documentação completa: `docs/WIZARD_USER_GUIDE.md`, `docs/PROJECT_WORKFLOW.md` e `docs/REFERENCE_GUIDE.md`
 
 ### 2025-01-XX - Documentação Inicial Criada
 - ✨ Criação da documentação completa de fluxo de projetos e análise em lote
