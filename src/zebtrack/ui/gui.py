@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 
 # Import custom modules
 import zebtrack.settings as settings_module
+from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
@@ -1896,6 +1897,11 @@ class ApplicationGUI:
         )
         self.analysis_metadata_label: ttk.Label | None = None
         self.analysis_task_label: ttk.Label | None = None
+        self._active_processing_mode = ProcessingMode.MULTI_TRACK
+        self.tracking_mode_var = StringVar(
+            value="Modo de rastreamento: Multi-indivíduos"
+        )
+        self.tracking_mode_label: ttk.Label | None = None
         self.analysis_profile_var = StringVar(value="Perfil de análise: default")
         self.analysis_profile_label: ttk.Label | None = None
         self.track_selector_var = StringVar(value="Todos")
@@ -5013,6 +5019,18 @@ class ApplicationGUI:
             textvariable=self.analysis_profile_var,
         )
         self.analysis_profile_label.grid(row=1, column=3, sticky="w")
+
+        self.tracking_mode_label = ttk.Label(
+            info_frame,
+            textvariable=self.tracking_mode_var,
+        )
+        self.tracking_mode_label.grid(
+            row=2,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            pady=(2, 2),
+        )
 
         controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
         controls_frame.pack(fill="x", pady=(4, 0))
@@ -8747,25 +8765,58 @@ class ApplicationGUI:
             except Exception:
                 pass
 
-    def update_detection_overlay(self, detections: list[tuple]) -> None:
+    def update_detection_overlay(
+        self,
+        detections: list[tuple],
+        report: ProcessingReport | None = None,
+    ) -> None:
         """Receive the latest detection batch for track selection overlays."""
         if detections is None:
             detections = []
 
+        mode = report.mode if report else self._active_processing_mode
         self._current_detections = list(detections)
 
-        observed_ids = {
-            str(det[5])
-            for det in self._current_detections
-            if len(det) >= 6 and det[5] is not None
-        }
+        if self.track_selector_widget:
+            state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
+            self.track_selector_widget.configure(state=state)
 
-        ordered_ids = sorted(observed_ids)
-        options = ["Todos"] + ordered_ids
-        self._update_track_options(options)
+        if mode is ProcessingMode.SINGLE_SUBJECT:
+            self.track_selector_var.set("Todos")
+            self._update_track_options(["Todos"])
+        else:
+            options = self._build_track_options(self._current_detections)
+            self._update_track_options(options)
 
         if self._last_analysis_frame is not None:
             self._render_last_analysis_frame()
+
+    def update_processing_mode(self, report: ProcessingReport | None) -> None:
+        """Update the UI to reflect the active tracking pipeline."""
+
+        if report is None:
+            return
+
+        previous_mode = self._active_processing_mode
+        mode = report.mode
+        self._active_processing_mode = mode
+
+        self.tracking_mode_var.set(
+            f"Modo de rastreamento: {mode.display_name}"
+        )
+
+        if not self.track_selector_widget:
+            return
+
+        state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
+        self.track_selector_widget.configure(state=state)
+
+        if mode is ProcessingMode.SINGLE_SUBJECT:
+            self.track_selector_var.set("Todos")
+            self._update_track_options(["Todos"])
+        elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
+            options = self._build_track_options(self._current_detections)
+            self._update_track_options(options)
 
     def update_analysis_profile(self, profile_name: str) -> None:
         """Update the label describing the active analysis profile."""
@@ -8806,7 +8857,7 @@ class ApplicationGUI:
         else:
             self.social_summary_var.set("Interações sociais: aguardando dados.")
 
-        if tracks:
+        if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [
                 str(track).strip()
                 for track in tracks
@@ -8822,6 +8873,28 @@ class ApplicationGUI:
         self._analysis_overlay_image = None
         self.track_selector_var.set("Todos")
         self._update_track_options(["Todos"])
+        if self.track_selector_widget:
+            state = (
+                "disabled"
+                if self._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
+                else "readonly"
+            )
+            self.track_selector_widget.configure(state=state)
+
+    def _build_track_options(self, detections: list[tuple]) -> list[str]:
+        observed: set[str] = set()
+        for det in detections:
+            if len(det) < 6:
+                continue
+            track_id = det[5]
+            if track_id is None:
+                continue
+            text = str(track_id).strip()
+            if text:
+                observed.add(text)
+
+        ordered = sorted(observed, key=str)
+        return ["Todos"] + ordered
 
     def _update_track_options(self, options: list[str]) -> None:
         cleaned: list[str] = []

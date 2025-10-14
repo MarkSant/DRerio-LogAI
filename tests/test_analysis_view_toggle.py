@@ -5,6 +5,8 @@ import unittest
 from typing import Callable
 from unittest.mock import Mock
 
+from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+
 
 class MockVar:
     """Simple stand-in for tkinter.StringVar used in tests."""
@@ -70,10 +72,13 @@ class DummyCombobox:
     def __init__(self):
         self.values: list[str] = []
         self._callbacks: dict[str, Callable] = {}
+        self.state: str = "readonly"
 
     def configure(self, **kwargs):
         if "values" in kwargs:
             self.values = list(kwargs["values"])
+        if "state" in kwargs:
+            self.state = kwargs["state"]
 
     def bind(self, event, callback):
         self._callbacks[event] = callback
@@ -107,6 +112,8 @@ class MockApplicationGUI:
 
         self.analysis_video_label = Mock()
 
+        self._active_processing_mode = ProcessingMode.MULTI_TRACK
+        self.tracking_mode_var = MockVar("Modo de rastreamento: Multi-indivíduos")
         self.track_selector_var = MockVar("Todos")
         self.track_selector_widget = DummyCombobox()
         self._available_track_options = ("Todos",)
@@ -134,6 +141,40 @@ class MockApplicationGUI:
         self._analysis_overlay_image = None
         self._update_track_options(["Todos"])
         self.track_selector_var.set("Todos")
+        state = (
+            "disabled"
+            if self._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
+            else "readonly"
+        )
+        self.track_selector_widget.configure(state=state)
+
+    def update_processing_mode(self, report: ProcessingReport | None):
+        if report is None:
+            return
+
+        previous_mode = self._active_processing_mode
+        self._active_processing_mode = report.mode
+        self.tracking_mode_var.set(
+            f"Modo de rastreamento: {report.mode.display_name}"
+        )
+
+        state = (
+            "disabled"
+            if report.mode is ProcessingMode.SINGLE_SUBJECT
+            else "readonly"
+        )
+        self.track_selector_widget.configure(state=state)
+
+        if report.mode is ProcessingMode.SINGLE_SUBJECT:
+            self.track_selector_var.set("Todos")
+            self._update_track_options(["Todos"])
+        elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
+            observed = set()
+            for det in self._current_detections:
+                if len(det) >= 6 and det[5] is not None:
+                    observed.add(str(det[5]))
+            options = ["Todos"] + sorted(observed)
+            self._update_track_options(options)
 
     def show_progress_bar(self):
         if not self.progress_frame.winfo_viewable():
@@ -213,6 +254,7 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.assertEqual(self.gui.analysis_status_var.get(), "Preparando análise...")
         self.assertEqual(self.gui.track_selector_var.get(), "Todos")
         self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
+        self.assertEqual(self.gui.track_selector_widget.state, "readonly")
 
         # Last call should set tab text
         self.assertEqual(
@@ -233,6 +275,7 @@ class TestAnalysisViewToggle(unittest.TestCase):
         )
         self.assertEqual(self.gui.track_selector_var.get(), "Todos")
         self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
+        self.assertEqual(self.gui.track_selector_widget.state, "readonly")
 
         states = [
             call.kwargs
@@ -277,6 +320,19 @@ class TestAnalysisViewToggle(unittest.TestCase):
 
         self.gui.stop_analysis_view_mode()
         self.assertFalse(self.gui.analysis_active)
+
+    def test_processing_mode_updates_track_selector(self):
+        single_report = ProcessingReport(ProcessingMode.SINGLE_SUBJECT, "test")
+        self.gui.update_processing_mode(single_report)
+        self.assertEqual(self.gui.track_selector_widget.state, "disabled")
+        self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
+        self.assertEqual(self.gui.tracking_mode_var.get(), "Modo de rastreamento: Individual")
+
+        self.gui._current_detections = [(0, 0, 0, 0, 0.9, "42")]
+        multi_report = ProcessingReport(ProcessingMode.MULTI_TRACK, "test")
+        self.gui.update_processing_mode(multi_report)
+        self.assertEqual(self.gui.track_selector_widget.state, "readonly")
+        self.assertIn("42", self.gui.track_selector_widget.values)
 
 
 class TestZoneEditingPrevention(unittest.TestCase):

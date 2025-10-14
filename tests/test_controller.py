@@ -8,6 +8,7 @@ import cv2
 
 from zebtrack.core.controller import AppController
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.settings import settings
 
@@ -173,6 +174,52 @@ class TestAppController(unittest.TestCase):
         self.assertEqual(info["scope"], "project")
         self.assertTrue(info["inheriting_globals"])
         self.assertFalse(info["overrides_active"])
+
+    def test_configure_single_subject_tracker_publishes_mode(self):
+        detector_state = {"enabled": False}
+
+        def set_mode(value):
+            detector_state["enabled"] = bool(value)
+
+        def get_mode():
+            return detector_state["enabled"]
+
+        detector = MagicMock()
+        detector.set_single_subject_mode.side_effect = set_mode
+        detector.is_single_subject_mode.side_effect = get_mode
+        self.controller.detector = detector
+
+        with patch.object(self.controller, "_schedule_on_ui") as schedule_mock:
+            self.controller._configure_single_subject_tracker(True)
+
+        schedule_mock.assert_called()
+        callback, report = schedule_mock.call_args.args[:2]
+        self.assertIs(callback, self.controller.view.update_processing_mode)
+        self.assertIsInstance(report, ProcessingReport)
+        self.assertEqual(report.mode, ProcessingMode.SINGLE_SUBJECT)
+
+    @patch("zebtrack.core.controller.threading.Thread")
+    def test_run_model_diagnostic_publishes_override(self, mock_thread_cls):
+        config = {
+            "model_to_test": "YOLO (PyTorch)",
+            "video_path": "tests/fixtures/sample.mp4",
+            "frames_to_analyze": 1,
+            "confidence_threshold": 0.5,
+            "update_progress": MagicMock(),
+        }
+        self.mock_wm.get_weight_details.return_value = {"path": "model.pt"}
+        thread_instance = MagicMock()
+        mock_thread_cls.return_value = thread_instance
+
+        with patch.object(self.controller, "_publish_processing_mode") as publish_mock:
+            self.controller.run_model_diagnostic(config)
+
+        publish_mock.assert_any_call(
+            source="diagnostic.start",
+            force=True,
+            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        )
+        thread_instance.start.assert_called_once()
 
     def test_get_current_detector_parameters_with_plugin(self):
         class DummyPlugin:
@@ -453,6 +500,7 @@ class TestAppController(unittest.TestCase):
                 self.root = root
                 self.controller = controller
                 self.event_bus = event_bus
+                self.received_reports: list[ProcessingReport] = []
 
             def process_events(self):
                 if self.event_bus is None:
@@ -464,6 +512,9 @@ class TestAppController(unittest.TestCase):
 
             def stop_event_bus_polling(self):
                 pass
+
+            def update_processing_mode(self, report):
+                self.received_reports.append(report)
 
         with (
             patch("zebtrack.core.controller.ProjectManager", return_value=self.mock_pm),
@@ -479,10 +530,11 @@ class TestAppController(unittest.TestCase):
         mock_callback = MagicMock()
 
         self.root.after.reset_mock()
+        initial_size = event_bus.size() if event_bus is not None else 0
         controller._schedule_on_ui(mock_callback, 42, example="test")
         self.root.after.assert_not_called()
         assert event_bus is not None
-        self.assertEqual(event_bus.size(), 1)
+        self.assertEqual(event_bus.size(), initial_size + 1)
         stub_view = cast(StubGUI, controller.view)
         stub_view.process_events()
         self.assertEqual(event_bus.size(), 0)
@@ -601,6 +653,7 @@ class TestAppController(unittest.TestCase):
             animals_per_aquarium=1,
             aquarium_width_cm=10.0,
             aquarium_height_cm=10.0,
+            use_single_subject_tracker=True,
             active_weight="best_seg.pt",
         )
         self.mock_view._load_project_view.assert_called_once()

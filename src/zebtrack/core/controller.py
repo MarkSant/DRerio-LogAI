@@ -33,6 +33,7 @@ from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
@@ -91,12 +92,15 @@ class AppController:
         if self._use_event_bus:
             log.info("controller.event_bus.enabled")
 
+        self._active_processing_mode = ProcessingMode.MULTI_TRACK
+
         # Create view after core state is ready so it can reflect it
         self.view = ApplicationGUI(
             root,
             self,
             event_bus=self.ui_event_bus if self._use_event_bus else None,
         )
+        self._publish_processing_mode(source="init", force=True)
         # Other initializations...
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
@@ -193,6 +197,48 @@ class AppController:
             self.root.after(0, lambda: func(*args, **kwargs))
         except Exception:
             func(*args, **kwargs)
+
+    def _determine_processing_mode(self) -> ProcessingMode:
+        """Inspect current detector/settings state to infer active mode."""
+
+        detector = getattr(self, "detector", None)
+        if detector and hasattr(detector, "is_single_subject_mode"):
+            try:
+                if detector.is_single_subject_mode():
+                    return ProcessingMode.SINGLE_SUBJECT
+            except Exception:  # pragma: no cover - defensive telemetry
+                log.warning(
+                    "controller.processing_mode.detector_probe_failed",
+                    exc_info=True,
+                )
+
+        try:
+            if bool(settings.tracking.use_single_subject_tracker):
+                return ProcessingMode.SINGLE_SUBJECT
+        except AttributeError:  # pragma: no cover - optional settings
+            pass
+
+        return ProcessingMode.MULTI_TRACK
+
+    def _publish_processing_mode(
+        self,
+        *,
+        source: str,
+        force: bool = False,
+        mode_override: ProcessingMode | None = None,
+    ) -> ProcessingReport:
+        """Notify the GUI about the current processing mode when it changes."""
+
+        mode = mode_override or self._determine_processing_mode()
+        if not force and mode == getattr(self, "_active_processing_mode", None):
+            return ProcessingReport(mode=mode, source=source)
+
+        self._active_processing_mode = mode
+        report = ProcessingReport(mode=mode, source=source)
+        view = getattr(self, "view", None)
+        if view and hasattr(view, "update_processing_mode"):
+            self._schedule_on_ui(view.update_processing_mode, report)
+        return report
 
     def refresh_project_views(
         self,
@@ -1926,6 +1972,11 @@ class AppController:
         log.info("controller.aquarium_detection.start")
         self.view.set_status("Detectando aquário, por favor aguarde...")
         self.view.update_idletasks()
+        self._publish_processing_mode(
+            source="calibration.aquarium.start",
+            force=True,
+            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        )
 
         try:
             if video_path is None:
@@ -1992,6 +2043,10 @@ class AppController:
                 "Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}"
             )
         finally:
+            self._publish_processing_mode(
+                source="calibration.aquarium.complete",
+                force=True,
+            )
             self.view.set_status("Pronto.")
 
     def set_main_arena_polygon(self, points: list) -> bool:
@@ -2257,6 +2312,11 @@ class AppController:
             return
 
         temp_video_path = None
+        self._publish_processing_mode(
+            source="calibration.live.start",
+            force=True,
+            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        )
         try:
             # 1. Create a temporary file for the calibration video
             temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
@@ -2320,6 +2380,10 @@ class AppController:
             # 4. Clean up the temporary file
             if temp_video_path and os.path.exists(temp_video_path):
                 os.remove(temp_video_path)
+            self._publish_processing_mode(
+                source="calibration.live.complete",
+                force=True,
+            )
             self.view.set_status("Pronto.")
 
     def _run_countdown(self, duration_s: int, callback):
@@ -3836,6 +3900,11 @@ class AppController:
                 "controller.single_subject_tracker.unavailable",
                 plugin=getattr(self.detector, "plugin", "unknown"),
             )
+        finally:
+            self._publish_processing_mode(
+                source="tracker_configuration",
+                force=True,
+            )
 
     def _determine_processing_intervals(
         self, single_video_config: dict | None
@@ -3903,6 +3972,10 @@ class AppController:
         self._configure_single_subject_tracker(
             settings.tracking.use_single_subject_tracker
         )
+        self._publish_processing_mode(
+            source="processing.temporary_mode.enter",
+            force=True,
+        )
 
         try:
             yield settings.video_processing.single_animal_per_aquarium
@@ -3928,6 +4001,10 @@ class AppController:
 
             self._configure_single_subject_tracker(
                 settings.tracking.use_single_subject_tracker
+            )
+            self._publish_processing_mode(
+                source="processing.temporary_mode.exit",
+                force=True,
             )
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
@@ -3963,6 +4040,10 @@ class AppController:
             self.root.after(0, lambda: self.view.show_info("Sucesso", msg))
 
         self.root.after(0, lambda: self.view.set_status("Pronto."))
+        self._publish_processing_mode(
+            source="processing.finalize",
+            force=True,
+        )
         self.refresh_project_views()
 
     def _build_metadata_context(
@@ -4065,13 +4146,17 @@ class AppController:
                     ),
                 )
 
+            processing_report = self._publish_processing_mode(
+                source="analysis_progress",
+                force=False,
+            )
+
             if detections is not None:
                 payload = [tuple(det) for det in detections]
-                self.root.after(
-                    0,
-                    lambda items=payload: self.view.update_detection_overlay(
-                        items
-                    ),
+                self._schedule_on_ui(
+                    self.view.update_detection_overlay,
+                    payload,
+                    processing_report,
                 )
 
             if frame is not None:
@@ -4854,9 +4939,15 @@ class AppController:
         was_cancelled = False
         final_output_dir = output_base_dir
 
-        with self._temporary_single_animal_mode(single_video_config):
+        with self._temporary_single_animal_mode(
+            single_video_config
+        ) as _single_subject_mode_enabled:
             try:
                 self._prepare_processing_ui(len(videos_to_process))
+                self._publish_processing_mode(
+                    source="processing.loop_start",
+                    force=True,
+                )
 
                 for index, video_info in enumerate(videos_to_process):
                     if self.cancel_event.is_set():
@@ -5092,6 +5183,11 @@ class AppController:
 
         # --- Launch background thread ---
         self.cancel_event.clear()
+        self._publish_processing_mode(
+            source="diagnostic.start",
+            force=True,
+            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        )
         thread = threading.Thread(
             target=self._diagnostic_processing_thread,
             args=(config, active_weight_details),
@@ -5158,6 +5254,64 @@ class AppController:
                             )
                         results["OpenVINO"] = []
                         log.info("diagnostic.thread.openvino_loaded", path=ov_path)
+
+            # --- Video Processing ---
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                self.root.after(
+                    0,
+                    self.view.show_error,
+                    "Erro",
+                    f"Não foi possível abrir o vídeo: {video_path}",
+                )
+                return
+
+            for frame_count in range(frames_to_analyze):
+                if self.cancel_event.is_set():
+                    break
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+                self.root.after(0, self.view.set_status, status_msg)
+
+                if yolo_model:
+                    preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
+                    results.setdefault("YOLO (PyTorch)", []).append(preds[0])
+
+                if openvino_model:
+                    try:
+                        log.debug(
+                            "diagnostic.thread.openvino_predict_start",
+                            frame=frame_count + 1,
+                        )
+                        preds = openvino_model.predict(frame, conf_threshold)
+                        log.debug(
+                            "diagnostic.thread.openvino_predict_success",
+                            frame=frame_count + 1,
+                            detections=len(preds),
+                        )
+                        results.setdefault("OpenVINO", []).append(preds)
+                    except Exception as e:
+                        log.error(
+                            "diagnostic.thread.openvino_predict_error",
+                            frame=frame_count + 1,
+                            exc_info=True,
+                        )
+                        self.root.after(
+                            0,
+                            self.view.show_error,
+                            "Erro de Inferência OpenVINO",
+                            f"Falha na inferência do frame {frame_count + 1}: {e}",
+                        )
+                        return
+            cap.release()
+
+            # --- Schedule report generation on main thread ---
+            self.root.after(
+                0, self._finish_diagnostic_and_save_report, config, results
+            )
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
             self.root.after(
@@ -5166,63 +5320,11 @@ class AppController:
                 "Erro ao Carregar Modelo",
                 f"Falha: {e}",
             )
-            return
-
-        # --- Video Processing ---
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            self.root.after(
-                0,
-                self.view.show_error,
-                "Erro",
-                f"Não foi possível abrir o vídeo: {video_path}",
+        finally:
+            self._publish_processing_mode(
+                source="diagnostic.thread_exit",
+                force=True,
             )
-            return
-
-        for frame_count in range(frames_to_analyze):
-            if self.cancel_event.is_set():
-                break
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
-            self.root.after(0, self.view.set_status, status_msg)
-
-            if yolo_model:
-                preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
-                results.setdefault("YOLO (PyTorch)", []).append(preds[0])
-
-            if openvino_model:
-                try:
-                    log.debug(
-                        "diagnostic.thread.openvino_predict_start",
-                        frame=frame_count + 1,
-                    )
-                    preds = openvino_model.predict(frame, conf_threshold)
-                    log.debug(
-                        "diagnostic.thread.openvino_predict_success",
-                        frame=frame_count + 1,
-                        detections=len(preds),
-                    )
-                    results.setdefault("OpenVINO", []).append(preds)
-                except Exception as e:
-                    log.error(
-                        "diagnostic.thread.openvino_predict_error",
-                        frame=frame_count + 1,
-                        exc_info=True,
-                    )
-                    self.root.after(
-                        0,
-                        self.view.show_error,
-                        "Erro de Inferência OpenVINO",
-                        f"Falha na inferência do frame {frame_count + 1}: {e}",
-                    )
-                    return
-        cap.release()
-
-        # --- Schedule report generation on main thread ---
-        self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
 
     def _finish_diagnostic_and_save_report(self, config, results):
         """Formats and saves the report. Runs on the main UI thread."""
@@ -5246,6 +5348,10 @@ class AppController:
                     "Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}"
                 )
 
+        self._publish_processing_mode(
+            source="diagnostic.complete",
+            force=True,
+        )
         self.view.set_status("Diagnóstico concluído. Pronto.")
 
     def _format_diagnostic_report(self, config, results) -> str:

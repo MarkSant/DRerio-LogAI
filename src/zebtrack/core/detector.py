@@ -272,6 +272,11 @@ class Detector:
                     exc_info=True,
                 )
 
+    def is_single_subject_mode(self) -> bool:
+        """Expose the current single-subject tracking flag."""
+
+        return self._single_subject_mode
+
     def reset_tracking_state(self) -> None:
         """Reset tracker state between videos."""
 
