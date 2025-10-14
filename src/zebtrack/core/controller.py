@@ -10,7 +10,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from tkinter import Label, Toplevel
-from typing import Iterator, cast
+from typing import Any, Iterator, cast
 
 import cv2
 import numpy as np
@@ -42,7 +42,7 @@ from zebtrack.core.processing_worker import (
 )
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
-from zebtrack.core.state_manager import StateManager
+from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -86,11 +86,18 @@ class MainViewModel:
     State mutations now tracked through StateManager.
     """
 
-    def __init__(self, root):
+    def __init__(self, root, test_sync_event: threading.Event | None = None):
         self.root = root
+
+        # Test synchronization support (Phase 1.1)
+        self._test_sync_event = test_sync_event
 
         # Phase 2, Step 4: Centralized state management
         self.state_manager = StateManager(enable_history=True, max_history_size=100)
+
+        # Register test observer if sync event provided
+        if self._test_sync_event is not None:
+            self.state_manager.subscribe_all(self._on_state_change_for_test)
 
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
@@ -188,6 +195,34 @@ class MainViewModel:
     def is_processing(self) -> bool:
         """Get processing status from StateManager."""
         return self.state_manager.get_processing_state().is_processing
+
+    def _on_state_change_for_test(
+        self,
+        category: StateCategory,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """
+        Observer callback for test synchronization.
+        
+        Phase 1.1: Signals test_sync_event after state changes are processed,
+        eliminating race conditions in integration tests.
+        
+        Args:
+            category: State category that changed
+            key: State key that changed
+            old_value: Previous value
+            new_value: New value
+        """
+        if self._test_sync_event is not None:
+            # Signal that state change has been processed
+            self._test_sync_event.set()
+            log.debug(
+                "controller.test_sync.state_change_signaled",
+                category=category.name,
+                key=key,
+            )
 
     def get_openvino_status(self) -> str:
         """Gets the current OpenVINO status text based on the model and settings."""
