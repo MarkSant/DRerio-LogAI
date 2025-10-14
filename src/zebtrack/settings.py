@@ -309,10 +309,11 @@ class UIFeatureFlags(BaseModel):
         description="Use new 5-step wizard instead of legacy CreateProjectDialog"
     )
     enable_event_queue: bool = Field(
-        False,
+        True,  # Changed to True: Event bus is now the default for UI→Controller communication
         description=(
             "Route controller→GUI interactions through the async event queue "
-            "instead of direct Tkinter calls"
+            "instead of direct Tkinter calls. Now enabled by default for "
+            "event-driven architecture (Phase 1 refactoring)."
         ),
     )
 

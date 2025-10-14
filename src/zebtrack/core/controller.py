@@ -42,6 +42,7 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.settings import settings
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.utils import IntegrityError
 
@@ -91,6 +92,8 @@ class AppController:
         self.ui_event_bus: EventBus | None = EventBus() if self._use_event_bus else None
         if self._use_event_bus:
             log.info("controller.event_bus.enabled")
+            # Subscribe to all UI→Controller events
+            self._register_event_handlers()
 
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
@@ -197,6 +200,181 @@ class AppController:
             self.root.after(0, lambda: func(*args, **kwargs))
         except Exception:
             func(*args, **kwargs)
+
+    def _register_event_handlers(self) -> None:
+        """Subscribe to all UI→Controller events when event bus is enabled.
+        
+        This method wires up the event-driven communication layer, replacing
+        direct method calls from GUI with event-based invocations.
+        """
+        if not self.ui_event_bus:
+            return
+
+        bus = self.ui_event_bus
+        log.info("controller.register_event_handlers.start")
+
+        # Recording events
+        bus.subscribe(Events.RECORDING_START, self._handle_recording_start)
+        bus.subscribe(Events.RECORDING_STOP, self._handle_recording_stop)
+        bus.subscribe(Events.RECORDING_TRIGGER, self._handle_recording_trigger)
+
+        # Project events
+        bus.subscribe(Events.PROJECT_CREATE, self._handle_project_create)
+        bus.subscribe(Events.PROJECT_OPEN, self._handle_project_open)
+        bus.subscribe(Events.PROJECT_CLOSE, self._handle_project_close)
+        bus.subscribe(Events.PROJECT_PROCESS_VIDEOS, self._handle_project_process_videos)
+        bus.subscribe(Events.PROJECT_GENERATE_SUMMARIES, self._handle_project_generate_summaries)
+        bus.subscribe(Events.PROJECT_APPLY_SETTINGS, self._handle_project_apply_settings)
+        bus.subscribe(Events.PROJECT_DELETE_ASSET, self._handle_project_delete_asset)
+
+        # Video processing events
+        bus.subscribe(Events.VIDEO_ANALYZE_SINGLE, self._handle_video_analyze_single)
+        bus.subscribe(Events.VIDEO_CANCEL_ANALYSIS, self._handle_video_cancel_analysis)
+
+        # Model & weight events
+        bus.subscribe(Events.MODEL_SET_WEIGHT, self._handle_model_set_weight)
+        bus.subscribe(Events.MODEL_SET_OPENVINO, self._handle_model_set_openvino)
+        bus.subscribe(Events.MODEL_CONVERT_OPENVINO, self._handle_model_convert_openvino)
+        bus.subscribe(Events.MODEL_UPDATE_OPENVINO_STATUS, self._handle_model_update_openvino_status)
+        bus.subscribe(Events.MODEL_ADD_WEIGHT, self._handle_model_add_weight)
+        bus.subscribe(Events.MODEL_DELETE_WEIGHT, self._handle_model_delete_weight)
+        bus.subscribe(Events.MODEL_RUN_DIAGNOSTIC, self._handle_model_run_diagnostic)
+
+        # Detector & zone events
+        bus.subscribe(Events.DETECTOR_SETUP, self._handle_detector_setup)
+        bus.subscribe(Events.DETECTOR_SETUP_ZONES, self._handle_detector_setup_zones)
+        bus.subscribe(Events.DETECTOR_UPDATE_PARAMETERS, self._handle_detector_update_parameters)
+        bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._handle_zone_set_arena_polygon)
+        bus.subscribe(Events.ZONE_SAVE_MANUAL_ARENA, self._handle_zone_save_manual_arena)
+        bus.subscribe(Events.ZONE_UPDATE_ARENA, self._handle_zone_update_arena)
+
+        # Calibration events
+        bus.subscribe(Events.CALIBRATION_RUN_LIVE, self._handle_calibration_run_live)
+        bus.subscribe(Events.CALIBRATION_COPY_TO_PROJECT, self._handle_calibration_copy_to_project)
+        bus.subscribe(Events.CALIBRATION_SAVE_TO_PROJECT, self._handle_calibration_save_to_project)
+
+        # Arduino events
+        bus.subscribe(Events.ARDUINO_SETUP, self._handle_arduino_setup)
+        bus.subscribe(Events.ARDUINO_LOG_EVENT, self._handle_arduino_log_event)
+
+        # Report events
+        bus.subscribe(Events.REPORT_GENERATE, self._handle_report_generate)
+
+        # Application events
+        bus.subscribe(Events.APP_CLOSE, self._handle_app_close)
+
+        log.info("controller.register_event_handlers.complete", count=len(bus._subscribers))
+
+    # Event handler methods (adapters from events to existing controller methods)
+    
+    def _handle_recording_start(self, data: dict) -> None:
+        self.start_recording(
+            day=data.get("day"),
+            group=data.get("group"),
+            cobaia=data.get("cobaia"),
+        )
+
+    def _handle_recording_stop(self, data: dict) -> None:
+        self.stop_recording()
+
+    def _handle_recording_trigger(self, data: dict) -> None:
+        self.trigger_recording(event_code=data.get("event_code"))
+
+    def _handle_project_create(self, data: dict) -> None:
+        self.create_project_workflow(**data)
+
+    def _handle_project_open(self, data: dict) -> None:
+        self.open_project_workflow(data["project_path"])
+
+    def _handle_project_close(self, data: dict) -> None:
+        self.close_project()
+
+    def _handle_project_process_videos(self, data: dict) -> None:
+        self.process_pending_project_videos(video_paths=data.get("video_paths"))
+
+    def _handle_project_generate_summaries(self, data: dict) -> None:
+        self.generate_parquet_summaries(data["video_paths"])
+
+    def _handle_project_apply_settings(self, data: dict) -> None:
+        self.apply_project_settings_to_batch(data["videos"])
+
+    def _handle_project_delete_asset(self, data: dict) -> None:
+        self.delete_project_asset(data["video_path"], data["asset"])
+
+    def _handle_video_analyze_single(self, data: dict) -> None:
+        self.start_single_video_workflow(data["video_path"], data["config"])
+
+    def _handle_video_cancel_analysis(self, data: dict) -> None:
+        self.cancel_current_analysis()
+
+    def _handle_model_set_weight(self, data: dict) -> None:
+        self.set_active_weight(data.get("name"), data.get("dialog"))
+
+    def _handle_model_set_openvino(self, data: dict) -> None:
+        self.set_openvino_usage(data["use_openvino"], data.get("dialog"))
+
+    def _handle_model_convert_openvino(self, data: dict) -> None:
+        self.convert_active_weight_to_openvino(data.get("dialog"))
+
+    def _handle_model_update_openvino_status(self, data: dict) -> None:
+        self.update_openvino_status(data.get("dialog"))
+
+    def _handle_model_add_weight(self, data: dict) -> None:
+        self.add_new_weight(
+            data["path"],
+            data["set_as_default"],
+            data.get("weight_type"),
+        )
+
+    def _handle_model_delete_weight(self, data: dict) -> None:
+        self.delete_weight(data["name"])
+
+    def _handle_model_run_diagnostic(self, data: dict) -> None:
+        self.run_model_diagnostic(data["config"])
+
+    def _handle_detector_setup(self, data: dict) -> None:
+        self.setup_detector(data.get("temp_animal_method"))
+
+    def _handle_detector_setup_zones(self, data: dict) -> None:
+        self.setup_detector_zones()
+
+    def _handle_detector_update_parameters(self, data: dict) -> None:
+        self.update_detector_parameters(
+            conf_threshold=data.get("conf_threshold"),
+            nms_threshold=data.get("nms_threshold"),
+            track_threshold=data.get("track_threshold"),
+            match_threshold=data.get("match_threshold"),
+        )
+
+    def _handle_zone_set_arena_polygon(self, data: dict) -> None:
+        self.set_main_arena_polygon(data["points"])
+
+    def _handle_zone_save_manual_arena(self, data: dict) -> None:
+        self.save_manual_arena(data["polygon_points"])
+
+    def _handle_zone_update_arena(self, data: dict) -> None:
+        self.update_main_arena(data["polygon_points"])
+
+    def _handle_calibration_run_live(self, data: dict) -> None:
+        self.run_live_calibration(data.get("temp_aquarium_method"))
+
+    def _handle_calibration_copy_to_project(self, data: dict) -> None:
+        self.copy_global_model_settings_to_project()
+
+    def _handle_calibration_save_to_project(self, data: dict) -> None:
+        self.save_current_calibration_to_project()
+
+    def _handle_arduino_setup(self, data: dict) -> None:
+        self.setup_arduino()
+
+    def _handle_arduino_log_event(self, data: dict) -> None:
+        self.log_arduino_event(data["message"])
+
+    def _handle_report_generate(self, data: dict) -> None:
+        self.generate_report(data["videos"], data.get("report_type", "unified"))
+
+    def _handle_app_close(self, data: dict) -> None:
+        self.on_close()
 
     def _determine_processing_mode(self) -> ProcessingMode:
         """Inspect current detector/settings state to infer active mode."""

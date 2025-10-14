@@ -52,7 +52,8 @@ from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
-from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
+from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType, NamedEvent
+from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
     schedule_maximize,
@@ -2003,6 +2004,7 @@ class ApplicationGUI:
     def _register_event_bus_handlers(self) -> None:
         self._event_bus_handlers = {
             EventType.CALLABLE: self._handle_callable_event,
+            EventType.NAMED: self._handle_named_event,
         }
 
     def _handle_callable_event(self, payload: CallableEvent) -> None:
@@ -2010,6 +2012,34 @@ class ApplicationGUI:
             payload.execute()
         except Exception:
             log.warning("gui.event_bus.callable_failed", exc_info=True)
+
+    def _handle_named_event(self, payload: NamedEvent) -> None:
+        """Dispatch named events to controller subscribers."""
+        try:
+            if self.event_bus:
+                self.event_bus.dispatch_named_event(payload)
+        except Exception:
+            log.warning(
+                "gui.event_bus.named_event_failed",
+                event_name=payload.event_name,
+                exc_info=True,
+            )
+
+    def publish_event(self, event_name: str, data: dict[str, Any] | None = None) -> None:
+        """Publish a named event to the controller via the event bus.
+        
+        Falls back to direct controller method call if event bus is not available.
+        
+        Args:
+            event_name: Name of the event (from Events class)
+            data: Optional event data dictionary
+        """
+        if self.event_bus:
+            self.event_bus.publish_event(event_name, data or {})
+        else:
+            # Fallback to direct controller call (backward compatibility)
+            # This path is only used when event bus is disabled
+            log.debug("gui.publish_event.no_bus", event_name=event_name)
 
     def _schedule_event_bus_poll(self) -> None:
         if self.event_bus is None:
@@ -2962,13 +2992,13 @@ class ApplicationGUI:
             self.start_rec_btn = Button(
                 controls_container,
                 text="Iniciar Gravação",
-                command=self.controller.start_recording,
+                command=lambda: self.publish_event(Events.RECORDING_START, {}),
             )
             self.start_rec_btn.pack(side="left", padx=5)
             self.stop_rec_btn = Button(
                 controls_container,
                 text="Parar Gravação",
-                command=self.controller.stop_recording,
+                command=lambda: self.publish_event(Events.RECORDING_STOP, {}),
                 state="disabled",
             )
             self.stop_rec_btn.pack(side="left", padx=5)
@@ -2977,7 +3007,7 @@ class ApplicationGUI:
             ttk.Button(
                 controls_container,
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
-                command=self.controller.start_project_processing_workflow,
+                command=lambda: self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {}),
             ).pack(side="left", padx=5)
 
             # Project-wide interval settings
@@ -3009,7 +3039,7 @@ class ApplicationGUI:
         Button(
             controls_container,
             text="Fechar Projeto",
-            command=self.controller.close_project,
+            command=lambda: self.publish_event(Events.PROJECT_CLOSE, {}),
         ).pack(side="right", padx=5)
 
         self._create_project_overview_panel(self.main_controls_frame)

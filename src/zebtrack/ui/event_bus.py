@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import queue
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 
@@ -14,6 +15,7 @@ class EventType(Enum):
     """Enumerates the types of events supported by the UI event bus."""
 
     CALLABLE = auto()
+    NAMED = auto()  # Named events with subscriber pattern
 
 
 @dataclass(slots=True)
@@ -29,6 +31,14 @@ class CallableEvent:
 
 
 @dataclass(slots=True)
+class NamedEvent:
+    """Payload for named events with publish/subscribe pattern."""
+
+    event_name: str
+    data: dict[str, Any]
+
+
+@dataclass(slots=True)
 class UIEvent:
     """Unified container for UI events."""
 
@@ -37,10 +47,17 @@ class UIEvent:
 
 
 class EventBus:
-    """Thread-safe queue for routing controller events to the GUI thread."""
+    """Thread-safe event bus for routing events between UI and core logic.
+    
+    Supports two modes of operation:
+    1. Callable events: Direct function calls scheduled on the UI thread (legacy)
+    2. Named events: Publish/subscribe pattern for decoupled communication
+    """
 
     def __init__(self, maxsize: int = 0) -> None:
         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
+        # Subscribers map: event_name -> list of handlers
+        self._subscribers: Dict[str, List[Callable[[dict], Any]]] = defaultdict(list)
 
     def publish(
         self,
@@ -83,6 +100,97 @@ class EventBus:
             )
         return published
 
+    def publish_event(
+        self,
+        event_name: str,
+        data: Optional[dict[str, Any]] = None,
+        *,
+        block: bool = False,
+        timeout: float | None = None,
+    ) -> bool:
+        """Publish a named event with optional data payload.
+        
+        Args:
+            event_name: Name of the event (e.g., "recording:start", "project:close")
+            data: Optional dictionary containing event-specific data
+            block: Whether to block if queue is full
+            timeout: Timeout for blocking operations
+            
+        Returns:
+            True if event was successfully published, False if queue was full
+        """
+        event = UIEvent(
+            EventType.NAMED,
+            NamedEvent(event_name=event_name, data=data or {}),
+        )
+        published = self.publish(event, block=block, timeout=timeout)
+        if not published:
+            log.warning(
+                "event_bus.publish_event.failed",
+                event_name=event_name,
+            )
+        return published
+
+    def subscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
+        """Subscribe a handler to a named event.
+        
+        Args:
+            event_name: Name of the event to subscribe to
+            handler: Callable that accepts a dict of event data
+        """
+        if handler not in self._subscribers[event_name]:
+            self._subscribers[event_name].append(handler)
+            log.info(
+                "event_bus.subscribe",
+                event_name=event_name,
+                handler=getattr(handler, "__name__", repr(handler)),
+            )
+
+    def unsubscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
+        """Unsubscribe a handler from a named event.
+        
+        Args:
+            event_name: Name of the event to unsubscribe from
+            handler: The handler to remove
+        """
+        if handler in self._subscribers[event_name]:
+            self._subscribers[event_name].remove(handler)
+            log.info(
+                "event_bus.unsubscribe",
+                event_name=event_name,
+                handler=getattr(handler, "__name__", repr(handler)),
+            )
+
+    def dispatch_named_event(self, event: NamedEvent) -> None:
+        """Dispatch a named event to all registered subscribers.
+        
+        This should be called from the UI thread when processing named events.
+        
+        Args:
+            event: The NamedEvent to dispatch
+        """
+        handlers = self._subscribers.get(event.event_name, [])
+        if not handlers:
+            log.warning(
+                "event_bus.dispatch.no_handlers",
+                event_name=event.event_name,
+            )
+            return
+
+        for handler in handlers:
+            try:
+                handler(event.data)
+            except Exception:
+                log.exception(
+                    "event_bus.dispatch.handler_failed",
+                    event_name=event.event_name,
+                    handler=getattr(handler, "__name__", repr(handler)),
+                )
+
+    def get_subscribers(self, event_name: str) -> List[Callable]:
+        """Get list of subscribers for a given event name (for testing)."""
+        return list(self._subscribers.get(event_name, []))
+
     def drain(self, *, max_items: Optional[int] = None) -> List[UIEvent]:
         """Retrieve up to ``max_items`` events without blocking."""
 
@@ -117,5 +225,6 @@ __all__ = [
     "CallableEvent",
     "EventBus",
     "EventType",
+    "NamedEvent",
     "UIEvent",
 ]
