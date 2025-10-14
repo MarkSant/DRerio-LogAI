@@ -2360,11 +2360,34 @@ class ProjectManager:
 
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
-            log.warning(
-                "project.outputs.video_not_found",
+            log.info(
+                "project.outputs.adding_missing_video",
                 video_path=video_path,
             )
-            return False
+            # Add the video to the in-memory project data
+            # This can happen during single video workflows
+            self.add_video_batch(
+                [{"path": video_path, "status": "processing"}],
+                save_project=False
+            )
+            video_entry = self.find_video_entry(path=video_path)
+            if not video_entry:
+                log.warning(
+                    "project.outputs.video_still_not_found",
+                    video_path=video_path,
+                )
+                return False
+
+        # Update zone flags if they weren't set during registration
+        # This ensures has_arena and has_rois are properly marked
+        zone_data = self.get_zone_data(video_path, fallback_to_global=False)
+        if zone_data:
+            if zone_data.polygon and not video_entry.get("has_arena"):
+                video_entry["has_arena"] = True
+                log.info("project.outputs.arena_flag_updated", video=video_path)
+            if zone_data.roi_polygons and not video_entry.get("has_rois"):
+                video_entry["has_rois"] = True
+                log.info("project.outputs.rois_flag_updated", video=video_path)
 
         if results_dir:
             video_entry["results_dir"] = results_dir
@@ -2407,14 +2430,23 @@ class ProjectManager:
             video_entry["has_complete_data"] = True
             changed = True
 
+        # Update status to 'processed' if we have trajectory data
+        if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":
+            video_entry["status"] = "processed"
+            changed = True
+
         if changed:
             log.info(
                 "project.outputs.registered",
                 video=os.path.basename(video_path),
                 trajectory=bool(trajectory_path),
                 summary=bool(summary_parquet or summary_excel or report_path),
+                status=video_entry.get("status"),
             )
-            self.save_project()
+            # Only save to disk if there's a project path
+            # For single video workflows, keep in memory only
+            if self.project_path:
+                self.save_project()
 
         return True
 

@@ -3225,16 +3225,36 @@ class ApplicationGUI:
 
         controller = getattr(self, "controller", None)
         if not controller or not controller.project_manager:
+            log.debug("gui.refresh_overview.no_controller_or_pm")
             return
 
         pm = controller.project_manager
         all_videos = pm.get_all_videos() or []
+
+        log.debug(
+            "gui.refresh_overview.start",
+            video_count=len(all_videos),
+            has_project_path=bool(pm.project_path),
+        )
+
+        # Allow display even when there's no project file
+        # This enables single video workflow results to be shown
+        if not all_videos and not pm.project_path:
+            # No videos and no project - nothing to show
+            log.debug("gui.refresh_overview.no_videos_and_no_project")
+            return
 
         counts: Counter = Counter(
             (str(video.get("status") or "pending")).strip().lower()
             for video in all_videos
         )
         total = sum(counts.values())
+
+        log.debug(
+            "gui.refresh_overview.updating",
+            total=total,
+            counts=dict(counts),
+        )
 
         self._update_project_overview_summary(counts, total)
         self._update_project_overview_tree(pm, all_videos)
@@ -6377,15 +6397,24 @@ class ApplicationGUI:
 
         controller = getattr(self, "controller", None)
         if not controller or not controller.project_manager:
+            log.debug("gui.update_reports.no_controller_or_pm")
             return
 
         pm = controller.project_manager
-        if not pm.project_path:
-            return
-
         all_videos = pm.get_all_videos()
+        
+        log.debug(
+            "gui.update_reports.start",
+            video_count=len(all_videos) if all_videos else 0,
+            has_project_path=bool(pm.project_path),
+        )
+        
         if not all_videos:
+            log.debug("gui.update_reports.no_videos")
             return
+        
+        # Allow displaying reports even without a project file
+        # For single video workflows, we still want to show the reports
 
         def _sort_key(value):
             try:

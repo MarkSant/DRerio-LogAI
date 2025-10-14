@@ -2703,6 +2703,63 @@ class AppController:
 
         self.project_manager.set_active_zone_video(video_path)
 
+        # Register the single video in project_manager for display in UI
+        # This allows the video to appear in Main Control and Reports tabs
+        video_entry = self.project_manager.find_video_entry(path=video_path)
+        if not video_entry:
+            log.info("workflow.single_video.registering_video", video=video_path)
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+            
+            # Prepare metadata for single video - use config if available
+            metadata = {}
+            if config:
+                # Extract metadata from config if provided
+                for key in ["group", "group_display_name", "day", "subject"]:
+                    if key in config:
+                        metadata[key] = config[key]
+            
+            # Set defaults for missing metadata to ensure proper tree display
+            if "group" not in metadata:
+                metadata["group"] = "single_video"
+            if "group_display_name" not in metadata:
+                metadata["group_display_name"] = "Vídeo Único"
+            if "day" not in metadata:
+                metadata["day"] = "1"
+            if "subject" not in metadata:
+                metadata["subject"] = "1"
+            
+            # Include zone information in the video entry
+            video_data = {
+                "path": video_path,
+                "status": "processing",
+                "has_arena": bool(zone_data and zone_data.polygon),
+                "has_rois": bool(zone_data and zone_data.roi_polygons),
+            }
+            if metadata:
+                video_data["metadata"] = metadata
+            
+            self.project_manager.add_video_batch(
+                [video_data],
+                save_project=False  # Don't save to disk for single video workflow
+            )
+
+        # Save the zone data for this video so it can be retrieved later
+        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+            log.info(
+                "workflow.single_video.saving_zones",
+                video=video_path,
+                has_arena=bool(zone_data.polygon),
+                roi_count=len(zone_data.roi_polygons),
+            )
+            self.project_manager.save_zone_data(zone_data, video_path)
+
+        # Refresh views immediately so the video appears in Main Control and Reports tabs
+        # This ensures the user sees the registered video before processing starts
+        self.refresh_project_views(
+            reason="Single video registered",
+            immediate=True
+        )
+
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
@@ -4641,15 +4698,16 @@ class AppController:
             ),
         )
 
-        if not single_video_config:
-            self._register_project_outputs(
-                video_path=video_path,
-                results_dir=results_dir,
-                trajectory_path=trajectory_path,
-                summary_parquet=summary_parquet_path,
-                summary_excel=summary_excel_path,
-                report_path=report_docx_path,
-            )
+        # Register outputs for both project and single video workflows
+        # This ensures the video and reports appear in the UI tabs
+        self._register_project_outputs(
+            video_path=video_path,
+            results_dir=results_dir,
+            trajectory_path=trajectory_path,
+            summary_parquet=summary_parquet_path,
+            summary_excel=summary_excel_path,
+            report_path=report_docx_path,
+        )
 
         return True
 
