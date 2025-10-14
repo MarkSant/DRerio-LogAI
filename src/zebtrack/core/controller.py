@@ -93,8 +93,8 @@ class MainViewModel:
         self.project_service = ProjectService()
         self.analysis_service = AnalysisService()
         
-        # State managers
-        self.project_manager = ProjectManager()
+        # State managers (pass StateManager reference to ProjectManager)
+        self.project_manager = ProjectManager(state_manager=self.state_manager)
         self.weight_manager = WeightManager()
 
         # New state variables for model management (must exist before view)
@@ -682,8 +682,8 @@ class MainViewModel:
         # Restore global defaults before clearing project state
         self._restore_global_model_defaults()
 
-        # Reset project manager
-        self.project_manager = ProjectManager()
+        # Reset project manager (pass StateManager reference)
+        self.project_manager = ProjectManager(state_manager=self.state_manager)
         
         # Update StateManager: project closed
         self.state_manager.update_project_state(
@@ -1357,6 +1357,12 @@ class MainViewModel:
             log.debug("controller.arduino.disabled")
             if self.arduino_manager:
                 self.arduino_manager.disconnect()
+                # Update StateManager: Arduino disconnected
+                self.state_manager.update_recording_state(
+                    source="controller.setup_arduino",
+                    arduino_connected=False,
+                    arduino_port=None,
+                )
             return False
 
         port = (project_data.get("arduino_port") or "").strip()
@@ -1373,8 +1379,20 @@ class MainViewModel:
         baud_rate = settings.arduino.baud_rate
         if manager.connect(port, baud_rate):
             self.arduino = manager.arduino
+            # Update StateManager: Arduino connected
+            self.state_manager.update_recording_state(
+                source="controller.setup_arduino",
+                arduino_connected=True,
+                arduino_port=port,
+            )
             return True
 
+        # Update StateManager: Arduino connection failed
+        self.state_manager.update_recording_state(
+            source="controller.setup_arduino",
+            arduino_connected=False,
+            arduino_port=None,
+        )
         return False
 
     def _get_box_number(self, day, group, cobaia) -> int | None:

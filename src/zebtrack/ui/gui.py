@@ -1988,6 +1988,138 @@ class ApplicationGUI:
         if self.event_bus is not None:
             self._register_event_bus_handlers()
             self._schedule_event_bus_poll()
+        
+        # Subscribe to StateManager state changes for reactive UI updates
+        self._subscribe_to_state_changes()
+
+    def _subscribe_to_state_changes(self) -> None:
+        """Subscribe to StateManager events for reactive UI updates."""
+        from zebtrack.core.state_manager import StateCategory
+        
+        # Subscribe to recording state changes
+        self.controller.state_manager.subscribe(
+            StateCategory.RECORDING,
+            self._on_recording_state_changed
+        )
+        
+        # Subscribe to processing state changes
+        self.controller.state_manager.subscribe(
+            StateCategory.PROCESSING,
+            self._on_processing_state_changed
+        )
+        
+        # Subscribe to detector state changes
+        self.controller.state_manager.subscribe(
+            StateCategory.DETECTOR,
+            self._on_detector_state_changed
+        )
+        
+        # Subscribe to project state changes
+        self.controller.state_manager.subscribe(
+            StateCategory.PROJECT,
+            self._on_project_state_changed
+        )
+        
+        log.info("gui.state_observers.subscribed", 
+                 categories=["RECORDING", "PROCESSING", "DETECTOR", "PROJECT"])
+    
+    def _on_recording_state_changed(self, category, key, old_value, new_value) -> None:
+        """Handle recording state changes."""
+        if key == "is_recording":
+            # Schedule UI update on main thread
+            self.root.after(0, self._update_recording_ui, new_value)
+        elif key == "arduino_connected":
+            # Schedule Arduino UI update on main thread
+            self.root.after(0, self._update_arduino_ui, new_value)
+    
+    def _on_processing_state_changed(self, category, key, old_value, new_value) -> None:
+        """Handle processing state changes."""
+        if key == "is_processing":
+            # Schedule UI update on main thread
+            self.root.after(0, self._update_processing_ui, new_value)
+    
+    def _on_detector_state_changed(self, category, key, old_value, new_value) -> None:
+        """Handle detector state changes."""
+        if key == "detector_initialized":
+            # Schedule UI update on main thread
+            self.root.after(0, self._update_detector_ui, new_value)
+    
+    def _on_project_state_changed(self, category, key, old_value, new_value) -> None:
+        """Handle project state changes."""
+        if key == "project_path":
+            # Schedule project UI update on main thread
+            self.root.after(0, self._update_project_ui, new_value)
+    
+    def _update_recording_ui(self, is_recording: bool) -> None:
+        """Update UI elements based on recording state."""
+        if is_recording:
+            log.debug("gui.recording_state.started")
+            # Update recording button states if they exist
+            if self.start_rec_btn:
+                self.start_rec_btn.config(state="disabled")
+            if self.stop_rec_btn:
+                self.stop_rec_btn.config(state="normal")
+        else:
+            log.debug("gui.recording_state.stopped")
+            # Update recording button states if they exist
+            if self.start_rec_btn:
+                self.start_rec_btn.config(state="normal")
+            if self.stop_rec_btn:
+                self.stop_rec_btn.config(state="disabled")
+    
+    def _update_processing_ui(self, is_processing: bool) -> None:
+        """Update UI elements based on processing state."""
+        if is_processing:
+            log.debug("gui.processing_state.started")
+            # Disable process button during processing
+            if self.process_video_btn:
+                self.process_video_btn.config(state="disabled")
+        else:
+            log.debug("gui.processing_state.stopped")
+            # Re-enable process button after processing
+            if self.process_video_btn:
+                self.process_video_btn.config(state="normal")
+    
+    def _update_detector_ui(self, detector_initialized: bool) -> None:
+        """Update UI elements based on detector state."""
+        if detector_initialized:
+            log.debug("gui.detector_state.initialized")
+            # Detector is ready - UI elements can be enabled
+        else:
+            log.debug("gui.detector_state.uninitialized")
+            # Detector not ready - disable dependent UI elements
+    
+    def _update_arduino_ui(self, arduino_connected: bool) -> None:
+        """Update UI elements based on Arduino connection state."""
+        if arduino_connected:
+            log.debug("gui.arduino_state.connected")
+            # Update Arduino status indicator if it exists
+            if hasattr(self, 'arduino_status_var'):
+                self.arduino_status_var.set("Conectado")
+            if hasattr(self, 'arduino_status_indicator'):
+                try:
+                    self.arduino_status_indicator.config(style="success.TLabel")
+                except Exception:
+                    pass  # Ignore if widget doesn't exist yet
+        else:
+            log.debug("gui.arduino_state.disconnected")
+            # Update Arduino status indicator if it exists
+            if hasattr(self, 'arduino_status_var'):
+                self.arduino_status_var.set("Desconectado")
+            if hasattr(self, 'arduino_status_indicator'):
+                try:
+                    self.arduino_status_indicator.config(style="danger.TLabel")
+                except Exception:
+                    pass  # Ignore if widget doesn't exist yet
+    
+    def _update_project_ui(self, project_path) -> None:
+        """Update UI elements based on project state."""
+        if project_path:
+            log.debug("gui.project_state.loaded", project_path=str(project_path))
+            # Project loaded - update window title or status
+        else:
+            log.debug("gui.project_state.closed")
+            # Project closed - show welcome screen
 
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
         """Compose a compact legend string for the status glyphs."""

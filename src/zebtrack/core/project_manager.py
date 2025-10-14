@@ -60,9 +60,12 @@ class ProjectManager:
         "experiment_id": ("experiment_id", "video_name"),
     }
 
-    def __init__(self):
+    def __init__(self, state_manager=None):
         # Phase 1, Step 3: Delegate file I/O to ProjectService
         self.project_service = ProjectService()
+        
+        # Phase 2, Step 4: Optional StateManager reference for state propagation
+        self.state_manager = state_manager
         
         # In-memory project state
         self.project_path = None

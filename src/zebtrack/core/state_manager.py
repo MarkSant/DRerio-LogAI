@@ -17,6 +17,35 @@ State Categories:
 - Recording State: recording status, output paths, Arduino connection
 - Processing State: current operation, progress, thread management
 - UI State: view mode, selected videos, display settings
+
+Quick Start Example:
+    # Initialize StateManager
+    state_manager = StateManager(enable_history=True)
+    
+    # Subscribe to state changes
+    def on_recording_changed(category, changes, new_state):
+        if "is_recording" in changes:
+            print(f"Recording: {new_state.is_recording}")
+    
+    state_manager.subscribe(StateCategory.RECORDING, on_recording_changed)
+    
+    # Update state (automatically notifies observers)
+    state_manager.update_recording_state(
+        source="controller.start_recording",
+        is_recording=True,
+        output_path="/path/to/output.parquet"
+    )
+    
+    # Query current state
+    recording_state = state_manager.get_recording_state()
+    print(f"Is recording: {recording_state.is_recording}")
+    
+    # Check history
+    history = state_manager.get_history(StateCategory.RECORDING, limit=10)
+    for entry in history:
+        print(f"{entry.timestamp}: {entry.changes}")
+
+For complete documentation and integration patterns, see docs/ARCHITECTURE.md section 4.1.
 """
 
 from __future__ import annotations
