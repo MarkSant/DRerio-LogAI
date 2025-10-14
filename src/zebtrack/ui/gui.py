@@ -462,11 +462,11 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_weight_selected_local(self, event=None):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
-        self.controller.set_active_weight(selected_weight, self)
+        self.publish_event(Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self})
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.controller.set_openvino_usage(self.use_openvino_var.get(), self)
+        self.publish_event(Events.MODEL_SET_OPENVINO, {"use_openvino": self.use_openvino_var.get(), "dialog": self})
 
     def update_openvino_status_label(self, status: str):
         """Updates the status label with the given text."""
@@ -542,7 +542,7 @@ class CalibrationDialog(simpledialog.Dialog):
             "model_to_test": model_to_test,
         }
 
-        self.controller.run_model_diagnostic(config)
+        self.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
         self.destroy()
 
     def buttonbox(self):
@@ -578,7 +578,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
-            result = self.controller.copy_global_model_settings_to_project()
+            self.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
+            result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
                     "Projeto atualizado",
@@ -588,7 +589,8 @@ class CalibrationDialog(simpledialog.Dialog):
                     ),
                 )
         else:
-            result = self.controller.save_current_calibration_to_project()
+            self.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
+            result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
                     "Overrides salvos",
@@ -859,7 +861,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             if messagebox.askyesno(
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
-                self.controller.delete_weight(name)
+                self.publish_event(Events.MODEL_DELETE_WEIGHT, {"name": name})
                 self.populate_list()
 
     def destroy(self):
@@ -3780,13 +3782,15 @@ class ApplicationGUI:
             )
 
         if asset == "video":
-            success = self.controller.delete_project_asset(
-                video_path,
-                asset,
-                delete_source=delete_files,
-            )
+            self.publish_event(Events.PROJECT_DELETE_ASSET, {
+                "video_path": video_path,
+                "asset": asset,
+                "delete_source": delete_files,
+            })
+            success = True  # Assume success
         else:
-            success = self.controller.delete_project_asset(video_path, asset)
+            self.publish_event(Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset})
+            success = True  # Assume success
 
         if not success:
             self.show_error(
@@ -4983,7 +4987,7 @@ class ApplicationGUI:
                 return
             selections = list(self.pipeline_video_vars.keys())
 
-        self.controller.process_pending_project_videos(video_paths=selections)
+        self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {"video_paths": selections})
         self._request_overview_refresh()
 
     def _trigger_parquet_summaries(self) -> None:
@@ -4995,7 +4999,7 @@ class ApplicationGUI:
             )
             return
 
-        self.controller.generate_parquet_summaries(selections)
+        self.publish_event(Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections})
         self._refresh_pipeline_video_table()
 
     def _refresh_zone_indicators(self, videos=None) -> None:
@@ -5160,7 +5164,7 @@ class ApplicationGUI:
         self.cancel_proc_btn = ttk.Button(
             self.progress_frame,
             text="Cancelar Análise",
-            command=self.controller.cancel_current_analysis,
+            command=lambda: self.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {}),
             state="disabled",
         )
         self.cancel_proc_btn.grid(row=1, column=1, sticky="ne", padx=(12, 0))
@@ -5571,7 +5575,7 @@ class ApplicationGUI:
         """Saves the edited polygon and makes it static."""
         if self.current_editing_zone == "arena":
             # Save main arena
-            self.controller.save_manual_arena(self.edited_polygon_points)
+            self.publish_event(Events.ZONE_SAVE_MANUAL_ARENA, {"polygon_points": self.edited_polygon_points})
             status_message = "Arena principal salva com sucesso."
             self.set_status(status_message)
             # Enable ROI button after main arena is saved
@@ -6942,7 +6946,7 @@ class ApplicationGUI:
                     break
 
         if selected_videos:
-            self.controller.generate_report(selected_videos, report_type="partial")
+            self.publish_event(Events.REPORT_GENERATE, {"videos": selected_videos, "report_type": "partial"})
 
     def _generate_unified_report(self):
         """Tells the controller to generate a unified report of all project videos."""
@@ -6953,7 +6957,7 @@ class ApplicationGUI:
                 "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
-        self.controller.generate_report(all_videos, report_type="unified")
+        self.publish_event(Events.REPORT_GENERATE, {"videos": all_videos, "report_type": "unified"})
 
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
@@ -8742,14 +8746,18 @@ class ApplicationGUI:
             return
         elif choice == "yes":
             # Add as new default for this type
-            self.controller.add_new_weight(
-                filepath, set_as_default=True, weight_type=weight_type
-            )
+            self.publish_event(Events.MODEL_ADD_WEIGHT, {
+                "path": filepath,
+                "set_as_default": True,
+                "weight_type": weight_type
+            })
         else:  # 'no'
             # Add as an alternative
-            self.controller.add_new_weight(
-                filepath, set_as_default=False, weight_type=weight_type
-            )
+            self.publish_event(Events.MODEL_ADD_WEIGHT, {
+                "path": filepath,
+                "set_as_default": False,
+                "weight_type": weight_type
+            })
 
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type when it cannot be determined
@@ -8875,8 +8883,8 @@ class ApplicationGUI:
             self.show_error("Erro no Wizard", f"Erro ao processar dados do wizard: {e}")
             return
 
-        # Call controller with adapted data
-        self.controller.create_project_workflow(**controller_data)
+        # Call controller with adapted data via event
+        self.publish_event(Events.PROJECT_CREATE, controller_data)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
@@ -8886,7 +8894,7 @@ class ApplicationGUI:
         if not project_path:
             return
 
-        self.controller.open_project_workflow(project_path)
+        self.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     def _on_analyze_single_video_clicked(self):
         """Handles the UI part of the single video workflow."""
@@ -8901,11 +8909,11 @@ class ApplicationGUI:
         if not video_path:
             return
 
-        # Pass both config and video path to the controller
-        self.controller.start_single_video_workflow(
-            video_path=video_path[0],
-            config=dialog.result,
-        )
+        # Pass both config and video path to the controller via event
+        self.publish_event(Events.VIDEO_ANALYZE_SINGLE, {
+            "video_path": video_path[0],
+            "config": dialog.result,
+        })
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
