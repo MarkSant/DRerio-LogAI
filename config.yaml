@@ -77,6 +77,25 @@ trajectory_smoothing:
   window_length: 7
   polyorder: 3
 
+angular_velocity:
+  # Minimum displacement (cm) required to calculate angular velocity.
+  # Below this threshold, the animal is considered stationary and angular velocity is NaN.
+  # This prevents noise amplification from detector jitter (typically 1-2 pixels).
+  # Typical values: 0.3-1.0 cm depending on video resolution and detector precision.
+  min_displacement_threshold_cm: 0.5
+  
+  # Frame step for angle calculation. 
+  # 1 = consecutive frames (F-1, F, F+1)
+  # Higher values (e.g., 3) use frames (F-3, F, F+3), creating longer displacement 
+  # vectors that are more robust to noise but reduce temporal resolution.
+  # Use values 2-5 for very noisy detections.
+  angle_calculation_window: 1
+  
+  # Window size for moving average smoothing of angular velocities.
+  # 1 = no smoothing, 3-5 = light smoothing to reduce high-frequency noise.
+  # Must be odd or equal to 1.
+  angular_velocity_smoothing_window: 3
+
 tracking:
   use_single_subject_tracker: false
 

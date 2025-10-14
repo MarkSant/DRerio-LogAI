@@ -173,6 +173,53 @@ class TrajectorySmoothingSettings(BaseModel):
         return self
 
 
+class AngularVelocitySettings(BaseModel):
+    """Parameters for robust angular velocity calculation."""
+
+    min_displacement_threshold_cm: float = Field(
+        0.5,
+        ge=0.0,
+        description=(
+            "Minimum displacement (in cm) required between consecutive positions "
+            "to calculate a valid angular velocity. When displacement is below this "
+            "threshold, the animal is considered stationary and angular velocity is "
+            "set to NaN. This prevents noise amplification from detector jitter when "
+            "the subject is nearly stationary. Typical values: 0.3-1.0 cm."
+        ),
+    )
+    angle_calculation_window: int = Field(
+        1,
+        ge=1,
+        description=(
+            "Frame step for angle calculation. A value of 1 calculates angles between "
+            "consecutive frames (F-1, F, F+1). Higher values (e.g., 3) use frames "
+            "(F-3, F, F+3), creating longer displacement vectors that are more robust "
+            "to detection noise but reduce temporal resolution. Use values 2-5 for "
+            "noisy detections."
+        ),
+    )
+    angular_velocity_smoothing_window: int = Field(
+        3,
+        ge=1,
+        description=(
+            "Window size for optional moving average smoothing of calculated angular "
+            "velocities. A value of 1 disables smoothing. Values of 3-5 reduce "
+            "high-frequency noise in angular velocity time series without over-"
+            "smoothing genuine rapid turns."
+        ),
+    )
+
+    @field_validator("angular_velocity_smoothing_window")
+    @classmethod
+    def _ensure_odd_smoothing_window(cls, value: int) -> int:
+        if value > 1 and value % 2 == 0:
+            raise ValueError(
+                "angular_velocity.angular_velocity_smoothing_window must be odd or "
+                "equal to 1."
+            )
+        return value
+
+
 class TrackingSettings(BaseModel):
     """Toggle options that affect tracker selection and behavior."""
 
@@ -322,6 +369,13 @@ class Settings(BaseModel):
     trajectory_smoothing: TrajectorySmoothingSettings = Field(
         default_factory=TrajectorySmoothingSettings,  # type: ignore[arg-type]
         description="Smoothing parameters applied to trajectory preprocessing.",
+    )
+    angular_velocity: AngularVelocitySettings = Field(
+        default_factory=AngularVelocitySettings,  # type: ignore[arg-type]
+        description=(
+            "Parameters for robust angular velocity calculation to handle "
+            "detection jitter."
+        ),
     )
 
     @model_validator(mode="after")

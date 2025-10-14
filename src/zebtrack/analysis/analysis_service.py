@@ -47,17 +47,6 @@ class AnalysisService:
             pixelcm_y: Pixels-to-cm conversion factor for the y-axis.
             video_height_px: Height of the video in pixels.
             arena_polygon_px: Vertices of the arena in pixels.
-        smoothing_cfg = settings.trajectory_smoothing if settings else None
-        window_length = (
-            smoothing_window_length
-            if smoothing_window_length is not None
-            else (smoothing_cfg.window_length if smoothing_cfg else 7)
-        )
-        polyorder = (
-            smoothing_polyorder
-            if smoothing_polyorder is not None
-            else (smoothing_cfg.polyorder if smoothing_cfg else 3)
-        )
             rois: A list of ROI objects for analysis.
             fps: Frames per second of the video.
             freezing_vel_threshold: Velocity threshold for detecting freezing.
@@ -67,11 +56,25 @@ class AnalysisService:
             A tuple containing:
             - A nested dictionary with the full analysis report.
             - The instance of ConcreteBehavioralAnalyzer used.
-            window_length=window_length,
-            polyorder=polyorder,
             - The instance of ROIAnalyzer used, or ``None`` when no ROIs were provided.
         """
+        if settings is None:
+            raise RuntimeError("Application settings failed to load.")
+
+        smoothing_cfg = settings.trajectory_smoothing
+        window_length = (
+            smoothing_window_length
+            if smoothing_window_length is not None
+            else smoothing_cfg.window_length
+        )
+        polyorder = (
+            smoothing_polyorder
+            if smoothing_polyorder is not None
+            else smoothing_cfg.polyorder
+        )
+
         # 1. Initialize the core behavioral analyzer
+        angular_settings = settings.angular_velocity
         b_analyzer = ConcreteBehavioralAnalyzer(
             trajectory_df=trajectory_df.copy(),  # Use a copy to prevent side effects
             pixelcm_x=pixelcm_x,
@@ -79,6 +82,11 @@ class AnalysisService:
             video_height_px=video_height_px,
             arena_polygon_px=arena_polygon_px,
             fps=fps,
+            window_length=window_length,
+            polyorder=polyorder,
+            min_displacement_threshold_cm=angular_settings.min_displacement_threshold_cm,
+            angle_calculation_window=angular_settings.angle_calculation_window,
+            angular_velocity_smoothing_window=angular_settings.angular_velocity_smoothing_window,
         )
 
         # 2. Initialize the behavioral report

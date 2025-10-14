@@ -40,6 +40,9 @@ class BehavioralAnalyzer(ABC):
         fps: float = 30.0,
         window_length: int = 7,
         polyorder: int = 3,
+        min_displacement_threshold_cm: float = 0.5,
+        angle_calculation_window: int = 1,
+        angular_velocity_smoothing_window: int = 3,
     ):
         """
         Initializes the BehavioralAnalyzer and performs preprocessing.
@@ -61,6 +64,16 @@ class BehavioralAnalyzer(ABC):
             polyorder (int, optional): The polynomial order for the
                 Savitzky-Golay filter. Must be less than window_length.
                 Defaults to 3.
+            min_displacement_threshold_cm (float, optional): Minimum displacement
+                in cm to consider valid for angle calculation. Below this threshold,
+                angular velocity is set to NaN to avoid noise amplification.
+                Defaults to 0.5.
+            angle_calculation_window (int, optional): Frame step for angle calculation.
+                1 means consecutive frames, higher values create longer vectors.
+                Defaults to 1.
+            angular_velocity_smoothing_window (int, optional): Window size for
+                moving average smoothing of angular velocities. Must be odd or 1
+                (1 disables smoothing). Defaults to 3.
         """
         if polyorder >= window_length:
             raise ValueError("polyorder must be less than window_length.")
@@ -69,6 +82,11 @@ class BehavioralAnalyzer(ABC):
         self._pixelcm_y = pixelcm_y
         self._video_height_px = video_height_px
         self.fps = fps
+
+        # Store angular velocity calculation parameters
+        self._min_displacement_threshold_cm = min_displacement_threshold_cm
+        self._angle_calculation_window = angle_calculation_window
+        self._angular_velocity_smoothing_window = angular_velocity_smoothing_window
 
         # Store arena geometry in cm
         arena_coords_cm = [
@@ -462,7 +480,25 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
         """
-        Calculates the angular velocity of the trajectory using the detailed method.
+        Calculates the angular velocity of the trajectory using a robust method
+        that handles detection jitter and stationary states.
+
+        This implementation addresses the numerical instability that occurs when
+        calculating angles from very small displacement vectors. When the subject
+        is nearly stationary, detector noise (jitter of 1-2 pixels) creates random
+        micro-movements that generate spurious high angular velocities. This method
+        filters out such noise by:
+
+        1. Applying a minimum displacement threshold
+        2. Supporting wider frame windows for angle calculation
+        3. Optionally smoothing the resulting angular velocity series
+
+        Args:
+            unit (str): Unit for angular velocity. Only "degrees" is supported.
+
+        Returns:
+            pd.Series: Angular velocity in degrees/second, with NaN values where
+                displacement is below threshold or data is insufficient.
         """
         if unit != "degrees":
             raise NotImplementedError(
@@ -470,32 +506,84 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             )
 
         df = self._trajectory_data
-        if len(df) < 3:
+        min_points = 2 * self._angle_calculation_window + 1
+        if len(df) < min_points:
             return pd.Series(dtype=np.float64, name="angular_velocity_deg_s")
 
         # Use smoothed trajectory
-        x = df["x_cm_smoothed"]
-        y = df["y_cm_smoothed"]
-        # Calculate displacements
-        dx = x.diff()
-        dy = y.diff()
-        # Calculate angle
-        angle_rad = np.arctan2(dy, dx)
-        # Calculate change in angle
-        d_theta = angle_rad.diff()
-        # Correct for wraparound from -pi to +pi
-        d_theta_normalized = (d_theta + np.pi) % (2 * np.pi) - np.pi
-        # Convert to degrees
-        d_theta_deg = np.degrees(d_theta_normalized)
-        # Calculate time interval in seconds
-        dt_td = df.index.to_series().diff()
-        dt_s = dt_td.dt.total_seconds()
-        # Prevent division by zero or NaN/Inf results
-        dt_s = dt_s.replace(0, np.nan)
-        # Calculate angular velocity
-        angular_velocity_deg_s = d_theta_deg / dt_s
-        angular_velocity_deg_s.name = "angular_velocity_deg_s"
-        return angular_velocity_deg_s
+        x = df["x_cm_smoothed"].values
+        y = df["y_cm_smoothed"].values
+        timestamps = df.index.to_series()
+
+        # Initialize output array
+        n_points = len(df)
+        angular_velocity_array = np.full(n_points, np.nan)
+
+        # Calculate angles using the specified window
+        window = self._angle_calculation_window
+
+        for i in range(window, n_points - window):
+            # Get points at window intervals: (i-window), i, (i+window)
+            x_prev, y_prev = x[i - window], y[i - window]
+            x_curr, y_curr = x[i], y[i]
+            x_next, y_next = x[i + window], y[i + window]
+
+            # Calculate displacement vectors
+            dx_in = x_curr - x_prev
+            dy_in = y_curr - y_prev
+            dx_out = x_next - x_curr
+            dy_out = y_next - y_curr
+
+            # Calculate displacement magnitudes
+            displacement_in = np.sqrt(dx_in**2 + dy_in**2)
+            displacement_out = np.sqrt(dx_out**2 + dy_out**2)
+
+            # Apply minimum displacement threshold
+            if (
+                displacement_in < self._min_displacement_threshold_cm
+                or displacement_out < self._min_displacement_threshold_cm
+            ):
+                # Subject is stationary or moving below noise floor
+                continue
+
+            # Calculate angles of the two vectors
+            angle_in = np.arctan2(dy_in, dx_in)
+            angle_out = np.arctan2(dy_out, dx_out)
+
+            # Calculate angular change with wraparound correction
+            d_theta = angle_out - angle_in
+            d_theta_normalized = (d_theta + np.pi) % (2 * np.pi) - np.pi
+
+            # Convert to degrees
+            d_theta_deg = np.degrees(d_theta_normalized)
+
+            # Calculate time interval
+            t_prev = timestamps.iloc[i - window]
+            t_next = timestamps.iloc[i + window]
+            dt = (t_next - t_prev).total_seconds()
+
+            if dt > 0:
+                angular_velocity_array[i] = d_theta_deg / dt
+
+        # Convert to Series
+        angular_velocity_series = pd.Series(
+            angular_velocity_array,
+            index=df.index,
+            name="angular_velocity_deg_s",
+        )
+
+        # Apply optional smoothing to reduce remaining high-frequency noise
+        if self._angular_velocity_smoothing_window > 1:
+            # Use rolling window with center=True to avoid phase shift
+            # min_periods=1 allows edges to have partial windows
+            smoothed = angular_velocity_series.rolling(
+                window=self._angular_velocity_smoothing_window,
+                center=True,
+                min_periods=1,
+            ).mean()
+            return smoothed
+
+        return angular_velocity_series
 
     def get_tortuosity(
         self, window_size: Optional[float] = None, step: Optional[float] = None
