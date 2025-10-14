@@ -282,6 +282,61 @@ class TestProjectManager(unittest.TestCase):
         loaded_zone = pm.load_roi_template("Template Importado")
         self.assertEqual(len(loaded_zone.polygon), 4)
 
+    def test_import_roi_template_without_project_defaults_to_global(self):
+        fake_home = Path(self.test_dir) / "single_video_home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+
+        with patch.dict(
+            os.environ,
+            {"HOME": str(fake_home), "USERPROFILE": str(fake_home)},
+        ):
+            pm = ProjectManager()
+
+            source_dir = Path(self.test_dir) / "single_video_import"
+            source_dir.mkdir(parents=True, exist_ok=True)
+
+            payload = {
+                "version": 1,
+                "name": "Template Sessao Unica",
+                "data": {
+                    "polygon": [
+                        [0, 0],
+                        [120, 0],
+                        [120, 80],
+                        [0, 80],
+                    ],
+                    "roi_polygons": [],
+                    "roi_names": [],
+                    "roi_colors": [],
+                },
+            }
+
+            external_path = source_dir / "single_import.json"
+            external_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            metadata = pm.import_roi_template(str(external_path))
+
+            self.assertEqual(metadata["location"], "global")
+            self.assertTrue(Path(metadata["file"]).exists())
+            self.assertTrue(metadata.get("includes_arena"))
+            self.assertFalse(metadata.get("includes_rois"))
+
+            templates = pm.list_roi_templates()
+            names = [entry["name"] for entry in templates]
+            self.assertIn("Template Sessao Unica", names)
+
+            loaded_zone = pm.load_roi_template("Template Sessao Unica")
+            self.assertEqual(len(loaded_zone.polygon), 4)
+
+            temp_video = fake_home / "video.mp4"
+            temp_video.write_bytes(b"")
+
+            pm.set_active_zone_video(str(temp_video))
+            pm.save_zone_data(loaded_zone, video_path=str(temp_video), persist=False)
+
+            restored_zone = pm.get_zone_data()
+            self.assertEqual(restored_zone.polygon, loaded_zone.polygon)
+
     def test_list_roi_templates_includes_global_entries(self):
         fake_home = Path(self.test_dir) / "home"
         fake_home.mkdir(parents=True, exist_ok=True)

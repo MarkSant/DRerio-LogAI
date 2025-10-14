@@ -348,12 +348,19 @@ class ProjectManager:
         has_arena = bool(zone_data.polygon)
         has_rois = bool(zone_data.roi_polygons)
 
+        project_available = bool(self.project_path)
+        target_location: Literal["project", "global"] = (
+            "project" if project_available else "global"
+        )
+        effective_persist = persist and project_available
+
         return self.save_roi_template(
             template_name,
             zone_data,
             save_arena=has_arena,
             save_rois=has_rois,
-            persist=persist,
+            save_location=target_location,
+            persist=effective_persist,
         )
 
     def load_roi_template(

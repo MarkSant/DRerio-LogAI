@@ -49,6 +49,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 import zebtrack.settings as settings_module
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
+from zebtrack.core.detector import ZoneData
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
 from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
@@ -3979,10 +3980,11 @@ class ApplicationGUI:
         # Add left panel without invalid minsize parameter
         main_pane.add(left_panel_frame, weight=1)
 
-        # Set initial sash position to 360 pixels for left panel width
+        # Set initial sash position to 420 pixels for left panel width
+        # Increased to ensure template "Aplicar" button is fully visible
         def _set_initial_sash():
             try:
-                main_pane.sashpos(0, 360)
+                main_pane.sashpos(0, 420)
             except Exception:
                 pass  # Sash position might fail if pane isn't fully realized yet
         main_pane.after(10, _set_initial_sash)
@@ -3997,10 +3999,10 @@ class ApplicationGUI:
         # Bind pane configure event to maintain minimum left panel width
         def _on_pane_configure(event=None):
             try:
-                # Clamp left panel to minimum 300px width
+                # Clamp left panel to minimum 380px width to show all buttons
                 current_pos = main_pane.sashpos(0)
-                if current_pos < 300:
-                    main_pane.sashpos(0, 300)
+                if current_pos < 380:
+                    main_pane.sashpos(0, 380)
             except Exception:
                 pass  # Ignore errors during resize
         main_pane.bind("<Configure>", _on_pane_configure)
@@ -4156,7 +4158,7 @@ class ApplicationGUI:
         template_selector = ttk.Frame(template_frame)
         template_selector.pack(fill="x", pady=(0, 6))
 
-        ttk.Label(template_selector, text="Template atual:").pack(
+        ttk.Label(template_selector, text="Templates salvos:").pack(
             side="left", padx=(0, 5)
         )
         self.roi_template_combobox = ttk.Combobox(
@@ -4179,14 +4181,14 @@ class ApplicationGUI:
 
         ttk.Button(
             template_actions,
-            text="Salvar Atual",
+            text="💾 Salvar Zonas Atuais",
             command=self._on_save_roi_template,
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 4))
         ttk.Button(
             template_actions,
-            text="Importar...",
-            command=self._on_import_roi_template,
-        ).pack(side="left", padx=4)
+            text="📂 Importar e Aplicar Arquivo...",
+            command=self._on_import_and_apply_roi_template,
+        ).pack(side="left")
 
         ttk.Label(
             template_frame,
@@ -6961,7 +6963,7 @@ class ApplicationGUI:
         Returns:
             tuple or None: (snapped_x, snapped_y) if snapping occurred, None otherwise
         """
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
         all_polygons = []
 
         # Add main arena polygon if it exists
@@ -7053,7 +7055,8 @@ class ApplicationGUI:
 
         return closest_point
 
-    def _refresh_roi_templates(self) -> None:
+    def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
+        """Refresh template list. If clear_selection=True, always reset to blank."""
         pm = getattr(self.controller, "project_manager", None)
         if pm is None:
             return
@@ -7080,11 +7083,18 @@ class ApplicationGUI:
         if self.roi_template_combobox:
             self.roi_template_combobox.configure(values=names)
 
+        # If clear_selection is requested, always blank the combobox
+        if clear_selection:
+            self.roi_template_var.set("")
+            return
+
         current_display = self.roi_template_var.get()
         if names and current_display in names:
             return
 
-        if names:
+        # Only auto-select first template if something was already selected
+        # (to avoid pre-populating on initial load)
+        if current_display and names:
             self.roi_template_var.set(names[0])
         else:
             self.roi_template_var.set("")
@@ -7205,6 +7215,30 @@ class ApplicationGUI:
 
         return None
 
+    def _get_zone_data_for_active_context(self) -> ZoneData:
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return ZoneData()
+
+        active_video = pm.get_active_zone_video()
+        if not active_video:
+            pending_video = getattr(self, "pending_single_video_path", None)
+            active_video = pending_video
+
+        if active_video:
+            try:
+                zone_data = pm.get_zone_data(
+                    video_path=active_video,
+                    fallback_to_global=False,
+                )
+            except Exception:  # noqa: BLE001 - defensive fallback
+                zone_data = ZoneData()
+
+            if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+                return zone_data
+
+        return pm.get_zone_data()
+
     def _select_roi_template(self, metadata: dict[str, Any]) -> None:
         identifier = self._build_roi_template_identifier(metadata)
         for entry in self._roi_templates_cache:
@@ -7243,12 +7277,13 @@ class ApplicationGUI:
         return dialog.result
 
     def _on_import_roi_template(self) -> None:
+        """Import a template file into the library (does not apply it)."""
         pm = getattr(self.controller, "project_manager", None)
         if pm is None:
             return
 
         file_path = filedialog.askopenfilename(
-            title="Importar Template de ROI",
+            title="Importar Template de ROI para Biblioteca",
             filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
         )
         if not file_path:
@@ -7267,8 +7302,108 @@ class ApplicationGUI:
             "Template importado",
             (
                 "Template '"
-                f"{metadata.get('name', Path(file_path).stem)}' importado com sucesso."
+                f"{metadata.get('name', Path(file_path).stem)}' adicionado à biblioteca.\n\n"
+                "Use o botão 'Aplicar' para usar este template."
             ),
+        )
+
+    def _on_import_and_apply_roi_template(self) -> None:
+        """Import a template file and immediately apply it to current video."""
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        file_path = filedialog.askopenfilename(
+            title="Importar e Aplicar Template de ROI",
+            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+
+        # Get active video context
+        active_video = pm.get_active_zone_video()
+        if not active_video:
+            pending_video = getattr(self, "pending_single_video_path", None)
+            if pending_video:
+                try:
+                    pm.set_active_zone_video(pending_video)
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.warning(
+                        "gui.roi_templates.activate_pending_failed",
+                        error=str(exc),
+                        video=pending_video,
+                    )
+                active_video = pm.get_active_zone_video() or pending_video
+
+        if not active_video:
+            self.show_warning(
+                "Vídeo não selecionado",
+                "Selecione um vídeo antes de aplicar o template.",
+            )
+            return
+
+        try:
+            # Load template directly from file
+            import json
+            with open(file_path, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            
+            # Convert to ZoneData
+            from zebtrack.core.detector import ZoneData
+            template_zone = ZoneData(
+                polygon=template_data.get("polygon"),
+                roi_polygons=template_data.get("roi_polygons", []),
+                roi_names=template_data.get("roi_names", []),
+                roi_colors=template_data.get("roi_colors", []),
+            )
+            
+            # Save to project
+            pm.save_zone_data(
+                template_zone,
+                video_path=active_video,
+                persist=bool(pm.project_path),
+            )
+
+            if active_video:
+                pm.set_active_zone_video(active_video)
+
+            self.controller.setup_detector_zones()
+            
+            log.info(
+                "gui.roi_templates.imported_and_applied",
+                video=active_video,
+                file=file_path,
+                polygon_points=len(template_zone.polygon or []),
+                roi_count=len(template_zone.roi_polygons or []),
+            )
+            
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error(
+                "gui.roi_templates.import_and_apply_failed",
+                error=str(exc),
+                file=file_path,
+            )
+            self.show_error("Erro ao importar e aplicar", str(exc))
+            return
+
+        # Refresh UI
+        self.redraw_zones_from_project_data()
+        self.update_zone_listbox()
+        self._refresh_zone_indicators()
+        self._enable_roi_button_if_arena_exists()
+        
+        # Optionally import to library as well
+        try:
+            metadata = pm.import_roi_template(file_path)
+            self._refresh_roi_templates()
+            self._select_roi_template(metadata)
+        except Exception:  # pragma: no cover - if import fails, we still applied
+            pass
+
+        template_name = Path(file_path).stem
+        self.show_info(
+            "Template aplicado",
+            f"As zonas foram atualizadas com o template '{template_name}'.",
         )
 
     def _on_apply_roi_template(self) -> None:
@@ -7285,6 +7420,19 @@ class ApplicationGUI:
             return
 
         active_video = pm.get_active_zone_video()
+        if not active_video:
+            pending_video = getattr(self, "pending_single_video_path", None)
+            if pending_video:
+                try:
+                    pm.set_active_zone_video(pending_video)
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.warning(
+                        "gui.roi_templates.activate_pending_failed",
+                        error=str(exc),
+                        video=pending_video,
+                    )
+                active_video = pm.get_active_zone_video() or pending_video
+
         if not active_video:
             self.show_warning(
                 "Vídeo não selecionado",
@@ -7306,7 +7454,22 @@ class ApplicationGUI:
                 location=template_location,
                 file_path=template_file,
             )
-            pm.save_zone_data(template_zone, video_path=active_video)
+            pm.save_zone_data(
+                template_zone,
+                video_path=active_video,
+                persist=bool(pm.project_path),
+            )
+
+            if active_video:
+                pm.set_active_zone_video(active_video)
+
+            self.controller.setup_detector_zones()
+            log.info(
+                "gui.roi_templates.zone_applied",
+                video=active_video,
+                polygon_points=len(template_zone.polygon or []),
+                roi_count=len(template_zone.roi_polygons or []),
+            )
         except FileNotFoundError as exc:
             log.error(
                 "gui.roi_templates.file_missing",
@@ -7335,6 +7498,12 @@ class ApplicationGUI:
         self.update_zone_listbox()
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
+        applied_zone = self._get_zone_data_for_active_context()
+        log.info(
+            "gui.roi_templates.post_refresh_state",
+            polygon_points=len(applied_zone.polygon or []),
+            roi_count=len(applied_zone.roi_polygons or []),
+        )
         self.show_info(
             "Template aplicado",
             f"As zonas foram atualizadas com o template '{template_name}'.",
@@ -7647,17 +7816,18 @@ class ApplicationGUI:
             # Limpa pontos temporários
             self.current_polygon_points = []
 
-    def update_zone_listbox(self):
-        """Atualiza lista com indicadores visuais de cor"""
+    def update_zone_listbox(self, zone_data: ZoneData | None = None):
+        """Atualiza lista com indicadores visuais de cor."""
         # Guard against missing zone_listbox
-        if not hasattr(self, 'zone_listbox') or self.zone_listbox is None:
+        if not hasattr(self, "zone_listbox") or self.zone_listbox is None:
             return
 
         # Limpa lista
         for item in self.zone_listbox.get_children():
             self.zone_listbox.delete(item)
 
-        zone_data = self.controller.project_manager.get_zone_data()
+        if zone_data is None:
+            zone_data = self._get_zone_data_for_active_context()
 
         # Arena principal com emoji e cor
         if zone_data.polygon:
@@ -7671,7 +7841,7 @@ class ApplicationGUI:
             self.zone_listbox.tag_configure("arena", foreground="darkcyan")
 
         # Enable/disable ROI button based on arena existence
-        self._enable_roi_button_if_arena_exists()
+        self._enable_roi_button_if_arena_exists(zone_data)
 
         # Mapear cores BGR (formato OpenCV) para nomes e hex
         color_map = {
@@ -7709,19 +7879,21 @@ class ApplicationGUI:
             except Exception:
                 pass  # Fallback silencioso se a cor não for suportada
 
-    def _enable_roi_button_if_arena_exists(self):
+    def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
         """Habilita o botão de desenhar ROI se a arena principal existir."""
-        if not hasattr(self, 'draw_roi_button') or self.draw_roi_button is None:
+        if not hasattr(self, "draw_roi_button") or self.draw_roi_button is None:
             return
 
-        zone_data = self.controller.project_manager.get_zone_data()
+        if zone_data is None:
+            zone_data = self._get_zone_data_for_active_context()
+
         if zone_data.polygon:
             self.draw_roi_button.config(state="normal")
         else:
             self.draw_roi_button.config(state="disabled")
 
-    def redraw_zones_from_project_data(self):
-        """Redesenha zonas preservando o background"""
+    def redraw_zones_from_project_data(self, zone_data: ZoneData | None = None):
+        """Redesenha zonas preservando o background."""
         log.info("gui.redraw_zones.start")
 
         # Apaga apenas elementos de zona, preserva background
@@ -7764,7 +7936,8 @@ class ApplicationGUI:
             # Tenta carregar um frame se não há imagem de fundo
             self.load_video_frame_to_canvas()
 
-        zone_data = self.controller.project_manager.get_zone_data()
+        if zone_data is None:
+            zone_data = self._get_zone_data_for_active_context()
         log.info(
             "gui.redraw_zones.zone_data_loaded",
             has_main_polygon=bool(zone_data.polygon),
@@ -7868,7 +8041,7 @@ class ApplicationGUI:
                 log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
 
         # Atualiza listbox
-        self.update_zone_listbox()
+        self.update_zone_listbox(zone_data)
 
         log.info("gui.redraw_zones.complete")
 
@@ -8600,6 +8773,10 @@ class ApplicationGUI:
         self.display_roi_video_frame(video_path)
         self.notebook.select(self.zone_tab_frame)
 
+        # Clear template selection for single video workflow - user should 
+        # explicitly choose if they want to apply a template
+        self._refresh_roi_templates(clear_selection=True)
+
         # Add a "Start Analysis" button specific to this flow
         if not self.start_single_analysis_btn:
             self.start_single_analysis_btn = ttk.Button(
@@ -9097,10 +9274,85 @@ class ApplicationGUI:
     def _show_analysis_frame_image(self, frame) -> None:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
+        label = getattr(self, "analysis_video_label", None)
+
+        available_width = None
+        available_height = None
+
+        if label is not None and hasattr(label, "winfo_width"):
+            label_width = label.winfo_width()
+            label_height = label.winfo_height()
+
+            if isinstance(label_width, (int, float)) and isinstance(
+                label_height, (int, float)
+            ):
+                available_width = label_width
+                available_height = label_height
+
+            if (
+                (available_width is None or available_height is None)
+                and hasattr(label, "update_idletasks")
+            ):
+                label.update_idletasks()
+                label_width = label.winfo_width()
+                label_height = label.winfo_height()
+                if isinstance(label_width, (int, float)) and isinstance(
+                    label_height, (int, float)
+                ):
+                    available_width = label_width
+                    available_height = label_height
+
+        if (available_width is None or available_height is None) and hasattr(
+            self, "video_container"
+        ):
+            container = self.video_container
+            if hasattr(container, "winfo_width"):
+                if hasattr(container, "update_idletasks"):
+                    container.update_idletasks()
+                container_width = container.winfo_width()
+                container_height = container.winfo_height()
+                if isinstance(container_width, (int, float)) and isinstance(
+                    container_height, (int, float)
+                ):
+                    available_width = (available_width or container_width)
+                    available_height = (available_height or container_height)
+
+        if (
+            isinstance(available_width, (int, float))
+            and isinstance(available_height, (int, float))
+            and available_width > 1
+            and available_height > 1
+        ):
+            scale = min(available_width / img.width, available_height / img.height, 1.0)
+            if scale < 1.0:
+                resample_attr = getattr(Image, "Resampling", None)
+                if resample_attr is not None:
+                    resample = getattr(
+                        resample_attr,
+                        "LANCZOS",
+                        getattr(
+                            resample_attr,
+                            "BICUBIC",
+                            getattr(resample_attr, "BILINEAR", 0),
+                        ),
+                    )
+                else:
+                    resample = getattr(
+                        Image,
+                        "LANCZOS",
+                        getattr(Image, "BICUBIC", getattr(Image, "BILINEAR", 0)),
+                    )
+                new_size = (
+                    max(1, int(img.width * scale)),
+                    max(1, int(img.height * scale)),
+                )
+                img = img.resize(new_size, resample=resample)
+
         imgtk = ImageTk.PhotoImage(image=img)
         self._analysis_overlay_image = imgtk
-        if self.analysis_video_label:
-            self.analysis_video_label.configure(image=imgtk)
+        if label is not None:
+            label.configure(image=imgtk)
+            label.image = imgtk
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""

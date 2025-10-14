@@ -99,12 +99,14 @@ def test_gui_attribute_guards():
         gui_code = f.read()
 
     # Test that update_zone_listbox has guards
-    update_zone_section = gui_code.split('def update_zone_listbox(self):')[1]
+    update_zone_section = gui_code.split('def update_zone_listbox')[1]
     update_zone_section = update_zone_section.split(
-        'def redraw_zones_from_project_data(self):'
+        'def redraw_zones_from_project_data'
     )[0]
-    assert "hasattr(self, 'zone_listbox')" in update_zone_section, \
-        "update_zone_listbox should have zone_listbox guard"
+    assert (
+        "hasattr(self, 'zone_listbox')" in update_zone_section
+        or 'hasattr(self, "zone_listbox")' in update_zone_section
+    ), "update_zone_listbox should have zone_listbox guard"
 
 
 def test_treeview_column_proportions():
