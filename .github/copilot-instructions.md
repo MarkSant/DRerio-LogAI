@@ -4,14 +4,15 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Quick Start Workflow
 
-1. Launch GUI: `python -m zebtrack` (entry point `core/controller.AppController`).
+1. Launch GUI: `python -m zebtrack` (entry point `core/controller.MainViewModel`, aliased as `AppController` for backward compatibility).
 2. Use the project wizard (`ui/wizard`) to create/select a project; the legacy dialog remains available only for backwards compatibility hooks in `core/project_manager.py`.
 3. Choose a detector plugin from `plugins/` (registry in `plugins/__init__.py`).
 4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
 5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
 6. Results stream to `io/recorder.py` (Parquet + optional MP4).
-7. Analysis happens in `analysis/behavior.py`, `analysis/analysis_service.py`, and `analysis/roi.py`.
-8. Reports are generated via `analysis/reporter.py`.
+7. Project file I/O operations (save/load config, ROI templates, metadata) are handled by `core/project_service.py`.
+8. Analysis orchestration happens in `analysis/analysis_service.py`, which coordinates `analysis/behavior.py` and `analysis/roi.py`.
+9. Reports are generated via `analysis/reporter.py`.
 
 ### Environment & Tooling
 
@@ -98,11 +99,13 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Repository Landmarks
 
-- `src/zebtrack/core/controller.py`: Application workflow hub.
+- `src/zebtrack/core/controller.py`: MainViewModel (renamed from AppController) - UI-facing state and command handlers. Backward-compatible alias exists.
+- `src/zebtrack/core/project_service.py`: Service layer for project file I/O (create, load, save, ROI templates, metadata).
+- `src/zebtrack/core/project_manager.py`: In-memory project state management, zone/video tracking.
 - `src/zebtrack/core/detector.py`: Zone management and detection state machine.
-- `src/zebtrack/core/project_manager.py`: Project persistence, ROI templates, parquet scanning.
 - `src/zebtrack/io/recorder.py`: Parquet/MP4 writers.
 - `src/zebtrack/plugins/`: Detector implementations.
+- `src/zebtrack/analysis/analysis_service.py`: Service layer for analysis orchestration (BehavioralAnalyzer + ROIAnalyzer + Reporter).
 - `src/zebtrack/analysis/`: Behavioral metrics, ROI analysis, reporting.
 - `src/zebtrack/settings.py`: Pydantic settings models + feature flags.
 - `src/zebtrack/utils/geometry.py`: Geometry helpers including centroid-aware snapping.

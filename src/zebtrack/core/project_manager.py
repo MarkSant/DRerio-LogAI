@@ -16,6 +16,7 @@ import structlog
 import yaml
 
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.project_service import ProjectService
 from zebtrack.core.roi_template_manager import ROITemplateManager
 from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
@@ -60,6 +61,10 @@ class ProjectManager:
     }
 
     def __init__(self):
+        # Phase 1, Step 3: Delegate file I/O to ProjectService
+        self.project_service = ProjectService()
+        
+        # In-memory project state
         self.project_path = None
         self.project_data = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
@@ -1557,6 +1562,8 @@ class ProjectManager:
     def load_project(self, project_path):
         """
         Loads project data from a config file in the given directory.
+        
+        Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         log_context = log.bind(path=config_path)
@@ -1576,24 +1583,8 @@ class ProjectManager:
             return False
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                loaded_data = json.load(f)
-
-            # --- Security Check: File Integrity ---
-            expected_hash = loaded_data.pop("file_hash", None)
-            if expected_hash:
-                canonical_string = json.dumps(
-                    loaded_data, sort_keys=True, separators=(",", ":")
-                )
-                actual_hash = hashlib.sha256(
-                    canonical_string.encode("utf-8")
-                ).hexdigest()
-
-                if actual_hash != expected_hash:
-                    raise IntegrityError(
-                        "O arquivo de configuração do projeto está corrompido."
-                    )
-            # --- End Security Check ---
+            # Phase 1, Step 3: Delegate to ProjectService for file I/O
+            loaded_data = self.project_service.load_project_config(project_path)
 
             # --- Backward Compatibility ---
             migration_applied = False
@@ -1732,47 +1723,29 @@ class ProjectManager:
     def save_project(self):
         """
         Saves the current project data to the config file with an integrity hash.
+        
+        Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
         # Critical Fix #5: Add validation before saving
         if not self.project_path:
             log.error("project.save.no_path")
             return False
 
-        config_path = os.path.join(self.project_path, CONFIG_FILE_NAME)
-
         try:
-            # Create a copy for hashing to avoid modifying the live object state
-            data_to_save = self.project_data.copy()
-
-            # Remove any old hash to ensure it's not part of the new hash
-            data_to_save.pop("file_hash", None)
-
-            # Create a canonical JSON string (sorted keys, no extra whitespace)
-            # to get a consistent hash.
-            canonical_string = json.dumps(
-                data_to_save, sort_keys=True, separators=(",", ":")
+            # Delegate to ProjectService for file I/O
+            self.project_service.save_project_config(
+                self.project_path,
+                self.project_data
             )
-            new_hash = hashlib.sha256(canonical_string.encode("utf-8")).hexdigest()
-
-            # Add the new hash to the data to be saved
-            data_to_save["file_hash"] = new_hash
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                # Save with indentation for human readability, but hash was
-                # calculated on the canonical string.
-                json.dump(data_to_save, f, indent=4, sort_keys=True)
-
-            # Update the in-memory project data with the new hash as well
-            self.project_data = data_to_save
-
-            log.info("project.save.success", path=config_path, hash=new_hash)
+            
+            log.info("project.save.success", path=self.project_path)
             return True
-        except IOError as e:
-            log.error("project.save.error", path=config_path, exc_info=e)
+        except Exception as e:
+            log.error("project.save.error", path=self.project_path, exc_info=e)
             messagebox.showerror(
                 "Erro ao Salvar",
                 f"Falha ao salvar o arquivo de configuração do projeto:\n"
-                f"{config_path}\n\nPor favor, verifique as permissões da "
+                f"{self.project_path}\n\nPor favor, verifique as permissões da "
                 f"pasta.\n\nErro: {e}",
             )
             return False

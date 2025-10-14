@@ -28,6 +28,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 import zebtrack.settings as settings_module
+from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
@@ -40,6 +41,7 @@ from zebtrack.core.processing_worker import (
     ProcessingWorker,
 )
 from zebtrack.core.project_manager import AssetType, ProjectManager
+from zebtrack.core.project_service import ProjectService
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -61,9 +63,30 @@ except AttributeError:  # pragma: no cover - legacy settings fallback
     DEFAULT_MATCH_THRESHOLD = 0.15
 
 
-class AppController:
+class MainViewModel:
+    """
+    Main View Model for ZebTrack-AI application.
+    
+    Phase 1, Step 3: Refactored from AppController to follow Single Responsibility Principle.
+    This class now focuses on:
+    - UI-facing state management
+    - Command handling via event bus
+    - Orchestrating services (ProjectService, AnalysisService)
+    - Hardware setup (detector, Arduino)
+    - Recording control
+    
+    Heavy file I/O moved to ProjectService.
+    Analysis orchestration moved to AnalysisService.
+    """
+    
     def __init__(self, root):
         self.root = root
+        
+        # Service layer dependencies (Phase 1, Step 3)
+        self.project_service = ProjectService()
+        self.analysis_service = AnalysisService()
+        
+        # State managers
         self.project_manager = ProjectManager()
         self.weight_manager = WeightManager()
 
@@ -5836,3 +5859,13 @@ class AppController:
             report_lines.append("")  # Spacer between models
 
         return "\n".join(report_lines)
+
+
+# -----------------------------------------------------------------------------
+# Backward Compatibility Alias (Phase 1, Step 3)
+# -----------------------------------------------------------------------------
+# Maintain backward compatibility during migration.
+# All existing code can continue importing AppController.
+# New code should prefer MainViewModel for clarity.
+
+AppController = MainViewModel
