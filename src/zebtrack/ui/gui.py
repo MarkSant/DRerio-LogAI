@@ -52,6 +52,7 @@ from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
+from zebtrack.ui.components import VideoDisplayWidget, ZoneControlsWidget
 from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType, NamedEvent
 from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
@@ -4175,8 +4176,16 @@ class ApplicationGUI:
                 pass  # Sash position might fail if pane isn't fully realized yet
         main_pane.after(10, _set_initial_sash)
 
-        # Create scrollable frame for zone controls
-        self._create_scrollable_controls_frame(left_panel_frame)
+        # ✨ NEW: Create ZoneControlsWidget instead of inline controls
+        self.zone_controls = ZoneControlsWidget(
+            left_panel_frame,
+            event_bus=self.event_bus
+        )
+        self.zone_controls.pack(fill="both", expand=True)
+        
+        # Keep reference to internal widgets for backward compatibility
+        # TODO: Migrate code to use ZoneControlsWidget API instead
+        self.zone_controls_frame = self.zone_controls.zone_controls_frame
 
         # 4. Create the visualization panel on the right
         self.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
@@ -4193,15 +4202,140 @@ class ApplicationGUI:
                 pass  # Ignore errors during resize
         main_pane.bind("<Configure>", _on_pane_configure)
 
-        # 5. Create the canvas for drawing
-        self.roi_canvas = Canvas(self.viz_frame, bg="gray")
-        self.roi_canvas.pack(expand=True, fill="both")
+        # 5. ✨ NEW: Create VideoDisplayWidget instead of manual Canvas
+        self.video_display = VideoDisplayWidget(
+            self.viz_frame,
+            event_bus=self.event_bus,
+            width=800,
+            height=600,
+            bg="gray"
+        )
+        self.video_display.pack(expand=True, fill="both")
+        
+        # Keep reference to canvas for backward compatibility with drawing code
+        # TODO: Migrate drawing logic to use VideoDisplayWidget API
+        self._roi_canvas_widget = self.video_display.canvas
 
-        # Bind canvas resize event for proper image scaling
-        self.roi_canvas.bind("<Configure>", self._on_canvas_configure)
+        # Bind canvas resize event for proper image scaling (keep existing behavior)
+        self._roi_canvas_widget.bind("<Configure>", self._on_canvas_configure)
 
-        # 6. Create all the zone control widgets in the scrollable frame
-        self._create_zone_control_widgets()
+        # 6. ✨ REMOVED: _create_zone_control_widgets() is no longer needed
+        # ZoneControlsWidget already creates all the necessary control widgets
+        # The old method is kept below for reference but is no longer called
+        
+        # 7. ✨ NEW: Subscribe to events emitted by the components
+        self._subscribe_zone_component_events()
+
+    def _subscribe_zone_component_events(self):
+        """
+        Subscribe to events emitted by ZoneControlsWidget.
+        
+        This method connects component events to existing ApplicationGUI handlers,
+        maintaining backward compatibility while using the new component architecture.
+        """
+        if not self.event_bus:
+            return
+        
+        # Drawing action events
+        self.event_bus.subscribe(
+            "zone.auto_detect_clicked",
+            lambda data: self._on_auto_detect_clicked()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.draw_main_polygon",
+            lambda data: self._start_main_arena_drawing()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.draw_roi",
+            lambda data: self._start_roi_drawing()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.toggle_view",
+            lambda data: self._toggle_canvas_view()
+        )
+        
+        # Template events
+        self.event_bus.subscribe(
+            "zone.template_apply",
+            lambda data: self._on_apply_roi_template()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.template_save",
+            lambda data: self._on_save_roi_template()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.template_import",
+            lambda data: self._on_import_and_apply_roi_template()
+        )
+        
+        # Video selector events  
+        self.event_bus.subscribe(
+            "zone.video_double_click",
+            lambda data: self._on_video_tree_double_click(None)
+        )
+        
+        self.event_bus.subscribe(
+            "zone.video_frame_load",
+            lambda data: self._load_selected_video_frame()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.video_refresh",
+            lambda data: self._populate_video_selector_tree()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.video_search_changed",
+            lambda data: self._filter_video_tree(data.get("search_term", ""))
+        )
+        
+        # Zone list events
+        self.event_bus.subscribe(
+            "zone.list_item_right_click",
+            lambda data: self._on_zone_right_click(self._create_mock_event(data))
+        )
+        
+        self.event_bus.subscribe(
+            "zone.list_item_double_click",
+            lambda data: self._on_zone_double_click(None)
+        )
+        
+        # Arena editing events
+        self.event_bus.subscribe(
+            "zone.arena_save",
+            lambda data: self._on_save_arena()
+        )
+        
+        self.event_bus.subscribe(
+            "zone.arena_discard",
+            lambda data: self._on_discard_arena()
+        )
+        
+        # ROI configuration events
+        self.event_bus.subscribe(
+            "zone.roi_rule_changed",
+            lambda data: self._on_roi_rule_change(None)
+        )
+        
+        self.event_bus.subscribe(
+            "zone.roi_settings_apply",
+            lambda data: self._on_apply_roi_settings()
+        )
+    
+    def _create_mock_event(self, data: dict):
+        """Create a mock event object for backward compatibility with old event handlers."""
+        class MockEvent:
+            def __init__(self, data):
+                self.x_root = data.get("x", 0)
+                self.y_root = data.get("y", 0)
+                self.x = data.get("x", 0)
+                self.y = data.get("y", 0)
+        return MockEvent(data)
 
     def _on_canvas_configure(self, event=None):
         """Handle canvas resize events to properly scale and center the image."""
@@ -10935,6 +11069,89 @@ class CenterPeripheryDialog(simpledialog.Dialog):
             }
         except (ValueError, TypeError):
             self.result = None
+
+
+# ==============================================================================
+# Backward Compatibility Properties for Component Migration
+# ==============================================================================
+# These properties allow legacy code to continue working while we gradually
+# migrate to the new component-based architecture. They map old attribute names
+# to the new component APIs.
+# TODO: Remove these after full migration is complete.
+
+
+def _add_compatibility_properties_to_application_gui():
+    """Add backward compatibility properties to ApplicationGUI class."""
+    
+    @property
+    def roi_canvas(self):
+        """
+        Backward compatibility property: maps roi_canvas to video_display.canvas.
+        
+        This allows existing drawing code to continue working during the gradual
+        migration to VideoDisplayWidget. Should be removed after migration is complete.
+        """
+        if hasattr(self, 'video_display') and self.video_display:
+            return self.video_display.canvas
+        # Fallback to old widget if component not yet created
+        if hasattr(self, '_roi_canvas_widget'):
+            return self._roi_canvas_widget
+        return None
+    
+    @property
+    def zone_listbox(self):
+        """Backward compatibility: map zone_listbox to zone_controls.zone_listbox."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.zone_listbox
+        return None
+    
+    @property
+    def draw_roi_button(self):
+        """Backward compatibility: map draw_roi_button to zone_controls.draw_roi_button."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.draw_roi_button
+        return None
+    
+    @property
+    def toggle_view_btn(self):
+        """Backward compatibility: map toggle_view_btn to zone_controls.toggle_view_btn."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.toggle_view_btn
+        return None
+    
+    @property
+    def roi_template_combobox(self):
+        """Backward compatibility: map roi_template_combobox to zone_controls.roi_template_combobox."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.roi_template_combobox
+        return None
+    
+    @property
+    def video_selector_tree(self):
+        """Backward compatibility: map video_selector_tree to zone_controls.video_selector_tree."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.video_selector_tree
+        return None
+    
+    @property
+    def interactive_buttons_frame(self):
+        """Backward compatibility: map interactive_buttons_frame to zone_controls.interactive_buttons_frame."""
+        if hasattr(self, 'zone_controls') and self.zone_controls:
+            return self.zone_controls.interactive_buttons_frame
+        return None
+    
+    # Add properties to ApplicationGUI class
+    setattr(ApplicationGUI, 'roi_canvas', roi_canvas)
+    setattr(ApplicationGUI, 'zone_listbox', zone_listbox)
+    setattr(ApplicationGUI, 'draw_roi_button', draw_roi_button)
+    setattr(ApplicationGUI, 'toggle_view_btn', toggle_view_btn)
+    setattr(ApplicationGUI, 'roi_template_combobox', roi_template_combobox)
+    setattr(ApplicationGUI, 'video_selector_tree', video_selector_tree)
+    setattr(ApplicationGUI, 'interactive_buttons_frame', interactive_buttons_frame)
+
+
+# Apply compatibility properties
+_add_compatibility_properties_to_application_gui()
 
 
 class ColorSelectionDialog(simpledialog.Dialog):
