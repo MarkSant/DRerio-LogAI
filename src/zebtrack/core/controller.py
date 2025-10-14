@@ -44,6 +44,7 @@ from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
+from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -153,6 +154,12 @@ class MainViewModel:
             log.info("controller.event_bus.enabled")
             # Subscribe to all UI→Controller events
             self._register_event_handlers()
+
+        # Phase 4: UI Coordinator for consolidated UI scheduling
+        self.ui_coordinator = UICoordinator(
+            root=self.root,
+            event_bus=self.ui_event_bus,
+        )
 
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
@@ -296,23 +303,13 @@ class MainViewModel:
         self.arduino = None
 
     def _schedule_on_ui(self, func, *args, **kwargs):
-        if self.ui_event_bus is not None:
-            published = self.ui_event_bus.publish_callable(func, *args, **kwargs)
-            if not published:
-                log.warning(
-                    "controller.event_bus.publish_failed",
-                    callback=getattr(func, "__name__", repr(func)),
-                )
-                try:
-                    self.root.after(0, lambda: func(*args, **kwargs))
-                except Exception:
-                    func(*args, **kwargs)
-            return
+        """
+        Schedule a function to run on the UI thread.
 
-        try:
-            self.root.after(0, lambda: func(*args, **kwargs))
-        except Exception:
-            func(*args, **kwargs)
+        Phase 4: Delegates to UICoordinator for centralized UI scheduling.
+        Kept for backward compatibility with existing code.
+        """
+        self.ui_coordinator.schedule(func, *args, **kwargs)
 
     def _init_recording_service(self) -> None:
         """
@@ -4137,8 +4134,9 @@ class MainViewModel:
             )
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
-        self.root.after(0, self.view.show_progress_bar)
-        self.root.after(
+        # Phase 4: Use UICoordinator for UI updates
+        self.ui_coordinator.show_progress_bar(self.view)
+        self.ui_coordinator.schedule_after(
             0,
             lambda: self.view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
         )
@@ -4151,20 +4149,20 @@ class MainViewModel:
         videos_to_process: list[dict],
         final_output_dir: str,
     ) -> None:
+        # Phase 4: Use UICoordinator for UI updates
         self.project_manager.set_active_zone_video(None)
-        self.root.after(0, self.view.stop_analysis_view_mode)
-        self.root.after(0, self.view.hide_progress_bar)
+        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        self.ui_coordinator.hide_progress_bar(self.view)
 
         if was_cancelled:
-            self.root.after(
-                0,
-                lambda: self.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
+            self.ui_coordinator.show_info(
+                self.view, "Cancelado", "A análise de vídeo foi cancelada."
             )
         elif videos_to_process:
             msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
-            self.root.after(0, lambda: self.view.show_info("Sucesso", msg))
+            self.ui_coordinator.show_info(self.view, "Sucesso", msg)
 
-        self.root.after(0, lambda: self.view.set_status("Pronto."))
+        self.ui_coordinator.set_status(self.view, "Pronto.")
         self._publish_processing_mode(
             source="processing.finalize",
             force=True,
@@ -4233,16 +4231,11 @@ class MainViewModel:
 
             overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
             step_status = f"Etapa: {status_message}"
-            self.root.after(
-                0,
-                lambda: self.view.set_status(f"{overall_progress} - {step_status}"),
-            )
-            self.root.after(0, lambda p=progress_fraction: self.view.update_progress(p))
-            self.root.after(
-                0,
-                lambda p=progress_fraction, s=step_status: (
-                    self.view.update_analysis_progress(p, s)
-                ),
+            # Phase 4: Use UICoordinator for UI updates
+            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
+            self.ui_coordinator.update_progress(self.view, progress_fraction)
+            self.ui_coordinator.update_view(
+                self.view, "update_analysis_progress", progress_fraction, step_status
             )
             status_callback = partial(
                 self.view.update_analysis_task_status,
@@ -4251,18 +4244,17 @@ class MainViewModel:
                 experiment_id=experiment_id,
                 step=status_message,
             )
-            self.root.after(0, status_callback)
+            self.ui_coordinator.schedule(status_callback)
 
             if stats:
-                self.root.after(
-                    0,
-                    lambda: self.view.update_processing_stats(
-                        total_frames=stats.get("total_frames"),
-                        processed_frames=stats.get("processed_frames"),
-                        detected_frames=stats.get("detected_frames"),
-                        start_time=stats.get("start_time"),
-                        current_frame=stats.get("current_frame"),
-                    ),
+                self.ui_coordinator.update_view(
+                    self.view,
+                    "update_processing_stats",
+                    total_frames=stats.get("total_frames"),
+                    processed_frames=stats.get("processed_frames"),
+                    detected_frames=stats.get("detected_frames"),
+                    start_time=stats.get("start_time"),
+                    current_frame=stats.get("current_frame"),
                 )
 
             processing_report = self._publish_processing_mode(
@@ -4289,7 +4281,8 @@ class MainViewModel:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
             if ret:
-                self.root.after(0, lambda f=frame: self.view.display_frame(f))
+                # Phase 4: Use UICoordinator for frame display
+                self.ui_coordinator.display_frame(self.view, frame)
         except Exception as exc:
             log.warning("controller.progress.frame_display_error", error=str(exc))
         finally:
@@ -5005,12 +4998,11 @@ class MainViewModel:
 
         def on_started():
             """Called when processing starts."""
-            self.root.after(0, self.view.show_progress_bar)
-            self.root.after(
-                0,
-                lambda: self.view.set_status(
-                    f"Iniciando processamento para {len(videos_to_process)} vídeos..."
-                ),
+            # Phase 4: Use UICoordinator for UI updates
+            self.ui_coordinator.show_progress_bar(self.view)
+            self.ui_coordinator.set_status(
+                self.view,
+                f"Iniciando processamento para {len(videos_to_process)} vídeos...",
             )
             self.project_manager.set_active_zone_video(None)
             self._publish_processing_mode(source="worker.started", force=True)
@@ -5020,11 +5012,11 @@ class MainViewModel:
             if self.cancel_event.is_set():
                 return
 
-            self.root.after(0, lambda: self.view.set_status(message))
-            self.root.after(0, lambda p=fraction: self.view.update_progress(p))
-            self.root.after(
-                0,
-                lambda p=fraction, m=message: self.view.update_analysis_progress(p, m),
+            # Phase 4: Use UICoordinator for UI updates
+            self.ui_coordinator.set_status(self.view, message)
+            self.ui_coordinator.update_progress(self.view, fraction)
+            self.ui_coordinator.update_view(
+                self.view, "update_analysis_progress", fraction, message
             )
 
             if stats:
@@ -5049,7 +5041,8 @@ class MainViewModel:
         def on_frame_processed(frame, detections, processing_info):
             """Called when a frame is ready for display."""
             if frame is not None:
-                self.root.after(0, lambda f=frame: self.view.display_frame(f))
+                # Phase 4: Use UICoordinator for frame display
+                self.ui_coordinator.display_frame(self.view, frame)
 
             if detections is not None and processing_info:
                 payload = [tuple(det) for det in detections]
@@ -5075,9 +5068,10 @@ class MainViewModel:
 
         def on_completed(was_cancelled: bool, output_dir: str):
             """Called when all processing completes."""
+            # Phase 4: Use UICoordinator for UI updates
             self.project_manager.set_active_zone_video(None)
-            self.root.after(0, self.view.stop_analysis_view_mode)
-            self.root.after(0, self.view.hide_progress_bar)
+            self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+            self.ui_coordinator.hide_progress_bar(self.view)
 
             # Update processing state in StateManager
             self.state_manager.update_processing_state(
@@ -5088,15 +5082,14 @@ class MainViewModel:
             )
 
             if was_cancelled:
-                self.root.after(
-                    0,
-                    lambda: self.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
+                self.ui_coordinator.show_info(
+                    self.view, "Cancelado", "A análise de vídeo foi cancelada."
                 )
             elif videos_to_process:
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
-                self.root.after(0, lambda: self.view.show_info("Sucesso", msg))
+                self.ui_coordinator.show_info(self.view, "Sucesso", msg)
 
-            self.root.after(0, lambda: self.view.set_status("Pronto."))
+            self.ui_coordinator.set_status(self.view, "Pronto.")
             self._publish_processing_mode(source="worker.completed", force=True)
             self.refresh_project_views()
 
