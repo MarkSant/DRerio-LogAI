@@ -1,15 +1,36 @@
 """
 This module defines the Pydantic models for application settings and provides
 a loader function to read and validate the configuration from a YAML file.
+
+The settings system uses a hierarchical configuration approach:
+1. Base configuration loaded from config.yaml
+2. Optional overrides from config.local.yaml (git-ignored for local customization)
+3. Pydantic v2 validation ensures type safety and business rule compliance
+
+Usage:
+    from zebtrack.settings import settings
+    
+    # Access configuration values
+    camera_index = settings.camera.index
+    confidence = settings.yolo_model.confidence_threshold
+    
+    # Reload settings at runtime (useful for config editor)
+    from zebtrack.settings import reload_settings
+    new_settings = reload_settings()
+    
+    # Export JSON schema for documentation
+    from zebtrack.settings import export_schema
+    schema = export_schema()
 """
 
 from pathlib import Path
-from typing import List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import structlog
 import yaml
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     ValidationError,
     field_validator,
@@ -25,6 +46,12 @@ log = structlog.get_logger()
 class CameraSettings(BaseModel):
     """Settings related to the camera source."""
 
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
     index: int = Field(..., description="The index of the camera device (e.g., 0, 1).")
     desired_width: int = Field(
         ..., description="The width (pixels) used for defining detection zones."
@@ -36,6 +63,12 @@ class CameraSettings(BaseModel):
 
 class ArduinoSettings(BaseModel):
     """Settings for connecting to an Arduino device."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
 
     port: str = Field(
         ...,
@@ -49,6 +82,8 @@ class ArduinoSettings(BaseModel):
 
 class RecorderSettings(BaseModel):
     """Settings for Parquet/video recorder behavior."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     flush_interval_seconds: float = Field(
         5.0,
@@ -64,6 +99,12 @@ class RecorderSettings(BaseModel):
 
 class YOLOModelSettings(BaseModel):
     """Settings for the YOLO object detection model."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
 
     path: str = Field(
         ..., description="Path to the YOLO model weights file (e.g., 'model.pt')."
@@ -88,6 +129,8 @@ class YOLOModelSettings(BaseModel):
 class ByteTrackSettings(BaseModel):
     """Association thresholds for the ByteTrack tracker."""
 
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
     track_threshold: float = Field(
         0.25,
         gt=0,
@@ -110,6 +153,8 @@ class ByteTrackSettings(BaseModel):
 
 class VideoProcessingSettings(BaseModel):
     """Settings for processing video files or live streams."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     fps: int = Field(
         ..., description="Frames Per Second (FPS) for saving output videos."
@@ -137,6 +182,8 @@ class VideoProcessingSettings(BaseModel):
 
 class TrajectorySmoothingSettings(BaseModel):
     """Smoothing parameters applied to trajectory preprocessing."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     window_length: int = Field(
         7,
@@ -175,6 +222,8 @@ class TrajectorySmoothingSettings(BaseModel):
 
 class AngularVelocitySettings(BaseModel):
     """Parameters for robust angular velocity calculation."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     min_displacement_threshold_cm: float = Field(
         0.5,
@@ -223,6 +272,8 @@ class AngularVelocitySettings(BaseModel):
 class TrackingSettings(BaseModel):
     """Toggle options that affect tracker selection and behavior."""
 
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
     use_single_subject_tracker: bool = Field(
         False,
         description=(
@@ -234,6 +285,8 @@ class TrackingSettings(BaseModel):
 
 class DetectionZonesSettings(BaseModel):
     """Defines the coordinates for areas of interest in the camera frame."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     polygon: List[List[int]] = Field(
         default_factory=list,
@@ -256,6 +309,8 @@ class DetectionZonesSettings(BaseModel):
 class ReproducibilitySettings(BaseModel):
     """Settings related to ensuring reproducible results."""
 
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
     seed: int = Field(
         42,
         description=(
@@ -267,6 +322,12 @@ class ReproducibilitySettings(BaseModel):
 
 class ModelSelectionSettings(BaseModel):
     """Settings for selecting which model type to use for different tasks."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
 
     aquarium_method: Literal["seg", "det"] = Field(
         "seg",
@@ -291,6 +352,12 @@ class ModelSelectionSettings(BaseModel):
 class WeightsSelectionSettings(BaseModel):
     """Settings for weight file selection by type."""
 
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
     seg_filename: str = Field(
         "best_seg.pt",
         description="Filename for segmentation model weights",
@@ -304,51 +371,68 @@ class WeightsSelectionSettings(BaseModel):
 class UIFeatureFlags(BaseModel):
     """Feature flags for UI/UX experiments and gradual rollouts."""
 
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
     use_wizard_for_project_creation: bool = Field(
-        False,
-        description="Use new 5-step wizard instead of legacy CreateProjectDialog"
+        True,
+        description="Use new 5-step wizard instead of legacy CreateProjectDialog (v1.6+ default)"
     )
     enable_event_queue: bool = Field(
-        True,  # Changed to True: Event bus is now the default for UI→Controller communication
+        False,
         description=(
             "Route controller→GUI interactions through the async event queue "
-            "instead of direct Tkinter calls. Now enabled by default for "
-            "event-driven architecture (Phase 1 refactoring)."
+            "instead of direct Tkinter calls. Staged migration feature (Phase 1). "
+            "Default: False for stability."
         ),
     )
 
 
 class Settings(BaseModel):
-    """Main settings model that nests all other configuration sections."""
+    """Main settings model that nests all other configuration sections.
+    
+    This model enforces strict validation rules and prevents unknown fields
+    to catch configuration errors early. All nested models use sensible defaults
+    where appropriate.
+    """
 
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    # Required core settings (no defaults)
     camera: CameraSettings
     arduino: ArduinoSettings
+    yolo_model: YOLOModelSettings
+    video_processing: VideoProcessingSettings
+    reproducibility: ReproducibilitySettings
+
+    # Optional settings with defaults (using lambdas for proper factory pattern)
     recorder: RecorderSettings = Field(
-        default_factory=RecorderSettings,  # type: ignore[arg-type]
+        default_factory=lambda: RecorderSettings(),  # type: ignore[call-arg]
         description="Settings for Parquet/video recorder behavior",
     )
-    yolo_model: YOLOModelSettings
     bytetrack: ByteTrackSettings = Field(
-        default_factory=ByteTrackSettings,  # type: ignore[arg-type]
+        default_factory=lambda: ByteTrackSettings(),  # type: ignore[call-arg]
         description="Default thresholds used by the ByteTrack tracker.",
     )
-    video_processing: VideoProcessingSettings
     tracking: TrackingSettings = Field(
-        default_factory=TrackingSettings,  # type: ignore[arg-type]
+        default_factory=lambda: TrackingSettings(),  # type: ignore[call-arg]
         description="Tracker selection toggles and preferences.",
     )
     detection_zones: DetectionZonesSettings = Field(
-        default_factory=DetectionZonesSettings
+        default_factory=lambda: DetectionZonesSettings(),  # type: ignore[call-arg]
+        description="Coordinates for areas of interest in the camera frame."
     )
-    reproducibility: ReproducibilitySettings
 
-    # New dual-weight selection settings
+    # Model selection and weights
     model_selection: ModelSelectionSettings = Field(
-        default_factory=ModelSelectionSettings,  # type: ignore[arg-type]
+        default_factory=lambda: ModelSelectionSettings(),  # type: ignore[call-arg]
         description="Settings for selecting model types (seg/det) for different tasks",
     )
     weights: WeightsSelectionSettings = Field(
-        default_factory=WeightsSelectionSettings,  # type: ignore[arg-type]
+        default_factory=lambda: WeightsSelectionSettings(),  # type: ignore[call-arg]
         description="Settings for weight file selection by type",
     )
 
@@ -358,21 +442,33 @@ class Settings(BaseModel):
         "centroid_in_on_buffered_roi",
         "bbox_intersects",
         "seg_overlap",
-    ] = "bbox_intersects"
-    roi_buffer_radius_value: float = 0.5
-    roi_min_bbox_overlap_ratio: float = 0.10
+    ] = Field(
+        default="bbox_intersects",
+        description="Algorithm used to determine if an animal is inside an ROI"
+    )
+    roi_buffer_radius_value: float = Field(
+        default=0.5,
+        ge=0.0,
+        description="Buffer radius for centroid_in_on_buffered_roi mode (in pixels or cm)"
+    )
+    roi_min_bbox_overlap_ratio: float = Field(
+        default=0.10,
+        ge=0.0,
+        le=1.0,
+        description="Minimum overlap ratio required for bbox_intersects or seg_overlap"
+    )
 
-    # UI Feature Flags
+    # Analysis settings
     ui_features: UIFeatureFlags = Field(
-        default_factory=UIFeatureFlags,  # type: ignore[arg-type]
+        default_factory=lambda: UIFeatureFlags(),  # type: ignore[call-arg]
         description="Feature flags for UI experiments and gradual rollouts"
     )
     trajectory_smoothing: TrajectorySmoothingSettings = Field(
-        default_factory=TrajectorySmoothingSettings,  # type: ignore[arg-type]
+        default_factory=lambda: TrajectorySmoothingSettings(),  # type: ignore[call-arg]
         description="Smoothing parameters applied to trajectory preprocessing.",
     )
     angular_velocity: AngularVelocitySettings = Field(
-        default_factory=AngularVelocitySettings,  # type: ignore[arg-type]
+        default_factory=lambda: AngularVelocitySettings(),  # type: ignore[call-arg]
         description=(
             "Parameters for robust angular velocity calculation to handle "
             "detection jitter."
@@ -427,39 +523,70 @@ class Settings(BaseModel):
         return self
 
 
-def _merge_configs(base: dict, override: dict) -> dict:
-    """Recursively merge two dictionaries."""
+def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge two dictionaries, with override taking precedence.
+    
+    This function performs a deep merge where:
+    - Nested dictionaries are recursively merged
+    - Lists and other values from override completely replace base values
+    - Keys only in base are preserved
+    - Keys only in override are added
+    
+    Args:
+        base: The base dictionary (lower priority)
+        override: The override dictionary (higher priority)
+    
+    Returns:
+        A new merged dictionary
+    """
+    result = base.copy()
     for key, value in override.items():
-        if isinstance(value, dict) and key in base and isinstance(base[key], dict):
-            base[key] = _merge_configs(base[key], value)
+        if (
+            key in result
+            and isinstance(result[key], dict)
+            and isinstance(value, dict)
+        ):
+            result[key] = _deep_merge_dicts(result[key], value)
         else:
-            base[key] = value
-    return base
+            result[key] = value
+    return result
 
 
 def load_settings(
     default_config_path: Path = Path("config.yaml"),
     override_config_path: Path = Path("config.local.yaml"),
 ) -> Settings:
-    """
-    Loads settings from YAML files, validates them, and returns a Settings object.
+    """Load and validate application settings from YAML configuration files.
 
     This function implements a hierarchical configuration system:
-    1. It loads the base configuration from `default_config_path`.
-    2. If `override_config_path` exists, it loads it and recursively merges its
-       values on top of the base configuration. This allows users to maintain
-       local settings (e.g., camera index) without modifying the main config file.
+    1. Loads the base configuration from `default_config_path`
+    2. If `override_config_path` exists, recursively merges its values on top
+       of the base configuration (allowing local customization without modifying
+       the main config file)
+    3. Validates the merged configuration using Pydantic models
+    4. Returns a fully validated Settings object with type-safe access
+
+    The override file (config.local.yaml by default) should be git-ignored to
+    allow developers to maintain machine-specific settings like camera indices,
+    serial ports, or confidence thresholds without affecting the repository.
 
     Args:
-        default_config_path (Path): The path to the base configuration file.
-        override_config_path (Path): The path to the local override file.
+        default_config_path: Path to the base configuration file (config.yaml)
+        override_config_path: Path to the local override file (config.local.yaml)
 
     Returns:
-        Settings: A validated Pydantic settings object.
+        A validated Settings object with all configuration values
 
     Raises:
-        FileNotFoundError: If the default config file does not exist.
-        ValueError: If there are validation or parsing errors.
+        FileNotFoundError: If the default config file does not exist
+        ValueError: If YAML parsing fails or configuration validation fails
+        
+    Example:
+        >>> settings = load_settings()
+        >>> print(settings.camera.index)
+        1
+        >>> print(settings.yolo_model.confidence_threshold)
+        0.05
     """
     if not default_config_path.is_file():
         log.error("settings.load.file_not_found", path=str(default_config_path))
@@ -468,32 +595,168 @@ def load_settings(
         )
 
     log.info("settings.load.start", path=str(default_config_path))
+    
     try:
+        # Load base configuration
         with open(default_config_path, "r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
+            config_data = yaml.safe_load(f) or {}
 
+        # Merge with override configuration if it exists
         if override_config_path.is_file():
             log.info("settings.load.override", path=str(override_config_path))
             with open(override_config_path, "r", encoding="utf-8") as f:
                 override_data = yaml.safe_load(f)
             if override_data:
-                config_data = _merge_configs(config_data, override_data)
+                config_data = _deep_merge_dicts(config_data, override_data)
+                log.debug(
+                    "settings.load.merged",
+                    base_path=str(default_config_path),
+                    override_path=str(override_config_path),
+                )
 
-        settings = Settings.model_validate(config_data)
-        log.info("settings.load.success")
-        return settings
+        # Validate using Pydantic
+        settings_obj = Settings.model_validate(config_data)
+        log.info("settings.load.success", config_keys=list(config_data.keys()))
+        return settings_obj
+        
     except yaml.YAMLError as e:
-        log.error("settings.load.yaml_error", error=str(e))
-        raise ValueError(f"Error parsing YAML file: {e}")
+        log.error("settings.load.yaml_error", error=str(e), path=str(default_config_path))
+        raise ValueError(
+            f"Failed to parse YAML configuration file '{default_config_path}': {e}"
+        ) from e
     except ValidationError as e:
-        log.error("settings.load.validation_error", error=str(e))
-        raise ValueError(f"Configuration validation error: {e}")
+        log.error(
+            "settings.load.validation_error",
+            error=str(e),
+            error_count=e.error_count(),
+        )
+        # Provide more detailed error information
+        error_details = []
+        for error in e.errors():
+            field_path = " → ".join(str(loc) for loc in error["loc"])
+            error_details.append(f"  • {field_path}: {error['msg']}")
+        
+        error_msg = (
+            f"Configuration validation failed with {e.error_count()} error(s):\n"
+            + "\n".join(error_details)
+        )
+        raise ValueError(error_msg) from e
 
 
-# Load settings once on module import to be used across the application
+def reload_settings(
+    default_config_path: Path = Path("config.yaml"),
+    override_config_path: Path = Path("config.local.yaml"),
+) -> Settings:
+    """Reload settings from disk, useful after editing configuration files.
+    
+    This is a convenience wrapper around load_settings() that explicitly
+    communicates the intent to reload configuration at runtime (e.g., after
+    the user has edited config.local.yaml through the GUI).
+    
+    Args:
+        default_config_path: Path to the base configuration file
+        override_config_path: Path to the local override file
+    
+    Returns:
+        A freshly loaded and validated Settings object
+        
+    Example:
+        >>> # User edits config via GUI
+        >>> new_settings = reload_settings()
+        >>> # Application now uses updated configuration
+    """
+    log.info("settings.reload.requested")
+    return load_settings(default_config_path, override_config_path)
+
+
+def export_schema(
+    output_path: Optional[Path] = None,
+    indent: int = 2,
+) -> Dict[str, Any]:
+    """Export the Settings JSON schema for documentation or validation purposes.
+    
+    This generates a complete JSON Schema document describing all configuration
+    fields, their types, constraints, and descriptions. Useful for:
+    - Generating configuration documentation
+    - IDE autocomplete in YAML editors (via schema association)
+    - External validation tools
+    - API documentation generation
+    
+    Args:
+        output_path: If provided, write the schema to this file as JSON
+        indent: Number of spaces for JSON indentation (default: 2)
+    
+    Returns:
+        The JSON Schema as a dictionary
+        
+    Example:
+        >>> schema = export_schema(Path("config.schema.json"))
+        >>> print(schema["properties"]["camera"]["properties"]["index"]["description"])
+        The index of the camera device (e.g., 0, 1).
+    """
+    schema = Settings.model_json_schema()
+    
+    if output_path:
+        import json
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(schema, f, indent=indent)
+        log.info("settings.schema.exported", path=str(output_path))
+    
+    return schema
+
+
+# =============================================================================
+# Module-Level Settings Initialization
+# =============================================================================
+
+# Load settings once on module import to be used across the application.
+# This is the primary way to access configuration throughout the codebase.
+# If loading fails, the application cannot function properly, so we raise
+# an exception rather than silently continuing with None.
 try:
     settings = load_settings()
+    log.info(
+        "settings.module.initialized",
+        camera_index=settings.camera.index,
+        yolo_path=settings.yolo_model.path,
+    )
 except (FileNotFoundError, ValueError) as e:
-    log.critical("settings.load.failed", error=str(e))
-    # In a real app, you might want to exit or use default settings
-    settings = None
+    log.critical(
+        "settings.module.failed",
+        error=str(e),
+        message="Failed to load configuration. Application cannot start.",
+    )
+    # Re-raise the exception so the application fails fast with a clear error
+    # rather than continuing with invalid/missing configuration
+    raise RuntimeError(
+        "Failed to initialize settings module. Please check your config.yaml file."
+    ) from e
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+__all__ = [
+    # Main settings object (use this in most cases)
+    "settings",
+    # Settings model classes (for type hints and validation)
+    "Settings",
+    "CameraSettings",
+    "ArduinoSettings",
+    "RecorderSettings",
+    "YOLOModelSettings",
+    "ByteTrackSettings",
+    "VideoProcessingSettings",
+    "TrajectorySmoothingSettings",
+    "AngularVelocitySettings",
+    "TrackingSettings",
+    "DetectionZonesSettings",
+    "ReproducibilitySettings",
+    "ModelSelectionSettings",
+    "WeightsSelectionSettings",
+    "UIFeatureFlags",
+    # Utility functions
+    "load_settings",
+    "reload_settings",
+    "export_schema",
+]

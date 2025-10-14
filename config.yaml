@@ -1,106 +1,204 @@
-# Zebtrack Controller Configuration
-# This file contains the main settings for the application.
-# You can edit these values to match your setup.
+# =============================================================================
+# ZebTrack-AI Configuration File
+# =============================================================================
+# This is the main configuration file for the ZebTrack-AI application.
+# It defines all system settings including camera, detection models, tracking
+# parameters, and analysis behaviors.
+#
+# Configuration System:
+#   - This file (config.yaml) contains the base/default configuration
+#   - Create config.local.yaml to override values without modifying this file
+#   - config.local.yaml is git-ignored for machine-specific settings
+#   - All settings are validated using Pydantic models for type safety
+#
+# For detailed documentation, see: docs/REFERENCE_GUIDE.md
+# To export JSON Schema: python -c "from zebtrack.settings import export_schema; export_schema(Path('schema.json'))"
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# Camera Settings
+# -----------------------------------------------------------------------------
 camera:
+  # Camera device index (0 for default webcam, 1+ for additional cameras)
+  # Use config.local.yaml to override this for your specific setup
   index: 1
-  # The resolution used when defining the detection zones.
-  # The application will scale these zones if your camera uses a different resolution.
+  
+  # Reference resolution for zone definitions (zones are auto-scaled to actual camera resolution)
+  # These dimensions define the coordinate space when drawing detection zones in the GUI
   desired_width: 1280
   desired_height: 720
 
+# -----------------------------------------------------------------------------
+# Arduino Settings (optional hardware integration)
+# -----------------------------------------------------------------------------
 arduino:
-  # The serial port your Arduino is connected to (e.g., COM5 on Windows, /dev/ttyACM0 on Linux).
+  # Serial port (COM5 on Windows, /dev/ttyACM0 on Linux/Mac)
+  # Used for sending zone-based commands to Arduino hardware
   port: 'COM5'
   baud_rate: 9600
 
+# -----------------------------------------------------------------------------
+# Recorder Settings (Parquet/Video Output)
+# -----------------------------------------------------------------------------
 recorder:
-  # Flush buffered detection rows to Parquet automatically every N seconds/rows.
-  flush_interval_seconds: 5.0
-  flush_row_threshold: 500
+  # Auto-flush detection data to disk periodically to prevent data loss
+  flush_interval_seconds: 5.0  # Flush every N seconds
+  flush_row_threshold: 500     # Or when N detections buffered (whichever comes first)
 
+# -----------------------------------------------------------------------------
+# YOLO Model Settings (Object Detection)
+# -----------------------------------------------------------------------------
 yolo_model:
-  # Path to the trained model weights file (.pt) for animal tracking.
+  # Path to model weights file (.pt format)
+  # This path is used as fallback; actual model selection happens via model_selection section
   path: 'best_seg.pt'
-  # Confidence threshold: detections below this value are ignored.
-  # Lowered to 0.05 to work better with models that have lower confidence scores
+  
+  # Confidence threshold: detections below this score are ignored
+  # Range: 0.0-1.0. Lower values detect more but may increase false positives
+  # Typical: 0.05-0.5 depending on model quality and use case
   confidence_threshold: 0.05
-  # Non-Maximum Suppression (NMS) threshold: filters overlapping boxes.
+  
+  # Non-Maximum Suppression (NMS) threshold: filters overlapping bounding boxes
+  # Range: 0.0-1.0. Higher values allow more overlap between detections
+  # Typical: 0.3-0.7
   nms_threshold: 0.5
 
+# -----------------------------------------------------------------------------
+# ByteTrack Settings (Multi-Object Tracking)
+# -----------------------------------------------------------------------------
 bytetrack:
-  # Association thresholds usados pelo ByteTrack durante o rastreamento.
+  # Track association thresholds used by ByteTrack algorithm
+  # track_threshold: minimum confidence to keep tracking an object (Range: 0.0-1.0)
+  # match_threshold: threshold for associating low-confidence detections (Range: 0.0-1.0)
   track_threshold: 0.25
   match_threshold: 0.15
 
+# -----------------------------------------------------------------------------
+# Video Processing Settings
+# -----------------------------------------------------------------------------
 video_processing:
-  # Frames Per Second (FPS) used when saving video files.
+  # Output video frame rate (FPS) when recording annotated videos
   fps: 30
-  # Interval for object detection (e.g., process 1 frame every 10).
-  # This optimizes performance, as detection can be slow.
+  
+  # Frame processing interval: process every Nth frame for detection
+  # Higher values = faster processing but lower temporal resolution
+  # Example: interval=10 means detect on frames 1, 11, 21, ...
   processing_interval: 10
-  # Frame offset for processing. With an offset of 1 and interval of 10,
-  # frames 1, 11, 21, etc., will be processed.
+  
+  # Frame offset: starting frame for detection cycle
+  # Example: offset=1, interval=10 → process frames 1, 11, 21, ...
+  #          offset=0, interval=10 → process frames 0, 10, 20, ...
   processing_offset: 1
-  # Threshold for detecting a "sharp turn" in degrees per second.
-  sharp_turn_threshold_deg_s: 90.0
-  # Velocity threshold for freezing detection (cm/s).
-  freezing_velocity_threshold: 1.5
-  # Minimum duration for a freezing episode (seconds).
-  freezing_min_duration_s: 1.0
-  # Single animal tracking mode - ensures consistent track_id=1
+  
+  # Behavioral thresholds (used in analysis phase)
+  sharp_turn_threshold_deg_s: 90.0  # Degrees/second to classify as sharp turn
+  freezing_velocity_threshold: 1.5   # cm/s below which animal is "frozen"
+  freezing_min_duration_s: 1.0       # Minimum duration to count as freezing episode
+  
+  # Single-animal mode: force track_id=1 for all detections (ignores multi-animal tracking)
   single_animal_per_aquarium: false
 
+# -----------------------------------------------------------------------------
+# Reproducibility Settings
+# -----------------------------------------------------------------------------
 reproducibility:
-  # Seed for random number generators to ensure that repeated runs with the
-  # same video and settings produce identical results.
+  # Random seed for NumPy, PyTorch, and other RNG-dependent operations
+  # Using the same seed ensures reproducible results across runs
   seed: 42
 
+# -----------------------------------------------------------------------------
+# Model Selection (Detection vs Segmentation)
+# -----------------------------------------------------------------------------
 model_selection:
-  # Method for aquarium detection: "seg" for segmentation, "det" for detection
+  # Aquarium/arena detection method: "seg" (segmentation) or "det" (bounding box detection)
+  # Segmentation provides pixel-precise boundaries; detection is faster but less accurate
   aquarium_method: "seg"
-  # Method for animal tracking: "seg" for segmentation, "det" for detection  
+  
+  # Animal tracking method: "seg" or "det"
+  # Most use cases work well with "det" for speed; use "seg" for precise shape analysis
   animal_method: "det"
 
+# -----------------------------------------------------------------------------
+# Weight File Selection
+# -----------------------------------------------------------------------------
 weights:
-  # Filename for segmentation model weights
-  seg_filename: "best_seg.pt"
-  # Filename for detection model weights
-  det_filename: "best_oi.pt"
+  # Filenames for model weights (must be in project root or accessible path)
+  seg_filename: "best_seg.pt"  # Segmentation model
+  det_filename: "best_oi.pt"   # Detection model
 
-# ROI inclusion rule settings
+# -----------------------------------------------------------------------------
+# ROI Inclusion Rules (Region of Interest Analysis)
+# -----------------------------------------------------------------------------
+# Determines when an animal is considered "inside" an ROI for behavioral analysis
+# Options:
+#   - "centroid_in": Center point of bounding box must be inside ROI polygon
+#   - "centroid_in_on_buffered_roi": Center point inside buffered (expanded) ROI
+#   - "bbox_intersects": Any part of bounding box overlaps with ROI (default)
+#   - "seg_overlap": Segmentation mask overlaps with ROI (requires segmentation)
 roi_inclusion_rule: "bbox_intersects"
-roi_buffer_radius_value: 0.5
-roi_min_bbox_overlap_ratio: 0.05  # Reduced from 0.10 to detect more tangential entries
 
+# Buffer radius for "centroid_in_on_buffered_roi" mode (in pixels or cm depending on calibration)
+roi_buffer_radius_value: 0.5
+
+# Minimum overlap ratio for "bbox_intersects" and "seg_overlap" modes (0.0-1.0)
+# 0.05 = at least 5% of bbox/mask must overlap to count as "inside"
+roi_min_bbox_overlap_ratio: 0.05
+
+# -----------------------------------------------------------------------------
+# Trajectory Smoothing (Savitzky-Golay Filter)
+# -----------------------------------------------------------------------------
 trajectory_smoothing:
+  # Savitzky-Golay filter parameters for smoothing trajectory coordinates
+  # window_length: must be odd, larger = more smoothing (typical: 5-11)
+  # polyorder: polynomial order, must be < window_length (typical: 2-3)
   window_length: 7
   polyorder: 3
 
+# -----------------------------------------------------------------------------
+# Angular Velocity Calculation (Jitter-Robust)
+# -----------------------------------------------------------------------------
 angular_velocity:
-  # Minimum displacement (cm) required to calculate angular velocity.
-  # Below this threshold, the animal is considered stationary and angular velocity is NaN.
-  # This prevents noise amplification from detector jitter (typically 1-2 pixels).
-  # Typical values: 0.3-1.0 cm depending on video resolution and detector precision.
+  # Minimum displacement threshold (cm) to calculate valid angular velocity
+  # Below this, animal is considered stationary → angular velocity = NaN
+  # Prevents noise amplification from detector jitter (~1-2 pixels)
+  # Typical: 0.3-1.0 cm depending on resolution and detector quality
   min_displacement_threshold_cm: 0.5
   
-  # Frame step for angle calculation. 
-  # 1 = consecutive frames (F-1, F, F+1)
-  # Higher values (e.g., 3) use frames (F-3, F, F+3), creating longer displacement 
-  # vectors that are more robust to noise but reduce temporal resolution.
-  # Use values 2-5 for very noisy detections.
+  # Frame step for angle calculation (temporal window)
+  # 1 = consecutive frames (F-1, F, F+1) → high temporal resolution, more noise
+  # 3 = skip frames (F-3, F, F+3) → lower noise, reduced temporal resolution
+  # Use 2-5 for very noisy detectors
   angle_calculation_window: 1
   
-  # Window size for moving average smoothing of angular velocities.
-  # 1 = no smoothing, 3-5 = light smoothing to reduce high-frequency noise.
-  # Must be odd or equal to 1.
+  # Moving average smoothing window for angular velocity time series
+  # 1 = no smoothing
+  # 3-5 = light smoothing to reduce high-frequency noise
+  # Must be odd or 1
   angular_velocity_smoothing_window: 3
 
+# -----------------------------------------------------------------------------
+# Tracking Settings
+# -----------------------------------------------------------------------------
 tracking:
+  # Use lightweight single-subject tracker instead of ByteTrack for single-animal experiments
+  # Reduces overhead when you know there's only one animal in the arena
   use_single_subject_tracker: false
 
+# -----------------------------------------------------------------------------
+# UI Feature Flags (Progressive Rollout)
+# -----------------------------------------------------------------------------
 ui_features:
-  # Enable the wizard flow (v1.6+ default) while allowing legacy fallback when needed.
+  # Use 5-step wizard for project creation (v1.6+ default: true)
+  # Legacy dialog remains available for backward compatibility
   use_wizard_for_project_creation: true
-  # Progressive rollout switch for the controller↔GUI event bus (Phase 1 default: off).
+  
+  # Enable async event bus for controller↔GUI communication (Phase 1 refactoring)
+  # Default: false (staged migration, still using root.after for UI updates)
   enable_event_queue: false
+
+# =============================================================================
+# End of Configuration
+# =============================================================================
+# For advanced customization, edit config.local.yaml (git-ignored)
+# For validation schema, run: python -c "from zebtrack.settings import export_schema; export_schema(Path('schema.json'))"
+# =============================================================================

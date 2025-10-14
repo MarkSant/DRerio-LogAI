@@ -1,8 +1,9 @@
 import textwrap
 import unittest
+from pathlib import Path
 from unittest.mock import mock_open, patch
 
-from zebtrack.settings import Settings, load_settings
+from zebtrack.settings import Settings, export_schema, load_settings, reload_settings
 
 
 class TestSettings(unittest.TestCase):
@@ -59,9 +60,11 @@ trajectory_smoothing:
                 self.assertEqual(settings.detection_zones.roi_names, [])
                 self.assertEqual(settings.detection_zones.roi_colors, [])
                 # UI feature flags should fall back to defaults when not specified
-                self.assertFalse(
+                # Wizard is now the default (v1.6+)
+                self.assertTrue(
                     settings.ui_features.use_wizard_for_project_creation
                 )
+                # Event queue is opt-in for staged migration
                 self.assertFalse(settings.ui_features.enable_event_queue)
                 # Should check for both default and override files
                 self.assertEqual(mock_is_file.call_count, 2)
@@ -328,6 +331,102 @@ roi_min_bbox_overlap_ratio: 1.5
             with patch("builtins.open", mock_open(read_data=invalid_yaml)):
                 with self.assertRaises(ValueError):
                     load_settings()
+
+
+    def test_reload_settings(self):
+        """Test that reload_settings() works as expected."""
+        base_yaml = self.mock_yaml_content
+        override_yaml = """
+camera:
+  index: 42
+"""
+
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            return mock_open(read_data=base_yaml)()
+
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                settings = reload_settings()
+                self.assertEqual(settings.camera.index, 42)
+
+    def test_export_schema(self):
+        """Test that export_schema() generates valid JSON Schema."""
+        schema = export_schema()
+        
+        # Check that basic schema structure exists
+        self.assertIn("properties", schema)
+        self.assertIn("$defs", schema)
+        self.assertIn("camera", schema["properties"])
+        self.assertIn("yolo_model", schema["properties"])
+        
+        # Check that CameraSettings is defined in $defs
+        self.assertIn("CameraSettings", schema["$defs"])
+        camera_def = schema["$defs"]["CameraSettings"]
+        self.assertIn("properties", camera_def)
+        self.assertIn("index", camera_def["properties"])
+        self.assertIn("description", camera_def["properties"]["index"])
+
+    def test_export_schema_to_file(self):
+        """Test that export_schema() can write to a file."""
+        import json
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
+            temp_path = Path(f.name)
+        
+        try:
+            schema = export_schema(temp_path)
+            
+            # Verify file was created and contains valid JSON
+            self.assertTrue(temp_path.exists())
+            with open(temp_path, "r") as f:
+                loaded_schema = json.load(f)
+            
+            # Should match the returned schema
+            self.assertEqual(schema, loaded_schema)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_configdict_forbids_extra_fields(self):
+        """Test that extra='forbid' in ConfigDict prevents unknown fields."""
+        invalid_yaml = self.mock_yaml_content + """
+camera:
+  index: 1
+  unknown_field: "should fail"
+"""
+
+        with patch("pathlib.Path.is_file", side_effect=[True, False]):
+            with patch("builtins.open", mock_open(read_data=invalid_yaml)):
+                with self.assertRaises(ValueError) as context:
+                    load_settings()
+                # Should mention the extra field in the error
+                self.assertIn("unknown_field", str(context.exception).lower())
+
+    def test_deep_merge_preserves_nested_values(self):
+        """Test that deep merge correctly handles nested dictionaries."""
+        base_yaml = self.mock_yaml_content
+        # Override only one nested value, others should be preserved
+        override_yaml = """
+video_processing:
+  fps: 60
+"""
+
+        def mock_open_side_effect(path, *args, **kwargs):
+            if "local" in str(path):
+                return mock_open(read_data=override_yaml)()
+            return mock_open(read_data=base_yaml)()
+
+        with patch("pathlib.Path.is_file", side_effect=[True, True]):
+            with patch("builtins.open", side_effect=mock_open_side_effect):
+                settings = load_settings()
+                # Overridden value
+                self.assertEqual(settings.video_processing.fps, 60)
+                # Preserved values from base
+                self.assertEqual(settings.video_processing.processing_interval, 10)
+                self.assertEqual(settings.video_processing.processing_offset, 1)
 
 
 if __name__ == "__main__":
