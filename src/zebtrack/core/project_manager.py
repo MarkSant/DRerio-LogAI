@@ -6,7 +6,7 @@ import shutil
 import time
 import unicodedata
 from copy import deepcopy
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from tkinter import messagebox
 from typing import Any, Literal, Tuple
@@ -156,7 +156,7 @@ class ProjectManager:
                 counter += 1
 
         template_path = template_dir / f"{slug}.json"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
 
         serialized = self._zone_data_to_dict(zone_data)
         payload = {
