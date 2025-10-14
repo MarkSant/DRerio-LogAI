@@ -7,7 +7,6 @@ ou em locais personalizados.
 """
 
 import json
-import os
 import re
 import unicodedata
 from datetime import UTC, datetime

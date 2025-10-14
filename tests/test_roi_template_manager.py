@@ -41,7 +41,9 @@ def _example_zone_data(*, include_arena=True, include_rois=True) -> ZoneData:
     )
 
 
-def test_save_template_global_creates_file_and_metadata(roi_manager: ROITemplateManager):
+def test_save_template_global_creates_file_and_metadata(
+    roi_manager: ROITemplateManager,
+):
     zone = _example_zone_data()
 
     metadata = roi_manager.save_template(
@@ -63,7 +65,10 @@ def test_save_template_global_creates_file_and_metadata(roi_manager: ROITemplate
     assert loaded.roi_polygons == zone.roi_polygons
 
 
-def test_save_template_project_honors_destination(tmp_path, roi_manager: ROITemplateManager):
+def test_save_template_project_honors_destination(
+    tmp_path,
+    roi_manager: ROITemplateManager,
+):
     project_dir = tmp_path / "project"
     project_dir.mkdir()
     zone = _example_zone_data()

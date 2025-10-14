@@ -2709,7 +2709,7 @@ class AppController:
         if not video_entry:
             log.info("workflow.single_video.registering_video", video=video_path)
             video_name = os.path.splitext(os.path.basename(video_path))[0]
-            
+
             # Prepare metadata for single video - use config if available
             metadata = {}
             if config:
@@ -2717,7 +2717,7 @@ class AppController:
                 for key in ["group", "group_display_name", "day", "subject"]:
                     if key in config:
                         metadata[key] = config[key]
-            
+
             # Set defaults for missing metadata to ensure proper tree display
             if "group" not in metadata:
                 metadata["group"] = "single_video"
@@ -2727,7 +2727,7 @@ class AppController:
                 metadata["day"] = "1"
             if "subject" not in metadata:
                 metadata["subject"] = "1"
-            
+
             # Include zone information in the video entry
             video_data = {
                 "path": video_path,
@@ -2737,7 +2737,7 @@ class AppController:
             }
             if metadata:
                 video_data["metadata"] = metadata
-            
+
             self.project_manager.add_video_batch(
                 [video_data],
                 save_project=False  # Don't save to disk for single video workflow
@@ -2753,8 +2753,8 @@ class AppController:
             )
             self.project_manager.save_zone_data(zone_data, video_path)
 
-        # Refresh views immediately so the video appears in Main Control and Reports tabs
-        # This ensures the user sees the registered video before processing starts
+    # Refresh views so the video appears in Main Control and Reports tabs
+    # Ensures the user sees the registered video before processing starts
         self.refresh_project_views(
             reason="Single video registered",
             immediate=True

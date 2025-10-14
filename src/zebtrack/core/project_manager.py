@@ -6,10 +6,10 @@ import shutil
 import time
 import unicodedata
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, Literal, Tuple
 
 import pandas as pd
 import structlog
@@ -236,7 +236,8 @@ class ProjectManager:
         if target_location == "project":
             if not self.project_path:
                 raise ValueError(
-                    "Não é possível salvar o template no projeto atual: projeto não carregado."
+                    "Não é possível salvar o template no projeto atual: "
+                    "projeto não carregado."
                 )
 
             self._ensure_zone_structures()
@@ -2431,7 +2432,10 @@ class ProjectManager:
             changed = True
 
         # Update status to 'processed' if we have trajectory data
-        if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":
+        if (
+            video_entry.get("has_trajectory")
+            and video_entry.get("status") != "processed"
+        ):
             video_entry["status"] = "processed"
             changed = True
 

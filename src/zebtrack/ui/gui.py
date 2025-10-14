@@ -47,9 +47,9 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 
 # Import custom modules
 import zebtrack.settings as settings_module
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
-from zebtrack.core.detector import ZoneData
 from zebtrack.io.camera import Camera
 from zebtrack.settings import settings
 from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType
@@ -4339,6 +4339,23 @@ class ApplicationGUI:
 
         scrollbar.pack(side="right", fill="y")
 
+        # --- Interactive Buttons (initially hidden) ---
+        # Positioned right after zone list, before ROI Inclusion Rule Panel
+        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
+        self.save_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="✅ Salvar Edição",
+            command=self._on_save_arena,
+        )
+        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.discard_arena_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="❌ Descartar",
+            command=self._on_discard_arena,
+        )
+        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
+        # This frame is packed later when needed (via pack() in _enter_edit_mode)
+
         # --- ROI Inclusion Rule Panel ---
         self.roi_inclusion_frame = ttk.LabelFrame(
             self.zone_controls_frame, text="Regra de Inclusão em ROI", padding=10
@@ -4417,22 +4434,6 @@ class ApplicationGUI:
 
         # Initialize display based on current rule
         self._on_roi_rule_change()
-
-        # --- Interactive Buttons (initially hidden) ---
-        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
-        self.save_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="✅ Salvar Edição",
-            command=self._on_save_arena,
-        )
-        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        self.discard_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="❌ Descartar",
-            command=self._on_discard_arena,
-        )
-        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        # This frame is packed later when needed
 
     def _create_zone_summary_cards_section(self) -> None:
         """Renderiza os cartões com indicadores numéricos da etapa de zonas."""
@@ -5340,7 +5341,7 @@ class ApplicationGUI:
         # Show the save/discard buttons
         if self.interactive_buttons_frame:
             self.interactive_buttons_frame.pack(
-                fill="x", padx=5, pady=5
+                fill="x", padx=5, pady=5, before=self.roi_inclusion_frame
             )
 
         self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
@@ -5348,7 +5349,7 @@ class ApplicationGUI:
     def _draw_interactive_polygon(self):
         """Helper to (re)draw the polygon and its handles based on current points."""
         # Clear previous drawings
-        self.roi_canvas.delete("interactive_polygon", "handle")
+        self.roi_canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator")
 
         # Convert video coordinates to canvas coordinates for display
         canvas_points = []
@@ -5370,16 +5371,54 @@ class ApplicationGUI:
         self.polygon_handles = []
         for i, canvas_point in enumerate(canvas_points):
             x, y = canvas_point[0], canvas_point[1]
+
+            # Check if this vertex is on the arena boundary (for visual feedback)
+            is_on_boundary = False
+            if (
+                isinstance(self.current_editing_zone, tuple)
+                and self.current_editing_zone[0] == "roi"
+            ):
+                zone_data = self.controller.project_manager.get_zone_data()
+                main_arena_poly = zone_data.polygon if zone_data else None
+                if main_arena_poly:
+                    canvas_arena_poly = []
+                    for point in main_arena_poly:
+                        canvas_pt = self._video_to_canvas(point[0], point[1])
+                        canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                    arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+                    result = cv2.pointPolygonTest(arena_array, (x, y), True)
+
+                    # Consider point on boundary if very close to edge (distance ~0)
+                    is_on_boundary = abs(result) < 1.0
+
+            # Choose handle color based on whether it's clamped to boundary
+            handle_fill = "orange" if is_on_boundary else "darkgoldenrod"
+            handle_outline = "red" if is_on_boundary else "yellow"
+
             handle = self.roi_canvas.create_rectangle(
                 x - 4,
                 y - 4,
                 x + 4,
                 y + 4,
-                fill="darkgoldenrod",
-                outline="yellow",
+                fill=handle_fill,
+                outline=handle_outline,
                 tags=("handle", f"handle-{i}"),
             )
             self.polygon_handles.append(handle)
+
+            # Draw an additional indicator circle for clamped vertices
+            if is_on_boundary:
+                self.roi_canvas.create_oval(
+                    x - 8,
+                    y - 8,
+                    x + 8,
+                    y + 8,
+                    outline="orange",
+                    width=2,
+                    tags="edit_clamp_indicator",
+                )
+
             # Bind events to each handle
             self.roi_canvas.tag_bind(
                 handle, "<ButtonPress-1>", lambda e, i=i: self._on_handle_press(e, i)
@@ -5429,7 +5468,7 @@ class ApplicationGUI:
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
-        # If editing an ROI, check if the point is inside the main arena
+        # If editing an ROI, clamp the point within the main arena
         if (
             isinstance(self.current_editing_zone, tuple)
             and self.current_editing_zone[0] == "roi"
@@ -5442,14 +5481,32 @@ class ApplicationGUI:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                # Test canvas coordinates against canvas polygon
-                result = cv2.pointPolygonTest(
-                    np.array(canvas_arena_poly, dtype=np.float32),
-                    (canvas_x, canvas_y), False
-                )
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
                 if result < 0:
-                    # Point is outside arena, don't update
-                    return
+                    # Find the closest point on the arena boundary
+                    min_dist = float('inf')
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap['distance'] < min_dist:
+                            min_dist = edge_snap['distance']
+                            closest_point = (edge_snap['x'], edge_snap['y'])
+
+                    # Update to clamped position
+                    canvas_x, canvas_y = closest_point
 
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
@@ -6402,17 +6459,17 @@ class ApplicationGUI:
 
         pm = controller.project_manager
         all_videos = pm.get_all_videos()
-        
+
         log.debug(
             "gui.update_reports.start",
             video_count=len(all_videos) if all_videos else 0,
             has_project_path=bool(pm.project_path),
         )
-        
+
         if not all_videos:
             log.debug("gui.update_reports.no_videos")
             return
-        
+
         # Allow displaying reports even without a project file
         # For single video workflows, we still want to show the reports
 
@@ -7145,9 +7202,10 @@ class ApplicationGUI:
 
         allow_project = bool(getattr(pm, "project_path", None))
         selected_template = self._get_selected_roi_template()
-        initial_name = (
-            selected_template.get("name", "") if selected_template else self.roi_template_var.get() or ""
-        )
+        if selected_template:
+            initial_name = selected_template.get("name", "")
+        else:
+            initial_name = self.roi_template_var.get() or ""
         dialog_result = self._show_template_save_dialog(
             has_arena=bool(zone_data.polygon),
             has_rois=bool(zone_data.roi_polygons),
@@ -7327,14 +7385,12 @@ class ApplicationGUI:
 
         self._refresh_roi_templates()
         self._select_roi_template(metadata)
-        self.show_info(
-            "Template importado",
-            (
-                "Template '"
-                f"{metadata.get('name', Path(file_path).stem)}' adicionado à biblioteca.\n\n"
-                "Use o botão 'Aplicar' para usar este template."
-            ),
+        template_name = metadata.get("name", Path(file_path).stem)
+        message = (
+            f"Template '{template_name}' adicionado à biblioteca.\n\n"
+            "Use o botão 'Aplicar' para usar este template."
         )
+        self.show_info("Template importado", message)
 
     def _on_import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video."""
@@ -7376,7 +7432,7 @@ class ApplicationGUI:
             import json
             with open(file_path, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
-            
+
             # Convert to ZoneData
             from zebtrack.core.detector import ZoneData
             template_zone = ZoneData(
@@ -7385,7 +7441,7 @@ class ApplicationGUI:
                 roi_names=template_data.get("roi_names", []),
                 roi_colors=template_data.get("roi_colors", []),
             )
-            
+
             # Save to project
             pm.save_zone_data(
                 template_zone,
@@ -7397,7 +7453,7 @@ class ApplicationGUI:
                 pm.set_active_zone_video(active_video)
 
             self.controller.setup_detector_zones()
-            
+
             log.info(
                 "gui.roi_templates.imported_and_applied",
                 video=active_video,
@@ -7405,7 +7461,7 @@ class ApplicationGUI:
                 polygon_points=len(template_zone.polygon or []),
                 roi_count=len(template_zone.roi_polygons or []),
             )
-            
+
         except Exception as exc:  # pragma: no cover - defensive
             log.error(
                 "gui.roi_templates.import_and_apply_failed",
@@ -7420,7 +7476,7 @@ class ApplicationGUI:
         self.update_zone_listbox()
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
-        
+
         # Optionally import to library as well
         try:
             metadata = pm.import_roi_template(file_path)
@@ -7655,8 +7711,52 @@ class ApplicationGUI:
         display_x = snapped_point[0] if snapped_point else canvas_x
         display_y = snapped_point[1] if snapped_point else canvas_y
 
-        # Draw snap indicator if snapping is active
-        if snapped_point:
+        # When drawing ROI, clamp the display indicator within the arena
+        if self.current_drawing_type == "roi":
+            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            if main_arena_poly:
+                # Convert arena to canvas coordinates
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if display point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (display_x, display_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float('inf')
+                    closest_point = (display_x, display_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            display_x, display_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap['distance'] < min_dist:
+                            min_dist = edge_snap['distance']
+                            closest_point = (edge_snap['x'], edge_snap['y'])
+
+                    # Update display position to clamped point
+                    display_x, display_y = closest_point
+
+        # Draw snap indicator if snapping is active or if we're drawing ROI
+        # (to show the clamped position within arena)
+        should_show_indicator = (
+            snapped_point is not None or
+            (self.current_drawing_type == "roi" and
+             self.controller.project_manager.get_zone_data().polygon)
+        )
+
+        if should_show_indicator:
             # Draw a small circle to indicate snap point
             self.roi_canvas.create_oval(
                 display_x - 5,
@@ -8802,7 +8902,7 @@ class ApplicationGUI:
         self.display_roi_video_frame(video_path)
         self.notebook.select(self.zone_tab_frame)
 
-        # Clear template selection for single video workflow - user should 
+        # Clear template selection for single video workflow - user should
         # explicitly choose if they want to apply a template
         self._refresh_roi_templates(clear_selection=True)
 
