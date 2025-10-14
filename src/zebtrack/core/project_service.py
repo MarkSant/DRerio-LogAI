@@ -513,3 +513,83 @@ class ProjectService:
                 error=str(e),
             )
             return []
+
+    # -------------------------------------------------------------------------
+    # Model Settings Management (Phase 2.1)
+    # -------------------------------------------------------------------------
+
+    def save_model_overrides(
+        self,
+        project_path: str,
+        project_data: dict,
+        active_weight: str | None,
+        use_openvino: bool,
+    ) -> dict:
+        """
+        Save model configuration overrides to project.
+
+        Args:
+            project_path: Path to project directory
+            project_data: Current project data dictionary
+            active_weight: Active weight name or None
+            use_openvino: Whether to use OpenVINO
+
+        Returns:
+            dict: Updated model overrides
+
+        Phase 2.1: Extracted from MainViewModel._persist_project_model_settings
+        """
+        # Ensure model_overrides exists in project data
+        overrides = project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None},
+        )
+        
+        # Update overrides
+        overrides["active_weight"] = active_weight
+        overrides["use_openvino"] = use_openvino
+        
+        # Update root-level settings for backward compatibility
+        project_data["active_weight"] = active_weight
+        project_data["use_openvino"] = bool(use_openvino)
+        
+        # Save updated configuration
+        self.save_project_config(project_path, project_data)
+        
+        self.log.info(
+            "project_service.save_model_overrides.success",
+            weight=active_weight,
+            openvino=use_openvino,
+        )
+        
+        return overrides
+
+    def save_arena_polygon(
+        self,
+        project_path: str,
+        project_data: dict,
+        polygon_points: list[list[int]],
+    ) -> None:
+        """
+        Save arena polygon to project zone data.
+
+        Args:
+            project_path: Path to project directory
+            project_data: Current project data dictionary
+            polygon_points: List of [x, y] coordinates defining the arena
+
+        Phase 2.1: Extracted from MainViewModel.save_manual_arena
+        """
+        # Get or create detection_zones structure
+        detection_zones = project_data.setdefault("detection_zones", {})
+        
+        # Update arena polygon
+        detection_zones["polygon"] = polygon_points
+        
+        # Save updated configuration
+        self.save_project_config(project_path, project_data)
+        
+        self.log.info(
+            "project_service.save_arena_polygon.success",
+            points_count=len(polygon_points),
+        )
