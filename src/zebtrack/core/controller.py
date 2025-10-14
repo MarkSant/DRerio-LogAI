@@ -34,6 +34,11 @@ from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.processing_worker import (
+    ProcessingCallbacks,
+    ProcessingContext,
+    ProcessingWorker,
+)
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
@@ -109,6 +114,9 @@ class AppController:
         self.processing_thread: threading.Thread | None = None
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
+        
+        # New worker-based processing
+        self.processing_worker: ProcessingWorker | None = None
 
         self._pending_external_trigger: dict | None = None
 
@@ -2981,15 +2989,16 @@ class AppController:
         output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
         self._prepare_results_directory(output_dir)
 
-        # 3. Call the processing in a background thread
+        # 3. Create and start the processing worker
         self.cancel_event.clear()
-        self.processing_thread = threading.Thread(
-            target=self._process_videos,
-            args=([video_to_process], output_dir),
-            kwargs={"single_video_config": config},
-            daemon=True,
+        
+        callbacks = self._create_processing_callbacks([video_to_process])
+        context = self._create_processing_context(
+            [video_to_process], output_dir, single_video_config=config
         )
-        self.processing_thread.start()
+        
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
 
         # 4. Switch to analysis view mode immediately
         self.view.start_analysis_view_mode()
@@ -3203,14 +3212,16 @@ class AppController:
             self.project_manager.project_data["analysis_interval_frames"] = 10
             self.project_manager.project_data["display_interval_frames"] = 10
 
-        # 5. Process the videos that need it in a background thread
+        # 5. Process the videos that need it using worker
         self.cancel_event.clear()
-        self.processing_thread = threading.Thread(
-            target=self._process_videos,
-            args=(videos_to_process, self.project_manager.project_path),
-            daemon=True,
+        
+        callbacks = self._create_processing_callbacks(videos_to_process)
+        context = self._create_processing_context(
+            videos_to_process, self.project_manager.project_path
         )
-        self.processing_thread.start()
+        
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
 
         # 6. Update statuses in project file
         for video in videos_to_process:
@@ -3498,12 +3509,14 @@ class AppController:
             self.project_manager.save_project()
 
         self.cancel_event.clear()
-        self.processing_thread = threading.Thread(
-            target=self._process_videos,
-            args=(eligible_videos, self.project_manager.project_path),
-            daemon=True,
+        
+        callbacks = self._create_processing_callbacks(eligible_videos)
+        context = self._create_processing_context(
+            eligible_videos, self.project_manager.project_path
         )
-        self.processing_thread.start()
+        
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
 
         for video_info in eligible_videos:
             path_value = video_info.get("path")
@@ -5151,6 +5164,132 @@ class AppController:
                 combined["analysis_profile_tracks"] = list(track_ids)
 
         return combined
+
+    def _create_processing_callbacks(
+        self, videos_to_process: list[dict]
+    ) -> ProcessingCallbacks:
+        """
+        Creates thread-safe callbacks for the processing worker.
+        All callbacks schedule UI updates via root.after() to ensure thread safety.
+        """
+
+        def on_started():
+            """Called when processing starts."""
+            self.root.after(0, self.view.show_progress_bar)
+            self.root.after(
+                0,
+                lambda: self.view.set_status(
+                    f"Iniciando processamento para {len(videos_to_process)} vídeos..."
+                ),
+            )
+            self.project_manager.set_active_zone_video(None)
+            self._publish_processing_mode(source="worker.started", force=True)
+
+        def on_progress(fraction: float, message: str, stats: dict | None):
+            """Called with progress updates."""
+            if self.cancel_event.is_set():
+                return
+
+            self.root.after(0, lambda: self.view.set_status(message))
+            self.root.after(0, lambda p=fraction: self.view.update_progress(p))
+            self.root.after(
+                0, lambda p=fraction, m=message: self.view.update_analysis_progress(p, m)
+            )
+
+            if stats:
+                self.root.after(
+                    0,
+                    lambda: self.view.update_processing_stats(
+                        total_frames=stats.get("total_frames"),
+                        processed_frames=stats.get("processed_frames"),
+                        detected_frames=stats.get("detected_frames"),
+                        start_time=stats.get("start_time"),
+                        current_frame=stats.get("current_frame"),
+                    ),
+                )
+
+        def on_frame_processed(frame, detections, processing_info):
+            """Called when a frame is ready for display."""
+            if frame is not None:
+                self.root.after(0, lambda f=frame: self.view.display_frame(f))
+
+            if detections is not None and processing_info:
+                payload = [tuple(det) for det in detections]
+                self._schedule_on_ui(
+                    self.view.update_detection_overlay, payload, processing_info
+                )
+
+        def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
+            """Called when a single video completes."""
+            status = "concluído" if success else "falhou"
+            log.info(
+                "controller.video_completed",
+                index=index,
+                total=total,
+                experiment_id=experiment_id,
+                success=success,
+            )
+
+        def on_error(error: Exception, context: str):
+            """Called when an error occurs."""
+            log.error("controller.processing.worker_error", context=context, error=str(error))
+            self.root.after(
+                0,
+                lambda: self.view.show_error(
+                    "Erro na Análise", f"{context}: {error}"
+                ),
+            )
+
+        def on_completed(was_cancelled: bool, output_dir: str):
+            """Called when all processing completes."""
+            self.project_manager.set_active_zone_video(None)
+            self.root.after(0, self.view.stop_analysis_view_mode)
+            self.root.after(0, self.view.hide_progress_bar)
+
+            if was_cancelled:
+                self.root.after(
+                    0,
+                    lambda: self.view.show_info(
+                        "Cancelado", "A análise de vídeo foi cancelada."
+                    ),
+                )
+            elif videos_to_process:
+                msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
+                self.root.after(0, lambda: self.view.show_info("Sucesso", msg))
+
+            self.root.after(0, lambda: self.view.set_status("Pronto."))
+            self._publish_processing_mode(source="worker.completed", force=True)
+            self.refresh_project_views()
+
+        return ProcessingCallbacks(
+            on_started=on_started,
+            on_progress=on_progress,
+            on_frame_processed=on_frame_processed,
+            on_video_completed=on_video_completed,
+            on_error=on_error,
+            on_completed=on_completed,
+        )
+
+    def _create_processing_context(
+        self,
+        videos_to_process: list[dict],
+        output_base_dir: str,
+        single_video_config: dict | None = None,
+    ) -> ProcessingContext:
+        """
+        Creates the processing context with all necessary configuration.
+        """
+        return ProcessingContext(
+            videos_to_process=videos_to_process,
+            output_base_dir=output_base_dir,
+            cancel_event=self.cancel_event,
+            single_video_config=single_video_config,
+            analysis_interval_frames=10,  # Will be updated by worker
+            display_interval_frames=10,  # Will be updated by worker
+            process_single_video_func=self._process_single_video,
+            apply_project_settings_func=self.apply_project_settings_to_batch,
+            determine_intervals_func=self._determine_processing_intervals,
+        )
 
     def _process_videos(
         self,
