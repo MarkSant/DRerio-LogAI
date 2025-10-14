@@ -63,9 +63,7 @@ class Calibration:
         # 3. Calculate the homography matrix.
         # The source points (corners) must be in a consistent order.
         ordered_corners = self._order_points(corners)
-        self.homography_matrix = cv2.getPerspectiveTransform(
-            ordered_corners, destination_points
-        )
+        self.homography_matrix = cv2.getPerspectiveTransform(ordered_corners, destination_points)
 
         # 4. Calculate the final pixel-to-cm ratio based on the warped dimensions.
         px_per_cm_x = target_width_px / self.real_width_cm

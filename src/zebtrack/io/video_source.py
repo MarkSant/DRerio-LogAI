@@ -93,9 +93,7 @@ if __name__ == "__main__":
         for i in range(100):
             frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
             text = f"Frame {i + 1}"
-            cv2.putText(
-                frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2
-            )
+            cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             writer.write(frame)
         writer.release()
         print(f"Created a dummy video file: {test_video_path}")
@@ -111,10 +109,7 @@ if __name__ == "__main__":
                 frame_counter += 1
                 if frame_counter <= 5 or frame_counter >= 95:
                     reported_frame = video_source.get_current_frame_number()
-                    print(
-                        f"Read frame number: {frame_counter} "
-                        f"(reported: {reported_frame})"
-                    )
+                    print(f"Read frame number: {frame_counter} (reported: {reported_frame})")
 
             print(f"\nTotal frames read: {frame_counter}")
             video_source.release()

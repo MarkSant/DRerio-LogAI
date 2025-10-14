@@ -59,16 +59,13 @@ class CalibrationStep(WizardStep):
         """Build calibration UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Calibração Física", font=title_font
-        )
+        title = Label(self, text="Calibração Física", font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
             text=(
-                "Configure as dimensões físicas da arena para conversão de pixels "
-                "para centímetros."
+                "Configure as dimensões físicas da arena para conversão de pixels para centímetros."
             ),
             fg="gray",
             wraplength=500,
@@ -85,21 +82,17 @@ class CalibrationStep(WizardStep):
         self.template_info_label.pack_forget()
 
         # Video and animal configuration
-        video_frame = LabelFrame(
-            self, text="Configuração de Vídeos e Animais", padx=15, pady=10
-        )
+        video_frame = LabelFrame(self, text="Configuração de Vídeos e Animais", padx=15, pady=10)
         video_frame.pack(fill="x", pady=(0, 15))
 
         # Number of aquariums (videos)
         aquarium_row = Frame(video_frame)
         aquarium_row.pack(fill="x", pady=5)
 
-        Label(
-            aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w"
-        ).pack(side="left")
-        aquarium_entry = Entry(
-            aquarium_row, textvariable=self.num_aquariums_var, width=10
+        Label(aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w").pack(
+            side="left"
         )
+        aquarium_entry = Entry(aquarium_row, textvariable=self.num_aquariums_var, width=10)
         aquarium_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             aquarium_entry,
@@ -110,23 +103,16 @@ class CalibrationStep(WizardStep):
         animals_row = Frame(video_frame)
         animals_row.pack(fill="x", pady=5)
 
-        Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(
-            side="left"
-        )
-        animals_entry = Entry(
-            animals_row, textvariable=self.animals_per_aquarium_var, width=10
-        )
+        Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(side="left")
+        animals_entry = Entry(animals_row, textvariable=self.animals_per_aquarium_var, width=10)
         animals_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             animals_entry,
-            "Número de animais em cada aquário (vídeo). "
-            "Use 1 para rastreamento individual.",
+            "Número de animais em cada aquário (vídeo). Use 1 para rastreamento individual.",
         )
 
         # Physical dimensions
-        dimensions_frame = LabelFrame(
-            self, text="Dimensões Físicas do Aquário", padx=15, pady=10
-        )
+        dimensions_frame = LabelFrame(self, text="Dimensões Físicas do Aquário", padx=15, pady=10)
         dimensions_frame.pack(fill="x", pady=(0, 15))
 
         # Width
@@ -143,9 +129,7 @@ class CalibrationStep(WizardStep):
         height_row.pack(fill="x", pady=5)
 
         Label(height_row, text="Altura (cm):", width=30, anchor="w").pack(side="left")
-        height_entry = Entry(
-            height_row, textvariable=self.aquarium_height_var, width=10
-        )
+        height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
         height_entry.pack(side="left", padx=(5, 0))
         ToolTip(height_entry, "Altura física do aquário em centímetros.")
 
@@ -250,9 +234,7 @@ class CalibrationStep(WizardStep):
             self.num_aquariums_var.set(self.wizard_data["num_aquariums"])
 
         if "animals_per_aquarium" in self.wizard_data:
-            self.animals_per_aquarium_var.set(
-                self.wizard_data["animals_per_aquarium"]
-            )
+            self.animals_per_aquarium_var.set(self.wizard_data["animals_per_aquarium"])
 
         if "aquarium_width_cm" in self.wizard_data:
             self.aquarium_width_var.set(self.wizard_data["aquarium_width_cm"])
@@ -273,10 +255,7 @@ class CalibrationStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")

@@ -124,10 +124,7 @@ def test_2_aquarium_detection(model_path, video_path):
 
                     if area > frame_area * 0.1:  # Pelo menos 10% do frame
                         good_polygons.append(polygon)
-                        print(
-                            f"   Frame {i + 1}: Aquario detectado "
-                            f"(area={area / frame_area:.1%})"
-                        )
+                        print(f"   Frame {i + 1}: Aquario detectado (area={area / frame_area:.1%})")
 
         cap.release()
 
@@ -185,9 +182,7 @@ def test_3_canvas_polygon():
 
                 # Simula desenho de polígono
                 polygon_points = [100, 100, 200, 100, 200, 200, 100, 200]
-                canvas.create_polygon(
-                    polygon_points, fill="", outline="yellow", width=3
-                )
+                canvas.create_polygon(polygon_points, fill="", outline="yellow", width=3)
                 print("   Poligono desenhado")
 
                 root.destroy()
@@ -355,9 +350,7 @@ def test_6_instance_segmentation(model_path, video_path):
         # Analisa componentes
         has_boxes = result.boxes is not None and len(result.boxes) > 0
         has_masks = (
-            result.masks is not None
-            and result.masks.xy is not None
-            and len(result.masks.xy) > 0
+            result.masks is not None and result.masks.xy is not None and len(result.masks.xy) > 0
         )
 
         print(f"   Boxes detectados: {'SIM' if has_boxes else 'NAO'}")

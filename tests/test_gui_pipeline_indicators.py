@@ -102,16 +102,10 @@ def test_update_zone_summary_cards_populates_metrics():
     gui_instance._update_zone_summary_cards(videos)
 
     assert gui_instance.zone_summary_cards["arena_missing"]["value"].get() == "1"
-    assert (
-        gui_instance.zone_summary_cards["arena_missing"]["detail"].get()
-        == "3 com arena salva"
-    )
+    assert gui_instance.zone_summary_cards["arena_missing"]["detail"].get() == "3 com arena salva"
 
     assert gui_instance.zone_summary_cards["rois_missing"]["value"].get() == "2"
-    assert (
-        gui_instance.zone_summary_cards["rois_missing"]["detail"].get()
-        == "2 com ROIs salvas"
-    )
+    assert gui_instance.zone_summary_cards["rois_missing"]["detail"].get() == "2 com ROIs salvas"
 
     assert gui_instance.zone_summary_cards["ready_for_processing"]["value"].get() == "1"
     assert (

@@ -190,11 +190,13 @@ class TemplateManager:
                     with open(template_path, "r", encoding="utf-8") as f:
                         template = json.load(f)
 
-                    templates.append({
-                        "name": template.get("name", template_path.stem),
-                        "created_at": template.get("created_at", "Unknown"),
-                        "project_type": template.get("project_type", "Unknown"),
-                    })
+                    templates.append(
+                        {
+                            "name": template.get("name", template_path.stem),
+                            "created_at": template.get("created_at", "Unknown"),
+                            "project_type": template.get("project_type", "Unknown"),
+                        }
+                    )
                 except Exception as e:
                     log.warning(
                         "template_manager.template_read_error",

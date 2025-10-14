@@ -24,9 +24,7 @@ class STrack(BaseTrack):
         if self.state != TrackState.Tracked:
             mean_state[7] = 0
 
-        self.mean, self.covariance = self.kalman_filter.predict(
-            mean_state, self.covariance
-        )
+        self.mean, self.covariance = self.kalman_filter.predict(mean_state, self.covariance)
 
     @staticmethod
     def multi_predict(stracks):
@@ -51,9 +49,7 @@ class STrack(BaseTrack):
         self.kalman_filter = kalman_filter
         self.track_id = self.next_id()
 
-        self.mean, self.covariance = self.kalman_filter.initiate(
-            self.tlwh_to_xyah(self._tlwh)
-        )
+        self.mean, self.covariance = self.kalman_filter.initiate(self.tlwh_to_xyah(self._tlwh))
 
         self.tracklet_len = 0
         self.state = TrackState.Tracked
@@ -197,8 +193,7 @@ class BYTETracker:
         if len(dets) > 0:
             """Detections"""
             detections = [
-                STrack(STrack.tlbr_to_tlwh(tlbr), s)
-                for (tlbr, s) in zip(dets, scores_keep)
+                STrack(STrack.tlbr_to_tlwh(tlbr), s) for (tlbr, s) in zip(dets, scores_keep)
             ]
         else:
             detections = []
@@ -247,14 +242,10 @@ class BYTETracker:
         else:
             detections_second = []
         r_tracked_stracks = [
-            strack_pool[i]
-            for i in u_track
-            if strack_pool[i].state == TrackState.Tracked
+            strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked
         ]
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
-        matches, u_track, u_detection_second = matching.linear_assignment(
-            dists, thresh=0.5
-        )
+        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
 
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
@@ -280,9 +271,7 @@ class BYTETracker:
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
 
-        matches, u_unconfirmed, u_detection = matching.linear_assignment(
-            dists, thresh=0.7
-        )
+        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
 
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
@@ -305,9 +294,7 @@ class BYTETracker:
                 track.mark_removed()
                 removed_stracks.append(track)
 
-        self.tracked_stracks = [
-            t for t in self.tracked_stracks if t.state == TrackState.Tracked
-        ]
+        self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
 

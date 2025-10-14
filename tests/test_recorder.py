@@ -32,25 +32,19 @@ def test_start_recording_creates_files(recorder_setup):
 
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()  # Pass empty zones for this test
-    success = recorder.start_recording(
-        output_folder, frame_width, frame_height, zones=mock_zones
-    )
+    success = recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)
     assert success
 
     base_name = os.path.basename(output_folder)
 
     # Check if metadata files were created
     video_file = os.path.join(output_folder, f"{base_name}.mp4")
-    processing_area_parquet = os.path.join(
-        output_folder, f"1_ProcessingArea_{base_name}.parquet"
-    )
+    processing_area_parquet = os.path.join(output_folder, f"1_ProcessingArea_{base_name}.parquet")
     areas_of_interest_parquet = os.path.join(
         output_folder, f"2_AreasOfInterest_{base_name}.parquet"
     )
     # The detection data file is only created on stop_recording
-    coord_movimento_file = os.path.join(
-        output_folder, f"3_CoordMovimento_{base_name}.parquet"
-    )
+    coord_movimento_file = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
 
     assert os.path.exists(video_file)
     assert os.path.exists(processing_area_parquet)
@@ -62,9 +56,7 @@ def test_start_recording_creates_files(recorder_setup):
 
     # Now test that it IS created when ROIs are present
     mock_zones_with_roi = ZoneData(roi_polygons=[[[0, 0], [1, 1], [0, 1]]])
-    recorder.start_recording(
-        output_folder, frame_width, frame_height, zones=mock_zones_with_roi
-    )
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones_with_roi)
     assert os.path.exists(areas_of_interest_parquet)
     recorder.stop_recording()
 
@@ -83,9 +75,7 @@ def test_metadata_parquet_content(recorder_setup):
     base_name = os.path.basename(output_folder)
 
     # Test Processing Area Parquet
-    processing_area_parquet = os.path.join(
-        output_folder, f"1_ProcessingArea_{base_name}.parquet"
-    )
+    processing_area_parquet = os.path.join(output_folder, f"1_ProcessingArea_{base_name}.parquet")
     assert os.path.exists(processing_area_parquet)
     df_proc = pd.read_parquet(processing_area_parquet)
     assert list(df_proc.columns) == ["x", "y"]
@@ -138,9 +128,7 @@ def test_write_detection_data_saves_parquet(recorder_setup):
 
     # Check that the Parquet file was created
     base_name = os.path.basename(output_folder)
-    coord_movimento_parquet = os.path.join(
-        output_folder, f"3_CoordMovimento_{base_name}.parquet"
-    )
+    coord_movimento_parquet = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
     assert os.path.exists(coord_movimento_parquet)
 
     # Check the content of the Parquet file
@@ -199,9 +187,7 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
     recorder.stop_recording()
 
     base_name = os.path.basename(output_folder)
-    parquet_path = os.path.join(
-        output_folder, f"3_CoordMovimento_{base_name}.parquet"
-    )
+    parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
     assert os.path.exists(parquet_path)
 
     df = pd.read_parquet(parquet_path)
@@ -219,9 +205,7 @@ def test_write_detection_data_coerces_track_id_types(recorder_setup):
     recorder.stop_recording()
 
     base_name = os.path.basename(output_folder)
-    parquet_path = os.path.join(
-        output_folder, f"3_CoordMovimento_{base_name}.parquet"
-    )
+    parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
     df = pd.read_parquet(parquet_path)
     assert df.iloc[0]["track_id"] == 7
 
@@ -243,9 +227,7 @@ def test_write_detection_data_handles_multiple_tracks(recorder_setup):
     recorder.stop_recording()
 
     base_name = os.path.basename(output_folder)
-    parquet_path = os.path.join(
-        output_folder, f"3_CoordMovimento_{base_name}.parquet"
-    )
+    parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
     df = pd.read_parquet(parquet_path)
     assert set(df["track_id"].tolist()) == {1, 8}
 
@@ -253,6 +235,7 @@ def test_write_detection_data_handles_multiple_tracks(recorder_setup):
 def test_video_writing(recorder_setup):
     """Test that writing video frames increases file size."""
     from zebtrack.core.detector import ZoneData
+
     recorder, output_folder, frame_width, frame_height = recorder_setup
     mock_zones = ZoneData()
     recorder.start_recording(output_folder, frame_width, frame_height, zones=mock_zones)

@@ -57,9 +57,7 @@ class WeightManager:
                             details.get("is_default", False) and weight_type == "det"
                         )
                         migrated = True
-                        log.info(
-                            "weights.migration.type_added", name=name, type=weight_type
-                        )
+                        log.info("weights.migration.type_added", name=name, type=weight_type)
 
                     if "openvino_status" not in details:
                         if details.get("openvino_path"):
@@ -129,9 +127,9 @@ class WeightManager:
             (*_oi.pt), None if classification can't be determined from suffix.
         """
         filename_lower = filename.lower()
-        if filename_lower.endswith('_seg.pt'):
+        if filename_lower.endswith("_seg.pt"):
             return "seg"
-        elif filename_lower.endswith('_oi.pt'):
+        elif filename_lower.endswith("_oi.pt"):
             return "det"
         else:
             return None
@@ -158,9 +156,7 @@ class WeightManager:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
             # Add legacy path if it's not already in potential_weights
-            legacy_already_added = any(
-                filename == legacy_path for _, filename in potential_weights
-            )
+            legacy_already_added = any(filename == legacy_path for _, filename in potential_weights)
             if not legacy_already_added:
                 potential_weights.append((legacy_type or "seg", legacy_path))
 
@@ -236,9 +232,7 @@ class WeightManager:
                 return name, details
         return None, None
 
-    def get_default_weight_by_type(
-        self, weight_type: str
-    ) -> tuple[str, dict] | tuple[None, None]:
+    def get_default_weight_by_type(self, weight_type: str) -> tuple[str, dict] | tuple[None, None]:
         """
         Returns the name and details of the default weight for a specific type.
 
@@ -280,9 +274,12 @@ class WeightManager:
 
         weight_details = self.weights[name_to_set]
         if weight_details.get("type") != weight_type:
-            log.warning("weights.default_by_type.type_mismatch",
-                       name=name_to_set, expected_type=weight_type,
-                       actual_type=weight_details.get("type"))
+            log.warning(
+                "weights.default_by_type.type_mismatch",
+                name=name_to_set,
+                expected_type=weight_type,
+                actual_type=weight_details.get("type"),
+            )
             return
 
         default_key = f"is_default_{weight_type}"
@@ -307,9 +304,7 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default.set", name=name_to_set)
 
-    def add_weight(
-        self, new_path: str, set_as_default: bool, weight_type: str | None = None
-    ):
+    def add_weight(self, new_path: str, set_as_default: bool, weight_type: str | None = None):
         """
         Adds a new weight from a given path after performing security checks.
 
@@ -360,9 +355,7 @@ class WeightManager:
 
         new_name = os.path.basename(new_path)
         if new_name in self.weights:
-            messagebox.showinfo(
-                "Já Existe", f"Um peso com o nome '{new_name}' já existe."
-            )
+            messagebox.showinfo("Já Existe", f"Um peso com o nome '{new_name}' já existe.")
             return
 
         # Determine weight type
@@ -466,9 +459,7 @@ class WeightManager:
 
         if not ULTRALYTICS_AVAILABLE:
             details["openvino_status"] = OPENVINO_STATUS_FAILED
-            details["last_conversion_error"] = (
-                "Ultralytics package is required for OpenVINO export"
-            )
+            details["last_conversion_error"] = "Ultralytics package is required for OpenVINO export"
             details["openvino_path"] = ""
             details["openvino_hash"] = ""
             self.save_weights()

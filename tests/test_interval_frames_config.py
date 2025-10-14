@@ -12,13 +12,7 @@ from zebtrack.core.controller import AppController
 from zebtrack.core.project_manager import ProjectManager
 
 CONFIG_FILENAME = "project_config.json"
-GUI_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "src"
-    / "zebtrack"
-    / "ui"
-    / "gui.py"
-)
+GUI_PATH = Path(__file__).resolve().parent.parent / "src" / "zebtrack" / "ui" / "gui.py"
 GUI_SOURCE = GUI_PATH.read_text(encoding="utf-8")
 
 
@@ -99,10 +93,7 @@ def test_project_manager_persists_interval_settings(
     assert saved_data["analysis_interval_frames"] == analysis_interval
     assert saved_data["display_interval_frames"] == display_interval
     assert saved_data["batches"], "Video batch should be persisted"
-    assert (
-        saved_data["batches"][0]["videos"][0]["path"]
-        == str(video_path)
-    )
+    assert saved_data["batches"][0]["videos"][0]["path"] == str(video_path)
 
 
 @patch("zebtrack.core.controller.ApplicationGUI")
@@ -150,7 +141,4 @@ def test_controller_workflow_roundtrip_persists_intervals(
     assert reloaded.project_data["analysis_interval_frames"] == 6
     assert reloaded.project_data["display_interval_frames"] == 9
     assert controller.project_manager.project_data["analysis_interval_frames"] == 6
-    assert (
-        controller.project_manager.project_data["display_interval_frames"]
-        == 9
-    )
+    assert controller.project_manager.project_data["display_interval_frames"] == 9

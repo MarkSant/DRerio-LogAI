@@ -39,9 +39,7 @@ class TestDetector(unittest.TestCase):
     def setUp(self):
         """Set up a detector instance with a mock plugin for tests."""
         self.mock_plugin = MockDetectorPlugin()
-        self.detector = Detector(
-            plugin=self.mock_plugin, base_width=1280, base_height=720
-        )
+        self.detector = Detector(plugin=self.mock_plugin, base_width=1280, base_height=720)
 
     def test_initialization(self):
         """Test that the detector initializes correctly with a plugin."""
@@ -222,28 +220,20 @@ class TestDetector(unittest.TestCase):
 
         # Test case 6: empty polygon
         empty_polygon = np.array([])
-        self.assertFalse(
-            self.detector._is_inside_polygon(150, 150, 160, 160, empty_polygon)
-        )
+        self.assertFalse(self.detector._is_inside_polygon(150, 150, 160, 160, empty_polygon))
 
     def test_bbox_hits_roi_polygon_helper(self):
         """Test the bbox_hits_roi_polygon helper method."""
         roi_polygon = np.array([[50, 50], [100, 50], [100, 100], [50, 100]])
 
         # Test case 1: bbox completely inside
-        self.assertTrue(
-            self.detector.bbox_hits_roi_polygon(60, 60, 90, 90, roi_polygon)
-        )
+        self.assertTrue(self.detector.bbox_hits_roi_polygon(60, 60, 90, 90, roi_polygon))
 
         # Test case 2: bbox completely outside
-        self.assertFalse(
-            self.detector.bbox_hits_roi_polygon(200, 200, 250, 250, roi_polygon)
-        )
+        self.assertFalse(self.detector.bbox_hits_roi_polygon(200, 200, 250, 250, roi_polygon))
 
         # Test case 3: only center inside
-        self.assertTrue(
-            self.detector.bbox_hits_roi_polygon(70, 70, 80, 80, roi_polygon)
-        )
+        self.assertTrue(self.detector.bbox_hits_roi_polygon(70, 70, 80, 80, roi_polygon))
 
         # Test case 4: empty ROI polygon
         empty_roi = np.array([])

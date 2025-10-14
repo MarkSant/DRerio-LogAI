@@ -47,18 +47,13 @@ class TestParquetImport(unittest.TestCase):
         arena_path = video_path.parent / f"1_ProcessingArea_{base_name}.parquet"
 
         # Create arena polygon (rectangle)
-        arena_data = pd.DataFrame({
-            "x": [0, 640, 640, 0],
-            "y": [0, 0, 480, 480]
-        })
+        arena_data = pd.DataFrame({"x": [0, 640, 640, 0], "y": [0, 0, 480, 480]})
 
         table = pa.Table.from_pandas(arena_data)
         pq.write_table(table, str(arena_path))
         return arena_path
 
-    def _create_rois_parquet(
-        self, video_path: Path, roi_names: list[str] | None = None
-    ) -> Path:
+    def _create_rois_parquet(self, video_path: Path, roi_names: list[str] | None = None) -> Path:
         """Helper to create a mock ROIs parquet file."""
         if roi_names is None:
             roi_names = ["Top", "Bottom"]
@@ -78,12 +73,7 @@ class TestParquetImport(unittest.TestCase):
                 (0, y_offset + 240),
             ]
             for point_idx, (x, y) in enumerate(roi_points):
-                roi_data.append({
-                    "roi_name": roi_name,
-                    "point_index": point_idx,
-                    "x": x,
-                    "y": y
-                })
+                roi_data.append({"roi_name": roi_name, "point_index": point_idx, "x": x, "y": y})
 
         rois_df = pd.DataFrame(roi_data)
         table = pa.Table.from_pandas(rois_df)
@@ -96,16 +86,18 @@ class TestParquetImport(unittest.TestCase):
         trajectory_path = video_path.parent / f"3_CoordMovimento_{base_name}.parquet"
 
         # Create minimal trajectory data
-        trajectory_data = pd.DataFrame({
-            "timestamp": [0.0, 0.033, 0.066],
-            "frame": [0, 1, 2],
-            "track_id": [1, 1, 1],
-            "x1": [100, 110, 120],
-            "y1": [200, 210, 220],
-            "x2": [150, 160, 170],
-            "y2": [250, 260, 270],
-            "confidence": [0.95, 0.93, 0.94]
-        })
+        trajectory_data = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066],
+                "frame": [0, 1, 2],
+                "track_id": [1, 1, 1],
+                "x1": [100, 110, 120],
+                "y1": [200, 210, 220],
+                "x2": [150, 160, 170],
+                "y2": [250, 260, 270],
+                "confidence": [0.95, 0.93, 0.94],
+            }
+        )
 
         table = pa.Table.from_pandas(trajectory_data)
         pq.write_table(table, str(trajectory_path))

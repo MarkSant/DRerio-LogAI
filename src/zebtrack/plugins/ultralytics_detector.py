@@ -25,9 +25,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             model_path (str): The path to the .pt model file.
         """
         if not ULTRALYTICS_AVAILABLE:
-            raise ImportError(
-                "Ultralytics is not available. Please install ultralytics package."
-            )
+            raise ImportError("Ultralytics is not available. Please install ultralytics package.")
         assert YOLO is not None
         self.model = YOLO(model_path)
         self.conf_threshold = settings.yolo_model.confidence_threshold
@@ -43,9 +41,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._aquarium_region_defined = False
         self._use_single_subject_mode = False
 
-    def detect(
-        self, frame: np.ndarray
-    ) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
         """
         Run the Ultralytics model and return raw detection boxes.
 
@@ -156,9 +152,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                                 "box": [int(x1), int(y1), int(x2), int(y2)],
                                 "confidence": confidence,
                                 "class_id": class_id,
-                                "class_name": result.names.get(
-                                    class_id, f"class_{class_id}"
-                                ),
+                                "class_name": result.names.get(class_id, f"class_{class_id}"),
                                 "has_mask": has_mask,
                                 "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
                                 if has_mask

@@ -66,10 +66,10 @@ log = structlog.get_logger()
 
 
 STATUS_SYMBOLS = {
-    "arena": "\U0001F3DF",  # 🏟
-    "rois": "\U0001F3AF",  # 🎯
-    "trajectory": "\U0001F9ED",  # 🧭
-    "summary": "\u03A3",  # Σ
+    "arena": "\U0001f3df",  # 🏟
+    "rois": "\U0001f3af",  # 🎯
+    "trajectory": "\U0001f9ed",  # 🧭
+    "summary": "\u03a3",  # Σ
 }
 
 PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
@@ -124,9 +124,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def body(self, master):
         schedule_maximize(self)
-        scope_frame = ttk.LabelFrame(
-            master, text="Contexto da Calibração", padding=10
-        )
+        scope_frame = ttk.LabelFrame(master, text="Contexto da Calibração", padding=10)
         scope_frame.pack(fill="x", pady=(5, 0), padx=5)
 
         ttk.Label(
@@ -156,16 +154,12 @@ class CalibrationDialog(simpledialog.Dialog):
         model_frame.columnconfigure(1, weight=1)
 
         # --- Row 0: Weight Selection ---
-        ttk.Label(model_frame, text="Peso Ativo:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=3
-        )
+        ttk.Label(model_frame, text="Peso Ativo:").grid(row=0, column=0, sticky="w", padx=5, pady=3)
         self.weights_dropdown = ttk.Combobox(
             model_frame, textvariable=self.active_weight_var, state="readonly"
         )
         self.weights_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=3)
-        self.weights_dropdown.bind(
-            "<<ComboboxSelected>>", self._on_weight_selected_local
-        )
+        self.weights_dropdown.bind("<<ComboboxSelected>>", self._on_weight_selected_local)
         self._populate_weights_dropdown()
 
         # --- Row 1: Weight Management Buttons ---
@@ -176,9 +170,9 @@ class CalibrationDialog(simpledialog.Dialog):
             text="Carregar Novo Peso...",
             command=self._load_new_weight_local,
         ).pack(side="left", padx=(0, 5))
-        ttk.Button(
-            btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_local
-        ).pack(side="left")
+        ttk.Button(btn_frame, text="Gerenciar Pesos...", command=self._manage_weights_local).pack(
+            side="left"
+        )
 
         # --- Row 2: OpenVINO Toggle ---
         self.openvino_checkbox = ttk.Checkbutton(
@@ -187,9 +181,7 @@ class CalibrationDialog(simpledialog.Dialog):
             variable=self.use_openvino_var,
             command=self._on_openvino_toggled_local,
         )
-        self.openvino_checkbox.grid(
-            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2)
-        )
+        self.openvino_checkbox.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2))
 
         # --- Row 3: OpenVINO Status ---
         self.openvino_status_label = ttk.Label(
@@ -204,9 +196,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.update_openvino_status_label(self.controller.get_openvino_status())
 
         # --- Frame for diagnostics ---
-        diag_frame = ttk.LabelFrame(
-            master, text="Diagnóstico de Desempenho do Modelo", padding=10
-        )
+        diag_frame = ttk.LabelFrame(master, text="Diagnóstico de Desempenho do Modelo", padding=10)
         diag_frame.pack(fill="x", pady=10, padx=5)
 
         # --- Video Selection ---
@@ -217,9 +207,7 @@ class CalibrationDialog(simpledialog.Dialog):
             text="Selecionar Vídeo...",
             command=self._select_diagnostic_video,
         ).pack(side="left")
-        ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(
-            side="left", padx=5
-        )
+        ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(side="left", padx=5)
 
         # --- Parameters ---
         params_frame = ttk.Frame(diag_frame, padding=5)
@@ -236,9 +224,9 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="Limiar de Confiança:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            params_frame, textvariable=self.confidence_threshold_var, width=10
-        ).grid(row=1, column=1, sticky="w", padx=5)
+        ttk.Entry(params_frame, textvariable=self.confidence_threshold_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=5
+        )
         ttk.Label(
             params_frame,
             text=(
@@ -255,9 +243,9 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="Limiar NMS (IoU):").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            params_frame, textvariable=self.nms_threshold_var, width=10
-        ).grid(row=2, column=1, sticky="w", padx=5)
+        ttk.Entry(params_frame, textvariable=self.nms_threshold_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=5
+        )
         ttk.Label(
             params_frame,
             text=(
@@ -274,9 +262,9 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="ByteTrack - Track Thresh:").grid(
             row=3, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            params_frame, textvariable=self.track_threshold_var, width=10
-        ).grid(row=3, column=1, sticky="w", padx=5)
+        ttk.Entry(params_frame, textvariable=self.track_threshold_var, width=10).grid(
+            row=3, column=1, sticky="w", padx=5
+        )
         ttk.Label(
             params_frame,
             text=(
@@ -293,9 +281,9 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(params_frame, text="ByteTrack - Match Thresh:").grid(
             row=4, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            params_frame, textvariable=self.match_threshold_var, width=10
-        ).grid(row=4, column=1, sticky="w", padx=5)
+        ttk.Entry(params_frame, textvariable=self.match_threshold_var, width=10).grid(
+            row=4, column=1, sticky="w", padx=5
+        )
         ttk.Label(
             params_frame,
             text=(
@@ -424,17 +412,13 @@ class CalibrationDialog(simpledialog.Dialog):
             messagebox.showerror("Erro", str(exc))
             return
 
-        self.confidence_threshold_var.set(
-            f"{defaults.get('confidence_threshold', 0.25):.2f}"
-        )
+        self.confidence_threshold_var.set(f"{defaults.get('confidence_threshold', 0.25):.2f}")
         self.nms_threshold_var.set(f"{defaults.get('nms_threshold', 0.5):.2f}")
         self.track_threshold_var.set(f"{defaults.get('track_threshold', 0.25):.2f}")
         self.match_threshold_var.set(f"{defaults.get('match_threshold', 0.15):.2f}")
 
         try:
-            self.controller.update_detector_parameters(
-                defaults, reset_overrides=True
-            )
+            self.controller.update_detector_parameters(defaults, reset_overrides=True)
         except ValueError as exc:
             messagebox.showerror("Erro", str(exc))
             return
@@ -467,7 +451,10 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.publish_event(Events.MODEL_SET_OPENVINO, {"use_openvino": self.use_openvino_var.get(), "dialog": self})
+        self.publish_event(
+            Events.MODEL_SET_OPENVINO,
+            {"use_openvino": self.use_openvino_var.get(), "dialog": self},
+        )
 
     def update_openvino_status_label(self, status: str):
         """Updates the status label with the given text."""
@@ -510,14 +497,10 @@ class CalibrationDialog(simpledialog.Dialog):
         try:
             frames = int(self.frames_to_analyze_var.get())
             if frames <= 0:
-                messagebox.showerror(
-                    "Erro", "O número de frames deve ser um inteiro positivo."
-                )
+                messagebox.showerror("Erro", "O número de frames deve ser um inteiro positivo.")
                 return
         except ValueError:
-            messagebox.showerror(
-                "Erro", "O número de frames deve ser um número inteiro."
-            )
+            messagebox.showerror("Erro", "O número de frames deve ser um número inteiro.")
             return
 
         try:
@@ -528,9 +511,7 @@ class CalibrationDialog(simpledialog.Dialog):
                 )
                 return
         except ValueError:
-            messagebox.showerror(
-                "Erro", "O limiar de confiança deve ser um número válido."
-            )
+            messagebox.showerror("Erro", "O limiar de confiança deve ser um número válido.")
             return
 
         # --- Config Build ---
@@ -584,10 +565,7 @@ class CalibrationDialog(simpledialog.Dialog):
             if result:
                 messagebox.showinfo(
                     "Projeto atualizado",
-                    (
-                        "Os padrões globais foram copiados para o projeto "
-                        f"{project_name}."
-                    ),
+                    (f"Os padrões globais foram copiados para o projeto {project_name}."),
                 )
         else:
             self.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
@@ -595,10 +573,7 @@ class CalibrationDialog(simpledialog.Dialog):
             if result:
                 messagebox.showinfo(
                     "Overrides salvos",
-                    (
-                        "A calibração atual foi salva como override para o projeto "
-                        f"{project_name}."
-                    ),
+                    (f"A calibração atual foi salva como override para o projeto {project_name}."),
                 )
 
         self._populate_weights_dropdown()
@@ -642,9 +617,7 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
 
         defaults = self.controller.get_global_model_defaults()
         overrides = (
-            getattr(self.project_manager, "project_data", {})
-            .get("model_overrides", {})
-            or {}
+            getattr(self.project_manager, "project_data", {}).get("model_overrides", {}) or {}
         )
 
         weights = self.controller.get_all_weight_names()
@@ -679,12 +652,8 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         else:
             self.openvino_choice.set(self.OPENVINO_OFF)
 
-        openvino_frame = ttk.LabelFrame(
-            master, text="OpenVINO", padding=8
-        )
-        openvino_frame.grid(
-            row=2, column=0, columnspan=2, padx=10, pady=(12, 4), sticky="ew"
-        )
+        openvino_frame = ttk.LabelFrame(master, text="OpenVINO", padding=8)
+        openvino_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=(12, 4), sticky="ew")
         openvino_frame.columnconfigure(0, weight=1)
 
         ttk.Radiobutton(
@@ -713,23 +682,15 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         preview.grid(row=3, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="ew")
         preview.columnconfigure(1, weight=1)
 
-        ttk.Label(preview, text="Peso utilizado:").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(preview, textvariable=self.effective_weight_var).grid(
-            row=0, column=1, sticky="w"
-        )
+        ttk.Label(preview, text="Peso utilizado:").grid(row=0, column=0, sticky="w")
+        ttk.Label(preview, textvariable=self.effective_weight_var).grid(row=0, column=1, sticky="w")
         ttk.Label(preview, text="OpenVINO:").grid(row=1, column=0, sticky="w")
         ttk.Label(preview, textvariable=self.effective_openvino_var).grid(
             row=1, column=1, sticky="w"
         )
 
-        defaults_frame = ttk.LabelFrame(
-            master, text="Padrões Globais", padding=8
-        )
-        defaults_frame.grid(
-            row=4, column=0, columnspan=2, padx=10, pady=(6, 4), sticky="ew"
-        )
+        defaults_frame = ttk.LabelFrame(master, text="Padrões Globais", padding=8)
+        defaults_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=(6, 4), sticky="ew")
         ttk.Label(
             defaults_frame,
             text=f"Peso global: {defaults.get('active_weight') or 'Nenhum'}",
@@ -737,14 +698,11 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         ttk.Label(
             defaults_frame,
             text=(
-                "OpenVINO global: "
-                + ("Ativado" if defaults.get("use_openvino") else "Desativado")
+                "OpenVINO global: " + ("Ativado" if defaults.get("use_openvino") else "Desativado")
             ),
         ).pack(anchor="w", pady=(4, 0))
 
-        self.weight_dropdown.bind(
-            "<<ComboboxSelected>>", lambda *_: self._update_preview()
-        )
+        self.weight_dropdown.bind("<<ComboboxSelected>>", lambda *_: self._update_preview())
         self._update_preview()
 
         return self.weight_dropdown
@@ -768,19 +726,15 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
 
     def _update_preview(self):
         weight_override, openvino_override = self._get_override_values()
-        resolved_weight, resolved_openvino = (
-            self.controller.resolve_project_model_settings(
-                {
-                    "active_weight": weight_override,
-                    "use_openvino": openvino_override,
-                }
-            )
+        resolved_weight, resolved_openvino = self.controller.resolve_project_model_settings(
+            {
+                "active_weight": weight_override,
+                "use_openvino": openvino_override,
+            }
         )
 
         self.effective_weight_var.set(resolved_weight or "Nenhum peso disponível")
-        self.effective_openvino_var.set(
-            "Ativado" if resolved_openvino else "Desativado"
-        )
+        self.effective_openvino_var.set("Ativado" if resolved_openvino else "Desativado")
 
     def apply(self):
         weight_override, openvino_override = self._get_override_values()
@@ -791,9 +745,7 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
     def buttonbox(self):
         box = ttk.Frame(self)
         ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
-        ttk.Button(box, text="Salvar", command=self.ok, default="active").pack(
-            side="right", padx=6
-        )
+        ttk.Button(box, text="Salvar", command=self.ok, default="active").pack(side="right", padx=6)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
         box.pack(pady=10)
@@ -822,9 +774,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
         button_frame = ttk.Frame(master)
         button_frame.pack(pady=5)
 
-        ttk.Button(
-            button_frame, text="Definir como Padrão", command=self.set_default
-        ).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Definir como Padrão", command=self.set_default).pack(
+            side="left", padx=5
+        )
         ttk.Button(button_frame, text="Excluir Selecionado", command=self.delete).pack(
             side="left", padx=5
         )
@@ -843,9 +795,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
     def get_selected_item_name(self):
         selected = self.listbox.selection()
         if not selected:
-            messagebox.showwarning(
-                "Nenhuma Seleção", "Por favor, selecione um peso primeiro."
-            )
+            messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione um peso primeiro.")
             return None
         return self.listbox.item(selected[0])["values"][0]
 
@@ -914,9 +864,7 @@ class PendingVideosDialog(simpledialog.Dialog):
 
         ttk.Label(
             master,
-            text=(
-                "Revise a lista hierárquica e confirme os itens que deseja processar."
-            ),
+            text=("Revise a lista hierárquica e confirme os itens que deseja processar."),
             wraplength=560,
             justify="left",
         ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
@@ -965,9 +913,7 @@ class PendingVideosDialog(simpledialog.Dialog):
             ttk.Checkbutton(
                 master,
                 text=(
-                    "Incluir "
-                    f"{len(self.arena_only)} vídeo(s) com apenas arena no "
-                    "processamento."
+                    f"Incluir {len(self.arena_only)} vídeo(s) com apenas arena no processamento."
                 ),
                 variable=self.include_arena_only_var,
             ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 12))
@@ -979,9 +925,7 @@ class PendingVideosDialog(simpledialog.Dialog):
     def buttonbox(self):
         box = ttk.Frame(self)
         box.pack(pady=(0, 12))
-        ttk.Button(box, text="Cancelar", command=self.cancel).pack(
-            side="right", padx=6
-        )
+        ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
         ttk.Button(box, text="Processar", command=self.ok, default="active").pack(
             side="right", padx=6
         )
@@ -1101,37 +1045,27 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # Detection method configuration variables
         self.aquarium_method_var = StringVar(value="seg")  # Default from settings
-        self.animal_method_var = StringVar(value="det")    # Default from settings
+        self.animal_method_var = StringVar(value="det")  # Default from settings
 
         # --- Project Name ---
-        Label(master, text="Nome do Projeto:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Nome do Projeto:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
         Entry(master, textvariable=self.project_name_var, width=40).grid(
             row=0, column=1, columnspan=2, sticky="ew", padx=5
         )
 
         # --- Base Path ---
-        Label(master, text="Pasta do Projeto:").grid(
-            row=1, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Pasta do Projeto:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
         self.path_entry = Entry(master, text="", width=40)
         self.path_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
-        Button(master, text="Procurar...", command=self._select_path).grid(
-            row=1, column=3, padx=5
-        )
+        Button(master, text="Procurar...", command=self._select_path).grid(row=1, column=3, padx=5)
 
         # --- Calibration ---
-        Label(master, text="Número de Aquários:").grid(
-            row=2, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Número de Aquários:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
         Entry(master, textvariable=self.num_aquariums_var, width=10).grid(
             row=2, column=1, sticky="w", padx=5
         )
 
-        Label(master, text="Animais por Aquário:").grid(
-            row=3, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Animais por Aquário:").grid(row=3, column=0, sticky="w", padx=5, pady=2)
         Entry(master, textvariable=self.animals_per_aquarium_var, width=10).grid(
             row=3, column=1, sticky="w", padx=5
         )
@@ -1166,34 +1100,28 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
 
         # --- Detection Methods ---
-        Label(master, text="Método para Aquário:").grid(
-            row=8, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Método para Aquário:").grid(row=8, column=0, sticky="w", padx=5, pady=2)
         aquarium_method_combo = ttk.Combobox(
             master,
             textvariable=self.aquarium_method_var,
             values=["seg", "det"],
             state="readonly",
-            width=8
+            width=8,
         )
         aquarium_method_combo.grid(row=8, column=1, sticky="w", padx=5)
 
-        Label(master, text="Método para Animais:").grid(
-            row=9, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Método para Animais:").grid(row=9, column=0, sticky="w", padx=5, pady=2)
         animal_method_combo = ttk.Combobox(
             master,
             textvariable=self.animal_method_var,
             values=["seg", "det"],
             state="readonly",
-            width=8
+            width=8,
         )
         animal_method_combo.grid(row=9, column=1, sticky="w", padx=5)
 
         # --- Project Type & Videos ---
-        Label(master, text="Tipo de Projeto:").grid(
-            row=10, column=0, sticky="w", padx=5, pady=2
-        )
+        Label(master, text="Tipo de Projeto:").grid(row=10, column=0, sticky="w", padx=5, pady=2)
         ttk.Radiobutton(
             master,
             text="Pré-gravado",
@@ -1211,9 +1139,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # Video/Folder selection buttons
         video_selection_frame = Frame(master)
-        video_selection_frame.grid(
-            row=11, column=0, columnspan=2, sticky="w", padx=5, pady=5
-        )
+        video_selection_frame.grid(row=11, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
         self.video_files_button = Button(
             video_selection_frame,
@@ -1235,9 +1161,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # --- Live Recording Options ---
         self.live_options_frame = Frame(master)
-        self.live_options_frame.grid(
-            row=12, column=0, columnspan=4, sticky="ew", padx=5
-        )
+        self.live_options_frame.grid(row=12, column=0, columnspan=4, sticky="ew", padx=5)
         Checkbutton(
             self.live_options_frame,
             text="Usar gravação com tempo?",
@@ -1267,22 +1191,20 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.live_project_frame = ttk.LabelFrame(
             master, text="Design Experimental (Projeto ao Vivo)", padding=10
         )
-        self.live_project_frame.grid(
-            row=13, column=0, columnspan=4, sticky="ew", padx=5, pady=5
-        )
+        self.live_project_frame.grid(row=13, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
         # Widgets inside live_project_frame
         ttk.Label(self.live_project_frame, text="Total de Dias do Experimento:").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            self.live_project_frame, textvariable=self.total_days_var, width=10
-        ).grid(row=0, column=1, sticky="w", padx=5)
+        ttk.Entry(self.live_project_frame, textvariable=self.total_days_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
+        )
         ttk.Label(self.live_project_frame, text="Cobaias por Grupo:").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            self.live_project_frame, textvariable=self.subjects_per_group_var, width=10
-        ).grid(row=1, column=1, sticky="w", padx=5)
+        ttk.Entry(self.live_project_frame, textvariable=self.subjects_per_group_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=5
+        )
         ttk.Label(self.live_project_frame, text="Número de Grupos:").grid(
             row=2, column=0, sticky="w", padx=5, pady=2
         )
@@ -1294,9 +1216,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         self.group_names_frame = ttk.LabelFrame(
             self.live_project_frame, text="Nomes dos Grupos", padding=5
         )
-        self.group_names_frame.grid(
-            row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5
-        )
+        self.group_names_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
         self.group_name_entries = []
         for i in range(6):
             row, col = divmod(i, 2)
@@ -1314,9 +1234,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         return self.path_entry  # initial focus
 
     def _select_path(self):
-        path = filedialog.askdirectory(
-            title="Selecione uma Pasta Principal para o Projeto"
-        )
+        path = filedialog.askdirectory(title="Selecione uma Pasta Principal para o Projeto")
         if path:
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, path)
@@ -1329,9 +1247,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         )
         if files:
             # Initialize if needed
-            if not hasattr(self, "video_paths") or not isinstance(
-                self.video_paths, list
-            ):
+            if not hasattr(self, "video_paths") or not isinstance(self.video_paths, list):
                 self.video_paths = []
 
             # Add new files to the list (avoid duplicates)
@@ -1343,14 +1259,10 @@ class CreateProjectDialog(simpledialog.Dialog):
 
     def _select_video_folder(self):
         """Select a folder containing videos."""
-        folder = filedialog.askdirectory(
-            title="Selecione uma Pasta Contendo Vídeos"
-        )
+        folder = filedialog.askdirectory(title="Selecione uma Pasta Contendo Vídeos")
         if folder:
             # Initialize if needed
-            if not hasattr(self, "video_paths") or not isinstance(
-                self.video_paths, list
-            ):
+            if not hasattr(self, "video_paths") or not isinstance(self.video_paths, list):
                 self.video_paths = []
 
             # Add folder to the list (avoid duplicates)
@@ -1361,7 +1273,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
     def _update_video_selection_display(self):
         """Update the display showing selected videos/folders."""
-        if not hasattr(self, 'video_paths') or not self.video_paths:
+        if not hasattr(self, "video_paths") or not self.video_paths:
             self.video_list_var.set("Nenhum vídeo/pasta selecionado.")
             return
 
@@ -1421,9 +1333,7 @@ class CreateProjectDialog(simpledialog.Dialog):
     def validate(self):
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            messagebox.showerror(
-                "Erro", "Por favor, selecione uma pasta principal válida."
-            )
+            messagebox.showerror("Erro", "Por favor, selecione uma pasta principal válida.")
             return 0
 
         project_name = self.project_name_var.get()
@@ -1440,7 +1350,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             return 0
 
         if self.project_type_var.get() == "pre-recorded":
-            if not hasattr(self, 'video_paths') or not self.video_paths:
+            if not hasattr(self, "video_paths") or not self.video_paths:
                 messagebox.showerror(
                     "Erro",
                     "Por favor, selecione pelo menos um arquivo de vídeo ou pasta para "
@@ -1467,9 +1377,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
                     raise ValueError("Os valores devem ser positivos.")
                 if not 1 <= num_groups <= 6:
-                    messagebox.showerror(
-                        "Erro", "O número de grupos deve ser entre 1 e 6."
-                    )
+                    messagebox.showerror("Erro", "O número de grupos deve ser entre 1 e 6.")
                     return 0
                 # Check that required group names are not empty
                 for i in range(num_groups):
@@ -1481,8 +1389,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             except (ValueError, TypeError):
                 messagebox.showerror(
                     "Erro",
-                    "Os parâmetros do design experimental devem ser números "
-                    "positivos válidos.",
+                    "Os parâmetros do design experimental devem ser números positivos válidos.",
                 )
                 return 0
             if self.use_timed_recording_var.get():
@@ -1499,14 +1406,11 @@ class CreateProjectDialog(simpledialog.Dialog):
                 try:
                     countdown = int(self.countdown_duration_var.get())
                     if countdown <= 0:
-                        raise ValueError(
-                            "A contagem regressiva deve ser um inteiro positivo."
-                        )
+                        raise ValueError("A contagem regressiva deve ser um inteiro positivo.")
                 except ValueError:
                     messagebox.showerror(
                         "Erro",
-                        "A duração da contagem regressiva deve ser um inteiro "
-                        "positivo.",
+                        "A duração da contagem regressiva deve ser um inteiro positivo.",
                     )
                     return 0
 
@@ -1519,8 +1423,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         except ValueError:
             messagebox.showerror(
                 "Erro",
-                "Os intervalos de análise e exibição devem ser números inteiros "
-                "positivos.",
+                "Os intervalos de análise e exibição devem ser números inteiros positivos.",
             )
             return 0
 
@@ -1543,7 +1446,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 pass
 
         # Use video_paths if available, fallback to empty list
-        video_paths = getattr(self, 'video_paths', [])
+        video_paths = getattr(self, "video_paths", [])
 
         num_aquariums = int(self.num_aquariums_var.get())
         animals_per_aquarium = int(self.animals_per_aquarium_var.get())
@@ -1601,9 +1504,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.arduino_port_var = StringVar()
 
         # --- Camera Selection ---
-        Label(master, text="Selecionar Câmera:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=5
-        )
+        Label(master, text="Selecionar Câmera:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         camera_names = list(self.available_cameras.keys())
         if not camera_names:
             camera_names = ["Nenhuma câmera encontrada"]
@@ -1622,13 +1523,9 @@ class LiveConfigDialog(simpledialog.Dialog):
             variable=self.use_arduino_var,
             command=self._toggle_arduino_menu,
         )
-        self.arduino_check.grid(
-            row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5
-        )
+        self.arduino_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
-        Label(master, text="Porta Arduino:").grid(
-            row=2, column=0, sticky="w", padx=5, pady=5
-        )
+        Label(master, text="Porta Arduino:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
         port_names = list(self.available_ports.keys())
         if not port_names:
             port_names = ["Nenhuma porta encontrada"]
@@ -1656,13 +1553,9 @@ class LiveConfigDialog(simpledialog.Dialog):
         try:
             log.info("device_detection.ports.start")
             baud_rate = (
-                getattr(getattr(settings, "arduino", None), "baud_rate", 9600)
-                if settings
-                else 9600
+                getattr(getattr(settings, "arduino", None), "baud_rate", 9600) if settings else 9600
             )
-            handshake_ports, fallback_ports = Arduino.scan_available_ports(
-                baud_rate=baud_rate
-            )
+            handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
             def _add_port(info, *, handshake: bool) -> None:
                 device_id = getattr(info, "device", None)
@@ -1736,9 +1629,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.result = {
             "camera_index": self.available_cameras.get(self.camera_var.get()),
             "use_arduino": use_arduino,
-            "arduino_port": self.available_ports.get(selected_port_key)
-            if use_arduino
-            else None,
+            "arduino_port": self.available_ports.get(selected_port_key) if use_arduino else None,
         }
 
 
@@ -1789,9 +1680,7 @@ class ApplicationGUI:
 
         # Model management state (reflected across welcome + project views)
         self._available_weight_names: list[str] = []
-        self._active_weight_display_var = StringVar(
-            value="Peso ativo: Nenhum peso selecionado."
-        )
+        self._active_weight_display_var = StringVar(value="Peso ativo: Nenhum peso selecionado.")
         self._openvino_display_var = StringVar(value="OpenVINO: Desativado.")
         self._openvino_enabled = False
         self._openvino_status_message = "Desativado."
@@ -1799,7 +1688,7 @@ class ApplicationGUI:
         # ROI Tab Widgets
         self.roi_listbox = None
         self.run_analysis_btn = None
-        self.roi_template_combobox = None
+        # Note: roi_template_combobox is now a @property that delegates to zone_controls
 
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
@@ -1889,31 +1778,21 @@ class ApplicationGUI:
             default_day,
             default_subject,
         ) = self._analysis_metadata_defaults()
-        self.analysis_metadata_var = StringVar(
-            value=self._default_analysis_metadata_text()
-        )
+        self.analysis_metadata_var = StringVar(value=self._default_analysis_metadata_text())
         self.analysis_group_var = StringVar(value=f"Grupo: {default_group}")
         self.analysis_day_var = StringVar(value=f"Dia: {default_day}")
-        self.analysis_subject_var = StringVar(
-            value=f"Indivíduo: {default_subject}"
-        )
-        self.analysis_task_var = StringVar(
-            value=self._default_analysis_task_text()
-        )
+        self.analysis_subject_var = StringVar(value=f"Indivíduo: {default_subject}")
+        self.analysis_task_var = StringVar(value=self._default_analysis_task_text())
         self.analysis_metadata_label: ttk.Label | None = None
         self.analysis_task_label: ttk.Label | None = None
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
-        self.tracking_mode_var = StringVar(
-            value="Modo de rastreamento: Multi-indivíduos"
-        )
+        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
         self.tracking_mode_label: ttk.Label | None = None
         self.analysis_profile_var = StringVar(value="Perfil de análise: default")
         self.analysis_profile_label: ttk.Label | None = None
         self.track_selector_var = StringVar(value="Todos")
         self.track_selector_widget: ttk.Combobox | None = None
-        self.social_summary_var = StringVar(
-            value="Interações sociais: aguardando dados."
-        )
+        self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
         self._available_track_options: tuple[str, ...] = ("Todos",)
         self._current_detections: list[tuple] = []
         self._last_analysis_frame = None
@@ -1932,7 +1811,7 @@ class ApplicationGUI:
         # View toggle state for analysis/zone switching
         self.canvas_view_mode = "zones"  # "zones" or "analysis"
         self.analysis_active = False
-        self.toggle_view_btn = None
+        # toggle_view_btn is now a @property that delegates to zone_controls
         self.start_rec_btn: Button | None = None
         self.stop_rec_btn: Button | None = None
         self.process_video_btn: ttk.Button | None = None
@@ -1947,10 +1826,10 @@ class ApplicationGUI:
         self.current_editing_zone = None  # Track what zone is being edited
         self.save_arena_btn = None
         self.discard_arena_btn = None
-        self.interactive_buttons_frame = None
+        # interactive_buttons_frame is now a @property that delegates to zone_controls
 
         # Zone tab video selector state
-        self.video_selector_tree = None
+        # video_selector_tree is now a @property that delegates to zone_controls
         self.video_search_var = None
         self._video_selector_filter = ""
         self._pending_readiness_snapshot = {}
@@ -1989,41 +1868,39 @@ class ApplicationGUI:
         if self.event_bus is not None:
             self._register_event_bus_handlers()
             self._schedule_event_bus_poll()
-        
+
         # Subscribe to StateManager state changes for reactive UI updates
         self._subscribe_to_state_changes()
 
     def _subscribe_to_state_changes(self) -> None:
         """Subscribe to StateManager events for reactive UI updates."""
         from zebtrack.core.state_manager import StateCategory
-        
+
         # Subscribe to recording state changes
         self.controller.state_manager.subscribe(
-            StateCategory.RECORDING,
-            self._on_recording_state_changed
+            StateCategory.RECORDING, self._on_recording_state_changed
         )
-        
+
         # Subscribe to processing state changes
         self.controller.state_manager.subscribe(
-            StateCategory.PROCESSING,
-            self._on_processing_state_changed
+            StateCategory.PROCESSING, self._on_processing_state_changed
         )
-        
+
         # Subscribe to detector state changes
         self.controller.state_manager.subscribe(
-            StateCategory.DETECTOR,
-            self._on_detector_state_changed
+            StateCategory.DETECTOR, self._on_detector_state_changed
         )
-        
+
         # Subscribe to project state changes
         self.controller.state_manager.subscribe(
-            StateCategory.PROJECT,
-            self._on_project_state_changed
+            StateCategory.PROJECT, self._on_project_state_changed
         )
-        
-        log.info("gui.state_observers.subscribed", 
-                 categories=["RECORDING", "PROCESSING", "DETECTOR", "PROJECT"])
-    
+
+        log.info(
+            "gui.state_observers.subscribed",
+            categories=["RECORDING", "PROCESSING", "DETECTOR", "PROJECT"],
+        )
+
     def _on_recording_state_changed(self, category, key, old_value, new_value) -> None:
         """Handle recording state changes."""
         if key == "is_recording":
@@ -2032,25 +1909,25 @@ class ApplicationGUI:
         elif key == "arduino_connected":
             # Schedule Arduino UI update on main thread
             self.root.after(0, self._update_arduino_ui, new_value)
-    
+
     def _on_processing_state_changed(self, category, key, old_value, new_value) -> None:
         """Handle processing state changes."""
         if key == "is_processing":
             # Schedule UI update on main thread
             self.root.after(0, self._update_processing_ui, new_value)
-    
+
     def _on_detector_state_changed(self, category, key, old_value, new_value) -> None:
         """Handle detector state changes."""
         if key == "detector_initialized":
             # Schedule UI update on main thread
             self.root.after(0, self._update_detector_ui, new_value)
-    
+
     def _on_project_state_changed(self, category, key, old_value, new_value) -> None:
         """Handle project state changes."""
         if key == "project_path":
             # Schedule project UI update on main thread
             self.root.after(0, self._update_project_ui, new_value)
-    
+
     def _update_recording_ui(self, is_recording: bool) -> None:
         """Update UI elements based on recording state."""
         if is_recording:
@@ -2067,7 +1944,7 @@ class ApplicationGUI:
                 self.start_rec_btn.config(state="normal")
             if self.stop_rec_btn:
                 self.stop_rec_btn.config(state="disabled")
-    
+
     def _update_processing_ui(self, is_processing: bool) -> None:
         """Update UI elements based on processing state."""
         if is_processing:
@@ -2080,7 +1957,7 @@ class ApplicationGUI:
             # Re-enable process button after processing
             if self.process_video_btn:
                 self.process_video_btn.config(state="normal")
-    
+
     def _update_detector_ui(self, detector_initialized: bool) -> None:
         """Update UI elements based on detector state."""
         if detector_initialized:
@@ -2089,15 +1966,15 @@ class ApplicationGUI:
         else:
             log.debug("gui.detector_state.uninitialized")
             # Detector not ready - disable dependent UI elements
-    
+
     def _update_arduino_ui(self, arduino_connected: bool) -> None:
         """Update UI elements based on Arduino connection state."""
         if arduino_connected:
             log.debug("gui.arduino_state.connected")
             # Update Arduino status indicator if it exists
-            if hasattr(self, 'arduino_status_var'):
+            if hasattr(self, "arduino_status_var"):
                 self.arduino_status_var.set("Conectado")
-            if hasattr(self, 'arduino_status_indicator'):
+            if hasattr(self, "arduino_status_indicator"):
                 try:
                     self.arduino_status_indicator.config(style="success.TLabel")
                 except Exception:
@@ -2105,14 +1982,14 @@ class ApplicationGUI:
         else:
             log.debug("gui.arduino_state.disconnected")
             # Update Arduino status indicator if it exists
-            if hasattr(self, 'arduino_status_var'):
+            if hasattr(self, "arduino_status_var"):
                 self.arduino_status_var.set("Desconectado")
-            if hasattr(self, 'arduino_status_indicator'):
+            if hasattr(self, "arduino_status_indicator"):
                 try:
                     self.arduino_status_indicator.config(style="danger.TLabel")
                 except Exception:
                     pass  # Ignore if widget doesn't exist yet
-    
+
     def _update_project_ui(self, project_path) -> None:
         """Update UI elements based on project state."""
         if project_path:
@@ -2162,9 +2039,9 @@ class ApplicationGUI:
 
     def publish_event(self, event_name: str, data: dict[str, Any] | None = None) -> None:
         """Publish a named event to the controller via the event bus.
-        
+
         Falls back to direct controller method call if event bus is not available.
-        
+
         Args:
             event_name: Name of the event (from Events class)
             data: Optional event data dictionary
@@ -2231,11 +2108,7 @@ class ApplicationGUI:
     ) -> dict[str, Any]:
         result = copy.deepcopy(base)
         for key, value in override.items():
-            if (
-                isinstance(value, dict)
-                and key in result
-                and isinstance(result[key], dict)
-            ):
+            if isinstance(value, dict) and key in result and isinstance(result[key], dict):
                 result[key] = ApplicationGUI._deep_merge_dicts(result[key], value)
             else:
                 result[key] = value
@@ -2277,7 +2150,7 @@ class ApplicationGUI:
         self.root.update_idletasks()
 
         # Reset analysis tab widgets before destroying the notebook
-        if hasattr(self, 'analysis_video_label') and self.analysis_video_label:
+        if hasattr(self, "analysis_video_label") and self.analysis_video_label:
             try:
                 if self.analysis_video_label.winfo_exists():
                     self.analysis_video_label.configure(image="")
@@ -2306,14 +2179,14 @@ class ApplicationGUI:
         except Exception:
             pass
 
-        if hasattr(self, 'progress_labels') and self.progress_labels:
+        if hasattr(self, "progress_labels") and self.progress_labels:
             for var in self.progress_labels.values():
                 try:
                     var.set("-")
                 except Exception:
                     pass
 
-        if hasattr(self, 'roi_canvas') and self.roi_canvas:
+        if hasattr(self, "roi_canvas") and self.roi_canvas:
             try:
                 if self.roi_canvas.winfo_exists():
                     self.roi_canvas.pack_forget()
@@ -2321,7 +2194,7 @@ class ApplicationGUI:
                 pass
 
         # Destroy viz_frame (parent frame)
-        if hasattr(self, 'viz_frame') and self.viz_frame:
+        if hasattr(self, "viz_frame") and self.viz_frame:
             try:
                 if self.viz_frame.winfo_exists():
                     self.viz_frame.destroy()
@@ -2330,7 +2203,7 @@ class ApplicationGUI:
             self.viz_frame = None
 
         # Clean up zone tab frame components
-        if hasattr(self, 'zone_tab_frame') and self.zone_tab_frame:
+        if hasattr(self, "zone_tab_frame") and self.zone_tab_frame:
             try:
                 if self.zone_tab_frame.winfo_exists():
                     self.zone_tab_frame.destroy()
@@ -2437,9 +2310,8 @@ class ApplicationGUI:
             log.debug("ui.theme.bootstrap_missing")
             return
 
-        preferred_theme = (
-            getattr(settings, "ui_theme_name", None)
-            or getattr(settings, "ui_theme", None)
+        preferred_theme = getattr(settings, "ui_theme_name", None) or getattr(
+            settings, "ui_theme", None
         )
         theme_name = preferred_theme or "cosmo"
 
@@ -2490,23 +2362,14 @@ class ApplicationGUI:
             or style.lookup("TFrame", "background", None)
             or "#ffffff"
         )
-        tab_inactive = (
-            style.lookup("TNotebook.Tab", "background", None)
-            or "#dce3ee"
-        )
+        tab_inactive = style.lookup("TNotebook.Tab", "background", None) or "#dce3ee"
         border_color = (
             style.lookup("TNotebook", "bordercolor", None)
             or style.lookup("TNotebook", "lightcolor", None)
             or "#c5ccd9"
         )
-        text_active = (
-            style.lookup("TNotebook.Tab", "foreground", None, ("selected",))
-            or "#1d2733"
-        )
-        text_inactive = (
-            style.lookup("TNotebook.Tab", "foreground", None)
-            or "#4a5568"
-        )
+        text_active = style.lookup("TNotebook.Tab", "foreground", None, ("selected",)) or "#1d2733"
+        text_inactive = style.lookup("TNotebook.Tab", "foreground", None) or "#4a5568"
 
         style.configure(
             "Zebtrack.TNotebook",
@@ -2577,15 +2440,11 @@ class ApplicationGUI:
             return
 
         current_tab = self.notebook.select()
-        analysis_tab_id = (
-            str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
-        )
+        analysis_tab_id = str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
 
         if self.analysis_active:
             self.canvas_view_mode = (
-                "analysis"
-                if analysis_tab_id and current_tab == analysis_tab_id
-                else "zones"
+                "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
             )
             if self.toggle_view_btn:
                 if current_tab == analysis_tab_id:
@@ -2696,9 +2555,9 @@ class ApplicationGUI:
         ttk.Label(video_frame, text="Intervalo de processamento (N):").grid(
             row=1, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            video_frame, textvariable=self.config_processing_interval_var, width=8
-        ).grid(row=1, column=1, sticky="w")
+        ttk.Entry(video_frame, textvariable=self.config_processing_interval_var, width=8).grid(
+            row=1, column=1, sticky="w"
+        )
         ttk.Label(
             video_frame,
             text="Processa 1 frame a cada N frames originais.",
@@ -2709,9 +2568,9 @@ class ApplicationGUI:
         ttk.Label(video_frame, text="Offset inicial (frames):").grid(
             row=2, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            video_frame, textvariable=self.config_processing_offset_var, width=8
-        ).grid(row=2, column=1, sticky="w")
+        ttk.Entry(video_frame, textvariable=self.config_processing_offset_var, width=8).grid(
+            row=2, column=1, sticky="w"
+        )
         ttk.Label(
             video_frame,
             text="Garante que offset < intervalo para manter a cadência correta.",
@@ -2731,9 +2590,9 @@ class ApplicationGUI:
         ttk.Label(smoothing_frame, text="Window length (ímpar):").grid(
             row=0, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            smoothing_frame, textvariable=self.config_window_length_var, width=8
-        ).grid(row=0, column=1, sticky="w")
+        ttk.Entry(smoothing_frame, textvariable=self.config_window_length_var, width=8).grid(
+            row=0, column=1, sticky="w"
+        )
         ttk.Label(
             smoothing_frame,
             text="Usado pelo filtro Savitzky-Golay. Precisa ser ímpar e ≥ 3.",
@@ -2744,9 +2603,9 @@ class ApplicationGUI:
         ttk.Label(smoothing_frame, text="Polyorder:").grid(
             row=1, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            smoothing_frame, textvariable=self.config_polyorder_var, width=8
-        ).grid(row=1, column=1, sticky="w")
+        ttk.Entry(smoothing_frame, textvariable=self.config_polyorder_var, width=8).grid(
+            row=1, column=1, sticky="w"
+        )
         ttk.Label(
             smoothing_frame,
             text="Ordem do polinômio < window_length para evitar overfitting.",
@@ -2766,9 +2625,9 @@ class ApplicationGUI:
         ttk.Label(recorder_frame, text="Flush automático (s):").grid(
             row=0, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            recorder_frame, textvariable=self.config_flush_interval_var, width=8
-        ).grid(row=0, column=1, sticky="w")
+        ttk.Entry(recorder_frame, textvariable=self.config_flush_interval_var, width=8).grid(
+            row=0, column=1, sticky="w"
+        )
         ttk.Label(
             recorder_frame,
             text="Define intervalo para descarregar buffers no Parquet.",
@@ -2779,9 +2638,9 @@ class ApplicationGUI:
         ttk.Label(recorder_frame, text="Limite de linhas por flush:").grid(
             row=1, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(
-            recorder_frame, textvariable=self.config_flush_rows_var, width=8
-        ).grid(row=1, column=1, sticky="w")
+        ttk.Entry(recorder_frame, textvariable=self.config_flush_rows_var, width=8).grid(
+            row=1, column=1, sticky="w"
+        )
         ttk.Label(
             recorder_frame,
             text="Quando atingir este limite, os dados são gravados imediatamente.",
@@ -3154,22 +3013,18 @@ class ApplicationGUI:
             # Analysis interval
             analysis_label_frame = ttk.Frame(intervals_frame)
             analysis_label_frame.pack(fill="x", pady=2)
-            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(
-                side="left"
+            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
+            ttk.Entry(analysis_label_frame, textvariable=self.analysis_interval_var, width=10).pack(
+                side="right"
             )
-            ttk.Entry(
-                analysis_label_frame, textvariable=self.analysis_interval_var, width=10
-            ).pack(side="right")
 
             # Display interval
             display_label_frame = ttk.Frame(intervals_frame)
             display_label_frame.pack(fill="x", pady=2)
-            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(
-                side="left"
+            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
+            ttk.Entry(display_label_frame, textvariable=self.display_interval_var, width=10).pack(
+                side="right"
             )
-            ttk.Entry(
-                display_label_frame, textvariable=self.display_interval_var, width=10
-            ).pack(side="right")
 
         Button(
             controls_container,
@@ -3223,12 +3078,8 @@ class ApplicationGUI:
                 pady=6,
             )
             self.external_trigger_notice_label.pack(fill="x", pady=(0, 8))
-            self._external_notice_default_bg = (
-                self.external_trigger_notice_label.cget("background")
-            )
-            self._external_notice_default_fg = (
-                self.external_trigger_notice_label.cget("foreground")
-            )
+            self._external_notice_default_bg = self.external_trigger_notice_label.cget("background")
+            self._external_notice_default_fg = self.external_trigger_notice_label.cget("foreground")
 
             self._build_arduino_dashboard(self.main_controls_frame)
             self.clear_external_trigger_notice()
@@ -3245,9 +3096,7 @@ class ApplicationGUI:
             except Exception:
                 pass
 
-        self.project_overview_frame = ttk.LabelFrame(
-            parent, text="Resumo do Projeto", padding=10
-        )
+        self.project_overview_frame = ttk.LabelFrame(parent, text="Resumo do Projeto", padding=10)
         self.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
 
         summary_frame = ttk.Frame(self.project_overview_frame)
@@ -3259,9 +3108,7 @@ class ApplicationGUI:
             icon, label = self._get_status_meta(key)
             container = ttk.Frame(summary_frame)
             container.pack(side="left", padx=(0, 12))
-            ttk.Label(container, text=f"{icon} {label}:", anchor="w").pack(
-                side="left"
-            )
+            ttk.Label(container, text=f"{icon} {label}:", anchor="w").pack(side="left")
             var = self.project_status_vars.get(key)
             if not var:
                 var = StringVar(value="0")
@@ -3286,9 +3133,7 @@ class ApplicationGUI:
         self.project_overview_tree.heading("status", text="Status")
         self.project_overview_tree.heading("data", text="Dados")
         self.project_overview_tree.column("#0", width=320, stretch=True)
-        self.project_overview_tree.column(
-            "status", width=180, anchor="w", stretch=False
-        )
+        self.project_overview_tree.column("status", width=180, anchor="w", stretch=False)
         self.project_overview_tree.column("data", width=260, anchor="w", stretch=True)
 
         scrollbar = ttk.Scrollbar(
@@ -3299,26 +3144,16 @@ class ApplicationGUI:
         scrollbar.pack(side="right", fill="y")
 
         self.project_overview_tree.tag_configure("status_pending", foreground="#92400e")
-        self.project_overview_tree.tag_configure(
-            "status_processing", foreground="#b45309"
-        )
-        self.project_overview_tree.tag_configure(
-            "status_processed", foreground="#0f5132"
-        )
-        self.project_overview_tree.tag_configure(
-            "status_complete", foreground="#166534"
-        )
+        self.project_overview_tree.tag_configure("status_processing", foreground="#b45309")
+        self.project_overview_tree.tag_configure("status_processed", foreground="#0f5132")
+        self.project_overview_tree.tag_configure("status_complete", foreground="#166534")
         self.project_overview_tree.tag_configure("status_failed", foreground="#b91c1c")
 
         self.project_overview_tree.bind(
             "<Double-Button-1>", self._on_project_overview_tree_double_click
         )
-        self.project_overview_tree.bind(
-            "<Button-3>", self._on_project_overview_right_click
-        )
-        self.project_overview_tree.bind(
-            "<Control-Button-1>", self._on_project_overview_right_click
-        )
+        self.project_overview_tree.bind("<Button-3>", self._on_project_overview_right_click)
+        self.project_overview_tree.bind("<Control-Button-1>", self._on_project_overview_right_click)
 
     @staticmethod
     def _get_status_meta(status_key: str) -> tuple[str, str]:
@@ -3351,9 +3186,7 @@ class ApplicationGUI:
             return
 
         try:
-            self._overview_refresh_job = self.root.after(
-                150, self._refresh_project_overview
-            )
+            self._overview_refresh_job = self.root.after(150, self._refresh_project_overview)
         except Exception:
             self._refresh_project_overview()
 
@@ -3410,8 +3243,7 @@ class ApplicationGUI:
             return
 
         counts: Counter = Counter(
-            (str(video.get("status") or "pending")).strip().lower()
-            for video in all_videos
+            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
         )
         total = sum(counts.values())
 
@@ -3449,21 +3281,14 @@ class ApplicationGUI:
                 icon, _ = PROJECT_STATUS_META.get(key, ("•", key.title()))
                 parts.append(f"{icon} {value}")
 
-        others = sum(
-            count
-            for status, count in counts.items()
-            if status not in PROJECT_STATUS_META
-        )
+        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
             parts.append(f"➕ {others}")
 
         return " • ".join(parts)
 
     def _update_project_overview_summary(self, counts: Counter, total: int) -> None:
-        if (
-            not self.project_overview_frame
-            or not self.project_overview_frame.winfo_exists()
-        ):
+        if not self.project_overview_frame or not self.project_overview_frame.winfo_exists():
             return
 
         known_statuses = set(PROJECT_STATUS_META.keys())
@@ -3494,13 +3319,8 @@ class ApplicationGUI:
                 if container.winfo_ismapped():
                     container.pack_forget()
 
-    def _update_project_overview_tree(
-        self, project_manager, all_videos: list[dict]
-    ) -> None:
-        if (
-            not self.project_overview_tree
-            or not self.project_overview_tree.winfo_exists()
-        ):
+    def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
+        if not self.project_overview_tree or not self.project_overview_tree.winfo_exists():
             return
 
         for item in self.project_overview_tree.get_children():
@@ -3517,15 +3337,12 @@ class ApplicationGUI:
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             days_dict = group_data.get("days") or {}
-            group_entries = [
-                entry for videos in days_dict.values() for entry in videos or []
-            ]
+            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
             if not group_entries:
                 continue
 
             group_counts: Counter = Counter(
-                (str(entry.get("status") or "pending")).strip().lower()
-                for entry in group_entries
+                (str(entry.get("status") or "pending")).strip().lower() for entry in group_entries
             )
             status_summary = self._format_status_summary(group_counts)
             data_summary = self._summarize_batch_data(group_entries)
@@ -3546,8 +3363,7 @@ class ApplicationGUI:
                     continue
 
                 day_counts: Counter = Counter(
-                    (str(entry.get("status") or "pending")).strip().lower()
-                    for entry in entries
+                    (str(entry.get("status") or "pending")).strip().lower() for entry in entries
                 )
                 day_status = self._format_status_summary(day_counts)
                 day_data = self._summarize_batch_data(entries)
@@ -3609,11 +3425,7 @@ class ApplicationGUI:
                 icon, _ = PROJECT_STATUS_META[key]
                 parts.append(f"{icon} {value}")
 
-        others = sum(
-            count
-            for status, count in counts.items()
-            if status not in PROJECT_STATUS_META
-        )
+        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
             parts.append(f"➕ {others}")
 
@@ -3640,11 +3452,7 @@ class ApplicationGUI:
             1
             for video in videos
             if video.get("has_complete_data")
-            or (
-                video.get("has_arena")
-                and video.get("has_rois")
-                and video.get("has_trajectory")
-            )
+            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
         )
 
         return (
@@ -3778,9 +3586,7 @@ class ApplicationGUI:
 
         return self._overview_menu_font
 
-    def _resolve_overview_asset_from_click(
-        self, item_id: str, event_x: int
-    ) -> str | None:
+    def _resolve_overview_asset_from_click(self, item_id: str, event_x: int) -> str | None:
         tree = self.project_overview_tree
         if not tree or not tree.winfo_exists():
             return None
@@ -3860,10 +3666,7 @@ class ApplicationGUI:
         prompts = {
             "arena": (
                 "Remover arena",
-                (
-                    "Deseja remover a arena deste vídeo? As ROIs associadas "
-                    "também serão limpas."
-                ),
+                ("Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas."),
             ),
             "rois": (
                 "Remover ROIs",
@@ -3915,14 +3718,19 @@ class ApplicationGUI:
             )
 
         if asset == "video":
-            self.publish_event(Events.PROJECT_DELETE_ASSET, {
-                "video_path": video_path,
-                "asset": asset,
-                "delete_source": delete_files,
-            })
+            self.publish_event(
+                Events.PROJECT_DELETE_ASSET,
+                {
+                    "video_path": video_path,
+                    "asset": asset,
+                    "delete_source": delete_files,
+                },
+            )
             success = True  # Assume success
         else:
-            self.publish_event(Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset})
+            self.publish_event(
+                Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset}
+            )
             success = True  # Assume success
 
         if not success:
@@ -3959,9 +3767,7 @@ class ApplicationGUI:
             except Exception:
                 pass
 
-        self.arduino_dashboard_frame = ttk.LabelFrame(
-            parent, text="Dashboard Arduino", padding=10
-        )
+        self.arduino_dashboard_frame = ttk.LabelFrame(parent, text="Dashboard Arduino", padding=10)
         self.arduino_dashboard_frame.pack(fill="both", expand=False, pady=(0, 10))
 
         status_row = ttk.Frame(self.arduino_dashboard_frame)
@@ -3985,9 +3791,7 @@ class ApplicationGUI:
             textvariable=self.arduino_last_command_var,
         ).pack(side="left", padx=(6, 0))
 
-        ttk.Separator(self.arduino_dashboard_frame, orient="horizontal").pack(
-            fill="x", pady=(8, 6)
-        )
+        ttk.Separator(self.arduino_dashboard_frame, orient="horizontal").pack(fill="x", pady=(8, 6))
 
         ttk.Label(
             self.arduino_dashboard_frame,
@@ -4007,17 +3811,15 @@ class ApplicationGUI:
         )
         self.arduino_log_text.pack(side="left", fill="both", expand=True)
 
-        scrollbar = ttk.Scrollbar(
-            log_frame, orient="vertical", command=self.arduino_log_text.yview
-        )
+        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.arduino_log_text.yview)
         scrollbar.pack(side="right", fill="y")
         self.arduino_log_text.configure(yscrollcommand=scrollbar.set)
 
         controls_row = ttk.Frame(self.arduino_dashboard_frame)
         controls_row.pack(fill="x", pady=(6, 0))
-        ttk.Button(
-            controls_row, text="Limpar Log", command=self._clear_arduino_log
-        ).pack(side="right")
+        ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
+            side="right"
+        )
 
         # Reset dashboard state
         self._clear_arduino_log()
@@ -4042,9 +3844,7 @@ class ApplicationGUI:
         self.arduino_log_text.insert("end", entry)
 
         try:
-            current_line = int(
-                float(self.arduino_log_text.index("end-1c").split(".")[0])
-            )
+            current_line = int(float(self.arduino_log_text.index("end-1c").split(".")[0]))
             max_lines = 300
             if current_line > max_lines:
                 start_line = current_line - max_lines
@@ -4144,9 +3944,9 @@ class ApplicationGUI:
 
         # Coordinate system for polygon alignment
         self._poly_pts_canvas = []  # Canvas coordinates for UI display
-        self._poly_pts_video = []   # Video coordinates for saving
-        self._bg_scale = 1.0        # Scaling factor from video to canvas
-        self._bg_offset = (0, 0)    # Offset of image in canvas
+        self._poly_pts_video = []  # Video coordinates for saving
+        self._bg_scale = 1.0  # Scaling factor from video to canvas
+        self._bg_offset = (0, 0)  # Offset of image in canvas
         self._bg_img_size = (0, 0)  # Original image dimensions
 
         self.current_circle_center = None
@@ -4161,9 +3961,7 @@ class ApplicationGUI:
         main_pane.pack(expand=True, fill="both")
 
         # 3. Create the control panel on the left with scrollable frame
-        left_panel_frame = ttk.Frame(
-            main_pane, padding=5, relief="groove", borderwidth=2
-        )
+        left_panel_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
         # Add left panel without invalid minsize parameter
         main_pane.add(left_panel_frame, weight=1)
 
@@ -4174,15 +3972,13 @@ class ApplicationGUI:
                 main_pane.sashpos(0, 420)
             except Exception:
                 pass  # Sash position might fail if pane isn't fully realized yet
+
         main_pane.after(10, _set_initial_sash)
 
         # ✨ NEW: Create ZoneControlsWidget instead of inline controls
-        self.zone_controls = ZoneControlsWidget(
-            left_panel_frame,
-            event_bus=self.event_bus
-        )
+        self.zone_controls = ZoneControlsWidget(left_panel_frame, event_bus=self.event_bus)
         self.zone_controls.pack(fill="both", expand=True)
-        
+
         # Keep reference to internal widgets for backward compatibility
         # TODO: Migrate code to use ZoneControlsWidget API instead
         self.zone_controls_frame = self.zone_controls.zone_controls_frame
@@ -4200,18 +3996,15 @@ class ApplicationGUI:
                     main_pane.sashpos(0, 380)
             except Exception:
                 pass  # Ignore errors during resize
+
         main_pane.bind("<Configure>", _on_pane_configure)
 
         # 5. ✨ NEW: Create VideoDisplayWidget instead of manual Canvas
         self.video_display = VideoDisplayWidget(
-            self.viz_frame,
-            event_bus=self.event_bus,
-            width=800,
-            height=600,
-            bg="gray"
+            self.viz_frame, event_bus=self.event_bus, width=800, height=600, bg="gray"
         )
         self.video_display.pack(expand=True, fill="both")
-        
+
         # Keep reference to canvas for backward compatibility with drawing code
         # TODO: Migrate drawing logic to use VideoDisplayWidget API
         self._roi_canvas_widget = self.video_display.canvas
@@ -4222,119 +4015,96 @@ class ApplicationGUI:
         # 6. ✨ REMOVED: _create_zone_control_widgets() is no longer needed
         # ZoneControlsWidget already creates all the necessary control widgets
         # The old method is kept below for reference but is no longer called
-        
+
         # 7. ✨ NEW: Subscribe to events emitted by the components
         self._subscribe_zone_component_events()
 
     def _subscribe_zone_component_events(self):
         """
         Subscribe to events emitted by ZoneControlsWidget.
-        
+
         This method connects component events to existing ApplicationGUI handlers,
         maintaining backward compatibility while using the new component architecture.
         """
         if not self.event_bus:
             return
-        
+
         # Drawing action events
         self.event_bus.subscribe(
-            "zone.auto_detect_clicked",
-            lambda data: self._on_auto_detect_clicked()
+            "zone.auto_detect_clicked", lambda data: self._on_auto_detect_clicked()
         )
-        
+
         self.event_bus.subscribe(
-            "zone.draw_main_polygon",
-            lambda data: self._start_main_arena_drawing()
+            "zone.draw_main_polygon", lambda data: self._start_main_arena_drawing()
         )
-        
-        self.event_bus.subscribe(
-            "zone.draw_roi",
-            lambda data: self._start_roi_drawing()
-        )
-        
-        self.event_bus.subscribe(
-            "zone.toggle_view",
-            lambda data: self._toggle_canvas_view()
-        )
-        
+
+        self.event_bus.subscribe("zone.draw_roi", lambda data: self._start_roi_drawing())
+
+        self.event_bus.subscribe("zone.toggle_view", lambda data: self._toggle_canvas_view())
+
         # Template events
-        self.event_bus.subscribe(
-            "zone.template_apply",
-            lambda data: self._on_apply_roi_template()
-        )
-        
-        self.event_bus.subscribe(
-            "zone.template_save",
-            lambda data: self._on_save_roi_template()
-        )
-        
+        self.event_bus.subscribe("zone.template_apply", lambda data: self._on_apply_roi_template())
+
+        self.event_bus.subscribe("zone.template_save", lambda data: self._on_save_roi_template())
+
         self.event_bus.subscribe(
             "zone.template_import",
-            lambda data: self._on_import_and_apply_roi_template()
+            lambda data: self._on_import_and_apply_roi_template(),
         )
-        
-        # Video selector events  
+
+        # Video selector events
         self.event_bus.subscribe(
             "zone.video_double_click",
-            lambda data: self._on_video_tree_double_click(None)
+            lambda data: self._on_video_tree_double_click(None),
         )
-        
+
         self.event_bus.subscribe(
-            "zone.video_frame_load",
-            lambda data: self._load_selected_video_frame()
+            "zone.video_frame_load", lambda data: self._load_selected_video_frame()
         )
-        
+
         self.event_bus.subscribe(
-            "zone.video_refresh",
-            lambda data: self._populate_video_selector_tree()
+            "zone.video_refresh", lambda data: self._populate_video_selector_tree()
         )
-        
+
         self.event_bus.subscribe(
             "zone.video_search_changed",
-            lambda data: self._filter_video_tree(data.get("search_term", ""))
+            lambda data: self._filter_video_tree(data.get("search_term", "")),
         )
-        
+
         # Zone list events
         self.event_bus.subscribe(
             "zone.list_item_right_click",
-            lambda data: self._on_zone_right_click(self._create_mock_event(data))
+            lambda data: self._on_zone_right_click(self._create_mock_event(data)),
         )
-        
+
         self.event_bus.subscribe(
-            "zone.list_item_double_click",
-            lambda data: self._on_zone_double_click(None)
+            "zone.list_item_double_click", lambda data: self._on_zone_double_click(None)
         )
-        
+
         # Arena editing events
-        self.event_bus.subscribe(
-            "zone.arena_save",
-            lambda data: self._on_save_arena()
-        )
-        
-        self.event_bus.subscribe(
-            "zone.arena_discard",
-            lambda data: self._on_discard_arena()
-        )
-        
+        self.event_bus.subscribe("zone.arena_save", lambda data: self._on_save_arena())
+
+        self.event_bus.subscribe("zone.arena_discard", lambda data: self._on_discard_arena())
+
         # ROI configuration events
         self.event_bus.subscribe(
-            "zone.roi_rule_changed",
-            lambda data: self._on_roi_rule_change(None)
+            "zone.roi_rule_changed", lambda data: self._on_roi_rule_change(None)
         )
-        
+
         self.event_bus.subscribe(
-            "zone.roi_settings_apply",
-            lambda data: self._on_apply_roi_settings()
+            "zone.roi_settings_apply", lambda data: self._on_apply_roi_settings()
         )
-    
+
     def _create_mock_event(self, data: dict):
         """Create a mock event object for backward compatibility with old event handlers."""
+
         class MockEvent:
             def __init__(self, data):
                 self.x_root = data.get("x", 0)
                 self.y_root = data.get("y", 0)
                 self.x = data.get("x", 0)
                 self.y = data.get("y", 0)
+
         return MockEvent(data)
 
     def _on_canvas_configure(self, event=None):
@@ -4385,9 +4155,7 @@ class ApplicationGUI:
 
         # ROI options
         self.roi_choice_var = StringVar(value="none")
-        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(
-            anchor="w"
-        )
+        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
         ttk.Radiobutton(
             self.single_analysis_options_frame,
             text="Não usar ROIs",
@@ -4408,18 +4176,18 @@ class ApplicationGUI:
         ).pack(anchor="w", padx=10)
 
         # Frame intervals for analysis and display
-        ttk.Label(
-            self.single_analysis_options_frame, text="Intervalo de Análise (frames):"
-        ).pack(anchor="w", pady=(10, 0))
+        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Análise (frames):").pack(
+            anchor="w", pady=(10, 0)
+        )
         ttk.Entry(
             self.single_analysis_options_frame,
             textvariable=self.analysis_interval_var,
             width=10,
         ).pack(anchor="w", padx=10)
 
-        ttk.Label(
-            self.single_analysis_options_frame, text="Intervalo de Exibição (frames):"
-        ).pack(anchor="w", pady=(5, 0))
+        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Exibição (frames):").pack(
+            anchor="w", pady=(5, 0)
+        )
         ttk.Entry(
             self.single_analysis_options_frame,
             textvariable=self.display_interval_var,
@@ -4435,12 +4203,10 @@ class ApplicationGUI:
 
         # New Entry for stabilization frames
         stabilization_frame = ttk.Frame(actions_frame)
-        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(
-            side="left", padx=(0, 5)
+        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(side="left", padx=(0, 5))
+        ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(
+            side="left"
         )
-        ttk.Entry(
-            stabilization_frame, textvariable=self.stabilization_frames_var, width=5
-        ).pack(side="left")
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
 
         # Manual drawing buttons
@@ -4478,9 +4244,7 @@ class ApplicationGUI:
         template_selector = ttk.Frame(template_frame)
         template_selector.pack(fill="x", pady=(0, 6))
 
-        ttk.Label(template_selector, text="Templates salvos:").pack(
-            side="left", padx=(0, 5)
-        )
+        ttk.Label(template_selector, text="Templates salvos:").pack(side="left", padx=(0, 5))
         self.roi_template_combobox = ttk.Combobox(
             template_selector,
             state="readonly",
@@ -4683,9 +4447,7 @@ class ApplicationGUI:
 
         # Parameter fields (shown/hidden based on rule)
         self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
-        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(
-            side="left", padx=(0, 5)
-        )
+        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
         self.radius_entry = ttk.Entry(
             self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10
         )
@@ -4780,9 +4542,7 @@ class ApplicationGUI:
             value_var = StringVar(value="0")
             detail_var = StringVar(value="Nenhum vídeo listado")
 
-            ttk.Label(card, text=title, font=("Segoe UI", 9, "bold")).pack(
-                anchor="w"
-            )
+            ttk.Label(card, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
             ttk.Label(
                 card,
                 textvariable=value_var,
@@ -4823,9 +4583,7 @@ class ApplicationGUI:
                 pass
 
         self.pipeline_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(
-            self.pipeline_tab_frame, text="Trajetórias e Sumários"
-        )
+        self.notebook.add(self.pipeline_tab_frame, text="Trajetórias e Sumários")
 
         header = ttk.Label(
             self.pipeline_tab_frame,
@@ -4886,9 +4644,7 @@ class ApplicationGUI:
         )
         self.pipeline_legend_label.pack(fill="x", anchor="w", pady=(6, 0))
 
-        self.pipeline_video_tree.bind(
-            "<<TreeviewSelect>>", self._on_pipeline_selection_changed
-        )
+        self.pipeline_video_tree.bind("<<TreeviewSelect>>", self._on_pipeline_selection_changed)
 
         footer = ttk.Frame(self.pipeline_tab_frame, padding=(0, 10))
         footer.pack(fill="x")
@@ -4959,16 +4715,12 @@ class ApplicationGUI:
         rois_missing = sum(1 for video in all_videos if not video.get("has_rois"))
 
         ready_total = sum(
-            1
-            for video in all_videos
-            if video.get("has_arena") and video.get("has_rois")
+            1 for video in all_videos if video.get("has_arena") and video.get("has_rois")
         )
         ready_completed = sum(
             1
             for video in all_videos
-            if video.get("has_arena")
-            and video.get("has_rois")
-            and video.get("has_trajectory")
+            if video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory")
         )
         ready_pending = max(ready_total - ready_completed, 0)
 
@@ -4982,9 +4734,7 @@ class ApplicationGUI:
             f"{total_videos - rois_missing} com ROIs salvas"
         )
 
-        self.zone_summary_cards["ready_for_processing"]["value"].set(
-            str(ready_pending)
-        )
+        self.zone_summary_cards["ready_for_processing"]["value"].set(str(ready_pending))
         self.zone_summary_cards["ready_for_processing"]["detail"].set(
             f"{ready_completed} já com trajetórias"
             if ready_total
@@ -5031,9 +4781,7 @@ class ApplicationGUI:
             prepared["has_rois"] = bool(video.get("has_rois"))
             prepared["has_trajectory"] = bool(video.get("has_trajectory"))
             prepared["has_complete_data"] = bool(video.get("has_complete_data")) or (
-                prepared["has_arena"]
-                and prepared["has_rois"]
-                and prepared["has_trajectory"]
+                prepared["has_arena"] and prepared["has_rois"] and prepared["has_trajectory"]
             )
             prepared["has_summary"] = bool(summary_exists)
             prepared["filename"] = os.path.basename(path)
@@ -5054,18 +4802,14 @@ class ApplicationGUI:
 
         def _summary_count(entries: list[dict]) -> int:
             return sum(
-                1
-                for entry in entries
-                if entry.get("has_summary") or entry.get("has_complete_data")
+                1 for entry in entries if entry.get("has_summary") or entry.get("has_complete_data")
             )
 
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             days_dict = group_data.get("days") or {}
-            group_entries = [
-                entry for videos in days_dict.values() for entry in videos or []
-            ]
+            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
             if not group_entries:
                 continue
 
@@ -5106,15 +4850,11 @@ class ApplicationGUI:
                     "end",
                     text=f"📅 {day_title}",
                     values=(
-                        self._format_status_ratio(
-                            "rois", _count(entries, "has_rois"), total_day
-                        ),
+                        self._format_status_ratio("rois", _count(entries, "has_rois"), total_day),
                         self._format_status_ratio(
                             "trajectory", _count(entries, "has_trajectory"), total_day
                         ),
-                        self._format_status_ratio(
-                            "summary", _summary_count(entries), total_day
-                        ),
+                        self._format_status_ratio("summary", _summary_count(entries), total_day),
                         f"{total_day} vídeos",
                     ),
                     open=False,
@@ -5154,9 +4894,7 @@ class ApplicationGUI:
             "gui.pipeline_table.refreshed",
             eligible=len(prepared_videos),
             with_rois=sum(1 for entry in prepared_videos if entry.get("has_rois")),
-            with_trajectory=sum(
-                1 for entry in prepared_videos if entry.get("has_trajectory")
-            ),
+            with_trajectory=sum(1 for entry in prepared_videos if entry.get("has_trajectory")),
             with_summary=summary_total,
         )
 
@@ -5164,9 +4902,7 @@ class ApplicationGUI:
         if listed == 0:
             selection_text = "Nenhum vídeo elegível listado."
         else:
-            selection_text = (
-                f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-            )
+            selection_text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
 
         if self.pipeline_selection_label:
             self.pipeline_selection_label.config(text=selection_text)
@@ -5207,14 +4943,9 @@ class ApplicationGUI:
                 if listed == 0:
                     text = "Nenhum vídeo elegível listado."
                 else:
-                    text = (
-                        f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-                    )
+                    text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
             else:
-                text = (
-                    f"{listed} vídeo(s) elegível(is) • "
-                    f"{len(selections)} selecionado(s)."
-                )
+                text = f"{listed} vídeo(s) elegível(is) • {len(selections)} selecionado(s)."
             self.pipeline_selection_label.config(text=text)
 
         self._update_pipeline_buttons_state(selections)
@@ -5231,11 +4962,7 @@ class ApplicationGUI:
 
         if has_selection:
             all_have_trajectory = all(
-                bool(
-                    self.pipeline_video_vars.get(path, {})
-                    .get("info", {})
-                    .get("has_trajectory")
-                )
+                bool(self.pipeline_video_vars.get(path, {}).get("info", {}).get("has_trajectory"))
                 for path in selections
             )
             self.pipeline_action_buttons["summaries"].config(
@@ -5358,9 +5085,7 @@ class ApplicationGUI:
         controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
         controls_frame.pack(fill="x", pady=(4, 0))
 
-        ttk.Label(controls_frame, text="Track ID ativo:").grid(
-            row=0, column=0, sticky="w"
-        )
+        ttk.Label(controls_frame, text="Track ID ativo:").grid(row=0, column=0, sticky="w")
 
         self.track_selector_widget = ttk.Combobox(
             controls_frame,
@@ -5370,9 +5095,7 @@ class ApplicationGUI:
             width=14,
         )
         self.track_selector_widget.grid(row=0, column=1, padx=(6, 12), sticky="w")
-        self.track_selector_widget.bind(
-            "<<ComboboxSelected>>", self._on_track_selection_changed
-        )
+        self.track_selector_widget.bind("<<ComboboxSelected>>", self._on_track_selection_changed)
 
         ttk.Label(
             controls_frame,
@@ -5422,9 +5145,7 @@ class ApplicationGUI:
             cell.grid(row=row, column=col, padx=pad_x, sticky="w")
             ttk.Label(cell, text=label_text).pack(anchor="w")
             var = StringVar(value="-")
-            ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(
-                anchor="w"
-            )
+            ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
             self.progress_labels[key] = var
 
         self.cancel_proc_btn = ttk.Button(
@@ -5502,7 +5223,6 @@ class ApplicationGUI:
         self.controls_canvas.bind(
             "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
         )
-
 
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
@@ -5628,8 +5348,7 @@ class ApplicationGUI:
             if not self.load_video_frame_to_canvas():
                 self.show_error(
                     "Erro",
-                    "Não foi possível carregar um frame para mostrar o polígono "
-                    "detectado.",
+                    "Não foi possível carregar um frame para mostrar o polígono detectado.",
                 )
                 return
 
@@ -5724,9 +5443,7 @@ class ApplicationGUI:
                 handle, "<ButtonPress-1>", lambda e, i=i: self._on_handle_press(e, i)
             )
             self.roi_canvas.tag_bind(handle, "<B1-Motion>", self._on_handle_drag)
-            self.roi_canvas.tag_bind(
-                handle, "<ButtonRelease-1>", self._on_handle_release
-            )
+            self.roi_canvas.tag_bind(handle, "<ButtonRelease-1>", self._on_handle_release)
 
     def _on_handle_press(self, event, handle_index):
         """Records which handle is being dragged and initial offset."""
@@ -5742,10 +5459,7 @@ class ApplicationGUI:
         self._drag_start_handle = canvas_point
 
         # Calculate offset between mouse and handle center
-        self._drag_offset = (
-            canvas_point[0] - event.x,
-            canvas_point[1] - event.y
-        )
+        self._drag_offset = (canvas_point[0] - event.x, canvas_point[1] - event.y)
 
         # Bind motion and release to the entire canvas so events continue even
         # when mouse leaves the handle
@@ -5762,17 +5476,12 @@ class ApplicationGUI:
         canvas_y = float(event.y) + self._drag_offset[1]
 
         # Apply snapping to nearby vertices or edges
-        snapped_point = self._apply_snapping(
-            canvas_x, canvas_y, exclude_current_polygon=True
-        )
+        snapped_point = self._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
         # If editing an ROI, clamp the point within the main arena
-        if (
-            isinstance(self.current_editing_zone, tuple)
-            and self.current_editing_zone[0] == "roi"
-        ):
+        if isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coords to canvas coords
@@ -5789,7 +5498,7 @@ class ApplicationGUI:
                 # If outside arena (result < 0), clamp to nearest arena boundary
                 if result < 0:
                     # Find the closest point on the arena boundary
-                    min_dist = float('inf')
+                    min_dist = float("inf")
                     closest_point = (canvas_x, canvas_y)
 
                     # Check distance to each edge of the arena
@@ -5801,9 +5510,9 @@ class ApplicationGUI:
                             canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
-                        if edge_snap and edge_snap['distance'] < min_dist:
-                            min_dist = edge_snap['distance']
-                            closest_point = (edge_snap['x'], edge_snap['y'])
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
 
                     # Update to clamped position
                     canvas_x, canvas_y = closest_point
@@ -5811,7 +5520,8 @@ class ApplicationGUI:
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
         self.edited_polygon_points[self._dragged_handle_index] = [
-            video_point[0], video_point[1]
+            video_point[0],
+            video_point[1],
         ]
 
         # Redraw the entire interactive polygon and its handles
@@ -5841,18 +5551,16 @@ class ApplicationGUI:
         """Saves the edited polygon and makes it static."""
         if self.current_editing_zone == "arena":
             # Save main arena
-            self.publish_event(Events.ZONE_SAVE_MANUAL_ARENA, {"polygon_points": self.edited_polygon_points})
+            self.publish_event(
+                Events.ZONE_SAVE_MANUAL_ARENA,
+                {"polygon_points": self.edited_polygon_points},
+            )
             status_message = "Arena principal salva com sucesso."
             self.set_status(status_message)
             # Enable ROI button after main arena is saved
             self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
-        elif (
-            isinstance(self.current_editing_zone, tuple)
-            and self.current_editing_zone[0] == "roi"
-        ):
+            self._request_overview_refresh(reason=status_message, append_summary=True)
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
             # Save ROI
             _, roi_index, roi_name = self.current_editing_zone
             zone_data = self.controller.project_manager.get_zone_data()
@@ -5865,9 +5573,7 @@ class ApplicationGUI:
 
             status_message = f"ROI '{roi_name}' salva com sucesso."
             self.set_status(status_message)
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=status_message, append_summary=True)
         else:
             # Fallback - assume arena (legacy behavior)
             self.controller.save_manual_arena(self.edited_polygon_points)
@@ -5875,9 +5581,7 @@ class ApplicationGUI:
             self.set_status(status_message)
             # Enable ROI button after main arena is saved
             self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=status_message, append_summary=True)
 
         # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
@@ -5890,10 +5594,7 @@ class ApplicationGUI:
         self._clear_interactive_polygon()
         if self.current_editing_zone == "arena":
             self.set_status("Edição da arena descartada.")
-        elif (
-            isinstance(self.current_editing_zone, tuple)
-            and self.current_editing_zone[0] == "roi"
-        ):
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
             _, _, roi_name = self.current_editing_zone
             self.set_status(f"Edição da ROI '{roi_name}' descartada.")
         else:
@@ -5906,10 +5607,7 @@ class ApplicationGUI:
         """Clears all interactive elements from the canvas and hides buttons."""
         self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
         try:
-            if (
-                self.interactive_buttons_frame
-                and self.interactive_buttons_frame.winfo_exists()
-            ):
+            if self.interactive_buttons_frame and self.interactive_buttons_frame.winfo_exists():
                 self.interactive_buttons_frame.pack_forget()
         except Exception:
             # This can fail if the root window is already being destroyed.
@@ -6072,7 +5770,7 @@ class ApplicationGUI:
 
     def _canvas_to_video(self, canvas_x, canvas_y):
         """Convert canvas coordinates to video frame coordinates."""
-        if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
+        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
             # Fallback: return canvas coordinates if scaling info not available
             return (float(canvas_x), float(canvas_y))
 
@@ -6087,7 +5785,7 @@ class ApplicationGUI:
 
     def _video_to_canvas(self, video_x, video_y):
         """Convert video frame coordinates to canvas coordinates."""
-        if not hasattr(self, '_bg_scale') or not hasattr(self, '_bg_offset'):
+        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
             # Fallback: return video coordinates if scaling info not available
             return (float(video_x), float(video_y))
 
@@ -6104,10 +5802,7 @@ class ApplicationGUI:
         """Carrega um frame do vídeo no canvas"""
         if video_path is None:
             # Tenta usar o vídeo pendente ou do projeto
-            if (
-                hasattr(self, "pending_single_video_path")
-                and self.pending_single_video_path
-            ):
+            if hasattr(self, "pending_single_video_path") and self.pending_single_video_path:
                 video_path = self.pending_single_video_path
             elif self.controller.project_manager.project_path:
                 videos = self.controller.project_manager.get_all_videos()
@@ -6258,9 +5953,7 @@ class ApplicationGUI:
             has_complete = bool(video.get("has_complete_data")) or (
                 has_arena and has_rois and has_trajectory
             )
-            has_summary = bool(video.get("has_summary")) or bool(
-                video.get("has_summary_parquet")
-            )
+            has_summary = bool(video.get("has_summary")) or bool(video.get("has_summary_parquet"))
 
             video_entry = {
                 "path": video.get("path"),
@@ -6314,9 +6007,7 @@ class ApplicationGUI:
                     videos,
                     key=lambda entry: self._video_sort_key(entry.get("subject")),
                 ):
-                    subject_label = self._format_subject_label(
-                        video_entry.get("subject")
-                    )
+                    subject_label = self._format_subject_label(video_entry.get("subject"))
                     has_arena = video_entry.get("has_arena", False)
                     has_rois = video_entry.get("has_rois", False)
                     has_traj = video_entry.get("has_trajectory", False)
@@ -6443,17 +6134,13 @@ class ApplicationGUI:
                     if not video_path:
                         continue
 
-                    subject_label = self._format_subject_label(
-                        video_entry.get("subject")
-                    )
+                    subject_label = self._format_subject_label(video_entry.get("subject"))
 
                     status_tokens = " ".join(
                         (
                             format_status(video_entry["has_arena"], "arena"),
                             format_status(video_entry["has_rois"], "rois"),
-                            format_status(
-                                video_entry["has_trajectory"], "trajectory"
-                            ),
+                            format_status(video_entry["has_trajectory"], "trajectory"),
                         )
                     )
 
@@ -6580,10 +6267,7 @@ class ApplicationGUI:
         if not tags or not tags[0]:
             self.show_info(
                 "Selecione um Vídeo",
-                (
-                    "Por favor, escolha um item com ícone de peixe (🐟) para "
-                    "carregar o frame."
-                ),
+                ("Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame."),
             )
             return
 
@@ -6627,31 +6311,25 @@ class ApplicationGUI:
         reuse = messagebox.askyesno(
             "Reutilizar zonas existentes?",
             (
-                f"O vídeo \"{current_name}\" não possui arena ou ROIs salvas.\n\n"
-                f"Deseja reutilizar as zonas desenhadas para \"{last_name}\"?\n"
-                "Escolha \"Sim\" para reutilizar ou \"Não\" para começar do zero."
+                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
+                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
+                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
             ),
             icon="question",
         )
 
         if reuse:
             cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
-            pm.save_zone_data(
-                cloned_zone_data, video_path=video_path, persist=False
-            )
+            pm.save_zone_data(cloned_zone_data, video_path=video_path, persist=False)
             copied_files = pm.copy_zone_parquet_files(
                 last_video_with_zones, video_path, persist=False
             )
             pm.save_project()
             self._refresh_zone_indicators()
             self._refresh_video_selector_tree()
-            status_message = (
-                f"Zonas reutilizadas de \"{last_name}\" para \"{current_name}\"."
-            )
+            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
             self.set_status(status_message)
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=status_message, append_summary=True)
             if not copied_files:
                 self.show_warning(
                     "Arquivos Parquet Indisponíveis",
@@ -6665,9 +6343,7 @@ class ApplicationGUI:
             pm.clear_zone_data_for_video(video_path, persist=False)
             status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
             self.set_status(status_message)
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=status_message, append_summary=True)
             self._refresh_video_selector_tree()
 
     def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
@@ -6681,9 +6357,7 @@ class ApplicationGUI:
         self.notebook.add(reports_tab_frame, text="Relatórios")
 
         # --- Estrutura Hierárquica do Experimento ---
-        list_frame = ttk.LabelFrame(
-            reports_tab_frame, text="Estrutura do Experimento", padding=10
-        )
+        list_frame = ttk.LabelFrame(reports_tab_frame, text="Estrutura do Experimento", padding=10)
         list_frame.pack(fill="both", expand=True, pady=5)
 
         self.reports_tree = ttk.Treeview(
@@ -6697,9 +6371,7 @@ class ApplicationGUI:
         self.reports_tree.heading("arena", text="🏛️ Arena")
         self.reports_tree.heading("rois", text="📍 ROIs")
         self.reports_tree.heading("trajectory", text="📈 Trajetória")
-        self.reports_tree.heading(
-            "summary", text=f"{STATUS_SYMBOLS['summary']} Sumário"
-        )
+        self.reports_tree.heading("summary", text=f"{STATUS_SYMBOLS['summary']} Sumário")
         self.reports_tree.heading("status", text="Status")
 
         # Larguras e alinhamentos
@@ -6712,9 +6384,7 @@ class ApplicationGUI:
 
         self.reports_tree.pack(side="left", fill="both", expand=True)
 
-        scrollbar = ttk.Scrollbar(
-            list_frame, orient="vertical", command=self.reports_tree.yview
-        )
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.reports_tree.yview)
         self.reports_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
 
@@ -6856,22 +6526,13 @@ class ApplicationGUI:
                 continue
 
             total_arena = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_arena"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
             )
             total_rois = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_rois"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
             )
             total_trajectory = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_trajectory"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
             )
             total_complete = sum(
                 1
@@ -6887,12 +6548,8 @@ class ApplicationGUI:
                 values=(
                     self._format_status_ratio("arena", total_arena, total_videos),
                     self._format_status_ratio("rois", total_rois, total_videos),
-                    self._format_status_ratio(
-                        "trajectory", total_trajectory, total_videos
-                    ),
-                    self._format_status_ratio(
-                        "summary", total_complete, total_videos
-                    ),
+                    self._format_status_ratio("trajectory", total_trajectory, total_videos),
+                    self._format_status_ratio("summary", total_complete, total_videos),
                     f"{total_videos} vídeos",
                 ),
                 open=True,
@@ -6911,13 +6568,9 @@ class ApplicationGUI:
 
                 day_arena = sum(1 for entry in entries if entry["has_arena"])
                 day_rois = sum(1 for entry in entries if entry["has_rois"])
-                day_trajectory = sum(
-                    1 for entry in entries if entry["has_trajectory"]
-                )
+                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
                 day_complete = sum(
-                    1
-                    for entry in entries
-                    if entry["has_complete_data"] or entry.get("has_summary")
+                    1 for entry in entries if entry["has_complete_data"] or entry.get("has_summary")
                 )
                 sample_metadata = entries[0].get("metadata") if entries else None
                 day_title = self._build_day_title(day_id, sample_metadata)
@@ -6929,12 +6582,8 @@ class ApplicationGUI:
                     values=(
                         self._format_status_ratio("arena", day_arena, len(entries)),
                         self._format_status_ratio("rois", day_rois, len(entries)),
-                        self._format_status_ratio(
-                            "trajectory", day_trajectory, len(entries)
-                        ),
-                        self._format_status_ratio(
-                            "summary", day_complete, len(entries)
-                        ),
+                        self._format_status_ratio("trajectory", day_trajectory, len(entries)),
+                        self._format_status_ratio("summary", day_complete, len(entries)),
                         f"{len(entries)} vídeos",
                     ),
                     open=False,
@@ -6963,12 +6612,9 @@ class ApplicationGUI:
                         values=(
                             self._format_status_token(entry["has_arena"], "arena"),
                             self._format_status_token(entry["has_rois"], "rois"),
+                            self._format_status_token(entry["has_trajectory"], "trajectory"),
                             self._format_status_token(
-                                entry["has_trajectory"], "trajectory"
-                            ),
-                            self._format_status_token(
-                                entry.get("has_summary")
-                                or entry.get("has_complete_data"),
+                                entry.get("has_summary") or entry.get("has_complete_data"),
                                 "summary",
                             ),
                             entry["status"],
@@ -7148,20 +6794,13 @@ class ApplicationGUI:
             summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
             report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
             excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
-            if (
-                summary_candidate.exists()
-                or report_candidate.exists()
-                or excel_candidate.exists()
-            ):
+            if summary_candidate.exists() or report_candidate.exists() or excel_candidate.exists():
                 has_results = True
 
         if not results_dir or not os.path.isdir(results_dir) or not has_results:
             self.show_warning(
                 "Relatórios indisponíveis",
-                (
-                    "Gere o relatório para este vídeo antes de abrir a pasta de "
-                    "resultados."
-                ),
+                ("Gere o relatório para este vídeo antes de abrir a pasta de resultados."),
             )
             return
 
@@ -7212,7 +6851,10 @@ class ApplicationGUI:
                     break
 
         if selected_videos:
-            self.publish_event(Events.REPORT_GENERATE, {"videos": selected_videos, "report_type": "partial"})
+            self.publish_event(
+                Events.REPORT_GENERATE,
+                {"videos": selected_videos, "report_type": "partial"},
+            )
 
     def _generate_unified_report(self):
         """Tells the controller to generate a unified report of all project videos."""
@@ -7282,7 +6924,7 @@ class ApplicationGUI:
         self.drawing_mode = "polygon"
         self.current_polygon_points = []
         self._poly_pts_canvas = []  # Canvas coordinates for UI
-        self._poly_pts_video = []   # Video coordinates for saving
+        self._poly_pts_video = []  # Video coordinates for saving
         self.roi_canvas.config(cursor="crosshair")
         self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
@@ -7300,8 +6942,7 @@ class ApplicationGUI:
             self.drawing_instruction_label.pack(pady=5, before=self.zone_listbox.master)
 
         self.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique "
-            "duplo para finalizar."
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para finalizar."
         )
 
     def _stop_drawing(self):
@@ -7333,9 +6974,7 @@ class ApplicationGUI:
 
         self.set_status("Pronto.")
 
-    def _apply_snapping(
-        self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10
-    ):
+    def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
         Applies snapping to nearby vertices or edges of existing polygons.
 
@@ -7388,7 +7027,7 @@ class ApplicationGUI:
         for polygon in all_polygons:
             # Check snapping to vertices
             for vertex in polygon:
-                dist = np.sqrt((canvas_x - vertex[0])**2 + (canvas_y - vertex[1])**2)
+                dist = np.sqrt((canvas_x - vertex[0]) ** 2 + (canvas_y - vertex[1]) ** 2)
                 if dist < min_distance:
                     min_distance = dist
                     closest_point = vertex
@@ -7403,14 +7042,12 @@ class ApplicationGUI:
                     canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                 )
 
-                if edge_snap and edge_snap['distance'] < min_distance:
-                    min_distance = edge_snap['distance']
-                    closest_point = (edge_snap['x'], edge_snap['y'])
+                if edge_snap and edge_snap["distance"] < min_distance:
+                    min_distance = edge_snap["distance"]
+                    closest_point = (edge_snap["x"], edge_snap["y"])
 
         anchors: list[tuple[float, float]] = [
-            tuple(vertex)
-            for polygon in all_polygons
-            for vertex in polygon
+            tuple(vertex) for polygon in all_polygons for vertex in polygon
         ]
         axis_centers: list[tuple[float, float]] = []
 
@@ -7432,9 +7069,7 @@ class ApplicationGUI:
         )
 
         if axis_snap is not None:
-            axis_dist = np.sqrt(
-                (canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2
-            )
+            axis_dist = np.sqrt((canvas_x - axis_snap[0]) ** 2 + (canvas_y - axis_snap[1]) ** 2)
             if axis_dist < min_distance:
                 closest_point = axis_snap
                 min_distance = axis_dist
@@ -7491,9 +7126,7 @@ class ApplicationGUI:
             return
 
         zone_data = pm.get_zone_data()
-        if not zone_data or (
-            not zone_data.polygon and not (zone_data.roi_polygons or [])
-        ):
+        if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
             self.show_warning(
                 "Template incompleto",
                 "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
@@ -7538,10 +7171,7 @@ class ApplicationGUI:
         self._select_roi_template(metadata)
         self.show_info(
             "Template salvo",
-            (
-                "Template '"
-                f"{metadata.get('name', dialog_result['name'])}' disponível para uso."
-            ),
+            (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
         )
 
     def _format_roi_template_display(self, template: dict[str, Any]) -> str:
@@ -7730,11 +7360,13 @@ class ApplicationGUI:
         try:
             # Load template directly from file
             import json
-            with open(file_path, 'r', encoding='utf-8') as f:
+
+            with open(file_path, "r", encoding="utf-8") as f:
                 template_data = json.load(f)
 
             # Convert to ZoneData
             from zebtrack.core.detector import ZoneData
+
             template_zone = ZoneData(
                 polygon=template_data.get("polygon"),
                 roi_polygons=template_data.get("roi_polygons", []),
@@ -7826,9 +7458,7 @@ class ApplicationGUI:
             return
 
         template_name = (
-            selected_template.get("name")
-            or selected_template.get("display_name")
-            or "Template"
+            selected_template.get("name") or selected_template.get("display_name") or "Template"
         )
         template_location = selected_template.get("location")
         template_file = selected_template.get("file")
@@ -7911,8 +7541,8 @@ class ApplicationGUI:
 
         if dx == 0 and dy == 0:
             # Degenerate segment (single point)
-            dist = np.sqrt((px - x1)**2 + (py - y1)**2)
-            return {'distance': dist, 'x': x1, 'y': y1}
+            dist = np.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+            return {"distance": dist, "x": x1, "y": y1}
 
         # Parameter t for projection of point onto line
         t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
@@ -7925,9 +7555,9 @@ class ApplicationGUI:
         closest_y = y1 + t * dy
 
         # Distance to closest point
-        dist = np.sqrt((px - closest_x)**2 + (py - closest_y)**2)
+        dist = np.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
 
-        return {'distance': dist, 'x': closest_x, 'y': closest_y}
+        return {"distance": dist, "x": closest_x, "y": closest_y}
 
     def _on_canvas_click(self, event):
         """Handles single clicks on the canvas during polygon drawing."""
@@ -7958,13 +7588,13 @@ class ApplicationGUI:
                 # the boundary (result >= 0) to support snapping to edges
                 result = cv2.pointPolygonTest(
                     np.array(canvas_arena_poly, dtype=np.float32),
-                    (canvas_x, canvas_y), False
+                    (canvas_x, canvas_y),
+                    False,
                 )
                 if result < -0.5:  # Small tolerance for floating point errors
                     self.show_warning(
                         "Ponto Inválido",
-                        "As Áreas de Interesse devem ser desenhadas dentro do "
-                        "Polígono Principal.",
+                        "As Áreas de Interesse devem ser desenhadas dentro do Polígono Principal.",
                     )
                     return
 
@@ -8029,7 +7659,7 @@ class ApplicationGUI:
                 # If outside arena (result < 0), clamp to nearest arena boundary
                 if result < 0:
                     # Find the closest point on the arena boundary
-                    min_dist = float('inf')
+                    min_dist = float("inf")
                     closest_point = (display_x, display_y)
 
                     # Check distance to each edge of the arena
@@ -8041,19 +7671,18 @@ class ApplicationGUI:
                             display_x, display_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
-                        if edge_snap and edge_snap['distance'] < min_dist:
-                            min_dist = edge_snap['distance']
-                            closest_point = (edge_snap['x'], edge_snap['y'])
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
 
                     # Update display position to clamped point
                     display_x, display_y = closest_point
 
         # Draw snap indicator if snapping is active or if we're drawing ROI
         # (to show the clamped position within arena)
-        should_show_indicator = (
-            snapped_point is not None or
-            (self.current_drawing_type == "roi" and
-             self.controller.project_manager.get_zone_data().polygon)
+        should_show_indicator = snapped_point is not None or (
+            self.current_drawing_type == "roi"
+            and self.controller.project_manager.get_zone_data().polygon
         )
 
         if should_show_indicator:
@@ -8155,17 +7784,12 @@ class ApplicationGUI:
                     self.set_status(status_message)
                     self.show_info(
                         "Sucesso",
-                        f"Arena principal criada com "
-                        f"{len(self.current_polygon_points)} pontos.",
+                        f"Arena principal criada com {len(self.current_polygon_points)} pontos.",
                     )
-                    self._request_overview_refresh(
-                        reason=status_message, append_summary=True
-                    )
+                    self._request_overview_refresh(reason=status_message, append_summary=True)
                 else:
                     self.set_status("❌ Erro ao salvar arena principal.")
-                    self.show_error(
-                        "Erro", "Não foi possível salvar a arena principal."
-                    )
+                    self.show_error("Erro", "Não foi possível salvar a arena principal.")
                     self._stop_drawing()
 
             elif self.current_drawing_type == "roi":
@@ -8186,11 +7810,11 @@ class ApplicationGUI:
                 roi_color = selected_color["rgb"]
                 color_name = selected_color["name"]
 
-                self.set_status(
-                    f"Salvando área de interesse '{roi_name}' ({color_name})..."
-                )
+                self.set_status(f"Salvando área de interesse '{roi_name}' ({color_name})...")
                 success = self.controller.add_roi_polygon(
-                    self._poly_pts_video, roi_name, roi_color  # Use video coordinates
+                    self._poly_pts_video,
+                    roi_name,
+                    roi_color,  # Use video coordinates
                 )
 
                 if success:
@@ -8214,8 +7838,7 @@ class ApplicationGUI:
                     self.update_zone_listbox()
 
                     status_message = (
-                        f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada "
-                        "com sucesso!"
+                        f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada com sucesso!"
                     )
                     self.set_status(status_message)
                     self.show_info(
@@ -8223,13 +7846,9 @@ class ApplicationGUI:
                         f"Área de interesse '{roi_name}' ({color_name}) criada com "
                         f"{len(self.current_polygon_points)} pontos.",
                     )
-                    self._request_overview_refresh(
-                        reason=status_message, append_summary=True
-                    )
+                    self._request_overview_refresh(reason=status_message, append_summary=True)
                 else:
-                    self.set_status(
-                        f"❌ Erro ao salvar área de interesse '{roi_name}'."
-                    )
+                    self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
                     self.show_error(
                         "Erro",
                         f"Não foi possível salvar a área de interesse '{roi_name}'.",
@@ -8399,20 +8018,12 @@ class ApplicationGUI:
                 continue
 
             # Cor da ROI (armazenada em BGR para OpenCV)
-            color_bgr = (
-                zone_data.roi_colors[i]
-                if i < len(zone_data.roi_colors)
-                else (0, 255, 0)
-            )
+            color_bgr = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
             # Convert BGR to RGB for Tkinter hex color
             color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
 
             # Nome da ROI
-            name = (
-                zone_data.roi_names[i]
-                if i < len(zone_data.roi_names)
-                else f"ROI_{i + 1}"
-            )
+            name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i + 1}"
 
             # Desenha polígono com tags específicas
             try:
@@ -8435,8 +8046,12 @@ class ApplicationGUI:
                 import numpy as np
 
                 # Calculate center using canvas coordinates
-                poly_array = np.array([(canvas_polygon[i], canvas_polygon[i+1])
-                                     for i in range(0, len(canvas_polygon), 2)])
+                poly_array = np.array(
+                    [
+                        (canvas_polygon[i], canvas_polygon[i + 1])
+                        for i in range(0, len(canvas_polygon), 2)
+                    ]
+                )
                 center_x = int(poly_array[:, 0].mean())
                 center_y = int(poly_array[:, 1].mean())
 
@@ -8462,9 +8077,7 @@ class ApplicationGUI:
                     tags=("roi_label", f"roi_label_{i}"),
                 )
 
-                log.info(
-                    "gui.roi_drawn", name=name, color=color_hex, points=len(polygon)
-                )
+                log.info("gui.roi_drawn", name=name, color=color_hex, points=len(polygon))
 
             except Exception as e:
                 log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
@@ -8501,9 +8114,7 @@ class ApplicationGUI:
         """Runs the center-periphery analysis."""
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
-            self.show_error(
-                "Erro", "Selecione um aquário ativo e carregue os dados primeiro."
-            )
+            self.show_error("Erro", "Selecione um aquário ativo e carregue os dados primeiro.")
             return
 
         dialog = CenterPeripheryDialog(self.root)
@@ -8526,9 +8137,7 @@ class ApplicationGUI:
         # Get the arena polygon bounds from the controller
         arena_data = self.controller.get_arena_data(current_arena_id)
         if not arena_data or "polygon_px" not in arena_data:
-            self.show_error(
-                "Erro", "Não foi possível obter os dados do polígono do aquário."
-            )
+            self.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
             return
 
         import numpy as np
@@ -8551,18 +8160,14 @@ class ApplicationGUI:
                 x1 = x_min + i * lane_width
                 x2 = x1 + lane_width
                 coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
-                rois_to_add.append(
-                    {"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords}
-                )
+                rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "horizontal":
             lane_height = height / template["lanes"]
             for i in range(template["lanes"]):
                 y1 = y_min + i * lane_height
                 y2 = y1 + lane_height
                 coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
-                rois_to_add.append(
-                    {"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords}
-                )
+                rois_to_add.append({"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "grid":
             col_width = width / template["cols"]
             row_height = height / template["rows"]
@@ -8593,9 +8198,7 @@ class ApplicationGUI:
         self.roi_canvas.bind("<ButtonPress-1>", self._on_canvas_press_circle)
         self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
-        self.set_status(
-            "Modo de Desenho (Círculo): Clique e arraste para definir o raio."
-        )
+        self.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
 
     def _on_canvas_press_circle(self, event):
         if self.drawing_mode != "circle":
@@ -8742,9 +8345,7 @@ class ApplicationGUI:
             self._populate_video_selector_tree()
             ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
             self.set_status(ready_message)
-            self._request_overview_refresh(
-                reason=ready_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=ready_message, append_summary=True)
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
@@ -8836,9 +8437,9 @@ class ApplicationGUI:
         completed_sessions = pm.get_completed_sessions()
 
         # 3. Create headers
-        ttk.Label(
-            self.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
-        ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        ttk.Label(self.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
+            row=0, column=0, padx=5, pady=5, sticky="nsew"
+        )
         for j, group_name in enumerate(groups):
             ttk.Label(
                 self.grid_container,
@@ -8859,9 +8460,7 @@ class ApplicationGUI:
 
             for j, group_name in enumerate(groups):
                 completed_count = sum(
-                    1
-                    for (d, g, s) in completed_sessions
-                    if d == day and g == group_name
+                    1 for (d, g, s) in completed_sessions if d == day and g == group_name
                 )
 
                 status_text = f"{completed_count}/{subjects_per_group}"
@@ -8879,9 +8478,7 @@ class ApplicationGUI:
                     background=color,
                     width=15,
                     height=3,
-                    command=lambda d=day, g=group_name: self._on_grid_cell_clicked(
-                        d, g
-                    ),
+                    command=lambda d=day, g=group_name: self._on_grid_cell_clicked(d, g),
                 )
                 cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 
@@ -8895,9 +8492,7 @@ class ApplicationGUI:
         subjects_per_group = pm.project_data.get("subjects_per_group", 0)
         completed_sessions = pm.get_completed_sessions()
 
-        completed_subjects = {
-            s for (d, g, s) in completed_sessions if d == day and g == group_name
-        }
+        completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
 
         dialog = SubjectSelectionDialog(
             self.root, day, group_name, subjects_per_group, completed_subjects
@@ -8905,9 +8500,7 @@ class ApplicationGUI:
 
         if dialog.result:
             subject_id = dialog.result
-            self.controller.start_recording(
-                day=day, group=group_name, cobaia=str(subject_id)
-            )
+            self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
             self._render_progress_grid()  # Refresh grid after starting a recording
 
     def _live_frame_capture_loop(self):
@@ -8930,10 +8523,7 @@ class ApplicationGUI:
 
             if not self.controller.frame_queue.full():
                 self.controller.frame_queue.put((live_frame_count, frame.copy()))
-            if (
-                self.controller.is_capturing_for_video
-                and not self.controller.video_queue.full()
-            ):
+            if self.controller.is_capturing_for_video and not self.controller.video_queue.full():
                 self.controller.video_queue.put(frame.copy())
 
             time.sleep(1 / (settings.video_processing.fps * 1.5))
@@ -8950,9 +8540,7 @@ class ApplicationGUI:
 
             if self.controller.is_processing:
                 # Apply perspective warp if calibration data is available
-                calib_data = self.controller.project_manager.project_data.get(
-                    "calibration", {}
-                )
+                calib_data = self.controller.project_manager.project_data.get("calibration", {})
                 h_matrix = calib_data.get("homography_matrix")
                 target_dims = calib_data.get("target_dims_px")
 
@@ -8962,9 +8550,7 @@ class ApplicationGUI:
                     h_matrix = np.array(h_matrix)
                     frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
 
-                detections, command = self.controller.detector.process_frame(
-                    frame, "live"
-                )
+                detections, command = self.controller.detector.process_frame(frame, "live")
                 if command is not None:
                     self.controller.arduino.send_command(command)
                 if self.controller.is_recording and detections:
@@ -9012,18 +8598,16 @@ class ApplicationGUI:
             return
         elif choice == "yes":
             # Add as new default for this type
-            self.publish_event(Events.MODEL_ADD_WEIGHT, {
-                "path": filepath,
-                "set_as_default": True,
-                "weight_type": weight_type
-            })
+            self.publish_event(
+                Events.MODEL_ADD_WEIGHT,
+                {"path": filepath, "set_as_default": True, "weight_type": weight_type},
+            )
         else:  # 'no'
             # Add as an alternative
-            self.publish_event(Events.MODEL_ADD_WEIGHT, {
-                "path": filepath,
-                "set_as_default": False,
-                "weight_type": weight_type
-            })
+            self.publish_event(
+                Events.MODEL_ADD_WEIGHT,
+                {"path": filepath, "set_as_default": False, "weight_type": weight_type},
+            )
 
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type when it cannot be determined
@@ -9075,9 +8659,7 @@ class ApplicationGUI:
         button_frame.pack(pady=20)
 
         Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        Button(button_frame, text="Cancelar", command=on_cancel).pack(
-            side="left", padx=5
-        )
+        Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
 
         dialog.wait_window()
         return result[0]
@@ -9123,9 +8705,7 @@ class ApplicationGUI:
         if weight_name:
             self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
         else:
-            self._active_weight_display_var.set(
-                "Peso ativo: Nenhum peso selecionado."
-            )
+            self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
 
     def _create_project_workflow(self):
         """
@@ -9154,9 +8734,7 @@ class ApplicationGUI:
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
-        project_path = self.ask_directory(
-            title="Selecione uma Pasta de Projeto Existente"
-        )
+        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
 
@@ -9176,10 +8754,13 @@ class ApplicationGUI:
             return
 
         # Pass both config and video path to the controller via event
-        self.publish_event(Events.VIDEO_ANALYZE_SINGLE, {
-            "video_path": video_path[0],
-            "config": dialog.result,
-        })
+        self.publish_event(
+            Events.VIDEO_ANALYZE_SINGLE,
+            {
+                "video_path": video_path[0],
+                "config": dialog.result,
+            },
+        )
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
@@ -9241,9 +8822,7 @@ class ApplicationGUI:
         try:
             stabilization_frames = int(self.stabilization_frames_var.get())
             if stabilization_frames <= 0:
-                self.show_warning(
-                    "Entrada Inválida", "O número de frames deve ser positivo."
-                )
+                self.show_warning("Entrada Inválida", "O número de frames deve ser positivo.")
                 return
         except (ValueError, TypeError):
             self.show_warning(
@@ -9263,9 +8842,7 @@ class ApplicationGUI:
             )
         else:
             # Project flow
-            self.controller.run_aquarium_detection(
-                stabilization_frames=stabilization_frames
-            )
+            self.controller.run_aquarium_detection(stabilization_frames=stabilization_frames)
 
     def _on_start_single_video_processing_clicked(self):
         """Handler for the 'Start Analysis' button in the single video flow."""
@@ -9293,9 +8870,7 @@ class ApplicationGUI:
         # 1. Get the zone data that the user drew
         zone_data = self.controller.project_manager.get_zone_data()
         if not zone_data.polygon:
-            self.show_error(
-                "Erro", "A área principal do aquário (polígono) não foi definida."
-            )
+            self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
 
         # 2. Disable the button
@@ -9325,10 +8900,8 @@ class ApplicationGUI:
         """Shows the progress bar frame and cancel button."""
         if self.progress_frame and not self.progress_frame.winfo_viewable():
             # Pack progress_frame BEFORE video_container to ensure it stays visible
-            if hasattr(self, 'video_container') and self.video_container:
-                self.progress_frame.pack(
-                    before=self.video_container, pady=5, fill="x", padx=10
-                )
+            if hasattr(self, "video_container") and self.video_container:
+                self.progress_frame.pack(before=self.video_container, pady=5, fill="x", padx=10)
             else:
                 self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = 0
@@ -9391,9 +8964,7 @@ class ApplicationGUI:
 
         for i, polygon in enumerate(zone_data.roi_polygons):
             color = (
-                zone_data.roi_colors[i]
-                if i < len(zone_data.roi_colors)
-                else (0, 255, 0)
+                zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
             )  # Default to green
             pts = np.array(polygon, np.int32)
             pts = pts.reshape((-1, 1, 2))
@@ -9542,9 +9113,7 @@ class ApplicationGUI:
         mode = report.mode
         self._active_processing_mode = mode
 
-        self.tracking_mode_var.set(
-            f"Modo de rastreamento: {mode.display_name}"
-        )
+        self.tracking_mode_var.set(f"Modo de rastreamento: {mode.display_name}")
 
         if not self.track_selector_widget:
             return
@@ -9584,26 +9153,18 @@ class ApplicationGUI:
                     if isinstance(value, (int, float)):
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
-                    self.social_summary_var.set(
-                        "Interações sociais: " + ", ".join(formatted)
-                    )
+                    self.social_summary_var.set("Interações sociais: " + ", ".join(formatted))
                 else:
                     self.social_summary_var.set(
                         "Interações sociais: nenhum agrupamento registrado."
                     )
             else:
-                self.social_summary_var.set(
-                    "Interações sociais: nenhum agrupamento registrado."
-                )
+                self.social_summary_var.set("Interações sociais: nenhum agrupamento registrado.")
         else:
             self.social_summary_var.set("Interações sociais: aguardando dados.")
 
         if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
-            normalized_tracks = [
-                str(track).strip()
-                for track in tracks
-                if str(track).strip()
-            ]
+            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
             if normalized_tracks:
                 self._update_track_options(["Todos"] + normalized_tracks)
 
@@ -9666,17 +9227,11 @@ class ApplicationGUI:
     def _render_last_analysis_frame(self) -> None:
         if self._last_analysis_frame is None:
             return
-        frame = self._annotate_selected_tracks(
-            self._last_analysis_frame.copy()
-        )
+        frame = self._annotate_selected_tracks(self._last_analysis_frame.copy())
         self._show_analysis_frame_image(frame)
 
     def _annotate_selected_tracks(self, frame):
-        selected = (
-            self.track_selector_var.get()
-            if hasattr(self, "track_selector_var")
-            else "Todos"
-        )
+        selected = self.track_selector_var.get() if hasattr(self, "track_selector_var") else "Todos"
         selected = str(selected).strip()
         if not selected or selected.lower() == "todos":
             return frame
@@ -9716,22 +9271,17 @@ class ApplicationGUI:
             label_width = label.winfo_width()
             label_height = label.winfo_height()
 
-            if isinstance(label_width, (int, float)) and isinstance(
-                label_height, (int, float)
-            ):
+            if isinstance(label_width, (int, float)) and isinstance(label_height, (int, float)):
                 available_width = label_width
                 available_height = label_height
 
-            if (
-                (available_width is None or available_height is None)
-                and hasattr(label, "update_idletasks")
+            if (available_width is None or available_height is None) and hasattr(
+                label, "update_idletasks"
             ):
                 label.update_idletasks()
                 label_width = label.winfo_width()
                 label_height = label.winfo_height()
-                if isinstance(label_width, (int, float)) and isinstance(
-                    label_height, (int, float)
-                ):
+                if isinstance(label_width, (int, float)) and isinstance(label_height, (int, float)):
                     available_width = label_width
                     available_height = label_height
 
@@ -9747,8 +9297,8 @@ class ApplicationGUI:
                 if isinstance(container_width, (int, float)) and isinstance(
                     container_height, (int, float)
                 ):
-                    available_width = (available_width or container_width)
-                    available_height = (available_height or container_height)
+                    available_width = available_width or container_width
+                    available_height = available_height or container_height
 
         if (
             isinstance(available_width, (int, float))
@@ -9801,7 +9351,7 @@ class ApplicationGUI:
         processed_frames=None,
         detected_frames=None,
         start_time=None,
-        current_frame=None
+        current_frame=None,
     ):
         """Update processing statistics in real-time during video analysis."""
         if not self.progress_labels:
@@ -9818,9 +9368,7 @@ class ApplicationGUI:
 
         # Calculate and update percentage based on actual frame position
         if total_frames:
-            frame_for_percent = (
-                current_frame if current_frame is not None else processed_frames
-            )
+            frame_for_percent = current_frame if current_frame is not None else processed_frames
             if frame_for_percent is not None:
                 percent = (frame_for_percent / total_frames) * 100
                 labels["percent"].set(f"{percent:.1f}%")
@@ -9832,9 +9380,7 @@ class ApplicationGUI:
             elapsed = time.time() - start_time
             labels["elapsed"].set(self._format_time(elapsed))
 
-            frame_for_eta = (
-                current_frame if current_frame is not None else processed_frames
-            )
+            frame_for_eta = current_frame if current_frame is not None else processed_frames
             if frame_for_eta and total_frames and frame_for_eta > 0:
                 rate = frame_for_eta / elapsed
                 remaining_frames = total_frames - frame_for_eta
@@ -10071,12 +9617,8 @@ class ApplicationGUI:
             label="🔧 Editar Vértices", command=self._edit_selected_zone_vertices
         )
         self.roi_context_menu.add_separator()
-        self.roi_context_menu.add_command(
-            label="✏️ Renomear", command=self._rename_selected_roi
-        )
-        self.roi_context_menu.add_command(
-            label="🎨 Mudar Cor", command=self._change_roi_color
-        )
+        self.roi_context_menu.add_command(label="✏️ Renomear", command=self._rename_selected_roi)
+        self.roi_context_menu.add_command(label="🎨 Mudar Cor", command=self._change_roi_color)
         self.roi_context_menu.add_separator()
         self.roi_context_menu.add_command(
             label="🗑️ Remover", command=self._remove_selected_roi_confirm
@@ -10136,9 +9678,7 @@ class ApplicationGUI:
             polygon_points = np.array(zone_data.polygon)
             self.setup_interactive_polygon(polygon_points)
             self.current_editing_zone = "arena"
-            self.set_status(
-                "Editando vértices da arena principal. Arraste os pontos amarelos."
-            )
+            self.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
 
         else:
             # Edit ROI
@@ -10152,8 +9692,7 @@ class ApplicationGUI:
                 self.setup_interactive_polygon(polygon_points)
                 self.current_editing_zone = ("roi", roi_index, roi_name)
                 self.set_status(
-                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos "
-                    "amarelos."
+                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
                 )
 
             except (ValueError, IndexError):
@@ -10188,9 +9727,7 @@ class ApplicationGUI:
                 self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
                 status_message = f"ROI renomeada para '{new_name}'."
                 self.set_status(status_message)
-                self._request_overview_refresh(
-                    reason=status_message, append_summary=True
-                )
+                self._request_overview_refresh(reason=status_message, append_summary=True)
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")
@@ -10224,16 +9761,10 @@ class ApplicationGUI:
 
             # Atualiza visualização
             self.redraw_zones_from_project_data()
-            self.show_info(
-                "Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}"
-            )
-            status_message = (
-                f"Cor da ROI '{old_name}' alterada para {color_name}."
-            )
+            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
+            status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
             self.set_status(status_message)
-            self._request_overview_refresh(
-                reason=status_message, append_summary=True
-            )
+            self._request_overview_refresh(reason=status_message, append_summary=True)
 
         except ValueError:
             self.show_error("Erro", "ROI não encontrada")
@@ -10284,9 +9815,7 @@ class ApplicationGUI:
                 self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
                 status_message = f"ROI '{roi_name}' removida com sucesso."
                 self.set_status(status_message)
-                self._request_overview_refresh(
-                    reason=status_message, append_summary=True
-                )
+                self._request_overview_refresh(reason=status_message, append_summary=True)
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")
@@ -10353,21 +9882,15 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.smoothing_window_var = StringVar(
             value=str(settings.trajectory_smoothing.window_length)
         )
-        self.smoothing_polyorder_var = StringVar(
-            value=str(settings.trajectory_smoothing.polyorder)
-        )
+        self.smoothing_polyorder_var = StringVar(value=str(settings.trajectory_smoothing.polyorder))
 
         # Frame interval configuration variables
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
 
         # Detection method configuration variables
-        self.aquarium_method_var = StringVar(
-            value=settings.model_selection.aquarium_method
-        )
-        self.animal_method_var = StringVar(
-            value=settings.model_selection.animal_method
-        )
+        self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
+        self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
         # --- Layout ---
@@ -10408,9 +9931,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
 
         # --- Behavior Analysis Parameters ---
-        behavior_frame = ttk.LabelFrame(
-            main_frame, text="Parâmetros de Análise", padding=10
-        )
+        behavior_frame = ttk.LabelFrame(main_frame, text="Parâmetros de Análise", padding=10)
         behavior_frame.pack(fill="x", pady=5)
         behavior_frame.columnconfigure(1, weight=1)
 
@@ -10438,16 +9959,16 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         ttk.Label(behavior_frame, text="Janela de Suavização (frames):").grid(
             row=3, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            behavior_frame, textvariable=self.smoothing_window_var, width=10
-        ).grid(row=3, column=1, sticky="w", padx=5)
+        ttk.Entry(behavior_frame, textvariable=self.smoothing_window_var, width=10).grid(
+            row=3, column=1, sticky="w", padx=5
+        )
 
         ttk.Label(behavior_frame, text="Ordem do Polinômio:").grid(
             row=4, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            behavior_frame, textvariable=self.smoothing_polyorder_var, width=10
-        ).grid(row=4, column=1, sticky="w", padx=5)
+        ttk.Entry(behavior_frame, textvariable=self.smoothing_polyorder_var, width=10).grid(
+            row=4, column=1, sticky="w", padx=5
+        )
 
         ttk.Label(
             behavior_frame,
@@ -10461,34 +9982,26 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         ).grid(row=5, column=0, columnspan=2, sticky="w", padx=5, pady=(4, 0))
 
         # --- Frame Interval Settings ---
-        interval_frame = ttk.LabelFrame(
-            main_frame, text="Intervalos de Processamento", padding=10
-        )
+        interval_frame = ttk.LabelFrame(main_frame, text="Intervalos de Processamento", padding=10)
         interval_frame.pack(fill="x", pady=5)
         interval_frame.columnconfigure(1, weight=1)
 
         ttk.Label(interval_frame, text="Intervalo de Análise (frames):").grid(
             row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            interval_frame, textvariable=self.analysis_interval_var, width=10
-        ).grid(
+        ttk.Entry(interval_frame, textvariable=self.analysis_interval_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
         ttk.Label(interval_frame, text="Intervalo de Exibição (frames):").grid(
             row=1, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(
-            interval_frame, textvariable=self.display_interval_var, width=10
-        ).grid(
+        ttk.Entry(interval_frame, textvariable=self.display_interval_var, width=10).grid(
             row=1, column=1, sticky="w", padx=5
         )
 
         # --- Detection Method Settings ---
-        method_frame = ttk.LabelFrame(
-            main_frame, text="Métodos de Detecção", padding=10
-        )
+        method_frame = ttk.LabelFrame(main_frame, text="Métodos de Detecção", padding=10)
         method_frame.pack(fill="x", pady=5)
         method_frame.columnconfigure(1, weight=1)
 
@@ -10500,7 +10013,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             textvariable=self.aquarium_method_var,
             values=["seg", "det"],
             state="readonly",
-            width=8
+            width=8,
         )
         aquarium_method_combo.grid(row=0, column=1, sticky="w", padx=5)
 
@@ -10512,21 +10025,22 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             textvariable=self.animal_method_var,
             values=["seg", "det"],
             state="readonly",
-            width=8
+            width=8,
         )
         animal_method_combo.grid(row=1, column=1, sticky="w", padx=5)
 
         # Add tooltips/help text
-        ttk.Label(method_frame, text="seg = Segmentação, det = Detecção",
-                 font=("TkDefaultFont", 8)).grid(
-            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0)
-        )
+        ttk.Label(
+            method_frame,
+            text="seg = Segmentação, det = Detecção",
+            font=("TkDefaultFont", 8),
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0))
 
         # OpenVINO option
         openvino_check = ttk.Checkbutton(
             method_frame,
             text="Usar OpenVINO (acelera inferência em CPU)",
-            variable=self.use_openvino_var
+            variable=self.use_openvino_var,
         )
         openvino_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
@@ -10556,9 +10070,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             if smoothing_polyorder < 1:
                 raise ValueError("A ordem do polinômio deve ser pelo menos 1.")
             if smoothing_polyorder >= smoothing_window:
-                raise ValueError(
-                    "A ordem do polinômio deve ser menor que a janela de suavização."
-                )
+                raise ValueError("A ordem do polinômio deve ser menor que a janela de suavização.")
         except ValueError as e:
             messagebox.showerror(
                 "Erro",
@@ -10630,23 +10142,17 @@ class StartRecordingDialog(simpledialog.Dialog):
 
         # --- Layout ---
         # Day Dropdown
-        Label(master, text="Selecione o Dia:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=5
-        )
+        Label(master, text="Selecione o Dia:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         day_menu = OptionMenu(master, self.day_var, *day_opts)
         day_menu.grid(row=0, column=1, sticky="ew", padx=5)
 
         # Group Dropdown
-        Label(master, text="Selecione o Grupo:").grid(
-            row=1, column=0, sticky="w", padx=5, pady=5
-        )
+        Label(master, text="Selecione o Grupo:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         group_menu = OptionMenu(master, self.group_var, *groups)
         group_menu.grid(row=1, column=1, sticky="ew", padx=5)
 
         # Subject Dropdown
-        Label(master, text="Selecione a Cobaia:").grid(
-            row=2, column=0, sticky="w", padx=5, pady=5
-        )
+        Label(master, text="Selecione a Cobaia:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
         subject_opts = [str(s) for s in range(1, subjects + 1)]
         subject_menu = OptionMenu(master, self.subject_var, *subject_opts)
         subject_menu.grid(row=2, column=1, sticky="ew", padx=5)
@@ -10676,12 +10182,10 @@ class MissingMetadataDialog(simpledialog.Dialog):
         super().__init__(parent, "Metadados Ausentes")
 
     def body(self, master):
-        Label(
-            master, text="Não foi possível encontrar metadados automaticamente para:"
-        ).pack(pady=5)
-        Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(
-            pady=(0, 10)
+        Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(
+            pady=5
         )
+        Label(master, text=self.experiment_id, font=("Helvetica", 10, "bold")).pack(pady=(0, 10))
         Label(master, text="Por favor, insira os detalhes manualmente:").pack(pady=5)
 
         self.day_var = StringVar()
@@ -10692,23 +10196,13 @@ class MissingMetadataDialog(simpledialog.Dialog):
         form_frame.pack(padx=10, pady=10)
 
         Label(form_frame, text="Dia:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
-        Entry(form_frame, textvariable=self.day_var).grid(
-            row=0, column=1, sticky="ew", padx=5
-        )
+        Entry(form_frame, textvariable=self.day_var).grid(row=0, column=1, sticky="ew", padx=5)
 
-        Label(form_frame, text="Grupo:").grid(
-            row=1, column=0, sticky="w", padx=5, pady=2
-        )
-        Entry(form_frame, textvariable=self.group_var).grid(
-            row=1, column=1, sticky="ew", padx=5
-        )
+        Label(form_frame, text="Grupo:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        Entry(form_frame, textvariable=self.group_var).grid(row=1, column=1, sticky="ew", padx=5)
 
-        Label(form_frame, text="Cobaia (ID):").grid(
-            row=2, column=0, sticky="w", padx=5, pady=2
-        )
-        Entry(form_frame, textvariable=self.cobaia_var).grid(
-            row=2, column=1, sticky="ew", padx=5
-        )
+        Label(form_frame, text="Cobaia (ID):").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        Entry(form_frame, textvariable=self.cobaia_var).grid(row=2, column=1, sticky="ew", padx=5)
 
         return form_frame
 
@@ -10723,9 +10217,7 @@ class MissingMetadataDialog(simpledialog.Dialog):
             return 0
 
         if not self.group_var.get().strip():
-            messagebox.showerror(
-                "Erro de Validação", "O nome do grupo não pode estar vazio."
-            )
+            messagebox.showerror("Erro de Validação", "O nome do grupo não pode estar vazio.")
             return 0
 
         return 1
@@ -10748,9 +10240,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
 
         day_display = ApplicationGUI._format_day_display(day) or day
         day_title = (
-            f"Dia {day_display}"
-            if str(day_display).strip().lower() != "sem dia"
-            else "Sem Dia"
+            f"Dia {day_display}" if str(day_display).strip().lower() != "sem dia" else "Sem Dia"
         )
 
         super().__init__(parent, f"Selecionar Cobaia para o {day_title} - {group_name}")
@@ -10761,9 +10251,7 @@ class SubjectSelectionDialog(simpledialog.Dialog):
             subject_id = i + 1
             is_completed = subject_id in self.completed_subjects
 
-            status_text = (
-                f"Cobaia {subject_id}: {'Concluído' if is_completed else 'Pendente'}"
-            )
+            status_text = f"Cobaia {subject_id}: {'Concluído' if is_completed else 'Pendente'}"
             status_color = "darkgreen" if is_completed else "black"
 
             label = ttk.Label(
@@ -11007,16 +10495,14 @@ class TemplateDialog(simpledialog.Dialog):
             variable=self.template_type,
             value="horizontal",
         ).pack(anchor="w")
-        ttk.Radiobutton(
-            master, text="Grade", variable=self.template_type, value="grid"
-        ).pack(anchor="w")
+        ttk.Radiobutton(master, text="Grade", variable=self.template_type, value="grid").pack(
+            anchor="w"
+        )
 
         ttk.Label(master, text="Nº de Faixas:").pack(anchor="w", pady=(5, 0))
         ttk.Entry(master, textvariable=self.num_lanes).pack(anchor="w")
 
-        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(
-            anchor="w", pady=(5, 0)
-        )
+        ttk.Label(master, text="Grade (Linhas x Colunas):").pack(anchor="w", pady=(5, 0))
         grid_frame = ttk.Frame(master)
         grid_frame.pack(anchor="w")
         ttk.Entry(grid_frame, textvariable=self.num_rows, width=5).pack(side="left")
@@ -11082,72 +10568,78 @@ class CenterPeripheryDialog(simpledialog.Dialog):
 
 def _add_compatibility_properties_to_application_gui():
     """Add backward compatibility properties to ApplicationGUI class."""
-    
+
     @property
     def roi_canvas(self):
         """
         Backward compatibility property: maps roi_canvas to video_display.canvas.
-        
+
         This allows existing drawing code to continue working during the gradual
         migration to VideoDisplayWidget. Should be removed after migration is complete.
         """
-        if hasattr(self, 'video_display') and self.video_display:
+        if hasattr(self, "video_display") and self.video_display:
             return self.video_display.canvas
         # Fallback to old widget if component not yet created
-        if hasattr(self, '_roi_canvas_widget'):
+        if hasattr(self, "_roi_canvas_widget"):
             return self._roi_canvas_widget
         return None
-    
+
     @property
     def zone_listbox(self):
         """Backward compatibility: map zone_listbox to zone_controls.zone_listbox."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.zone_listbox
         return None
-    
+
     @property
     def draw_roi_button(self):
         """Backward compatibility: map draw_roi_button to zone_controls.draw_roi_button."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.draw_roi_button
         return None
-    
+
     @property
     def toggle_view_btn(self):
         """Backward compatibility: map toggle_view_btn to zone_controls.toggle_view_btn."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.toggle_view_btn
         return None
-    
+
     @property
     def roi_template_combobox(self):
-        """Backward compatibility: map roi_template_combobox to zone_controls.roi_template_combobox."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        """
+        Backward compatibility: map roi_template_combobox to
+        zone_controls.roi_template_combobox.
+        """
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.roi_template_combobox
         return None
-    
+
     @property
     def video_selector_tree(self):
         """Backward compatibility: map video_selector_tree to zone_controls.video_selector_tree."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.video_selector_tree
         return None
-    
+
     @property
     def interactive_buttons_frame(self):
-        """Backward compatibility: map interactive_buttons_frame to zone_controls.interactive_buttons_frame."""
-        if hasattr(self, 'zone_controls') and self.zone_controls:
+        """
+        Backward compatibility: map interactive_buttons_frame to
+        zone_controls.interactive_buttons_frame.
+        """
+        if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.interactive_buttons_frame
         return None
-    
+
     # Add properties to ApplicationGUI class
-    setattr(ApplicationGUI, 'roi_canvas', roi_canvas)
-    setattr(ApplicationGUI, 'zone_listbox', zone_listbox)
-    setattr(ApplicationGUI, 'draw_roi_button', draw_roi_button)
-    setattr(ApplicationGUI, 'toggle_view_btn', toggle_view_btn)
-    setattr(ApplicationGUI, 'roi_template_combobox', roi_template_combobox)
-    setattr(ApplicationGUI, 'video_selector_tree', video_selector_tree)
-    setattr(ApplicationGUI, 'interactive_buttons_frame', interactive_buttons_frame)
+    setattr(ApplicationGUI, "roi_canvas", roi_canvas)
+    setattr(ApplicationGUI, "zone_listbox", zone_listbox)
+    setattr(ApplicationGUI, "draw_roi_button", draw_roi_button)
+    setattr(ApplicationGUI, "toggle_view_btn", toggle_view_btn)
+    setattr(ApplicationGUI, "roi_template_combobox", roi_template_combobox)
+    setattr(ApplicationGUI, "video_selector_tree", video_selector_tree)
+    setattr(ApplicationGUI, "interactive_buttons_frame", interactive_buttons_frame)
 
 
 # Apply compatibility properties
@@ -11175,9 +10667,7 @@ class ColorSelectionDialog(simpledialog.Dialog):
             ("Ciano", (255, 255, 0), "#00FFFF"),  # BGR: (255, 255, 0) = Cyan
         ]
 
-        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(
-            pady=5
-        )
+        ttk.Label(master, text="Escolha a cor para esta área de interesse:").pack(pady=5)
 
         # Frame para os botões de cor
         colors_frame = ttk.Frame(master)
@@ -11200,9 +10690,7 @@ class ColorSelectionDialog(simpledialog.Dialog):
             ).pack()
 
             # Quadrado colorido para visualização
-            color_canvas = Canvas(
-                color_frame, width=30, height=20, highlightthickness=1
-            )
+            color_canvas = Canvas(color_frame, width=30, height=20, highlightthickness=1)
             color_canvas.pack()
             color_canvas.create_rectangle(0, 0, 30, 20, fill=hex_color, outline="black")
 

@@ -9,15 +9,15 @@ The settings system uses a hierarchical configuration approach:
 
 Usage:
     from zebtrack.settings import settings
-    
+
     # Access configuration values
     camera_index = settings.camera.index
     confidence = settings.yolo_model.confidence_threshold
-    
+
     # Reload settings at runtime (useful for config editor)
     from zebtrack.settings import reload_settings
     new_settings = reload_settings()
-    
+
     # Export JSON schema for documentation
     from zebtrack.settings import export_schema
     schema = export_schema()
@@ -73,8 +73,7 @@ class ArduinoSettings(BaseModel):
     port: str = Field(
         ...,
         description=(
-            "The serial port the Arduino is connected to (e.g., 'COM5' or "
-            "'/dev/ttyACM0')."
+            "The serial port the Arduino is connected to (e.g., 'COM5' or '/dev/ttyACM0')."
         ),
     )
     baud_rate: int = Field(..., description="The baud rate for serial communication.")
@@ -106,9 +105,7 @@ class YOLOModelSettings(BaseModel):
         extra="forbid",
     )
 
-    path: str = Field(
-        ..., description="Path to the YOLO model weights file (e.g., 'model.pt')."
-    )
+    path: str = Field(..., description="Path to the YOLO model weights file (e.g., 'model.pt').")
     confidence_threshold: float = Field(
         ...,
         gt=0,
@@ -119,10 +116,7 @@ class YOLOModelSettings(BaseModel):
         ...,
         gt=0,
         lt=1,
-        description=(
-            "Non-Maximum Suppression threshold for filtering overlapping bounding "
-            "boxes."
-        ),
+        description=("Non-Maximum Suppression threshold for filtering overlapping bounding boxes."),
     )
 
 
@@ -156,9 +150,7 @@ class VideoProcessingSettings(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
-    fps: int = Field(
-        ..., description="Frames Per Second (FPS) for saving output videos."
-    )
+    fps: int = Field(..., description="Frames Per Second (FPS) for saving output videos.")
     processing_interval: int = Field(
         ..., description="Process 1 frame every N frames to optimize performance."
     )
@@ -175,8 +167,7 @@ class VideoProcessingSettings(BaseModel):
     # Single animal tracking mode
     single_animal_per_aquarium: bool = Field(
         False,
-        description="When True, forces consistent track_id=1 for single animal "
-        "scenarios.",
+        description="When True, forces consistent track_id=1 for single animal scenarios.",
     )
 
 
@@ -189,8 +180,7 @@ class TrajectorySmoothingSettings(BaseModel):
         7,
         ge=3,
         description=(
-            "Odd-sized window used by the Savitzky-Golay filter during trajectory "
-            "smoothing."
+            "Odd-sized window used by the Savitzky-Golay filter during trajectory smoothing."
         ),
     )
     polyorder: int = Field(
@@ -206,17 +196,13 @@ class TrajectorySmoothingSettings(BaseModel):
     @classmethod
     def _ensure_odd_window(cls, value: int) -> int:
         if value % 2 == 0:
-            raise ValueError(
-                "trajectory_smoothing.window_length must be an odd integer."
-            )
+            raise ValueError("trajectory_smoothing.window_length must be an odd integer.")
         return value
 
     @model_validator(mode="after")
     def _validate_polyorder(self) -> "TrajectorySmoothingSettings":
         if self.polyorder >= self.window_length:
-            raise ValueError(
-                "trajectory_smoothing.polyorder must be less than window_length."
-            )
+            raise ValueError("trajectory_smoothing.polyorder must be less than window_length.")
         return self
 
 
@@ -263,8 +249,7 @@ class AngularVelocitySettings(BaseModel):
     def _ensure_odd_smoothing_window(cls, value: int) -> int:
         if value > 1 and value % 2 == 0:
             raise ValueError(
-                "angular_velocity.angular_velocity_smoothing_window must be odd or "
-                "equal to 1."
+                "angular_velocity.angular_velocity_smoothing_window must be odd or equal to 1."
             )
         return value
 
@@ -314,8 +299,7 @@ class ReproducibilitySettings(BaseModel):
     seed: int = Field(
         42,
         description=(
-            "Seed for random number generators (numpy, torch) to ensure consistent "
-            "results."
+            "Seed for random number generators (numpy, torch) to ensure consistent results."
         ),
     )
 
@@ -331,17 +315,11 @@ class ModelSelectionSettings(BaseModel):
 
     aquarium_method: Literal["seg", "det"] = Field(
         "seg",
-        description=(
-            "Method for aquarium detection: 'seg' for segmentation, 'det' for "
-            "detection"
-        ),
+        description=("Method for aquarium detection: 'seg' for segmentation, 'det' for detection"),
     )
     animal_method: Literal["seg", "det"] = Field(
         "det",
-        description=(
-            "Method for animal tracking: 'seg' for segmentation, 'det' for "
-            "detection"
-        ),
+        description=("Method for animal tracking: 'seg' for segmentation, 'det' for detection"),
     )
     use_openvino: bool = Field(
         False,
@@ -375,7 +353,7 @@ class UIFeatureFlags(BaseModel):
 
     use_wizard_for_project_creation: bool = Field(
         True,
-        description="Use new 5-step wizard instead of legacy CreateProjectDialog (v1.6+ default)"
+        description="Use new 5-step wizard instead of legacy CreateProjectDialog (v1.6+ default)",
     )
     enable_event_queue: bool = Field(
         False,
@@ -389,7 +367,7 @@ class UIFeatureFlags(BaseModel):
 
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections.
-    
+
     This model enforces strict validation rules and prevents unknown fields
     to catch configuration errors early. All nested models use sensible defaults
     where appropriate.
@@ -423,7 +401,7 @@ class Settings(BaseModel):
     )
     detection_zones: DetectionZonesSettings = Field(
         default_factory=lambda: DetectionZonesSettings(),  # type: ignore[call-arg]
-        description="Coordinates for areas of interest in the camera frame."
+        description="Coordinates for areas of interest in the camera frame.",
     )
 
     # Model selection and weights
@@ -444,24 +422,24 @@ class Settings(BaseModel):
         "seg_overlap",
     ] = Field(
         default="bbox_intersects",
-        description="Algorithm used to determine if an animal is inside an ROI"
+        description="Algorithm used to determine if an animal is inside an ROI",
     )
     roi_buffer_radius_value: float = Field(
         default=0.5,
         ge=0.0,
-        description="Buffer radius for centroid_in_on_buffered_roi mode (in pixels or cm)"
+        description="Buffer radius for centroid_in_on_buffered_roi mode (in pixels or cm)",
     )
     roi_min_bbox_overlap_ratio: float = Field(
         default=0.10,
         ge=0.0,
         le=1.0,
-        description="Minimum overlap ratio required for bbox_intersects or seg_overlap"
+        description="Minimum overlap ratio required for bbox_intersects or seg_overlap",
     )
 
     # Analysis settings
     ui_features: UIFeatureFlags = Field(
         default_factory=lambda: UIFeatureFlags(),  # type: ignore[call-arg]
-        description="Feature flags for UI experiments and gradual rollouts"
+        description="Feature flags for UI experiments and gradual rollouts",
     )
     trajectory_smoothing: TrajectorySmoothingSettings = Field(
         default_factory=lambda: TrajectorySmoothingSettings(),  # type: ignore[call-arg]
@@ -470,8 +448,7 @@ class Settings(BaseModel):
     angular_velocity: AngularVelocitySettings = Field(
         default_factory=lambda: AngularVelocitySettings(),  # type: ignore[call-arg]
         description=(
-            "Parameters for robust angular velocity calculation to handle "
-            "detection jitter."
+            "Parameters for robust angular velocity calculation to handle detection jitter."
         ),
     )
 
@@ -483,17 +460,14 @@ class Settings(BaseModel):
         interval = self.video_processing.processing_interval
         offset = self.video_processing.processing_offset
         if interval <= 0:
-            raise ValueError(
-                "video_processing.processing_interval must be a positive integer."
-            )
+            raise ValueError("video_processing.processing_interval must be a positive integer.")
         if offset < 0:
             raise ValueError(
                 "video_processing.processing_offset must be greater than or equal to 0."
             )
         if offset >= interval:
             raise ValueError(
-                "video_processing.processing_offset must be less than "
-                "processing_interval."
+                "video_processing.processing_offset must be less than processing_interval."
             )
 
         # Validate ROI parameters based on rule selection
@@ -525,27 +499,23 @@ class Settings(BaseModel):
 
 def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
     """Recursively merge two dictionaries, with override taking precedence.
-    
+
     This function performs a deep merge where:
     - Nested dictionaries are recursively merged
     - Lists and other values from override completely replace base values
     - Keys only in base are preserved
     - Keys only in override are added
-    
+
     Args:
         base: The base dictionary (lower priority)
         override: The override dictionary (higher priority)
-    
+
     Returns:
         A new merged dictionary
     """
     result = base.copy()
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge_dicts(result[key], value)
         else:
             result[key] = value
@@ -580,7 +550,7 @@ def load_settings(
     Raises:
         FileNotFoundError: If the default config file does not exist
         ValueError: If YAML parsing fails or configuration validation fails
-        
+
     Example:
         >>> settings = load_settings()
         >>> print(settings.camera.index)
@@ -590,12 +560,10 @@ def load_settings(
     """
     if not default_config_path.is_file():
         log.error("settings.load.file_not_found", path=str(default_config_path))
-        raise FileNotFoundError(
-            f"Default configuration file not found at: {default_config_path}"
-        )
+        raise FileNotFoundError(f"Default configuration file not found at: {default_config_path}")
 
     log.info("settings.load.start", path=str(default_config_path))
-    
+
     try:
         # Load base configuration
         with open(default_config_path, "r", encoding="utf-8") as f:
@@ -618,7 +586,7 @@ def load_settings(
         settings_obj = Settings.model_validate(config_data)
         log.info("settings.load.success", config_keys=list(config_data.keys()))
         return settings_obj
-        
+
     except yaml.YAMLError as e:
         log.error("settings.load.yaml_error", error=str(e), path=str(default_config_path))
         raise ValueError(
@@ -635,7 +603,7 @@ def load_settings(
         for error in e.errors():
             field_path = " → ".join(str(loc) for loc in error["loc"])
             error_details.append(f"  • {field_path}: {error['msg']}")
-        
+
         error_msg = (
             f"Configuration validation failed with {e.error_count()} error(s):\n"
             + "\n".join(error_details)
@@ -648,18 +616,18 @@ def reload_settings(
     override_config_path: Path = Path("config.local.yaml"),
 ) -> Settings:
     """Reload settings from disk, useful after editing configuration files.
-    
+
     This is a convenience wrapper around load_settings() that explicitly
     communicates the intent to reload configuration at runtime (e.g., after
     the user has edited config.local.yaml through the GUI).
-    
+
     Args:
         default_config_path: Path to the base configuration file
         override_config_path: Path to the local override file
-    
+
     Returns:
         A freshly loaded and validated Settings object
-        
+
     Example:
         >>> # User edits config via GUI
         >>> new_settings = reload_settings()
@@ -674,34 +642,35 @@ def export_schema(
     indent: int = 2,
 ) -> Dict[str, Any]:
     """Export the Settings JSON schema for documentation or validation purposes.
-    
+
     This generates a complete JSON Schema document describing all configuration
     fields, their types, constraints, and descriptions. Useful for:
     - Generating configuration documentation
     - IDE autocomplete in YAML editors (via schema association)
     - External validation tools
     - API documentation generation
-    
+
     Args:
         output_path: If provided, write the schema to this file as JSON
         indent: Number of spaces for JSON indentation (default: 2)
-    
+
     Returns:
         The JSON Schema as a dictionary
-        
+
     Example:
         >>> schema = export_schema(Path("config.schema.json"))
         >>> print(schema["properties"]["camera"]["properties"]["index"]["description"])
         The index of the camera device (e.g., 0, 1).
     """
     schema = Settings.model_json_schema()
-    
+
     if output_path:
         import json
+
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(schema, f, indent=indent)
         log.info("settings.schema.exported", path=str(output_path))
-    
+
     return schema
 
 

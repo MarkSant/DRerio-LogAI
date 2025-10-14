@@ -32,12 +32,9 @@ def create_source(source_type: str, **kwargs: Any) -> FrameSource:
     elif source_type == "file":
         video_path = kwargs.get("video_path")
         if not video_path or not isinstance(video_path, str):
-            raise ValueError(
-                "`video_path` keyword argument is required for 'file' source type."
-            )
+            raise ValueError("`video_path` keyword argument is required for 'file' source type.")
         return VideoFileSource(video_path=video_path)
     else:
         raise ValueError(
-            f"Unsupported source type: {source_type}. "
-            "Supported types are 'camera', 'file'."
+            f"Unsupported source type: {source_type}. Supported types are 'camera', 'file'."
         )

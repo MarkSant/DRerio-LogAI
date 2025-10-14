@@ -137,9 +137,7 @@ def test_get_velocity_stats(sample_trajectory_data):
 
     # Mock the velocity calculation to return predictable values
     velocity_data = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
-    analyzer.calculate_velocity_timeseries = lambda: pd.DataFrame(
-        {"v_mag": velocity_data}
-    )
+    analyzer.calculate_velocity_timeseries = lambda: pd.DataFrame({"v_mag": velocity_data})
 
     stats = analyzer.get_velocity_stats()
 
@@ -187,9 +185,7 @@ def test_calculate_thigmotaxis_index_time_near_wall(sample_trajectory_data):
     # Each interval has a duration of 1s. Total time near wall = 4s.
     # Total trial duration is 10s.
     # Expected index = (4 / 10) * 100 = 40.0
-    index = analyzer.calculate_thigmotaxis_index(
-        method="time_near_wall", distance_threshold=3.0
-    )
+    index = analyzer.calculate_thigmotaxis_index(method="time_near_wall", distance_threshold=3.0)
 
     assert np.isclose(index, 40.0)
 
@@ -267,9 +263,7 @@ def test_preprocess_data_handles_duplicate_timestamps():
 
     # 3. Perform assertions
     # The primary assertion: no duplicate timestamps in the index
-    assert not processed_df.index.has_duplicates, (
-        "Index should be unique after preprocessing."
-    )
+    assert not processed_df.index.has_duplicates, "Index should be unique after preprocessing."
 
     # Check that the number of rows is correct (3 unique timestamps)
     assert len(processed_df) == 3
@@ -285,6 +279,4 @@ def test_preprocess_data_handles_duplicate_timestamps():
     track_value = consolidated_row["track_id"]
     if isinstance(track_value, pd.Series):
         track_value = track_value.iloc[0]
-    assert track_value == 1, (
-        "track_id should be the first of the duplicates."
-    )
+    assert track_value == 1, "track_id should be the first of the duplicates."

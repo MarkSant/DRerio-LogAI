@@ -42,9 +42,7 @@ class Recorder:
         self._flush_interval_seconds: float = float(
             getattr(recorder_settings, "flush_interval_seconds", 5.0)
         )
-        self._flush_row_threshold: int = int(
-            getattr(recorder_settings, "flush_row_threshold", 500)
-        )
+        self._flush_row_threshold: int = int(getattr(recorder_settings, "flush_row_threshold", 500))
 
     def start_recording(
         self,
@@ -213,21 +211,20 @@ class Recorder:
             "confidence",
         ]
         if self.pixel_per_cm_ratio:
-            columns.extend([
-                "x_center_px",
-                "y_center_px",
-                "x_cm",
-                "y_cm",
-            ])
+            columns.extend(
+                [
+                    "x_center_px",
+                    "y_center_px",
+                    "x_cm",
+                    "y_cm",
+                ]
+            )
         return columns
 
     def _should_flush(self) -> bool:
         if not self.detection_data:
             return False
-        if (
-            self._flush_row_threshold > 0
-            and len(self.detection_data) >= self._flush_row_threshold
-        ):
+        if self._flush_row_threshold > 0 and len(self.detection_data) >= self._flush_row_threshold:
             return True
         if self._flush_interval_seconds <= 0:
             return False
@@ -258,9 +255,7 @@ class Recorder:
                     self._parquet_filename, self._parquet_schema
                 )
             else:
-                table = pa.Table.from_pandas(
-                    df, schema=self._parquet_schema, preserve_index=False
-                )
+                table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
                 if self._parquet_writer is None:
                     self._parquet_writer = pq.ParquetWriter(
                         self._parquet_filename, self._parquet_schema
@@ -322,8 +317,7 @@ class Recorder:
                     log.info("recorder.save_parquet.no_data")
                 else:
                     df = df.reindex(
-                        columns=
-                        self._parquet_columns or self._determine_parquet_columns()
+                        columns=self._parquet_columns or self._determine_parquet_columns()
                     )
                     table = pa.Table.from_pandas(df, preserve_index=False)
                     pq.write_table(table, parquet_path)
@@ -353,9 +347,7 @@ class Recorder:
             processing_df = pd.DataFrame(zones.polygon, columns=["x", "y"])
             table = pa.Table.from_pandas(processing_df)
             pq.write_table(table, processing_area_filename)
-            log.info(
-                "recorder.save_processing_area.success", path=processing_area_filename
-            )
+            log.info("recorder.save_processing_area.success", path=processing_area_filename)
         except Exception as e:
             log.error(
                 "recorder.save_processing_area.error",
@@ -370,16 +362,12 @@ class Recorder:
         try:
             poly_data = []
             for i, polygon_points in enumerate(zones.roi_polygons):
-                roi_name = (
-                    zones.roi_names[i] if i < len(zones.roi_names) else f"ROI_{i + 1}"
-                )
+                roi_name = zones.roi_names[i] if i < len(zones.roi_names) else f"ROI_{i + 1}"
                 for j, (x, y) in enumerate(polygon_points):
                     poly_data.append([roi_name, j, x, y])
 
             if poly_data:
-                areas_df = pd.DataFrame(
-                    poly_data, columns=["roi_name", "point_index", "x", "y"]
-                )
+                areas_df = pd.DataFrame(poly_data, columns=["roi_name", "point_index", "x", "y"])
                 table = pa.Table.from_pandas(areas_df)
                 pq.write_table(table, areas_of_interest_filename)
                 log.info(
@@ -411,9 +399,7 @@ if __name__ == "__main__":
 
     # Test start recording
     mock_zones = ZoneData()
-    success = recorder.start_recording(
-        test_output_dir, frame_width, frame_height, zones=mock_zones
-    )
+    success = recorder.start_recording(test_output_dir, frame_width, frame_height, zones=mock_zones)
 
     if success:
         print("\nRecording started successfully.")

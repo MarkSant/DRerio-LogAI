@@ -83,7 +83,6 @@ def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
         pass
 
 
-
 def _ttkbootstrap_style_needs_reset() -> bool:
     if ttkb is None:
         return False

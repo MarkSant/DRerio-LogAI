@@ -47,8 +47,7 @@ def test_single_video_appears_in_project_overview(mock_wm, mock_gui):
 
         # Simulate adding the video to project manager (what the fix does)
         controller.project_manager.add_video_batch(
-            [{"path": video_path, "status": "processing"}],
-            save_project=False
+            [{"path": video_path, "status": "processing"}], save_project=False
         )
 
         # Create output files
@@ -135,14 +134,14 @@ def test_single_video_does_not_create_project_file(mock_wm, mock_gui):
 
         # Add video with save_project=False
         controller.project_manager.add_video_batch(
-            [{"path": video_path, "status": "processing"}],
-            save_project=False
+            [{"path": video_path, "status": "processing"}], save_project=False
         )
 
         # Verify no project_config.json was created
         project_file = os.path.join(tmpdir, "project_config.json")
-        assert not os.path.exists(project_file), \
+        assert not os.path.exists(project_file), (
             "Project file should not be created for single video workflow"
+        )
 
         # Verify the video is still tracked in memory
         all_videos = controller.project_manager.get_all_videos()

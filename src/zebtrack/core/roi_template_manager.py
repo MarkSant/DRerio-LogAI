@@ -45,7 +45,7 @@ class ROITemplateManager:
 
         log.info(
             "roi_template_manager.initialized",
-            global_dir=str(self.global_templates_dir)
+            global_dir=str(self.global_templates_dir),
         )
 
     @staticmethod
@@ -59,11 +59,7 @@ class ROITemplateManager:
         Returns:
             String slugificada (lowercase, sem caracteres especiais)
         """
-        normalized = (
-            unicodedata.normalize("NFKD", value)
-            .encode("ascii", "ignore")
-            .decode()
-        )
+        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
         normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
         return normalized.lower() or "template"
 
@@ -120,15 +116,11 @@ class ROITemplateManager:
             target_dir = self.global_templates_dir
         elif save_location == "project":
             if not project_path:
-                raise ValueError(
-                    "Caminho do projeto é necessário para salvar template no projeto."
-                )
+                raise ValueError("Caminho do projeto é necessário para salvar template no projeto.")
             target_dir = Path(project_path) / "roi_templates"
         elif save_location == "custom":
             if not custom_path:
-                raise ValueError(
-                    "Caminho personalizado é necessário para save_location='custom'."
-                )
+                raise ValueError("Caminho personalizado é necessário para save_location='custom'.")
             custom_path = Path(custom_path)
             if custom_path.is_dir():
                 target_dir = custom_path
@@ -161,19 +153,14 @@ class ROITemplateManager:
         serialized_data = {}
 
         if save_arena:
-            serialized_data["polygon"] = [
-                list(point) for point in (zone_data.polygon or [])
-            ]
+            serialized_data["polygon"] = [list(point) for point in (zone_data.polygon or [])]
 
         if save_rois:
             serialized_data["roi_polygons"] = [
-                [list(point) for point in polygon]
-                for polygon in (zone_data.roi_polygons or [])
+                [list(point) for point in polygon] for polygon in (zone_data.roi_polygons or [])
             ]
             serialized_data["roi_names"] = list(zone_data.roi_names or [])
-            serialized_data["roi_colors"] = [
-                list(color) for color in (zone_data.roi_colors or [])
-            ]
+            serialized_data["roi_colors"] = [list(color) for color in (zone_data.roi_colors or [])]
 
         # Metadados do arquivo
         payload = {
@@ -288,19 +275,19 @@ class ROITemplateManager:
                     with open(template_file, "r", encoding="utf-8") as f:
                         payload = json.load(f)
 
-                    templates.append({
-                        "name": payload.get("name", template_file.stem),
-                        "slug": template_file.stem,
-                        "file": str(template_file),
-                        "location": "global",
-                        "includes_arena": payload.get("includes_arena", True),
-                        "includes_rois": payload.get("includes_rois", True),
-                        "roi_count": len(
-                            payload.get("data", {}).get("roi_polygons", [])
-                        ),
-                        "created_at": payload.get("created_at", ""),
-                        "updated_at": payload.get("updated_at", ""),
-                    })
+                    templates.append(
+                        {
+                            "name": payload.get("name", template_file.stem),
+                            "slug": template_file.stem,
+                            "file": str(template_file),
+                            "location": "global",
+                            "includes_arena": payload.get("includes_arena", True),
+                            "includes_rois": payload.get("includes_rois", True),
+                            "roi_count": len(payload.get("data", {}).get("roi_polygons", [])),
+                            "created_at": payload.get("created_at", ""),
+                            "updated_at": payload.get("updated_at", ""),
+                        }
+                    )
                 except Exception as e:
                     log.warning(
                         "roi_template_manager.template_read_error",

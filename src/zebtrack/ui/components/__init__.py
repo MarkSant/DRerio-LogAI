@@ -9,12 +9,12 @@ ApplicationGUI class. Each component is a ttk.Frame subclass that:
 - Can be reused across different parts of the application
 """
 
+from zebtrack.ui.components.analysis_controls import AnalysisControlsWidget
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.components.video_display import VideoDisplayWidget
-from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
-from zebtrack.ui.components.analysis_controls import AnalysisControlsWidget
+from zebtrack.ui.components.video_display import VideoDisplayWidget
+from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 
 __all__ = [
     "BaseWidget",

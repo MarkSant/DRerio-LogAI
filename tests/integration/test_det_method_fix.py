@@ -3,6 +3,7 @@ Integration test that simulates the exact issue scenario mentioned in the proble
 statement. This test validates that the "det" method for animal detection now
 works correctly.
 """
+
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -29,9 +30,9 @@ def test_animal_detection_det_method_issue():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock segmentation model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock detection model")
 
         # Mock settings to match the problematic configuration
@@ -40,7 +41,7 @@ def test_animal_detection_det_method_issue():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file  # Legacy config points to seg
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             # Initialize WeightManager (this is what happens in
             # controller.setup_detector())
             wm = WeightManager(config_dir=temp_dir)
@@ -57,9 +58,7 @@ def test_animal_detection_det_method_issue():
             assert det_path == det_file, f"Expected {det_file}, got {det_path}"
 
             # Verify that both weights are properly initialized
-            assert (
-                len(wm.weights) == 2
-            ), "Both seg and det weights should be initialized"
+            assert len(wm.weights) == 2, "Both seg and det weights should be initialized"
             assert "best_seg.pt" in wm.weights
             assert "best_oi.pt" in wm.weights
 
@@ -84,9 +83,9 @@ def test_controller_setup_detector_scenario():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("segmentation model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("detection model")
 
         # Mock settings with animal_method = "det" (the failing scenario)
@@ -96,15 +95,13 @@ def test_controller_setup_detector_scenario():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             # Simulate the controller.setup_detector() logic
             weight_manager = WeightManager(config_dir=temp_dir)
 
             # This is the exact call that was failing in setup_detector():
             animal_method = mock_settings.model_selection.animal_method  # "det"
-            model_path = weight_manager.get_weight_path_by_method(
-                animal_method, "animal"
-            )
+            model_path = weight_manager.get_weight_path_by_method(animal_method, "animal")
 
             # Before fix: model_path would be None, causing setup_detector to fail
             # After fix: model_path should be the path to the detection model
@@ -123,7 +120,7 @@ def test_backwards_compatibility_maintained():
     with tempfile.TemporaryDirectory() as temp_dir:
         # Old setup: only yolo_model.path specified, new weight settings not used
         old_weight_file = os.path.join(temp_dir, "old_model.pt")
-        with open(old_weight_file, 'w') as f:
+        with open(old_weight_file, "w") as f:
             f.write("old model")
 
         mock_settings = MagicMock()
@@ -131,7 +128,7 @@ def test_backwards_compatibility_maintained():
         mock_settings.weights.seg_filename = "nonexistent_seg.pt"
         mock_settings.weights.det_filename = "nonexistent_det.pt"
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             wm = WeightManager(config_dir=temp_dir)
 
             # Should still work for legacy setups

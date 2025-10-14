@@ -27,6 +27,7 @@ def _iter_candidate_roots() -> Iterable[Path]:
 
 def _try_configure_from_root(root: Path, versions: tuple[str, ...]) -> bool:
     """Attempt to configure Tcl/Tk environment variables from a given root."""
+
     def _configure_from_dir(base_dir: Path) -> bool:
         if not base_dir.exists():
             return False

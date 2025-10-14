@@ -67,16 +67,13 @@ class FileSelectionStep(WizardStep):
         """Build file selection UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Seleção de Vídeos", font=title_font
-        )
+        title = Label(self, text="Seleção de Vídeos", font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
             self,
             text=(
-                "Selecione os vídeos que deseja analisar (arquivos individuais ou "
-                "pastas inteiras)."
+                "Selecione os vídeos que deseja analisar (arquivos individuais ou pastas inteiras)."
             ),
             fg="gray",
             wraplength=500,
@@ -135,10 +132,7 @@ class FileSelectionStep(WizardStep):
         btn_remove.pack(side="left", padx=5)
         ToolTip(
             btn_remove,
-            (
-                "Remover o item selecionado na lista (clique no item para "
-                "selecioná-lo)."
-            ),
+            ("Remover o item selecionado na lista (clique no item para selecioná-lo)."),
         )
 
         btn_clear = Button(
@@ -170,9 +164,7 @@ class FileSelectionStep(WizardStep):
         content_container.pack(fill="both", expand=True)
 
         # LEFT: List of selected paths
-        list_frame = LabelFrame(
-            content_container, text="Itens Selecionados", padx=10, pady=10
-        )
+        list_frame = LabelFrame(content_container, text="Itens Selecionados", padx=10, pady=10)
         list_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
         # Scrollable listbox
@@ -255,9 +247,7 @@ class FileSelectionStep(WizardStep):
 
     def _select_video_folder(self):
         """Open folder dialog to select a directory."""
-        folder = filedialog.askdirectory(
-            title="Selecione uma Pasta Contendo Vídeos"
-        )
+        folder = filedialog.askdirectory(title="Selecione uma Pasta Contendo Vídeos")
         if folder:
             # Add folder (avoid duplicates)
             if folder not in self.video_paths:
@@ -564,10 +554,7 @@ class FileSelectionStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")

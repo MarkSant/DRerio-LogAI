@@ -103,9 +103,7 @@ class Detector:
 
         # Convert base polygons to numpy arrays for scaling
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
-        base_roi_polygons = [
-            np.array(p, dtype=np.int32) for p in self.zones.roi_polygons
-        ]
+        base_roi_polygons = [np.array(p, dtype=np.int32) for p in self.zones.roi_polygons]
 
         if actual_width == self.base_width and actual_height == self.base_height:
             self.scaled_polygon = base_polygon
@@ -201,9 +199,7 @@ class Detector:
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
             predictions = []
             for det in self.plugin.detect(cropped_frame):
-                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = (
-                    self._ensure_track_tuple(det)
-                )
+                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = self._ensure_track_tuple(det)
                 x1 = x1_crop + x
                 y1 = y1_crop + y
                 x2 = x2_crop + x
@@ -211,9 +207,7 @@ class Detector:
                 predictions.append((x1, y1, x2, y2, conf, track_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined
-            predictions = [
-                self._ensure_track_tuple(det) for det in self.plugin.detect(frame)
-            ]
+            predictions = [self._ensure_track_tuple(det) for det in self.plugin.detect(frame)]
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
@@ -234,13 +228,9 @@ class Detector:
                     )
 
         if self._single_subject_mode:
-            detections_in_polygon = self._single_subject_tracker.assign(
-                detections_in_polygon
-            )
+            detections_in_polygon = self._single_subject_tracker.assign(detections_in_polygon)
         else:
-            detections_in_polygon = self._apply_byte_tracking(
-                detections_in_polygon, frame.shape
-            )
+            detections_in_polygon = self._apply_byte_tracking(detections_in_polygon, frame.shape)
 
         end_time = time.perf_counter()
         log.debug(
@@ -284,9 +274,7 @@ class Detector:
             try:
                 self.plugin.reset_tracking_state()
             except Exception:  # pragma: no cover - defensive
-                log.warning(
-                    "detector.reset_tracking_state.plugin_failed", exc_info=True
-                )
+                log.warning("detector.reset_tracking_state.plugin_failed", exc_info=True)
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None

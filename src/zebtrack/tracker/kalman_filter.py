@@ -118,8 +118,7 @@ class KalmanFilter:
 
         mean = np.dot(mean, self._motion_mat.T)
         covariance = (
-            np.linalg.multi_dot((self._motion_mat, covariance, self._motion_mat.T))
-            + motion_cov
+            np.linalg.multi_dot((self._motion_mat, covariance, self._motion_mat.T)) + motion_cov
         )
 
         return mean, covariance
@@ -149,9 +148,7 @@ class KalmanFilter:
         innovation_cov = np.diag(np.square(std))
 
         mean = np.dot(self._update_mat, mean)
-        covariance = np.linalg.multi_dot(
-            (self._update_mat, covariance, self._update_mat.T)
-        )
+        covariance = np.linalg.multi_dot((self._update_mat, covariance, self._update_mat.T))
 
         return mean, covariance + innovation_cov
 
@@ -218,9 +215,7 @@ class KalmanFilter:
         """
         projected_mean, projected_cov = self.project(mean, covariance)
 
-        chol_factor, lower = scipy.linalg.cho_factor(
-            projected_cov, lower=True, check_finite=False
-        )
+        chol_factor, lower = scipy.linalg.cho_factor(projected_cov, lower=True, check_finite=False)
         kalman_gain = scipy.linalg.cho_solve(
             (chol_factor, lower),
             np.dot(covariance, self._update_mat.T).T,
@@ -234,9 +229,7 @@ class KalmanFilter:
         )
         return new_mean, new_covariance
 
-    def gating_distance(
-        self, mean, covariance, measurements, only_position=False, metric="maha"
-    ):
+    def gating_distance(self, mean, covariance, measurements, only_position=False, metric="maha"):
         """Compute gating distance between state distribution and measurements.
         A suitable distance threshold can be obtained from `chi2inv95`. If
         `only_position` is False, the chi-square distribution has 4 degrees of

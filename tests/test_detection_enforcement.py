@@ -10,16 +10,14 @@ def test_detection_mode_with_multiple_animals_blocked():
     """Test that detection mode with multiple animals is blocked with clear error."""
     with tempfile.TemporaryDirectory():
         # Mock settings to use detection mode for animals
-        with patch('zebtrack.settings.settings') as mock_settings:
+        with patch("zebtrack.settings.settings") as mock_settings:
             mock_settings.model_selection.animal_method = "det"
             mock_settings.camera.desired_width = 640
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch(
-                    'zebtrack.core.controller.ApplicationGUI'
-                ) as MockApplicationGUI:
+            with patch("zebtrack.core.controller.settings", mock_settings):
+                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -40,7 +38,7 @@ def test_detection_mode_with_multiple_animals_blocked():
                     "num_aquariums": 1,
                     "aquarium_width_cm": 10.0,
                     "aquarium_height_cm": 10.0,
-                    "video_files": ["/tmp/test.mp4"]
+                    "video_files": ["/tmp/test.mp4"],
                 }
 
                 # This should show an error and return early without creating project
@@ -62,16 +60,14 @@ def test_detection_mode_with_single_animal_allowed():
     """Test that detection mode with single animal is allowed."""
     with tempfile.TemporaryDirectory():
         # Mock settings to use detection mode for animals
-        with patch('zebtrack.settings.settings') as mock_settings:
+        with patch("zebtrack.settings.settings") as mock_settings:
             mock_settings.model_selection.animal_method = "det"
             mock_settings.camera.desired_width = 640
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch(
-                    'zebtrack.core.controller.ApplicationGUI'
-                ) as MockApplicationGUI:
+            with patch("zebtrack.core.controller.settings", mock_settings):
+                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -86,7 +82,7 @@ def test_detection_mode_with_single_animal_allowed():
                 controller.active_weight_name = "test_weight"
 
                 # Mock setup_detector to succeed
-                with patch.object(controller, 'setup_detector', return_value=True):
+                with patch.object(controller, "setup_detector", return_value=True):
                     # Try to create project with single animal per aquarium
                     project_kwargs = {
                         "project_path": "/tmp/test_project",
@@ -95,7 +91,7 @@ def test_detection_mode_with_single_animal_allowed():
                         "num_aquariums": 1,
                         "aquarium_width_cm": 10.0,
                         "aquarium_height_cm": 10.0,
-                        "video_files": ["/tmp/test.mp4"]
+                        "video_files": ["/tmp/test.mp4"],
                     }
 
                     # This should succeed without error
@@ -112,16 +108,14 @@ def test_segmentation_mode_with_multiple_animals_allowed():
     """Test that segmentation mode with multiple animals is allowed."""
     with tempfile.TemporaryDirectory():
         # Mock settings to use segmentation mode for animals
-        with patch('zebtrack.settings.settings') as mock_settings:
+        with patch("zebtrack.settings.settings") as mock_settings:
             mock_settings.model_selection.animal_method = "seg"
             mock_settings.camera.desired_width = 640
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch(
-                    'zebtrack.core.controller.ApplicationGUI'
-                ) as MockApplicationGUI:
+            with patch("zebtrack.core.controller.settings", mock_settings):
+                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components
@@ -136,7 +130,7 @@ def test_segmentation_mode_with_multiple_animals_allowed():
                 controller.active_weight_name = "test_weight"
 
                 # Mock setup_detector to succeed
-                with patch.object(controller, 'setup_detector', return_value=True):
+                with patch.object(controller, "setup_detector", return_value=True):
                     # Try to create project with multiple animals per aquarium
                     project_kwargs = {
                         "project_path": "/tmp/test_project",
@@ -146,7 +140,7 @@ def test_segmentation_mode_with_multiple_animals_allowed():
                         "num_aquariums": 1,
                         "aquarium_width_cm": 10.0,
                         "aquarium_height_cm": 10.0,
-                        "video_files": ["/tmp/test.mp4"]
+                        "video_files": ["/tmp/test.mp4"],
                     }
 
                     # This should succeed without error
@@ -163,16 +157,14 @@ def test_single_video_detection_mode_enforcement():
     """Test enforcement in single video workflow."""
     with tempfile.TemporaryDirectory():
         # Mock settings to use detection mode for animals
-        with patch('zebtrack.settings.settings') as mock_settings:
+        with patch("zebtrack.settings.settings") as mock_settings:
             mock_settings.model_selection.animal_method = "det"
             mock_settings.camera.desired_width = 640
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch('zebtrack.core.controller.settings', mock_settings):
-                with patch(
-                    'zebtrack.core.controller.ApplicationGUI'
-                ) as MockApplicationGUI:
+            with patch("zebtrack.core.controller.settings", mock_settings):
+                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
                     from zebtrack.core.controller import AppController
 
                     # Create controller with mocked view and components

@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import re
@@ -63,10 +62,10 @@ class ProjectManager:
     def __init__(self, state_manager=None):
         # Phase 1, Step 3: Delegate file I/O to ProjectService
         self.project_service = ProjectService()
-        
+
         # Phase 2, Step 4: Optional StateManager reference for state propagation
         self.state_manager = state_manager
-        
+
         # In-memory project state
         self.project_path = None
         self.project_data = {}
@@ -101,9 +100,7 @@ class ProjectManager:
             resolved = Path(path)
         return resolved.as_posix()
 
-    def _resolve_zone_entry(
-        self, video_path: str | None
-    ) -> tuple[str | None, dict | None]:
+    def _resolve_zone_entry(self, video_path: str | None) -> tuple[str | None, dict | None]:
         """Locate a stored zone entry matching the provided video path."""
 
         if not video_path:
@@ -152,11 +149,7 @@ class ProjectManager:
 
     @staticmethod
     def _slugify(value: str) -> str:
-        normalized = (
-            unicodedata.normalize("NFKD", value)
-            .encode("ascii", "ignore")
-            .decode()
-        )
+        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
         normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
         return normalized.lower() or "template"
 
@@ -244,15 +237,12 @@ class ProjectManager:
         if target_location == "project":
             if not self.project_path:
                 raise ValueError(
-                    "Não é possível salvar o template no projeto atual: "
-                    "projeto não carregado."
+                    "Não é possível salvar o template no projeto atual: projeto não carregado."
                 )
 
             self._ensure_zone_structures()
 
-            existing_index, existing_entry = self._resolve_roi_template_entry(
-                normalized_name
-            )
+            existing_index, existing_entry = self._resolve_roi_template_entry(normalized_name)
             if existing_entry and not overwrite:
                 raise ValueError(f"Template '{normalized_name}' já existe.")
 
@@ -358,9 +348,7 @@ class ProjectManager:
         has_rois = bool(zone_data.roi_polygons)
 
         project_available = bool(self.project_path)
-        target_location: Literal["project", "global"] = (
-            "project" if project_available else "global"
-        )
+        target_location: Literal["project", "global"] = "project" if project_available else "global"
         effective_persist = persist and project_available
 
         return self.save_roi_template(
@@ -418,9 +406,7 @@ class ProjectManager:
                         break
 
         if template_path is None:
-            raise ValueError(
-                f"Template de ROI '{name}' não encontrado para o contexto solicitado."
-            )
+            raise ValueError(f"Template de ROI '{name}' não encontrado para o contexto solicitado.")
 
         return self.roi_template_manager.load_template(template_path)
 
@@ -438,8 +424,7 @@ class ProjectManager:
         serialized = {
             "polygon": [list(point) for point in (zone_data.polygon or [])],
             "roi_polygons": [
-                [list(point) for point in polygon]
-                for polygon in (zone_data.roi_polygons or [])
+                [list(point) for point in polygon] for polygon in (zone_data.roi_polygons or [])
             ],
             "roi_names": list(zone_data.roi_names or []),
             "roi_colors": [list(color) for color in (zone_data.roi_colors or [])],
@@ -500,9 +485,7 @@ class ProjectManager:
         if removed_path and self._last_zone_source_video:
             normalized_removed = self._normalize_video_path(removed_path)
             if normalized_removed:
-                current_normalized = self._normalize_video_path(
-                    self._last_zone_source_video
-                )
+                current_normalized = self._normalize_video_path(self._last_zone_source_video)
                 if current_normalized == normalized_removed:
                     self._last_zone_source_video = None
 
@@ -540,9 +523,7 @@ class ProjectManager:
 
         if stored:
             zone_copy = self._zone_data_from_dict(stored)
-            self.project_data["detection_zones"] = self._zone_data_to_dict(
-                zone_copy
-            )
+            self.project_data["detection_zones"] = self._zone_data_to_dict(zone_copy)
 
             if key and key != preferred_key:
                 zones_map[preferred_key] = stored
@@ -643,9 +624,7 @@ class ProjectManager:
 
         normalized_target = self._normalize_video_path(video_path)
         if self._active_zone_video and normalized_target == self._active_zone_video:
-            self.project_data["detection_zones"] = self._zone_data_to_dict(
-                ZoneData()
-            )
+            self.project_data["detection_zones"] = self._zone_data_to_dict(ZoneData())
 
         self._update_video_zone_flags(video_path, None)
         self._refresh_last_zone_source(removed_path=video_path)
@@ -764,9 +743,7 @@ class ProjectManager:
                     )
 
         if updated_video_entry and copied:
-            video_entry = target_video_entry or self.find_video_entry(
-                path=target_video_path
-            )
+            video_entry = target_video_entry or self.find_video_entry(path=target_video_path)
             if video_entry is not None:
                 parquet_map = video_entry.setdefault("parquet_files", {})
                 parquet_map.update(copied)
@@ -816,13 +793,9 @@ class ProjectManager:
                 continue
 
             if p.is_dir():
-                video_files.update(
-                    ProjectManager._scan_directory_for_videos(p, video_extensions)
-                )
+                video_files.update(ProjectManager._scan_directory_for_videos(p, video_extensions))
             elif p.is_file() and p.suffix.lower() in video_extensions:
-                video_files.update(
-                    ProjectManager._scan_file_entry(p, video_extensions)
-                )
+                video_files.update(ProjectManager._scan_file_entry(p, video_extensions))
 
         results = []
         for video_path in sorted(video_files):
@@ -854,9 +827,7 @@ class ProjectManager:
                             rois_path = str(rois_candidates[0])
 
                     if not trajectory_path:
-                        trajectory_candidates = list(
-                            search_dir.glob(trajectory_pattern)
-                        )
+                        trajectory_candidates = list(search_dir.glob(trajectory_pattern))
                         if trajectory_candidates:
                             trajectory_path = str(trajectory_candidates[0])
 
@@ -894,9 +865,7 @@ class ProjectManager:
         return results
 
     @classmethod
-    def _scan_directory_for_videos(
-        cls, directory: Path, video_extensions: set[str]
-    ) -> list[Path]:
+    def _scan_directory_for_videos(cls, directory: Path, video_extensions: set[str]) -> list[Path]:
         cache_key = str(directory.resolve())
         signature = cls._compute_path_signature(directory)
         now = time.time()
@@ -929,9 +898,7 @@ class ProjectManager:
         return videos
 
     @classmethod
-    def _scan_file_entry(
-        cls, file_path: Path, video_extensions: set[str]
-    ) -> list[Path]:
+    def _scan_file_entry(cls, file_path: Path, video_extensions: set[str]) -> list[Path]:
         if file_path.suffix.lower() not in video_extensions:
             return []
 
@@ -1004,11 +971,7 @@ class ProjectManager:
             # Load arena polygon
             if arena_path and os.path.exists(arena_path):
                 arena_df = pd.read_parquet(arena_path)
-                if (
-                    not arena_df.empty
-                    and "x" in arena_df.columns
-                    and "y" in arena_df.columns
-                ):
+                if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
                     polygon_points = arena_df[["x", "y"]].values.tolist()
                     zone_data.polygon = polygon_points
                     log.info(
@@ -1033,9 +996,9 @@ class ProjectManager:
                         roi_names = []
 
                         for roi_name in rois_df["roi_name"].unique():
-                            roi_df = rois_df[
-                                rois_df["roi_name"] == roi_name
-                            ].sort_values("point_index")
+                            roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
+                                "point_index"
+                            )
                             roi_points = roi_df[["x", "y"]].values.tolist()
                             roi_polygons.append(roi_points)
                             roi_names.append(roi_name)
@@ -1046,16 +1009,15 @@ class ProjectManager:
                         # Generate default colors if not provided
                         # (actual colors are not stored in parquet, using defaults)
                         default_colors = [
-                            (0, 255, 0),    # Green
-                            (255, 0, 0),    # Blue
-                            (0, 0, 255),    # Red
+                            (0, 255, 0),  # Green
+                            (255, 0, 0),  # Blue
+                            (0, 0, 255),  # Red
                             (255, 255, 0),  # Cyan
                             (255, 0, 255),  # Magenta
                             (0, 255, 255),  # Yellow
                         ]
                         zone_data.roi_colors = [
-                            default_colors[i % len(default_colors)]
-                            for i in range(len(roi_names))
+                            default_colors[i % len(default_colors)] for i in range(len(roi_names))
                         ]
 
                         log.info(
@@ -1091,7 +1053,7 @@ class ProjectManager:
         self,
         import_config: list[dict],
         roi_merge_strategy: str = "replace",
-    scanned_videos: list[dict] | None = None,
+        scanned_videos: list[dict] | None = None,
     ) -> bool:
         """
         Imports arena, ROIs, and trajectory data from existing parquet files.
@@ -1139,9 +1101,7 @@ class ProjectManager:
         video_parquet_map = {}
         if scanned_videos:
             for video_info in scanned_videos:
-                video_parquet_map[video_info["path"]] = video_info.get(
-                    "parquet_files", {}
-                )
+                video_parquet_map[video_info["path"]] = video_info.get("parquet_files", {})
 
         imported_count = {"arena": 0, "rois": 0, "trajectory": 0}
 
@@ -1209,9 +1169,9 @@ class ProjectManager:
                                 imported_roi_names = []
 
                                 for roi_name in rois_df["roi_name"].unique():
-                                    roi_df = rois_df[
-                                        rois_df["roi_name"] == roi_name
-                                    ].sort_values("point_index")
+                                    roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
+                                        "point_index"
+                                    )
                                     roi_points = roi_df[["x", "y"]].values.tolist()
                                     imported_roi_polygons.append(roi_points)
                                     imported_roi_names.append(roi_name)
@@ -1232,14 +1192,9 @@ class ProjectManager:
                                         if roi_name in existing_names:
                                             # Find unique name
                                             counter = 1
-                                            while (
-                                                f"{roi_name}_imported{counter}"
-                                                in existing_names
-                                            ):
+                                            while f"{roi_name}_imported{counter}" in existing_names:
                                                 counter += 1
-                                            final_name = (
-                                                f"{roi_name}_imported{counter}"
-                                            )
+                                            final_name = f"{roi_name}_imported{counter}"
                                             log.info(
                                                 "project_manager.import_parquets.roi_renamed",
                                                 original=roi_name,
@@ -1260,9 +1215,9 @@ class ProjectManager:
 
                                 # Regenerate colors for all ROIs
                                 default_colors = [
-                                    (0, 255, 0),    # Green
-                                    (255, 0, 0),    # Blue
-                                    (0, 0, 255),    # Red
+                                    (0, 255, 0),  # Green
+                                    (255, 0, 0),  # Blue
+                                    (0, 0, 255),  # Red
                                     (255, 255, 0),  # Cyan
                                     (255, 0, 255),  # Magenta
                                     (0, 255, 255),  # Yellow
@@ -1303,11 +1258,10 @@ class ProjectManager:
                         )
                         results_dir.mkdir(parents=True, exist_ok=True)
 
-                        dest_path = (
-                            results_dir / f"3_CoordMovimento_{video_name}.parquet"
-                        )
+                        dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
 
                         import shutil
+
                         shutil.copy2(trajectory_path, dest_path)
 
                         imported_count["trajectory"] += 1
@@ -1509,17 +1463,14 @@ class ProjectManager:
             metadata = dict(video_info.get("metadata") or {})
             for key in ("group", "group_display_name", "day", "subject"):
                 value = video_info.get(key)
-                if value is not None and (
-                    value != "" or isinstance(value, (int, float))
-                ):
+                if value is not None and (value != "" or isinstance(value, (int, float))):
                     metadata.setdefault(key, value)
 
             # Remove empty values to keep JSON compact
             metadata = {
                 key: value
                 for key, value in metadata.items()
-                if value is not None
-                and (value != "" or isinstance(value, (int, float)))
+                if value is not None and (value != "" or isinstance(value, (int, float)))
             }
 
             video_entry = {
@@ -1547,9 +1498,7 @@ class ProjectManager:
 
         metadata_count = sum(1 for v in new_batch["videos"] if "metadata" in v)
         arena_count = sum(1 for v in new_batch["videos"] if v.get("has_arena"))
-        trajectory_count = sum(
-            1 for v in new_batch["videos"] if v.get("has_trajectory")
-        )
+        trajectory_count = sum(1 for v in new_batch["videos"] if v.get("has_trajectory"))
 
         log.info(
             "project.batch.added",
@@ -1565,7 +1514,7 @@ class ProjectManager:
     def load_project(self, project_path):
         """
         Loads project data from a config file in the given directory.
-        
+
         Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
@@ -1602,9 +1551,7 @@ class ProjectManager:
                 migrated_fields.append("calibration.animals_per_aquarium")
                 log_context.info(
                     "project.load.backward_compatibility",
-                    message=(
-                        "Added missing animals_per_aquarium field with default value 1"
-                    ),
+                    message=("Added missing animals_per_aquarium field with default value 1"),
                 )
 
             # Add defaults for legacy projects missing interval/camera/arduino fields
@@ -1618,20 +1565,14 @@ class ProjectManager:
                 migration_applied = True
                 migrated_fields.append("display_interval_frames")
 
-            if "analysis_profiles" not in loaded_data or not loaded_data.get(
-                "analysis_profiles"
-            ):
-                loaded_data["analysis_profiles"] = [
-                    self._default_analysis_profile()
-                ]
+            if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
+                loaded_data["analysis_profiles"] = [self._default_analysis_profile()]
                 migration_applied = True
                 migrated_fields.append("analysis_profiles")
 
             tracker_flag = settings.tracking.use_single_subject_tracker
             tracking_defaults = {"use_single_subject_tracker": tracker_flag}
-            if "tracking" not in loaded_data or not isinstance(
-                loaded_data.get("tracking"), dict
-            ):
+            if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
                 loaded_data["tracking"] = dict(tracking_defaults)
                 migration_applied = True
                 migrated_fields.append("tracking")
@@ -1645,9 +1586,7 @@ class ProjectManager:
                         "use_single_subject_tracker"
                     ]
                     migration_applied = True
-                    migrated_fields.append(
-                        "tracking.use_single_subject_tracker"
-                    )
+                    migrated_fields.append("tracking.use_single_subject_tracker")
 
             if "roi_templates" not in loaded_data or not isinstance(
                 loaded_data.get("roi_templates"), list
@@ -1696,6 +1635,12 @@ class ProjectManager:
                 loaded_data["model_overrides"] = overrides
                 migration_applied = True
                 migrated_fields.append("model_overrides")
+
+            # Add file_hash for legacy projects that don't have it
+            if "file_hash" not in loaded_data:
+                loaded_data["file_hash"] = {}
+                migration_applied = True
+                migrated_fields.append("file_hash")
             # --- End Backward Compatibility ---
 
             self.project_path = project_path
@@ -1726,7 +1671,7 @@ class ProjectManager:
     def save_project(self):
         """
         Saves the current project data to the config file with an integrity hash.
-        
+
         Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
         # Critical Fix #5: Add validation before saving
@@ -1736,11 +1681,8 @@ class ProjectManager:
 
         try:
             # Delegate to ProjectService for file I/O
-            self.project_service.save_project_config(
-                self.project_path,
-                self.project_data
-            )
-            
+            self.project_service.save_project_config(self.project_path, self.project_data)
+
             log.info("project.save.success", path=self.project_path)
             return True
         except Exception as e:
@@ -1876,9 +1818,7 @@ class ProjectManager:
         if asset == "rois":
             return bool(video_entry.get("has_rois") or parquet_files.get("rois"))
         if asset == "trajectory":
-            return bool(
-                video_entry.get("has_trajectory") or parquet_files.get("trajectory")
-            )
+            return bool(video_entry.get("has_trajectory") or parquet_files.get("trajectory"))
         if asset == "summary":
             return bool(
                 video_entry.get("has_summary")
@@ -1918,9 +1858,7 @@ class ProjectManager:
             )
             return False
 
-    def can_remove_asset(
-        self, video_path: str, asset: AssetType
-    ) -> Tuple[bool, str | None]:
+    def can_remove_asset(self, video_path: str, asset: AssetType) -> Tuple[bool, str | None]:
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             return False, "Vídeo não encontrado no projeto."
@@ -1931,10 +1869,7 @@ class ProjectManager:
             if has_summary_outputs:
                 return (
                     False,
-                    (
-                        "Remova os relatórios e sumários antes de apagar "
-                        "arena, ROIs ou trajetórias."
-                    ),
+                    ("Remova os relatórios e sumários antes de apagar arena, ROIs ou trajetórias."),
                 )
             if not self._video_has_asset(video_entry, asset):
                 labels = {
@@ -1957,10 +1892,7 @@ class ProjectManager:
             ):
                 return (
                     False,
-                    (
-                        "Remova arena, ROIs e trajetórias antes de excluir o vídeo do "
-                        "projeto."
-                    ),
+                    ("Remova arena, ROIs e trajetórias antes de excluir o vídeo do projeto."),
                 )
 
         return True, None
@@ -2116,9 +2048,7 @@ class ProjectManager:
         for batch in self.project_data.get("batches", []):
             original_count = len(batch.get("videos", []))
             batch["videos"] = [
-                item
-                for item in batch.get("videos", [])
-                if item.get("path") != video_path
+                item for item in batch.get("videos", []) if item.get("path") != video_path
             ]
             if len(batch["videos"]) != original_count:
                 changed = True
@@ -2167,9 +2097,7 @@ class ProjectManager:
 
         metadata: dict = {}
 
-        video_entry = self.find_video_entry(
-            path=video_path, experiment_id=experiment_id
-        )
+        video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
         if video_entry:
             metadata.update(dict(video_entry.get("metadata") or {}))
 
@@ -2240,9 +2168,7 @@ class ProjectManager:
             candidate = fallback
 
         normalized = unicodedata.normalize("NFKD", candidate)
-        normalized = "".join(
-            ch for ch in normalized if not unicodedata.combining(ch)
-        )
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
 
         sanitized = re.sub(r"[<>:\"/\\|?*]", "_", normalized)
         sanitized = re.sub(r"\s+", "_", sanitized)
@@ -2261,13 +2187,9 @@ class ProjectManager:
             ):
                 value = metadata.get(key)
                 if value not in (None, ""):
-                    return "Grupo_" + self._sanitize_path_component(
-                        value, fallback="Sem_Grupo"
-                    )
+                    return "Grupo_" + self._sanitize_path_component(value, fallback="Sem_Grupo")
 
-        return "Grupo_" + self._sanitize_path_component(
-            None, fallback="Sem_Grupo"
-        )
+        return "Grupo_" + self._sanitize_path_component(None, fallback="Sem_Grupo")
 
     def _format_day_component(self, metadata: dict | None) -> str:
         candidate = None
@@ -2286,13 +2208,9 @@ class ProjectManager:
                 if day_number.is_integer():
                     suffix = f"{int(day_number):02d}"
                 else:
-                    suffix = self._sanitize_path_component(
-                        candidate, fallback="Indefinido"
-                    )
+                    suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
             except (TypeError, ValueError):
-                suffix = self._sanitize_path_component(
-                    candidate, fallback="Indefinido"
-                )
+                suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
 
         return f"Dia_{suffix}"
 
@@ -2313,13 +2231,9 @@ class ProjectManager:
                 if subject_number.is_integer():
                     suffix = f"{int(subject_number):02d}"
                 else:
-                    suffix = self._sanitize_path_component(
-                        candidate, fallback="Indefinido"
-                    )
+                    suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
             except (TypeError, ValueError):
-                suffix = self._sanitize_path_component(
-                    candidate, fallback="Indefinido"
-                )
+                suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
 
         return f"Sujeito_{suffix}"
 
@@ -2343,10 +2257,7 @@ class ProjectManager:
             )
             # Add the video to the in-memory project data
             # This can happen during single video workflows
-            self.add_video_batch(
-                [{"path": video_path, "status": "processing"}],
-                save_project=False
-            )
+            self.add_video_batch([{"path": video_path, "status": "processing"}], save_project=False)
             video_entry = self.find_video_entry(path=video_path)
             if not video_entry:
                 log.warning(
@@ -2408,10 +2319,7 @@ class ProjectManager:
             changed = True
 
         # Update status to 'processed' if we have trajectory data
-        if (
-            video_entry.get("has_trajectory")
-            and video_entry.get("status") != "processed"
-        ):
+        if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":
             video_entry["status"] = "processed"
             changed = True
 
@@ -2537,8 +2445,7 @@ class ProjectManager:
                 )
                 messagebox.showwarning(
                     "Aviso de Metadados",
-                    "Não foi possível carregar ou analisar 'metadata.csv'.\n\n"
-                    f"Erro: {e}",
+                    f"Não foi possível carregar ou analisar 'metadata.csv'.\n\nErro: {e}",
                 )
         else:
             self.metadata = None
@@ -2583,9 +2490,7 @@ class ProjectManager:
                 )
                 return {"day": day, "group": group, "subject": subject}
             except (ValueError, IndexError):
-                log.warning(
-                    "metadata.fallback.parse_error", experiment_id=experiment_id
-                )
+                log.warning("metadata.fallback.parse_error", experiment_id=experiment_id)
 
         # If neither method works, return an empty dictionary
         return {}
@@ -2617,11 +2522,15 @@ class ProjectManager:
             result = self.save_project()
 
             if result:
-                log.info("project.detector_state.save.success",
-                        plugin=detector_config.get("plugin_name"))
+                log.info(
+                    "project.detector_state.save.success",
+                    plugin=detector_config.get("plugin_name"),
+                )
             else:
-                log.error("project.detector_state.save.error",
-                         message="save_project returned False")
+                log.error(
+                    "project.detector_state.save.error",
+                    message="save_project returned False",
+                )
 
             return result
 

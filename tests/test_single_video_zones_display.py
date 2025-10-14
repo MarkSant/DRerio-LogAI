@@ -81,10 +81,7 @@ def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
             "metadata": metadata,
         }
 
-        controller.project_manager.add_video_batch(
-            [video_data],
-            save_project=False
-        )
+        controller.project_manager.add_video_batch([video_data], save_project=False)
 
         # Save zone data
         controller.project_manager.save_zone_data(zone_data, video_path)
@@ -200,8 +197,7 @@ def test_zone_flags_updated_during_output_registration(mock_wm, mock_gui):
 
         # Add video WITHOUT zone flags
         controller.project_manager.add_video_batch(
-            [{"path": video_path, "status": "processing"}],
-            save_project=False
+            [{"path": video_path, "status": "processing"}], save_project=False
         )
 
         # Verify flags are initially False/missing
@@ -237,12 +233,8 @@ def test_zone_flags_updated_during_output_registration(mock_wm, mock_gui):
 
         # Verify flags were updated
         video_entry = controller.project_manager.find_video_entry(path=video_path)
-        assert video_entry.get("has_arena") is True, (
-            "has_arena should be updated to True"
-        )
-        assert video_entry.get("has_rois") is True, (
-            "has_rois should be updated to True"
-        )
+        assert video_entry.get("has_arena") is True, "has_arena should be updated to True"
+        assert video_entry.get("has_rois") is True, "has_rois should be updated to True"
         assert video_entry.get("has_trajectory") is True
 
         log.info("test.zone_flags_auto_update.success")

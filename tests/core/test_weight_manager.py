@@ -181,9 +181,7 @@ def test_wm_convert_to_openvino(mock_move, mock_yolo, wm_setup):
     mock_model_instance.export.assert_called_once_with(format="openvino", half=True)
 
     # 3. Assert that the final model path is correct and exists
-    expected_final_dir = (
-        config_dir / OPENVINO_CACHE_DIR / "default_weight_openvino_model"
-    )
+    expected_final_dir = config_dir / OPENVINO_CACHE_DIR / "default_weight_openvino_model"
     assert openvino_path == str(expected_final_dir)
 
     # 4. Assert that shutil.move was called to move the temp dir

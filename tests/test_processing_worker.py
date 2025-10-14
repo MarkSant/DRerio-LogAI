@@ -7,8 +7,7 @@ and error handling without requiring a full GUI setup.
 
 import threading
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, call
+from unittest.mock import Mock
 
 import pytest
 
@@ -106,10 +105,9 @@ class TestProcessingWorkerThreading:
         basic_context.cancel_event.set()
         thread.join(timeout=1.0)
 
-    def test_start_in_thread_returns_same_thread_if_running(
-        self, basic_context, mock_callbacks
-    ):
+    def test_start_in_thread_returns_same_thread_if_running(self, basic_context, mock_callbacks):
         """Calling start_in_thread twice returns the same thread if still running."""
+
         # Make the worker run for a bit
         def slow_process(*args, **kwargs):
             time.sleep(0.1)
@@ -180,9 +178,7 @@ class TestProcessingWorkerCallbacks:
         # Output dir updates to the results from processed video
         assert output_dir == "/output"
 
-    def test_on_video_completed_called_for_each_video(
-        self, mock_cancel_event, mock_callbacks
-    ):
+    def test_on_video_completed_called_for_each_video(self, mock_cancel_event, mock_callbacks):
         """on_video_completed is called once per video in the batch."""
         context = ProcessingContext(
             videos_to_process=[
@@ -201,9 +197,7 @@ class TestProcessingWorkerCallbacks:
 
         assert mock_callbacks.on_video_completed.call_count == 3
 
-    def test_on_error_called_when_processing_raises(
-        self, basic_context, mock_callbacks
-    ):
+    def test_on_error_called_when_processing_raises(self, basic_context, mock_callbacks):
         """on_error callback is invoked when video processing raises an exception."""
         basic_context.process_single_video_func = Mock(
             side_effect=RuntimeError("Processing failed")
@@ -239,9 +233,7 @@ class TestProcessingWorkerCallbacks:
 class TestProcessingWorkerCancellation:
     """Tests for worker cancellation behavior."""
 
-    def test_cancel_sets_event_and_stops_processing(
-        self, mock_cancel_event, mock_callbacks
-    ):
+    def test_cancel_sets_event_and_stops_processing(self, mock_cancel_event, mock_callbacks):
         """cancel() method sets the cancel event and stops processing."""
         # Create a context with multiple videos
         context = ProcessingContext(
@@ -273,9 +265,7 @@ class TestProcessingWorkerCancellation:
         was_cancelled = mock_callbacks.on_completed.call_args[0][0]
         assert was_cancelled is True
 
-    def test_cancel_event_checked_between_videos(
-        self, mock_cancel_event, mock_callbacks
-    ):
+    def test_cancel_event_checked_between_videos(self, mock_cancel_event, mock_callbacks):
         """Worker checks cancel_event between each video."""
         processed_videos = []
         cancel_after_first = threading.Event()
@@ -312,6 +302,7 @@ class TestProcessingWorkerCancellation:
 
     def test_cancel_with_no_timeout_doesnt_wait(self, basic_context, mock_callbacks):
         """cancel(timeout=None) returns immediately without waiting."""
+
         # Make a long-running process
         def long_process(*args, **kwargs):
             time.sleep(10)
@@ -366,7 +357,10 @@ class TestProcessingWorkerFunctionalIntegration:
         callbacks.on_started.assert_called_once()
         callbacks.on_progress.assert_called()
         callbacks.on_video_completed.assert_called_once_with(
-            0, 1, "test", True  # index, total, experiment_id, success
+            0,
+            1,
+            "test",
+            True,  # index, total, experiment_id, success
         )
         callbacks.on_completed.assert_called_once_with(False, "/results/video1_results")
 

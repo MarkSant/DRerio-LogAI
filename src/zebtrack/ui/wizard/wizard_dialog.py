@@ -107,30 +107,18 @@ class WizardDialog(Dialog):
 
         # Initialize ALL possible steps (not all will be shown)
         self.all_steps = {
-            WizardStepID.DISCOVERY: DiscoveryStep(
-                self.steps_container, self.wizard_data
-            ),
-            WizardStepID.FILE_SELECTION: FileSelectionStep(
-                self.steps_container, self.wizard_data
-            ),
-            WizardStepID.LIVE_CONFIG: LiveConfigStep(
-                self.steps_container, self.wizard_data
-            ),
-            WizardStepID.CALIBRATION: CalibrationStep(
-                self.steps_container, self.wizard_data
-            ),
+            WizardStepID.DISCOVERY: DiscoveryStep(self.steps_container, self.wizard_data),
+            WizardStepID.FILE_SELECTION: FileSelectionStep(self.steps_container, self.wizard_data),
+            WizardStepID.LIVE_CONFIG: LiveConfigStep(self.steps_container, self.wizard_data),
+            WizardStepID.CALIBRATION: CalibrationStep(self.steps_container, self.wizard_data),
             WizardStepID.DETECTION_VALIDATION: DetectionStep(
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.MODEL_SELECTION: ModelSelectionStep(
                 self.steps_container, self.wizard_data
             ),
-            WizardStepID.IMPORT_CONFIG: ImportConfigStep(
-                self.steps_container, self.wizard_data
-            ),
-            WizardStepID.CONFIRMATION: ConfirmationStep(
-                self.steps_container, self.wizard_data
-            ),
+            WizardStepID.IMPORT_CONFIG: ImportConfigStep(self.steps_container, self.wizard_data),
+            WizardStepID.CONFIRMATION: ConfirmationStep(self.steps_container, self.wizard_data),
         }
 
         # Build UI for all steps (even if not shown)
@@ -159,15 +147,11 @@ class WizardDialog(Dialog):
         box.pack(side="bottom", fill="x", padx=5, pady=5)
 
         # Back button (disabled on first step)
-        self.back_button = Button(
-            box, text="< Voltar", width=10, command=self._on_back
-        )
+        self.back_button = Button(box, text="< Voltar", width=10, command=self._on_back)
         self.back_button.pack(side="left", padx=5)
 
         # Next / Create Project button (text changes on last step)
-        self.next_button = Button(
-            box, text="Próximo >", width=15, command=self._on_next
-        )
+        self.next_button = Button(box, text="Próximo >", width=15, command=self._on_next)
         self.next_button.pack(side="left", padx=5)
 
         # Cancel button
@@ -186,9 +170,7 @@ class WizardDialog(Dialog):
 
         Called after Discovery step when project type is selected.
         """
-        project_type = self.wizard_data.get(
-            "project_type", ProjectType.EXPERIMENTAL.value
-        )
+        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
 
         if project_type == ProjectType.LIVE.value:
             # Live project flow: Discovery -> Live Config -> Calibration -> Confirmation
@@ -243,10 +225,7 @@ class WizardDialog(Dialog):
             # Update window title with step number
             step_number = step_index + 1
             total_steps = len(self.active_steps)
-            title_text = (
-                "Assistente de Criacao de Projeto - Etapa "
-                f"{step_number}/{total_steps}"
-            )
+            title_text = f"Assistente de Criacao de Projeto - Etapa {step_number}/{total_steps}"
             self.title(title_text)
 
             log.info(

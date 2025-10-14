@@ -65,12 +65,8 @@ class DiscoveryStep(WizardStep):
         """Build discovery step UI."""
         background_color = self.cget("background")
 
-        self.scroll_canvas = Canvas(
-            self, highlightthickness=0, bg=background_color, borderwidth=0
-        )
-        self.scrollbar = create_scrollbar(
-            self, orient="vertical", command=self.scroll_canvas.yview
-        )
+        self.scroll_canvas = Canvas(self, highlightthickness=0, bg=background_color, borderwidth=0)
+        self.scrollbar = create_scrollbar(self, orient="vertical", command=self.scroll_canvas.yview)
         self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)
 
         self.scroll_canvas.pack(side="left", fill="both", expand=True)
@@ -79,9 +75,7 @@ class DiscoveryStep(WizardStep):
         self.content_frame = Frame(self.scroll_canvas, bg=background_color)
         self.content_frame.bind(
             "<Configure>",
-            lambda event: self.scroll_canvas.configure(
-                scrollregion=self.scroll_canvas.bbox("all")
-            ),
+            lambda event: self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all")),
         )
         self._canvas_window = self.scroll_canvas.create_window(
             (0, 0), window=self.content_frame, anchor="nw"
@@ -147,9 +141,7 @@ class DiscoveryStep(WizardStep):
         right_col.pack(side="left", fill="both", expand=True, padx=(3, 0))
 
         # Question 1: Project Type (LEFT COLUMN)
-        self.q1_frame = LabelFrame(
-            left_col, text="1. Tipo de Projeto", padx=10, pady=8
-        )
+        self.q1_frame = LabelFrame(left_col, text="1. Tipo de Projeto", padx=10, pady=8)
         self.q1_frame.pack(fill="both", expand=True)
 
         rb1 = Radiobutton(
@@ -161,8 +153,7 @@ class DiscoveryStep(WizardStep):
         )
         rb1.pack(anchor="w", pady=2)
         experimental_tip = (
-            "Projetos com design formal: grupos de tratamento, "
-            "controles, séries temporais, etc."
+            "Projetos com design formal: grupos de tratamento, controles, séries temporais, etc."
         )
         ToolTip(rb1, experimental_tip)
 
@@ -175,8 +166,7 @@ class DiscoveryStep(WizardStep):
         )
         rb2.pack(anchor="w", pady=2)
         exploratory_tip = (
-            "Para testes rápidos, validações, ou análises sem estrutura "
-            "experimental definida."
+            "Para testes rápidos, validações, ou análises sem estrutura experimental definida."
         )
         ToolTip(rb2, exploratory_tip)
 
@@ -188,16 +178,11 @@ class DiscoveryStep(WizardStep):
             command=self._on_project_type_change,
         )
         rb_live.pack(anchor="w", pady=2)
-        live_tip = (
-            "Gravar experimentos em tempo real usando câmera conectada ao "
-            "computador."
-        )
+        live_tip = "Gravar experimentos em tempo real usando câmera conectada ao computador."
         ToolTip(rb_live, live_tip)
 
         # Question 2: Folder Organization (MIDDLE COLUMN)
-        self.q2_frame = LabelFrame(
-            middle_col, text="2. Organização de Pastas", padx=10, pady=8
-        )
+        self.q2_frame = LabelFrame(middle_col, text="2. Organização de Pastas", padx=10, pady=8)
         self.q2_frame.pack(fill="both", expand=True)
 
         rb3 = Radiobutton(
@@ -303,10 +288,7 @@ class DiscoveryStep(WizardStep):
         rb9.pack(anchor="w", pady=2)
         ToolTip(
             rb9,
-            (
-                "Processar tudo do início: desenhar arena, definir ROIs e gerar "
-                "trajetórias."
-            ),
+            ("Processar tudo do início: desenhar arena, definir ROIs e gerar trajetórias."),
         )
 
         # Glossary / Help text explaining technical terms
@@ -591,10 +573,7 @@ class DiscoveryStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(fill="x", pady=(0, 15))
         else:
             self.template_info_var.set("")

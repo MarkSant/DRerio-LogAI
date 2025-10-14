@@ -118,13 +118,8 @@ def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5])
 
                     class_name = result.names.get(cls, f"classe_{cls}")
                     print(f"  📦 Box {i + 1}: {class_name} (conf={conf:.3f})")
-                    print(
-                        f"      Posição: [{int(x1)}, {int(y1)}, {int(x2)}, {int(y2)}]"
-                    )
-                    print(
-                        f"      Tamanho: {int(width_box)}x{int(height_box)} "
-                        f"(área={int(area)})"
-                    )
+                    print(f"      Posição: [{int(x1)}, {int(y1)}, {int(x2)}, {int(y2)}]")
+                    print(f"      Tamanho: {int(width_box)}x{int(height_box)} (área={int(area)})")
 
             else:
                 print("📦 BOXES: Nenhuma detecção")
@@ -248,9 +243,7 @@ def run_comprehensive_diagnosis(model_path, video_path):
         print()
         print("📊 RESUMO DAS RECOMENDAÇÕES:")
         print("• Se não há detecções: reduza o threshold de confiança")
-        print(
-            "• Se há boxes mas não máscaras: verifique se o modelo suporta segmentação"
-        )
+        print("• Se há boxes mas não máscaras: verifique se o modelo suporta segmentação")
         print("• Se há máscaras estranhas: verifique o treinamento do modelo")
         print("• Para zebrafish: considere usar classes=[1] se classe 1 = peixe")
         print("• Para aquário: use classes=[0] se classe 0 = aquário")
@@ -264,15 +257,10 @@ def main():
     """Função principal"""
     if len(sys.argv) != 3:
         print("❌ Uso incorreto!")
-        print(
-            "📖 Uso correto: python debug_instance_segmentation.py "
-            "<modelo.pt> <video.mp4>"
-        )
+        print("📖 Uso correto: python debug_instance_segmentation.py <modelo.pt> <video.mp4>")
         print()
         print("Exemplos:")
-        print(
-            "  python debug_instance_segmentation.py models/best.pt data/test_video.mp4"
-        )
+        print("  python debug_instance_segmentation.py models/best.pt data/test_video.mp4")
         print("  python debug_instance_segmentation.py yolov8n-seg.pt sample.mp4")
         sys.exit(1)
 

@@ -25,7 +25,7 @@ class TestGUIStateObserver:
     def controller(self, mock_root):
         """Create a MainViewModel with mocked dependencies."""
         from unittest.mock import patch
-        
+
         with patch("zebtrack.core.controller.ApplicationGUI"):
             with patch("zebtrack.core.controller.settings"):
                 from zebtrack.core.controller import MainViewModel
@@ -43,10 +43,9 @@ class TestGUIStateObserver:
         gui.start_rec_btn = MagicMock()
         gui.stop_rec_btn = MagicMock()
         gui.process_video_btn = MagicMock()
-        
+
         # Import the actual observer methods from GUI
-        from zebtrack.ui.gui import ApplicationGUI
-        
+
         # Bind the actual subscription method (simplified)
         gui._subscribe_to_state_changes = lambda: None
         gui._on_recording_state_changed = lambda cat, key, old, new: (
@@ -56,9 +55,11 @@ class TestGUIStateObserver:
             gui.root.after(0, gui._update_processing_ui, new) if key == "is_processing" else None
         )
         gui._on_detector_state_changed = lambda cat, key, old, new: (
-            gui.root.after(0, gui._update_detector_ui, new) if key == "detector_initialized" else None
+            gui.root.after(0, gui._update_detector_ui, new)
+            if key == "detector_initialized"
+            else None
         )
-        
+
         # Bind the actual UI update methods
         def _update_recording_ui(is_recording):
             if is_recording:
@@ -71,7 +72,7 @@ class TestGUIStateObserver:
                     gui.start_rec_btn.config(state="normal")
                 if gui.stop_rec_btn:
                     gui.stop_rec_btn.config(state="disabled")
-        
+
         def _update_processing_ui(is_processing):
             if is_processing:
                 if gui.process_video_btn:
@@ -79,20 +80,23 @@ class TestGUIStateObserver:
             else:
                 if gui.process_video_btn:
                     gui.process_video_btn.config(state="normal")
-        
+
         def _update_detector_ui(detector_initialized):
             pass  # Simplified for testing
-        
+
         gui._update_recording_ui = _update_recording_ui
         gui._update_processing_ui = _update_processing_ui
         gui._update_detector_ui = _update_detector_ui
-        
+
         # Subscribe to StateManager
         from zebtrack.core.state_manager import StateCategory
+
         controller.state_manager.subscribe(StateCategory.RECORDING, gui._on_recording_state_changed)
-        controller.state_manager.subscribe(StateCategory.PROCESSING, gui._on_processing_state_changed)
+        controller.state_manager.subscribe(
+            StateCategory.PROCESSING, gui._on_processing_state_changed
+        )
         controller.state_manager.subscribe(StateCategory.DETECTOR, gui._on_detector_state_changed)
-        
+
         return gui
 
     def test_gui_subscribes_to_state_manager(self, mock_gui, controller):
@@ -100,15 +104,9 @@ class TestGUIStateObserver:
         from zebtrack.core.state_manager import StateCategory
 
         # Verify GUI subscribed to state changes
-        recording_observers = controller.state_manager._observers.get(
-            StateCategory.RECORDING, []
-        )
-        processing_observers = controller.state_manager._observers.get(
-            StateCategory.PROCESSING, []
-        )
-        detector_observers = controller.state_manager._observers.get(
-            StateCategory.DETECTOR, []
-        )
+        recording_observers = controller.state_manager._observers.get(StateCategory.RECORDING, [])
+        processing_observers = controller.state_manager._observers.get(StateCategory.PROCESSING, [])
+        detector_observers = controller.state_manager._observers.get(StateCategory.DETECTOR, [])
 
         # Check that observers are registered
         assert len(recording_observers) > 0
@@ -118,16 +116,12 @@ class TestGUIStateObserver:
     def test_recording_state_change_triggers_ui_update(self, mock_gui, controller):
         """Recording state changes should trigger UI updates."""
         # Trigger recording state change
-        controller.state_manager.update_recording_state(
-            source="test", is_recording=True
-        )
+        controller.state_manager.update_recording_state(source="test", is_recording=True)
 
         # Verify root.after was called to schedule UI update
         assert mock_gui.root.after.called
         # Extract the callback that was scheduled
-        scheduled_calls = [
-            call for call in mock_gui.root.after.call_args_list if call[0][0] == 0
-        ]
+        scheduled_calls = [call for call in mock_gui.root.after.call_args_list if call[0][0] == 0]
         assert len(scheduled_calls) > 0
 
         # Manually execute the scheduled callback
@@ -142,17 +136,13 @@ class TestGUIStateObserver:
     def test_processing_state_change_triggers_ui_update(self, mock_gui, controller):
         """Processing state changes should trigger UI updates."""
         # Trigger processing state change
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=True
-        )
+        controller.state_manager.update_processing_state(source="test", is_processing=True)
 
         # Verify root.after was called
         assert mock_gui.root.after.called
 
         # Extract and execute the scheduled callback
-        scheduled_calls = [
-            call for call in mock_gui.root.after.call_args_list if call[0][0] == 0
-        ]
+        scheduled_calls = [call for call in mock_gui.root.after.call_args_list if call[0][0] == 0]
         assert len(scheduled_calls) > 0
 
         callback = scheduled_calls[-1][0][1]
@@ -165,17 +155,13 @@ class TestGUIStateObserver:
     def test_detector_state_change_triggers_ui_update(self, mock_gui, controller):
         """Detector state changes should trigger UI updates."""
         # Trigger detector state change
-        controller.state_manager.update_detector_state(
-            source="test", detector_initialized=True
-        )
+        controller.state_manager.update_detector_state(source="test", detector_initialized=True)
 
         # Verify root.after was called to schedule UI update
         assert mock_gui.root.after.called
 
         # Extract and execute the scheduled callback
-        scheduled_calls = [
-            call for call in mock_gui.root.after.call_args_list if call[0][0] == 0
-        ]
+        scheduled_calls = [call for call in mock_gui.root.after.call_args_list if call[0][0] == 0]
         assert len(scheduled_calls) > 0
 
         callback = scheduled_calls[-1][0][1]
@@ -190,15 +176,9 @@ class TestGUIStateObserver:
         mock_gui.root.after.reset_mock()
 
         # Trigger multiple state changes
-        controller.state_manager.update_recording_state(
-            source="test", is_recording=True
-        )
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=True
-        )
-        controller.state_manager.update_detector_state(
-            source="test", detector_initialized=True
-        )
+        controller.state_manager.update_recording_state(source="test", is_recording=True)
+        controller.state_manager.update_processing_state(source="test", is_processing=True)
+        controller.state_manager.update_detector_state(source="test", detector_initialized=True)
 
         # Verify all UI updates were scheduled via root.after(0, ...)
         # This ensures thread safety
@@ -211,23 +191,17 @@ class TestGUIStateObserver:
     def test_recording_state_stop_updates_ui(self, mock_gui, controller):
         """Stopping recording should re-enable start button."""
         # Start recording
-        controller.state_manager.update_recording_state(
-            source="test", is_recording=True
-        )
+        controller.state_manager.update_recording_state(source="test", is_recording=True)
         mock_gui.root.after.reset_mock()
 
         # Stop recording
-        controller.state_manager.update_recording_state(
-            source="test", is_recording=False
-        )
+        controller.state_manager.update_recording_state(source="test", is_recording=False)
 
         # Verify root.after was called
         assert mock_gui.root.after.called
 
         # Execute the scheduled callback
-        scheduled_calls = [
-            call for call in mock_gui.root.after.call_args_list if call[0][0] == 0
-        ]
+        scheduled_calls = [call for call in mock_gui.root.after.call_args_list if call[0][0] == 0]
         callback = scheduled_calls[-1][0][1]
         args = scheduled_calls[-1][0][2:]
         callback(*args)
@@ -239,23 +213,17 @@ class TestGUIStateObserver:
     def test_processing_state_stop_updates_ui(self, mock_gui, controller):
         """Stopping processing should re-enable process button."""
         # Start processing
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=True
-        )
+        controller.state_manager.update_processing_state(source="test", is_processing=True)
         mock_gui.root.after.reset_mock()
 
         # Stop processing
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=False
-        )
+        controller.state_manager.update_processing_state(source="test", is_processing=False)
 
         # Verify root.after was called
         assert mock_gui.root.after.called
 
         # Execute the scheduled callback
-        scheduled_calls = [
-            call for call in mock_gui.root.after.call_args_list if call[0][0] == 0
-        ]
+        scheduled_calls = [call for call in mock_gui.root.after.call_args_list if call[0][0] == 0]
         callback = scheduled_calls[-1][0][1]
         args = scheduled_calls[-1][0][2:]
         callback(*args)

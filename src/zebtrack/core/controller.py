@@ -67,32 +67,35 @@ except AttributeError:  # pragma: no cover - legacy settings fallback
 class MainViewModel:
     """
     Main View Model for ZebTrack-AI application.
-    
-    Phase 1, Step 3: Refactored from AppController to follow Single Responsibility Principle.
-    Phase 2, Step 4: Integrated with centralized StateManager for predictable state flow.
-    
+
+    Phase 1, Step 3: Refactored from AppController to follow
+    Single Responsibility Principle.
+
+    Phase 2, Step 4: Integrated with centralized StateManager
+    for predictable state flow.
+
     This class now focuses on:
     - UI-facing state management (via StateManager)
     - Command handling via event bus
     - Orchestrating services (ProjectService, AnalysisService)
     - Hardware setup (detector, Arduino)
     - Recording control
-    
+
     Heavy file I/O moved to ProjectService.
     Analysis orchestration moved to AnalysisService.
     State mutations now tracked through StateManager.
     """
-    
+
     def __init__(self, root):
         self.root = root
-        
+
         # Phase 2, Step 4: Centralized state management
         self.state_manager = StateManager(enable_history=True, max_history_size=100)
-        
+
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
         self.analysis_service = AnalysisService()
-        
+
         # State managers (pass StateManager reference to ProjectManager)
         self.project_manager = ProjectManager(state_manager=self.state_manager)
         self.weight_manager = WeightManager()
@@ -119,7 +122,7 @@ class MainViewModel:
         self.report_results_paths = {}
         # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
-        
+
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
             source="controller.init",
@@ -150,7 +153,7 @@ class MainViewModel:
         self.processing_thread: threading.Thread | None = None
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
-        
+
         # New worker-based processing
         self.processing_worker: ProcessingWorker | None = None
 
@@ -160,14 +163,14 @@ class MainViewModel:
         # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
 
-    # ==================== Phase 2, Step 4: State Manager Properties ====================
+    # ==================== Phase 2, Step 4: State Manager Properties ====================  # noqa: E501
     # Backward-compatible properties that delegate to StateManager
-    
+
     @property
     def is_recording(self) -> bool:
         """Get recording status from StateManager."""
         return self.state_manager.get_recording_state().is_recording
-    
+
     @is_recording.setter
     def is_recording(self, value: bool) -> None:
         """Update recording status in StateManager."""
@@ -175,12 +178,12 @@ class MainViewModel:
             source="controller.is_recording_setter",
             is_recording=value,
         )
-    
+
     @property
     def detector_initialized(self) -> bool:
         """Get detector initialization status from StateManager."""
         return self.state_manager.get_detector_state().detector_initialized
-    
+
     @property
     def is_processing(self) -> bool:
         """Get processing status from StateManager."""
@@ -196,9 +199,7 @@ class MainViewModel:
             return "Detalhes do peso não encontrados."
 
         if self.use_openvino:
-            if details.get("openvino_path") and os.path.exists(
-                details.get("openvino_path")
-            ):
+            if details.get("openvino_path") and os.path.exists(details.get("openvino_path")):
                 return "O modelo OpenVINO está pronto."
             else:
                 return "Necessita de conversão para OpenVINO."
@@ -273,7 +274,7 @@ class MainViewModel:
 
     def _register_event_handlers(self) -> None:
         """Subscribe to all UI→Controller events when event bus is enabled.
-        
+
         This method wires up the event-driven communication layer, replacing
         direct method calls from GUI with event-based invocations.
         """
@@ -305,7 +306,10 @@ class MainViewModel:
         bus.subscribe(Events.MODEL_SET_WEIGHT, self._handle_model_set_weight)
         bus.subscribe(Events.MODEL_SET_OPENVINO, self._handle_model_set_openvino)
         bus.subscribe(Events.MODEL_CONVERT_OPENVINO, self._handle_model_convert_openvino)
-        bus.subscribe(Events.MODEL_UPDATE_OPENVINO_STATUS, self._handle_model_update_openvino_status)
+        bus.subscribe(
+            Events.MODEL_UPDATE_OPENVINO_STATUS,
+            self._handle_model_update_openvino_status,
+        )
         bus.subscribe(Events.MODEL_ADD_WEIGHT, self._handle_model_add_weight)
         bus.subscribe(Events.MODEL_DELETE_WEIGHT, self._handle_model_delete_weight)
         bus.subscribe(Events.MODEL_RUN_DIAGNOSTIC, self._handle_model_run_diagnostic)
@@ -336,7 +340,7 @@ class MainViewModel:
         log.info("controller.register_event_handlers.complete", count=len(bus._subscribers))
 
     # Event handler methods (adapters from events to existing controller methods)
-    
+
     def _handle_recording_start(self, data: dict) -> None:
         self.start_recording(
             day=data.get("day"),
@@ -530,9 +534,7 @@ class MainViewModel:
     def on_arduino_status_change(self, connected: bool, port: str | None):
         log.info("controller.arduino.status", connected=connected, port=port)
         if hasattr(self.view, "update_arduino_status_indicator"):
-            self._schedule_on_ui(
-                self.view.update_arduino_status_indicator, connected, port
-            )
+            self._schedule_on_ui(self.view.update_arduino_status_indicator, connected, port)
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str):
         label_text = str(command) if success else f"{command} (falha)"
@@ -545,9 +547,7 @@ class MainViewModel:
 
         if event_code == 1:
             if self._pending_external_trigger:
-                self.log_arduino_event(
-                    "Sinal externo recebido. Iniciando gravação..."
-                )
+                self.log_arduino_event("Sinal externo recebido. Iniciando gravação...")
                 self.trigger_recording(event_code)
             else:
                 log.warning("controller.arduino.event.unexpected_start")
@@ -560,9 +560,7 @@ class MainViewModel:
 
     def trigger_recording(self, event_code: int | None = None):
         if not self._pending_external_trigger:
-            log.warning(
-                "controller.external_trigger.no_pending", code=event_code
-            )
+            log.warning("controller.external_trigger.no_pending", code=event_code)
             return
 
         context = self._pending_external_trigger
@@ -612,9 +610,7 @@ class MainViewModel:
                 "Erro",
                 "Configuração da câmera indisponível para iniciar a gravação.",
             )
-            self._schedule_on_ui(
-                self.view.update_button_state, "start_rec", "normal"
-            )
+            self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
             return
 
         recording_started = self.recorder.start_recording(
@@ -623,7 +619,7 @@ class MainViewModel:
             camera_height,
             zones=zone_data,
         )
-        
+
         # Update state in StateManager with full context
         self.state_manager.update_recording_state(
             source="controller.start_recording_session",
@@ -634,24 +630,16 @@ class MainViewModel:
 
         if not recording_started:
             self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
-            self._schedule_on_ui(
-                self.view.update_button_state, "start_rec", "normal"
-            )
-            self._schedule_on_ui(
-                self.view.update_button_state, "stop_rec", "disabled"
-            )
+            self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
+            self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
             return
 
         self._schedule_on_ui(self.view.update_button_state, "start_rec", "disabled")
         self._schedule_on_ui(self.view.update_button_state, "stop_rec", "normal")
-        self._schedule_on_ui(
-            self.view.set_status, f"Recording session: {folder_name}"
-        )
+        self._schedule_on_ui(self.view.set_status, f"Recording session: {folder_name}")
 
         if context.get("arduino_enabled") and self.arduino_manager:
-            box_number = self._get_box_number(
-                context["day"], context["group"], context["cobaia"]
-            )
+            box_number = self._get_box_number(context["day"], context["group"], context["cobaia"])
             if box_number is None:
                 log.warning(
                     "controller.recording.arduino_invalid_box",
@@ -660,18 +648,14 @@ class MainViewModel:
                     cobaia=context["cobaia"],
                 )
             else:
-                self.arduino_manager.send_command(
-                    box_number, source=f"{trigger_source}-start"
-                )
+                self.arduino_manager.send_command(box_number, source=f"{trigger_source}-start")
 
         project_data = project_data or {}
         if project_data.get("use_timed_recording"):
             duration_s = project_data.get("recording_duration_s", 0) or 0
             if duration_s > 0:
                 duration_ms = int(duration_s * 1000)
-                self.timed_recording_job = self.root.after(
-                    duration_ms, self.stop_recording
-                )
+                self.timed_recording_job = self.root.after(duration_ms, self.stop_recording)
                 log.info(
                     "controller.recording.timed_start",
                     duration_s=duration_s,
@@ -684,7 +668,7 @@ class MainViewModel:
 
         # Reset project manager (pass StateManager reference)
         self.project_manager = ProjectManager(state_manager=self.state_manager)
-        
+
         # Update StateManager: project closed
         self.state_manager.update_project_state(
             source="controller.close_project",
@@ -692,24 +676,20 @@ class MainViewModel:
             project_data={},
             active_zone_video=None,
         )
-        
+
         # _create_welcome_frame handles all UI cleanup
         self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
         # Use detection methods from kwargs if provided, otherwise fall back to
         # global settings
-        animal_method = kwargs.get(
-            "animal_method", settings.model_selection.animal_method
-        )
+        animal_method = kwargs.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
         if "use_single_subject_tracker" not in kwargs:
             kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
         else:
-            kwargs["use_single_subject_tracker"] = bool(
-                kwargs["use_single_subject_tracker"]
-            )
+            kwargs["use_single_subject_tracker"] = bool(kwargs["use_single_subject_tracker"])
 
         if animal_method == "det" and animals_per_aquarium != 1:
             self.view.show_error(
@@ -746,18 +726,33 @@ class MainViewModel:
         # See ProjectManager.create_new_project() signature
         # at project_manager.py:260-282
         allowed_params = {
-            'project_path', 'project_type', 'use_openvino', 'active_weight',
-            'video_files', 'num_aquariums', 'animals_per_aquarium',
-            'aquarium_width_cm', 'aquarium_height_cm', 'use_timed_recording',
-            'recording_duration_s', 'use_countdown', 'countdown_duration_s',
-            'analysis_interval_frames', 'display_interval_frames',
-            'camera_index', 'use_arduino', 'arduino_port',
-            'use_single_subject_tracker',
+            "project_path",
+            "project_type",
+            "use_openvino",
+            "active_weight",
+            "video_files",
+            "num_aquariums",
+            "animals_per_aquarium",
+            "aquarium_width_cm",
+            "aquarium_height_cm",
+            "use_timed_recording",
+            "recording_duration_s",
+            "use_countdown",
+            "countdown_duration_s",
+            "analysis_interval_frames",
+            "display_interval_frames",
+            "camera_index",
+            "use_arduino",
+            "arduino_port",
+            "use_single_subject_tracker",
             # Live project params (also valid for pre-recorded if user wants to
             # track design)
-            'experiment_days', 'subjects_per_group', 'num_groups', 'group_names',
+            "experiment_days",
+            "subjects_per_group",
+            "num_groups",
+            "group_names",
             # Wizard metadata
-            '_wizard_metadata'
+            "_wizard_metadata",
         }
 
         # Filter kwargs to only allowed parameters
@@ -767,11 +762,15 @@ class MainViewModel:
             # Update StateManager: new project created
             self.state_manager.update_project_state(
                 source="controller.create_project_workflow",
-                project_path=Path(self.project_manager.project_path) if self.project_manager.project_path else None,
-                project_data=self.project_manager.project_data.copy() if self.project_manager.project_data else {},
+                project_path=Path(self.project_manager.project_path)
+                if self.project_manager.project_path
+                else None,
+                project_data=self.project_manager.project_data.copy()
+                if self.project_manager.project_data
+                else {},
                 active_zone_video=self.project_manager.get_active_zone_video(),
             )
-            
+
             # Projects start by inheriting global settings unless overrides apply later
             self._using_project_overrides = True
             self.apply_project_model_overrides()
@@ -780,9 +779,7 @@ class MainViewModel:
             wizard_metadata = kwargs.get("_wizard_metadata", {})
             if wizard_metadata:
                 import_config = wizard_metadata.get("import_config", [])
-                roi_merge_strategy = wizard_metadata.get(
-                    "roi_merge_strategy", "replace"
-                )
+                roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
                 scanned_videos = wizard_metadata.get("scanned_videos", [])
 
                 if import_config:
@@ -827,9 +824,7 @@ class MainViewModel:
 
         if suppressed:
             reason = (
-                "env_flag"
-                if os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE")
-                else "pytest"
+                "env_flag" if os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE") else "pytest"
             )
             log.info("controller.post_creation_guide.skipped", reason=reason)
             return
@@ -852,9 +847,7 @@ class MainViewModel:
             return
 
         import_lookup = {
-            config.get("video"): config
-            for config in import_config
-            if config.get("video")
+            config.get("video"): config for config in import_config if config.get("video")
         }
 
         key_map = {
@@ -893,14 +886,10 @@ class MainViewModel:
             1 for video in videos_source if _feature_available(video, "has_rois")
         )
         videos_with_trajectory = sum(
-            1
-            for video in videos_source
-            if _feature_available(video, "has_trajectory")
+            1 for video in videos_source if _feature_available(video, "has_trajectory")
         )
         videos_pending = sum(
-            1
-            for video in videos_source
-            if not _feature_available(video, "has_trajectory")
+            1 for video in videos_source if not _feature_available(video, "has_trajectory")
         )
 
         lines: list[str] = []
@@ -939,18 +928,12 @@ class MainViewModel:
             lines.append(f"{step_num}. Gerar relatórios")
             lines.append("   - Acesse a aba 'Relatórios'")
             lines.append("   - Navegue pela hierarquia de grupos, dias e sujeitos")
-            lines.append(
-                "   - Gere relatórios individuais ou unificados "
-                "conforme necessário"
-            )
+            lines.append("   - Gere relatórios individuais ou unificados conforme necessário")
             lines.append("")
 
         lines.append("💡 Dicas:")
         lines.append("  • Use a busca para localizar vídeos rapidamente")
-        lines.append(
-            "  • Os símbolos de status indicam arenas, ROIs "
-            "e trajetórias disponíveis"
-        )
+        lines.append("  • Os símbolos de status indicam arenas, ROIs e trajetórias disponíveis")
         lines.append("  • Ajuste zonas antes de processar se necessário")
 
         message = "\n".join(lines)
@@ -1023,9 +1006,7 @@ class MainViewModel:
                         )
 
                 # Restore NMS threshold
-                if "nms_threshold" in saved_detector_config and hasattr(
-                    plugin, "nms_threshold"
-                ):
+                if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
                     old_nms = plugin.nms_threshold
                     new_nms = saved_detector_config["nms_threshold"]
                     if old_nms != new_nms:
@@ -1042,17 +1023,12 @@ class MainViewModel:
                 restore_track = "track_threshold" in saved_detector_config
                 restore_match = "match_threshold" in saved_detector_config
                 if (restore_track or restore_match) and (
-                    hasattr(plugin, "track_threshold")
-                    or hasattr(plugin, "set_tracking_parameters")
+                    hasattr(plugin, "track_threshold") or hasattr(plugin, "set_tracking_parameters")
                 ):
                     old_track = getattr(plugin, "track_threshold", None)
                     old_match = getattr(plugin, "match_threshold", None)
-                    track_value = saved_detector_config.get(
-                        "track_threshold", old_track
-                    )
-                    match_value = saved_detector_config.get(
-                        "match_threshold", old_match
-                    )
+                    track_value = saved_detector_config.get("track_threshold", old_track)
+                    match_value = saved_detector_config.get("match_threshold", old_match)
 
                     if hasattr(plugin, "set_tracking_parameters"):
                         plugin.set_tracking_parameters(
@@ -1083,9 +1059,7 @@ class MainViewModel:
                         )
 
                 # Restore context
-                if "context" in saved_detector_config and hasattr(
-                    plugin, "set_context"
-                ):
+                if "context" in saved_detector_config and hasattr(plugin, "set_context"):
                     saved_context = saved_detector_config["context"]
                     current_context = getattr(plugin, "_context", "tracking")
                     if current_context != saved_context:
@@ -1108,9 +1082,7 @@ class MainViewModel:
                     current_config = {
                         "plugin_name": saved_detector_config.get(
                             "plugin_name",
-                            "OpenVINO"
-                            if self.use_openvino
-                            else "YOLO (Ultralytics)",
+                            "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)",
                         ),
                         "confidence_threshold": plugin.conf_threshold,
                         "nms_threshold": plugin.nms_threshold,
@@ -1174,7 +1146,9 @@ class MainViewModel:
         self.state_manager.update_project_state(
             source="controller.open_project_workflow",
             project_path=Path(project_path),
-            project_data=self.project_manager.project_data.copy() if self.project_manager.project_data else {},
+            project_data=self.project_manager.project_data.copy()
+            if self.project_manager.project_data
+            else {},
             active_zone_video=self.project_manager.get_active_zone_video(),
         )
 
@@ -1205,9 +1179,7 @@ class MainViewModel:
         )
 
         # Get weight path based on animal method
-        model_path = self.weight_manager.get_weight_path_by_method(
-            animal_method, "animal"
-        )
+        model_path = self.weight_manager.get_weight_path_by_method(animal_method, "animal")
         log.info(
             "detector.setup.model_path_selected",
             animal_method=animal_method,
@@ -1217,8 +1189,7 @@ class MainViewModel:
         if not model_path:
             self.view.show_error(
                 "Erro de Detector",
-                f"Nenhum modelo {animal_method} está disponível para detecção de "
-                "animais.",
+                f"Nenhum modelo {animal_method} está disponível para detecção de animais.",
             )
             return False
 
@@ -1235,9 +1206,7 @@ class MainViewModel:
             if self.use_openvino:
                 plugin_name = "OpenVINO"
                 if not weight_details:
-                    raise ValueError(
-                        "Não foi possível encontrar detalhes do peso para OpenVINO"
-                    )
+                    raise ValueError("Não foi possível encontrar detalhes do peso para OpenVINO")
 
                 openvino_model_path = weight_details.get("openvino_path")
                 if not openvino_model_path or not os.path.exists(openvino_model_path):
@@ -1249,9 +1218,7 @@ class MainViewModel:
             else:
                 plugin_name = "YOLO (Ultralytics)"
                 if not os.path.exists(model_path):
-                    raise ValueError(
-                        "Caminho do modelo YOLO .pt não encontrado ou inválido."
-                    )
+                    raise ValueError("Caminho do modelo YOLO .pt não encontrado ou inválido.")
 
             plugin_class = DETECTOR_PLUGINS.get(plugin_name)
             if not plugin_class:
@@ -1266,9 +1233,7 @@ class MainViewModel:
             # Pass hash for OpenVINO models for integrity check
             if self.use_openvino:
                 expected_hash = weight_details.get("openvino_hash")
-                plugin_instance = plugin_class(
-                    model_path=model_path, expected_hash=expected_hash
-                )
+                plugin_instance = plugin_class(model_path=model_path, expected_hash=expected_hash)
             else:
                 plugin_instance = plugin_class(model_path=model_path)
 
@@ -1277,14 +1242,16 @@ class MainViewModel:
                 base_width=settings.camera.desired_width,
                 base_height=settings.camera.desired_height,
             )
-            
+
             # Update detector state in StateManager
             self.state_manager.update_detector_state(
                 source="controller.setup_detector",
                 detector_initialized=True,
                 active_weight_name=self.active_weight_name,
                 use_openvino=self.use_openvino,
-                detector_plugin_name=plugin_instance.get_name() if hasattr(plugin_instance, 'get_name') else plugin_class.__name__,
+                detector_plugin_name=plugin_instance.get_name()
+                if hasattr(plugin_instance, "get_name")
+                else plugin_class.__name__,
             )
 
             tracker_pref = self._resolve_single_subject_tracker_preference(None)
@@ -1306,9 +1273,7 @@ class MainViewModel:
             # Save detector state to project
             if self.project_manager.project_data:
                 detector_config = {
-                    "plugin_name": (
-                        "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)"
-                    ),
+                    "plugin_name": ("OpenVINO" if self.use_openvino else "YOLO (Ultralytics)"),
                     "confidence_threshold": plugin_instance.conf_threshold,
                     "nms_threshold": plugin_instance.nms_threshold,
                     "context": getattr(plugin_instance, "_context", "tracking"),
@@ -1338,9 +1303,7 @@ class MainViewModel:
             return True
         except (ValueError, FileNotFoundError, IntegrityError) as e:
             log.error("detector.init.failed", error=str(e), exc_info=True)
-            self.view.show_error(
-                "Erro de Detector", f"Falha ao inicializar o detector: {e}"
-            )
+            self.view.show_error("Erro de Detector", f"Falha ao inicializar o detector: {e}")
             return False
 
     def _is_arduino_connected(self) -> bool:
@@ -1507,9 +1470,7 @@ class MainViewModel:
                 try:
                     self.view.set_active_weight_in_dropdown(candidate)
                 except Exception:
-                    log.warning(
-                        "controller.active_weight.view_update_failed", exc_info=True
-                    )
+                    log.warning("controller.active_weight.view_update_failed", exc_info=True)
             self.update_openvino_status(dialog)
             if self.use_openvino:
                 self.convert_active_weight_to_openvino(dialog)
@@ -1521,15 +1482,11 @@ class MainViewModel:
                 try:
                     self.view.set_active_weight_in_dropdown("")
                 except Exception:
-                    log.warning(
-                        "controller.active_weight.view_update_failed", exc_info=True
-                    )
+                    log.warning("controller.active_weight.view_update_failed", exc_info=True)
             self.update_openvino_status(dialog)
 
         if not self._using_project_overrides:
-            self._global_model_defaults["active_weight"] = (
-                self.active_weight_name or None
-            )
+            self._global_model_defaults["active_weight"] = self.active_weight_name or None
 
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
         self.use_openvino = bool(use_openvino)
@@ -1538,9 +1495,7 @@ class MainViewModel:
             try:
                 self.view.update_openvino_checkbox(self.use_openvino)
             except Exception:
-                log.warning(
-                    "controller.openvino_usage.view_update_failed", exc_info=True
-                )
+                log.warning("controller.openvino_usage.view_update_failed", exc_info=True)
         if self.use_openvino and self.active_weight_name:
             # Trigger conversion if switching to OpenVINO and model isn't converted
             self.convert_active_weight_to_openvino(dialog)
@@ -1567,9 +1522,7 @@ class MainViewModel:
             try:
                 self.view.update_openvino_status_display(status)
             except Exception:
-                log.warning(
-                    "controller.openvino_status.view_update_failed", exc_info=True
-                )
+                log.warning("controller.openvino_status.view_update_failed", exc_info=True)
 
     @property
     def are_project_overrides_active(self) -> bool:
@@ -1614,18 +1567,10 @@ class MainViewModel:
 
         overrides_active = self.has_project_override_settings()
         inheriting_globals = project_loaded and not overrides_active
-        scope = (
-            "project"
-            if project_loaded and self._using_project_overrides
-            else "global"
-        )
+        scope = "project" if project_loaded and self._using_project_overrides else "global"
 
         if scope == "project":
-            label = (
-                f"Escopo: Projeto ({project_name})"
-                if project_name
-                else "Escopo: Projeto"
-            )
+            label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
             if overrides_active:
                 detail = (
                     "Este projeto usa overrides salvos. Ajustes nesta janela são "
@@ -1644,10 +1589,7 @@ class MainViewModel:
                     "fixar estes valores no projeto atual."
                 )
             else:
-                detail = (
-                    "Nenhum projeto carregado; ajustes atualizam os padrões "
-                    "globais."
-                )
+                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
 
         return {
             "scope": scope,
@@ -1666,12 +1608,8 @@ class MainViewModel:
         match_default = DEFAULT_MATCH_THRESHOLD
         bytetrack_settings = getattr(settings, "bytetrack", None)
         if bytetrack_settings is not None:
-            track_default = float(
-                getattr(bytetrack_settings, "track_threshold", track_default)
-            )
-            match_default = float(
-                getattr(bytetrack_settings, "match_threshold", match_default)
-            )
+            track_default = float(getattr(bytetrack_settings, "track_threshold", track_default))
+            match_default = float(getattr(bytetrack_settings, "match_threshold", match_default))
 
         params = {
             "confidence_threshold": float(settings.yolo_model.confidence_threshold),
@@ -1694,9 +1632,7 @@ class MainViewModel:
             if hasattr(plugin, "conf_threshold"):
                 params["confidence_threshold"] = float(plugin.conf_threshold)
             elif saved_config.get("confidence_threshold") is not None:
-                params["confidence_threshold"] = float(
-                    saved_config["confidence_threshold"]
-                )
+                params["confidence_threshold"] = float(saved_config["confidence_threshold"])
 
             if hasattr(plugin, "nms_threshold"):
                 params["nms_threshold"] = float(plugin.nms_threshold)
@@ -1733,22 +1669,14 @@ class MainViewModel:
                 error=str(exc),
                 exc_info=True,
             )
-            raise ValueError(
-                "Não foi possível carregar os valores padrão do detector."
-            ) from exc
+            raise ValueError("Não foi possível carregar os valores padrão do detector.") from exc
 
         bytetrack_section = getattr(factory_settings, "bytetrack", None)
-        track_default = float(
-            getattr(bytetrack_section, "track_threshold", 0.25)
-        )
-        match_default = float(
-            getattr(bytetrack_section, "match_threshold", 0.15)
-        )
+        track_default = float(getattr(bytetrack_section, "track_threshold", 0.25))
+        match_default = float(getattr(bytetrack_section, "match_threshold", 0.15))
 
         return {
-            "confidence_threshold": float(
-                factory_settings.yolo_model.confidence_threshold
-            ),
+            "confidence_threshold": float(factory_settings.yolo_model.confidence_threshold),
             "nms_threshold": float(factory_settings.yolo_model.nms_threshold),
             "track_threshold": track_default,
             "match_threshold": match_default,
@@ -1807,9 +1735,7 @@ class MainViewModel:
                 log.info("controller.detector.update.no_changes")
                 return False
 
-            self._persist_global_detector_defaults(
-                payload, reset=reset_overrides
-            )
+            self._persist_global_detector_defaults(payload, reset=reset_overrides)
 
             save_success = False
             if hasattr(self.project_manager, "save_detector_state"):
@@ -1819,9 +1745,7 @@ class MainViewModel:
                         "context": "global_defaults",
                         **payload,
                     }
-                    save_success = bool(
-                        self.project_manager.save_detector_state(combined_config)
-                    )
+                    save_success = bool(self.project_manager.save_detector_state(combined_config))
                 except Exception:  # pragma: no cover - defensive
                     save_success = False
             else:
@@ -1894,16 +1818,12 @@ class MainViewModel:
             if match_val is not None:
                 detector_config["match_threshold"] = float(match_val)
 
-        self._persist_global_detector_defaults(
-            detector_config, reset=reset_overrides
-        )
+        self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
 
         save_success = False
         if hasattr(self.project_manager, "save_detector_state"):
             try:
-                save_success = bool(
-                    self.project_manager.save_detector_state(detector_config)
-                )
+                save_success = bool(self.project_manager.save_detector_state(detector_config))
             except Exception:  # pragma: no cover - defensive
                 save_success = False
 
@@ -1930,19 +1850,13 @@ class MainViewModel:
         bytetrack_updates: dict[str, float] = {}
 
         if "confidence_threshold" in detector_config:
-            yolo_updates["confidence_threshold"] = float(
-                detector_config["confidence_threshold"]
-            )
+            yolo_updates["confidence_threshold"] = float(detector_config["confidence_threshold"])
         if "nms_threshold" in detector_config:
             yolo_updates["nms_threshold"] = float(detector_config["nms_threshold"])
         if "track_threshold" in detector_config:
-            bytetrack_updates["track_threshold"] = float(
-                detector_config["track_threshold"]
-            )
+            bytetrack_updates["track_threshold"] = float(detector_config["track_threshold"])
         if "match_threshold" in detector_config:
-            bytetrack_updates["match_threshold"] = float(
-                detector_config["match_threshold"]
-            )
+            bytetrack_updates["match_threshold"] = float(detector_config["match_threshold"])
 
         if not yolo_updates and not bytetrack_updates:
             return
@@ -2060,9 +1974,7 @@ class MainViewModel:
                 exc_info=True,
             )
 
-    def _persist_project_model_settings(
-        self, weight: str | None, use_openvino: bool
-    ) -> dict:
+    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
         project_data = self._get_project_data_dict()
         overrides = self._ensure_project_overrides_record()
         overrides["active_weight"] = weight
@@ -2179,9 +2091,7 @@ class MainViewModel:
             if project_data.get("use_openvino") is not None:
                 resolved_openvino = bool(project_data.get("use_openvino"))
             else:
-                resolved_openvino = bool(
-                    self._global_model_defaults.get("use_openvino", False)
-                )
+                resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
         else:
             resolved_openvino = bool(openvino_override)
 
@@ -2193,24 +2103,16 @@ class MainViewModel:
         if not getattr(self.project_manager, "project_data", None):
             return self.active_weight_name or None, bool(self.use_openvino)
 
-        resolved_weight, resolved_openvino = self.resolve_project_model_settings(
-            overrides
-        )
+        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
 
         self._using_project_overrides = True
         self._apply_model_settings(resolved_weight, resolved_openvino)
 
         updated = False
-        if (
-            self.project_manager.project_data.get("active_weight")
-            != resolved_weight
-        ):
+        if self.project_manager.project_data.get("active_weight") != resolved_weight:
             self.project_manager.project_data["active_weight"] = resolved_weight
             updated = True
-        if (
-            self.project_manager.project_data.get("use_openvino")
-            != resolved_openvino
-        ):
+        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
             self.project_manager.project_data["use_openvino"] = resolved_openvino
             updated = True
 
@@ -2233,9 +2135,7 @@ class MainViewModel:
         overrides["active_weight"] = active_weight_override or None
         overrides["use_openvino"] = use_openvino_override
 
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides(
-            overrides
-        )
+        resolved_weight, resolved_openvino = self.apply_project_model_overrides(overrides)
 
         self.project_manager.project_data["model_overrides"] = overrides
         self.project_manager.save_project()
@@ -2255,9 +2155,7 @@ class MainViewModel:
         try:
             yield
         finally:
-            self._global_model_defaults["active_weight"] = (
-                self.active_weight_name or None
-            )
+            self._global_model_defaults["active_weight"] = self.active_weight_name or None
             self._global_model_defaults["use_openvino"] = self.use_openvino
             self._using_project_overrides = previous_flag
             if previous_flag and getattr(self.project_manager, "project_path", None):
@@ -2304,12 +2202,8 @@ class MainViewModel:
 
             # Use selected aquarium method and get appropriate weight
             # Use temporary override if provided, otherwise use global settings
-            aquarium_method = (
-                temp_aquarium_method or settings.model_selection.aquarium_method
-            )
-            model_path = self.weight_manager.get_weight_path_by_method(
-                aquarium_method, "aquarium"
-            )
+            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
+            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
 
             if not model_path:
                 self.view.show_error(
@@ -2347,9 +2241,7 @@ class MainViewModel:
 
         except Exception as e:
             log.error("controller.aquarium_detection.error", exc_info=True)
-            self.view.show_error(
-                "Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}"
-            )
+            self.view.show_error("Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}")
         finally:
             self._publish_processing_mode(
                 source="calibration.aquarium.complete",
@@ -2385,9 +2277,7 @@ class MainViewModel:
                         "project_type": "single_video",
                         "detection_zones": {},
                     }
-                    log.warning(
-                        "controller.polygon.created_temp_project", path=temp_dir
-                    )
+                    log.warning("controller.polygon.created_temp_project", path=temp_dir)
                 else:
                     return False
 
@@ -2426,9 +2316,7 @@ class MainViewModel:
         self.setup_detector_zones()
         log.info("controller.zone.update_arena.success")
 
-    def add_roi_polygon(
-        self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]
-    ):
+    def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
         """Adiciona ROI com validação de sobreposição"""
         try:
             log.info("controller.zone.add_roi", name=name, points=len(roi_points))
@@ -2464,7 +2352,7 @@ class MainViewModel:
                         # Move point toward centroid by 3 pixels
                         dx = centroid_x - px
                         dy = centroid_y - py
-                        length = float(np.sqrt(dx*dx + dy*dy))
+                        length = float(np.sqrt(dx * dx + dy * dy))
                         if length > 0:
                             px += (dx / length) * 3.0
                             py += (dy / length) * 3.0
@@ -2511,9 +2399,7 @@ class MainViewModel:
                     existing_poly = np.array(existing_roi, dtype=np.int32)
 
                     for point in roi_points:
-                        result = cv2.pointPolygonTest(
-                            existing_poly, tuple(point), False
-                        )
+                        result = cv2.pointPolygonTest(existing_poly, tuple(point), False)
                         if result >= 0:  # Ponto está dentro ou na borda
                             overlapping_points += 1
 
@@ -2556,9 +2442,7 @@ class MainViewModel:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def can_remove_project_asset(
-        self, video_path: str, asset: str
-    ) -> tuple[bool, str | None]:
+    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
         """Validate whether a project asset can be safely removed."""
 
         try:
@@ -2652,12 +2536,8 @@ class MainViewModel:
 
             # 3. Run detection on the clip using selected aquarium method
             # Use temporary override if provided, otherwise use global settings
-            aquarium_method = (
-                temp_aquarium_method or settings.model_selection.aquarium_method
-            )
-            model_path = self.weight_manager.get_weight_path_by_method(
-                aquarium_method, "aquarium"
-            )
+            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
+            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
 
             if not model_path:
                 self.view.show_error(
@@ -2673,8 +2553,7 @@ class MainViewModel:
             if not polygons:
                 self.view.show_warning(
                     "Detecção Falhou",
-                    "Nenhum aquário foi detectado. "
-                    "Por favor, desenhe a área manualmente.",
+                    "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",
                 )
                 return
 
@@ -2741,7 +2620,7 @@ class MainViewModel:
                 response = self.view.ask_ok_cancel(
                     "Calibração Necessária",
                     "Deseja fazer calibração automática do aquário?\n"
-                    "(Recomendado para projetos ao vivo)"
+                    "(Recomendado para projetos ao vivo)",
                 )
 
                 if response:
@@ -2753,13 +2632,10 @@ class MainViewModel:
                     if not zone_data or not zone_data.polygon:
                         self.view.show_error(
                             "Calibração Falhou",
-                            "Não foi possível detectar o aquário.\n"
-                            "Por favor, desenhe manualmente."
+                            "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",
                         )
                         # Switch to zones tab
-                        if hasattr(self.view, "notebook") and hasattr(
-                            self.view, "zone_tab_frame"
-                        ):
+                        if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
                             self.view.notebook.select(self.view.zone_tab_frame)
                         return
                     else:
@@ -2769,7 +2645,7 @@ class MainViewModel:
                     self.view.show_error(
                         "Zonas Obrigatórias",
                         "Projetos ao vivo requerem definição de zonas.\n"
-                        "Defina o polígono principal antes de gravar."
+                        "Defina o polígono principal antes de gravar.",
                     )
                     return
 
@@ -2786,9 +2662,7 @@ class MainViewModel:
 
                 if response:
                     # Muda para aba de zonas e inicia câmera para calibração
-                    if hasattr(self.view, "notebook") and hasattr(
-                        self.view, "zone_tab_frame"
-                    ):
+                    if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
                         self.view.notebook.select(self.view.zone_tab_frame)
 
                     self.view.show_info(
@@ -2909,9 +2783,7 @@ class MainViewModel:
             self.view.update_button_state("start_rec", "disabled")
             self.view.update_button_state("stop_rec", "disabled")
             self.view.set_status(waiting_message)
-            self.log_arduino_event(
-                "Modo trigger externo habilitado. Aguardando sinal do Arduino."
-            )
+            self.log_arduino_event("Modo trigger externo habilitado. Aguardando sinal do Arduino.")
             return
 
         self._pending_external_trigger = None
@@ -2969,9 +2841,7 @@ class MainViewModel:
 
         # Use detection methods from config if provided, otherwise fall back to
         # global settings
-        animal_method = config.get(
-            "animal_method", settings.model_selection.animal_method
-        )
+        animal_method = config.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
 
         # Apply OpenVINO setting from config
@@ -3008,9 +2878,7 @@ class MainViewModel:
         # This function now only delegates to the UI to prepare the drawing screen.
         self.view.setup_zone_definition_for_single_video(video_path, config)
 
-    def start_single_video_processing(
-        self, video_path: str, config: dict, zone_data: ZoneData
-    ):
+    def start_single_video_processing(self, video_path: str, config: dict, zone_data: ZoneData):
         """Starts the actual processing for a single video after zone setup."""
         log.info("workflow.single_video.processing_start", video=video_path)
 
@@ -3053,7 +2921,7 @@ class MainViewModel:
 
             self.project_manager.add_video_batch(
                 [video_data],
-                save_project=False  # Don't save to disk for single video workflow
+                save_project=False,  # Don't save to disk for single video workflow
             )
 
         # Save the zone data for this video so it can be retrieved later
@@ -3066,20 +2934,15 @@ class MainViewModel:
             )
             self.project_manager.save_zone_data(zone_data, video_path)
 
-    # Refresh views so the video appears in Main Control and Reports tabs
-    # Ensures the user sees the registered video before processing starts
-        self.refresh_project_views(
-            reason="Single video registered",
-            immediate=True
-        )
+        # Refresh views so the video appears in Main Control and Reports tabs
+        # Ensures the user sees the registered video before processing starts
+        self.refresh_project_views(reason="Single video registered", immediate=True)
 
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            self.view.show_error(
-                "Erro", f"Não foi possível abrir o vídeo: {video_path}"
-            )
+            self.view.show_error("Erro", f"Não foi possível abrir o vídeo: {video_path}")
             return
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -3091,9 +2954,7 @@ class MainViewModel:
         )
 
         # Inform plugin that aquarium region is defined
-        if self.detector and hasattr(
-            self.detector.plugin, "set_aquarium_region_defined"
-        ):
+        if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
             has_aquarium = bool(zone_data and zone_data.polygon)
             self.detector.plugin.set_aquarium_region_defined(has_aquarium)
             log.info(
@@ -3106,9 +2967,7 @@ class MainViewModel:
         # 2. Prepare the environment for _process_videos
         scanned_files = ProjectManager.scan_input_paths([video_path])
         if not scanned_files:
-            self.view.show_error(
-                "Erro", "Não foi possível identificar um arquivo de vídeo válido."
-            )
+            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
             return
         video_to_process = scanned_files[0]
 
@@ -3118,15 +2977,15 @@ class MainViewModel:
 
         # 3. Create and start the processing worker
         self.cancel_event.clear()
-        
+
         callbacks = self._create_processing_callbacks([video_to_process])
         context = self._create_processing_context(
             [video_to_process], output_dir, single_video_config=config
         )
-        
+
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
-        
+
         # Update processing state in StateManager
         self.state_manager.update_processing_state(
             source="controller.start_single_video_analysis",
@@ -3178,9 +3037,7 @@ class MainViewModel:
 
             if response:
                 # Muda para aba de zonas
-                if hasattr(self.view, "notebook") and hasattr(
-                    self.view, "zone_tab_frame"
-                ):
+                if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
                     self.view.notebook.select(self.view.zone_tab_frame)
 
                 # Carrega frame do primeiro vídeo se disponível
@@ -3230,9 +3087,7 @@ class MainViewModel:
                             "Recomenda-se ajustar manualmente depois.",
                         )
                     else:
-                        self.view.show_error(
-                            "Erro", "Não foi possível criar arena padrão"
-                        )
+                        self.view.show_error("Erro", "Não foi possível criar arena padrão")
                         return
                 else:
                     self.view.show_error("Erro", "Nenhum vídeo encontrado no projeto")
@@ -3273,8 +3128,7 @@ class MainViewModel:
         if not scanned_videos:
             self.view.show_warning(
                 "Nenhum Vídeo Encontrado",
-                "Nenhum novo arquivo de vídeo foi encontrado "
-                "nos caminhos selecionados.",
+                "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",
             )
             return
 
@@ -3305,9 +3159,7 @@ class MainViewModel:
             ):
                 videos_to_process = with_data
             else:
-                self.view.show_info(
-                    "Processamento Ignorado", "Nenhum novo vídeo foi processado."
-                )
+                self.view.show_info("Processamento Ignorado", "Nenhum novo vídeo foi processado.")
                 # Still add them to the project for reporting purposes
                 self.project_manager.add_video_batch(scanned_videos)
                 return
@@ -3316,9 +3168,7 @@ class MainViewModel:
             videos_to_process = without_data
 
         if not videos_to_process:
-            self.view.show_info(
-                "Processamento Concluído", "Nenhum novo vídeo para processar."
-            )
+            self.view.show_info("Processamento Concluído", "Nenhum novo vídeo para processar.")
             return
 
         # 4. Add the batch to the project
@@ -3328,12 +3178,8 @@ class MainViewModel:
         try:
             analysis_interval = int(self.view.analysis_interval_var.get())
             display_interval = int(self.view.display_interval_var.get())
-            self.project_manager.project_data["analysis_interval_frames"] = (
-                analysis_interval
-            )
-            self.project_manager.project_data["display_interval_frames"] = (
-                display_interval
-            )
+            self.project_manager.project_data["analysis_interval_frames"] = analysis_interval
+            self.project_manager.project_data["display_interval_frames"] = display_interval
             # Save the project to persist the intervals
             self.project_manager.save_project()
             log.info(
@@ -3349,12 +3195,12 @@ class MainViewModel:
 
         # 5. Process the videos that need it using worker
         self.cancel_event.clear()
-        
+
         callbacks = self._create_processing_callbacks(videos_to_process)
         context = self._create_processing_context(
             videos_to_process, self.project_manager.project_path
         )
-        
+
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
@@ -3364,8 +3210,7 @@ class MainViewModel:
 
         self.view.show_info(
             "Sucesso",
-            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados "
-            "ao projeto.",
+            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
         )
 
     def process_pending_project_videos(
@@ -3394,9 +3239,7 @@ class MainViewModel:
 
         all_videos = self.project_manager.get_all_videos() or []
         if not all_videos:
-            self.view.show_info(
-                "Processamento", "Nenhum vídeo cadastrado no projeto atualmente."
-            )
+            self.view.show_info("Processamento", "Nenhum vídeo cadastrado no projeto atualmente.")
             return
 
         videos_by_norm: dict[str, dict] = {}
@@ -3431,15 +3274,10 @@ class MainViewModel:
             ]
 
             missing_targets = [
-                norm_path
-                for norm_path in normalized_targets
-                if norm_path not in videos_by_norm
+                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
             ]
             if missing_targets:
-                sample = [
-                    os.path.basename(raw_lookup[norm])
-                    for norm in missing_targets[:5]
-                ]
+                sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
                 if len(missing_targets) > 5:
                     sample.append(f"... (+{len(missing_targets) - 5})")
                 self.view.show_warning(
@@ -3461,9 +3299,7 @@ class MainViewModel:
                 if video.get("status") not in {"processed", "complete"}
             ]
             if not candidate_entries:
-                self.view.show_info(
-                    "Processamento", "Nenhum vídeo pendente para ser processado."
-                )
+                self.view.show_info("Processamento", "Nenhum vídeo pendente para ser processado.")
                 return
 
         candidate_paths = [
@@ -3474,10 +3310,7 @@ class MainViewModel:
         if not candidate_paths:
             self.view.show_error(
                 "Erro",
-                (
-                    "Não foi possível localizar caminhos válidos para os vídeos "
-                    "selecionados."
-                ),
+                ("Não foi possível localizar caminhos válidos para os vídeos selecionados."),
             )
             return
 
@@ -3489,9 +3322,7 @@ class MainViewModel:
         }
 
         missing_files = [
-            path
-            for path in candidate_paths
-            if os.path.normpath(path) not in info_by_norm
+            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
         ]
         if missing_files:
             sample_names = [os.path.basename(path) for path in missing_files[:5]]
@@ -3550,10 +3381,7 @@ class MainViewModel:
         if not (ready_with_trajectory or ready_with_zones or arena_only):
             self.view.show_info(
                 "Processamento",
-                (
-                    "Nenhum vídeo elegível foi encontrado com dados "
-                    "suficientes para análise."
-                ),
+                ("Nenhum vídeo elegível foi encontrado com dados suficientes para análise."),
             )
             return
 
@@ -3615,10 +3443,7 @@ class MainViewModel:
             if not eligible_videos:
                 self.view.show_info(
                     "Processamento",
-                    (
-                        "Nenhum vídeo foi selecionado para processamento "
-                        "neste momento."
-                    ),
+                    ("Nenhum vídeo foi selecionado para processamento neste momento."),
                 )
                 return
 
@@ -3644,12 +3469,12 @@ class MainViewModel:
             self.project_manager.save_project()
 
         self.cancel_event.clear()
-        
+
         callbacks = self._create_processing_callbacks(eligible_videos)
         context = self._create_processing_context(
             eligible_videos, self.project_manager.project_path
         )
-        
+
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
@@ -3658,9 +3483,7 @@ class MainViewModel:
             if path_value:
                 self.project_manager.update_video_status(path_value, "complete")
 
-        self.view.set_status(
-            f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."
-        )
+        self.view.set_status(f"Processando {len(eligible_videos)} vídeo(s) com dados existentes...")
         display_names = [
             os.path.basename(video_info.get("path", "")) or "(arquivo desconhecido)"
             for video_info in eligible_videos
@@ -3670,8 +3493,7 @@ class MainViewModel:
             preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
 
         message = (
-            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em "
-            "segundo plano."
+            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
         )
         if preview_lines:
             message += "\n\nFila:\n" + "\n".join(preview_lines)
@@ -3696,10 +3518,7 @@ class MainViewModel:
         if self.processing_thread and self.processing_thread.is_alive():
             self.view.show_warning(
                 "Processamento em andamento",
-                (
-                    "Aguarde a conclusão do processamento atual antes de gerar "
-                    "os sumários."
-                ),
+                ("Aguarde a conclusão do processamento atual antes de gerar os sumários."),
             )
             return
 
@@ -3754,21 +3573,15 @@ class MainViewModel:
         ]
 
         missing_targets = [
-            norm_path
-            for norm_path in normalized_targets
-            if norm_path not in videos_by_norm
+            norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
         ]
         if missing_targets:
-            sample = [
-                os.path.basename(raw_lookup[norm])
-                for norm in list(missing_targets)[:5]
-            ]
+            sample = [os.path.basename(raw_lookup[norm]) for norm in list(missing_targets)[:5]]
             if len(missing_targets) > 5:
                 sample.append(f"... (+{len(missing_targets) - 5})")
             self.view.show_warning(
                 "Vídeos fora do projeto",
-                "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                + "\n".join(sample),
+                "Alguns itens selecionados não pertencem ao projeto atual:\n" + "\n".join(sample),
             )
 
         if not selected_videos:
@@ -3778,9 +3591,7 @@ class MainViewModel:
             )
             return
 
-        eligible_videos = [
-            video for video in selected_videos if video.get("has_trajectory")
-        ]
+        eligible_videos = [video for video in selected_videos if video.get("has_trajectory")]
         if not eligible_videos:
             self.view.show_info(
                 "Sumários",
@@ -3834,25 +3645,19 @@ class MainViewModel:
 
                 if not trajectory_path:
                     skipped.append(experiment_id)
-                    details.append(
-                        f"• {experiment_id}: arquivo de trajetória ausente."
-                    )
+                    details.append(f"• {experiment_id}: arquivo de trajetória ausente.")
                     continue
 
                 try:
                     trajectory_df = pd.read_parquet(trajectory_path)
                 except Exception as exc:  # pragma: no cover - I/O defensive
                     skipped.append(experiment_id)
-                    details.append(
-                        f"• {experiment_id}: falha ao ler trajetória ({exc})."
-                    )
+                    details.append(f"• {experiment_id}: falha ao ler trajetória ({exc}).")
                     continue
 
                 if trajectory_df.empty:
                     skipped.append(experiment_id)
-                    details.append(
-                        f"• {experiment_id}: trajetória vazia, sumário não gerado."
-                    )
+                    details.append(f"• {experiment_id}: trajetória vazia, sumário não gerado.")
                     continue
 
                 self.project_manager.set_active_zone_video(path)
@@ -3865,9 +3670,7 @@ class MainViewModel:
                         cap = cv2.VideoCapture(path)
                         if not cap.isOpened():
                             skipped.append(experiment_id)
-                            details.append(
-                                f"• {experiment_id}: não foi possível abrir o vídeo."
-                            )
+                            details.append(f"• {experiment_id}: não foi possível abrir o vídeo.")
                             continue
                         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -3887,9 +3690,7 @@ class MainViewModel:
                     height_cm = calib_data.get("aquarium_height_cm")
                     if not width_cm or not height_cm:
                         skipped.append(experiment_id)
-                        details.append(
-                            f"• {experiment_id}: calibração incompleta (px/cm)."
-                        )
+                        details.append(f"• {experiment_id}: calibração incompleta (px/cm).")
                         continue
 
                     cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
@@ -3904,14 +3705,8 @@ class MainViewModel:
                     rois: list[ROI] = []
                     for idx, roi_points in enumerate(roi_polygons):
                         warped_points = cal.transform_points(roi_points)
-                        roi_polygon_px = [
-                            (float(x), float(y)) for x, y in warped_points
-                        ]
-                        roi_name = (
-                            roi_names[idx]
-                            if idx < len(roi_names)
-                            else f"ROI {idx + 1}"
-                        )
+                        roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
+                        roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
                         rois.append(
                             ROI(
                                 name=roi_name,
@@ -3921,17 +3716,11 @@ class MainViewModel:
                         )
 
                     roi_colors = {
-                        (
-                            roi_names[i]
-                            if i < len(roi_names)
-                            else f"ROI {i + 1}"
-                        ): roi_colors_list[i]
+                        (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
                         for i in range(len(roi_colors_list))
                     }
 
-                    metadata = self.project_manager.get_metadata_for_experiment(
-                        experiment_id
-                    ) or {
+                    metadata = self.project_manager.get_metadata_for_experiment(experiment_id) or {
                         "experiment_id": experiment_id,
                         "video_name": experiment_id,
                     }
@@ -3956,9 +3745,7 @@ class MainViewModel:
                     )
 
                     os.makedirs(results_dir, exist_ok=True)
-                    parquet_path = os.path.join(
-                        results_dir, f"{experiment_id}_summary.parquet"
-                    )
+                    parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
                     reporter.export_summary_data(parquet_path, format="parquet")
 
                     video.setdefault("parquet_files", {})["summary"] = parquet_path
@@ -3967,9 +3754,7 @@ class MainViewModel:
                     completed.append(experiment_id)
                 except Exception as exc:  # pragma: no cover - defensive
                     skipped.append(experiment_id)
-                    details.append(
-                        f"• {experiment_id}: erro inesperado ({exc})."
-                    )
+                    details.append(f"• {experiment_id}: erro inesperado ({exc}).")
                 finally:
                     self.project_manager.set_active_zone_video(None)
 
@@ -3986,17 +3771,14 @@ class MainViewModel:
                             + "\n".join(f"• {item}" for item in completed)
                         ),
                     )
-                    status_msg = (
-                        f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
-                    )
+                    status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
                 else:
                     status_msg = "Nenhum sumário foi atualizado."
 
                 if details:
                     self.view.show_warning(
                         "Vídeos ignorados",
-                        "Alguns sumários não puderam ser gerados:\n"
-                        + "\n".join(details),
+                        "Alguns sumários não puderam ser gerados:\n" + "\n".join(details),
                     )
 
                 self.view.set_status(status_msg)
@@ -4035,9 +3817,7 @@ class MainViewModel:
               failed.
         """
         log.info("controller.tracking.check_or_run", video=experiment_id)
-        trajectory_path = os.path.join(
-            results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
-        )
+        trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         arena_polygon = self.project_manager.get_zone_data().polygon
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
@@ -4076,9 +3856,7 @@ class MainViewModel:
             self.detector.set_zones(zone_data, frame_width, frame_height)
 
             # Inform plugin that aquarium region is defined
-            if self.detector and hasattr(
-                self.detector.plugin, "set_aquarium_region_defined"
-            ):
+            if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
                 has_aquarium = bool(zone_data and zone_data.polygon)
                 self.detector.plugin.set_aquarium_region_defined(has_aquarium)
                 log.info(
@@ -4130,6 +3908,7 @@ class MainViewModel:
             processed_frames_count = 0
             detected_frames_count = 0  # Frames that actually have detections
             import time
+
             start_time = time.time()  # Track processing start time
             log.info("controller.tracking.loop.start", video=experiment_id)
             while not self.cancel_event.is_set():
@@ -4143,9 +3922,7 @@ class MainViewModel:
                 detections = []
 
                 if should_process:
-                    detections, _ = self.detector.process_frame(
-                        frame, project_type="pre-recorded"
-                    )
+                    detections, _ = self.detector.process_frame(frame, project_type="pre-recorded")
 
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
@@ -4159,17 +3936,15 @@ class MainViewModel:
                 # Update GUI display every processed frame for smoother visualization
                 if progress_callback and should_process:
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    progress_fraction = (
-                        (frame_num + 1) / total_frames if total_frames > 0 else 0
-                    )
+                    progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
 
                     # Prepare statistics for GUI update
                     stats = {
-                        'total_frames': total_frames,
-                        'current_frame': frame_num + 1,  # For accurate ETA calculation
-                        'processed_frames': processed_frames_count,
-                        'detected_frames': detected_frames_count,
-                        'start_time': start_time
+                        "total_frames": total_frames,
+                        "current_frame": frame_num + 1,  # For accurate ETA calculation
+                        "processed_frames": processed_frames_count,
+                        "detected_frames": detected_frames_count,
+                        "start_time": start_time,
                     }
 
                     # Always draw overlay on processed frames
@@ -4198,17 +3973,14 @@ class MainViewModel:
             )
             self.view.show_error(
                 "Erro de Rastreamento",
-                f"Ocorreu um erro inesperado ao gerar a trajetória "
-                f"para {experiment_id}:\n{e}",
+                f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",
             )
             return False, None
         finally:
             if cap.isOpened():
                 cap.release()
 
-    def _resolve_single_animal_mode(
-        self, single_video_config: dict | None
-    ) -> bool | None:
+    def _resolve_single_animal_mode(self, single_video_config: dict | None) -> bool | None:
         """Derive whether single-animal tracking mode should be active."""
 
         def _coerce_to_int(value):
@@ -4291,9 +4063,7 @@ class MainViewModel:
                 force=True,
             )
 
-    def _determine_processing_intervals(
-        self, single_video_config: dict | None
-    ) -> tuple[int, int]:
+    def _determine_processing_intervals(self, single_video_config: dict | None) -> tuple[int, int]:
         analysis_interval_frames = 10
         display_interval_frames = 10
 
@@ -4322,16 +4092,12 @@ class MainViewModel:
         return int(analysis_interval_frames), int(display_interval_frames)
 
     @contextmanager
-    def _temporary_single_animal_mode(
-        self, single_video_config: dict | None
-    ) -> Iterator[bool]:
+    def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
         previous_mode = settings.video_processing.single_animal_per_aquarium
         resolved_mode = self._resolve_single_animal_mode(single_video_config)
 
         previous_tracker_pref = settings.tracking.use_single_subject_tracker
-        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(
-            single_video_config
-        )
+        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
         if resolved_tracker_pref is None:
             resolved_tracker_pref = previous_tracker_pref
 
@@ -4354,9 +4120,7 @@ class MainViewModel:
                 scope="single_video" if single_video_config else "project",
             )
 
-        self._configure_single_subject_tracker(
-            settings.tracking.use_single_subject_tracker
-        )
+        self._configure_single_subject_tracker(settings.tracking.use_single_subject_tracker)
         self._publish_processing_mode(
             source="processing.temporary_mode.enter",
             force=True,
@@ -4365,10 +4129,7 @@ class MainViewModel:
         try:
             yield settings.video_processing.single_animal_per_aquarium
         finally:
-            if (
-                settings.video_processing.single_animal_per_aquarium
-                != previous_mode
-            ):
+            if settings.video_processing.single_animal_per_aquarium != previous_mode:
                 settings.video_processing.single_animal_per_aquarium = previous_mode
                 log.info(
                     "controller.processing.single_animal_mode_restored",
@@ -4376,17 +4137,13 @@ class MainViewModel:
                 )
 
             if tracker_changed:
-                settings.tracking.use_single_subject_tracker = (
-                    previous_tracker_pref
-                )
+                settings.tracking.use_single_subject_tracker = previous_tracker_pref
                 log.info(
                     "controller.processing.single_subject_tracker_restored",
                     restored=previous_tracker_pref,
                 )
 
-            self._configure_single_subject_tracker(
-                settings.tracking.use_single_subject_tracker
-            )
+            self._configure_single_subject_tracker(settings.tracking.use_single_subject_tracker)
             self._publish_processing_mode(
                 source="processing.temporary_mode.exit",
                 force=True,
@@ -4396,9 +4153,7 @@ class MainViewModel:
         self.root.after(0, self.view.show_progress_bar)
         self.root.after(
             0,
-            lambda: self.view.set_status(
-                f"Iniciando processamento para {total_videos} vídeos..."
-            ),
+            lambda: self.view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
         )
         self.project_manager.set_active_zone_video(None)
 
@@ -4416,9 +4171,7 @@ class MainViewModel:
         if was_cancelled:
             self.root.after(
                 0,
-                lambda: self.view.show_info(
-                    "Cancelado", "A análise de vídeo foi cancelada."
-                ),
+                lambda: self.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
             )
         elif videos_to_process:
             msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
@@ -4465,9 +4218,7 @@ class MainViewModel:
             lambda meta=payload: self.view.update_analysis_metadata(metadata=meta),
         )
 
-    def _notify_task_status_start(
-        self, *, index: int, total: int, experiment_id: str
-    ) -> None:
+    def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
         task_status_cb = partial(
             self.view.update_analysis_task_status,
             index=index,
@@ -4493,17 +4244,13 @@ class MainViewModel:
             if self.cancel_event.is_set():
                 return
 
-            overall_progress = (
-                f"Processando {index + 1}/{total_videos}: {experiment_id}"
-            )
+            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
             step_status = f"Etapa: {status_message}"
             self.root.after(
                 0,
                 lambda: self.view.set_status(f"{overall_progress} - {step_status}"),
             )
-            self.root.after(
-                0, lambda p=progress_fraction: self.view.update_progress(p)
-            )
+            self.root.after(0, lambda p=progress_fraction: self.view.update_progress(p))
             self.root.after(
                 0,
                 lambda p=progress_fraction, s=step_status: (
@@ -4583,9 +4330,7 @@ class MainViewModel:
         results_path.mkdir(parents=True, exist_ok=True)
         return results_path
 
-    def _ensure_arena_polygon(
-        self, arena_polygon_px: list | None, video_path: str
-    ) -> list | None:
+    def _ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: str) -> list | None:
         if arena_polygon_px:
             return arena_polygon_px
 
@@ -4686,9 +4431,7 @@ class MainViewModel:
             smoothing_polyorder = settings.trajectory_smoothing.polyorder
 
             metadata = dict(metadata_context or {})
-            csv_metadata = self.project_manager.get_metadata_for_experiment(
-                experiment_id
-            )
+            csv_metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
             if csv_metadata:
                 metadata.update(csv_metadata)
             if not metadata:
@@ -4739,18 +4482,12 @@ class MainViewModel:
         pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
 
         warped_points = cal.transform_points(arena_polygon_px)
-        arena_polygon_warped = [
-            (float(point[0]), float(point[1])) for point in warped_points
-        ]
+        arena_polygon_warped = [(float(point[0]), float(point[1])) for point in warped_points]
         rois: list[ROI] = []
         for i, polygon in enumerate(zone_data.roi_polygons):
             warped_points = cal.transform_points(polygon)
             roi_points_px = [(float(x), float(y)) for x, y in warped_points]
-            roi_name = (
-                zone_data.roi_names[i]
-                if i < len(zone_data.roi_names)
-                else f"ROI {i + 1}"
-            )
+            roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"
             rois.append(
                 ROI(
                     name=roi_name,
@@ -4760,11 +4497,7 @@ class MainViewModel:
             )
 
         roi_colors = {
-            (
-                zone_data.roi_names[i]
-                if i < len(zone_data.roi_names)
-                else f"ROI {i + 1}"
-            ): color
+            (zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"): color
             for i, color in enumerate(zone_data.roi_colors)
         }
 
@@ -4778,21 +4511,13 @@ class MainViewModel:
         results_dir: str,
         progress_callback,
     ) -> tuple[str, str, str]:
-        summary_parquet_path = os.path.join(
-            results_dir, f"{experiment_id}_summary.parquet"
-        )
-        summary_excel_path = os.path.join(
-            results_dir, f"{experiment_id}_summary.xlsx"
-        )
-        report_docx_path = os.path.join(
-            results_dir, f"{experiment_id}_report.docx"
-        )
+        summary_parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+        summary_excel_path = os.path.join(results_dir, f"{experiment_id}_summary.xlsx")
+        report_docx_path = os.path.join(results_dir, f"{experiment_id}_report.docx")
 
         reporter.export_summary_data(summary_parquet_path, format="parquet")
         reporter.export_summary_data(summary_excel_path, format="excel")
-        reporter.export_individual_report_step_by_step(
-            report_docx_path, progress_callback
-        )
+        reporter.export_individual_report_step_by_step(report_docx_path, progress_callback)
 
         return summary_parquet_path, summary_excel_path, report_docx_path
 
@@ -4831,9 +4556,7 @@ class MainViewModel:
         progress_callback,
         analysis_profile: dict | None,
     ) -> bool:
-        trajectory_path = os.path.join(
-            results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
-        )
+        trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         trajectory_df = self._load_trajectory_dataframe(trajectory_path, experiment_id)
         if trajectory_df is None:
             return False
@@ -4852,17 +4575,12 @@ class MainViewModel:
 
         if "track_id" in trajectory_df.columns:
             resolved_track_ids = sorted(
-                {
-                    str(track)
-                    for track in trajectory_df["track_id"].dropna().unique().tolist()
-                }
+                {str(track) for track in trajectory_df["track_id"].dropna().unique().tolist()}
             )
 
             if requested_track_ids:
                 requested_str = {
-                    str(track).strip()
-                    for track in requested_track_ids
-                    if track not in (None, "")
+                    str(track).strip() for track in requested_track_ids if track not in (None, "")
                 }
 
                 mask = trajectory_df["track_id"].astype(str).isin(requested_str)
@@ -4978,12 +4696,8 @@ class MainViewModel:
         )
 
         social_summary: dict | None = None
-        raw_social_config = (
-            profile_dict.get("social") if isinstance(profile_dict, dict) else {}
-        )
-        social_config = (
-            raw_social_config if isinstance(raw_social_config, dict) else {}
-        )
+        raw_social_config = profile_dict.get("social") if isinstance(profile_dict, dict) else {}
+        social_config = raw_social_config if isinstance(raw_social_config, dict) else {}
         social_enabled = bool(social_config.get("enabled"))
         if (
             social_enabled
@@ -5168,12 +4882,8 @@ class MainViewModel:
                     "calibration": calibration,
                     "video_settings": video_info,
                     "timestamp": self.project_manager.project_data.get("timestamp"),
-                    "analysis_interval_frames": project_data.get(
-                        "analysis_interval_frames", 10
-                    ),
-                    "display_interval_frames": project_data.get(
-                        "display_interval_frames", 10
-                    ),
+                    "analysis_interval_frames": project_data.get("analysis_interval_frames", 10),
+                    "display_interval_frames": project_data.get("display_interval_frames", 10),
                     "detector_config": self.project_manager.get_detector_state(),
                 }
 
@@ -5300,9 +5010,7 @@ class MainViewModel:
 
         return combined
 
-    def _create_processing_callbacks(
-        self, videos_to_process: list[dict]
-    ) -> ProcessingCallbacks:
+    def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """
         Creates thread-safe callbacks for the processing worker.
         All callbacks schedule UI updates via root.after() to ensure thread safety.
@@ -5328,7 +5036,8 @@ class MainViewModel:
             self.root.after(0, lambda: self.view.set_status(message))
             self.root.after(0, lambda p=fraction: self.view.update_progress(p))
             self.root.after(
-                0, lambda p=fraction, m=message: self.view.update_analysis_progress(p, m)
+                0,
+                lambda p=fraction, m=message: self.view.update_analysis_progress(p, m),
             )
 
             if stats:
@@ -5338,7 +5047,7 @@ class MainViewModel:
                     current_frame=stats.get("current_frame", 0),
                     total_frames=stats.get("total_frames", 0),
                 )
-                
+
                 self.root.after(
                     0,
                     lambda: self.view.update_processing_stats(
@@ -5357,13 +5066,10 @@ class MainViewModel:
 
             if detections is not None and processing_info:
                 payload = [tuple(det) for det in detections]
-                self._schedule_on_ui(
-                    self.view.update_detection_overlay, payload, processing_info
-                )
+                self._schedule_on_ui(self.view.update_detection_overlay, payload, processing_info)
 
         def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
             """Called when a single video completes."""
-            status = "concluído" if success else "falhou"
             log.info(
                 "controller.video_completed",
                 index=index,
@@ -5377,9 +5083,7 @@ class MainViewModel:
             log.error("controller.processing.worker_error", context=context, error=str(error))
             self.root.after(
                 0,
-                lambda: self.view.show_error(
-                    "Erro na Análise", f"{context}: {error}"
-                ),
+                lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
             )
 
         def on_completed(was_cancelled: bool, output_dir: str):
@@ -5387,7 +5091,7 @@ class MainViewModel:
             self.project_manager.set_active_zone_video(None)
             self.root.after(0, self.view.stop_analysis_view_mode)
             self.root.after(0, self.view.hide_progress_bar)
-            
+
             # Update processing state in StateManager
             self.state_manager.update_processing_state(
                 source="controller.processing_completed",
@@ -5399,9 +5103,7 @@ class MainViewModel:
             if was_cancelled:
                 self.root.after(
                     0,
-                    lambda: self.view.show_info(
-                        "Cancelado", "A análise de vídeo foi cancelada."
-                    ),
+                    lambda: self.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
                 )
             elif videos_to_process:
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
@@ -5454,8 +5156,8 @@ class MainViewModel:
         log.info("controller.processing.start", count=len(videos_to_process))
         total_videos = max(len(videos_to_process), 1)
 
-        analysis_interval_frames, display_interval_frames = (
-            self._determine_processing_intervals(single_video_config)
+        analysis_interval_frames, display_interval_frames = self._determine_processing_intervals(
+            single_video_config
         )
 
         if not single_video_config:
@@ -5498,10 +5200,8 @@ class MainViewModel:
                     profile_context = metadata_context or single_video_config or {}
 
                     try:
-                        analysis_profile = (
-                            self.project_manager.resolve_analysis_profile(
-                                profile_context
-                            )
+                        analysis_profile = self.project_manager.resolve_analysis_profile(
+                            profile_context
                         )
                     except Exception:  # pragma: no cover - defensive
                         log.warning(
@@ -5509,9 +5209,7 @@ class MainViewModel:
                             video=experiment_id,
                             exc_info=True,
                         )
-                        resolve_profile = (
-                            self.project_manager.resolve_analysis_profile
-                        )
+                        resolve_profile = self.project_manager.resolve_analysis_profile
                         analysis_profile = resolve_profile({})
 
                     profile_name = (
@@ -5522,9 +5220,7 @@ class MainViewModel:
 
                     self.root.after(
                         0,
-                        lambda name=profile_name: self.view.update_analysis_profile(
-                            name
-                        ),
+                        lambda name=profile_name: self.view.update_analysis_profile(name),
                     )
                     self.root.after(
                         0,
@@ -5575,9 +5271,7 @@ class MainViewModel:
         """
         log.info("reports.generate.start", count=len(videos), type=report_type)
         if not videos:
-            self.view.show_warning(
-                "Nenhum Vídeo", "Nenhum vídeo selecionado para o relatório."
-            )
+            self.view.show_warning("Nenhum Vídeo", "Nenhum vídeo selecionado para o relatório.")
             return
 
         all_tidy_data = []
@@ -5611,8 +5305,7 @@ class MainViewModel:
         if not all_tidy_data:
             self.view.show_error(
                 "Erro no Relatório",
-                "Não foi possível encontrar dados de resumo para os vídeos "
-                "selecionados.",
+                "Não foi possível encontrar dados de resumo para os vídeos selecionados.",
             )
             return
 
@@ -5661,19 +5354,13 @@ class MainViewModel:
         self.view.update_idletasks()
 
         model_to_test = config["model_to_test"]
-        active_weight_details = self.weight_manager.get_weight_details(
-            self.active_weight_name
-        )
+        active_weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
         log.info(
             "controller.diagnostic.active_weight",
             active_weight_name=self.active_weight_name,
-            pytorch_path=(
-                active_weight_details.get("path") if active_weight_details else None
-            ),
+            pytorch_path=(active_weight_details.get("path") if active_weight_details else None),
             openvino_path=(
-                active_weight_details.get("openvino_path")
-                if active_weight_details
-                else None
+                active_weight_details.get("openvino_path") if active_weight_details else None
             ),
         )
         if not active_weight_details:
@@ -5694,9 +5381,7 @@ class MainViewModel:
                         self.active_weight_name
                     )
                     if not active_weight_details.get("openvino_path"):
-                        self.view.show_error(
-                            "Erro", "A conversão para OpenVINO falhou."
-                        )
+                        self.view.show_error("Erro", "A conversão para OpenVINO falhou.")
                         return
                 else:
                     log.warning("diagnostic.openvino.conversion_skipped")
@@ -5800,15 +5485,11 @@ class MainViewModel:
                 if not ret:
                     break
 
-                status_msg = (
-                    f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
-                )
+                status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
                 self.root.after(0, self.view.set_status, status_msg)
 
                 if yolo_model:
-                    preds = yolo_model.predict(
-                        frame, conf=conf_threshold, verbose=False
-                    )
+                    preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
                     results.setdefault("YOLO (PyTorch)", []).append(preds[0])
 
                 if openvino_model:
@@ -5840,9 +5521,7 @@ class MainViewModel:
             cap.release()
 
             # --- Schedule report generation on main thread ---
-            self.root.after(
-                0, self._finish_diagnostic_and_save_report, config, results
-            )
+            self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
             self.root.after(
@@ -5871,13 +5550,9 @@ class MainViewModel:
             try:
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(report_str)
-                self.view.show_info(
-                    "Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}"
-                )
+                self.view.show_info("Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}")
             except IOError as e:
-                self.view.show_error(
-                    "Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}"
-                )
+                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
 
         self._publish_processing_mode(
             source="diagnostic.complete",
@@ -5925,9 +5600,7 @@ class MainViewModel:
                                 and j < len(preds.masks.xy)
                             )
                             mask_info = (
-                                f", Máscara: {len(preds.masks.xy[j])} pontos"
-                                if has_mask
-                                else ""
+                                f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
                             )
 
                             detections.append(
@@ -5974,9 +5647,7 @@ class MainViewModel:
                 if detections:
                     report_lines.extend(detections)
                 if mask_only_detections:
-                    report_lines.append(
-                        "  Máscaras sem bounding box (possíveis aquários):"
-                    )
+                    report_lines.append("  Máscaras sem bounding box (possíveis aquários):")
                     report_lines.extend(mask_only_detections)
                 if not detections and not mask_only_detections:
                     report_lines.append("  - Nenhuma detecção encontrada.")

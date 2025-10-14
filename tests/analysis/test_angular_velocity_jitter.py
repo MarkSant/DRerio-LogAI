@@ -130,9 +130,7 @@ def test_stationary_trajectory_with_low_threshold():
     Test that a stationary trajectory with jitter produces mostly NaN angular
     velocities when using a strict displacement threshold.
     """
-    trajectory_df = create_stationary_trajectory_with_jitter(
-        n_frames=100, jitter_magnitude=0.2
-    )
+    trajectory_df = create_stationary_trajectory_with_jitter(n_frames=100, jitter_magnitude=0.2)
 
     arena_polygon_px = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
 
@@ -173,9 +171,7 @@ def test_stationary_trajectory_with_permissive_threshold():
     Test that using a very low threshold (approaching the old behavior) still
     calculates angular velocities, but they should be noisy.
     """
-    trajectory_df = create_stationary_trajectory_with_jitter(
-        n_frames=100, jitter_magnitude=0.2
-    )
+    trajectory_df = create_stationary_trajectory_with_jitter(n_frames=100, jitter_magnitude=0.2)
 
     arena_polygon_px = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
 
@@ -268,9 +264,7 @@ def test_wider_calculation_window_reduces_noise():
     Test that using a wider calculation window (e.g., 3 frames instead of 1)
     produces more stable angular velocity estimates.
     """
-    trajectory_df = create_stationary_trajectory_with_jitter(
-        n_frames=150, jitter_magnitude=0.3
-    )
+    trajectory_df = create_stationary_trajectory_with_jitter(n_frames=150, jitter_magnitude=0.3)
 
     arena_polygon_px = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
 
@@ -367,9 +361,7 @@ def test_sharp_turns_count_with_jitter_filtering():
     Test that the sharp turns count is dramatically reduced when using
     jitter filtering on a stationary trajectory.
     """
-    trajectory_df = create_stationary_trajectory_with_jitter(
-        n_frames=200, jitter_magnitude=0.25
-    )
+    trajectory_df = create_stationary_trajectory_with_jitter(n_frames=200, jitter_magnitude=0.25)
 
     arena_polygon_px = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
 
@@ -399,12 +391,8 @@ def test_sharp_turns_count_with_jitter_filtering():
         angular_velocity_smoothing_window=1,
     )
 
-    sharp_turns_result_filtered = analyzer_filtered.calculate_sharp_turns(
-        threshold_deg_s=90.0
-    )
-    sharp_turns_result_permissive = analyzer_permissive.calculate_sharp_turns(
-        threshold_deg_s=90.0
-    )
+    sharp_turns_result_filtered = analyzer_filtered.calculate_sharp_turns(threshold_deg_s=90.0)
+    sharp_turns_result_permissive = analyzer_permissive.calculate_sharp_turns(threshold_deg_s=90.0)
 
     # Extract the count from the dictionary
     sharp_turns_filtered = sharp_turns_result_filtered["sharp_turns_count"]
@@ -418,8 +406,7 @@ def test_sharp_turns_count_with_jitter_filtering():
 
     # Ideally, a stationary trajectory should have zero or very few sharp turns
     assert sharp_turns_filtered < 5, (
-        f"Expected very few sharp turns for stationary trajectory, "
-        f"but got {sharp_turns_filtered}"
+        f"Expected very few sharp turns for stationary trajectory, but got {sharp_turns_filtered}"
     )
 
 

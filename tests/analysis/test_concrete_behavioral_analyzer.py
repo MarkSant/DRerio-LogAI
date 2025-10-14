@@ -109,13 +109,11 @@ def test_get_angular_velocity_non_uniform_timestamps(sample_trajectory_data):
     # from the old method.
     # The new algorithm measures the rate of direction change more accurately.
     # We just verify that a non-NaN value is produced, indicating the turn was detected.
-    assert not np.isnan(
-        angular_velocity.iloc[2]
-    ), "Angular velocity should be calculated at turn point"
-    # The value should be non-zero, indicating direction change
-    assert abs(angular_velocity.iloc[2]) > 1.0, (
-        "Angular velocity should indicate turning motion"
+    assert not np.isnan(angular_velocity.iloc[2]), (
+        "Angular velocity should be calculated at turn point"
     )
+    # The value should be non-zero, indicating direction change
+    assert abs(angular_velocity.iloc[2]) > 1.0, "Angular velocity should indicate turning motion"
 
 
 def test_detect_freezing_episodes_absolute(sample_trajectory_data):
@@ -184,9 +182,7 @@ def test_detect_freezing_episodes_value_error(sample_trajectory_data):
     with pytest.raises(ValueError, match="Unknown threshold_method"):
         analyzer.detect_freezing_episodes(min_duration=1, threshold_method="unknown")
 
-    with pytest.raises(
-        ValueError, match="vel_threshold must be set for 'absolute' method."
-    ):
+    with pytest.raises(ValueError, match="vel_threshold must be set for 'absolute' method."):
         analyzer.detect_freezing_episodes(min_duration=1, threshold_method="absolute")
 
 
@@ -218,11 +214,13 @@ def test_calculate_speed_bursts(sample_trajectory_data):
         }
     )
 
-    sample_trajectory_data.update({
-        "trajectory_df": df,
-        "window_length": 1,
-        "polyorder": 0,
-    })
+    sample_trajectory_data.update(
+        {
+            "trajectory_df": df,
+            "window_length": 1,
+            "polyorder": 0,
+        }
+    )
 
     analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
     result = analyzer.calculate_speed_bursts(threshold_cm_s=8.0, min_duration=1.0)
@@ -235,10 +233,12 @@ def test_calculate_speed_bursts(sample_trajectory_data):
 def test_calculate_inactivity_periods(sample_trajectory_data):
     """Validates inactivity detection using a long stationary segment."""
     timestamps = np.linspace(0, 10, 101)
-    x_cm = np.concatenate([
-        np.zeros(31),  # 0-3s stationary
-        np.linspace(0, 10, 70),
-    ])
+    x_cm = np.concatenate(
+        [
+            np.zeros(31),  # 0-3s stationary
+            np.linspace(0, 10, 70),
+        ]
+    )
     x_px = x_cm * sample_trajectory_data["pixelcm_x"]
     y_px = np.zeros_like(x_px)
 
@@ -254,16 +254,16 @@ def test_calculate_inactivity_periods(sample_trajectory_data):
         }
     )
 
-    sample_trajectory_data.update({
-        "trajectory_df": df,
-        "window_length": 1,
-        "polyorder": 0,
-    })
+    sample_trajectory_data.update(
+        {
+            "trajectory_df": df,
+            "window_length": 1,
+            "polyorder": 0,
+        }
+    )
 
     analyzer = ConcreteBehavioralAnalyzer(**sample_trajectory_data)
-    result = analyzer.calculate_inactivity_periods(
-        velocity_threshold_cm_s=0.2, min_duration=2.0
-    )
+    result = analyzer.calculate_inactivity_periods(velocity_threshold_cm_s=0.2, min_duration=2.0)
 
     assert result["count"] == 1
     assert result["total_duration_s"] == pytest.approx(3.0, abs=0.2)

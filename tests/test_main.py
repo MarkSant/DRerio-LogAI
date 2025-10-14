@@ -11,9 +11,7 @@ from zebtrack.__main__ import main
 @patch("zebtrack.__main__.messagebox")
 @patch("zebtrack.__main__.tk")
 @patch("sys.exit")
-def test_main_handles_settings_load_failure(
-    mock_exit, mock_tk, mock_messagebox, mock_controller
-):
+def test_main_handles_settings_load_failure(mock_exit, mock_tk, mock_messagebox, mock_controller):
     """
     Tests that the main function correctly handles the case where the
     global `settings` object is None.

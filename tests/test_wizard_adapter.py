@@ -176,9 +176,7 @@ class TestWizardAdapter(unittest.TestCase):
             "project_name": "OpenVINO_Project",
             "project_path": "/path/to/OpenVINO_Project",
             "video_paths": ["/path/to/video1.mp4"],
-            "scanned_videos": [
-                {"path": "/path/to/video1.mp4", "has_complete_data": False}
-            ],
+            "scanned_videos": [{"path": "/path/to/video1.mp4", "has_complete_data": False}],
             "use_openvino": True,
         }
 

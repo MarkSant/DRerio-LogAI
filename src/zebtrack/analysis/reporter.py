@@ -9,7 +9,7 @@ from typing import Callable, List, cast
 import cv2
 import matplotlib
 
-matplotlib.use('Agg')  # Use non-interactive backend to avoid GUI thread warnings
+matplotlib.use("Agg")  # Use non-interactive backend to avoid GUI thread warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -76,11 +76,14 @@ def _load_translator():
         translator = gettext.NullTranslations()
 
     return translator.gettext
+
+
 _translator: Callable[[str], str] = _load_translator()
 
 
 def _(message: str) -> str:  # noqa: N802 - conventional gettext alias
     return _translator(message)
+
 
 COLUMN_MAPPING = {
     "distancia_total_cm": "total_distance_cm",
@@ -151,7 +154,7 @@ def _rgb_to_color_name(rgb_tuple):
 
     # Find closest color
     r, g, b = rgb_tuple
-    min_distance = float('inf')
+    min_distance = float("inf")
     closest_name = f"RGB({r},{g},{b})"
 
     for rgb, name in color_map.items():
@@ -221,7 +224,7 @@ class Reporter:
         # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,
-        calibration = None,
+        calibration=None,
         # Analysis params
         sharp_turn_threshold: float = 90.0,
         freezing_threshold: float = 1.5,
@@ -240,9 +243,7 @@ class Reporter:
         # Ensure trajectory coordinates stay aligned with calibration space
         # before running any calculations.
         if calibration is not None:
-            trajectory_df = self._warp_trajectory_if_needed(
-                trajectory_df, calibration
-            )
+            trajectory_df = self._warp_trajectory_if_needed(trajectory_df, calibration)
 
         if "track_id" in trajectory_df.columns:
             track_ids = pd.to_numeric(trajectory_df["track_id"], errors="coerce")
@@ -275,18 +276,16 @@ class Reporter:
         self.tidy_data = self._standardize_tidy_dataframe(tidy_df)
 
     @staticmethod
-    def _warp_trajectory_if_needed(
-        trajectory_df: pd.DataFrame, calibration
-    ) -> pd.DataFrame:
+    def _warp_trajectory_if_needed(trajectory_df: pd.DataFrame, calibration) -> pd.DataFrame:
         """Warp bounding boxes into the calibrated space when raw points slip through.
 
-    Some runs saved detections using the original video reference instead of the
-    warped view. Metrics then break because coordinates no longer align with the
-    arena and ROI polygons.
+        Some runs saved detections using the original video reference instead of the
+        warped view. Metrics then break because coordinates no longer align with the
+        arena and ROI polygons.
 
-    We detect the mismatch when any bbox coordinate exceeds the expected warped
-    dimensions. In that case we transform every bbox with the calibration
-    homography so downstream analysis always operates in the calibrated frame.
+        We detect the mismatch when any bbox coordinate exceeds the expected warped
+        dimensions. In that case we transform every bbox with the calibration
+        homography so downstream analysis always operates in the calibrated frame.
         """
 
         homography = getattr(calibration, "homography_matrix", None)
@@ -311,14 +310,8 @@ class Reporter:
                 return float("-inf")
             return float(series.max(skipna=True))
 
-        max_x = max(
-            _max_safe(col)
-            for col in ("x1", "x2", "x_center_px")
-        )
-        max_y = max(
-            _max_safe(col)
-            for col in ("y1", "y2", "y_center_px")
-        )
+        max_x = max(_max_safe(col) for col in ("x1", "x2", "x_center_px"))
+        max_y = max(_max_safe(col) for col in ("y1", "y2", "y_center_px"))
 
         if max_x <= expected_width + tolerance and max_y <= expected_height + tolerance:
             return trajectory_df
@@ -330,9 +323,7 @@ class Reporter:
         x2_values = warped_df["x2"].to_numpy(copy=True)
         y2_values = warped_df["y2"].to_numpy(copy=True)
 
-        for i, (x1, y1, x2, y2) in enumerate(
-            zip(x1_values, y1_values, x2_values, y2_values)
-        ):
+        for i, (x1, y1, x2, y2) in enumerate(zip(x1_values, y1_values, x2_values, y2_values)):
             if any(pd.isna(v) for v in (x1, y1, x2, y2)):
                 continue
 
@@ -348,12 +339,8 @@ class Reporter:
         warped_df["y2"] = y2_values
 
         # Recompute derived centers after the warp
-        warped_df["x_center_px"] = (
-            warped_df[["x1", "x2"]].mean(axis=1)
-        )
-        warped_df["y_center_px"] = (
-            warped_df[["y1", "y2"]].mean(axis=1)
-        )
+        warped_df["x_center_px"] = warped_df[["x1", "x2"]].mean(axis=1)
+        warped_df["y_center_px"] = warped_df[["y1", "y2"]].mean(axis=1)
 
         # Drop any stale cm columns – they will be recomputed by the analyzer
         for col in ("x_cm", "y_cm"):
@@ -371,9 +358,7 @@ class Reporter:
             px_per_cm_x = self._pixelcm_x or 1.0
             px_per_cm_y = self._pixelcm_y or 1.0
             offset_y = (
-                self._video_height_px / px_per_cm_y
-                if px_per_cm_y
-                else float(self._video_height_px)
+                self._video_height_px / px_per_cm_y if px_per_cm_y else float(self._video_height_px)
             )
             geometry = affinity.affine_transform(
                 geometry,
@@ -403,9 +388,7 @@ class Reporter:
         geoms = getattr(geometry, "geoms", None)
         if geoms:
             return [
-                poly
-                for poly in geoms
-                if isinstance(poly, ShapelyPolygon) and not poly.is_empty
+                poly for poly in geoms if isinstance(poly, ShapelyPolygon) and not poly.is_empty
             ]
 
         return []
@@ -424,32 +407,20 @@ class Reporter:
         combined_data["desvio_padrao_velocidade_cm_s"] = velocity_stats.get("std_dev")
 
         sharp_turns = general_behavior.get("curvas_acentuadas", {})
-        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get(
-            "sharp_turns_count"
-        )
-        combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get(
-            "sharp_turns_per_minute"
-        )
+        combined_data["contagem_curvas_acentuadas"] = sharp_turns.get("sharp_turns_count")
+        combined_data["curvas_acentuadas_por_minuto"] = sharp_turns.get("sharp_turns_per_minute")
         speed_bursts = general_behavior.get("rajadas_velocidade", {})
         combined_data["rajadas_velocidade_contagem"] = speed_bursts.get("count")
-        combined_data["rajadas_velocidade_duracao_total_s"] = speed_bursts.get(
-            "total_duration_s"
-        )
-        combined_data["rajadas_velocidade_limiar_cm_s"] = speed_bursts.get(
-            "threshold_cm_s"
-        )
+        combined_data["rajadas_velocidade_duracao_total_s"] = speed_bursts.get("total_duration_s")
+        combined_data["rajadas_velocidade_limiar_cm_s"] = speed_bursts.get("threshold_cm_s")
 
         inactivity = general_behavior.get("periodos_inatividade", {})
         combined_data["periodos_inatividade_contagem"] = inactivity.get("count")
-        combined_data["periodos_inatividade_duracao_total_s"] = inactivity.get(
-            "total_duration_s"
-        )
+        combined_data["periodos_inatividade_duracao_total_s"] = inactivity.get("total_duration_s")
         combined_data["periodos_inatividade_percentual_registro"] = inactivity.get(
             "percentage_of_recording"
         )
-        combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get(
-            "threshold_cm_s"
-        )
+        combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get("threshold_cm_s")
 
         # --- ROI-Specific Metrics (only if ROI analysis was performed) ---
         if self.r_analyzer:
@@ -465,12 +436,12 @@ class Reporter:
             total_roi_entries = 0
             for roi_name in self.r_analyzer.rois:
                 # Time spent
-                combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(
-                    roi_name, {}
-                ).get("seconds")
-                combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(
-                    roi_name, {}
-                ).get("percentage")
+                combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
+                    "seconds"
+                )
+                combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(roi_name, {}).get(
+                    "percentage"
+                )
                 # Entry and Exit counts
                 entries = entry_counts.get(roi_name, 0)
                 combined_data[f"entradas_no_{roi_name}"] = entries
@@ -483,17 +454,13 @@ class Reporter:
                 # Intra-ROI Velocity
                 roi_vel = velocities.get(roi_name)
                 if roi_vel:
-                    combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get(
-                        "mean"
-                    )
+                    combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
                 # Intra-ROI Freezing
                 roi_freeze = freezing.get(roi_name)
                 if roi_freeze:
-                    combined_data[f"episodios_congelamento_no_{roi_name}"] = (
-                        roi_freeze.get("count")
-                    )
-                    combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = (
-                        roi_freeze.get("total_duration")
+                    combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get("count")
+                    combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = roi_freeze.get(
+                        "total_duration"
                     )
                 # ROI Color - convert to color name
                 if roi_name in self.roi_colors:
@@ -502,9 +469,7 @@ class Reporter:
                     )
 
             combined_data["total_entradas_roi"] = total_roi_entries
-        combined_data["data_hora_analise"] = datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         combined_data["group_id"] = self._resolve_group_id(combined_data)
         return pd.DataFrame([combined_data])
 
@@ -559,13 +524,9 @@ class Reporter:
         )
 
         if "group_id" not in standardized_df.columns:
-            standardized_df["group_id"] = self._resolve_group_id(
-                standardized_df.iloc[0].to_dict()
-            )
+            standardized_df["group_id"] = self._resolve_group_id(standardized_df.iloc[0].to_dict())
 
-        standardized_df["group_id"] = (
-            standardized_df["group_id"].fillna("unassigned").astype(str)
-        )
+        standardized_df["group_id"] = standardized_df["group_id"].fillna("unassigned").astype(str)
 
         self._validate_schema(standardized_df)
         return standardized_df
@@ -643,7 +604,7 @@ class Reporter:
                 ax.imshow(
                     frame_rgb_flipped,
                     extent=frame_extent,
-                    origin='lower',
+                    origin="lower",
                     aspect="auto",
                     alpha=0.5,
                 )
@@ -652,9 +613,7 @@ class Reporter:
         ax.set_facecolor("lightgray")
         # Draw arena boundary
         ax.add_patch(
-            patches.Polygon(
-                arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2
-            )
+            patches.Polygon(arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2)
         )
 
         # Draw ROIs if available
@@ -749,11 +708,7 @@ class Reporter:
             if roi_obj.coordinate_space == "px":
                 scale_x = 1.0 / px_per_cm_x if px_per_cm_x else 1.0
                 scale_y = -1.0 / px_per_cm_y if px_per_cm_y else -1.0
-                offset_y = (
-                    video_height_px / px_per_cm_y
-                    if px_per_cm_y
-                    else float(video_height_px)
-                )
+                offset_y = video_height_px / px_per_cm_y if px_per_cm_y else float(video_height_px)
                 geometry = affinity.affine_transform(
                     geometry,
                     [scale_x, 0.0, 0.0, scale_y, 0.0, offset_y],
@@ -762,9 +717,7 @@ class Reporter:
 
         ax.set_facecolor("lightgray")
         ax.add_patch(
-            patches.Polygon(
-                arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2
-            )
+            patches.Polygon(arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2)
         )
 
         if self.r_analyzer:
@@ -826,9 +779,7 @@ class Reporter:
                 transform=ax.transAxes,
             )
 
-        title = (
-            f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}"
-        )
+        title = f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
@@ -855,24 +806,16 @@ class Reporter:
             ax.set_title("Angular Velocity")
             return fig
 
-        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(
-            self.sharp_turn_threshold
-        )
-        sharp_turn_times = cast(
-            pd.Series, sharp_turn_results["sharp_turns_timestamps"]
-        )
+        sharp_turn_results = self.b_analyzer.calculate_sharp_turns(self.sharp_turn_threshold)
+        sharp_turn_times = cast(pd.Series, sharp_turn_results["sharp_turns_timestamps"])
 
-        time_seconds = (
-            angular_velocity.index - angular_velocity.index[0]
-        ).total_seconds()
+        time_seconds = (angular_velocity.index - angular_velocity.index[0]).total_seconds()
 
         ax.plot(time_seconds, angular_velocity, label="Angular Velocity")
 
         if not sharp_turn_times.empty:
             sharp_turn_values = angular_velocity.loc[sharp_turn_times]
-            sharp_turn_time_seconds = (
-                sharp_turn_times - angular_velocity.index[0]
-            ).total_seconds()
+            sharp_turn_time_seconds = (sharp_turn_times - angular_velocity.index[0]).total_seconds()
             ax.plot(
                 sharp_turn_time_seconds,
                 sharp_turn_values,
@@ -906,9 +849,7 @@ class Reporter:
         ax.plot(time_seconds, traj_data["x_cm_smoothed"], label="X coordinate (cm)")
         ax.plot(time_seconds, traj_data["y_cm_smoothed"], label="Y coordinate (cm)")
 
-        title = (
-            f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}"
-        )
+        title = f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Position (cm)")
@@ -948,9 +889,9 @@ class Reporter:
         time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
 
         ax.plot(time_seconds, cumulative_distance)
-        title = _(
-            "Cumulative Distance vs. Time - {experiment_id}"
-        ).format(experiment_id=self.metadata.get("experiment_id", "Unknown"))
+        title = _("Cumulative Distance vs. Time - {experiment_id}").format(
+            experiment_id=self.metadata.get("experiment_id", "Unknown")
+        )
         ax.set_title(title)
         ax.set_xlabel(_("Time (s)"))
         ax.set_ylabel(_("Cumulative Distance (cm)"))
@@ -969,9 +910,9 @@ class Reporter:
     ):
         total_steps = 10
         template_path = INDIVIDUAL_REPORT_TEMPLATE
-        heading_text = _(
-            "Analysis Report - {experiment_id}"
-        ).format(experiment_id=self.metadata.get("experiment_id", "Unknown"))
+        heading_text = _("Analysis Report - {experiment_id}").format(
+            experiment_id=self.metadata.get("experiment_id", "Unknown")
+        )
 
         doc_template: DocxTemplate | None = None
         document: DocxDocument | None = None
@@ -1004,9 +945,7 @@ class Reporter:
         # Step 1: Metadata section
         document.add_heading(_("Experiment Metadata"), level=2)
         for key, value in self.metadata.items():
-            document.add_paragraph(
-                f"{key.replace('_', ' ').title()}: {value}"
-            )
+            document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
         # Step 2: Summary table
@@ -1084,14 +1023,10 @@ class Reporter:
             event_log_df = self.r_analyzer.get_event_log()
             if not event_log_df.empty:
                 document.add_paragraph(
-                    _(
-                        "Chronological log of all entries and exits from defined ROIs."
-                    )
+                    _("Chronological log of all entries and exits from defined ROIs.")
                 )
 
-                event_log_df = event_log_df.rename(
-                    columns={"roi_name": "ROI", "event": _("Event")}
-                )
+                event_log_df = event_log_df.rename(columns={"roi_name": "ROI", "event": _("Event")})
 
                 start_time = event_log_df["timestamp"].iloc[0]
 
@@ -1114,9 +1049,7 @@ class Reporter:
                         else:
                             cells[i].text = str(value)
             else:
-                document.add_paragraph(
-                    _("No ROI entry or exit events were recorded.")
-                )
+                document.add_paragraph(_("No ROI entry or exit events were recorded."))
         progress_callback(9 / total_steps, _("Event log added"))
 
         # Step 10: Save the document
@@ -1129,9 +1062,7 @@ class Reporter:
         log.info("analysis.reporter.individual_saved", path=file_path)
 
     @staticmethod
-    def _generate_comparative_boxplot(
-        df: pd.DataFrame, metric: str, title: str
-    ) -> Figure:
+    def _generate_comparative_boxplot(df: pd.DataFrame, metric: str, title: str) -> Figure:
         fig, ax = plt.subplots(figsize=(8, 6))
         sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
         sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)

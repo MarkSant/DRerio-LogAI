@@ -47,9 +47,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
 
         # Create a simple rectangular ROI from x=10-20cm, y=10-20cm
         self.roi_polygon = Polygon([(10, 10), (20, 10), (20, 20), (10, 20)])
-        self.test_roi = ROI(
-            name="TestROI", geometry=self.roi_polygon, coordinate_space="cm"
-        )
+        self.test_roi = ROI(name="TestROI", geometry=self.roi_polygon, coordinate_space="cm")
 
     def test_centroid_in_rule(self):
         """Test the centroid_in rule (behaves like the original implementation)."""
@@ -114,9 +112,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
         """Test that bbox_intersects raises clear error when bbox columns are
         missing."""
         # Remove bbox columns
-        trajectory_without_bbox = self.trajectory_df.drop(
-            columns=["x1", "y1", "x2", "y2"]
-        )
+        trajectory_without_bbox = self.trajectory_df.drop(columns=["x1", "y1", "x2", "y2"])
         self.mock_b_analyzer.trajectory_data = trajectory_without_bbox
 
         with self.assertRaises(ValueError) as context:
@@ -145,9 +141,7 @@ class TestROIAnalyzerInclusionRules(unittest.TestCase):
         """Test that analyzer falls back to pixel coordinates when cm coords are
         unavailable."""
         # Remove cm coordinates
-        trajectory_px_only = self.trajectory_df.drop(
-            columns=["x_cm_smoothed", "y_cm_smoothed"]
-        )
+        trajectory_px_only = self.trajectory_df.drop(columns=["x_cm_smoothed", "y_cm_smoothed"])
         self.mock_b_analyzer.trajectory_data = trajectory_px_only
 
         # ROI in px coordinates (scaled up by 10x from cm)

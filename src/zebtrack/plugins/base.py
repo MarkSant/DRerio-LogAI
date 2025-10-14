@@ -23,9 +23,7 @@ class DetectorPlugin(ABC):
         pass
 
     @abstractmethod
-    def detect(
-        self, frame: np.ndarray
-    ) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
         """
         Performs object detection on a single frame.
 

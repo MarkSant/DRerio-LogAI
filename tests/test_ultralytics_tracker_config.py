@@ -4,9 +4,7 @@ from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
 
 
 def test_tracking_parameters_update_plugin_attributes():
-    with patch(
-        "zebtrack.plugins.ultralytics_detector.YOLO", autospec=True
-    ) as mock_yolo:
+    with patch("zebtrack.plugins.ultralytics_detector.YOLO", autospec=True) as mock_yolo:
         mock_yolo.return_value = MagicMock()
         plugin = UltralyticsDetectorPlugin("dummy_model.pt")
 

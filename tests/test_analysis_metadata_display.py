@@ -18,12 +18,8 @@ class DummyVar:
 def _make_gui_instance() -> gui.ApplicationGUI:
     instance = gui.ApplicationGUI.__new__(gui.ApplicationGUI)
     inst_any = cast(Any, instance)
-    inst_any.analysis_metadata_var = DummyVar(
-        gui.ApplicationGUI._default_analysis_metadata_text()
-    )
-    inst_any.analysis_task_var = DummyVar(
-        gui.ApplicationGUI._default_analysis_task_text()
-    )
+    inst_any.analysis_metadata_var = DummyVar(gui.ApplicationGUI._default_analysis_metadata_text())
+    inst_any.analysis_task_var = DummyVar(gui.ApplicationGUI._default_analysis_task_text())
     inst_any.analysis_status_var = DummyVar()
     inst_any.progress_labels = {}
     inst_any.root = SimpleNamespace(after=lambda *args, **kwargs: None)
@@ -66,10 +62,7 @@ def test_update_analysis_task_status_formats_step() -> None:
         step="Etapa: Rastreamento",
     )
 
-    assert (
-        gui_instance.analysis_task_var.get()
-        == "Vídeo 2 de 4 — EXP123 • Rastreamento"
-    )
+    assert gui_instance.analysis_task_var.get() == "Vídeo 2 de 4 — EXP123 • Rastreamento"
 
 
 def test_update_analysis_task_status_without_step() -> None:

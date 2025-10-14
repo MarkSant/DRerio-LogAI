@@ -36,7 +36,7 @@ Model & Weight Events:
 Detector & Zone Events:
 - detector:setup: {temp_animal_method: str | None}
 - detector:setup_zones: {}
-- detector:update_parameters: {conf_threshold: float | None, nms_threshold: float | None, 
+- detector:update_parameters: {conf_threshold: float | None, nms_threshold: float | None,
                                 track_threshold: float | None, match_threshold: float | None}
 - zone:set_arena_polygon: {points: list}
 - zone:save_manual_arena: {polygon_points: list[list[int]]}
@@ -58,15 +58,16 @@ Application Events:
 - app:close: {}
 """
 
+
 # Event name constants for type safety and autocomplete
 class Events:
     """Centralized event name constants."""
-    
+
     # Recording
     RECORDING_START = "recording:start"
     RECORDING_STOP = "recording:stop"
     RECORDING_TRIGGER = "recording:trigger"
-    
+
     # Project
     PROJECT_CREATE = "project:create"
     PROJECT_OPEN = "project:open"
@@ -75,11 +76,11 @@ class Events:
     PROJECT_GENERATE_SUMMARIES = "project:generate_summaries"
     PROJECT_APPLY_SETTINGS = "project:apply_settings_to_batch"
     PROJECT_DELETE_ASSET = "project:delete_asset"
-    
+
     # Video Processing
     VIDEO_ANALYZE_SINGLE = "video:analyze_single"
     VIDEO_CANCEL_ANALYSIS = "video:cancel_analysis"
-    
+
     # Model & Weights
     MODEL_SET_WEIGHT = "model:set_weight"
     MODEL_SET_OPENVINO = "model:set_openvino"
@@ -88,7 +89,7 @@ class Events:
     MODEL_ADD_WEIGHT = "model:add_weight"
     MODEL_DELETE_WEIGHT = "model:delete_weight"
     MODEL_RUN_DIAGNOSTIC = "model:run_diagnostic"
-    
+
     # Detector & Zones
     DETECTOR_SETUP = "detector:setup"
     DETECTOR_SETUP_ZONES = "detector:setup_zones"
@@ -96,19 +97,19 @@ class Events:
     ZONE_SET_ARENA_POLYGON = "zone:set_arena_polygon"
     ZONE_SAVE_MANUAL_ARENA = "zone:save_manual_arena"
     ZONE_UPDATE_ARENA = "zone:update_arena"
-    
+
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"
     CALIBRATION_COPY_TO_PROJECT = "calibration:copy_to_project"
     CALIBRATION_SAVE_TO_PROJECT = "calibration:save_to_project"
-    
+
     # Arduino
     ARDUINO_SETUP = "arduino:setup"
     ARDUINO_LOG_EVENT = "arduino:log_event"
-    
+
     # Reports
     REPORT_GENERATE = "report:generate"
-    
+
     # Application
     APP_CLOSE = "app:close"
 

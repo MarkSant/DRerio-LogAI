@@ -28,13 +28,9 @@ class TestAppController(unittest.TestCase):
         self.mock_pm = mock_pm.return_value
         self.mock_wm = mock_wm.return_value
 
-        self._single_animal_original = (
-            settings.video_processing.single_animal_per_aquarium
-        )
+        self._single_animal_original = settings.video_processing.single_animal_per_aquarium
         self._event_queue_flag_original = (
-            settings.ui_features.enable_event_queue
-            if settings and settings.ui_features
-            else False
+            settings.ui_features.enable_event_queue if settings and settings.ui_features else False
         )
         if settings and settings.ui_features:
             settings.ui_features.enable_event_queue = False
@@ -76,9 +72,7 @@ class TestAppController(unittest.TestCase):
         self.mock_arduino_manager.send_command.return_value = True
         self.mock_arduino_manager.arduino = MagicMock()
 
-        self.mock_arduino_manager_cls = MagicMock(
-            return_value=self.mock_arduino_manager
-        )
+        self.mock_arduino_manager_cls = MagicMock(return_value=self.mock_arduino_manager)
         self.controller._arduino_manager_cls = cast(
             type[ArduinoManager], self.mock_arduino_manager_cls
         )
@@ -93,17 +87,13 @@ class TestAppController(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after each test."""
-        settings.video_processing.single_animal_per_aquarium = (
-            self._single_animal_original
-        )
+        settings.video_processing.single_animal_per_aquarium = self._single_animal_original
         settings.tracking.use_single_subject_tracker = self._tracker_flag_original
         if settings and settings.ui_features:
             settings.ui_features.enable_event_queue = self._event_queue_flag_original
 
     def test_resolve_single_animal_mode_single_video_config(self):
-        result = self.controller._resolve_single_animal_mode(
-            {"animals_per_aquarium": 1}
-        )
+        result = self.controller._resolve_single_animal_mode({"animals_per_aquarium": 1})
 
         self.assertTrue(result)
 
@@ -149,9 +139,7 @@ class TestAppController(unittest.TestCase):
             self.assertEqual(len(history_runs), 1)
             archived_run = history_runs[0]
             self.assertTrue((archived_run / "summary.xlsx").exists())
-            self.assertTrue(
-                (archived_run / "nested" / "trajectory.parquet").exists()
-            )
+            self.assertTrue((archived_run / "nested" / "trajectory.parquet").exists())
 
             remaining_items = [p for p in results_dir.iterdir() if p.name != "history"]
             self.assertEqual(remaining_items, [])
@@ -257,9 +245,7 @@ class TestAppController(unittest.TestCase):
             def get_name():
                 return "dummy"
 
-            def set_tracking_parameters(
-                self, *, track_threshold=None, match_threshold=None
-            ):
+            def set_tracking_parameters(self, *, track_threshold=None, match_threshold=None):
                 if track_threshold is not None:
                     self.track_threshold = track_threshold
                 if match_threshold is not None:
@@ -271,9 +257,7 @@ class TestAppController(unittest.TestCase):
         self.controller.detector = detector
         self.mock_pm.save_detector_state.return_value = True
 
-        with patch.object(
-            self.controller, "_persist_global_detector_defaults"
-        ) as persist_mock:
+        with patch.object(self.controller, "_persist_global_detector_defaults") as persist_mock:
             updated = self.controller.update_detector_parameters(
                 {
                     "confidence_threshold": 0.3,
@@ -309,9 +293,7 @@ class TestAppController(unittest.TestCase):
             def get_name():
                 return "dummy"
 
-            def set_tracking_parameters(
-                self, *, track_threshold=None, match_threshold=None
-            ):
+            def set_tracking_parameters(self, *, track_threshold=None, match_threshold=None):
                 if track_threshold is not None:
                     self.track_threshold = track_threshold
                 if match_threshold is not None:
@@ -322,9 +304,7 @@ class TestAppController(unittest.TestCase):
         detector.plugin = plugin
         self.controller.detector = detector
 
-        with patch.object(
-            self.controller, "_persist_global_detector_defaults"
-        ) as persist_mock:
+        with patch.object(self.controller, "_persist_global_detector_defaults") as persist_mock:
             updated = self.controller.update_detector_parameters(
                 {
                     "confidence_threshold": 0.2,
@@ -352,13 +332,14 @@ class TestAppController(unittest.TestCase):
             "match_threshold": 0.15,
         }
 
-        with patch.object(
-            self.controller,
-            "get_current_detector_parameters",
-            return_value=current_defaults,
-        ), patch.object(
-            self.controller, "_persist_global_detector_defaults"
-        ) as persist_mock:
+        with (
+            patch.object(
+                self.controller,
+                "get_current_detector_parameters",
+                return_value=current_defaults,
+            ),
+            patch.object(self.controller, "_persist_global_detector_defaults") as persist_mock,
+        ):
             updated = self.controller.update_detector_parameters(
                 {
                     "confidence_threshold": 0.3,
@@ -391,13 +372,14 @@ class TestAppController(unittest.TestCase):
             "match_threshold": 0.7,
         }
 
-        with patch.object(
-            self.controller,
-            "get_current_detector_parameters",
-            return_value=defaults,
-        ), patch.object(
-            self.controller, "_persist_global_detector_defaults"
-        ) as persist_mock:
+        with (
+            patch.object(
+                self.controller,
+                "get_current_detector_parameters",
+                return_value=defaults,
+            ),
+            patch.object(self.controller, "_persist_global_detector_defaults") as persist_mock,
+        ):
             updated = self.controller.update_detector_parameters(defaults)
 
         self.assertFalse(updated)
@@ -414,13 +396,14 @@ class TestAppController(unittest.TestCase):
             "match_threshold": 0.15,
         }
 
-        with patch.object(
-            self.controller,
-            "get_current_detector_parameters",
-            return_value=defaults,
-        ), patch.object(
-            self.controller, "_persist_global_detector_defaults"
-        ) as persist_mock:
+        with (
+            patch.object(
+                self.controller,
+                "get_current_detector_parameters",
+                return_value=defaults,
+            ),
+            patch.object(self.controller, "_persist_global_detector_defaults") as persist_mock,
+        ):
             updated = self.controller.update_detector_parameters(
                 defaults,
                 reset_overrides=True,
@@ -542,9 +525,7 @@ class TestAppController(unittest.TestCase):
 
     @patch("zebtrack.core.controller.Recorder")
     @patch("zebtrack.core.controller.cv2.VideoCapture")
-    def test_run_tracking_uses_project_calibration(
-        self, mock_capture, mock_recorder_cls
-    ):
+    def test_run_tracking_uses_project_calibration(self, mock_capture, mock_recorder_cls):
         self.mock_pm.project_data = {
             "calibration": {
                 "aquarium_width_cm": 50.0,
@@ -657,7 +638,7 @@ class TestAppController(unittest.TestCase):
             active_weight="best_seg.pt",
         )
         self.mock_view._load_project_view.assert_called_once()
-        
+
         # Note: StateManager integration for project workflows is tested separately
         # in test_state_manager_integration.py
 
@@ -705,9 +686,7 @@ class TestAppController(unittest.TestCase):
         )
 
         # --- Assert ---
-        self.mock_view.show_error.assert_called_once_with(
-            "Erro", "Falha ao criar o novo projeto."
-        )
+        self.mock_view.show_error.assert_called_once_with("Erro", "Falha ao criar o novo projeto.")
         self.mock_view._load_project_view.assert_not_called()
 
     def test_open_project_workflow_success_loads_view_and_zones(self):
@@ -720,9 +699,7 @@ class TestAppController(unittest.TestCase):
             roi_names=["ROI"],
             roi_colors=[(255, 0, 0)],
         )
-        self.mock_pm.get_all_videos.return_value = [
-            {"path": "video1.mp4", "status": "pending"}
-        ]
+        self.mock_pm.get_all_videos.return_value = [{"path": "video1.mp4", "status": "pending"}]
 
         with (
             patch.object(
@@ -751,7 +728,7 @@ class TestAppController(unittest.TestCase):
         self.mock_view.redraw_zones_from_project_data.assert_called_once()
         self.mock_view.update_zone_listbox.assert_called_once()
         self.mock_view.show_info.assert_called_once()
-        
+
         # Note: StateManager state updates are tested in test_state_manager_integration.py
         # where the full state update flow is verified
 
@@ -764,8 +741,8 @@ class TestAppController(unittest.TestCase):
         self.mock_pm.project_path = "/fake/project"
         self.mock_pm.save_project.return_value = True
 
-        resolved_weight, resolved_openvino = (
-            self.controller.save_project_model_overrides("backup.pt", True)
+        resolved_weight, resolved_openvino = self.controller.save_project_model_overrides(
+            "backup.pt", True
         )
 
         self.assertEqual(resolved_weight, "backup.pt")
@@ -900,9 +877,7 @@ class TestAppController(unittest.TestCase):
                 },
             ]
 
-            mock_load_zones.return_value = ZoneData(
-                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
-            )
+            mock_load_zones.return_value = ZoneData(polygon=[[0, 0], [1, 0], [1, 1], [0, 1]])
 
             thread_instance = MagicMock()
             mock_thread.return_value = thread_instance
@@ -969,9 +944,7 @@ class TestAppController(unittest.TestCase):
                 },
             ]
 
-            mock_load_zones.return_value = ZoneData(
-                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
-            )
+            mock_load_zones.return_value = ZoneData(polygon=[[0, 0], [1, 0], [1, 1], [0, 1]])
 
             thread_instance = MagicMock()
             mock_thread.return_value = thread_instance
@@ -993,9 +966,7 @@ class TestAppController(unittest.TestCase):
             self.assertEqual(len(eligible), 1)
             self.assertEqual(eligible[0]["path"], "/videos/full.mp4")
 
-            self.mock_pm.update_video_status.assert_called_once_with(
-                "/videos/full.mp4", "complete"
-            )
+            self.mock_pm.update_video_status.assert_called_once_with("/videos/full.mp4", "complete")
 
             self.mock_view.show_info.assert_any_call(
                 "Processamento Iniciado",
@@ -1034,9 +1005,7 @@ class TestAppController(unittest.TestCase):
                 },
             ]
 
-            mock_load_zones.return_value = ZoneData(
-                polygon=[[0, 0], [1, 0], [1, 1], [0, 1]]
-            )
+            mock_load_zones.return_value = ZoneData(polygon=[[0, 0], [1, 0], [1, 1], [0, 1]])
 
             thread_instance = MagicMock()
             mock_thread.return_value = thread_instance
@@ -1053,9 +1022,7 @@ class TestAppController(unittest.TestCase):
             self.assertEqual(len(eligible), 1)
             self.assertEqual(eligible[0]["path"], "/videos/full.mp4")
 
-            self.mock_pm.update_video_status.assert_called_once_with(
-                "/videos/full.mp4", "complete"
-            )
+            self.mock_pm.update_video_status.assert_called_once_with("/videos/full.mp4", "complete")
 
             self.mock_view.show_info.assert_any_call(
                 "Processamento Iniciado",
@@ -1071,9 +1038,7 @@ class TestAppController(unittest.TestCase):
                 {"path": "/videos/full.mp4", "status": "complete"}
             ]
 
-            with patch(
-                "zebtrack.core.controller.ProjectManager.scan_input_paths"
-            ) as mock_scan:
+            with patch("zebtrack.core.controller.ProjectManager.scan_input_paths") as mock_scan:
                 self.controller.process_pending_project_videos()
                 mock_scan.assert_not_called()
 
@@ -1087,9 +1052,7 @@ class TestAppController(unittest.TestCase):
         intervals."""
         # --- Arrange ---
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(
-                self.controller, "_run_tracking_if_needed"
-            ) as mock_tracking:
+            with patch.object(self.controller, "_run_tracking_if_needed") as mock_tracking:
                 mock_tracking.return_value = (
                     True,
                     [[0, 0], [100, 0], [100, 100], [0, 100]],
@@ -1120,9 +1083,7 @@ class TestAppController(unittest.TestCase):
         """Test that single video config intervals take precedence over project data."""
         # --- Arrange ---
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(
-                self.controller, "_run_tracking_if_needed"
-            ) as mock_tracking:
+            with patch.object(self.controller, "_run_tracking_if_needed") as mock_tracking:
                 mock_tracking.return_value = (
                     True,
                     [[0, 0], [100, 0], [100, 100], [0, 100]],
@@ -1219,9 +1180,7 @@ class TestAppController(unittest.TestCase):
             def is_connected_side_effect(*_args, **_kwargs):
                 return self.mock_arduino_manager.connect.call_count > 0
 
-            self.mock_arduino_manager.is_connected.side_effect = (
-                is_connected_side_effect
-            )
+            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
 
             # --- Act: start recording triggers Arduino start command
             self.controller.start_recording()
@@ -1230,19 +1189,15 @@ class TestAppController(unittest.TestCase):
             self.mock_arduino_manager.connect.assert_called_once_with(
                 "COM7", settings.arduino.baud_rate
             )
-            self.mock_arduino_manager.send_command.assert_any_call(
-                2, source="manual-start"
-            )
+            self.mock_arduino_manager.send_command.assert_any_call(2, source="manual-start")
 
             # --- Act: stopping recording triggers stop command
             self.controller.is_recording = True
             self.controller.stop_recording()
 
-            self.mock_arduino_manager.send_command.assert_any_call(
-                0, source="manual-stop"
-            )
+            self.mock_arduino_manager.send_command.assert_any_call(0, source="manual-stop")
             self.controller.recorder.stop_recording.assert_called_once()
-            
+
             # --- StateManager Assertions ---
             # Verify recording state reflects stopped recording
             recording_state = self.controller.state_manager.get_recording_state()
@@ -1292,9 +1247,7 @@ class TestAppController(unittest.TestCase):
             def is_connected_side_effect(*_args, **_kwargs):
                 return self.mock_arduino_manager.connect.call_count > 0
 
-            self.mock_arduino_manager.is_connected.side_effect = (
-                is_connected_side_effect
-            )
+            self.mock_arduino_manager.is_connected.side_effect = is_connected_side_effect
 
             # Execute scheduled UI callbacks immediately in tests
             self.controller._schedule_on_ui = lambda func, *a, **k: func(*a, **k)
@@ -1311,26 +1264,24 @@ class TestAppController(unittest.TestCase):
             self.controller.on_arduino_event(1)
 
             self.controller.recorder.start_recording.assert_called_once()
-            self.mock_arduino_manager.send_command.assert_any_call(
-                3, source="external-start"
-            )
+            self.mock_arduino_manager.send_command.assert_any_call(3, source="external-start")
             self.assertIsNone(self.controller._pending_external_trigger)
             self.assertTrue(self.mock_view.clear_external_trigger_notice.called)
 
     def test_state_manager_provides_backward_compatible_properties(self):
         """Verify StateManager properties work for backward compatibility."""
         # Test that the backward-compatible properties read from StateManager
-        
+
         # is_recording property
         self.assertFalse(self.controller.is_recording)
         recording_state = self.controller.state_manager.get_recording_state()
         self.assertEqual(self.controller.is_recording, recording_state.is_recording)
-        
-        # detector_initialized property  
+
+        # detector_initialized property
         self.assertFalse(self.controller.detector_initialized)
         detector_state = self.controller.state_manager.get_detector_state()
         self.assertEqual(self.controller.detector_initialized, detector_state.detector_initialized)
-        
+
         # is_processing property
         self.assertFalse(self.controller.is_processing)
         processing_state = self.controller.state_manager.get_processing_state()

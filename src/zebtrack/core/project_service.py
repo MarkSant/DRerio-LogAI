@@ -18,17 +18,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import pandas as pd
 import structlog
 import yaml
 
-from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError
 
@@ -43,7 +40,7 @@ SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 class ProjectService:
     """
     Service layer for all project-related file I/O operations.
-    
+
     Responsibilities:
     - Create/load/save project configuration files
     - Manage project directory structure
@@ -51,7 +48,7 @@ class ProjectService:
     - Scan and import video/parquet files
     - Persist ROI templates
     - Manage session history
-    
+
     This service is stateless - it operates on paths and data provided by callers.
     Project state is managed by ProjectManager; this service handles persistence only.
     """
@@ -59,7 +56,7 @@ class ProjectService:
     def __init__(self):
         """Initialize the ProjectService."""
         self.log = structlog.get_logger(__name__)
-        
+
     # -------------------------------------------------------------------------
     # Core Project File Operations
     # -------------------------------------------------------------------------
@@ -73,27 +70,25 @@ class ProjectService:
     ) -> dict:
         """
         Create a new project directory with initial configuration.
-        
+
         Args:
             project_path: Path where project should be created
             project_name: Name of the project
             project_type: Type of project (e.g., "project", "exploratory")
             initial_data: Optional initial project data dictionary
-            
+
         Returns:
             dict: Initial project data structure
-            
+
         Raises:
             FileExistsError: If project directory already exists
             OSError: If directory creation fails
         """
         project_path_obj = Path(project_path)
-        
+
         if project_path_obj.exists():
-            raise FileExistsError(
-                f"Project directory already exists: {project_path}"
-            )
-            
+            raise FileExistsError(f"Project directory already exists: {project_path}")
+
         try:
             project_path_obj.mkdir(parents=True, exist_ok=False)
             self.log.info(
@@ -107,69 +102,67 @@ class ProjectService:
                 error=str(e),
             )
             raise
-            
+
         # Initialize project data structure
         project_data = initial_data or {}
-        project_data.update({
-            "project_name": project_name,
-            "project_type": project_type,
-            "created_at": datetime.now().isoformat(),
-            "last_modified": datetime.now().isoformat(),
-            "videos": project_data.get("videos", []),
-            "detection_zones": project_data.get("detection_zones", {}),
-            "zones_by_video": project_data.get("zones_by_video", {}),
-            "roi_templates": project_data.get("roi_templates", []),
-        })
-        
+        project_data.update(
+            {
+                "project_name": project_name,
+                "project_type": project_type,
+                "created_at": datetime.now().isoformat(),
+                "last_modified": datetime.now().isoformat(),
+                "videos": project_data.get("videos", []),
+                "detection_zones": project_data.get("detection_zones", {}),
+                "zones_by_video": project_data.get("zones_by_video", {}),
+                "roi_templates": project_data.get("roi_templates", []),
+            }
+        )
+
         # Write initial project configuration
         self.save_project_config(project_path, project_data)
-        
+
         # Save settings snapshot
         self._save_settings_snapshot(project_path)
-        
+
         return project_data
 
     def load_project_config(self, project_path: str) -> dict:
         """
         Load project configuration from JSON file.
-        
+
         Args:
             project_path: Path to project directory
-            
+
         Returns:
             dict: Project configuration data
-            
+
         Raises:
             FileNotFoundError: If project config file doesn't exist
             IntegrityError: If integrity hash doesn't match
             json.JSONDecodeError: If JSON is malformed
         """
         config_file = Path(project_path) / CONFIG_FILE_NAME
-        
+
         if not config_file.exists():
-            raise FileNotFoundError(
-                f"Project configuration not found: {config_file}"
-            )
-            
+            raise FileNotFoundError(f"Project configuration not found: {config_file}")
+
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 project_data = json.load(f)
-                
+
             # Verify integrity if hash exists
             stored_hash = project_data.pop("_integrity_hash", None)
             if stored_hash:
                 computed_hash = self._compute_project_hash(project_data)
                 if stored_hash != computed_hash:
-                    raise IntegrityError(
-                        f"Project integrity check failed for {config_file}"
-                    )
-                    
+                    raise IntegrityError(f"Project integrity check failed for {config_file}")
+
             self.log.info(
                 "project_service.load_config.success",
                 path=str(config_file),
             )
             return project_data
-            
+
         except (json.JSONDecodeError, IntegrityError) as e:
             self.log.error(
                 "project_service.load_config.failed",
@@ -181,28 +174,28 @@ class ProjectService:
     def save_project_config(self, project_path: str, project_data: dict) -> None:
         """
         Save project configuration to JSON file with integrity hash.
-        
+
         Args:
             project_path: Path to project directory
             project_data: Project configuration data to save
-            
+
         Raises:
             OSError: If file write fails
         """
         config_file = Path(project_path) / CONFIG_FILE_NAME
-        
+
         # Update last modified timestamp
         project_data["last_modified"] = datetime.now().isoformat()
-        
+
         # Compute integrity hash
         data_to_save = project_data.copy()
         integrity_hash = self._compute_project_hash(project_data)
         data_to_save["_integrity_hash"] = integrity_hash
-        
+
         try:
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(data_to_save, f, indent=2, ensure_ascii=False)
-                
+
             self.log.info(
                 "project_service.save_config.success",
                 path=str(config_file),
@@ -218,10 +211,10 @@ class ProjectService:
     def _compute_project_hash(self, project_data: dict) -> str:
         """
         Compute SHA256 integrity hash of project data.
-        
+
         Args:
             project_data: Project data dictionary (without hash)
-            
+
         Returns:
             str: SHA256 hash hex string
         """
@@ -233,19 +226,19 @@ class ProjectService:
     def _save_settings_snapshot(self, project_path: str) -> None:
         """
         Save a snapshot of current application settings to project.
-        
+
         Args:
             project_path: Path to project directory
         """
         snapshot_file = Path(project_path) / SETTINGS_SNAPSHOT_FILE_NAME
-        
+
         try:
             # Convert settings to dict for serialization
             settings_dict = settings.model_dump() if hasattr(settings, "model_dump") else {}
-            
+
             with open(snapshot_file, "w", encoding="utf-8") as f:
                 yaml.dump(settings_dict, f, default_flow_style=False)
-                
+
             self.log.info(
                 "project_service.save_settings_snapshot.success",
                 path=str(snapshot_file),
@@ -265,10 +258,10 @@ class ProjectService:
     def delete_file_if_exists(self, file_path: str | Path) -> bool:
         """
         Delete a file if it exists.
-        
+
         Args:
             file_path: Path to file
-            
+
         Returns:
             bool: True if file was deleted, False if it didn't exist
         """
@@ -293,10 +286,10 @@ class ProjectService:
     def ensure_directory(self, dir_path: str | Path) -> Path:
         """
         Ensure a directory exists, creating it if necessary.
-        
+
         Args:
             dir_path: Path to directory
-            
+
         Returns:
             Path: Path object for the directory
         """
@@ -315,41 +308,35 @@ class ProjectService:
     ) -> Path:
         """
         Resolve the results directory path for a project.
-        
+
         Args:
             project_path: Path to project directory
             metadata: Optional metadata for path construction
-            
+
         Returns:
             Path: Results directory path
         """
         results_dir = Path(project_path) / "results"
-        
+
         if metadata:
             # Build hierarchical path from metadata
             # e.g., results/group_A/day_1/subject_01/
             if "group" in metadata:
-                results_dir = results_dir / self._sanitize_path_component(
-                    str(metadata["group"])
-                )
+                results_dir = results_dir / self._sanitize_path_component(str(metadata["group"]))
             if "day" in metadata:
-                results_dir = results_dir / self._sanitize_path_component(
-                    str(metadata["day"])
-                )
+                results_dir = results_dir / self._sanitize_path_component(str(metadata["day"]))
             if "subject" in metadata:
-                results_dir = results_dir / self._sanitize_path_component(
-                    str(metadata["subject"])
-                )
-                
+                results_dir = results_dir / self._sanitize_path_component(str(metadata["subject"]))
+
         return results_dir
 
     def _sanitize_path_component(self, component: str) -> str:
         """
         Sanitize a path component to be filesystem-safe.
-        
+
         Args:
             component: Path component string
-            
+
         Returns:
             str: Sanitized component
         """
@@ -359,10 +346,10 @@ class ProjectService:
         component = component.replace("?", "_").replace('"', "_")
         component = component.replace("<", "_").replace(">", "_")
         component = component.replace("|", "_")
-        
+
         # Remove leading/trailing whitespace and dots
         component = component.strip(". ")
-        
+
         return component if component else "untitled"
 
     # -------------------------------------------------------------------------
@@ -372,22 +359,22 @@ class ProjectService:
     def load_metadata_csv(self, project_path: str) -> pd.DataFrame | None:
         """
         Load metadata.csv from project directory.
-        
+
         Args:
             project_path: Path to project directory
-            
+
         Returns:
             pd.DataFrame | None: Metadata dataframe or None if file doesn't exist
         """
         metadata_file = Path(project_path) / "metadata.csv"
-        
+
         if not metadata_file.exists():
             self.log.warning(
                 "project_service.load_metadata.not_found",
                 path=str(metadata_file),
             )
             return None
-            
+
         try:
             df = pd.read_csv(metadata_file)
             self.log.info(
@@ -411,10 +398,10 @@ class ProjectService:
     def ensure_roi_template_directory(self, project_path: str) -> Path:
         """
         Ensure ROI template directory exists.
-        
+
         Args:
             project_path: Path to project directory
-            
+
         Returns:
             Path: Template directory path
         """
@@ -429,22 +416,22 @@ class ProjectService:
     ) -> Path:
         """
         Save an ROI template to JSON file.
-        
+
         Args:
             project_path: Path to project directory
             template_name: Name of the template
             template_data: Template data dictionary
-            
+
         Returns:
             Path: Path to saved template file
         """
         template_dir = self.ensure_roi_template_directory(project_path)
         template_file = template_dir / f"{template_name}.json"
-        
+
         try:
             with open(template_file, "w", encoding="utf-8") as f:
                 json.dump(template_data, f, indent=2, ensure_ascii=False)
-                
+
             self.log.info(
                 "project_service.save_roi_template.success",
                 path=str(template_file),
@@ -461,28 +448,28 @@ class ProjectService:
     def load_roi_template(self, project_path: str, template_name: str) -> dict | None:
         """
         Load an ROI template from JSON file.
-        
+
         Args:
             project_path: Path to project directory
             template_name: Name of the template
-            
+
         Returns:
             dict | None: Template data or None if not found
         """
         template_dir = Path(project_path) / "templates"
         template_file = template_dir / f"{template_name}.json"
-        
+
         if not template_file.exists():
             self.log.warning(
                 "project_service.load_roi_template.not_found",
                 path=str(template_file),
             )
             return None
-            
+
         try:
             with open(template_file, "r", encoding="utf-8") as f:
                 template_data = json.load(f)
-                
+
             self.log.info(
                 "project_service.load_roi_template.success",
                 path=str(template_file),
@@ -499,22 +486,20 @@ class ProjectService:
     def list_roi_templates(self, project_path: str) -> list[str]:
         """
         List all available ROI templates in project.
-        
+
         Args:
             project_path: Path to project directory
-            
+
         Returns:
             list[str]: List of template names (without .json extension)
         """
         template_dir = Path(project_path) / "templates"
-        
+
         if not template_dir.exists():
             return []
-            
+
         try:
-            templates = [
-                f.stem for f in template_dir.glob("*.json")
-            ]
+            templates = [f.stem for f in template_dir.glob("*.json")]
             self.log.info(
                 "project_service.list_roi_templates.success",
                 path=str(template_dir),

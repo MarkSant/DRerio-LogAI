@@ -203,9 +203,7 @@ def main():
         return
 
     try:
-        with Arduino(
-            port=settings.arduino.port, baud_rate=settings.arduino.baud_rate
-        ) as arduino:
+        with Arduino(port=settings.arduino.port, baud_rate=settings.arduino.baud_rate) as arduino:
             print(f"Successfully connected to Arduino on {arduino.port}.")
 
             print("\nSending test commands (1 to 8)...")

@@ -144,10 +144,7 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print(
-        "✓ Shows ALL classes (both aquarium and zebrafish) for "
-        "comprehensive model testing"
-    )
+    print("✓ Shows ALL classes (both aquarium and zebrafish) for comprehensive model testing")
 
     print("\n2. TRACKING MODE - Before Aquarium Region Defined")
     print("-" * 40)
@@ -157,10 +154,7 @@ def main():
     print(f"Number of detections: {len(detections)}")
     for detection in format_detections(detections):
         print(f"  {detection}")
-    print(
-        "✓ Shows ALL classes (helpful for initial setup before "
-        "aquarium is detected/drawn)"
-    )
+    print("✓ Shows ALL classes (helpful for initial setup before aquarium is detected/drawn)")
 
     print("\n3. TRACKING MODE - After Aquarium Region Defined")
     print("-" * 40)

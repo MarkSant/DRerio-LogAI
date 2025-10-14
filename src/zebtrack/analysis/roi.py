@@ -127,17 +127,11 @@ class ROIAnalyzer:
             return x_coords, y_coords
 
         if all(col in self._trajectory.columns for col in ["x1", "y1", "x2", "y2"]):
-            x_coords = (
-                (self._trajectory["x1"] + self._trajectory["x2"]) / 2
-            ).to_numpy()
-            y_coords = (
-                (self._trajectory["y1"] + self._trajectory["y2"]) / 2
-            ).to_numpy()
+            x_coords = ((self._trajectory["x1"] + self._trajectory["x2"]) / 2).to_numpy()
+            y_coords = ((self._trajectory["y1"] + self._trajectory["y2"]) / 2).to_numpy()
             return x_coords, y_coords
 
-        raise ValueError(
-            "Cannot find suitable pixel coordinate columns in trajectory data"
-        )
+        raise ValueError("Cannot find suitable pixel coordinate columns in trajectory data")
 
     def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
         """
@@ -161,9 +155,7 @@ class ROIAnalyzer:
         # True if the last N frames were all False (confirms exit)
         stable_false = raw_presence.rolling(self._flutter_n, min_periods=1).max() == 0
 
-        stable_presence = pd.Series(
-            pd.NA, index=raw_presence.index, dtype="boolean"
-        )
+        stable_presence = pd.Series(pd.NA, index=raw_presence.index, dtype="boolean")
         stable_presence.loc[stable_true] = True
         stable_presence.loc[stable_false] = False
 
@@ -190,9 +182,7 @@ class ROIAnalyzer:
                 roi_geometry, name, x_coords, y_coords
             )
 
-            self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(
-                raw_presence
-            )
+            self._trajectory[f"in_{name}_stable"] = self._apply_flutter_filter(raw_presence)
 
         # Create a single column with the name of the ROI the animal is in
         self._trajectory["stable_roi"] = "Outside"
@@ -213,9 +203,7 @@ class ROIAnalyzer:
         if self._inclusion_rule == "centroid_in":
             return self._calculate_centroid_in(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "centroid_in_on_buffered_roi":
-            return self._calculate_centroid_in_buffered(
-                roi_geometry, roi_name, x_coords, y_coords
-            )
+            return self._calculate_centroid_in_buffered(roi_geometry, roi_name, x_coords, y_coords)
         elif self._inclusion_rule == "bbox_intersects":
             return self._calculate_bbox_intersects(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "seg_overlap":
@@ -258,9 +246,7 @@ class ROIAnalyzer:
         """Calculate presence based on bbox intersection with ROI."""
         # Require bbox columns
         required_cols = ["x1", "y1", "x2", "y2"]
-        missing_cols = [
-            col for col in required_cols if col not in self._trajectory.columns
-        ]
+        missing_cols = [col for col in required_cols if col not in self._trajectory.columns]
         if missing_cols:
             raise ValueError(
                 f"Regra bbox_intersects requer colunas de bbox: {missing_cols}. "
@@ -319,18 +305,16 @@ class ROIAnalyzer:
         # Convert total_time Timedelta to seconds
         total_time_seconds = (
             total_time.total_seconds()
-            if hasattr(total_time, 'total_seconds')
+            if hasattr(total_time, "total_seconds")
             else float(total_time)
         )
 
         for name in self._rois:
-            time_in_roi = self._trajectory.loc[
-                self._trajectory[f"in_{name}_stable"], "dt"
-            ].sum()
+            time_in_roi = self._trajectory.loc[self._trajectory[f"in_{name}_stable"], "dt"].sum()
             # Convert time_in_roi Timedelta to seconds
             time_in_roi_seconds = (
                 time_in_roi.total_seconds()
-                if hasattr(time_in_roi, 'total_seconds')
+                if hasattr(time_in_roi, "total_seconds")
                 else float(time_in_roi)
             )
             results[name] = {
@@ -353,16 +337,11 @@ class ROIAnalyzer:
             entries = self._trajectory[f"in_{name}_stable"].diff() == 1
             first_entry_time = entries.idxmax() if entries.any() else None
 
-            if (
-                first_entry_time
-                and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]
-            ):
+            if first_entry_time and self._trajectory.loc[first_entry_time, f"in_{name}_stable"]:
                 latency = first_entry_time - start_time
                 # Convert Timedelta to seconds
                 results[name] = (
-                    latency.total_seconds()
-                    if hasattr(latency, 'total_seconds')
-                    else float(latency)
+                    latency.total_seconds() if hasattr(latency, "total_seconds") else float(latency)
                 )
             else:
                 results[name] = None
@@ -542,9 +521,7 @@ class ROIAnalyzer:
         """Calculates freezing episodes that occur within each ROI."""
         results = {}
         # Ensure freezing episodes are detected on the base analyzer
-        freezing_episodes = self._b_analyzer.detect_freezing_episodes(
-            vel_threshold, min_duration
-        )
+        freezing_episodes = self._b_analyzer.detect_freezing_episodes(vel_threshold, min_duration)
 
         for name in self._rois:
             roi_episodes = []
@@ -575,8 +552,7 @@ class ROIAnalyzer:
 
             # Path distance is the sum of segment lengths
             path_distance = np.sqrt(
-                roi_traj["x_cm_smoothed"].diff() ** 2
-                + roi_traj["y_cm_smoothed"].diff() ** 2
+                roi_traj["x_cm_smoothed"].diff() ** 2 + roi_traj["y_cm_smoothed"].diff() ** 2
             ).sum()
 
             # Straight-line distance from start to end point
@@ -619,22 +595,16 @@ class ROIAnalyzer:
             raise ValueError("Method must be 'distance' or 'area_ratio'.")
 
         if not center_poly.is_valid or center_poly.is_empty:
-            raise ValueError(
-                "Could not generate a valid center zone with the given parameters."
-            )
+            raise ValueError("Could not generate a valid center zone with the given parameters.")
 
         periphery_poly = arena.difference(center_poly)
 
         # Create temporary ROIs
         center_roi = ROI(name="Center", geometry=center_poly, coordinate_space="cm")
-        periphery_roi = ROI(
-            name="Periphery", geometry=periphery_poly, coordinate_space="cm"
-        )
+        periphery_roi = ROI(name="Periphery", geometry=periphery_poly, coordinate_space="cm")
 
         # Create a temporary analyzer instance to run the analysis
-        temp_analyzer = ROIAnalyzer(
-            self._b_analyzer, [center_roi, periphery_roi], self._flutter_n
-        )
+        temp_analyzer = ROIAnalyzer(self._b_analyzer, [center_roi, periphery_roi], self._flutter_n)
 
         # Gather all results
         results = {
@@ -671,9 +641,7 @@ class ROIAnalyzer:
         try:
             import networkx as nx
         except ImportError:
-            raise ImportError(
-                "Please install 'networkx' to use social proximity analysis."
-            )
+            raise ImportError("Please install 'networkx' to use social proximity analysis.")
 
         if "track_id" not in full_trajectory_df.columns:
             raise ValueError("Input DataFrame must contain a 'track_id' column.")
@@ -699,8 +667,7 @@ class ROIAnalyzer:
 
             animals = frame_df.index
             positions = {
-                idx: (r["x_center_px"], r["y_center_px"])
-                for idx, r in frame_df.iterrows()
+                idx: (r["x_center_px"], r["y_center_px"]) for idx, r in frame_df.iterrows()
             }
 
             # Create dynamic circular ROIs

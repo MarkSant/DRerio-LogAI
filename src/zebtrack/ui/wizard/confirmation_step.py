@@ -68,9 +68,7 @@ class ConfirmationStep(WizardStep):
         """Build confirmation step UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Confirmação e Criação do Projeto", font=title_font
-        )
+        title = Label(self, text="Confirmação e Criação do Projeto", font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
@@ -179,9 +177,7 @@ class ConfirmationStep(WizardStep):
         if self.project_name_var.get():
             return  # Already has a name
 
-        project_type = self.wizard_data.get(
-            "project_type", ProjectType.EXPERIMENTAL.value
-        )
+        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
 
         if project_type == ProjectType.EXPERIMENTAL.value:
             # Use detected groups if available
@@ -196,6 +192,7 @@ class ConfirmationStep(WizardStep):
 
         # Add timestamp to make unique
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d")
         name = f"{name}_{timestamp}"
 
@@ -331,8 +328,7 @@ class ConfirmationStep(WizardStep):
 
                 # Estimate processing time (rough estimate: 5 min per video to process)
                 videos_to_process = sum(
-                    1 for c in import_config
-                    if c.get("action") not in [ImportAction.SKIP.value]
+                    1 for c in import_config if c.get("action") not in [ImportAction.SKIP.value]
                 )
 
                 if videos_to_process > 0:
@@ -359,12 +355,8 @@ class ConfirmationStep(WizardStep):
 
             # Import configuration summary (pre-recorded only)
             if import_config:
-                importing_arena = any(
-                    cfg.get("import_arena", False) for cfg in import_config
-                )
-                importing_rois = any(
-                    cfg.get("import_rois", False) for cfg in import_config
-                )
+                importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
+                importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
                 importing_trajectory = any(
                     cfg.get("import_trajectory", False) for cfg in import_config
                 )
@@ -372,19 +364,13 @@ class ConfirmationStep(WizardStep):
                 if importing_arena or importing_rois or importing_trajectory:
                     lines.append("📥 Configuração de Importação:")
                     if importing_arena:
-                        arena_count = sum(
-                            1 for c in import_config if c.get("import_arena")
-                        )
+                        arena_count = sum(1 for c in import_config if c.get("import_arena"))
                         lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
                     if importing_rois:
-                        rois_count = sum(
-                            1 for c in import_config if c.get("import_rois")
-                        )
+                        rois_count = sum(1 for c in import_config if c.get("import_rois"))
                         lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
                     if importing_trajectory:
-                        traj_count = sum(
-                            1 for c in import_config if c.get("import_trajectory")
-                        )
+                        traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
                         lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
                     lines.append("")
 
@@ -515,7 +501,7 @@ class ConfirmationStep(WizardStep):
             return (False, "Por favor, informe um nome para o projeto.")
 
         # Check valid characters (alphanumeric, underscore, hyphen, space)
-        if not re.match(r'^[A-Za-z0-9_\- ]+$', project_name):
+        if not re.match(r"^[A-Za-z0-9_\- ]+$", project_name):
             message = (
                 "Nome do projeto contém caracteres inválidos. "
                 "Use apenas letras, números, espaços, '_' e '-'."
@@ -590,10 +576,7 @@ class ConfirmationStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(pady=(0, 15))
         else:
             self.template_info_var.set("")

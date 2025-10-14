@@ -247,7 +247,7 @@ class TestObserverPattern:
         assert args[0] == StateCategory.RECORDING
         assert args[1] == "is_recording"
         assert args[2] is False  # old value
-        assert args[3] is True   # new value
+        assert args[3] is True  # new value
 
     def test_subscribe_all(self):
         """Can subscribe to all state changes."""
@@ -445,10 +445,7 @@ class TestThreadSafety:
                     current_frame=thread_id * updates_per_thread + i,
                 )
 
-        threads = [
-            threading.Thread(target=update_worker, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=update_worker, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
@@ -493,10 +490,7 @@ class TestThreadSafety:
             time.sleep(0.001)
             mgr.unsubscribe(StateCategory.RECORDING, obs)
 
-        threads = [
-            threading.Thread(target=subscribe_worker, args=(obs,))
-            for obs in observers
-        ]
+        threads = [threading.Thread(target=subscribe_worker, args=(obs,)) for obs in observers]
 
         for t in threads:
             t.start()

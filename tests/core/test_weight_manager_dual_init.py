@@ -12,9 +12,9 @@ def test_initialize_both_seg_and_det_weights():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock seg model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock det model")
 
         # Mock settings
@@ -23,7 +23,7 @@ def test_initialize_both_seg_and_det_weights():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file  # Legacy path
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             wm = WeightManager(config_dir=temp_dir)
 
             # Both weights should be initialized
@@ -60,7 +60,7 @@ def test_initialize_only_seg_weight():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")  # This won't exist
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock seg model")
 
         # Mock settings
@@ -69,7 +69,7 @@ def test_initialize_only_seg_weight():
         mock_settings.weights.det_filename = det_file  # Points to non-existent file
         mock_settings.yolo_model.path = seg_file
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             wm = WeightManager(config_dir=temp_dir)
 
             # Only seg weight should be initialized
@@ -98,7 +98,7 @@ def test_initialize_only_det_weight():
         seg_file = os.path.join(temp_dir, "best_seg.pt")  # This won't exist
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock det model")
 
         # Mock settings
@@ -107,7 +107,7 @@ def test_initialize_only_det_weight():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = det_file
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             wm = WeightManager(config_dir=temp_dir)
 
             # Only det weight should be initialized
@@ -142,7 +142,7 @@ def test_initialize_no_weights():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file
 
-        with patch('zebtrack.core.weight_manager.settings', mock_settings):
+        with patch("zebtrack.core.weight_manager.settings", mock_settings):
             wm = WeightManager(config_dir=temp_dir)
 
             # No weights should be initialized

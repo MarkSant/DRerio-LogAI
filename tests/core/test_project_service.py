@@ -7,20 +7,16 @@ Uses mocking to isolate the service from filesystem and external dependencies.
 """
 
 import json
-import os
 import shutil
 import unittest
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
-import yaml
 
 from zebtrack.core.project_service import (
     CONFIG_FILE_NAME,
-    SETTINGS_SNAPSHOT_FILE_NAME,
     ProjectService,
 )
 from zebtrack.utils import IntegrityError
@@ -206,7 +202,7 @@ class TestProjectServiceLoadSave(unittest.TestCase):
 
         # Save the original hash before tampering
         original_hash = data.get("_integrity_hash")
-        
+
         # Tamper with the data
         data["project_name"] = "Tampered"
         # Put back the old hash to simulate tampering
@@ -228,6 +224,7 @@ class TestProjectServiceLoadSave(unittest.TestCase):
 
         # Small delay to ensure timestamp difference
         import time
+
         time.sleep(0.01)
 
         # Save again
@@ -387,11 +384,13 @@ class TestProjectServiceMetadata(unittest.TestCase):
     def test_load_metadata_csv_success(self):
         """Test loading metadata CSV successfully."""
         metadata_file = self.project_path / "metadata.csv"
-        df = pd.DataFrame({
-            "video": ["video1.mp4", "video2.mp4"],
-            "group": ["control", "treated"],
-            "subject": ["s01", "s02"],
-        })
+        df = pd.DataFrame(
+            {
+                "video": ["video1.mp4", "video2.mp4"],
+                "group": ["control", "treated"],
+                "subject": ["s01", "s02"],
+            }
+        )
         df.to_csv(metadata_file, index=False)
 
         result = self.service.load_metadata_csv(str(self.project_path))
@@ -449,7 +448,10 @@ class TestProjectServiceROITemplates(unittest.TestCase):
         template_data = {
             "rois": [
                 {"name": "ROI1", "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]]},
-                {"name": "ROI2", "polygon": [[200, 0], [300, 0], [300, 100], [200, 100]]},
+                {
+                    "name": "ROI2",
+                    "polygon": [[200, 0], [300, 0], [300, 100], [200, 100]],
+                },
             ]
         }
 

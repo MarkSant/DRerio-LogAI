@@ -43,9 +43,7 @@ def build_archive(output_dir: Path) -> Path:
 
     template_files = sorted(TEMPLATES_SOURCE.glob("*.json"))
     if not template_files:
-        raise SystemExit(
-            f"No template JSON files were found in '{TEMPLATES_SOURCE}'."
-        )
+        raise SystemExit(f"No template JSON files were found in '{TEMPLATES_SOURCE}'.")
 
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for template_file in template_files:
@@ -57,9 +55,7 @@ def build_archive(output_dir: Path) -> Path:
         "templates": [
             {
                 "filename": path.name,
-                "name": json.loads(path.read_text(encoding="utf-8")).get(
-                    "name", path.stem
-                ),
+                "name": json.loads(path.read_text(encoding="utf-8")).get("name", path.stem),
             }
             for path in template_files
         ],

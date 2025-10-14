@@ -62,13 +62,9 @@ class OpenVINOPlugin(DetectorPlugin):
             IntegrityError: If the model's hash does not match the expected hash.
         """
         if not OPENVINO_AVAILABLE:
-            raise ImportError(
-                "OpenVINO is not available. Please install openvino package."
-            )
+            raise ImportError("OpenVINO is not available. Please install openvino package.")
         if not TORCH_AVAILABLE:
-            raise ImportError(
-                "PyTorch is required for OpenVINO detection post-processing."
-            )
+            raise ImportError("PyTorch is required for OpenVINO detection post-processing.")
         assert ov is not None
 
         self.conf_threshold = settings.yolo_model.confidence_threshold
@@ -80,9 +76,7 @@ class OpenVINOPlugin(DetectorPlugin):
 
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
-            raise FileNotFoundError(
-                f"Could not find a .xml model file in directory: {model_path}"
-            )
+            raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_path}")
 
         model_xml_path = xml_files[0]
 
@@ -123,9 +117,7 @@ class OpenVINOPlugin(DetectorPlugin):
                 with open(metadata_path, "r", encoding="utf-8") as f:
                     metadata = json.load(f)
                     if "class_names" in metadata:
-                        self.class_names = {
-                            int(k): v for k, v in metadata["class_names"].items()
-                        }
+                        self.class_names = {int(k): v for k, v in metadata["class_names"].items()}
                     log.info("openvino.metadata.loaded", classes=self.class_names)
             except Exception as e:
                 log.warning("openvino.metadata.load_failed", error=str(e))
@@ -169,9 +161,7 @@ class OpenVINOPlugin(DetectorPlugin):
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
 
-    def detect(
-        self, frame: np.ndarray
-    ) -> List[Tuple[int, int, int, int, float, int | None]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int | None]]:
         """Run inference using the OpenVINO model and return raw detections."""
 
         input_tensor = self._preprocess(frame)
@@ -376,7 +366,5 @@ def _letterbox(
         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    img = cv2.copyMakeBorder(
-        img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
-    )
+    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
     return img, ratio, (dw, dh)

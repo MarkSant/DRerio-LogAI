@@ -136,9 +136,7 @@ def enrich_videos_with_design_metadata(
         for subject in values.values()
         if subject is not None
     ]
-    subject_pattern = _build_pattern(
-        custom_patterns.get("subject_pattern"), all_subject_values
-    )
+    subject_pattern = _build_pattern(custom_patterns.get("subject_pattern"), all_subject_values)
 
     enriched_videos: list[dict] = []
 
@@ -315,16 +313,18 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
 
     if is_live:
         # Live project: Use live configuration data
-        controller_data.update({
-            "camera_index": wizard_data.get("camera_index", 0),
-            "use_arduino": wizard_data.get("use_arduino", False),
-            "arduino_port": wizard_data.get("arduino_port", ""),
-            "use_timed_recording": wizard_data.get("use_timed_recording", False),
-            "recording_duration_s": wizard_data.get("recording_duration_s", 0),
-            "use_countdown": wizard_data.get("use_countdown", False),
-            "countdown_duration_s": wizard_data.get("countdown_duration_s", 0),
-            "video_files": [],  # Live projects don't have pre-recorded files
-        })
+        controller_data.update(
+            {
+                "camera_index": wizard_data.get("camera_index", 0),
+                "use_arduino": wizard_data.get("use_arduino", False),
+                "arduino_port": wizard_data.get("arduino_port", ""),
+                "use_timed_recording": wizard_data.get("use_timed_recording", False),
+                "recording_duration_s": wizard_data.get("recording_duration_s", 0),
+                "use_countdown": wizard_data.get("use_countdown", False),
+                "countdown_duration_s": wizard_data.get("countdown_duration_s", 0),
+                "video_files": [],  # Live projects don't have pre-recorded files
+            }
+        )
     else:
         # Pre-recorded project: Use scanned videos
         scanned_videos = enriched_scanned_videos
@@ -351,13 +351,15 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
             )
             video_files.append(converted)
 
-        controller_data.update({
-            "video_files": video_files,
-            "use_timed_recording": False,
-            "recording_duration_s": 0,
-            "use_countdown": False,
-            "countdown_duration_s": 0,
-        })
+        controller_data.update(
+            {
+                "video_files": video_files,
+                "use_timed_recording": False,
+                "recording_duration_s": 0,
+                "use_countdown": False,
+                "countdown_duration_s": 0,
+            }
+        )
 
     # Add experimental design if detected
 
@@ -378,9 +380,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
             # subjects_dict is {"Control": ["S01", "S02"], ...}
             # Extract the max number of subjects across groups
             if subjects_dict and isinstance(subjects_dict, dict):
-                subject_counts = [
-                    len(subjects) for subjects in subjects_dict.values() if subjects
-                ]
+                subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
                 if subject_counts:
                     controller_data["subjects_per_group"] = max(subject_counts)
 

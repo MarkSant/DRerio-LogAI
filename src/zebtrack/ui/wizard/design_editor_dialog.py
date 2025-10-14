@@ -60,9 +60,7 @@ class DesignEditorDialog(Dialog):
 
         self.input_design = design.copy()
         self.edited_design: dict | None = None
-        self.custom_regex_patterns = (
-            custom_regex_patterns.copy() if custom_regex_patterns else None
-        )
+        self.custom_regex_patterns = custom_regex_patterns.copy() if custom_regex_patterns else None
         self.on_custom_regex_configured = on_custom_regex_configured
         self.sample_paths = sample_paths or []
 
@@ -264,9 +262,9 @@ class DesignEditorDialog(Dialog):
         """Override to add OK and Cancel buttons."""
         box = Frame(self)
 
-        Button(
-            box, text="Salvar", width=10, command=self.ok, default="active"
-        ).pack(side="left", padx=5, pady=5)
+        Button(box, text="Salvar", width=10, command=self.ok, default="active").pack(
+            side="left", padx=5, pady=5
+        )
         Button(box, text="Cancelar", width=10, command=self.cancel).pack(
             side="left", padx=5, pady=5
         )
@@ -380,12 +378,8 @@ class DesignEditorDialog(Dialog):
         if result_patterns is None:
             return
 
-        active_patterns = {
-            key: value for key, value in result_patterns.items() if value
-        }
-        self.custom_regex_patterns = (
-            result_patterns.copy() if active_patterns else None
-        )
+        active_patterns = {key: value for key, value in result_patterns.items() if value}
+        self.custom_regex_patterns = result_patterns.copy() if active_patterns else None
 
         new_design: dict | None = None
         if self.on_custom_regex_configured:
@@ -406,21 +400,16 @@ class DesignEditorDialog(Dialog):
                 parent=self,
             )
 
-
     def _add_group(self) -> None:
         group_id = self.new_group_id_var.get().strip()
         display_name = self.new_group_name_var.get().strip()
 
         if not group_id:
-            messagebox.showwarning(
-                "ID Vazio", "Digite um ID para o novo grupo.", parent=self
-            )
+            messagebox.showwarning("ID Vazio", "Digite um ID para o novo grupo.", parent=self)
             return
 
         if group_id in self.groups:
-            messagebox.showwarning(
-                "ID Duplicado", f"O grupo '{group_id}' já existe.", parent=self
-            )
+            messagebox.showwarning("ID Duplicado", f"O grupo '{group_id}' já existe.", parent=self)
             return
 
         self.groups.append(group_id)
@@ -470,9 +459,7 @@ class DesignEditorDialog(Dialog):
             return
 
         if day_name in self.days:
-            messagebox.showwarning(
-                "Dia Duplicado", f"O dia '{day_name}' já existe.", parent=self
-            )
+            messagebox.showwarning("Dia Duplicado", f"O dia '{day_name}' já existe.", parent=self)
             return
 
         self.days.append(day_name)
@@ -539,4 +526,3 @@ class DesignEditorDialog(Dialog):
 
     def get_result(self) -> dict | None:
         return self.edited_design
-

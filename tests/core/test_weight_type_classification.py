@@ -38,16 +38,16 @@ def test_add_weight_with_type_classification():
         det_file = os.path.join(temp_dir, "test_oi.pt")
         unknown_file = os.path.join(temp_dir, "test.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock seg model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock det model")
-        with open(unknown_file, 'w') as f:
+        with open(unknown_file, "w") as f:
             f.write("mock unknown model")
 
         wm = WeightManager(config_dir=temp_dir)
 
-        with patch('zebtrack.core.weight_manager.messagebox'):
+        with patch("zebtrack.core.weight_manager.messagebox"):
             # Test adding seg weight
             wm.add_weight(seg_file, set_as_default=True)
             assert "test_seg.pt" in wm.weights
@@ -75,14 +75,14 @@ def test_get_default_by_type():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock seg model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock det model")
 
         wm = WeightManager(config_dir=temp_dir)
 
-        with patch('zebtrack.core.weight_manager.messagebox'):
+        with patch("zebtrack.core.weight_manager.messagebox"):
             # Add both weights
             wm.add_weight(seg_file, set_as_default=True)
             wm.add_weight(det_file, set_as_default=False)
@@ -107,20 +107,20 @@ def test_get_weight_path_by_method():
         seg_file = os.path.join(temp_dir, "best_seg.pt")
         det_file = os.path.join(temp_dir, "best_oi.pt")
 
-        with open(seg_file, 'w') as f:
+        with open(seg_file, "w") as f:
             f.write("mock seg model")
-        with open(det_file, 'w') as f:
+        with open(det_file, "w") as f:
             f.write("mock det model")
 
         # Mock settings to avoid initializing with default weights
-        with patch('zebtrack.core.weight_manager.settings') as mock_settings:
+        with patch("zebtrack.core.weight_manager.settings") as mock_settings:
             mock_settings.weights.seg_filename = None
             mock_settings.weights.det_filename = None
             mock_settings.yolo_model.path = None
 
             wm = WeightManager(config_dir=temp_dir)
 
-            with patch('zebtrack.core.weight_manager.messagebox'):
+            with patch("zebtrack.core.weight_manager.messagebox"):
                 # Add both weights and set as defaults for their types
                 wm.add_weight(seg_file, set_as_default=True)
                 wm.add_weight(det_file, set_as_default=False)
@@ -143,17 +143,18 @@ def test_backward_compatibility_migration():
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create old format weights config
         import json
+
         old_weights = {
             "best_seg.pt": {
                 "path": "best_seg.pt",
                 "is_default": True,
                 "openvino_path": "",
-                "openvino_hash": ""
+                "openvino_hash": "",
             }
         }
 
         config_path = os.path.join(temp_dir, "weights_config.json")
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             json.dump(old_weights, f)
 
         # Load with new WeightManager - should migrate

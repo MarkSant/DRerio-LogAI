@@ -9,7 +9,7 @@ Uses mocking to isolate the service from analyzers and filesystem dependencies.
 import shutil
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -36,24 +36,29 @@ class TestAnalysisServiceFullAnalysis(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.service = AnalysisService()
-        
+
         # Create minimal trajectory dataframe
-        self.trajectory_df = pd.DataFrame({
-            "timestamp": [0.0, 0.033, 0.066, 0.099],
-            "frame": [0, 1, 2, 3],
-            "track_id": [1, 1, 1, 1],
-            "x1": [100, 105, 110, 115],
-            "y1": [200, 202, 204, 206],
-            "x2": [120, 125, 130, 135],
-            "y2": [220, 222, 224, 226],
-            "confidence": [0.9, 0.9, 0.9, 0.9],
-        })
-        
+        self.trajectory_df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066, 0.099],
+                "frame": [0, 1, 2, 3],
+                "track_id": [1, 1, 1, 1],
+                "x1": [100, 105, 110, 115],
+                "y1": [200, 202, 204, 206],
+                "x2": [120, 125, 130, 135],
+                "y2": [220, 222, 224, 226],
+                "confidence": [0.9, 0.9, 0.9, 0.9],
+            }
+        )
+
         self.pixelcm_x = 10.0
         self.pixelcm_y = 10.0
         self.video_height_px = 480
         self.arena_polygon_px: list[tuple[float, float]] = [
-            (0.0, 0.0), (640.0, 0.0), (640.0, 480.0), (0.0, 480.0)
+            (0.0, 0.0),
+            (640.0, 0.0),
+            (640.0, 480.0),
+            (0.0, 480.0),
         ]
         self.fps = 30.0
         self.freezing_vel_threshold = 2.0
@@ -185,16 +190,18 @@ class TestAnalysisServiceTrajectoryLoading(unittest.TestCase):
     def test_load_trajectory_dataframe_success(self):
         """Test successful trajectory loading."""
         parquet_file = self.test_dir / "trajectory.parquet"
-        df = pd.DataFrame({
-            "timestamp": [0.0, 0.033],
-            "frame": [0, 1],
-            "track_id": [1, 1],
-            "x1": [100, 105],
-            "y1": [200, 202],
-            "x2": [120, 125],
-            "y2": [220, 222],
-            "confidence": [0.9, 0.9],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033],
+                "frame": [0, 1],
+                "track_id": [1, 1],
+                "x1": [100, 105],
+                "y1": [200, 202],
+                "x2": [120, 125],
+                "y2": [220, 222],
+                "confidence": [0.9, 0.9],
+            }
+        )
         df.to_parquet(parquet_file)
 
         result = self.service.load_trajectory_dataframe(parquet_file)
@@ -207,9 +214,7 @@ class TestAnalysisServiceTrajectoryLoading(unittest.TestCase):
     def test_load_trajectory_dataframe_not_found(self):
         """Test error when trajectory file doesn't exist."""
         with pytest.raises(FileNotFoundError):
-            self.service.load_trajectory_dataframe(
-                self.test_dir / "nonexistent.parquet"
-            )
+            self.service.load_trajectory_dataframe(self.test_dir / "nonexistent.parquet")
 
     def test_load_trajectory_dataframe_invalid_format(self):
         """Test error when trajectory file is invalid."""
@@ -298,7 +303,7 @@ class TestAnalysisServiceReportGeneration(unittest.TestCase):
         # Mock Reporter instance
         mock_reporter = MagicMock()
         mock_reporter_class.return_value = mock_reporter
-        
+
         summary_path = self.test_dir / "summary.xlsx"
         report_path = self.test_dir / "report.docx"
         mock_reporter.export_summary_data.return_value = summary_path
@@ -333,7 +338,7 @@ class TestAnalysisServiceReportGeneration(unittest.TestCase):
         # Mock Reporter instance
         mock_reporter = MagicMock()
         mock_reporter_class.return_value = mock_reporter
-        
+
         summary_path = self.test_dir / "summary.xlsx"
         mock_reporter.export_summary_data.return_value = summary_path
         mock_reporter.export_individual_report_step_by_step.return_value = None
@@ -377,16 +382,18 @@ class TestAnalysisServiceSchemaValidation(unittest.TestCase):
 
     def test_validate_trajectory_schema_valid(self):
         """Test validation with valid schema."""
-        df = pd.DataFrame({
-            "timestamp": [0.0, 0.033],
-            "frame": [0, 1],
-            "track_id": [1, 1],
-            "x1": [100, 105],
-            "y1": [200, 202],
-            "x2": [120, 125],
-            "y2": [220, 222],
-            "confidence": [0.9, 0.9],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033],
+                "frame": [0, 1],
+                "track_id": [1, 1],
+                "x1": [100, 105],
+                "y1": [200, 202],
+                "x2": [120, 125],
+                "y2": [220, 222],
+                "confidence": [0.9, 0.9],
+            }
+        )
 
         result = self.service.validate_trajectory_schema(df)
 
@@ -394,33 +401,37 @@ class TestAnalysisServiceSchemaValidation(unittest.TestCase):
 
     def test_validate_trajectory_schema_missing_columns(self):
         """Test validation with missing required columns."""
-        df = pd.DataFrame({
-            "timestamp": [0.0, 0.033],
-            "frame": [0, 1],
-            "x1": [100, 105],
-            "y1": [200, 202],
-            # Missing track_id, x2, y2
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033],
+                "frame": [0, 1],
+                "x1": [100, 105],
+                "y1": [200, 202],
+                # Missing track_id, x2, y2
+            }
+        )
 
         with pytest.raises(ValueError, match="missing required columns"):
             self.service.validate_trajectory_schema(df)
 
     def test_validate_trajectory_schema_with_optional_columns(self):
         """Test validation with optional calibration columns."""
-        df = pd.DataFrame({
-            "timestamp": [0.0, 0.033],
-            "frame": [0, 1],
-            "track_id": [1, 1],
-            "x1": [100, 105],
-            "y1": [200, 202],
-            "x2": [120, 125],
-            "y2": [220, 222],
-            "confidence": [0.9, 0.9],
-            "x_center_px": [110, 115],
-            "y_center_px": [210, 212],
-            "x_cm": [11.0, 11.5],
-            "y_cm": [21.0, 21.2],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033],
+                "frame": [0, 1],
+                "track_id": [1, 1],
+                "x1": [100, 105],
+                "y1": [200, 202],
+                "x2": [120, 125],
+                "y2": [220, 222],
+                "confidence": [0.9, 0.9],
+                "x_center_px": [110, 115],
+                "y_center_px": [210, 212],
+                "x_cm": [11.0, 11.5],
+                "y_cm": [21.0, 21.2],
+            }
+        )
 
         result = self.service.validate_trajectory_schema(df)
 
@@ -563,16 +574,18 @@ class TestAnalysisServiceIntegration(unittest.TestCase):
         """Test complete analysis workflow from load to report."""
         # Create trajectory file
         parquet_file = self.test_dir / "trajectory.parquet"
-        df = pd.DataFrame({
-            "timestamp": [0.0, 0.033, 0.066, 0.099, 0.132],
-            "frame": [0, 1, 2, 3, 4],
-            "track_id": [1, 1, 1, 1, 1],
-            "x1": [100, 105, 110, 115, 120],
-            "y1": [200, 202, 204, 206, 208],
-            "x2": [120, 125, 130, 135, 140],
-            "y2": [220, 222, 224, 226, 228],
-            "confidence": [0.9, 0.9, 0.9, 0.9, 0.9],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033, 0.066, 0.099, 0.132],
+                "frame": [0, 1, 2, 3, 4],
+                "track_id": [1, 1, 1, 1, 1],
+                "x1": [100, 105, 110, 115, 120],
+                "y1": [200, 202, 204, 206, 208],
+                "x2": [120, 125, 130, 135, 140],
+                "y2": [220, 222, 224, 226, 228],
+                "confidence": [0.9, 0.9, 0.9, 0.9, 0.9],
+            }
+        )
         df.to_parquet(parquet_file)
 
         # Load trajectory
@@ -632,16 +645,18 @@ class TestAnalysisServiceIntegration(unittest.TestCase):
         assert profile["name"] == "control_profile"
 
         # Create minimal trajectory
-        trajectory_df = pd.DataFrame({
-            "timestamp": [0.0, 0.033],
-            "frame": [0, 1],
-            "track_id": [1, 1],
-            "x1": [100, 105],
-            "y1": [200, 202],
-            "x2": [120, 125],
-            "y2": [220, 222],
-            "confidence": [0.9, 0.9],
-        })
+        trajectory_df = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.033],
+                "frame": [0, 1],
+                "track_id": [1, 1],
+                "x1": [100, 105],
+                "y1": [200, 202],
+                "x2": [120, 125],
+                "y2": [220, 222],
+                "confidence": [0.9, 0.9],
+            }
+        )
 
         # Run analysis
         report, _, _ = self.service.run_full_analysis(

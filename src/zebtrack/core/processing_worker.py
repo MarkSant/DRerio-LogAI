@@ -44,9 +44,7 @@ class ProcessingCallbacks:
         stats: Optional dict with processing statistics
     """
 
-    on_frame_processed: Callable[[object, list | None, dict | None], None] | None = (
-        None
-    )
+    on_frame_processed: Callable[[object, list | None, dict | None], None] | None = None
     """
     Called when a frame is processed and ready for display.
     Args:
@@ -175,9 +173,7 @@ class ProcessingWorker:
         try:
             # Determine processing intervals
             if self.context.determine_intervals_func:
-                intervals = self.context.determine_intervals_func(
-                    self.context.single_video_config
-                )
+                intervals = self.context.determine_intervals_func(self.context.single_video_config)
                 if intervals:
                     (
                         self.context.analysis_interval_frames,
@@ -185,10 +181,7 @@ class ProcessingWorker:
                     ) = intervals
 
             # Apply project settings if not in single-video mode
-            if (
-                not self.context.single_video_config
-                and self.context.apply_project_settings_func
-            ):
+            if not self.context.single_video_config and self.context.apply_project_settings_func:
                 settings_success = self.context.apply_project_settings_func(
                     self.context.videos_to_process
                 )
@@ -267,9 +260,7 @@ class ProcessingWorker:
                         exc_info=True,
                     )
                     if self.callbacks.on_error:
-                        self.callbacks.on_error(
-                            exc, f"Erro ao processar {experiment_id}"
-                        )
+                        self.callbacks.on_error(exc, f"Erro ao processar {experiment_id}")
                     # Continue with next video unless cancelled
                     if self.context.cancel_event.is_set():
                         was_cancelled = True
@@ -289,9 +280,7 @@ class ProcessingWorker:
             if self.callbacks.on_completed:
                 self.callbacks.on_completed(was_cancelled, final_output_dir)
 
-    def _report_progress(
-        self, fraction: float, message: str, stats: dict | None
-    ) -> None:
+    def _report_progress(self, fraction: float, message: str, stats: dict | None) -> None:
         """Helper to report progress through callback."""
         if self.callbacks.on_progress:
             self.callbacks.on_progress(fraction, message, stats)
@@ -307,9 +296,7 @@ class ProcessingWorker:
             log.warning("worker.start.already_running")
             return self._thread
 
-        self._thread = threading.Thread(
-            target=self.run, daemon=True, name="ProcessingWorker"
-        )
+        self._thread = threading.Thread(target=self.run, daemon=True, name="ProcessingWorker")
         self._thread.start()
         log.info("worker.start.thread_created", thread_id=self._thread.ident)
         return self._thread

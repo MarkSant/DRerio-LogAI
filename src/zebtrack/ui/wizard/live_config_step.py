@@ -77,9 +77,7 @@ class LiveConfigStep(WizardStep):
         """Build live configuration UI."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Configuração de Gravação ao Vivo", font=title_font
-        )
+        title = Label(self, text="Configuração de Gravação ao Vivo", font=title_font)
         title.pack(pady=(0, 10))
 
         subtitle = Label(
@@ -123,9 +121,7 @@ class LiveConfigStep(WizardStep):
         camera_spinbox.pack(side="left", padx=(5, 0))
         ToolTip(
             camera_spinbox,
-            (
-                "Índice da câmera a ser usada (geralmente 0 para câmera padrão)."
-            ),
+            ("Índice da câmera a ser usada (geralmente 0 para câmera padrão)."),
         )
 
         Button(
@@ -155,10 +151,7 @@ class LiveConfigStep(WizardStep):
         use_arduino_cb.pack(anchor="w", pady=5)
         ToolTip(
             use_arduino_cb,
-            (
-                "Habilitar Arduino para sincronizar eventos externos com a "
-                "gravação."
-            ),
+            ("Habilitar Arduino para sincronizar eventos externos com a gravação."),
         )
 
         # Arduino port selection
@@ -312,10 +305,7 @@ class LiveConfigStep(WizardStep):
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")
@@ -481,11 +471,7 @@ class LiveConfigStep(WizardStep):
                 - use_countdown (bool)
                 - countdown_duration_s (int)
         """
-        arduino_port = (
-            self.arduino_port_var.get().strip()
-            if self.use_arduino_var.get()
-            else None
-        )
+        arduino_port = self.arduino_port_var.get().strip() if self.use_arduino_var.get() else None
 
         return {
             "camera_index": self.camera_index_var.get(),

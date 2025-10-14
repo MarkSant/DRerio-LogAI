@@ -23,9 +23,9 @@ from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 STATUS_SYMBOLS = {
-    "arena": "\U0001F3DF",  # 🏟
-    "rois": "\U0001F3AF",  # 🎯
-    "trajectory": "\U0001F9ED",  # 🧭
+    "arena": "\U0001f3df",  # 🏟
+    "rois": "\U0001f3af",  # 🎯
+    "trajectory": "\U0001f9ed",  # 🧭
 }
 
 log = structlog.get_logger()
@@ -74,9 +74,7 @@ class ImportConfigStep(WizardStep):
         """Build import configuration UI with horizontal 2-column layout."""
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(
-            self, text="Configuração de Importação", font=title_font
-        )
+        title = Label(self, text="Configuração de Importação", font=title_font)
         title.pack(pady=(0, 5))
 
         subtitle = Label(
@@ -104,9 +102,7 @@ class ImportConfigStep(WizardStep):
         left_column = ttk.Frame(main_container)
         left_column.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-        table_frame = LabelFrame(
-            left_column, text="Vídeos e Estratégias", padx=8, pady=5
-        )
+        table_frame = LabelFrame(left_column, text="Vídeos e Estratégias", padx=8, pady=5)
         table_frame.pack(fill="both", expand=True)
 
         # Bulk import buttons row
@@ -249,9 +245,7 @@ class ImportConfigStep(WizardStep):
         self.legend_label = Label(
             legend_frame,
             text=(
-                "🏟 Arena | 🎯 ROIs | 🧭 Trajetória\n"
-                "✓ Importar | ⏸ Não importar\n"
-                "✗ Não disponível"
+                "🏟 Arena | 🎯 ROIs | 🧭 Trajetória\n✓ Importar | ⏸ Não importar\n✗ Não disponível"
             ),
             fg="gray",
             font=("TkDefaultFont", 8),
@@ -337,9 +331,7 @@ class ImportConfigStep(WizardStep):
             video_name = Path(config["video"]).name
 
             # Format glyphs with availability indicators
-            def format_status(
-                has_parquet: bool, importing: bool, symbol_key: str
-            ) -> str:
+            def format_status(has_parquet: bool, importing: bool, symbol_key: str) -> str:
                 symbol = STATUS_SYMBOLS[symbol_key]
                 if not has_parquet:
                     return f"{symbol} ✗"
@@ -347,12 +339,8 @@ class ImportConfigStep(WizardStep):
                 suffix = "✓" if importing else "⏸"
                 return f"{symbol} {suffix}"
 
-            arena_str = format_status(
-                config["has_arena"], config["import_arena"], "arena"
-            )
-            rois_str = format_status(
-                config["has_rois"], config["import_rois"], "rois"
-            )
+            arena_str = format_status(config["has_arena"], config["import_arena"], "arena")
+            rois_str = format_status(config["has_rois"], config["import_rois"], "rois")
             traj_str = format_status(
                 config["has_trajectory"], config["import_trajectory"], "trajectory"
             )
@@ -413,9 +401,7 @@ class ImportConfigStep(WizardStep):
 
         # Re-derive action
         action = derive_import_action(
-            config["import_arena"],
-            config["import_rois"],
-            config["import_trajectory"]
+            config["import_arena"], config["import_rois"], config["import_trajectory"]
         )
         config["action"] = action.value
 
@@ -450,19 +436,14 @@ class ImportConfigStep(WizardStep):
             name = action_names.get(action, action)
             lines.append(f"• {count} vídeo(s): {name}")
 
-        self.summary_var.set(
-            "\n".join(lines) if lines else "Nenhum vídeo configurado"
-        )
+        self.summary_var.set("\n".join(lines) if lines else "Nenhum vídeo configurado")
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
 
         if banner_text:
             self.template_info_var.set(banner_text)
-            if (
-                self.template_info_label
-                and not self.template_info_label.winfo_ismapped()
-            ):
+            if self.template_info_label and not self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack(pady=(0, 10))
         else:
             self.template_info_var.set("")
@@ -472,9 +453,7 @@ class ImportConfigStep(WizardStep):
     def _update_roi_frame_visibility(self):
         """Hide ROI merge strategy frame if no ROIs are being imported."""
         # Check if any video is configured to import ROIs
-        importing_rois = any(
-            config.get("import_rois", False) for config in self.video_configs
-        )
+        importing_rois = any(config.get("import_rois", False) for config in self.video_configs)
 
         if importing_rois:
             # Show ROI frame if importing ROIs
@@ -587,13 +566,15 @@ class ImportConfigStep(WizardStep):
         # Clean configs (remove internal fields)
         clean_configs = []
         for config in self.video_configs:
-            clean_configs.append({
-                "video": config["video"],
-                "import_arena": config["import_arena"],
-                "import_rois": config["import_rois"],
-                "import_trajectory": config["import_trajectory"],
-                "action": config["action"],
-            })
+            clean_configs.append(
+                {
+                    "video": config["video"],
+                    "import_arena": config["import_arena"],
+                    "import_rois": config["import_rois"],
+                    "import_trajectory": config["import_trajectory"],
+                    "action": config["action"],
+                }
+            )
 
         return {
             "import_config": clean_configs,

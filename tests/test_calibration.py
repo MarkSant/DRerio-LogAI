@@ -94,9 +94,7 @@ def test_pixel_to_cm_conversion():
     dummy_polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
     # If the real-world width is 30cm, and the target warped width is 600px,
     # the ratio should be 20 pixels per cm.
-    calibration = Calibration(
-        polygon=dummy_polygon, real_width_cm=30.0, real_height_cm=20.0
-    )
+    calibration = Calibration(polygon=dummy_polygon, real_width_cm=30.0, real_height_cm=20.0)
 
     # 1. Check if the ratio is calculated as expected
     px_per_cm_x, _ = calibration.pixel_per_cm_ratio

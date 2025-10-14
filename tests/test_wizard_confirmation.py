@@ -372,7 +372,7 @@ class TestConfirmationStep(unittest.TestCase):
             "Project@2025",  # @ not allowed
             "Test#Project",  # # not allowed
             "Name$Invalid",  # $ not allowed
-            "Proj/ect",      # / not allowed
+            "Proj/ect",  # / not allowed
         ]
 
         for name in invalid_names:

@@ -55,10 +55,12 @@ class TestTemplateManager(unittest.TestCase):
 
 class TestFormatTemplateBanner(unittest.TestCase):
     def test_banner_with_name_and_path(self):
-        banner = format_template_banner({
-            "name": "Template Banner",
-            "path": "C:/tmp/template_banner.json",
-        })
+        banner = format_template_banner(
+            {
+                "name": "Template Banner",
+                "path": "C:/tmp/template_banner.json",
+            }
+        )
 
         self.assertIn("Template Banner", banner)
         self.assertIn("template_banner.json", banner)

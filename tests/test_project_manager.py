@@ -98,13 +98,17 @@ class TestProjectManager(unittest.TestCase):
         pm.save_zone_data(zone_data, video_path=video_path, persist=False)
         pm.save_project()
 
-        return pm, video_path, {
-            "arena": arena_path,
-            "rois": rois_path,
-            "trajectory": trajectory_path,
-            "summary": summary_path if include_summary else None,
-            "report": report_path if include_summary else None,
-        }
+        return (
+            pm,
+            video_path,
+            {
+                "arena": arena_path,
+                "rois": rois_path,
+                "trajectory": trajectory_path,
+                "summary": summary_path if include_summary else None,
+                "report": report_path if include_summary else None,
+            },
+        )
 
     def test_copy_zone_parquet_files_replicates_artifacts(self):
         pm = ProjectManager()
@@ -154,15 +158,9 @@ class TestProjectManager(unittest.TestCase):
         copied = pm.copy_zone_parquet_files(source_video, target_video, persist=False)
 
         target_parent = os.path.dirname(target_video)
-        expected_parent_arena = os.path.join(
-            target_parent, "1_ProcessingArea_target.parquet"
-        )
-        expected_parent_rois = os.path.join(
-            target_parent, "2_AreasOfInterest_target.parquet"
-        )
-        hierarchical_dir = pm.resolve_results_directory(
-            "target", video_path=target_video
-        )
+        expected_parent_arena = os.path.join(target_parent, "1_ProcessingArea_target.parquet")
+        expected_parent_rois = os.path.join(target_parent, "2_AreasOfInterest_target.parquet")
+        hierarchical_dir = pm.resolve_results_directory("target", video_path=target_video)
         expected_results_arena = os.path.join(
             str(hierarchical_dir), "1_ProcessingArea_target.parquet"
         )
@@ -182,9 +180,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(
             os.path.normpath(copied["arena"]), os.path.normpath(expected_results_arena)
         )
-        self.assertEqual(
-            os.path.normpath(copied["rois"]), os.path.normpath(expected_results_rois)
-        )
+        self.assertEqual(os.path.normpath(copied["rois"]), os.path.normpath(expected_results_rois))
 
         target_entry = pm.find_video_entry(path=target_video)
         self.assertIsNotNone(target_entry)
@@ -373,9 +369,7 @@ class TestProjectManager(unittest.TestCase):
             project_entry = next(
                 entry for entry in templates if entry["name"] == "Projeto Template"
             )
-            global_entry = next(
-                entry for entry in templates if entry["name"] == "Global Template"
-            )
+            global_entry = next(entry for entry in templates if entry["name"] == "Global Template")
 
             self.assertEqual(project_entry.get("location"), "project")
             self.assertEqual(global_entry.get("location"), "global")
@@ -463,9 +457,7 @@ class TestProjectManager(unittest.TestCase):
             {"path": "/path/to/video1.mp4", "has_data": False},
             {"path": "/path/to/video2.mp4", "has_data": True},
         ]
-        success = pm.create_new_project(
-            project_path, "pre-recorded", video_files=video_files
-        )
+        success = pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
@@ -476,9 +468,7 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["project_type"], "pre-recorded")
             self.assertEqual(len(data["batches"]), 1)
             self.assertEqual(len(data["batches"][0]["videos"]), 2)
-            self.assertEqual(
-                data["batches"][0]["videos"][0]["path"], video_files[0]["path"]
-            )
+            self.assertEqual(data["batches"][0]["videos"][0]["path"], video_files[0]["path"])
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
@@ -494,9 +484,7 @@ class TestProjectManager(unittest.TestCase):
             data = json.load(f)
 
         self.assertIn("model_overrides", data)
-        self.assertEqual(
-            data["model_overrides"], {"active_weight": None, "use_openvino": None}
-        )
+        self.assertEqual(data["model_overrides"], {"active_weight": None, "use_openvino": None})
         self.assertEqual(
             pm.project_data["model_overrides"],
             {"active_weight": None, "use_openvino": None},
@@ -652,9 +640,7 @@ class TestProjectManager(unittest.TestCase):
             {"active_weight": None, "use_openvino": None},
         )
         self.assertIn("tracking", pm.project_data)
-        self.assertIn(
-            "use_single_subject_tracker", pm.project_data["tracking"]
-        )
+        self.assertIn("use_single_subject_tracker", pm.project_data["tracking"])
         self.assertEqual(
             pm.project_data["tracking"]["use_single_subject_tracker"],
             settings.tracking.use_single_subject_tracker,
@@ -868,9 +854,7 @@ class TestProjectManager(unittest.TestCase):
             {"path": os.path.join("C:", "videos", "vid1.mp4"), "has_data": False},
             {"path": os.path.join("C:", "videos", "vid2.mp4"), "has_data": False},
         ]
-        success = pm.create_new_project(
-            test_dir, "pre-recorded", video_files=video_files
-        )
+        success = pm.create_new_project(test_dir, "pre-recorded", video_files=video_files)
         self.assertTrue(success)
 
         # 2. Test loading an existing project
@@ -912,9 +896,7 @@ class TestProjectManager(unittest.TestCase):
         pm.save_project = MagicMock(return_value=True)
 
         results_dir = os.path.join(self.test_dir, "metadata_sample_results")
-        trajectory_path = os.path.join(
-            results_dir, "3_CoordMovimento_metadata_sample.parquet"
-        )
+        trajectory_path = os.path.join(results_dir, "3_CoordMovimento_metadata_sample.parquet")
         summary_path = os.path.join(results_dir, "metadata_sample_summary.parquet")
         excel_path = os.path.join(results_dir, "metadata_sample_summary.xlsx")
         report_path = os.path.join(results_dir, "metadata_sample_report.docx")
@@ -934,16 +916,10 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(video_entry.get("has_summary"))
         self.assertTrue(video_entry.get("has_complete_data"))
         self.assertEqual(video_entry.get("results_dir"), results_dir)
-        self.assertEqual(
-            video_entry["parquet_files"].get("trajectory"), trajectory_path
-        )
+        self.assertEqual(video_entry["parquet_files"].get("trajectory"), trajectory_path)
         self.assertEqual(video_entry["parquet_files"].get("summary"), summary_path)
-        self.assertEqual(
-            video_entry["parquet_files"].get("summary_excel"), excel_path
-        )
-        self.assertEqual(
-            video_entry["parquet_files"].get("report_docx"), report_path
-        )
+        self.assertEqual(video_entry["parquet_files"].get("summary_excel"), excel_path)
+        self.assertEqual(video_entry["parquet_files"].get("report_docx"), report_path)
         pm.save_project.assert_called_once()
 
     def test_derive_processing_metadata_falls_back_to_project_entry(self):
@@ -1000,7 +976,7 @@ class TestProjectManager(unittest.TestCase):
             "plugin_name": "YOLO (Ultralytics)",
             "confidence_threshold": 0.7,
             "nms_threshold": 0.5,
-            "context": "tracking"
+            "context": "tracking",
         }
 
         save_result = pm.save_detector_state(detector_config)
@@ -1042,10 +1018,7 @@ class TestProjectManager(unittest.TestCase):
         """Test detector state saving fails without project data."""
         pm = ProjectManager()
 
-        detector_config = {
-            "plugin_name": "OpenVINO",
-            "confidence_threshold": 0.6
-        }
+        detector_config = {"plugin_name": "OpenVINO", "confidence_threshold": 0.6}
 
         # Should fail when no project data exists
         result = pm.save_detector_state(detector_config)

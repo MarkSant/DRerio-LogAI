@@ -48,7 +48,7 @@ class UIEvent:
 
 class EventBus:
     """Thread-safe event bus for routing events between UI and core logic.
-    
+
     Supports two modes of operation:
     1. Callable events: Direct function calls scheduled on the UI thread (legacy)
     2. Named events: Publish/subscribe pattern for decoupled communication
@@ -109,13 +109,13 @@ class EventBus:
         timeout: float | None = None,
     ) -> bool:
         """Publish a named event with optional data payload.
-        
+
         Args:
             event_name: Name of the event (e.g., "recording:start", "project:close")
             data: Optional dictionary containing event-specific data
             block: Whether to block if queue is full
             timeout: Timeout for blocking operations
-            
+
         Returns:
             True if event was successfully published, False if queue was full
         """
@@ -133,7 +133,7 @@ class EventBus:
 
     def subscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
         """Subscribe a handler to a named event.
-        
+
         Args:
             event_name: Name of the event to subscribe to
             handler: Callable that accepts a dict of event data
@@ -148,7 +148,7 @@ class EventBus:
 
     def unsubscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
         """Unsubscribe a handler from a named event.
-        
+
         Args:
             event_name: Name of the event to unsubscribe from
             handler: The handler to remove
@@ -163,9 +163,9 @@ class EventBus:
 
     def dispatch_named_event(self, event: NamedEvent) -> None:
         """Dispatch a named event to all registered subscribers.
-        
+
         This should be called from the UI thread when processing named events.
-        
+
         Args:
             event: The NamedEvent to dispatch
         """

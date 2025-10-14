@@ -17,12 +17,8 @@ from zebtrack.ui.wizard.tooltip import ToolTip
 log = structlog.get_logger()
 
 _bytetrack_defaults = getattr(settings, "bytetrack", None)
-DEFAULT_TRACK_THRESHOLD = float(
-    getattr(_bytetrack_defaults, "track_threshold", 0.25)
-)
-DEFAULT_MATCH_THRESHOLD = float(
-    getattr(_bytetrack_defaults, "match_threshold", 0.15)
-)
+DEFAULT_TRACK_THRESHOLD = float(getattr(_bytetrack_defaults, "track_threshold", 0.25))
+DEFAULT_MATCH_THRESHOLD = float(getattr(_bytetrack_defaults, "match_threshold", 0.15))
 _METHOD_OPTIONS: dict[str, str] = {
     "seg": "Segmentação (seg)",
     "det": "Detecção (det)",
@@ -130,9 +126,7 @@ class ModelSelectionStep(WizardStep):
 
         detector_params = dict(self.wizard_data.get("detector_parameters", {}) or {})
         confidence_threshold = float(
-            detector_params.get(
-                "confidence_threshold", settings.yolo_model.confidence_threshold
-            )
+            detector_params.get("confidence_threshold", settings.yolo_model.confidence_threshold)
         )
         self.confidence_var.set(f"{confidence_threshold:.3f}")
 
@@ -141,14 +135,10 @@ class ModelSelectionStep(WizardStep):
         )
         self.nms_var.set(f"{nms_threshold:.3f}")
 
-        track_threshold = float(
-            detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD)
-        )
+        track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))
         self.track_var.set(f"{track_threshold:.3f}")
 
-        match_threshold = float(
-            detector_params.get("match_threshold", DEFAULT_MATCH_THRESHOLD)
-        )
+        match_threshold = float(detector_params.get("match_threshold", DEFAULT_MATCH_THRESHOLD))
         self.match_var.set(f"{match_threshold:.3f}")
 
     def _default_weight_for_method(self, method_key: str) -> str:

@@ -42,10 +42,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--locales-root",
         type=Path,
         default=LOCALES_ROOT,
-        help=(
-            "Root directory containing locale subfolders "
-            "(default: src/zebtrack/locales)."
-        ),
+        help=("Root directory containing locale subfolders (default: src/zebtrack/locales)."),
     )
     return parser.parse_args(argv)
 
@@ -54,8 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.locales_root.exists():
         print(
-            "⚠️ Locales directory "
-            f"'{args.locales_root}' not found – nothing to compile.",
+            f"⚠️ Locales directory '{args.locales_root}' not found – nothing to compile.",
             file=sys.stderr,
         )
         return 0

@@ -11,10 +11,12 @@ from zebtrack.io.arduino import Arduino
 try:  # pragma: no cover - serial may not be available during unit tests
     from serial import SerialException  # type: ignore
 except Exception:  # pragma: no cover - fallback when pyserial is missing
+
     class SerialException(Exception):
         """Fallback SerialException when pyserial is not installed."""
 
         pass
+
 
 log = structlog.get_logger()
 
@@ -23,9 +25,9 @@ class ArduinoManager:
     """High-level Arduino coordinator handling connection, commands and events."""
 
     def __init__(
-    self,
-    controller,
-    arduino_factory: Callable[[str, int], Arduino] = Arduino,
+        self,
+        controller,
+        arduino_factory: Callable[[str, int], Arduino] = Arduino,
     ) -> None:
         self.controller = controller
         self._arduino_factory = arduino_factory
@@ -58,9 +60,7 @@ class ArduinoManager:
                     baud_rate=baud_rate,
                     exc_info=True,
                 )
-                self._notify_log(
-                    f"Falha ao inicializar o Arduino na porta {port}."
-                )
+                self._notify_log(f"Falha ao inicializar o Arduino na porta {port}.")
                 return False
 
             try:
@@ -71,9 +71,7 @@ class ArduinoManager:
                     )
                     candidate.close()
                     self._notify_status(False, port)
-                    self._notify_log(
-                        f"Não foi possível conectar ao Arduino na porta {port}."
-                    )
+                    self._notify_log(f"Não foi possível conectar ao Arduino na porta {port}.")
                     return False
             except Exception:
                 log.error(
@@ -84,9 +82,7 @@ class ArduinoManager:
                 )
                 candidate.close()
                 self._notify_status(False, port)
-                self._notify_log(
-                    f"Erro ao conectar ao Arduino na porta {port}."
-                )
+                self._notify_log(f"Erro ao conectar ao Arduino na porta {port}.")
                 return False
 
             self.arduino = candidate
@@ -129,8 +125,7 @@ class ArduinoManager:
     def send_command(self, command: int, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
         if not self.is_connected():
-            self._notify_log(
-                "Não foi possível enviar comando: Arduino desconectado.")
+            self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
             self._notify_command(command, success=False, source=source)
             return False
 
@@ -150,8 +145,7 @@ class ArduinoManager:
             self._last_command = command
             self._notify_log(f"Comando {command} enviado ao Arduino.")
         else:
-            self._notify_log(
-                f"Falha ao enviar comando {command} ao Arduino.")
+            self._notify_log(f"Falha ao enviar comando {command} ao Arduino.")
 
         self._notify_command(command, success=success, source=source)
         return success
@@ -232,9 +226,7 @@ class ArduinoManager:
             if hasattr(self.controller, "on_arduino_event"):
                 self.controller.on_arduino_event(event_code)
         except Exception:  # pragma: no cover - controller should handle safely
-            log.error(
-                "arduino_manager.event.dispatch_failed", code=event_code, exc_info=True
-            )
+            log.error("arduino_manager.event.dispatch_failed", code=event_code, exc_info=True)
 
     def _notify_status(self, connected: bool, port: Optional[str]) -> None:
         try:

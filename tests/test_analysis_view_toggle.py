@@ -154,15 +154,9 @@ class MockApplicationGUI:
 
         previous_mode = self._active_processing_mode
         self._active_processing_mode = report.mode
-        self.tracking_mode_var.set(
-            f"Modo de rastreamento: {report.mode.display_name}"
-        )
+        self.tracking_mode_var.set(f"Modo de rastreamento: {report.mode.display_name}")
 
-        state = (
-            "disabled"
-            if report.mode is ProcessingMode.SINGLE_SUBJECT
-            else "readonly"
-        )
+        state = "disabled" if report.mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
         self.track_selector_widget.configure(state=state)
 
         if report.mode is ProcessingMode.SINGLE_SUBJECT:
@@ -216,9 +210,7 @@ class MockApplicationGUI:
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         self.analysis_task_var.set("Nenhuma tarefa em andamento.")
-        self.analysis_metadata_var.set(
-            "Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado"
-        )
+        self.analysis_metadata_var.set("Grupo: Sem Grupo | Dia: Sem Dia | Indivíduo: Não informado")
         self.toggle_view_btn.config(state="disabled")
         self.cancel_proc_btn.config(state="disabled")
         self._switch_to_zones_view()
@@ -270,9 +262,7 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.assertEqual(self.gui.canvas_view_mode, "zones")
         self.assertEqual(self.gui.notebook.select(), str(self.gui.zone_tab_frame))
         self.assertFalse(self.gui.progress_frame.winfo_viewable())
-        self.assertEqual(
-            self.gui.analysis_status_var.get(), "Nenhuma análise em andamento."
-        )
+        self.assertEqual(self.gui.analysis_status_var.get(), "Nenhuma análise em andamento.")
         self.assertEqual(self.gui.track_selector_var.get(), "Todos")
         self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
         self.assertEqual(self.gui.track_selector_widget.state, "readonly")
@@ -344,9 +334,7 @@ class TestZoneEditingPrevention(unittest.TestCase):
 
         def mock_start_drawing_method():
             if self.gui.analysis_active:
-                self.gui.show_warning(
-                    "Análise em Progresso", "Cannot edit during analysis"
-                )
+                self.gui.show_warning("Análise em Progresso", "Cannot edit during analysis")
                 return False
             return True
 
@@ -367,5 +355,5 @@ class TestZoneEditingPrevention(unittest.TestCase):
         self.assertFalse(self.gui._on_auto_detect_clicked())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -68,9 +68,7 @@ class CustomRegexDialog(Dialog):
         self.group_pattern_var = StringVar(
             value=self.current_patterns.get("group_pattern", "") or ""
         )
-        self.day_pattern_var = StringVar(
-            value=self.current_patterns.get("day_pattern", "") or ""
-        )
+        self.day_pattern_var = StringVar(value=self.current_patterns.get("day_pattern", "") or "")
         self.subject_pattern_var = StringVar(
             value=self.current_patterns.get("subject_pattern", "") or ""
         )
@@ -325,8 +323,7 @@ class CustomRegexDialog(Dialog):
                 match = re.search(group_pattern, test_path)
                 if match:
                     results.append(
-                        "✓ Grupo: '"
-                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                        f"✓ Grupo: '{match.group(1) if match.groups() else match.group(0)}'"
                     )
                 else:
                     results.append("✗ Grupo: Nenhuma correspondência")
@@ -341,8 +338,7 @@ class CustomRegexDialog(Dialog):
                 match = re.search(day_pattern, test_path)
                 if match:
                     results.append(
-                        "✓ Dia: '"
-                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                        f"✓ Dia: '{match.group(1) if match.groups() else match.group(0)}'"
                     )
                 else:
                     results.append("✗ Dia: Nenhuma correspondência")
@@ -357,8 +353,7 @@ class CustomRegexDialog(Dialog):
                 match = re.search(subject_pattern, test_path)
                 if match:
                     results.append(
-                        "✓ Sujeito: '"
-                        f"{match.group(1) if match.groups() else match.group(0)}'"
+                        f"✓ Sujeito: '{match.group(1) if match.groups() else match.group(0)}'"
                     )
                 else:
                     results.append("✗ Sujeito: Nenhuma correspondência")
@@ -378,9 +373,7 @@ class CustomRegexDialog(Dialog):
         self.subject_pattern_entry.delete(0, "end")
         self.test_path_entry.delete(0, "end")
         default_preview_path = (
-            self.sample_paths[0]
-            if self.sample_paths
-            else "/Control/Day01/Subject_S01.mp4"
+            self.sample_paths[0] if self.sample_paths else "/Control/Day01/Subject_S01.mp4"
         )
         self.test_path_entry.insert(0, default_preview_path)
 

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Script para criar cenrios de teste do Wizard v1.5
 
@@ -38,7 +38,7 @@ def create_mock_video(output_path: Path, duration_seconds: float = 5, fps: int =
     total_frames = int(duration_seconds * fps)
 
     # Codec H264
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
     for frame_num in range(total_frames):
@@ -49,8 +49,7 @@ def create_mock_video(output_path: Path, duration_seconds: float = 5, fps: int =
 
         # Adicionar texto identificador
         text = f"{output_path.stem} - Frame {frame_num}"
-        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7, (255, 255, 255), 2)
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         # Desenhar "fish" simulado (crculo branco se movendo)
         fish_x = int(width * (0.2 + 0.6 * (frame_num / total_frames)))
@@ -95,7 +94,14 @@ def create_mock_parquet(video_path: Path, parquet_type: str = "trajectory"):
         # Schema esperado pelo load_zones: roi_name, point_index, x, y
         data = {
             "roi_name": [
-                "Center", "Center", "Center", "Center", "Edge", "Edge", "Edge", "Edge"
+                "Center",
+                "Center",
+                "Center",
+                "Center",
+                "Edge",
+                "Edge",
+                "Edge",
+                "Edge",
             ],
             "point_index": [0, 1, 2, 3, 0, 1, 2, 3],
             "x": [200, 440, 440, 200, 50, 150, 150, 50],
@@ -460,4 +466,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

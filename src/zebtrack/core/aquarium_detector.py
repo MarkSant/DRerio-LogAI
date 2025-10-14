@@ -30,9 +30,7 @@ class AquariumDetector:
             mode (str): Detection mode - "seg" for segmentation, "det" for detection.
         """
         if not ULTRALYTICS_AVAILABLE:
-            raise ImportError(
-                "Ultralytics is not available. Please install ultralytics package."
-            )
+            raise ImportError("Ultralytics is not available. Please install ultralytics package.")
 
         self.mode = mode
         if mode not in ["seg", "det"]:
@@ -103,12 +101,15 @@ class AquariumDetector:
         x1, y1, x2, y2 = best_box.xyxy[0].cpu().numpy()
 
         # Create rectangular polygon from bounding box
-        polygon = np.array([
-            [int(x1), int(y1)],  # top-left
-            [int(x2), int(y1)],  # top-right
-            [int(x2), int(y2)],  # bottom-right
-            [int(x1), int(y2)],  # bottom-left
-        ], dtype=np.int32)
+        polygon = np.array(
+            [
+                [int(x1), int(y1)],  # top-left
+                [int(x2), int(y1)],  # top-right
+                [int(x2), int(y2)],  # bottom-right
+                [int(x1), int(y2)],  # bottom-left
+            ],
+            dtype=np.int32,
+        )
 
         # Validate size - should be reasonable portion of frame
         frame_area = frame.shape[0] * frame.shape[1]
@@ -116,24 +117,31 @@ class AquariumDetector:
         area_ratio = box_area / frame_area
 
         if area_ratio < 0.1:  # Too small
-            log.warning("aquarium_detector.detection_too_small",
-                       confidence=best_conf, area_ratio=area_ratio)
+            log.warning(
+                "aquarium_detector.detection_too_small",
+                confidence=best_conf,
+                area_ratio=area_ratio,
+            )
             return None
 
         if area_ratio > 0.95:  # Almost entire frame, likely false positive
-            log.warning("aquarium_detector.detection_too_large",
-                       confidence=best_conf, area_ratio=area_ratio)
+            log.warning(
+                "aquarium_detector.detection_too_large",
+                confidence=best_conf,
+                area_ratio=area_ratio,
+            )
             return None
 
-        log.info("aquarium_detector.detection_polygon_extracted",
-                confidence=best_conf, area_ratio=area_ratio,
-                bbox=[int(x1), int(y1), int(x2), int(y2)])
+        log.info(
+            "aquarium_detector.detection_polygon_extracted",
+            confidence=best_conf,
+            area_ratio=area_ratio,
+            bbox=[int(x1), int(y1), int(x2), int(y2)],
+        )
 
         return polygon
 
-    def _process_segmentation_results(
-        self, frame, results, frame_index: int
-    ) -> np.ndarray | None:
+    def _process_segmentation_results(self, frame, results, frame_index: int) -> np.ndarray | None:
         """
         Processes segmentation results to extract a valid aquarium polygon.
 
@@ -390,9 +398,7 @@ class AquariumDetector:
             A list containing the single most stable polygon, or an empty list if
             no stable polygon could be found.
         """
-        log.info(
-            "aquarium_detector.detect.start", video_path=video_path, mode=self.mode
-        )
+        log.info("aquarium_detector.detect.start", video_path=video_path, mode=self.mode)
         source = None
         try:
             source = VideoFileSource(video_path)
@@ -405,9 +411,7 @@ class AquariumDetector:
                     break
 
                 # Detect aquarium (class 0) with optimized threshold
-                results = self.model.predict(
-                    frame, verbose=False, classes=[0], conf=0.05
-                )
+                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
 
                 # Debug detailed results
                 log.info(
@@ -428,9 +432,7 @@ class AquariumDetector:
                     # Detection mode - extract polygon from bounding boxes
                     polygon = self._extract_polygon_from_detection(frame, results)
                     if polygon is not None:
-                        log.info(
-                            "aquarium_detector.detection_polygon_accepted", frame=i
-                        )
+                        log.info("aquarium_detector.detection_polygon_accepted", frame=i)
 
                 if polygon is not None:
                     good_polygons.append(polygon)
@@ -439,9 +441,7 @@ class AquariumDetector:
             return self._find_consensus_polygon(good_polygons, source)
 
         except Exception as e:
-            log.error(
-                "aquarium_detector.detect.failed", video_path=video_path, error=str(e)
-            )
+            log.error("aquarium_detector.detect.failed", video_path=video_path, error=str(e))
             return []
         finally:
             if source:

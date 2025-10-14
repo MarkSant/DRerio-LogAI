@@ -127,9 +127,7 @@ def test_reporter_export_summary_excel(mock_to_excel, reporter_setup):
     reporter, tmp_path = reporter_setup
     output_path = tmp_path / "summary.xlsx"
     reporter.export_summary_data(str(output_path), format="excel")
-    mock_to_excel.assert_called_once_with(
-        str(output_path), index=False, engine="openpyxl"
-    )
+    mock_to_excel.assert_called_once_with(str(output_path), index=False, engine="openpyxl")
 
 
 @patch("pandas.DataFrame.to_csv")
@@ -158,9 +156,7 @@ def test_reporter_export_summary_invalid_format(reporter_setup):
 
 
 def test_reporter_group_id_fallback(tmp_path):
-    reporter = _build_reporter(
-        tmp_path, metadata_override={"group_id": None, "grupo": "treated"}
-    )
+    reporter = _build_reporter(tmp_path, metadata_override={"group_id": None, "grupo": "treated"})
     assert reporter.tidy_data["group_id"].iloc[0] == "treated"
 
 

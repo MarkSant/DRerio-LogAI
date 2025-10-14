@@ -38,7 +38,7 @@ def create_mock_video(output_path: Path, duration_seconds: float = 5, fps: int =
     total_frames = int(duration_seconds * fps)
 
     # Codec H264
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
     for frame_num in range(total_frames):
@@ -49,8 +49,7 @@ def create_mock_video(output_path: Path, duration_seconds: float = 5, fps: int =
 
         # Adicionar texto identificador
         text = f"{output_path.stem} - Frame {frame_num}"
-        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7, (255, 255, 255), 2)
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         # Desenhar "fish" simulado (círculo branco se movendo)
         fish_x = int(width * (0.2 + 0.6 * (frame_num / total_frames)))
@@ -92,7 +91,7 @@ def create_mock_parquet(video_path: Path, parquet_type: str = "trajectory"):
             "roi_name": ["Center", "Edge"],
             "roi_polygon_px": [
                 [[200, 200], [440, 200], [440, 280], [200, 280]],  # Center
-                [[50, 50], [150, 50], [150, 100], [50, 100]]       # Edge
+                [[50, 50], [150, 50], [150, 100], [50, 100]],  # Edge
             ],
             "roi_color_bgr": [[0, 255, 0], [255, 0, 0]],
         }

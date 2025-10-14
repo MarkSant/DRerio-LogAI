@@ -5,7 +5,6 @@ Phase 2, Step 4: Verify that StateManager is properly integrated with the contro
 and that state changes are tracked correctly through the application lifecycle.
 """
 
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -102,9 +101,7 @@ class TestStateManagerControllerIntegration:
         assert controller.is_processing is True  # Test property
 
         # Progress update
-        controller.state_manager.update_processing_state(
-            source="test", current_frame=500
-        )
+        controller.state_manager.update_processing_state(source="test", current_frame=500)
 
         processing_state = controller.state_manager.get_processing_state()
         assert processing_state.current_frame == 500
@@ -144,26 +141,18 @@ class TestStateManagerControllerIntegration:
         controller.is_recording = True
         controller.is_recording = False
 
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=True
-        )
-        controller.state_manager.update_processing_state(
-            source="test", is_processing=False
-        )
+        controller.state_manager.update_processing_state(source="test", is_processing=True)
+        controller.state_manager.update_processing_state(source="test", is_processing=False)
 
         # Get all history
         history = controller.state_manager.get_history()
         assert len(history) > 0
 
         # Filter by category
-        recording_history = controller.state_manager.get_history(
-            category=StateCategory.RECORDING
-        )
+        recording_history = controller.state_manager.get_history(category=StateCategory.RECORDING)
         assert len(recording_history) >= 2
 
-        processing_history = controller.state_manager.get_history(
-            category=StateCategory.PROCESSING
-        )
+        processing_history = controller.state_manager.get_history(category=StateCategory.PROCESSING)
         assert len(processing_history) >= 2
 
     def test_state_observer_can_be_added(self, controller):
@@ -222,7 +211,7 @@ class TestStateManagerControllerIntegration:
         assert snapshot1.recording.is_recording is True
 
         # Modify snapshot (should not affect original)
-        snapshot1_copy = snapshot1.recording.copy()
+        _snapshot1_copy = snapshot1.recording.copy()  # noqa: F841
         # Original state should be unchanged in StateManager
         assert controller.is_recording is True
 
