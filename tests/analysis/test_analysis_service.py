@@ -221,14 +221,7 @@ class TestAnalysisServiceTrajectoryLoading(unittest.TestCase):
 
 
 class TestAnalysisServiceParameterCollection(unittest.TestCase):
-    """Test suite for parameter collection operations.
-    
-    NOTE: These tests are currently skipped due to an existing bug in analysis_service.py.
-    The code tries to access settings.freezing.velocity_threshold, but Settings does not
-    have a 'freezing' attribute. The values are actually in settings.video_processing.
-    
-    TODO: Fix analysis_service.py to use correct settings paths before enabling these tests.
-    """
+    """Test suite for parameter collection operations."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -236,24 +229,53 @@ class TestAnalysisServiceParameterCollection(unittest.TestCase):
 
     def test_collect_analysis_parameters_defaults(self):
         """Test collecting default analysis parameters."""
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
-        )
+        params = self.service.collect_analysis_parameters()
+
+        assert "freezing_vel_threshold" in params
+        assert "freezing_min_duration" in params
+        assert "smoothing_window_length" in params
+        assert "smoothing_polyorder" in params
+
+        # Values should come from settings
+        assert isinstance(params["freezing_vel_threshold"], (int, float))
+        assert isinstance(params["freezing_min_duration"], (int, float))
+        assert isinstance(params["smoothing_window_length"], int)
+        assert isinstance(params["smoothing_polyorder"], int)
 
     def test_collect_analysis_parameters_with_project_overrides(self):
         """Test collecting parameters with project overrides."""
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
-        )
+        project_data = {
+            "analysis_parameters": {
+                "freezing_vel_threshold": 1.5,
+                "freezing_min_duration": 0.8,
+                "smoothing_window_length": 7,
+                "smoothing_polyorder": 2,
+            }
+        }
+
+        params = self.service.collect_analysis_parameters(project_data)
+
+        assert params["freezing_vel_threshold"] == 1.5
+        assert params["freezing_min_duration"] == 0.8
+        assert params["smoothing_window_length"] == 7
+        assert params["smoothing_polyorder"] == 2
 
     def test_collect_analysis_parameters_partial_overrides(self):
         """Test collecting parameters with partial project overrides."""
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
-        )
+        project_data = {
+            "analysis_parameters": {
+                "freezing_vel_threshold": 3.0,
+            }
+        }
+
+        params = self.service.collect_analysis_parameters(project_data)
+
+        # Overridden parameter
+        assert params["freezing_vel_threshold"] == 3.0
+
+        # Default parameters should still be present
+        assert "freezing_min_duration" in params
+        assert "smoothing_window_length" in params
 
 
 class TestAnalysisServiceReportGeneration(unittest.TestCase):
@@ -414,10 +436,15 @@ class TestAnalysisServiceProfileResolution(unittest.TestCase):
 
     def test_resolve_analysis_profile_no_profiles(self):
         """Test profile resolution with no configured profiles."""
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
+        result = self.service.resolve_analysis_profile(
+            metadata=None,
+            project_data=None,
         )
+
+        # Should return default profile
+        assert result["name"] == "default"
+        assert "freezing_vel_threshold" in result
+        assert "freezing_min_duration" in result
 
     def test_resolve_analysis_profile_no_metadata(self):
         """Test profile resolution with no metadata."""
@@ -534,10 +561,47 @@ class TestAnalysisServiceIntegration(unittest.TestCase):
 
     def test_complete_analysis_workflow(self):
         """Test complete analysis workflow from load to report."""
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
+        # Create trajectory file
+        parquet_file = self.test_dir / "trajectory.parquet"
+        df = pd.DataFrame({
+            "timestamp": [0.0, 0.033, 0.066, 0.099, 0.132],
+            "frame": [0, 1, 2, 3, 4],
+            "track_id": [1, 1, 1, 1, 1],
+            "x1": [100, 105, 110, 115, 120],
+            "y1": [200, 202, 204, 206, 208],
+            "x2": [120, 125, 130, 135, 140],
+            "y2": [220, 222, 224, 226, 228],
+            "confidence": [0.9, 0.9, 0.9, 0.9, 0.9],
+        })
+        df.to_parquet(parquet_file)
+
+        # Load trajectory
+        trajectory_df = self.service.load_trajectory_dataframe(parquet_file)
+        assert len(trajectory_df) == 5
+
+        # Validate schema
+        is_valid = self.service.validate_trajectory_schema(trajectory_df)
+        assert is_valid is True
+
+        # Collect parameters
+        params = self.service.collect_analysis_parameters()
+        assert "freezing_vel_threshold" in params
+
+        # Run analysis
+        report, b_analyzer, r_analyzer = self.service.run_full_analysis(
+            trajectory_df=trajectory_df,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=480,
+            arena_polygon_px=[(0.0, 0.0), (640.0, 0.0), (640.0, 480.0), (0.0, 480.0)],
+            rois=[],
+            fps=30.0,
+            freezing_vel_threshold=params["freezing_vel_threshold"],
+            freezing_min_duration=params["freezing_min_duration"],
         )
+
+        assert "comportamento_geral" in report
+        assert b_analyzer is not None
 
     @patch("zebtrack.analysis.reporter.Reporter")
     def test_analysis_with_profile_and_report_generation(self, mock_reporter_class):
@@ -585,7 +649,7 @@ class TestAnalysisServiceIntegration(unittest.TestCase):
             pixelcm_x=10.0,
             pixelcm_y=10.0,
             video_height_px=480,
-            arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+            arena_polygon_px=[(0.0, 0.0), (640.0, 0.0), (640.0, 480.0), (0.0, 480.0)],
             rois=[],
             fps=30.0,
             freezing_vel_threshold=profile["freezing_vel_threshold"],
@@ -600,10 +664,8 @@ class TestAnalysisServiceIntegration(unittest.TestCase):
             metadata=metadata,
         )
 
-        pytest.skip(
-            "Existing bug: analysis_service.py accesses settings.freezing which doesn't exist. "
-            "Should use settings.video_processing.freezing_* instead."
-        )
+        assert "summary" in generated_files
+        assert "report" in generated_files
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ Single Responsibility Principle and improve testability.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -29,7 +30,7 @@ import yaml
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
-from zebtrack.utils import IntegrityError, calculate_sha256
+from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
@@ -226,7 +227,8 @@ class ProjectService:
         """
         # Serialize project data deterministically
         json_str = json.dumps(project_data, sort_keys=True, ensure_ascii=False)
-        return calculate_sha256(json_str.encode("utf-8"))
+        # Use hashlib directly for in-memory data hashing
+        return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
 
     def _save_settings_snapshot(self, project_path: str) -> None:
         """

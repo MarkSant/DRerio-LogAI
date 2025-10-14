@@ -211,8 +211,8 @@ class AnalysisService:
         """
         # Start with settings defaults
         params = {
-            "freezing_vel_threshold": settings.freezing.velocity_threshold,
-            "freezing_min_duration": settings.freezing.min_duration,
+            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
             "smoothing_window_length": settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
         }
@@ -392,8 +392,8 @@ class AnalysisService:
         """
         return {
             "name": "default",
-            "freezing_vel_threshold": settings.freezing.velocity_threshold,
-            "freezing_min_duration": settings.freezing.min_duration,
+            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
             "smoothing_window_length": settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
         }

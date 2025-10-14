@@ -190,19 +190,34 @@ class TestProjectServiceLoadSave(unittest.TestCase):
             self.service.load_project_config(str(self.project_path))
 
     def test_load_project_config_integrity_check_failure(self):
-        """Test integrity error when hash doesn't match.
+        """Test integrity error when hash doesn't match."""
+        project_data = {
+            "project_name": "Test",
+            "project_type": "experimental",
+        }
+
+        # Save legitimate config
+        self.service.save_project_config(str(self.project_path), project_data)
+
+        # Tamper with the file - change data but keep original hash
+        config_file = self.project_path / CONFIG_FILE_NAME
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Save the original hash before tampering
+        original_hash = data.get("_integrity_hash")
         
-        NOTE: This test documents existing behavior. The integrity check currently
-        has a bug - calculate_sha256() expects a file path but is passed bytes,
-        causing it to return empty string. This means integrity checking doesn't
-        actually work. This test is marked as xfail until the bug is fixed.
-        
-        TODO: Fix calculate_sha256 usage in _compute_project_hash
-        """
-        pytest.skip(
-            "Integrity check has existing bug - calculate_sha256() expects filepath "
-            "but receives bytes. Test documents expected behavior once bug is fixed."
-        )
+        # Tamper with the data
+        data["project_name"] = "Tampered"
+        # Put back the old hash to simulate tampering
+        data["_integrity_hash"] = original_hash
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        # Load should fail with integrity error
+        with pytest.raises(IntegrityError):
+            self.service.load_project_config(str(self.project_path))
 
     def test_save_project_config_updates_timestamp(self):
         """Test that save updates last_modified timestamp."""
