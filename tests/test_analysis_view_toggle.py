@@ -326,7 +326,8 @@ class TestAnalysisViewToggle(unittest.TestCase):
         self.gui.update_processing_mode(single_report)
         self.assertEqual(self.gui.track_selector_widget.state, "disabled")
         self.assertEqual(self.gui.track_selector_widget.values, ["Todos"])
-        self.assertEqual(self.gui.tracking_mode_var.get(), "Modo de rastreamento: Individual")
+        expected_label = "Modo de rastreamento: Individual"
+        self.assertEqual(self.gui.tracking_mode_var.get(), expected_label)
 
         self.gui._current_detections = [(0, 0, 0, 0, 0.9, "42")]
         multi_report = ProcessingReport(ProcessingMode.MULTI_TRACK, "test")

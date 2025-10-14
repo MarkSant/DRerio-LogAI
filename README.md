@@ -55,7 +55,7 @@ Fluxo inicial recomendado:
    - Revisão e confirmação antes da criação
 2. Selecionar o plugin de detector (YOLO padrão ou modelos convertidos em OpenVINO).
 3. Definir arenas/ROIs (ou importar de parquets existentes) e calibrar pixel/cm.
-4. Acompanhar o progresso em tempo real pelo overlay de análise.
+4. Acompanhar o progresso em tempo real pelo overlay de análise, agora com indicador de modo de rastreamento (multi vs. indivíduo único) e bloqueio automático do seletor de trilhas quando aplicável.
 5. Gerar relatórios individuais ou agregados ao final.
 
 ### 🧙 Wizard de Criação de Projetos (Novo!)
@@ -85,7 +85,7 @@ Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para guia comp
 - **Gestão avançada de ROIs** com regras de inclusão configuráveis (`centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`).
 - **Relatórios científicos** em Excel e Word com mapas de ROI, gráficos e tabelas consolidadas.
 - **Fluxo guiado por projetos** com persistência de configurações, batches de vídeos e metadados experimentais.
-- **Monitoramento em tempo real** do processamento, incluindo ETA, frames processados/detectados e visualização dos overlays da detecção.
+- **Monitoramento em tempo real** do processamento, incluindo ETA, frames processados/detectados, visualização dos overlays da detecção e alternância dinâmica de modo multi-animal vs. indivíduo único.
 - **Integração com Arduino** para sincronizar estímulos externos e gravação via relés/sensores, com monitoramento dedicado na UI.
 
 ## 🏗️ Arquitetura geral
@@ -150,6 +150,7 @@ Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de compon
 - **Escalonamento de zonas**: chame `Detector.set_zones(...)` após conhecer as dimensões reais do vídeo para evitar deslocamentos de ROI.
 - **Callbacks de progresso**: agende atualizações com `root.after(0, ...)` para não bloquear a thread principal do Tkinter.
 - **Integração OpenVINO**: pesos convertidos exigem `.xml/.bin` pareados e hash conferido por `WeightManager`.
+- **Modo de processamento**: fluxos de calibração e diagnóstico forçam o modo de rastreamento de indivíduo único para evitar ByteTrack e manter consistência dos overlays.
 - **Hardware opcional**: mantenha verificações para ausência de Arduino/câmeras; o app deve continuar funcional em modo offline.
 - **Persistência de intervalos**: valores de `analysis_interval_frames`/`display_interval_frames` vivem em `ProjectManager.project_data` e devem ser salvos via `save_project()`.
 

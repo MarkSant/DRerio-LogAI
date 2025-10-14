@@ -43,6 +43,7 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
 
 4. **Execução do rastreamento**
    - `AppController._process_videos()` roda em thread dedicada, respeitando `analysis_interval_frames` e `display_interval_frames`.
+   - O controlador publica `ProcessingReport` a cada atualização para informar a UI se o modo ativo é multi-animal ou indivíduo único; o overlay bloqueia o seletor de trilhas quando o modo é forçado para single subject.
    - `Recorder` grava MP4 (opcional) e Parquet com colunas ordenadas.
    - Callbacks de progresso trafegam via `root.after(0, ...)` para manter a UI responsiva.
 
@@ -181,6 +182,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 |-----------|--------|-----------|---------|
 | `analysis_interval_frames` | Projeto / UI | Processa 1 frame a cada `N` (default 10). | Reduz custo computacional preservando tendência. |
 | `display_interval_frames` | Projeto / UI | Frequência de atualização dos overlays. | Mantém UI fluida em setups modestos. |
+| `use_single_subject_tracker` | Projeto / UI / Config | Habilita o rastreador leve para cenários de indivíduo único; pode ser temporariamente ativado por calibração/diagnóstico. | Dispara alternância automática do modo de processamento e bloqueio do seletor de trilhas. |
 | `recording_duration_s` | Projeto / UI | Tempo máximo por sessão ao vivo (se `use_timed_recording`). | Automatiza término alinhado a protocolos éticos. |
 | `countdown_duration_s` | Projeto / UI | Delay antes de iniciar gravação. | Permite estabilização de animais/equipamentos. |
 | `pixel_per_cm_ratio` | `Calibration` | $(\text{px/cm}_x, \text{px/cm}_y)$ calculado a partir das dimensões físicas. | Usado em todas as conversões de coordenadas. |

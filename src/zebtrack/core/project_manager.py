@@ -1426,9 +1426,8 @@ class ProjectManager:
                 migration_applied = True
                 migrated_fields.append("analysis_profiles")
 
-            tracking_defaults = {
-                "use_single_subject_tracker": settings.tracking.use_single_subject_tracker
-            }
+            tracker_flag = settings.tracking.use_single_subject_tracker
+            tracking_defaults = {"use_single_subject_tracker": tracker_flag}
             if "tracking" not in loaded_data or not isinstance(
                 loaded_data.get("tracking"), dict
             ):

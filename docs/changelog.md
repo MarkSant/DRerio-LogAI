@@ -1,5 +1,22 @@
 # Changelog
+# Changelog
 
+## 2025-10-13
+
+### Added
+
+- Indicador de modo de processamento na interface principal com bloqueio automático do seletor de trilhas quando o rastreamento está em modo de indivíduo único.
+- Publicação de `ProcessingReport` pelo `AppController`, propagando o modo ativo para overlays, calibração e diagnósticos.
+
+### Changed
+
+- Fluxos de calibração e diagnóstico agora forçam o modo de rastreamento single subject para evitar ByteTrack durante operações auxiliares.
+- Documentação (README e REFERENCE_GUIDE) atualizada para refletir o novo comportamento do modo de processamento.
+
+### Testing
+
+- `poetry run pytest -q`
+- `poetry run ruff check`
 ## 2025-10-09 (Phase 8 & 9)
 
 ### Added

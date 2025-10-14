@@ -3735,9 +3735,11 @@ class AppController:
                 try:
                     self.detector.reset_tracking_state()
                 except Exception:  # pragma: no cover - defensive
+                    plugin_obj = getattr(self.detector, "plugin", None)
+                    plugin_class = getattr(plugin_obj, "__class__", type(self.detector))
                     log.warning(
                         "controller.tracking.reset_tracker_failed",
-                        plugin=getattr(self.detector.plugin, "__class__", type(self.detector)),
+                        plugin=plugin_class,
                         exc_info=True,
                     )
 
@@ -5273,11 +5275,15 @@ class AppController:
                 if not ret:
                     break
 
-                status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+                status_msg = (
+                    f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+                )
                 self.root.after(0, self.view.set_status, status_msg)
 
                 if yolo_model:
-                    preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
+                    preds = yolo_model.predict(
+                        frame, conf=conf_threshold, verbose=False
+                    )
                     results.setdefault("YOLO (PyTorch)", []).append(preds[0])
 
                 if openvino_model:
