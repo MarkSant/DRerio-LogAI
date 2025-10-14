@@ -657,6 +657,9 @@ class TestAppController(unittest.TestCase):
             active_weight="best_seg.pt",
         )
         self.mock_view._load_project_view.assert_called_once()
+        
+        # Note: StateManager integration for project workflows is tested separately
+        # in test_state_manager_integration.py
 
     def test_create_project_workflow_applies_openvino_flag(self):
         """Controller should honour incoming OpenVINO toggle when creating project."""
@@ -748,6 +751,9 @@ class TestAppController(unittest.TestCase):
         self.mock_view.redraw_zones_from_project_data.assert_called_once()
         self.mock_view.update_zone_listbox.assert_called_once()
         self.mock_view.show_info.assert_called_once()
+        
+        # Note: StateManager state updates are tested in test_state_manager_integration.py
+        # where the full state update flow is verified
 
     def test_save_project_model_overrides_applies_settings(self):
         self.mock_pm.project_data = {
@@ -1236,6 +1242,14 @@ class TestAppController(unittest.TestCase):
                 0, source="manual-stop"
             )
             self.controller.recorder.stop_recording.assert_called_once()
+            
+            # --- StateManager Assertions ---
+            # Verify recording state reflects stopped recording
+            recording_state = self.controller.state_manager.get_recording_state()
+            self.assertFalse(recording_state.is_recording)
+            # Arduino should still be connected
+            self.assertTrue(recording_state.arduino_connected)
+            self.assertEqual(recording_state.arduino_port, "COM7")
 
     def test_external_trigger_waits_for_event_before_starting(self):
         """External trigger mode defers recording until Arduino event arrives."""
@@ -1302,6 +1316,25 @@ class TestAppController(unittest.TestCase):
             )
             self.assertIsNone(self.controller._pending_external_trigger)
             self.assertTrue(self.mock_view.clear_external_trigger_notice.called)
+
+    def test_state_manager_provides_backward_compatible_properties(self):
+        """Verify StateManager properties work for backward compatibility."""
+        # Test that the backward-compatible properties read from StateManager
+        
+        # is_recording property
+        self.assertFalse(self.controller.is_recording)
+        recording_state = self.controller.state_manager.get_recording_state()
+        self.assertEqual(self.controller.is_recording, recording_state.is_recording)
+        
+        # detector_initialized property  
+        self.assertFalse(self.controller.detector_initialized)
+        detector_state = self.controller.state_manager.get_detector_state()
+        self.assertEqual(self.controller.detector_initialized, detector_state.detector_initialized)
+        
+        # is_processing property
+        self.assertFalse(self.controller.is_processing)
+        processing_state = self.controller.state_manager.get_processing_state()
+        self.assertEqual(self.controller.is_processing, processing_state.is_processing)
 
 
 if __name__ == "__main__":
