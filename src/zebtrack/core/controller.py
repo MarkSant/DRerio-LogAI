@@ -113,6 +113,10 @@ class MainViewModel:
         from zebtrack.core.model_service import ModelService
         self.model_service = ModelService(self.weight_manager)
 
+        # Project workflow service (Phase 5) - initialize after UICoordinator
+        # Will be fully initialized after UICoordinator is created
+        self.project_workflow_service = None
+
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
         self.active_weight_name = default_weight if default_weight is not None else ""
@@ -159,6 +163,20 @@ class MainViewModel:
         self.ui_coordinator = UICoordinator(
             root=self.root,
             event_bus=self.ui_event_bus,
+        )
+
+        # Phase 5: Project Workflow Service for project creation/opening orchestration
+        from zebtrack.core.project_workflow_service import ProjectWorkflowService
+        self.project_workflow_service = ProjectWorkflowService(
+            project_manager=self.project_manager,
+            model_service=self.model_service,
+            state_manager=self.state_manager,
+            ui_coordinator=self.ui_coordinator,
+        )
+        # Set global model defaults
+        self.project_workflow_service.set_global_model_defaults(
+            active_weight=self.active_weight_name or None,
+            use_openvino=self.use_openvino,
         )
 
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
@@ -692,483 +710,273 @@ class MainViewModel:
         self.view._create_welcome_frame()
 
     def create_project_workflow(self, **kwargs):
-        # Use detection methods from kwargs if provided, otherwise fall back to
-        # global settings
-        animal_method = kwargs.get("animal_method", settings.model_selection.animal_method)
-        animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
+        """
+        Create project workflow orchestration.
 
-        if "use_single_subject_tracker" not in kwargs:
-            kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
-        else:
-            kwargs["use_single_subject_tracker"] = bool(kwargs["use_single_subject_tracker"])
+        Phase 5: Refactored to use ProjectWorkflowService for orchestration.
+        Controller now focuses on UI updates and detector setup.
+        """
+        # Update global model defaults before creation
+        self.project_workflow_service.set_global_model_defaults(
+            active_weight=self.active_weight_name or None,
+            use_openvino=self.use_openvino,
+        )
 
-        if animal_method == "det" and animals_per_aquarium != 1:
-            self.view.show_error(
-                "Configuração Inválida",
-                (
-                    "O modo de detecção (det) para animais só é compatível com 1 "
-                    f"animal por aquário.\n"
-                    f"Configuração atual: {animals_per_aquarium} "
-                    "animais por aquário.\n\n"
-                    "Para usar múltiplos animais por aquário, altere o método de "
-                    "detecção de animais para 'seg' (segmentação) nas configurações."
-                ),
-            )
+        # Orchestrate project creation via service
+        result = self.project_workflow_service.create_project(
+            setup_detector_callback=self.setup_detector,
+            active_weight_setter=self.set_active_weight,
+            use_openvino_setter=self.set_openvino_usage,
+            **kwargs,
+        )
+
+        # Handle failure
+        if not result["success"]:
+            self.view.show_error("Configuração Inválida", result["error_message"])
             return
 
-        # If using detection mode with single animal,
-        # optionally enable single_animal_per_aquarium
-        if animal_method == "det" and animals_per_aquarium == 1:
-            log.info(
-                "controller.create_project.det_single_animal",
-                animal_method=animal_method,
-                animals_per_aquarium=animals_per_aquarium,
-            )
+        # Extract result data
+        animal_method = result["animal_method"]
+        wizard_metadata = result["wizard_metadata"]
 
-        if "use_openvino" in kwargs:
-            self.set_openvino_usage(kwargs["use_openvino"])
+        # Setup detector with the resolved animal method
+        if self.setup_detector(temp_animal_method=animal_method):
+            # Update UI
+            self.view._load_project_view()
+            self.view.update_openvino_checkbox(self.use_openvino)
+            self.view.set_active_weight_in_dropdown(self.active_weight_name)
+            self.update_openvino_status()
 
-        # Add the currently selected model info to the project data
-        kwargs["active_weight"] = self.active_weight_name
-        kwargs["use_openvino"] = self.use_openvino
-
-        # WHITELIST APPROACH: Only pass parameters that create_new_project() accepts
-        # This is more robust than manually removing unsupported params (blacklist)
-        # See ProjectManager.create_new_project() signature
-        # at project_manager.py:260-282
-        allowed_params = {
-            "project_path",
-            "project_type",
-            "use_openvino",
-            "active_weight",
-            "video_files",
-            "num_aquariums",
-            "animals_per_aquarium",
-            "aquarium_width_cm",
-            "aquarium_height_cm",
-            "use_timed_recording",
-            "recording_duration_s",
-            "use_countdown",
-            "countdown_duration_s",
-            "analysis_interval_frames",
-            "display_interval_frames",
-            "camera_index",
-            "use_arduino",
-            "arduino_port",
-            "use_single_subject_tracker",
-            # Live project params (also valid for pre-recorded if user wants to
-            # track design)
-            "experiment_days",
-            "subjects_per_group",
-            "num_groups",
-            "group_names",
-            # Wizard metadata
-            "_wizard_metadata",
-        }
-
-        # Filter kwargs to only allowed parameters
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
-
-        if self.project_manager.create_new_project(**filtered_kwargs):
-            # Update StateManager: new project created
-            self.state_manager.update_project_state(
-                source="controller.create_project_workflow",
-                project_path=Path(self.project_manager.project_path)
-                if self.project_manager.project_path
-                else None,
-                project_data=self.project_manager.project_data.copy()
-                if self.project_manager.project_data
-                else {},
-                active_zone_video=self.project_manager.get_active_zone_video(),
-            )
-
-            # Projects start by inheriting global settings unless overrides apply later
-            self._using_project_overrides = True
-            self.apply_project_model_overrides()
-
-            # Execute parquet import if wizard provided import configuration
-            wizard_metadata = kwargs.get("_wizard_metadata", {})
+            # Show post-creation guide if wizard metadata provided
             if wizard_metadata:
-                import_config = wizard_metadata.get("import_config", [])
-                roi_merge_strategy = wizard_metadata.get("roi_merge_strategy", "replace")
-                scanned_videos = wizard_metadata.get("scanned_videos", [])
-
-                if import_config:
-                    log.info(
-                        "controller.create_project.importing_parquets",
-                        video_count=len(import_config),
-                        strategy=roi_merge_strategy,
-                    )
-                    success = self.project_manager.import_parquets_from_wizard(
-                        import_config=import_config,
-                        roi_merge_strategy=roi_merge_strategy,
-                        scanned_videos=scanned_videos,
-                    )
-                    if success:
-                        log.info("controller.create_project.parquets_imported")
-                    else:
-                        log.warning("controller.create_project.parquet_import_failed")
-
-            # Pass animal_method to setup_detector if it was specified in dialog
-            if self.setup_detector(temp_animal_method=animal_method):
-                self.view._load_project_view()
-                self.view.update_openvino_checkbox(self.use_openvino)
-                self.view.set_active_weight_in_dropdown(self.active_weight_name)
-                self.update_openvino_status()
-
-                if wizard_metadata:
-                    self._show_post_creation_guide(wizard_metadata)
+                self._show_post_creation_guide(wizard_metadata)
         else:
-            self.view.show_error("Erro", "Falha ao criar o novo projeto.")
+            self.view.show_error("Erro", "Falha ao configurar o detector.")
 
     def _show_post_creation_guide(self, wizard_metadata: dict):
-        """Display a contextual onboarding message after project creation."""
+        """
+        Display a contextual onboarding message after project creation.
 
-        if not wizard_metadata:
+        Phase 5: Refactored to use ProjectWorkflowService for guide generation.
+        """
+        # Check view-level suppression flag
+        if getattr(self.view, "suppress_post_creation_guide", False):
+            log.info("controller.post_creation_guide.skipped", reason="view_flag")
             return
 
-        suppressed = (
-            os.environ.get("PYTEST_CURRENT_TEST")
-            or os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE")
-            or getattr(self.view, "suppress_post_creation_guide", False)
+        # Generate guide content via service
+        guide = self.project_workflow_service.generate_post_creation_guide(
+            wizard_metadata=wizard_metadata,
+            check_suppression=True,
         )
 
-        if suppressed:
-            reason = (
-                "env_flag" if os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE") else "pytest"
-            )
-            log.info("controller.post_creation_guide.skipped", reason=reason)
+        # Display guide if generated
+        if guide:
+            self.view.show_info(guide["title"], guide["message"])
+
+    def _restore_detector_settings(self, saved_detector_config: dict) -> None:
+        """
+        Restore detector settings from saved configuration.
+
+        Phase 5: Extracted from open_project_workflow for use as callback.
+
+        Args:
+            saved_detector_config: Saved detector configuration from project
+        """
+        if not saved_detector_config or not self.detector:
             return
-
-        import_config = wizard_metadata.get("import_config") or []
-        scanned_videos = wizard_metadata.get("scanned_videos") or []
-
-        project_videos = self.project_manager.get_all_videos()
-        videos_source: list[dict] = []
-
-        if project_videos:
-            videos_source = project_videos
-        elif scanned_videos:
-            for video in scanned_videos:
-                video_copy = dict(video)
-                video_copy.setdefault("path", video_copy.get("video"))
-                videos_source.append(video_copy)
-
-        if not videos_source:
-            return
-
-        import_lookup = {
-            config.get("video"): config for config in import_config if config.get("video")
-        }
-
-        key_map = {
-            "has_arena": "import_arena",
-            "has_rois": "import_rois",
-            "has_trajectory": "import_trajectory",
-        }
-
-        def _feature_available(video: dict, feature_key: str) -> bool:
-            if bool(video.get(feature_key)):
-                return True
-
-            metadata = video.get("metadata") or {}
-            if bool(metadata.get(feature_key)):
-                return True
-
-            video_path = video.get("path") or video.get("video")
-            if not video_path:
-                return False
-
-            import_cfg = import_lookup.get(video_path)
-            if not import_cfg:
-                return False
-
-            import_key = key_map.get(feature_key)
-            if not import_key:
-                return False
-
-            return bool(import_cfg.get(import_key))
-
-        total_videos = len(videos_source)
-        videos_with_arena = sum(
-            1 for video in videos_source if _feature_available(video, "has_arena")
-        )
-        videos_with_rois = sum(
-            1 for video in videos_source if _feature_available(video, "has_rois")
-        )
-        videos_with_trajectory = sum(
-            1 for video in videos_source if _feature_available(video, "has_trajectory")
-        )
-        videos_pending = sum(
-            1 for video in videos_source if not _feature_available(video, "has_trajectory")
-        )
-
-        lines: list[str] = []
-        lines.append("🎉 Projeto criado com sucesso!")
-        lines.append("")
-        lines.append("📊 Status dos vídeos:")
-        lines.append(f"  • Total de vídeos: {total_videos}")
-        lines.append(f"  • Com arena definida: {videos_with_arena}")
-        lines.append(f"  • Com ROIs definidas: {videos_with_rois}")
-        lines.append(f"  • Com trajetória pronta: {videos_with_trajectory}")
-        lines.append(f"  • Pendentes de processamento: {videos_pending}")
-        lines.append("")
-        lines.append("🚀 Próximos passos recomendados:")
-        lines.append("")
-
-        step_num = 1
-
-        if videos_with_arena > 0 or videos_with_rois > 0:
-            lines.append(f"{step_num}. Visualizar e ajustar zonas importadas")
-            lines.append("   - Abra a aba 'Configuração de Zonas'")
-            lines.append("   - Use o painel 'Selecionar Vídeo para Desenho'")
-            lines.append("   - Clique duas vezes ou use 'Carregar Frame' para revisar")
-            lines.append("   - Ajuste arena e ROIs conforme necessário")
-            lines.append("")
-            step_num += 1
-
-        if videos_pending > 0:
-            lines.append(f"{step_num}. Processar vídeos pendentes")
-            lines.append("   - Vá até a aba 'Controle Principal'")
-            lines.append("   - Confirme os intervalos de processamento")
-            lines.append("   - Clique em 'Adicionar e Processar Novos Vídeos'")
-            lines.append("")
-            step_num += 1
-
-        if videos_with_trajectory > 0:
-            lines.append(f"{step_num}. Gerar relatórios")
-            lines.append("   - Acesse a aba 'Relatórios'")
-            lines.append("   - Navegue pela hierarquia de grupos, dias e sujeitos")
-            lines.append("   - Gere relatórios individuais ou unificados conforme necessário")
-            lines.append("")
-
-        lines.append("💡 Dicas:")
-        lines.append("  • Use a busca para localizar vídeos rapidamente")
-        lines.append("  • Os símbolos de status indicam arenas, ROIs e trajetórias disponíveis")
-        lines.append("  • Ajuste zonas antes de processar se necessário")
-
-        message = "\n".join(lines)
-
-        self.view.show_info("Bem-vindo ao Projeto!", message)
 
         log.info(
-            "controller.post_creation_guide.shown",
-            total_videos=total_videos,
-            with_arena=videos_with_arena,
-            with_rois=videos_with_rois,
-            with_trajectory=videos_with_trajectory,
-            pending=videos_pending,
+            "controller.detector.state.restore_start",
+            config=saved_detector_config,
         )
+
+        plugin = self.detector.plugin
+        settings_changed = False
+
+        # Restore confidence threshold
+        if "confidence_threshold" in saved_detector_config and hasattr(
+            plugin, "conf_threshold"
+        ):
+            old_conf = plugin.conf_threshold
+            new_conf = saved_detector_config["confidence_threshold"]
+            if old_conf != new_conf:
+                plugin.conf_threshold = new_conf
+                settings_changed = True
+                log.info(
+                    "controller.detector.threshold.restored",
+                    old=old_conf,
+                    new=new_conf,
+                    type="confidence",
+                )
+
+        # Restore NMS threshold
+        if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
+            old_nms = plugin.nms_threshold
+            new_nms = saved_detector_config["nms_threshold"]
+            if old_nms != new_nms:
+                plugin.nms_threshold = new_nms
+                settings_changed = True
+                log.info(
+                    "controller.detector.threshold.restored",
+                    old=old_nms,
+                    new=new_nms,
+                    type="nms",
+                )
+
+        # Restore ByteTrack thresholds when supported by the plugin
+        restore_track = "track_threshold" in saved_detector_config
+        restore_match = "match_threshold" in saved_detector_config
+        if (restore_track or restore_match) and (
+            hasattr(plugin, "track_threshold") or hasattr(plugin, "set_tracking_parameters")
+        ):
+            old_track = getattr(plugin, "track_threshold", None)
+            old_match = getattr(plugin, "match_threshold", None)
+            track_value = saved_detector_config.get("track_threshold", old_track)
+            match_value = saved_detector_config.get("match_threshold", old_match)
+
+            if hasattr(plugin, "set_tracking_parameters"):
+                plugin.set_tracking_parameters(
+                    track_threshold=track_value if restore_track else None,
+                    match_threshold=match_value if restore_match else None,
+                )
+            else:
+                if restore_track:
+                    plugin.track_threshold = track_value
+                if restore_match:
+                    plugin.match_threshold = match_value
+
+            if restore_track and track_value != old_track:
+                settings_changed = True
+                log.info(
+                    "controller.detector.threshold.restored",
+                    old=old_track,
+                    new=track_value,
+                    type="track_threshold",
+                )
+            if restore_match and match_value != old_match:
+                settings_changed = True
+                log.info(
+                    "controller.detector.threshold.restored",
+                    old=old_match,
+                    new=match_value,
+                    type="match_threshold",
+                )
+
+        # Restore context
+        if "context" in saved_detector_config and hasattr(plugin, "set_context"):
+            saved_context = saved_detector_config["context"]
+            current_context = getattr(plugin, "_context", "tracking")
+            if current_context != saved_context:
+                plugin.set_context(saved_context)
+                settings_changed = True
+                log.info(
+                    "controller.detector.context.restored",
+                    old=current_context,
+                    new=saved_context,
+                )
+
+        # Log restoration summary
+        if settings_changed:
+            log.info(
+                "controller.detector.state.restored",
+                plugin=saved_detector_config.get("plugin_name"),
+                last_updated=saved_detector_config.get("last_updated"),
+            )
+            # Save back to project to ensure consistency
+            current_config = {
+                "plugin_name": saved_detector_config.get(
+                    "plugin_name",
+                    "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)",
+                ),
+                "confidence_threshold": plugin.conf_threshold,
+                "nms_threshold": plugin.nms_threshold,
+                "context": getattr(plugin, "_context", "tracking"),
+            }
+            if hasattr(plugin, "track_threshold"):
+                track_val = getattr(plugin, "track_threshold", None)
+                if track_val is not None:
+                    current_config["track_threshold"] = float(track_val)
+            if hasattr(plugin, "match_threshold"):
+                match_val = getattr(plugin, "match_threshold", None)
+                if match_val is not None:
+                    current_config["match_threshold"] = float(match_val)
+            self.project_manager.save_detector_state(current_config)
+        else:
+            log.info("controller.detector.state.no_changes_needed")
+
+    def _setup_zones_from_project(self) -> None:
+        """
+        Setup zones from project data.
+
+        Phase 5: Extracted from open_project_workflow for use as callback.
+        """
+        # Setup zones in detector
+        self.setup_detector_zones()
+
+        # Update zone visualization in GUI
+        if hasattr(self.view, "redraw_zones_from_project_data"):
+            self.view.redraw_zones_from_project_data()
+        if hasattr(self.view, "update_zone_listbox"):
+            self.view.update_zone_listbox()
 
     def open_project_workflow(self, project_path):
-        """Carrega projeto e configura tudo automaticamente"""
-        log.info("controller.load_project.start", path=project_path)
+        """
+        Load project and configure everything automatically.
 
-        success = self.project_manager.load_project(project_path)
-
-        if not success:
-            self.view.show_error("Erro", "Não foi possível carregar o projeto")
-            return False
-
-        # Apply project-specific overrides (or inherit global defaults)
-        self._using_project_overrides = True
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides()
-
-        log.info(
-            "controller.load_project.model_settings_applied",
-            resolved_weight=resolved_weight,
-            resolved_openvino=resolved_openvino,
+        Phase 5: Refactored to use ProjectWorkflowService for orchestration.
+        Controller now focuses on UI updates and detector/zone setup.
+        """
+        # Update global model defaults before opening
+        self.project_workflow_service.set_global_model_defaults(
+            active_weight=self.active_weight_name or None,
+            use_openvino=self.use_openvino,
         )
 
-        # Ensure UI reflects the restored state before detector setup
+        # Orchestrate project opening via service
+        result = self.project_workflow_service.open_project(
+            project_path=project_path,
+            active_weight_setter=self.set_active_weight,
+            use_openvino_setter=self.set_openvino_usage,
+            restore_detector_callback=self._restore_detector_settings,
+            setup_zones_callback=self._setup_zones_from_project,
+        )
+
+        # Handle failure
+        if not result["success"]:
+            self.view.show_error("Erro", result["error_message"])
+            return False
+
+        # Extract result data
+        project_info = result["project_info"]
+
+        # Update UI to reflect restored state
         self.view.update_openvino_checkbox(self.use_openvino)
         self.view.set_active_weight_in_dropdown(self.active_weight_name)
         self.update_openvino_status()
 
-        # Inicializa detector
+        # Initialize detector
         if not self.setup_detector():
             log.warning("controller.load_project.detector_setup_failed")
         else:
-            # Restore detector settings from saved state
-            saved_detector_config = self.project_manager.get_detector_state()
-            if saved_detector_config and self.detector:
-                log.info(
-                    "controller.detector.state.restore_start",
-                    config=saved_detector_config,
-                )
-
-                plugin = self.detector.plugin
-                settings_changed = False
-
-                # Restore confidence threshold
-                if "confidence_threshold" in saved_detector_config and hasattr(
-                    plugin, "conf_threshold"
-                ):
-                    old_conf = plugin.conf_threshold
-                    new_conf = saved_detector_config["confidence_threshold"]
-                    if old_conf != new_conf:
-                        plugin.conf_threshold = new_conf
-                        settings_changed = True
-                        log.info(
-                            "controller.detector.threshold.restored",
-                            old=old_conf,
-                            new=new_conf,
-                            type="confidence",
-                        )
-
-                # Restore NMS threshold
-                if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
-                    old_nms = plugin.nms_threshold
-                    new_nms = saved_detector_config["nms_threshold"]
-                    if old_nms != new_nms:
-                        plugin.nms_threshold = new_nms
-                        settings_changed = True
-                        log.info(
-                            "controller.detector.threshold.restored",
-                            old=old_nms,
-                            new=new_nms,
-                            type="nms",
-                        )
-
-                # Restore ByteTrack thresholds when supported by the plugin
-                restore_track = "track_threshold" in saved_detector_config
-                restore_match = "match_threshold" in saved_detector_config
-                if (restore_track or restore_match) and (
-                    hasattr(plugin, "track_threshold") or hasattr(plugin, "set_tracking_parameters")
-                ):
-                    old_track = getattr(plugin, "track_threshold", None)
-                    old_match = getattr(plugin, "match_threshold", None)
-                    track_value = saved_detector_config.get("track_threshold", old_track)
-                    match_value = saved_detector_config.get("match_threshold", old_match)
-
-                    if hasattr(plugin, "set_tracking_parameters"):
-                        plugin.set_tracking_parameters(
-                            track_threshold=track_value if restore_track else None,
-                            match_threshold=match_value if restore_match else None,
-                        )
-                    else:
-                        if restore_track:
-                            plugin.track_threshold = track_value
-                        if restore_match:
-                            plugin.match_threshold = match_value
-
-                    if restore_track and track_value != old_track:
-                        settings_changed = True
-                        log.info(
-                            "controller.detector.threshold.restored",
-                            old=old_track,
-                            new=track_value,
-                            type="track_threshold",
-                        )
-                    if restore_match and match_value != old_match:
-                        settings_changed = True
-                        log.info(
-                            "controller.detector.threshold.restored",
-                            old=old_match,
-                            new=match_value,
-                            type="match_threshold",
-                        )
-
-                # Restore context
-                if "context" in saved_detector_config and hasattr(plugin, "set_context"):
-                    saved_context = saved_detector_config["context"]
-                    current_context = getattr(plugin, "_context", "tracking")
-                    if current_context != saved_context:
-                        plugin.set_context(saved_context)
-                        settings_changed = True
-                        log.info(
-                            "controller.detector.context.restored",
-                            old=current_context,
-                            new=saved_context,
-                        )
-
-                # Log restoration summary
-                if settings_changed:
-                    log.info(
-                        "controller.detector.state.restored",
-                        plugin=saved_detector_config.get("plugin_name"),
-                        last_updated=saved_detector_config.get("last_updated"),
-                    )
-                    # Save back to project to ensure consistency
-                    current_config = {
-                        "plugin_name": saved_detector_config.get(
-                            "plugin_name",
-                            "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)",
-                        ),
-                        "confidence_threshold": plugin.conf_threshold,
-                        "nms_threshold": plugin.nms_threshold,
-                        "context": getattr(plugin, "_context", "tracking"),
-                    }
-                    if hasattr(plugin, "track_threshold"):
-                        track_val = getattr(plugin, "track_threshold", None)
-                        if track_val is not None:
-                            current_config["track_threshold"] = float(track_val)
-                    if hasattr(plugin, "match_threshold"):
-                        match_val = getattr(plugin, "match_threshold", None)
-                        if match_val is not None:
-                            current_config["match_threshold"] = float(match_val)
-                    self.project_manager.save_detector_state(current_config)
-                else:
-                    log.info("controller.detector.state.no_changes_needed")
-
-            # Carrega interface do projeto
+            # Load project view
             self.view._load_project_view()
 
-        # NOVO: Carrega e aplica zonas salvas
-        zone_data = self.project_manager.get_zone_data()
-        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-            log.info(
-                "controller.load_project.zones_found",
-                has_polygon=bool(zone_data.polygon),
-                roi_count=len(zone_data.roi_polygons),
-            )
-
-            # Configura zonas no detector
-            self.setup_detector_zones()
-
-            # Atualiza visualização das zonas na GUI
-            if hasattr(self.view, "redraw_zones_from_project_data"):
-                self.view.redraw_zones_from_project_data()
-            if hasattr(self.view, "update_zone_listbox"):
-                self.view.update_zone_listbox()
-
-            log.info("controller.load_project.zones_applied")
-
-        # Coleta informações do projeto para feedback
-        project_name = self.project_manager.get_project_name()
-        all_videos = self.project_manager.get_all_videos()
-        videos_count = len(all_videos)
-
-        # Mostra status detalhado
-        zone_status = "✓" if zone_data and zone_data.polygon else "✗"
-        roi_count = len(zone_data.roi_polygons) if zone_data else 0
-
+        # Display success message
         self.view.show_info(
             "Projeto Carregado",
-            f"Projeto '{project_name}' carregado com sucesso!\n\n"
-            f"• Vídeos: {videos_count}\n"
-            f"• Arena Principal: {zone_status}\n"
-            f"• ROIs: {roi_count}\n"
-            f"• Peso: {self.active_weight_name or 'Padrão'}\n"
-            f"• OpenVINO: {'✓' if self.use_openvino else '✗'}",
-        )
-
-        # Update project state in StateManager
-        self.state_manager.update_project_state(
-            source="controller.open_project_workflow",
-            project_path=Path(project_path),
-            project_data=self.project_manager.project_data.copy()
-            if self.project_manager.project_data
-            else {},
-            active_zone_video=self.project_manager.get_active_zone_video(),
+            f"Projeto '{project_info['name']}' carregado com sucesso!\n\n"
+            f"• Vídeos: {project_info['videos_count']}\n"
+            f"• Arena Principal: {project_info['zone_status']}\n"
+            f"• ROIs: {project_info['roi_count']}\n"
+            f"• Peso: {project_info['active_weight']}\n"
+            f"• OpenVINO: {'✓' if project_info['use_openvino'] else '✗'}",
         )
 
         log.info(
             "controller.load_project.complete",
-            project=project_name,
-            videos=videos_count,
-            has_zones=bool(zone_data and zone_data.polygon),
-            rois=roi_count,
+            project=project_info["name"],
+            videos=project_info["videos_count"],
         )
 
         return True
