@@ -4,7 +4,7 @@ import locale
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, cast
+from typing import Callable, List, cast
 
 import cv2
 import matplotlib
@@ -16,6 +16,7 @@ import pandas as pd
 import seaborn as sns
 import structlog
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.shared import Inches
 from docxtpl import DocxTemplate
 from matplotlib import patches
@@ -23,6 +24,9 @@ from matplotlib.axes import Axes
 from matplotlib.colorbar import Colorbar
 from matplotlib.figure import Figure
 from scipy.ndimage import gaussian_filter
+from shapely import affinity
+from shapely.geometry import MultiPolygon
+from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
@@ -229,6 +233,9 @@ class Reporter:
         self.roi_colors = roi_colors if roi_colors else {}
         self.video_path = video_path
         self.calibration = calibration
+        self._pixelcm_x = pixelcm_x
+        self._pixelcm_y = pixelcm_y
+        self._video_height_px = video_height_px
 
         # Ensure trajectory coordinates stay aligned with calibration space
         # before running any calculations.
@@ -354,6 +361,54 @@ class Reporter:
                 warped_df.drop(columns=col, inplace=True)
 
         return warped_df
+
+    def _roi_geometry_to_cm(self, roi: ROI):
+        geometry = roi.geometry
+        if geometry is None or geometry.is_empty:
+            return None
+
+        if roi.coordinate_space == "px":
+            px_per_cm_x = self._pixelcm_x or 1.0
+            px_per_cm_y = self._pixelcm_y or 1.0
+            offset_y = (
+                self._video_height_px / px_per_cm_y
+                if px_per_cm_y
+                else float(self._video_height_px)
+            )
+            geometry = affinity.affine_transform(
+                geometry,
+                [1.0 / px_per_cm_x, 0.0, 0.0, -1.0 / px_per_cm_y, 0.0, offset_y],
+            )
+
+        return geometry
+
+    @staticmethod
+    def _iter_polygon_parts(geometry) -> List[ShapelyPolygon]:
+        if geometry is None:
+            return []
+
+        if isinstance(geometry, ShapelyPolygon):
+            return [geometry]
+        if isinstance(geometry, MultiPolygon):
+            return [
+                poly
+                for poly in geometry.geoms
+                if isinstance(poly, ShapelyPolygon) and not poly.is_empty
+            ]
+
+        exterior = getattr(geometry, "exterior", None)
+        if exterior is not None:
+            return [ShapelyPolygon(exterior.coords)]
+
+        geoms = getattr(geometry, "geoms", None)
+        if geoms:
+            return [
+                poly
+                for poly in geoms
+                if isinstance(poly, ShapelyPolygon) and not poly.is_empty
+            ]
+
+        return []
 
     def _create_tidy_dataframe(self) -> pd.DataFrame:
         """Creates a flat, tidy DataFrame from the structured report dictionary."""
@@ -605,18 +660,24 @@ class Reporter:
         # Draw ROIs if available
         if self.r_analyzer:
             for roi_name, roi in self.r_analyzer.rois.items():
+                roi_geom_cm = self._roi_geometry_to_cm(roi)
+                if roi_geom_cm is None:
+                    continue
                 roi_color = self.roi_colors.get(roi_name, "blue")
                 normalized_color = _normalize_color_for_matplotlib(roi_color)
-                ax.add_patch(
-                    patches.Polygon(
-                        roi.geometry.exterior.coords,
-                        fill=True,
-                        color=normalized_color,
-                        alpha=0.3,
-                        edgecolor=normalized_color,
-                        linewidth=2,
+                for polygon in self._iter_polygon_parts(roi_geom_cm):
+                    if not hasattr(polygon, "exterior"):
+                        continue
+                    ax.add_patch(
+                        patches.Polygon(
+                            polygon.exterior.coords,
+                            fill=True,
+                            color=normalized_color,
+                            alpha=0.3,
+                            edgecolor=normalized_color,
+                            linewidth=2,
+                        )
                     )
-                )
 
         # Draw trajectory - use single color for single animal
         ax.plot(x, y, color="blue", linewidth=1.5, alpha=0.7, label="Trajectory")
@@ -677,6 +738,28 @@ class Reporter:
         arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
+        px_per_cm_x = getattr(self.b_analyzer, "_pixelcm_x", 1.0) or 1.0
+        px_per_cm_y = getattr(self.b_analyzer, "_pixelcm_y", 1.0) or 1.0
+        video_height_px = getattr(self.b_analyzer, "_video_height_px", 0) or 0
+
+        def _geometry_to_cm(roi_obj: ROI):
+            geometry = roi_obj.geometry
+            if geometry is None or geometry.is_empty:
+                return None
+            if roi_obj.coordinate_space == "px":
+                scale_x = 1.0 / px_per_cm_x if px_per_cm_x else 1.0
+                scale_y = -1.0 / px_per_cm_y if px_per_cm_y else -1.0
+                offset_y = (
+                    video_height_px / px_per_cm_y
+                    if px_per_cm_y
+                    else float(video_height_px)
+                )
+                geometry = affinity.affine_transform(
+                    geometry,
+                    [scale_x, 0.0, 0.0, scale_y, 0.0, offset_y],
+                )
+            return geometry
+
         ax.set_facecolor("lightgray")
         ax.add_patch(
             patches.Polygon(
@@ -686,18 +769,37 @@ class Reporter:
 
         if self.r_analyzer:
             for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
+                roi_geom_cm = _geometry_to_cm(roi)
+                if roi_geom_cm is None or roi_geom_cm.is_empty:
+                    continue
                 roi_color = self.roi_colors.get(roi_name, "blue")
                 # Normalize color for matplotlib (0-255 RGB tuples -> 0-1 range)
                 normalized_color = _normalize_color_for_matplotlib(roi_color)
-                ax.add_patch(
-                    patches.Polygon(
-                        roi.geometry.exterior.coords,
-                        fill=True,
-                        color=normalized_color,
-                        alpha=0.4,
+                polygon_geoms: list[ShapelyPolygon]
+                if isinstance(roi_geom_cm, ShapelyPolygon):
+                    polygon_geoms = [roi_geom_cm]
+                else:
+                    polygon_geoms = [
+                        geom
+                        for geom in getattr(roi_geom_cm, "geoms", [])
+                        if isinstance(geom, ShapelyPolygon)
+                    ]
+                if not polygon_geoms:
+                    continue
+
+                for polygon in polygon_geoms:
+                    if polygon.is_empty:
+                        continue
+                    ax.add_patch(
+                        patches.Polygon(
+                            polygon.exterior.coords,
+                            fill=True,
+                            color=normalized_color,
+                            alpha=0.4,
+                        )
                     )
-                )
-                centroid = roi.geometry.centroid
+
+                centroid = roi_geom_cm.centroid
                 ax.text(
                     centroid.x,
                     centroid.y,
@@ -863,7 +965,7 @@ class Reporter:
         self.export_individual_report_step_by_step(output_path, lambda p, s: None)
 
     def export_individual_report_step_by_step(
-        self, output_path: str, progress_callback
+        self, output_path: str, progress_callback: Callable[[float, str], None]
     ):
         total_steps = 10
         template_path = INDIVIDUAL_REPORT_TEMPLATE
@@ -872,7 +974,7 @@ class Reporter:
         ).format(experiment_id=self.metadata.get("experiment_id", "Unknown"))
 
         doc_template: DocxTemplate | None = None
-        document: Document
+        document: DocxDocument | None = None
 
         if template_path.exists():
             try:
@@ -891,6 +993,9 @@ class Reporter:
                 "analysis.reporter.template_missing_fallback",
                 template=str(template_path),
             )
+            document = Document()
+
+        if document is None:
             document = Document()
 
         if doc_template is None:

@@ -199,6 +199,42 @@ class TestProjectManager(unittest.TestCase):
             os.path.normpath(expected_results_rois),
         )
 
+    def test_zone_data_lookup_normalizes_video_paths(self):
+        pm = ProjectManager()
+        pm.project_path = self.test_dir
+        pm.project_data = {"batches": []}
+
+        video_name = "canonical_sample.mp4"
+        canonical_path = os.path.join(self.test_dir, video_name)
+        Path(canonical_path).write_bytes(b"")
+
+        redundant_dir = os.path.join(
+            self.test_dir,
+            "..",
+            os.path.basename(self.test_dir),
+        )
+        redundant_path = os.path.join(redundant_dir, video_name)
+
+        pm.set_active_zone_video(redundant_path)
+
+        zone = ZoneData(
+            polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+            roi_polygons=[[[10, 10], [50, 10], [50, 50], [10, 50]]],
+            roi_names=["ROI-1"],
+            roi_colors=[(255, 0, 0)],
+        )
+
+        pm.save_zone_data(zone, persist=False)
+
+        pm.set_active_zone_video(canonical_path)
+        retrieved = pm.get_zone_data()
+
+        self.assertEqual(retrieved.polygon, zone.polygon)
+        self.assertEqual(retrieved.roi_polygons, zone.roi_polygons)
+
+        normalized_key = pm._normalize_video_path(canonical_path)
+        self.assertIn(normalized_key, pm.project_data["zones_by_video"])
+
     def test_save_roi_template_persists_file_and_metadata(self):
         pm, video_path, _ = self._create_manager_with_assets()
         zone_data = pm.get_zone_data(video_path=video_path)

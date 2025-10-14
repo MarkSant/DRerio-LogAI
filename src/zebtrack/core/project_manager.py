@@ -81,6 +81,58 @@ class ProjectManager:
         ):
             self.project_data["roi_templates"] = []
 
+    @staticmethod
+    def _normalize_video_path(path: str | None) -> str | None:
+        if not path:
+            return None
+        try:
+            resolved = Path(path).resolve(strict=False)
+        except Exception:
+            resolved = Path(path)
+        return resolved.as_posix()
+
+    def _resolve_zone_entry(
+        self, video_path: str | None
+    ) -> tuple[str | None, dict | None]:
+        """Locate a stored zone entry matching the provided video path."""
+
+        if not video_path:
+            return None, None
+
+        self._ensure_zone_structures()
+        zones_map = self.project_data.get("zones_by_video", {})
+        normalized = self._normalize_video_path(video_path)
+
+        if normalized and normalized in zones_map:
+            return normalized, zones_map[normalized]
+
+        if video_path in zones_map:
+            return video_path, zones_map[video_path]
+
+        if normalized:
+            for key, value in zones_map.items():
+                if self._normalize_video_path(key) == normalized:
+                    return key, value
+
+        return normalized or video_path, None
+
+    def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
+        """Remove duplicate zone entries that resolve to the same canonical path."""
+
+        if not preferred_key:
+            return
+
+        zones_map = self.project_data.get("zones_by_video", {})
+        normalized = self._normalize_video_path(preferred_key)
+        if not normalized:
+            return
+
+        for key in list(zones_map.keys()):
+            if key == preferred_key:
+                continue
+            if self._normalize_video_path(key) == normalized:
+                del zones_map[key]
+
     def _ensure_roi_template_dir(self) -> Path:
         if not self.project_path:
             raise ValueError("Projeto não inicializado para salvar templates de ROI.")
@@ -294,15 +346,19 @@ class ProjectManager:
     ) -> None:
         """Update has_arena/has_rois flags for a given video entry."""
 
-        if not self.project_data:
+        if not self.project_data or not video_path:
             return
 
         has_arena = bool(zone_data and zone_data.polygon)
         has_rois = bool(zone_data and zone_data.roi_polygons)
+        normalized_target = self._normalize_video_path(video_path)
 
         for batch in self.project_data.get("batches", []):
             for video in batch.get("videos", []):
-                if video.get("path") == video_path:
+                candidate_path = video.get("path")
+                if not candidate_path:
+                    continue
+                if self._normalize_video_path(candidate_path) == normalized_target:
                     video["has_arena"] = has_arena
                     video["has_rois"] = has_rois
                     video["zones_finalized"] = False
@@ -313,11 +369,22 @@ class ProjectManager:
 
         zones_map = self.project_data.get("zones_by_video", {})
 
-        if removed_path and self._last_zone_source_video == removed_path:
-            self._last_zone_source_video = None
+        if removed_path and self._last_zone_source_video:
+            normalized_removed = self._normalize_video_path(removed_path)
+            if normalized_removed:
+                current_normalized = self._normalize_video_path(
+                    self._last_zone_source_video
+                )
+                if current_normalized == normalized_removed:
+                    self._last_zone_source_video = None
 
-        if self._last_zone_source_video and self._last_zone_source_video in zones_map:
-            return
+        if self._last_zone_source_video:
+            normalized_last = self._normalize_video_path(self._last_zone_source_video)
+            for key in zones_map.keys():
+                if self._normalize_video_path(key) == normalized_last:
+                    self._last_zone_source_video = key
+                    return
+            self._last_zone_source_video = None
 
         # Pick the most recently inserted entry in zones_by_video
         if zones_map:
@@ -332,26 +399,36 @@ class ProjectManager:
     def set_active_zone_video(self, video_path: str | None) -> None:
         """Set the video whose zones should be considered active in memory."""
 
-        self._active_zone_video = video_path
         self._ensure_zone_structures()
 
         if video_path is None:
+            self._active_zone_video = None
             return
 
+        normalized_path = self._normalize_video_path(video_path)
+        key, stored = self._resolve_zone_entry(video_path)
         zones_map = self.project_data.get("zones_by_video", {})
-        stored = zones_map.get(video_path)
+        preferred_key = normalized_path or key or video_path
 
         if stored:
-            # Clone stored zones into detection_zones so edits stay isolated
             zone_copy = self._zone_data_from_dict(stored)
             self.project_data["detection_zones"] = self._zone_data_to_dict(
                 zone_copy
             )
+
+            if key and key != preferred_key:
+                zones_map[preferred_key] = stored
+                del zones_map[key]
+            elif preferred_key not in zones_map:
+                zones_map[preferred_key] = stored
+
+            self._deduplicate_zone_keys(preferred_key)
+            self._last_zone_source_video = preferred_key
         else:
-            # Reset detection_zones to a clean slate for this video
-            self.project_data["detection_zones"] = self._zone_data_to_dict(
-                ZoneData()
-            )
+            self.project_data["detection_zones"] = self._zone_data_to_dict(ZoneData())
+            self._deduplicate_zone_keys(preferred_key)
+
+        self._active_zone_video = preferred_key
 
     def get_active_zone_video(self) -> str | None:
         """Return the currently active video for zone operations."""
@@ -361,16 +438,18 @@ class ProjectManager:
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
         """Return the last video that had zones saved, excluding optional target."""
 
-        if (
-            self._last_zone_source_video
-            and self._last_zone_source_video != exclude
-            and self._last_zone_source_video
-            in self.project_data.get("zones_by_video", {})
-        ):
-            return self._last_zone_source_video
+        zones_map = self.project_data.get("zones_by_video", {})
+        normalized_exclude = self._normalize_video_path(exclude) if exclude else None
 
-        for path in reversed(list(self.project_data.get("zones_by_video", {}).keys())):
-            if path != exclude:
+        if self._last_zone_source_video:
+            normalized_last = self._normalize_video_path(self._last_zone_source_video)
+            if normalized_last and normalized_last != normalized_exclude:
+                for key in zones_map.keys():
+                    if self._normalize_video_path(key) == normalized_last:
+                        return key
+
+        for path in reversed(list(zones_map.keys())):
+            if self._normalize_video_path(path) != normalized_exclude:
                 return path
 
         return None
@@ -382,7 +461,7 @@ class ProjectManager:
             return False
 
         self._ensure_zone_structures()
-        stored = self.project_data.get("zones_by_video", {}).get(video_path)
+        _, stored = self._resolve_zone_entry(video_path)
 
         if not stored:
             return False
@@ -407,8 +486,14 @@ class ProjectManager:
         self.project_data["detection_zones"] = serialized
 
         if target_video:
-            self.project_data["zones_by_video"][target_video] = serialized
-            self._last_zone_source_video = target_video
+            normalized = self._normalize_video_path(target_video)
+            existing_key, _ = self._resolve_zone_entry(target_video)
+            store_key = normalized or existing_key or target_video
+
+            self.project_data["zones_by_video"][store_key] = serialized
+            self._deduplicate_zone_keys(store_key)
+
+            self._last_zone_source_video = store_key
             self._update_video_zone_flags(target_video, zone_data)
 
         if persist:
@@ -424,10 +509,12 @@ class ProjectManager:
 
         self._ensure_zone_structures()
 
-        if video_path in self.project_data["zones_by_video"]:
-            del self.project_data["zones_by_video"][video_path]
+        key, _ = self._resolve_zone_entry(video_path)
+        if key and key in self.project_data["zones_by_video"]:
+            del self.project_data["zones_by_video"][key]
 
-        if self._active_zone_video == video_path:
+        normalized_target = self._normalize_video_path(video_path)
+        if self._active_zone_video and normalized_target == self._active_zone_video:
             self.project_data["detection_zones"] = self._zone_data_to_dict(
                 ZoneData()
             )
@@ -441,8 +528,8 @@ class ProjectManager:
     def clone_zone_data_from_video(self, video_path: str) -> ZoneData:
         """Return a deep copy of zone data stored for another video."""
 
-        zones_map = self.project_data.get("zones_by_video", {})
-        return self._zone_data_from_dict(zones_map.get(video_path))
+        _, stored = self._resolve_zone_entry(video_path)
+        return self._zone_data_from_dict(stored)
 
     def copy_zone_parquet_files(
         self,
@@ -2238,10 +2325,10 @@ class ProjectManager:
         self._ensure_zone_structures()
 
         target_video = video_path if video_path is not None else self._active_zone_video
-        zones_map = self.project_data.get("zones_by_video", {})
+        key, stored = self._resolve_zone_entry(target_video)
 
-        if target_video and target_video in zones_map:
-            return self._zone_data_from_dict(zones_map[target_video])
+        if stored:
+            return self._zone_data_from_dict(stored)
 
         if target_video and not fallback_to_global:
             return ZoneData()
