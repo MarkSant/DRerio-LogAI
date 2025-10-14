@@ -1207,28 +1207,28 @@ class MainViewModel:
             )
             return False
 
-        # Check if we need to use OpenVINO version
-        weight_details = None
-        if self.use_openvino:
-            # Find weight details to get OpenVINO path - use the first matching weight
-            for name, details in self.weight_manager.weights.items():
-                if details.get("path") == model_path:
-                    weight_details = details
-                    break
+        # Phase 2.4: Use ModelService to find weight and get correct model path
+        weight_name, weight_details = self.model_service.find_weight_by_path(model_path)
+        if not weight_name:
+            self.view.show_error(
+                "Erro de Detector",
+                f"Não foi possível encontrar o peso correspondente ao caminho: {model_path}",
+            )
+            return False
 
         try:
             if self.use_openvino:
                 plugin_name = "OpenVINO"
-                if not weight_details:
-                    raise ValueError("Não foi possível encontrar detalhes do peso para OpenVINO")
-
-                openvino_model_path = weight_details.get("openvino_path")
-                if not openvino_model_path or not os.path.exists(openvino_model_path):
+                # Phase 2.4: Use ModelService method to get OpenVINO path
+                final_model_path, weight_details = self.model_service.get_model_path_for_inference(
+                    weight_name, use_openvino=True
+                )
+                if not final_model_path:
                     raise ValueError(
                         "Caminho do modelo OpenVINO não encontrado ou inválido. "
                         "Por favor, converta o modelo primeiro."
                     )
-                model_path = openvino_model_path
+                model_path = final_model_path
             else:
                 plugin_name = "YOLO (Ultralytics)"
                 if not os.path.exists(model_path):
@@ -1431,7 +1431,12 @@ class MainViewModel:
         return None, None
 
     def get_all_weight_names(self) -> list:
-        return self.weight_manager.get_all_weights()
+        """
+        Get all available weight names.
+
+        Phase 2.4: Delegates to ModelService for consistency.
+        """
+        return self.model_service.get_all_weight_names()
 
     def classify_weight_type(self, filename: str) -> str | None:
         """Classify weight type from filename - delegates to weight manager."""
