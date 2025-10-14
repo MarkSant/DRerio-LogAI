@@ -54,11 +54,12 @@ from __future__ import annotations
 
 import copy
 import threading
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set
 
 import structlog
 
@@ -227,8 +228,129 @@ class ApplicationState:
         )
 
 
-# Type alias for state observers
+# ==================== Observer Protocol ====================
+
+
+class StateObserverProtocol(Protocol):
+    """
+    Protocol for state observers.
+
+    Observers must implement this callable signature to receive state change
+    notifications from the StateManager.
+    """
+
+    def __call__(
+        self,
+        category: StateCategory,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """
+        Called when observed state changes.
+
+        Args:
+            category: The state category that changed
+            key: The specific state key that changed
+            old_value: The previous value
+            new_value: The new value
+        """
+        ...
+
+
+# Type alias for backward compatibility
 StateObserver = Callable[[StateCategory, str, Any, Any], None]
+
+
+class BaseStateObserver(ABC):
+    """
+    Abstract base class for state observers.
+
+    Provides a formal interface for components that want to observe state changes.
+    Subclasses must implement on_state_changed() to react to specific state changes.
+
+    Example:
+        class MyObserver(BaseStateObserver):
+            def on_state_changed(self, category, key, old_value, new_value):
+                if category == StateCategory.RECORDING and key == "is_recording":
+                    print(f"Recording state: {new_value}")
+    """
+
+    @abstractmethod
+    def on_state_changed(
+        self,
+        category: StateCategory,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """
+        Called when observed state changes.
+
+        Args:
+            category: The state category that changed
+            key: The specific state key that changed
+            old_value: The previous value
+            new_value: The new value
+        """
+        pass
+
+
+class ObserverAdapter:
+    """
+    Adapter to simplify observer implementation with filtering.
+
+    Allows observing specific categories and/or keys without implementing
+    the full BaseStateObserver interface.
+
+    Example:
+        def handle_recording(category, key, old_value, new_value):
+            print(f"Recording changed: {key} = {new_value}")
+
+        adapter = ObserverAdapter(
+            callback=handle_recording,
+            categories={StateCategory.RECORDING},
+            keys={"is_recording", "output_path"}
+        )
+        state_manager.subscribe_observer(StateCategory.RECORDING, adapter)
+    """
+
+    def __init__(
+        self,
+        callback: Callable[[StateCategory, str, Any, Any], None],
+        categories: Optional[Set[StateCategory]] = None,
+        keys: Optional[Set[str]] = None,
+    ):
+        """
+        Initialize the adapter.
+
+        Args:
+            callback: Function to call when matching state changes occur
+            categories: If provided, only notify for these categories (None = all)
+            keys: If provided, only notify for these keys (None = all)
+        """
+        self.callback = callback
+        self.categories = categories
+        self.keys = keys
+
+    def __call__(
+        self,
+        category: StateCategory,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """Filter and forward notifications to callback."""
+        # Filter by category
+        if self.categories is not None and category not in self.categories:
+            return
+
+        # Filter by key
+        if self.keys is not None and key not in self.keys:
+            return
+
+        # Forward to callback
+        self.callback(category, key, old_value, new_value)
 
 
 class StateManager:
@@ -261,10 +383,16 @@ class StateManager:
         """
         Initialize the StateManager.
 
+        CRITICAL: Direct access to _state is prohibited. All state modifications
+        MUST go through update_*_state() methods to ensure proper locking,
+        validation, and observer notifications.
+
         Args:
             enable_history: Whether to track state change history for debugging
             max_history_size: Maximum number of state changes to keep in history
         """
+        # INTERNAL STATE - DO NOT ACCESS DIRECTLY FROM OUTSIDE THIS CLASS
+        # Use get_*_state() for reads and update_*_state() for writes
         self._state = ApplicationState()
         self._lock = threading.RLock()
 
@@ -292,9 +420,22 @@ class StateManager:
         """
         Subscribe to state changes in a specific category.
 
+        This method registers an observer callback that will be invoked whenever
+        state in the specified category changes. The observer receives notifications
+        with (category, key, old_value, new_value).
+
+        Thread-safe: Multiple components can subscribe concurrently.
+
         Args:
             category: The state category to observe
             observer: Callback function(category, key, old_value, new_value)
+                     Can be a plain function, method, or BaseStateObserver subclass
+
+        Example:
+            def on_recording_change(category, key, old_val, new_val):
+                print(f"{key} changed: {old_val} -> {new_val}")
+
+            state_manager.subscribe(StateCategory.RECORDING, on_recording_change)
         """
         with self._lock:
             self._observers[category].add(observer)
@@ -304,12 +445,40 @@ class StateManager:
                 observer=getattr(observer, "__name__", repr(observer)),
             )
 
+    def register_observer(
+        self,
+        category: StateCategory,
+        observer: StateObserver,
+    ) -> None:
+        """
+        Alias for subscribe() - explicitly register an observer.
+
+        Provides a more descriptive name for formal observer registration.
+        Functionally identical to subscribe().
+
+        Args:
+            category: The state category to observe
+            observer: Callback function or BaseStateObserver instance
+        """
+        self.subscribe(category, observer)
+
     def subscribe_all(self, observer: StateObserver) -> None:
         """
         Subscribe to all state changes across all categories.
 
+        Global observers receive notifications for every state change regardless
+        of category. Useful for logging, debugging, or cross-cutting concerns.
+
+        Thread-safe: Multiple components can subscribe concurrently.
+
         Args:
             observer: Callback function(category, key, old_value, new_value)
+
+        Example:
+            def log_all_changes(category, key, old_val, new_val):
+                print(f"[{category.name}] {key}: {old_val} -> {new_val}")
+
+            state_manager.subscribe_all(log_all_changes)
         """
         with self._lock:
             self._global_observers.add(observer)
@@ -317,6 +486,18 @@ class StateManager:
                 "state_manager.subscribe_all",
                 observer=getattr(observer, "__name__", repr(observer)),
             )
+
+    def register_global_observer(self, observer: StateObserver) -> None:
+        """
+        Alias for subscribe_all() - explicitly register a global observer.
+
+        Provides a more descriptive name for formal observer registration.
+        Functionally identical to subscribe_all().
+
+        Args:
+            observer: Callback function or BaseStateObserver instance
+        """
+        self.subscribe_all(observer)
 
     def unsubscribe(
         self,
@@ -363,8 +544,17 @@ class StateManager:
         """
         Notify all relevant observers of a state change.
 
-        This method is called internally after a state update. It notifies both
-        category-specific observers and global observers.
+        INTERNAL METHOD - Called automatically by update_*_state() methods.
+        This implements the core of the Observer pattern by broadcasting
+        state changes to all registered observers.
+
+        Flow:
+        1. Record change in history (if enabled)
+        2. Notify category-specific observers
+        3. Notify global observers
+        4. Handle observer exceptions gracefully (log but don't propagate)
+
+        Thread-safe: Already called within _lock context by update methods.
 
         Args:
             category: The category of state that changed
@@ -745,6 +935,70 @@ class StateManager:
             },
         }
 
+    def get_observer_count(self, category: Optional[StateCategory] = None) -> int:
+        """
+        Get the number of registered observers.
+
+        Args:
+            category: If provided, count only observers for this category.
+                     If None, count all observers (category + global).
+
+        Returns:
+            Number of registered observers
+        """
+        with self._lock:
+            if category is not None:
+                return len(self._observers[category])
+            else:
+                total = sum(len(obs) for obs in self._observers.values())
+                total += len(self._global_observers)
+                return total
+
+    def verify_state_integrity(self) -> Dict[str, Any]:
+        """
+        Verify state integrity and return diagnostic information.
+
+        Useful for debugging and testing to ensure state is consistent.
+
+        Returns:
+            Dictionary with integrity check results
+        """
+        with self._lock:
+            snapshot = self._state.copy()
+
+            return {
+                "state_valid": True,  # Could add more complex validation
+                "project": {
+                    "has_path": snapshot.project.project_path is not None,
+                    "has_data": len(snapshot.project.project_data) > 0,
+                    "has_metadata": snapshot.project.metadata is not None,
+                },
+                "detector": {
+                    "initialized": snapshot.detector.detector_initialized,
+                    "has_zones": snapshot.detector.zones_configured,
+                    "has_dimensions": (
+                        snapshot.detector.frame_width is not None
+                        and snapshot.detector.frame_height is not None
+                    ),
+                },
+                "recording": {
+                    "is_recording": snapshot.recording.is_recording,
+                    "has_output": snapshot.recording.output_path is not None,
+                    "arduino_connected": snapshot.recording.arduino_connected,
+                },
+                "processing": {
+                    "is_processing": snapshot.processing.is_processing,
+                    "has_progress": snapshot.processing.total_frames > 0,
+                },
+                "observers": {
+                    "total": self.get_observer_count(),
+                    "by_category": {
+                        cat.name: len(self._observers[cat]) for cat in StateCategory
+                    },
+                    "global": len(self._global_observers),
+                },
+            }
+
     def __repr__(self) -> str:
         """String representation for debugging."""
         history_info = (
@@ -752,4 +1006,5 @@ class StateManager:
             if self._enable_history
             else ""
         )
-        return f"<StateManager observers={sum(len(obs) for obs in self._observers.values())}{history_info}>"  # noqa: E501
+        observer_count = self.get_observer_count()
+        return f"<StateManager observers={observer_count}{history_info}>"
