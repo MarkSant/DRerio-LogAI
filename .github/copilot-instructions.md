@@ -91,6 +91,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Recent Features (v1.7+)
 
+- **StateManager (v1.8+)** (`core/state_manager.py`): Centralized state management with observable pattern. Single source of truth for application state (recording, detector, processing, project). Thread-safe operations with history tracking. Controller provides backward-compatible properties (`is_recording`, `detector_initialized`, `is_processing`). See `docs/STATE_MANAGER_GUIDE.md` for usage. Tests: `test_state_manager.py` (35 tests), `test_state_manager_integration.py` (9 tests).
 - **Advanced Configuration Tab** (`gui.py::_create_configuration_tab()`): In-app editor for `config.local.yaml` with live Pydantic validation, tooltips, and load/save/reset handlers. See `REFERENCE_GUIDE.md` for user docs.
 - **ROI Template System** (`gui.py` + `project_manager.py`): Save/import/apply ROI designs across projects via combobox selector. Templates persist in `templates/` folder. Geometry helpers in `utils/geometry.py` support centroid-aware snapping. Tests in `test_project_manager.py::test_save_roi_template_*`.
 - **Track-Specific Overlays** (`gui.py::update_detection_overlay()`): Analysis view now supports profile labels, track selector comboboxes, and social proximity percentage display. Covered by `test_overlay_integration.py` and `test_analysis_view_toggle.py`.
@@ -99,7 +100,8 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Repository Landmarks
 
-- `src/zebtrack/core/controller.py`: MainViewModel (renamed from AppController) - UI-facing state and command handlers. Backward-compatible alias exists.
+- `src/zebtrack/core/controller.py`: MainViewModel (renamed from AppController) - UI-facing state and command handlers. Backward-compatible alias exists. Integrates StateManager for centralized state.
+- `src/zebtrack/core/state_manager.py`: Centralized state management with observable pattern, thread safety, and history tracking.
 - `src/zebtrack/core/project_service.py`: Service layer for project file I/O (create, load, save, ROI templates, metadata).
 - `src/zebtrack/core/project_manager.py`: In-memory project state management, zone/video tracking.
 - `src/zebtrack/core/detector.py`: Zone management and detection state machine.

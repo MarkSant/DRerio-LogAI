@@ -42,6 +42,7 @@ from zebtrack.core.processing_worker import (
 )
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
+from zebtrack.core.state_manager import StateManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -68,8 +69,10 @@ class MainViewModel:
     Main View Model for ZebTrack-AI application.
     
     Phase 1, Step 3: Refactored from AppController to follow Single Responsibility Principle.
+    Phase 2, Step 4: Integrated with centralized StateManager for predictable state flow.
+    
     This class now focuses on:
-    - UI-facing state management
+    - UI-facing state management (via StateManager)
     - Command handling via event bus
     - Orchestrating services (ProjectService, AnalysisService)
     - Hardware setup (detector, Arduino)
@@ -77,10 +80,14 @@ class MainViewModel:
     
     Heavy file I/O moved to ProjectService.
     Analysis orchestration moved to AnalysisService.
+    State mutations now tracked through StateManager.
     """
     
     def __init__(self, root):
         self.root = root
+        
+        # Phase 2, Step 4: Centralized state management
+        self.state_manager = StateManager(enable_history=True, max_history_size=100)
         
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
@@ -110,8 +117,14 @@ class MainViewModel:
         self.arduino_manager: ArduinoManager | None = None
         self._arduino_manager_cls = ArduinoManager
         self.report_results_paths = {}
-        self.is_recording = False
+        # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
+        
+        # Initialize recording state in StateManager
+        self.state_manager.update_recording_state(
+            source="controller.init",
+            is_recording=False,
+        )
 
         ui_features = getattr(settings, "ui_features", None)
         self._use_event_bus = bool(
@@ -146,6 +159,32 @@ class MainViewModel:
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
+
+    # ==================== Phase 2, Step 4: State Manager Properties ====================
+    # Backward-compatible properties that delegate to StateManager
+    
+    @property
+    def is_recording(self) -> bool:
+        """Get recording status from StateManager."""
+        return self.state_manager.get_recording_state().is_recording
+    
+    @is_recording.setter
+    def is_recording(self, value: bool) -> None:
+        """Update recording status in StateManager."""
+        self.state_manager.update_recording_state(
+            source="controller.is_recording_setter",
+            is_recording=value,
+        )
+    
+    @property
+    def detector_initialized(self) -> bool:
+        """Get detector initialization status from StateManager."""
+        return self.state_manager.get_detector_state().detector_initialized
+    
+    @property
+    def is_processing(self) -> bool:
+        """Get processing status from StateManager."""
+        return self.state_manager.get_processing_state().is_processing
 
     def get_openvino_status(self) -> str:
         """Gets the current OpenVINO status text based on the model and settings."""
@@ -578,14 +617,22 @@ class MainViewModel:
             )
             return
 
-        self.is_recording = self.recorder.start_recording(
+        recording_started = self.recorder.start_recording(
             output_folder,
             camera_width,
             camera_height,
             zones=zone_data,
         )
+        
+        # Update state in StateManager with full context
+        self.state_manager.update_recording_state(
+            source="controller.start_recording_session",
+            is_recording=recording_started,
+            output_path=Path(output_folder) if recording_started else None,
+            recording_start_time=datetime.now() if recording_started else None,
+        )
 
-        if not self.is_recording:
+        if not recording_started:
             self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
             self._schedule_on_ui(
                 self.view.update_button_state, "start_rec", "normal"
@@ -637,6 +684,15 @@ class MainViewModel:
 
         # Reset project manager
         self.project_manager = ProjectManager()
+        
+        # Update StateManager: project closed
+        self.state_manager.update_project_state(
+            source="controller.close_project",
+            project_path=None,
+            project_data={},
+            active_zone_video=None,
+        )
+        
         # _create_welcome_frame handles all UI cleanup
         self.view._create_welcome_frame()
 
@@ -708,6 +764,14 @@ class MainViewModel:
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
 
         if self.project_manager.create_new_project(**filtered_kwargs):
+            # Update StateManager: new project created
+            self.state_manager.update_project_state(
+                source="controller.create_project_workflow",
+                project_path=Path(self.project_manager.project_path) if self.project_manager.project_path else None,
+                project_data=self.project_manager.project_data.copy() if self.project_manager.project_data else {},
+                active_zone_video=self.project_manager.get_active_zone_video(),
+            )
+            
             # Projects start by inheriting global settings unless overrides apply later
             self._using_project_overrides = True
             self.apply_project_model_overrides()
@@ -1106,6 +1170,14 @@ class MainViewModel:
             f"• OpenVINO: {'✓' if self.use_openvino else '✗'}",
         )
 
+        # Update project state in StateManager
+        self.state_manager.update_project_state(
+            source="controller.open_project_workflow",
+            project_path=Path(project_path),
+            project_data=self.project_manager.project_data.copy() if self.project_manager.project_data else {},
+            active_zone_video=self.project_manager.get_active_zone_video(),
+        )
+
         log.info(
             "controller.load_project.complete",
             project=project_name,
@@ -1204,6 +1276,15 @@ class MainViewModel:
                 plugin=plugin_instance,
                 base_width=settings.camera.desired_width,
                 base_height=settings.camera.desired_height,
+            )
+            
+            # Update detector state in StateManager
+            self.state_manager.update_detector_state(
+                source="controller.setup_detector",
+                detector_initialized=True,
+                active_weight_name=self.active_weight_name,
+                use_openvino=self.use_openvino,
+                detector_plugin_name=plugin_instance.get_name() if hasattr(plugin_instance, 'get_name') else plugin_class.__name__,
             )
 
             tracker_pref = self._resolve_single_subject_tracker_preference(None)
@@ -2834,7 +2915,12 @@ class MainViewModel:
         # 2. Stop the recorder
         if self.is_recording:
             self.recorder.stop_recording()
-            self.is_recording = False
+            # Update state in StateManager
+            self.state_manager.update_recording_state(
+                source="controller.stop_recording",
+                is_recording=False,
+                output_path=None,
+            )
 
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         if project_data.get("use_arduino"):
@@ -3022,6 +3108,14 @@ class MainViewModel:
         
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
+        
+        # Update processing state in StateManager
+        self.state_manager.update_processing_state(
+            source="controller.start_single_video_analysis",
+            is_processing=True,
+            current_video=os.path.basename(video_path),
+            processing_start_time=datetime.now(),
+        )
 
         # 4. Switch to analysis view mode immediately
         self.view.start_analysis_view_mode()
@@ -5220,6 +5314,13 @@ class MainViewModel:
             )
 
             if stats:
+                # Update processing state in StateManager
+                self.state_manager.update_processing_state(
+                    source="controller.processing_progress",
+                    current_frame=stats.get("current_frame", 0),
+                    total_frames=stats.get("total_frames", 0),
+                )
+                
                 self.root.after(
                     0,
                     lambda: self.view.update_processing_stats(
@@ -5268,6 +5369,14 @@ class MainViewModel:
             self.project_manager.set_active_zone_video(None)
             self.root.after(0, self.view.stop_analysis_view_mode)
             self.root.after(0, self.view.hide_progress_bar)
+            
+            # Update processing state in StateManager
+            self.state_manager.update_processing_state(
+                source="controller.processing_completed",
+                is_processing=False,
+                cancel_requested=was_cancelled,
+                current_video=None,
+            )
 
             if was_cancelled:
                 self.root.after(
