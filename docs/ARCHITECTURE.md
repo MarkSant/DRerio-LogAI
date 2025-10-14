@@ -999,7 +999,7 @@ elapsed = time.perf_counter() - start
 log.info("operation.timing", operation="detect_frame", elapsed_ms=elapsed*1000)
 ```
 
-Use `tests/manual/` para scripts de profiling isolados.
+Use scripts de profiling isolados conforme necessário, reproduzindo contextos via fixtures pytest.
 
 ## 7. Bibliografia de Módulos
 
@@ -1118,8 +1118,8 @@ Use `tests/manual/` para scripts de profiling isolados.
 - [REFERENCE_GUIDE.md](./REFERENCE_GUIDE.md) – referências operacionais (métricas, tutoriais e integração Arduino)
 - [CONTRIBUTING.md](../CONTRIBUTING.md) – processo de desenvolvimento e padrões de PR
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md) – resumo rápido para agentes automáticos
-- `tests/manual/` – scripts atuais para inspeções manuais; substituem os antigos geradores de cenários do Wizard
-- `tests/test_state_manager*.py` – suite completa de testes do StateManager (44 testes)
+- `tests/test_state_manager*.py` – suite completa de testes do StateManager (51 testes)
+- `test_scenarios/` – cenários documentados para reprodução de casos extremos
 
 ---
 

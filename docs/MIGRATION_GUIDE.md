@@ -353,5 +353,6 @@ self.video_display.clear()
 ## Contato
 
 Para dúvidas ou sugestões sobre a migração, consultar:
-- Documentação do Step 6: `docs/STEP6_UI_COMPONENTS_SUMMARY.md`
+
+- Documentação consolidada: `docs/ARCHITECTURE.md`, `docs/STATE_MANAGER_GUIDE.md`, `docs/REFERENCE_GUIDE.md`
 - Código-fonte dos componentes com docstrings detalhadas

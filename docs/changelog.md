@@ -1,22 +1,58 @@
 # Changelog
 
-## 2025-10-14
+## 2025-10-14 (Phase 3: Final Polish & Cleanup)
+
+### Added (v1.8)
+
+- **StateManager**: Comprehensive centralized state management system with observable pattern
+  - 5 state categories: Project, Detector, Recording, Processing, UI
+  - Thread-safe operations with history tracking (max 100 entries per category)
+  - Immutable snapshots via deep copy for debugging
+  - 51 comprehensive tests (35 unit + 9 integration + 7 GUI observer)
+- **Reactive GUI**: Full state observer integration with thread-safe UI updates
+  - 4 observer callbacks: recording, processing, detector, project state changes
+  - Arduino connection status tracking and UI updates
+- **Settings System Refactoring**: Enhanced Pydantic v2 patterns
+  - Strict validation with `ConfigDict(extra="forbid")` on all models
+  - Improved error messages with field-level details
+  - New utility functions: `reload_settings()`, `export_schema()`
+  - Cleaner default factory patterns using lambda expressions
+
+### Changed (v1.8)
+
+- `MainViewModel` (formerly `AppController`) now uses StateManager as single source of truth
+  - Backward-compatible properties: `is_recording`, `detector_initialized`, `is_processing`
+  - State tracking at 10+ mutation points across recording/detector/processing/project lifecycle
+- `ProjectManager` accepts optional `state_manager` parameter for state propagation
+- Deep merge function renamed and enhanced: `_deep_merge_dicts` with improved recursion
+- Controller exposes state through properties instead of direct attribute access
 
 ### Documentation
 
 - README e wiki atualizados com fluxo do wizard padrão v1.6+, sistema de templates de ROI, overlays avançados e editor de configurações in-app.
+- `docs/ARCHITECTURE.md` atualizado com seção 4.1 (Centralized State Management) e AD-10 (architectural decision)
+- `docs/STATE_MANAGER_GUIDE.md` criado como guia completo para desenvolvedores (619 linhas)
 - `docs/PROJECT_WORKFLOW.md`, `docs/REFERENCE_GUIDE.md` e `docs/WIZARD_USER_GUIDE.md` revisados para remover referências a arquivos inexistentes e refletir o comportamento atual (clamping de ROI, templates e avanços no overlay).
 - Wiki offline (`docs/wiki/*.md`) reescrita com instruções de instalação via Poetry, tutorial completo baseado no wizard e FAQ com recursos recentes.
-- `docs/ZONE_PANEL_WIDTH_FIX.md` ajustado para referenciar somente documentação ativa.
 
 ### Removed
 
-- Documentos redundantes no diretório raiz (`BUTTON_POSITION_FIX.md`, `BUTTON_REPOSITION_SUMMARY.md`, `EDIT_MODE_CLAMP_UPDATE.md`, `SNAP_INDICATOR_CLAMP_SUMMARY.md`, `TEMPLATE_FIX_SUMMARY.md`, `COMMIT_MESSAGE.md`, `COMMIT_SUMMARY.md`) foram consolidados no changelog e na documentação principal.
-- Referências a `docs/WIZARD_INTEGRATION.md` e `docs/WIZARD_PROJECT_CREATION.md`, que não existiam no repositório, foram substituídas por links válidos.
+- Documentos temporários de implementação consolidados no changelog:
+  - Phase summaries: `PHASE1_*.md`, `PHASE2_*.md`, `PHASE3_*.md`
+  - Step summaries: `STEP6_*.md`, `ITEM_8_*.md`
+  - Implementation summaries: `STATE_MANAGER_IMPLEMENTATION*.md`, `*_SUMMARY.md`
+  - Bug fix docs: `BUG_FIXES_*.md`, `KNOWN_BUGS_*.md`, individual `*_FIX.md`
+  - Integration/commit docs: `INTEGRATION_COMPLETE_*.md`, `COMMIT_*.md`, `FINAL_COMMIT_*.md`
+- Diretório `tests/manual/` removido; cobertura de testes automatizados agora é completa
+- Arquivos temporários da raiz: `COMMIT_MESSAGE.md`, `COMMIT_SUMMARY.md`, `CLAUDE.md`
+- Documentos redundantes no diretório raiz consolidados no changelog e na documentação principal
 
 ### Testing
 
-- Mudanças documentais; nenhuma alteração funcional. Mantido o status da suíte automatizada mais recente.
+- StateManager test suite: 51/51 tests passing in 4.01s
+- All existing tests updated to work with StateManager integration
+- `poetry run pytest -q` and `poetry run ruff check` passing
+- Automated test coverage now replaces all manual test scripts
 
 ## 2025-10-13
 

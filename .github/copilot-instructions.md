@@ -79,7 +79,7 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 - After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
 - UI/analysis workflows now have dedicated coverage: `tests/test_overlay_integration.py` (overlay preservation) and `tests/test_interval_frames_config.py` (interval dialogs + persistence). Keep them passing.
 - For wizard-related work, run the focused suite: `poetry run pytest tests/test_wizard*.py -q`.
-- Manual inspection scripts live under `tests/manual/`; the legacy Wizard scenario generators were removed, so reproduce edge cases via current pytest fixtures or these manual helpers.
+- All test coverage is now automated; reproduce edge cases via pytest fixtures and test scenarios in `test_scenarios/`.
 
 ### Safety Checklist Before Merging
 
@@ -91,8 +91,9 @@ Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecor
 
 ### Recent Features (v1.7+)
 
-- **StateManager (v1.8+)** (`core/state_manager.py`): Centralized state management with observable pattern. Single source of truth for application state (recording, detector, processing, project). Thread-safe operations with history tracking. Controller provides backward-compatible properties (`is_recording`, `detector_initialized`, `is_processing`). See `docs/STATE_MANAGER_GUIDE.md` for usage. Tests: `test_state_manager.py` (35 tests), `test_state_manager_integration.py` (9 tests).
-- **Advanced Configuration Tab** (`gui.py::_create_configuration_tab()`): In-app editor for `config.local.yaml` with live Pydantic validation, tooltips, and load/save/reset handlers. See `REFERENCE_GUIDE.md` for user docs.
+- **StateManager (v1.8+)** (`core/state_manager.py`): Centralized state management with observable pattern. Single source of truth for application state (recording, detector, processing, project). Thread-safe operations with history tracking. Controller provides backward-compatible properties (`is_recording`, `detector_initialized`, `is_processing`). See `docs/STATE_MANAGER_GUIDE.md` for usage. Tests: `test_state_manager.py` (35 tests), `test_state_manager_integration.py` (9 tests), `test_gui_state_observer.py` (7 tests).
+- **Enhanced Settings System** (`settings.py`): Pydantic v2 with strict validation (`extra="forbid"`), improved error messages with field-level details, clean lambda default factories, and utility functions (`reload_settings()`, `export_schema()`).
+- **Advanced Configuration Tab** (`gui.py::_create_configuration_tab()`): In-app editor for `config.local.yaml` with live Pydantic validation, tooltips, and load/save/reset handlers. See `docs/REFERENCE_GUIDE.md` for user docs.
 - **ROI Template System** (`gui.py` + `project_manager.py`): Save/import/apply ROI designs across projects via combobox selector. Templates persist in `templates/` folder. Geometry helpers in `utils/geometry.py` support centroid-aware snapping. Tests in `test_project_manager.py::test_save_roi_template_*`.
 - **Track-Specific Overlays** (`gui.py::update_detection_overlay()`): Analysis view now supports profile labels, track selector comboboxes, and social proximity percentage display. Covered by `test_overlay_integration.py` and `test_analysis_view_toggle.py`.
 - **Event Bus (Opt-in)** (`ui/event_bus.py`): Optional controller→GUI decoupling via `UIFeatureFlags.enable_event_queue` (default: False). Still in staged migration—continue using `root.after` for UI updates.

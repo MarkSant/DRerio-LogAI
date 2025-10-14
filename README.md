@@ -74,6 +74,7 @@ Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para o passo a
 
 ## Principais capacidades
 
+- **Arquitetura MVVM-like com StateManager (v1.8)**: gerenciamento de estado centralizado com padrão observável thread-safe. Fonte única de verdade para 5 categorias de estado (Project, Detector, Recording, Processing, UI) com snapshots imutáveis e histórico opcional.
 - **Wizard inteligente de criação de projetos** (v1.7): assistente de 5 etapas com auto-detecção de design, importação granular de Parquets e validação contextual.
 - **Rastreamento multi-animal** com modelos YOLOv8 e suporte a pesos convertidos para OpenVINO, inclusive gerenciamento automático de cache (`openvino_model_cache/`).
 - **Gestão avançada de ROIs**: desenho assistido com snapping/clamping dentro da arena, edição segura de vértices, templates reutilizáveis e regras de inclusão configuráveis (`centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`).
@@ -81,15 +82,15 @@ Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para o passo a
 - **Overlay em tempo real**: modo multi vs. single subject, progresso detalhado, indicadores de templates aplicados e estatísticas de frames processados/detectados.
 - **Cadastro de projetos persistente**: batches de vídeos, hashes SHA256, intervalos de análise/exibição, metadados experimentais e integrações de hardware (Arduino).
 - **Sistema de templates**: salvar/importar/aplicar templates de ROI, com biblioteca persistida em `templates/` e suporte a round-trip automático.
-- **Configuração avançada in-app**: editor de `config.local.yaml` com validação Pydantic em tempo real, tooltips e mecanismos de reset.
+- **Configuração avançada in-app**: editor de `config.local.yaml` com validação Pydantic v2 em tempo real (strict mode com `extra="forbid"`), tooltips e mecanismos de reset.
 
 ## Arquitetura geral
 
-A aplicação segue uma arquitetura modular organizada em três camadas principais:
+A aplicação segue uma arquitetura **MVVM-like** (Model-View-ViewModel) modular organizada em três camadas principais:
 
-- **Interface gráfica (`zebtrack.ui.gui`)**: diálogos Tkinter, wizard (`ui/wizard/`), editor de configurações, overlays e gerenciadores de templates.
-- **Camada de orquestração (`zebtrack.core`)**: `AppController` coordena captura, detecção, gravação e análise; `ProjectManager` gerencia estado persistente e varredura de Parquets.
-- **Motor de análise e IO (`zebtrack.analysis`, `zebtrack.io`)**: métricas comportamentais, análise de ROI, gravação Parquet/MP4, geração de relatórios e integrações com hardware opcional.
+- **View Layer (`zebtrack.ui.gui`)**: componentes Tkinter puros, wizard (`ui/wizard/`), editor de configurações, overlays e gerenciadores de templates. Observa StateManager para atualizações reativas.
+- **ViewModel Layer (`zebtrack.core.controller`)**: `MainViewModel` orquestra operações, coordena serviços, expõe estado para a View via propriedades. Integra `StateManager` como fonte única de verdade.
+- **Model Layer (`zebtrack.core`, `zebtrack.analysis`)**: `StateManager` (estado centralizado), `ProjectManager` (estado em memória), `ProjectService` (I/O de projetos), `AnalysisService` (orquestração de análises), `Detector` (plugins e state machine de zonas).
 
 Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de componentes, fluxo de dados e decisões arquiteturais detalhadas.
 
@@ -161,11 +162,7 @@ poetry run pytest tests/test_interval_frames_config.py
 poetry run pytest tests/test_wizard_integration.py
 ```
 
-Testes manuais (quando necessário) vivem em `tests/manual/`. Utilize os scripts atuais e fixtures de pytest para reproduzir contextos específicos.
-
-- `tests/manual/wizard_release_check.py` – valida os templates curados e sugere checklist manual do wizard.
-- `tests/manual/analysis_profiles_matrix.py` – gera perfis de análise para revisar fallback/resolução.
-- `tests/manual/roi_template_roundtrip.py` – garante round-trip completo dos templates de ROI (salvar/exportar/importar).
+Toda cobertura de testes é automatizada. Reproduza casos extremos via fixtures de pytest e cenários documentados em `test_scenarios/`.
 
 ## Checklist de QA pré-release
 
@@ -175,11 +172,7 @@ Testes manuais (quando necessário) vivem em `tests/manual/`. Utilize os scripts
 2. **Executar baterias automáticas**
    - `poetry run pytest -q`
    - `poetry run ruff check .`
-3. **Revisar fluxos manuais críticos**
-   - `python tests/manual/wizard_release_check.py`
-   - `python tests/manual/analysis_profiles_matrix.py`
-   - `python tests/manual/roi_template_roundtrip.py`
-4. **Confirmar documentação** – conferir entradas recentes em `docs/changelog.md` e nos guias de fluxo.
+3. **Confirmar documentação** – conferir entradas recentes em `docs/changelog.md` e nos guias de fluxo.
 
 ## Dados e relatórios
 
@@ -196,7 +189,8 @@ Relatórios consolidados (`.xlsx`, `.csv`, `.parquet`) podem ser gerados pela ab
 ## Documentação estendida
 
 - [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): guia operacional completo (fluxos, métricas, Arduino, tutoriais, ROI templates, clamping e overlays).
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): visão de componentes e decisões arquiteturais.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): visão de componentes, decisões arquiteturais e padrão MVVM-like com StateManager.
+- [`docs/STATE_MANAGER_GUIDE.md`](docs/STATE_MANAGER_GUIDE.md): guia completo de desenvolvimento para gerenciamento centralizado de estado (v1.8+).
 - [`docs/PROJECT_WORKFLOW.md`](docs/PROJECT_WORKFLOW.md): fluxo detalhado de criação de projetos, processamento em lote e integração com relatórios.
 - [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md): passo a passo do wizard e mapeamento das ações de importação.
 - [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): transformações de coordenadas, homografia e calibração.

@@ -579,7 +579,7 @@ self.project_manager.save_project()
 - A aba **Config. Avançadas** dentro da `ApplicationGUI` centraliza a edição dos parâmetros globais (FPS, intervalos, flush, suavização e ROI padrão) com validações Pydantic espelhadas do backend.
 - O formulário recarrega os valores vigentes através de `settings.load_settings()` e persiste overrides em `config.local.yaml` via `Settings.model_validate` (ver `gui._on_save_global_config`).
 - O pipeline de CI executa `scripts/build_templates.py` e `scripts/compile_translations.py` antes do lint/test para garantir que templates curados e catálogos gettext estejam sincronizados com os valores exibidos na aba.
-- Desenvolvedores devem rodar o checklist de QA pré-release (README) sempre que alterarem esses parâmetros — inclui a execução dos scripts manuais em `tests/manual/`.
+- Desenvolvedores devem rodar o checklist de QA pré-release (README) sempre que alterarem esses parâmetros.
 
 **Como são lidos:**
 ```python
