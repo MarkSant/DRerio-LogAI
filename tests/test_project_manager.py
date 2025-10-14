@@ -282,6 +282,49 @@ class TestProjectManager(unittest.TestCase):
         loaded_zone = pm.load_roi_template("Template Importado")
         self.assertEqual(len(loaded_zone.polygon), 4)
 
+    def test_list_roi_templates_includes_global_entries(self):
+        fake_home = Path(self.test_dir) / "home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+
+        with patch.dict(
+            os.environ,
+            {"HOME": str(fake_home), "USERPROFILE": str(fake_home)},
+        ):
+            pm, video_path, _ = self._create_manager_with_assets(name="mix")
+            zone_data = pm.get_zone_data(video_path=video_path)
+
+            pm.save_roi_template(
+                "Projeto Template",
+                zone_data,
+                save_arena=True,
+                save_rois=True,
+                persist=False,
+            )
+
+            pm.roi_template_manager.save_template(
+                "Global Template",
+                zone_data,
+                save_location="global",
+                save_arena=True,
+                save_rois=False,
+            )
+
+            templates = pm.list_roi_templates()
+            names = [entry["name"] for entry in templates]
+
+            self.assertIn("Projeto Template", names)
+            self.assertIn("Global Template", names)
+
+            project_entry = next(
+                entry for entry in templates if entry["name"] == "Projeto Template"
+            )
+            global_entry = next(
+                entry for entry in templates if entry["name"] == "Global Template"
+            )
+
+            self.assertEqual(project_entry.get("location"), "project")
+            self.assertEqual(global_entry.get("location"), "global")
+
     def test_scan_input_paths_uses_directory_cache(self):
         ProjectManager.clear_scan_cache()
         video_dir = os.path.join(self.test_dir, "videos")

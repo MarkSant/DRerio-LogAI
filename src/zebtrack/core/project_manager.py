@@ -9,13 +9,14 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Literal, Tuple
+from typing import Any, Literal, Optional, Tuple
 
 import pandas as pd
 import structlog
 import yaml
 
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.roi_template_manager import ROITemplateManager
 from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
 
@@ -64,6 +65,7 @@ class ProjectManager:
         self.metadata = None  # Will hold the DataFrame for metadata.csv
         self._active_zone_video: str | None = None
         self._last_zone_source_video: str | None = None
+        self.roi_template_manager = ROITemplateManager()
 
     # ------------------------------------------------------------------
     # Internal helpers for zone management
@@ -150,13 +152,50 @@ class ProjectManager:
         normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
         return normalized.lower() or "template"
 
-    def list_roi_templates(self) -> list[dict[str, Any]]:
+    def list_roi_templates(
+        self,
+        *,
+        include_global: bool = True,
+    ) -> list[dict[str, Any]]:
         self._ensure_zone_structures()
-        templates = self.project_data.get("roi_templates", [])
-        return sorted(
-            [deepcopy(item) for item in templates if isinstance(item, dict)],
-            key=lambda item: str(item.get("name", "")).lower(),
-        )
+        aggregated: list[dict[str, Any]] = []
+
+        for item in self.project_data.get("roi_templates", []):
+            if not isinstance(item, dict):
+                continue
+
+            entry = deepcopy(item)
+            entry.setdefault("location", "project")
+            entry.setdefault("includes_arena", True)
+            entry.setdefault("includes_rois", True)
+            aggregated.append(entry)
+
+        if include_global:
+            try:
+                global_entries = self.roi_template_manager.list_global_templates()
+            except Exception as exc:  # pragma: no cover - defensive telemetry
+                log.warning(
+                    "project_manager.roi_templates.global_list_failed",
+                    error=str(exc),
+                )
+                global_entries = []
+
+            for item in global_entries:
+                if not isinstance(item, dict):
+                    continue
+                entry = dict(item)
+                entry.setdefault("location", "global")
+                entry.setdefault("includes_arena", True)
+                entry.setdefault("includes_rois", True)
+                aggregated.append(entry)
+
+        def _sort_key(template: dict[str, Any]) -> tuple[int, str]:
+            location = template.get("location", "project")
+            priority = 0 if location == "project" else 1
+            name = str(template.get("name", "")).lower()
+            return priority, name
+
+        return sorted(aggregated, key=_sort_key)
 
     def _resolve_roi_template_entry(
         self, name: str
@@ -174,79 +213,117 @@ class ProjectManager:
         name: str,
         zone_data: ZoneData,
         *,
+        save_arena: bool = True,
+        save_rois: bool = True,
+        save_location: Literal["project", "global", "custom"] | None = "project",
+        custom_path: str | Path | None = None,
         overwrite: bool = True,
         persist: bool = True,
     ) -> dict[str, Any]:
-        if not name or not name.strip():
+        normalized_name = (name or "").strip()
+        if not normalized_name:
             raise ValueError("O nome do template não pode ficar vazio.")
 
-        if not zone_data or not zone_data.polygon:
-            raise ValueError("O template precisa conter ao menos a arena principal.")
+        if zone_data is None:
+            raise ValueError("Dados de zona inválidos para salvar o template.")
 
-        self._ensure_zone_structures()
-        template_dir = self._ensure_roi_template_dir()
-        slug = self._slugify(name)
+        if not save_arena and not save_rois:
+            raise ValueError("Selecione ao menos arena ou ROIs para salvar.")
 
-        existing_index, existing_entry = self._resolve_roi_template_entry(name)
-        if existing_entry and not overwrite:
-            raise ValueError(f"Template '{name}' já existe.")
+        target_location: Literal["project", "global", "custom"]
+        target_location = save_location or "project"
 
-        if existing_entry is None:
-            # Ensure slug uniqueness when name differs but slug matches
-            collision = any(
-                entry.get("slug") == slug
-                for entry in self.project_data.get("roi_templates", [])
+        if target_location == "project":
+            if not self.project_path:
+                raise ValueError(
+                    "Não é possível salvar o template no projeto atual: projeto não carregado."
+                )
+
+            self._ensure_zone_structures()
+
+            existing_index, existing_entry = self._resolve_roi_template_entry(
+                normalized_name
             )
-            counter = 2
-            base_slug = slug
-            while collision:
-                slug = f"{base_slug}-{counter}"
+            if existing_entry and not overwrite:
+                raise ValueError(f"Template '{normalized_name}' já existe.")
+
+            if existing_entry:
+                slug = existing_entry.get("slug") or self._slugify(normalized_name)
+            else:
+                slug = self._slugify(normalized_name)
                 collision = any(
                     entry.get("slug") == slug
                     for entry in self.project_data.get("roi_templates", [])
+                    if isinstance(entry, dict)
                 )
-                counter += 1
+                counter = 2
+                base_slug = slug
+                while collision:
+                    slug = f"{base_slug}-{counter}"
+                    collision = any(
+                        entry.get("slug") == slug
+                        for entry in self.project_data.get("roi_templates", [])
+                        if isinstance(entry, dict)
+                    )
+                    counter += 1
 
-        template_path = template_dir / f"{slug}.json"
-        now = datetime.now(UTC).isoformat()
+            metadata = self.roi_template_manager.save_template(
+                normalized_name,
+                zone_data,
+                slug=slug,
+                save_arena=save_arena,
+                save_rois=save_rois,
+                save_location="project",
+                project_path=self.project_path,
+                overwrite=overwrite,
+            )
 
-        serialized = self._zone_data_to_dict(zone_data)
-        payload = {
-            "version": ROI_TEMPLATE_VERSION,
-            "name": name,
-            "created_at": (
-                existing_entry.get("created_at", now) if existing_entry else now
-            ),
-            "updated_at": now,
-            "data": serialized,
-        }
+            project_path = Path(self.project_path)
+            metadata["file"] = os.path.relpath(metadata["file"], project_path)
+            metadata["location"] = "project"
+            metadata.setdefault("includes_arena", save_arena)
+            metadata.setdefault("includes_rois", save_rois)
 
-        with open(template_path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            if existing_entry:
+                metadata["created_at"] = existing_entry.get(
+                    "created_at", metadata.get("created_at")
+                )
 
-        metadata = {
-            "name": name,
-            "slug": slug,
-            "file": os.path.relpath(
-                template_path,
-                self.project_path or template_path.parent,
-            ),
-            "roi_count": len(serialized.get("roi_polygons", [])),
-            "updated_at": now,
-            "created_at": (
-                existing_entry.get("created_at", now) if existing_entry else now
-            ),
-        }
+            stored_metadata = {
+                "name": metadata.get("name", normalized_name),
+                "slug": metadata.get("slug"),
+                "file": metadata.get("file"),
+                "roi_count": metadata.get("roi_count", 0),
+                "updated_at": metadata.get("updated_at"),
+                "created_at": metadata.get("created_at"),
+                "location": metadata.get("location", "project"),
+                "includes_arena": metadata.get("includes_arena", True),
+                "includes_rois": metadata.get("includes_rois", True),
+            }
 
-        templates = self.project_data.setdefault("roi_templates", [])
-        if existing_index is not None:
-            templates[existing_index] = metadata
-        else:
-            templates.append(metadata)
+            templates = self.project_data.setdefault("roi_templates", [])
+            if existing_index is not None:
+                templates[existing_index] = stored_metadata
+            else:
+                templates.append(stored_metadata)
 
-        if persist:
-            self.save_project()
-        return deepcopy(metadata)
+            if persist:
+                self.save_project()
+
+            return deepcopy(stored_metadata)
+
+        metadata = self.roi_template_manager.save_template(
+            normalized_name,
+            zone_data,
+            save_arena=save_arena,
+            save_rois=save_rois,
+            save_location=target_location,
+            project_path=self.project_path,
+            custom_path=custom_path,
+            overwrite=overwrite,
+        )
+        metadata["location"] = target_location
+        return metadata
 
     def import_roi_template(
         self,
@@ -267,34 +344,69 @@ class ProjectManager:
 
         zone_data = self._zone_data_from_dict(data_block)
         template_name = name or payload.get("name") or Path(file_path).stem
-        return self.save_roi_template(template_name, zone_data, persist=persist)
 
-    def load_roi_template(self, name: str) -> ZoneData:
-        self._ensure_zone_structures()
-        _, entry = self._resolve_roi_template_entry(name)
-        if not entry:
-            raise ValueError(f"Template de ROI '{name}' não encontrado.")
+        has_arena = bool(zone_data.polygon)
+        has_rois = bool(zone_data.roi_polygons)
 
-        relative_file = entry.get("file")
-        if not relative_file:
-            raise ValueError("Arquivo do template não registrado no projeto.")
-
-        template_path = (
-            Path(self.project_path) / relative_file
-            if self.project_path
-            else Path(relative_file)
+        return self.save_roi_template(
+            template_name,
+            zone_data,
+            save_arena=has_arena,
+            save_rois=has_rois,
+            persist=persist,
         )
-        if not template_path.exists():
-            raise FileNotFoundError(str(template_path))
 
-        with open(template_path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
+    def load_roi_template(
+        self,
+        name: str,
+        *,
+        location: Literal["project", "global", "custom"] | None = None,
+        file_path: str | Path | None = None,
+    ) -> ZoneData:
+        if location in (None, "project"):
+            self._ensure_zone_structures()
+            _, entry = self._resolve_roi_template_entry(name)
+            if entry:
+                relative_file = entry.get("file")
+                if not relative_file:
+                    raise ValueError("Arquivo do template não registrado no projeto.")
 
-        data_block = payload.get("data") if isinstance(payload, dict) else None
-        if not isinstance(data_block, dict):
-            raise ValueError("Conteúdo do template inválido.")
+                template_path = (
+                    Path(self.project_path) / relative_file
+                    if self.project_path
+                    else Path(relative_file)
+                )
+                if not template_path.exists():
+                    raise FileNotFoundError(str(template_path))
 
-        return self._zone_data_from_dict(data_block)
+                with open(template_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+
+                data_block = payload.get("data") if isinstance(payload, dict) else None
+                if not isinstance(data_block, dict):
+                    raise ValueError("Conteúdo do template inválido.")
+
+                return self._zone_data_from_dict(data_block)
+
+            if location == "project":
+                raise ValueError(f"Template de ROI '{name}' não encontrado no projeto.")
+
+        template_path = Path(file_path) if file_path else None
+
+        if template_path is None and location in (None, "global"):
+            for entry in self.roi_template_manager.list_global_templates():
+                if entry.get("name") == name:
+                    file_candidate = entry.get("file")
+                    if file_candidate:
+                        template_path = Path(file_candidate)
+                        break
+
+        if template_path is None:
+            raise ValueError(
+                f"Template de ROI '{name}' não encontrado para o contexto solicitado."
+            )
+
+        return self.roi_template_manager.load_template(template_path)
 
     def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
         """Serialize ZoneData into a JSON-friendly dictionary."""

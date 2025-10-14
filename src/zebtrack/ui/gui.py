@@ -7064,19 +7064,28 @@ class ApplicationGUI:
             log.warning("gui.roi_templates.refresh_failed", error=str(exc))
             templates = []
 
-        self._roi_templates_cache = templates
-        names = [
-            template.get("name", "")
-            for template in templates
-            if template.get("name")
-        ]
+        enriched: list[dict[str, Any]] = []
+        for template in templates:
+            if not isinstance(template, dict):
+                continue
+
+            entry = dict(template)
+            entry["display_name"] = self._format_roi_template_display(entry)
+            entry["identifier"] = self._build_roi_template_identifier(entry)
+            enriched.append(entry)
+
+        self._roi_templates_cache = enriched
+        names = [entry["display_name"] for entry in enriched]
 
         if self.roi_template_combobox:
             self.roi_template_combobox.configure(values=names)
 
+        current_display = self.roi_template_var.get()
+        if names and current_display in names:
+            return
+
         if names:
-            if self.roi_template_var.get() not in names:
-                self.roi_template_var.set(names[0])
+            self.roi_template_var.set(names[0])
         else:
             self.roi_template_var.set("")
 
@@ -7086,23 +7095,40 @@ class ApplicationGUI:
             return
 
         zone_data = pm.get_zone_data()
-        if not zone_data or not zone_data.polygon:
+        if not zone_data or (
+            not zone_data.polygon and not (zone_data.roi_polygons or [])
+        ):
             self.show_warning(
                 "Template incompleto",
-                "Desenhe a arena principal antes de salvar um template de ROI.",
+                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
             )
             return
 
-        name = self.ask_string(
-            "Salvar Template",
-            "Digite um nome para o template de ROIs:",
-            initialvalue=self.roi_template_var.get() or "",
+        allow_project = bool(getattr(pm, "project_path", None))
+        selected_template = self._get_selected_roi_template()
+        initial_name = (
+            selected_template.get("name", "") if selected_template else self.roi_template_var.get() or ""
         )
-        if not name:
+        dialog_result = self._show_template_save_dialog(
+            has_arena=bool(zone_data.polygon),
+            has_rois=bool(zone_data.roi_polygons),
+            allow_project=allow_project,
+            initial_name=initial_name,
+        )
+
+        if not dialog_result:
             return
 
         try:
-            metadata = pm.save_roi_template(name.strip(), zone_data)
+            metadata = pm.save_roi_template(
+                dialog_result["name"],
+                zone_data,
+                save_arena=dialog_result["save_arena"],
+                save_rois=dialog_result["save_rois"],
+                save_location=dialog_result["save_location"],
+                custom_path=dialog_result.get("custom_path"),
+                persist=dialog_result["save_location"] == "project",
+            )
         except ValueError as exc:
             self.show_warning("Template inválido", str(exc))
             return
@@ -7112,14 +7138,109 @@ class ApplicationGUI:
             return
 
         self._refresh_roi_templates()
-        self.roi_template_var.set(metadata.get("name", ""))
+        self._select_roi_template(metadata)
         self.show_info(
             "Template salvo",
             (
                 "Template '"
-                f"{metadata.get('name', name)}' disponível para uso em outros vídeos."
+                f"{metadata.get('name', dialog_result['name'])}' disponível para uso."
             ),
         )
+
+    def _format_roi_template_display(self, template: dict[str, Any]) -> str:
+        base_name = template.get("name", "")
+        location = template.get("location", "project")
+
+        content_parts: list[str] = []
+        if template.get("includes_arena"):
+            content_parts.append("Arena")
+        if template.get("includes_rois"):
+            content_parts.append("ROIs")
+
+        if not content_parts:
+            content_label = "Sem dados"
+        elif len(content_parts) == 2:
+            content_label = "Arena + ROIs"
+        else:
+            content_label = content_parts[0]
+
+        location_label: str | None = None
+        if location == "global":
+            location_label = "Global"
+        elif location not in {"project", "global", None}:
+            location_label = str(location)
+
+        suffix_parts = [content_label] if content_label else []
+        if location_label:
+            suffix_parts.append(location_label)
+
+        suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
+
+        if base_name:
+            return f"{base_name}{suffix}"
+
+        return suffix.lstrip() or "Template"
+
+    def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
+        location = template.get("location", "project")
+        slug = template.get("slug") or ""
+        file_ref = template.get("file") or ""
+
+        if location == "project" and slug:
+            return f"{location}:{slug}"
+
+        if file_ref:
+            return f"{location}:{file_ref}"
+
+        return f"{location}:{template.get('name', '')}"
+
+    def _get_selected_roi_template(self) -> dict[str, Any] | None:
+        if not self._roi_templates_cache:
+            return None
+
+        current_display = self.roi_template_var.get()
+        for entry in self._roi_templates_cache:
+            if entry.get("display_name") == current_display:
+                return entry
+
+        return None
+
+    def _select_roi_template(self, metadata: dict[str, Any]) -> None:
+        identifier = self._build_roi_template_identifier(metadata)
+        for entry in self._roi_templates_cache:
+            if entry.get("identifier") == identifier:
+                self.roi_template_var.set(entry.get("display_name", ""))
+                return
+
+        fallback_name = metadata.get("name", "")
+        if fallback_name:
+            for entry in self._roi_templates_cache:
+                if entry.get("name") == fallback_name:
+                    self.roi_template_var.set(entry.get("display_name", ""))
+                    return
+
+        self.roi_template_var.set("")
+
+    def _show_template_save_dialog(
+        self,
+        *,
+        has_arena: bool,
+        has_rois: bool,
+        allow_project: bool,
+        initial_name: str,
+    ) -> dict[str, Any] | None:
+        dialog = SaveROITemplateDialog(
+            self.root,
+            default_name=initial_name,
+            has_arena=has_arena,
+            has_rois=has_rois,
+            allow_project=allow_project,
+        )
+
+        if not dialog.result:
+            return None
+
+        return dialog.result
 
     def _on_import_roi_template(self) -> None:
         pm = getattr(self.controller, "project_manager", None)
@@ -7141,7 +7262,7 @@ class ApplicationGUI:
             return
 
         self._refresh_roi_templates()
-        self.roi_template_var.set(metadata.get("name", ""))
+        self._select_roi_template(metadata)
         self.show_info(
             "Template importado",
             (
@@ -7155,8 +7276,8 @@ class ApplicationGUI:
         if pm is None:
             return
 
-        template_name = (self.roi_template_var.get() or "").strip()
-        if not template_name:
+        selected_template = self._get_selected_roi_template()
+        if not selected_template:
             self.show_warning(
                 "Nenhum template selecionado",
                 "Escolha um template para aplicar nas áreas de interesse.",
@@ -7171,8 +7292,20 @@ class ApplicationGUI:
             )
             return
 
+        template_name = (
+            selected_template.get("name")
+            or selected_template.get("display_name")
+            or "Template"
+        )
+        template_location = selected_template.get("location")
+        template_file = selected_template.get("file")
+
         try:
-            template_zone = pm.load_roi_template(template_name)
+            template_zone = pm.load_roi_template(
+                selected_template.get("name", ""),
+                location=template_location,
+                file_path=template_file,
+            )
             pm.save_zone_data(template_zone, video_path=active_video)
         except FileNotFoundError as exc:
             log.error(
@@ -7202,11 +7335,11 @@ class ApplicationGUI:
         self.update_zone_listbox()
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
-        self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
         self.show_info(
             "Template aplicado",
             f"As zonas foram atualizadas com o template '{template_name}'.",
         )
+        self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
     def _point_to_segment_distance(self, px, py, x1, y1, x2, y2):
         """
@@ -7394,8 +7527,6 @@ class ApplicationGUI:
             self.roi_canvas.delete("drawing_aid")
 
             if self.current_drawing_type == "arena":
-                self.set_status("Salvando arena principal...")
-
                 # Salva o polígono no projeto
                 success = self.controller.set_main_arena_polygon(
                     self._poly_pts_video  # Use video coordinates instead
@@ -9974,6 +10105,200 @@ class SubjectSelectionDialog(simpledialog.Dialog):
         w.pack(side="left", padx=5, pady=5)
         self.bind("<Escape>", self.cancel)
         box.pack()
+
+
+class SaveROITemplateDialog(simpledialog.Dialog):
+    """Dialog that gathers options for saving ROI/Arena templates."""
+
+    def __init__(
+        self,
+        parent,
+        *,
+        default_name: str,
+        has_arena: bool,
+        has_rois: bool,
+        allow_project: bool,
+    ) -> None:
+        self.result: dict[str, Any] | None = None
+        self._has_arena = has_arena
+        self._has_rois = has_rois
+        self._allow_project = allow_project
+        self._default_name = default_name
+        super().__init__(parent, "Salvar template de zonas")
+
+    def body(self, master):
+        master.columnconfigure(1, weight=1)
+
+        ttk.Label(master, text="Nome do template:").grid(
+            row=0, column=0, sticky="w", padx=(5, 5), pady=(5, 2)
+        )
+        self.name_var = StringVar(value=self._default_name)
+        self.name_entry = ttk.Entry(master, textvariable=self.name_var, width=40)
+        self.name_entry.grid(row=0, column=1, sticky="ew", padx=(0, 5), pady=(5, 2))
+
+        ttk.Label(master, text="Incluir no template:").grid(
+            row=1, column=0, sticky="nw", padx=(5, 5), pady=(8, 2)
+        )
+        options_frame = ttk.Frame(master)
+        options_frame.grid(row=1, column=1, sticky="w", padx=(0, 5), pady=(5, 2))
+
+        self.save_arena_var = BooleanVar(value=self._has_arena)
+        arena_check = ttk.Checkbutton(
+            options_frame,
+            text="Arena principal",
+            variable=self.save_arena_var,
+        )
+        arena_check.grid(row=0, column=0, sticky="w")
+        if not self._has_arena:
+            self.save_arena_var.set(False)
+            arena_check.state(["disabled"])
+
+        self.save_rois_var = BooleanVar(value=self._has_rois)
+        rois_check = ttk.Checkbutton(
+            options_frame,
+            text="Regiões de Interesse (ROIs)",
+            variable=self.save_rois_var,
+        )
+        rois_check.grid(row=1, column=0, sticky="w", pady=(3, 0))
+        if not self._has_rois:
+            self.save_rois_var.set(False)
+            rois_check.state(["disabled"])
+
+        ttk.Label(master, text="Salvar em:").grid(
+            row=2, column=0, sticky="nw", padx=(5, 5), pady=(10, 2)
+        )
+        location_frame = ttk.Frame(master)
+        location_frame.grid(row=2, column=1, sticky="w", padx=(0, 5), pady=(5, 2))
+
+        default_location = "project" if self._allow_project else "global"
+        self.location_var = StringVar(value=default_location)
+        self.location_var.trace_add("write", lambda *_: self._update_custom_state())
+
+        self._project_radio = ttk.Radiobutton(
+            location_frame,
+            text="Projeto atual",
+            value="project",
+            variable=self.location_var,
+        )
+        self._project_radio.grid(row=0, column=0, sticky="w")
+        if not self._allow_project:
+            self._project_radio.state(["disabled"])
+
+        ttk.Radiobutton(
+            location_frame,
+            text="Configurações globais",
+            value="global",
+            variable=self.location_var,
+        ).grid(row=1, column=0, sticky="w", pady=(3, 0))
+
+        ttk.Radiobutton(
+            location_frame,
+            text="Local personalizado",
+            value="custom",
+            variable=self.location_var,
+        ).grid(row=2, column=0, sticky="w", pady=(3, 0))
+
+        custom_frame = ttk.Frame(location_frame)
+        custom_frame.grid(row=3, column=0, sticky="we", pady=(6, 0))
+        custom_frame.columnconfigure(0, weight=1)
+
+        self.custom_path_var = StringVar(value="")
+        self.custom_path_entry = ttk.Entry(
+            custom_frame,
+            textvariable=self.custom_path_var,
+            width=36,
+        )
+        self.custom_path_entry.grid(row=0, column=0, sticky="ew")
+
+        self.browse_button = ttk.Button(
+            custom_frame,
+            text="Procurar…",
+            command=self._browse_custom_path,
+            width=12,
+        )
+        self.browse_button.grid(row=0, column=1, padx=(6, 0))
+
+        ttk.Label(
+            master,
+            text=(
+                "Templates globais ficam disponíveis para todos os projetos. "
+                "Use um local personalizado para compartilhar manualmente."
+            ),
+            wraplength=360,
+            foreground="#4a4a4a",
+        ).grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=(12, 0))
+
+        self._update_custom_state()
+        return self.name_entry
+
+    def validate(self) -> bool:
+        name = (self.name_var.get() or "").strip()
+        save_arena = bool(self.save_arena_var.get())
+        save_rois = bool(self.save_rois_var.get())
+        location = self.location_var.get()
+
+        if not name:
+            messagebox.showwarning("Nome obrigatório", "Informe o nome do template.")
+            return False
+
+        if not save_arena and not save_rois:
+            messagebox.showwarning(
+                "Seleção incompleta",
+                "Escolha ao menos a arena ou as ROIs para salvar no template.",
+            )
+            return False
+
+        if location == "custom":
+            path = (self.custom_path_var.get() or "").strip()
+            if not path:
+                messagebox.showwarning(
+                    "Local não definido",
+                    "Selecione o arquivo onde o template será salvo.",
+                )
+                return False
+
+        return True
+
+    def apply(self) -> None:
+        location = self.location_var.get()
+        custom_path = (self.custom_path_var.get() or "").strip()
+        if location == "custom" and custom_path:
+            candidate = Path(custom_path)
+            if candidate.suffix.lower() != ".json":
+                custom_path = str(candidate.with_suffix(".json"))
+
+        self.result = {
+            "name": (self.name_var.get() or "").strip(),
+            "save_arena": bool(self.save_arena_var.get()),
+            "save_rois": bool(self.save_rois_var.get()),
+            "save_location": location,
+            "custom_path": custom_path if location == "custom" else None,
+        }
+
+    def _update_custom_state(self) -> None:
+        is_custom = self.location_var.get() == "custom"
+        state = "normal" if is_custom else "disabled"
+        self.custom_path_entry.config(state=state)
+        self.browse_button.config(state=state)
+
+    def _browse_custom_path(self) -> None:
+        initial_slug = self._suggest_filename()
+        chosen = filedialog.asksaveasfilename(
+            title="Salvar template de zonas",
+            defaultextension=".json",
+            filetypes=[("Template de zonas", "*.json"), ("Todos os arquivos", "*.*")],
+            initialfile=f"{initial_slug}.json" if initial_slug else "",
+        )
+        if chosen:
+            self.custom_path_var.set(chosen)
+            self.location_var.set("custom")
+
+    def _suggest_filename(self) -> str:
+        candidate = (self.name_var.get() or "").strip()
+        if not candidate:
+            return "template"
+        normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", candidate).strip("-")
+        return normalized.lower() or "template"
 
 
 class TemplateDialog(simpledialog.Dialog):
