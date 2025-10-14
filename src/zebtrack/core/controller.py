@@ -164,8 +164,9 @@ class MainViewModel:
         )
         self._publish_processing_mode(source="init", force=True)
         
-        # Initialize recording service (Phase 2.2)
+        # Initialize services (Phase 2.2 + Phase 3)
         self._init_recording_service()
+        self._init_analysis_service()
         
         # Other initializations...
         self.program_exit_event = threading.Event()
@@ -339,8 +340,23 @@ class MainViewModel:
             "set_status": lambda msg: self._schedule_on_ui(self.view.set_status, msg),
             "stop_recording_callback": self.stop_recording,
         })
-    
 
+    def _init_analysis_service(self) -> None:
+        """
+        Initialize AnalysisService for processing orchestration.
+        
+        Phase 3: Extracts video processing orchestration logic from MainViewModel.
+        AnalysisService now handles batch processing and coordinates with existing
+        _process_single_video methods.
+        """
+        from zebtrack.analysis.analysis_service import AnalysisService
+        
+        self.analysis_service = AnalysisService()
+        
+        log.info(
+            "controller.init_analysis_service.complete",
+            service=type(self.analysis_service).__name__,
+        )
 
     def _register_event_handlers(self) -> None:
         """Subscribe to all UI→Controller events when event bus is enabled.
@@ -5118,118 +5134,22 @@ class MainViewModel:
         """
         Private helper to process a list of videos and save results. This is
         designed to be run in a background thread.
+        
+        Phase 3: Delegates batch processing orchestration to AnalysisService.
         """
-        log.info("controller.processing.start", count=len(videos_to_process))
-        total_videos = max(len(videos_to_process), 1)
-
-        analysis_interval_frames, display_interval_frames = self._determine_processing_intervals(
-            single_video_config
-        )
-
-        if not single_video_config:
-            settings_success = self.apply_project_settings_to_batch(videos_to_process)
-            if not settings_success:
-                log.warning("controller.processing.settings_partial_failure")
-
-        was_cancelled = False
-        final_output_dir = output_base_dir
-
-        with self._temporary_single_animal_mode(
-            single_video_config
-        ) as _single_subject_mode_enabled:
-            try:
-                self._prepare_processing_ui(len(videos_to_process))
-                self._publish_processing_mode(
-                    source="processing.loop_start",
-                    force=True,
-                )
-
-                for index, video_info in enumerate(videos_to_process):
-                    if self.cancel_event.is_set():
-                        was_cancelled = True
-                        log.info("controller.processing.cancelled_by_user")
-                        break
-
-                    video_path = video_info.get("path")
-                    experiment_id = (
-                        os.path.splitext(os.path.basename(video_path))[0]
-                        if isinstance(video_path, str) and video_path
-                        else f"video_{index + 1}"
-                    )
-                    metadata_context = self._build_metadata_context(
-                        video_info=video_info,
-                        single_video_config=single_video_config,
-                        experiment_id=experiment_id,
-                        video_path=video_path or "",
-                    )
-
-                    profile_context = metadata_context or single_video_config or {}
-
-                    try:
-                        analysis_profile = self.project_manager.resolve_analysis_profile(
-                            profile_context
-                        )
-                    except Exception:  # pragma: no cover - defensive
-                        log.warning(
-                            "controller.processing.profile_resolve_failed",
-                            video=experiment_id,
-                            exc_info=True,
-                        )
-                        resolve_profile = self.project_manager.resolve_analysis_profile
-                        analysis_profile = resolve_profile({})
-
-                    profile_name = (
-                        analysis_profile.get("name", "default")
-                        if isinstance(analysis_profile, dict)
-                        else "default"
-                    )
-
-                    self.root.after(
-                        0,
-                        lambda name=profile_name: self.view.update_analysis_profile(name),
-                    )
-                    self.root.after(
-                        0,
-                        lambda name=profile_name: self.view.update_social_summary(
-                            profile=name,
-                            stats=None,
-                            tracks=[],
-                        ),
-                    )
-
-                    processed, results_dir = self._process_single_video(
-                        index=index,
-                        total_videos=total_videos,
-                        video_info=video_info,
-                        single_video_config=single_video_config,
-                        analysis_interval_frames=analysis_interval_frames,
-                        display_interval_frames=display_interval_frames,
-                        output_base_dir=output_base_dir,
-                        experiment_id=experiment_id,
-                        metadata_context=metadata_context,
-                        analysis_profile=analysis_profile,
-                    )
-
-                    if results_dir:
-                        final_output_dir = results_dir
-
-                    if not processed and self.cancel_event.is_set():
-                        was_cancelled = True
-                        break
-            except Exception as exc:  # pragma: no cover - defensive
-                log.error("controller.processing.error", error=str(exc), exc_info=True)
-                self.root.after(
-                    0,
-                    lambda e=exc: self.view.show_error(
-                        "Erro na Análise", f"Ocorreu um erro inesperado: {e}"
-                    ),
-                )
-            finally:
-                self._finalize_processing(
-                    was_cancelled=was_cancelled,
-                    videos_to_process=videos_to_process,
-                    final_output_dir=final_output_dir,
-                )
+        log.info("controller.processing.start_delegating", count=len(videos_to_process))
+        
+        # Delegate to AnalysisService for batch processing orchestration
+        with self._temporary_single_animal_mode(single_video_config) as _:
+            self.analysis_service.process_videos_batch(
+                videos_to_process=videos_to_process,
+                output_base_dir=output_base_dir,
+                single_video_config=single_video_config,
+                controller=self,
+                cancel_event=self.cancel_event,
+                project_manager=self.project_manager,
+                root_tk=self.root,
+            )
 
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
         """

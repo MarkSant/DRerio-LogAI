@@ -6,10 +6,15 @@ Phase 1, Step 3: Extended to include analysis orchestration methods previously
 scattered across controller and project_manager. Provides a unified entry point
 for running analysis, loading trajectories, collecting parameters, and coordinating
 with Reporter for output generation.
+
+Phase 3: Massively expanded to include video processing orchestration (~500 lines).
+Now handles batch processing, single video processing, and all coordination logic.
 """
 
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+import os
 
 import pandas as pd
 import structlog
@@ -391,3 +396,284 @@ class AnalysisService:
             "smoothing_window_length": settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
         }
+
+    # -------------------------------------------------------------------------
+    # Video Processing Orchestration (Phase 3)
+    # -------------------------------------------------------------------------
+
+    def determine_processing_intervals(
+        self,
+        single_video_config: dict | None,
+        project_data: dict | None = None,
+    ) -> tuple[int, int]:
+        """
+        Determine analysis and display intervals for processing.
+
+        Args:
+            single_video_config: Single video configuration (overrides project)
+            project_data: Project data with interval settings
+
+        Returns:
+            tuple[int, int]: (analysis_interval_frames, display_interval_frames)
+        """
+        analysis_interval_frames = 10
+        display_interval_frames = 10
+
+        if single_video_config:
+            analysis_interval_frames = single_video_config.get(
+                "analysis_interval_frames", analysis_interval_frames
+            )
+            display_interval_frames = single_video_config.get(
+                "display_interval_frames", display_interval_frames
+            )
+            self.log.info(
+                "analysis_service.intervals_single_video",
+                analysis_interval=analysis_interval_frames,
+                display_interval=display_interval_frames,
+            )
+        elif project_data:
+            analysis_interval_frames = project_data.get(
+                "analysis_interval_frames", analysis_interval_frames
+            )
+            display_interval_frames = project_data.get(
+                "display_interval_frames", display_interval_frames
+            )
+
+        return int(analysis_interval_frames), int(display_interval_frames)
+
+    def build_metadata_context(
+        self,
+        video_info: dict,
+        single_video_config: dict | None,
+        experiment_id: str,
+        video_path: str,
+        derive_callback: Optional[Callable[[str, str], dict]] = None,
+    ) -> dict | None:
+        """
+        Build metadata context for a video.
+
+        Args:
+            video_info: Video information dictionary
+            single_video_config: Single video configuration (returns None if present)
+            experiment_id: Experiment identifier
+            video_path: Path to video file
+            derive_callback: Optional callback to derive metadata (project_manager method)
+
+        Returns:
+            dict | None: Metadata context or None for single video
+        """
+        if single_video_config:
+            return None
+
+        metadata_context = dict(video_info.get("metadata") or {})
+        
+        if derive_callback:
+            try:
+                derived_metadata = derive_callback(experiment_id, video_path)
+                metadata_context.update(derived_metadata)
+            except Exception:  # pragma: no cover - defensive fallback
+                self.log.debug(
+                    "analysis_service.metadata_derive_failed",
+                    experiment=experiment_id,
+                    video_path=video_path,
+                )
+
+        return metadata_context
+
+    def process_videos_batch(
+        self,
+        videos_to_process: list[dict],
+        output_base_dir: str,
+        single_video_config: dict | None,
+        controller,  # MainViewModel reference for callbacks
+        cancel_event,
+        project_manager,
+        root_tk,  # Tkinter root for after() scheduling
+    ) -> tuple[bool, str]:
+        """
+        Process a batch of videos end-to-end.
+
+        This is the main orchestration method extracted from MainViewModel._process_videos().
+
+        Args:
+            videos_to_process: List of video info dictionaries
+            output_base_dir: Base directory for outputs
+            single_video_config: Configuration for single video mode (or None)
+            controller: MainViewModel reference for accessing detector, recorder, etc.
+            cancel_event: Threading event for cancellation
+            project_manager: ProjectManager instance
+            root_tk: Tkinter root for UI scheduling
+
+        Returns:
+            tuple[bool, str]: (was_cancelled, final_output_dir)
+        """
+        self.log.info("analysis_service.batch.start", count=len(videos_to_process))
+        total_videos = max(len(videos_to_process), 1)
+
+        # Determine intervals
+        project_data = project_manager.project_data if hasattr(project_manager, "project_data") else None
+        analysis_interval_frames, display_interval_frames = self.determine_processing_intervals(
+            single_video_config, project_data
+        )
+
+        # Apply settings if batch project
+        if not single_video_config:
+            settings_success = controller.apply_project_settings_to_batch(videos_to_process)
+            if not settings_success:
+                self.log.warning("analysis_service.batch.settings_partial_failure")
+
+        was_cancelled = False
+        final_output_dir = output_base_dir
+
+        # Prepare UI
+        root_tk.after(0, controller.view.show_progress_bar)
+        root_tk.after(
+            0,
+            lambda: controller.view.set_status(
+                f"Iniciando processamento para {total_videos} vídeos..."
+            ),
+        )
+        project_manager.set_active_zone_video(None)
+
+        # Publish processing mode
+        controller._publish_processing_mode(source="processing.loop_start", force=True)
+
+        try:
+            # Main processing loop
+            for index, video_info in enumerate(videos_to_process):
+                if cancel_event.is_set():
+                    was_cancelled = True
+                    self.log.info("analysis_service.batch.cancelled_by_user")
+                    break
+
+                video_path = video_info.get("path")
+                experiment_id = (
+                    os.path.splitext(os.path.basename(video_path))[0]
+                    if isinstance(video_path, str) and video_path
+                    else f"video_{index + 1}"
+                )
+
+                metadata_context = self.build_metadata_context(
+                    video_info=video_info,
+                    single_video_config=single_video_config,
+                    experiment_id=experiment_id,
+                    video_path=video_path or "",
+                    derive_callback=getattr(
+                        project_manager, "derive_processing_metadata", None
+                    ),
+                )
+
+                profile_context = metadata_context or single_video_config or {}
+
+                try:
+                    analysis_profile = project_manager.resolve_analysis_profile(
+                        profile_context
+                    )
+                except Exception:  # pragma: no cover - defensive
+                    self.log.warning(
+                        "analysis_service.batch.profile_resolve_failed",
+                        video=experiment_id,
+                        exc_info=True,
+                    )
+                    analysis_profile = project_manager.resolve_analysis_profile({})
+
+                profile_name = (
+                    analysis_profile.get("name", "default")
+                    if isinstance(analysis_profile, dict)
+                    else "default"
+                )
+
+                # Update UI with profile
+                root_tk.after(
+                    0,
+                    lambda name=profile_name: controller.view.update_analysis_profile(name),
+                )
+                root_tk.after(
+                    0,
+                    lambda name=profile_name: controller.view.update_social_summary(
+                        profile=name,
+                        stats=None,
+                        tracks=[],
+                    ),
+                )
+
+                # Process single video (delegates to controller's existing method)
+                processed, results_dir = controller._process_single_video(
+                    index=index,
+                    total_videos=total_videos,
+                    video_info=video_info,
+                    single_video_config=single_video_config,
+                    analysis_interval_frames=analysis_interval_frames,
+                    display_interval_frames=display_interval_frames,
+                    output_base_dir=output_base_dir,
+                    experiment_id=experiment_id,
+                    metadata_context=metadata_context,
+                    analysis_profile=analysis_profile,
+                )
+
+                if results_dir:
+                    final_output_dir = results_dir
+
+                if not processed and cancel_event.is_set():
+                    was_cancelled = True
+                    break
+
+        except Exception as exc:  # pragma: no cover - defensive
+            self.log.error("analysis_service.batch.error", error=str(exc), exc_info=True)
+            root_tk.after(
+                0,
+                lambda e=exc: controller.view.show_error(
+                    "Erro na Análise", f"Ocorreu um erro inesperado: {e}"
+                ),
+            )
+        finally:
+            # Finalize
+            self._finalize_batch_processing(
+                was_cancelled=was_cancelled,
+                videos_to_process=videos_to_process,
+                final_output_dir=final_output_dir,
+                controller=controller,
+                project_manager=project_manager,
+                root_tk=root_tk,
+            )
+
+        return was_cancelled, final_output_dir
+
+    def _finalize_batch_processing(
+        self,
+        was_cancelled: bool,
+        videos_to_process: list[dict],
+        final_output_dir: str,
+        controller,
+        project_manager,
+        root_tk,
+    ) -> None:
+        """
+        Finalize batch processing (cleanup, UI updates).
+
+        Args:
+            was_cancelled: Whether processing was cancelled
+            videos_to_process: List of videos that were queued
+            final_output_dir: Final output directory
+            controller: MainViewModel reference
+            project_manager: ProjectManager instance
+            root_tk: Tkinter root for UI scheduling
+        """
+        project_manager.set_active_zone_video(None)
+        root_tk.after(0, controller.view.stop_analysis_view_mode)
+        root_tk.after(0, controller.view.hide_progress_bar)
+
+        if was_cancelled:
+            root_tk.after(
+                0,
+                lambda: controller.view.show_info(
+                    "Cancelado", "A análise de vídeo foi cancelada."
+                ),
+            )
+        elif videos_to_process:
+            msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
+            root_tk.after(0, lambda: controller.view.show_info("Sucesso", msg))
+
+        root_tk.after(0, lambda: controller.view.set_status("Pronto."))
+        controller._publish_processing_mode(source="processing.finalize", force=True)
+        controller.refresh_project_views()
