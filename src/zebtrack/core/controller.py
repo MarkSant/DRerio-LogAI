@@ -42,6 +42,7 @@ from zebtrack.core.processing_worker import (
 )
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
+from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
@@ -133,6 +134,9 @@ class MainViewModel:
         self.report_results_paths = {}
         # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
+        
+        # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
+        self.recording_service: RecordingService | None = None
 
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
@@ -159,6 +163,10 @@ class MainViewModel:
             event_bus=self.ui_event_bus if self._use_event_bus else None,
         )
         self._publish_processing_mode(source="init", force=True)
+        
+        # Initialize recording service (Phase 2.2)
+        self._init_recording_service()
+        
         # Other initializations...
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
@@ -304,6 +312,35 @@ class MainViewModel:
             self.root.after(0, lambda: func(*args, **kwargs))
         except Exception:
             func(*args, **kwargs)
+
+    def _init_recording_service(self) -> None:
+        """
+        Initialize RecordingService with dependencies and UI callbacks.
+        
+        Phase 2.2: Extracts recording orchestration logic from MainViewModel.
+        
+        Note: 
+        - recorder, state_manager, project_manager are passed as references (will update)
+        - arduino_manager is initially None and updated via _sync_recording_service_arduino()
+          when setup_arduino() is called.
+        """
+        # Store controller reference so RecordingService can access current recorder/managers
+        self.recording_service = RecordingService(
+            controller=self,  # Pass self to access current recorder/arduino_manager
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            root=self.root,
+        )
+        
+        # Inject UI callbacks for view updates
+        self.recording_service.set_ui_callbacks({
+            "show_error": lambda title, msg: self._schedule_on_ui(self.view.show_error, title, msg),
+            "update_button_state": lambda btn, state: self._schedule_on_ui(self.view.update_button_state, btn, state),
+            "set_status": lambda msg: self._schedule_on_ui(self.view.set_status, msg),
+            "stop_recording_callback": self.stop_recording,
+        })
+    
+
 
     def _register_event_handlers(self) -> None:
         """Subscribe to all UI→Controller events when event bus is enabled.
@@ -614,86 +651,14 @@ class MainViewModel:
         *,
         trigger_source: str,
     ) -> None:
-        countdown_s = int(project_data.get("countdown_duration_s", 0) or 0)
-        use_countdown = bool(project_data.get("use_countdown")) and countdown_s > 0
-
-        def _start_now():
-            self._start_recording_now(context, project_data, trigger_source)
-
-        if use_countdown:
-            self._run_countdown(countdown_s, _start_now)
-        else:
-            _start_now()
-
-    def _start_recording_now(
-        self,
-        context: dict,
-        project_data: dict,
-        trigger_source: str,
-    ) -> None:
-        folder_name = context["folder_name"]
-        output_folder = context["output_folder"]
-
-        zone_data = self.project_manager.get_zone_data()
+        """Delegate to RecordingService (Phase 2.2)."""
+        # Inject camera dimensions into context
         camera_width = getattr(self.view.camera, "actual_width", None)
         camera_height = getattr(self.view.camera, "actual_height", None)
-
-        if camera_width is None or camera_height is None:
-            self.view.show_error(
-                "Erro",
-                "Configuração da câmera indisponível para iniciar a gravação.",
-            )
-            self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
-            return
-
-        recording_started = self.recorder.start_recording(
-            output_folder,
-            camera_width,
-            camera_height,
-            zones=zone_data,
-        )
-
-        # Update state in StateManager with full context
-        self.state_manager.update_recording_state(
-            source="controller.start_recording_session",
-            is_recording=recording_started,
-            output_path=Path(output_folder) if recording_started else None,
-            recording_start_time=datetime.now() if recording_started else None,
-        )
-
-        if not recording_started:
-            self.view.show_error("Erro", "Não foi possível iniciar a gravação.")
-            self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
-            self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
-            return
-
-        self._schedule_on_ui(self.view.update_button_state, "start_rec", "disabled")
-        self._schedule_on_ui(self.view.update_button_state, "stop_rec", "normal")
-        self._schedule_on_ui(self.view.set_status, f"Recording session: {folder_name}")
-
-        if context.get("arduino_enabled") and self.arduino_manager:
-            box_number = self._get_box_number(context["day"], context["group"], context["cobaia"])
-            if box_number is None:
-                log.warning(
-                    "controller.recording.arduino_invalid_box",
-                    day=context["day"],
-                    group=context["group"],
-                    cobaia=context["cobaia"],
-                )
-            else:
-                self.arduino_manager.send_command(box_number, source=f"{trigger_source}-start")
-
-        project_data = project_data or {}
-        if project_data.get("use_timed_recording"):
-            duration_s = project_data.get("recording_duration_s", 0) or 0
-            if duration_s > 0:
-                duration_ms = int(duration_s * 1000)
-                self.timed_recording_job = self.root.after(duration_ms, self.stop_recording)
-                log.info(
-                    "controller.recording.timed_start",
-                    duration_s=duration_s,
-                    trigger=trigger_source,
-                )
+        context["camera_width"] = camera_width
+        context["camera_height"] = camera_height
+        
+        self.recording_service.schedule_recording(context, project_data, trigger_source=trigger_source)
 
     def close_project(self):
         # Restore global defaults before clearing project state
@@ -1390,25 +1355,6 @@ class MainViewModel:
             arduino_port=None,
         )
         return False
-
-    def _get_box_number(self, day, group, cobaia) -> int | None:
-        """Resolves the Arduino box number for this session.
-
-        By default we convert the cobaia identifier to an integer so each subject
-        maps to the same relay channel. Override this helper if your setup requires a
-        different mapping (e.g., mapping groups or arenas to relays).
-        """
-
-        try:
-            return int(cobaia)
-        except (TypeError, ValueError):
-            log.warning(
-                "controller.recording.arduino_box_resolution_failed",
-                day=day,
-                group=group,
-                cobaia=cobaia,
-            )
-            return None
 
     def setup_detector_zones(self):
         """Loads zone data from project and sets it on the detector instance."""
@@ -2640,31 +2586,6 @@ class MainViewModel:
             )
             self.view.set_status("Pronto.")
 
-    def _run_countdown(self, duration_s: int, callback):
-        """Displays a countdown window and then executes a callback."""
-        countdown_window = Toplevel(self.root)
-        countdown_window.overrideredirect(True)  # Remove title bar
-        countdown_label = Label(
-            countdown_window, font=("Helvetica", 150, "bold"), bg="black", fg="white"
-        )
-        countdown_label.pack(expand=True, fill="both")
-
-        # Center the window
-        win_w, win_h = 200, 200
-        pos_x = (self.root.winfo_screenwidth() // 2) - (win_w // 2)
-        pos_y = (self.root.winfo_screenheight() // 2) - (win_h // 2)
-        countdown_window.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
-
-        def update_timer(seconds_left):
-            if seconds_left > 0:
-                countdown_label.config(text=str(seconds_left))
-                self.root.after(1000, lambda: update_timer(seconds_left - 1))
-            else:
-                countdown_window.destroy()
-                callback()
-
-        update_timer(duration_s)
-
     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
         """Starts a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
@@ -2857,40 +2778,18 @@ class MainViewModel:
         self._schedule_recording(context, project_data, trigger_source="manual")
 
     def stop_recording(self):
-        """Stops the current recording session."""
+        """Stops the current recording session (delegates to RecordingService - Phase 2.2)."""
         log.info("controller.recording.stop")
 
         if self._pending_external_trigger:
             self._clear_external_trigger_wait()
 
-        # 1. Cancel any pending timed recording job
-        if self.timed_recording_job:
-            self.root.after_cancel(self.timed_recording_job)
-            self.timed_recording_job = None
-            log.info("controller.recording.timed_cancelled")
-
-        # 2. Stop the recorder
-        if self.is_recording:
-            self.recorder.stop_recording()
-            # Update state in StateManager
-            self.state_manager.update_recording_state(
-                source="controller.stop_recording",
-                is_recording=False,
-                output_path=None,
-            )
-
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        if project_data.get("use_arduino"):
-            manager = self.arduino_manager
-            if manager and manager.is_connected():
-                if not manager.send_command(0, source="manual-stop"):
-                    log.warning("controller.recording.arduino_stop_failed")
-            else:
-                log.warning("controller.recording.arduino_stop_not_connected")
-
-        # 3. Update UI
-        self.view.update_button_state("start_rec", "normal")
-        self.view.update_button_state("stop_rec", "disabled")
+        # Delegate to RecordingService
+        self.recording_service.stop_session()
+        
+        # Update UI on main thread
+        self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
+        self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
 
     # --- New Refactored Workflows ---
 
