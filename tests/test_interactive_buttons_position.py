@@ -10,7 +10,7 @@ def test_interactive_buttons_positioned_after_zone_list():
     """
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Find the _create_zone_control_widgets method
@@ -89,7 +89,7 @@ def test_interactive_buttons_not_packed_initially():
     """
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     zone_controls_section = gui_code.split("def _create_zone_control_widgets(self):")[1]

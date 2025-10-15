@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AnalysisService: Orchestrates behavioral and ROI analysis pipelines.
 
@@ -11,10 +10,9 @@ Phase 3: Massively expanded to include video processing orchestration (~500 line
 Now handles batch processing, single video processing, and all coordination logic.
 """
 
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 import os
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 import structlog
@@ -212,8 +210,8 @@ class AnalysisService:
         """
         # Start with settings defaults
         params = {
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,  # noqa: E501
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,  # noqa: E501
+            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
             "smoothing_window_length": settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
         }
@@ -391,8 +389,8 @@ class AnalysisService:
         """
         return {
             "name": "default",
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,  # noqa: E501
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,  # noqa: E501
+            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
             "smoothing_window_length": settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
         }
@@ -466,7 +464,7 @@ class AnalysisService:
             return None
 
         metadata_context = dict(video_info.get("metadata") or {})
-        
+
         if derive_callback:
             try:
                 derived_metadata = derive_callback(experiment_id, video_path)
@@ -511,7 +509,9 @@ class AnalysisService:
         total_videos = max(len(videos_to_process), 1)
 
         # Determine intervals
-        project_data = project_manager.project_data if hasattr(project_manager, "project_data") else None
+        project_data = (
+            project_manager.project_data if hasattr(project_manager, "project_data") else None
+        )
         analysis_interval_frames, display_interval_frames = self.determine_processing_intervals(
             single_video_config, project_data
         )
@@ -558,17 +558,13 @@ class AnalysisService:
                     single_video_config=single_video_config,
                     experiment_id=experiment_id,
                     video_path=video_path or "",
-                    derive_callback=getattr(
-                        project_manager, "derive_processing_metadata", None
-                    ),
+                    derive_callback=getattr(project_manager, "derive_processing_metadata", None),
                 )
 
                 profile_context = metadata_context or single_video_config or {}
 
                 try:
-                    analysis_profile = project_manager.resolve_analysis_profile(
-                        profile_context
-                    )
+                    analysis_profile = project_manager.resolve_analysis_profile(profile_context)
                 except Exception:  # pragma: no cover - defensive
                     self.log.warning(
                         "analysis_service.batch.profile_resolve_failed",
@@ -666,9 +662,7 @@ class AnalysisService:
         if was_cancelled:
             root_tk.after(
                 0,
-                lambda: controller.view.show_info(
-                    "Cancelado", "A análise de vídeo foi cancelada."
-                ),
+                lambda: controller.view.show_info("Cancelado", "A análise de vídeo foi cancelada."),
             )
         elif videos_to_process:
             msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"

@@ -131,6 +131,8 @@ class TestEventBus:
 
         # The event bus should have caught and logged the exception internally
         assert exception_caught, "EventBus should catch and log handler exceptions, not raise them"
+
+
 class TestEventCatalog:
     """Tests for the Events catalog."""
 
@@ -155,11 +157,13 @@ class TestEventCatalog:
 class TestControllerEventIntegration:
     """Integration tests for controller event handling."""
 
-    def test_controller_registers_event_handlers(self, mock_tkinter_root, mock_application_gui, monkeypatch):
+    def test_controller_registers_event_handlers(
+        self, mock_tkinter_root, mock_application_gui, monkeypatch
+    ):
         """Test that controller registers all event handlers when event bus is enabled."""
-        from zebtrack.core.controller import AppController
         import zebtrack.settings
-        
+        from zebtrack.core.controller import AppController
+
         # Enable event bus for this test by patching the module-level settings object
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)
 
@@ -179,11 +183,13 @@ class TestControllerEventIntegration:
         subscribers = controller.ui_event_bus.get_subscribers(Events.MODEL_SET_WEIGHT)
         assert len(subscribers) > 0
 
-    def test_recording_start_event_invokes_handler(self, mock_tkinter_root, mock_application_gui, monkeypatch):
+    def test_recording_start_event_invokes_handler(
+        self, mock_tkinter_root, mock_application_gui, monkeypatch
+    ):
         """Test that publishing RECORDING_START event invokes the controller method."""
-        from zebtrack.core.controller import AppController
         import zebtrack.settings
-        
+        from zebtrack.core.controller import AppController
+
         # Enable event bus for this test
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)
 
@@ -207,11 +213,13 @@ class TestControllerEventIntegration:
         # Verify the method was called
         start_recording_mock.assert_called_once_with(day=1, group="A", cobaia="C1")
 
-    def test_project_close_event_invokes_handler(self, mock_tkinter_root, mock_application_gui, monkeypatch):
+    def test_project_close_event_invokes_handler(
+        self, mock_tkinter_root, mock_application_gui, monkeypatch
+    ):
         """Test that publishing PROJECT_CLOSE event invokes the controller method."""
-        from zebtrack.core.controller import AppController
         import zebtrack.settings
-        
+        from zebtrack.core.controller import AppController
+
         # Enable event bus for this test
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)
 
@@ -251,27 +259,28 @@ def mock_tkinter_root():
 @pytest.fixture
 def mock_application_gui(monkeypatch):
     """Mock ApplicationGUI to avoid ttkbootstrap Style singleton issues in controller tests."""
-    from zebtrack.ui.gui import ApplicationGUI
     from unittest.mock import MagicMock, PropertyMock
-    
+
+    from zebtrack.ui.gui import ApplicationGUI
+
     # Replace ApplicationGUI class entirely with a factory that returns MagicMock
     def create_mock_gui(*args, **kwargs):
         mock_gui = MagicMock(spec=ApplicationGUI)
-        
+
         # Mock methods that might be called
         mock_gui.ask_ok_cancel = MagicMock(return_value=True)
         mock_gui.update_openvino_status = MagicMock()
         mock_gui.update_detector_status = MagicMock()
         mock_gui.stop_event_bus_polling = MagicMock()
-        
+
         # Mock properties with PropertyMock
         type(mock_gui).zone_controls = PropertyMock(return_value=None)
         type(mock_gui).toggle_view_btn = PropertyMock(return_value=None)
         type(mock_gui).draw_roi_button = PropertyMock(return_value=None)
         type(mock_gui).roi_template_combobox = PropertyMock(return_value=None)
-        
+
         return mock_gui
-    
+
     monkeypatch.setattr("zebtrack.ui.gui.ApplicationGUI", create_mock_gui)
-    
+
     yield create_mock_gui

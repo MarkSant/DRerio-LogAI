@@ -7,8 +7,6 @@ BaseStateObserver, ObserverAdapter, and formal registration methods.
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from zebtrack.core.state_manager import (
     BaseStateObserver,
     ObserverAdapter,
@@ -31,14 +29,10 @@ class TestObserverProtocol:
 
         observer = TestObserver()
         # BaseStateObserver instances need to be wrapped for StateManager
-        state_mgr.subscribe(
-            StateCategory.RECORDING, observer.on_state_changed
-        )
+        state_mgr.subscribe(StateCategory.RECORDING, observer.on_state_changed)
 
         # Trigger state change
-        state_mgr.update_recording_state(
-            source="test", is_recording=True
-        )
+        state_mgr.update_recording_state(source="test", is_recording=True)
 
         assert len(notifications) == 1
         assert notifications[0][0] == StateCategory.RECORDING

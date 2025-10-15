@@ -40,6 +40,9 @@ zebtrack = "zebtrack.__main__:main"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.9"
 pytest = "^8.4.1"
+pytest-cov = "^6.0.0"
+pytest-xdist = "^3.6.1"
+pre-commit = "^4.0.1"
 polib = "^1.2.0"
 
 [build-system]
@@ -50,7 +53,29 @@ build-backend = "poetry.core.masonry.api"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes
+  "I",    # isort
+  "W",    # pycodestyle warnings
+  "B",    # flake8-bugbear
+  "C90",  # mccabe complexity
+  "N",    # pep8-naming
+  "UP",   # pyupgrade
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+  "N802",    # function name should be lowercase (methods like setUp)
+  "N803",    # argument name should be lowercase (Tkinter conventions)
+  "N806",    # variable in function should be lowercase (Mock* in tests)
+  "RUF001",  # ambiguous-unicode-character-string (Portuguese comments)
+  "RUF002",  # ambiguous-unicode-character-docstring (Portuguese docs)
+  "RUF003",  # ambiguous-unicode-character-comment (Portuguese comments)
+  "B007",    # unused-loop-control-variable (common in tests)
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -58,4 +83,32 @@ pythonpath = [
 ]
 filterwarnings = [
   "ignore::UserWarning",
+]
+addopts = [
+  "--cov=zebtrack",
+  "--cov-report=term-missing",
+  "--cov-report=html",
+  "--cov-report=xml",
+  "--cov-fail-under=70",
+  "-n=auto",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+  "*/tests/*",
+  "*/conftest.py",
+  "*/__init__.py",
+  "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "@abstractmethod",
 ]

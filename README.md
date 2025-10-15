@@ -1,5 +1,10 @@
 # ZebTrack-AI
 
+[![CI](https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ZebTrack-AI é uma aplicação desktop construída com Tkinter que automatiza todo o fluxo de rastreamento multi-animal, análise comportamental e geração de relatórios científicos a partir de vídeos gravados ou ao vivo. O projeto combina modelos de visão computacional (YOLO/OpenVINO), análises especializadas de comportamento e uma interface amigável para laboratórios que estudam zebrafish e outros organismos aquáticos.
 
 > _Screenshot/preview do app virá em breve._
@@ -151,7 +156,14 @@ Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de compon
 ## Testes
 
 ```powershell
-poetry run pytest -q
+# Rodar todos os testes com cobertura (paralelizado)
+poetry run pytest
+
+# Rodar testes sequencialmente
+poetry run pytest -n 0
+
+# Gerar relatório de cobertura HTML
+poetry run pytest --cov-report=html
 ```
 
 Rodar testes específicos:
@@ -161,6 +173,22 @@ poetry run pytest tests/test_overlay_integration.py::TestOverlayIntegration
 poetry run pytest tests/test_interval_frames_config.py
 poetry run pytest tests/test_wizard_integration.py
 ```
+
+### Pre-commit Hooks
+
+```powershell
+# Instalar hooks (primeira vez apenas)
+poetry run pre-commit install
+
+# Rodar manualmente em todos os arquivos
+poetry run pre-commit run --all-files
+```
+
+Os hooks executam automaticamente:
+- Ruff (lint e format)
+- Verificação de trailing whitespace
+- Verificação de YAML
+- Poetry lock file check
 
 Toda cobertura de testes é automatizada. Reproduza casos extremos via fixtures de pytest e cenários documentados em `test_scenarios/`.
 

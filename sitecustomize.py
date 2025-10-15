@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 
 def _iter_candidate_roots() -> Iterable[Path]:
@@ -140,7 +140,7 @@ def _patch_tkinter():
     if getattr(original_tk, "__name__", "") == "_patched_Tk":
         return
 
-    def _patched_Tk(*args, **kwargs):  # noqa: N802 (Tk uppercase by convention)
+    def _patched_Tk(*args, **kwargs):
         _ensure_tk_env()
         return original_tk(*args, **kwargs)
 

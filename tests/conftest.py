@@ -51,7 +51,7 @@ else:
             root = tkinter.Tk()
             root.withdraw()
             root.destroy()
-        except Exception:  # noqa: BLE001 - fallback to mock when Tk init fails
+        except Exception:
             _mock_tkinter_modules()
-    except Exception:  # noqa: BLE001
+    except Exception:
         _mock_tkinter_modules()

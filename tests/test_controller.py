@@ -247,7 +247,9 @@ class TestAppController(unittest.TestCase):
         self.controller.detector = detector
         self.mock_pm.save_detector_state.return_value = True
 
-        with patch.object(self.controller.detector_service, "_persist_global_detector_defaults") as persist_mock:
+        with patch.object(
+            self.controller.detector_service, "_persist_global_detector_defaults"
+        ) as persist_mock:
             updated = self.controller.update_detector_parameters(
                 {
                     "confidence_threshold": 0.3,
@@ -294,7 +296,9 @@ class TestAppController(unittest.TestCase):
         detector.plugin = plugin
         self.controller.detector = detector
 
-        with patch.object(self.controller.detector_service, "_persist_global_detector_defaults") as persist_mock:
+        with patch.object(
+            self.controller.detector_service, "_persist_global_detector_defaults"
+        ) as persist_mock:
             updated = self.controller.update_detector_parameters(
                 {
                     "confidence_threshold": 0.2,
@@ -328,7 +332,9 @@ class TestAppController(unittest.TestCase):
                 "get_detector_parameters",
                 return_value=current_defaults,
             ),
-            patch.object(self.controller.detector_service, "_persist_global_detector_defaults") as persist_mock,
+            patch.object(
+                self.controller.detector_service, "_persist_global_detector_defaults"
+            ) as persist_mock,
         ):
             updated = self.controller.update_detector_parameters(
                 {
@@ -370,15 +376,19 @@ class TestAppController(unittest.TestCase):
                 "get_detector_parameters",
                 return_value=defaults,
             ),
-            patch.object(self.controller.detector_service, "_persist_global_detector_defaults") as persist_mock,
+            patch.object(
+                self.controller.detector_service, "_persist_global_detector_defaults"
+            ) as persist_mock,
         ):
             # Pass with long-form names (will be normalized)
-            updated = self.controller.update_detector_parameters({
-                "confidence_threshold": 0.3,
-                "nms_threshold": 0.6,
-                "track_threshold": 0.35,
-                "match_threshold": 0.7,
-            })
+            updated = self.controller.update_detector_parameters(
+                {
+                    "confidence_threshold": 0.3,
+                    "nms_threshold": 0.6,
+                    "track_threshold": 0.35,
+                    "match_threshold": 0.7,
+                }
+            )
 
         # Service returns True even when no changes (just logs)
         self.assertTrue(updated)
@@ -403,7 +413,9 @@ class TestAppController(unittest.TestCase):
                 "get_detector_parameters",
                 return_value=defaults,
             ),
-            patch.object(self.controller.detector_service, "_persist_global_detector_defaults") as persist_mock,
+            patch.object(
+                self.controller.detector_service, "_persist_global_detector_defaults"
+            ) as persist_mock,
         ):
             # Pass with long-form names (will be normalized)
             updated = self.controller.update_detector_parameters(

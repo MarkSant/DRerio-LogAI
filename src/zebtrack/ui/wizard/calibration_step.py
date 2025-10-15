@@ -185,7 +185,7 @@ class CalibrationStep(WizardStep):
             return (True, "")
 
         except Exception as e:
-            return (False, f"Erro ao validar dados: {str(e)}")
+            return (False, f"Erro ao validar dados: {e!s}")
 
     def get_data(self) -> dict:
         """

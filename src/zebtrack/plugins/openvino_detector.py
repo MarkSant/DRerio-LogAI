@@ -114,7 +114,7 @@ class OpenVINOPlugin(DetectorPlugin):
         self.class_names = {0: "aquarium", 1: "zebrafish"}  # Default
         if os.path.exists(metadata_path):
             try:
-                with open(metadata_path, "r", encoding="utf-8") as f:
+                with open(metadata_path, encoding="utf-8") as f:
                     metadata = json.load(f)
                     if "class_names" in metadata:
                         self.class_names = {int(k): v for k, v in metadata["class_names"].items()}

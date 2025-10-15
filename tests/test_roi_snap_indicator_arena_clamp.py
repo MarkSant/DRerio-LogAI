@@ -7,7 +7,7 @@ def test_roi_snap_indicator_arena_clamp_implementation():
     """Verify that ROI snap indicator arena clamping logic exists in gui.py."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Find the _on_canvas_motion method
@@ -62,7 +62,7 @@ def test_roi_vertex_editing_arena_clamp_implementation():
     """Verify that ROI vertex editing also clamps to arena boundaries."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Find the _on_handle_drag method (used for editing vertices)
@@ -81,9 +81,7 @@ def test_roi_vertex_editing_arena_clamp_implementation():
             break
 
     # Verify arena clamping logic is present when editing ROI
-    assert "current_editing_zone" in drag_section, (
-        "Should check if editing a zone"
-    )
+    assert "current_editing_zone" in drag_section, "Should check if editing a zone"
 
     assert "isinstance(self.current_editing_zone, tuple)" in drag_section, (
         "Should check if editing_zone is a tuple (for ROI)"

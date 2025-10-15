@@ -2935,7 +2935,7 @@ class ApplicationGUI:
         override_path = Path("config.local.yaml")
         try:
             if override_path.exists():
-                with open(override_path, "r", encoding="utf-8") as handle:
+                with open(override_path, encoding="utf-8") as handle:
                     override_content = yaml.safe_load(handle) or {}
             else:
                 override_content = {}
@@ -3498,7 +3498,7 @@ class ApplicationGUI:
 
         return " ".join(parts)
 
-    def _on_project_overview_tree_double_click(self, event) -> None:  # noqa: D401
+    def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree."""
 
         del event
@@ -5339,7 +5339,7 @@ class ApplicationGUI:
         except ValueError as e:
             self.show_error("Erro de Validação", str(e))
         except Exception as e:
-            self.show_error("Erro", f"Erro ao aplicar configurações: {str(e)}")
+            self.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Draws a suggested polygon that the user can interactively edit."""
@@ -6346,7 +6346,7 @@ class ApplicationGUI:
             self._request_overview_refresh(reason=status_message, append_summary=True)
             self._refresh_video_selector_tree()
 
-    def _on_video_tree_double_click(self, event):  # noqa: D401 - delegado ao loader
+    def _on_video_tree_double_click(self, event):
         """Callback para duplo clique no seletor de vídeos."""
         del event  # Evento não é utilizado diretamente
         self._load_selected_video_frame()
@@ -7248,7 +7248,7 @@ class ApplicationGUI:
                     video_path=active_video,
                     fallback_to_global=False,
                 )
-            except Exception:  # noqa: BLE001 - defensive fallback
+            except Exception:
                 zone_data = ZoneData()
 
             if zone_data and (zone_data.polygon or zone_data.roi_polygons):
@@ -7361,7 +7361,7 @@ class ApplicationGUI:
             # Load template directly from file
             import json
 
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 template_data = json.load(f)
 
             # Convert to ZoneData
@@ -8295,7 +8295,7 @@ class ApplicationGUI:
                     self.show_preview_var.set(
                         bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
 
             # Restore analysis and display intervals
@@ -8336,7 +8336,7 @@ class ApplicationGUI:
                     self.controller.camera.actual_width,
                     self.controller.camera.actual_height,
                 )
-            except IOError as e:
+            except OSError as e:
                 self.show_error("Erro na Câmera", str(e))
                 self._create_welcome_frame()
                 return
@@ -10633,13 +10633,13 @@ def _add_compatibility_properties_to_application_gui():
         return None
 
     # Add properties to ApplicationGUI class
-    setattr(ApplicationGUI, "roi_canvas", roi_canvas)
-    setattr(ApplicationGUI, "zone_listbox", zone_listbox)
-    setattr(ApplicationGUI, "draw_roi_button", draw_roi_button)
-    setattr(ApplicationGUI, "toggle_view_btn", toggle_view_btn)
-    setattr(ApplicationGUI, "roi_template_combobox", roi_template_combobox)
-    setattr(ApplicationGUI, "video_selector_tree", video_selector_tree)
-    setattr(ApplicationGUI, "interactive_buttons_frame", interactive_buttons_frame)
+    ApplicationGUI.roi_canvas = roi_canvas
+    ApplicationGUI.zone_listbox = zone_listbox
+    ApplicationGUI.draw_roi_button = draw_roi_button
+    ApplicationGUI.toggle_view_btn = toggle_view_btn
+    ApplicationGUI.roi_template_combobox = roi_template_combobox
+    ApplicationGUI.video_selector_tree = video_selector_tree
+    ApplicationGUI.interactive_buttons_frame = interactive_buttons_frame
 
 
 # Apply compatibility properties

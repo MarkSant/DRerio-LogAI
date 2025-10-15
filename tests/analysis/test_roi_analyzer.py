@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for the ROI analyzer with configurable inclusion rules.
 """

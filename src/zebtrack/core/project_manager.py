@@ -334,7 +334,7 @@ class ProjectManager:
         if not os.path.exists(file_path):
             raise FileNotFoundError(file_path)
 
-        with open(file_path, "r", encoding="utf-8") as handle:
+        with open(file_path, encoding="utf-8") as handle:
             payload = json.load(handle)
 
         data_block = payload.get("data") if isinstance(payload, dict) else None
@@ -383,7 +383,7 @@ class ProjectManager:
                 if not template_path.exists():
                     raise FileNotFoundError(str(template_path))
 
-                with open(template_path, "r", encoding="utf-8") as handle:
+                with open(template_path, encoding="utf-8") as handle:
                     payload = json.load(handle)
 
                 data_block = payload.get("data") if isinstance(payload, dict) else None
@@ -1303,7 +1303,7 @@ class ProjectManager:
                 yaml.dump(settings_dict, f, indent=4, sort_keys=False)
             log.info("settings.snapshot.saved", path=snapshot_path)
             return True
-        except (IOError, TypeError) as e:
+        except (OSError, TypeError) as e:
             log.error("settings.snapshot.save_error", error=str(e))
             return False
 
@@ -1658,7 +1658,7 @@ class ProjectManager:
                 project_name=self.project_data.get("project_name"),
             )
             return True
-        except (json.JSONDecodeError, IOError, IntegrityError) as e:
+        except (OSError, json.JSONDecodeError, IntegrityError) as e:
             log_context.error("project.load.error", exc_info=e)
             messagebox.showerror(
                 "Erro ao Carregar",

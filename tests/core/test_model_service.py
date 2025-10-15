@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for ModelService.
 
@@ -7,10 +6,7 @@ OpenVINO conversion status, and configuration validation.
 """
 
 import unittest
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from zebtrack.core.model_service import ModelService
 
@@ -180,9 +176,7 @@ class TestModelServiceValidation(unittest.TestCase):
                 "last_conversion_error": None,
             }
 
-            result = self.service.validate_model_configuration(
-                "weight.pt", use_openvino=True
-            )
+            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
 
             assert result["valid"] is True
             assert result["weight_exists"] is True
@@ -201,9 +195,7 @@ class TestModelServiceValidation(unittest.TestCase):
         """Test validation fails when weight not found."""
         self.mock_weight_manager.get_weight_details.return_value = None
 
-        result = self.service.validate_model_configuration(
-            "nonexistent.pt", use_openvino=False
-        )
+        result = self.service.validate_model_configuration("nonexistent.pt", use_openvino=False)
 
         assert result["valid"] is False
         assert any("not found" in err for err in result["errors"])
@@ -215,9 +207,7 @@ class TestModelServiceValidation(unittest.TestCase):
                 "path": "/path/to/nonexistent.pt",
             }
 
-            result = self.service.validate_model_configuration(
-                "weight.pt", use_openvino=False
-            )
+            result = self.service.validate_model_configuration("weight.pt", use_openvino=False)
 
             assert result["valid"] is False
             assert any("not found" in err for err in result["errors"])
@@ -232,9 +222,7 @@ class TestModelServiceValidation(unittest.TestCase):
                 "last_conversion_error": None,
             }
 
-            result = self.service.validate_model_configuration(
-                "weight.pt", use_openvino=True
-            )
+            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
 
             assert result["valid"] is True  # Still valid, just needs conversion
             assert result["openvino_ready"] is False
@@ -250,9 +238,7 @@ class TestModelServiceValidation(unittest.TestCase):
                 "last_conversion_error": "Conversion failed",
             }
 
-            result = self.service.validate_model_configuration(
-                "weight.pt", use_openvino=True
-            )
+            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
 
             assert result["valid"] is False
             assert any("failed" in err for err in result["errors"])
@@ -331,9 +317,7 @@ class TestModelServicePathHelpers(unittest.TestCase):
             "last_conversion_error": None,
         }
 
-        path, details = self.service.get_model_path_for_inference(
-            "weight.pt", use_openvino=True
-        )
+        path, details = self.service.get_model_path_for_inference("weight.pt", use_openvino=True)
 
         assert path is None
         assert details is None

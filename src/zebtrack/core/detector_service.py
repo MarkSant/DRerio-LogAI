@@ -358,9 +358,7 @@ class DetectorService:
 
             # Update ByteTrack thresholds
             if hasattr(plugin, "set_tracking_parameters"):
-                plugin.set_tracking_parameters(
-                    track_threshold=track_val, match_threshold=match_val
-                )
+                plugin.set_tracking_parameters(track_threshold=track_val, match_threshold=match_val)
                 log.info(
                     "detector_service.tracking_params.updated",
                     track_threshold=track_val,
@@ -448,8 +446,12 @@ class DetectorService:
         plugin = self.detector.plugin if self.detector else None
         if plugin:
             params = {
-                "conf_threshold": getattr(plugin, "conf_threshold", settings.yolo_model.confidence_threshold),
-                "nms_threshold": getattr(plugin, "nms_threshold", settings.yolo_model.nms_threshold),
+                "conf_threshold": getattr(
+                    plugin, "conf_threshold", settings.yolo_model.confidence_threshold
+                ),
+                "nms_threshold": getattr(
+                    plugin, "nms_threshold", settings.yolo_model.nms_threshold
+                ),
                 "track_threshold": getattr(plugin, "track_threshold", DEFAULT_TRACK_THRESHOLD),
                 "match_threshold": getattr(plugin, "match_threshold", DEFAULT_MATCH_THRESHOLD),
             }
@@ -674,9 +676,7 @@ class DetectorService:
 
             log.info("detector_service.persist.overrides_applied", config=detector_config)
 
-    def _resolve_single_subject_tracker_preference(
-        self, project_type: str | None
-    ) -> bool | None:
+    def _resolve_single_subject_tracker_preference(self, project_type: str | None) -> bool | None:
         """
         Resolve single-subject tracker preference from project config.
 

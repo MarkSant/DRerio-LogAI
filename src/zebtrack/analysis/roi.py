@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).

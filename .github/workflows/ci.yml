@@ -10,52 +10,114 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
       - name: Install Poetry
         run: |
           pip install poetry
+
       - name: Install dependencies
         run: |
           poetry install
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/zebtrack/wizard_templates.zip
+            src/zebtrack/locale
+          key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Build wizard template archive
         run: |
           poetry run python scripts/build_templates.py
+
       - name: Compile translations
         run: |
           poetry run python scripts/compile_translations.py
-      - name: Run ruff
+
+      - name: Run ruff check
         run: |
           poetry run ruff check .
+
+      - name: Run ruff format check
+        run: |
+          poetry run ruff format --check .
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
       - name: Install Poetry
         run: |
           pip install poetry
+
       - name: Install dependencies
         run: |
           poetry install
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/zebtrack/wizard_templates.zip
+            src/zebtrack/locale
+          key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Build wizard template archive
         run: |
           poetry run python scripts/build_templates.py
+
       - name: Compile translations
         run: |
           poetry run python scripts/compile_translations.py
-      - name: Run tests
+
+      - name: Run tests with coverage
         run: |
           xvfb-run --auto-servernum poetry run pytest
-        timeout-minutes: 15
+        timeout-minutes: 20
+
+      - name: Archive coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 30

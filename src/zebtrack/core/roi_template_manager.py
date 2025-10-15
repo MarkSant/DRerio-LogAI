@@ -222,7 +222,7 @@ class ROITemplateManager:
             raise FileNotFoundError(f"Template não encontrado: {template_path}")
 
         try:
-            with open(template_path, "r", encoding="utf-8") as f:
+            with open(template_path, encoding="utf-8") as f:
                 payload = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"Arquivo JSON inválido: {e}")
@@ -272,7 +272,7 @@ class ROITemplateManager:
         try:
             for template_file in self.global_templates_dir.glob("*.json"):
                 try:
-                    with open(template_file, "r", encoding="utf-8") as f:
+                    with open(template_file, encoding="utf-8") as f:
                         payload = json.load(f)
 
                     templates.append(

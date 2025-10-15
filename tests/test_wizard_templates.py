@@ -34,7 +34,7 @@ class TestTemplateManager(unittest.TestCase):
         self.assertTrue(saved)
         self.assertTrue(destination.exists())
 
-        with open(destination, "r", encoding="utf-8") as handle:
+        with open(destination, encoding="utf-8") as handle:
             data = json.load(handle)
 
         self.assertEqual(data["name"], "Template Manual")

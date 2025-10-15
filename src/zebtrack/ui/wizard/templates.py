@@ -122,7 +122,7 @@ class TemplateManager:
                 log.warning("template_manager.template_not_found", name=name)
                 return None
 
-            with open(template_path, "r", encoding="utf-8") as f:
+            with open(template_path, encoding="utf-8") as f:
                 template = json.load(f)
 
             log.info("template_manager.template_loaded", name=name)
@@ -156,7 +156,7 @@ class TemplateManager:
                 )
                 return None
 
-            with open(template_path, "r", encoding="utf-8") as f:
+            with open(template_path, encoding="utf-8") as f:
                 template = json.load(f)
 
             log.info(
@@ -187,7 +187,7 @@ class TemplateManager:
         try:
             for template_path in self.templates_dir.glob("*.json"):
                 try:
-                    with open(template_path, "r", encoding="utf-8") as f:
+                    with open(template_path, encoding="utf-8") as f:
                         template = json.load(f)
 
                     templates.append(

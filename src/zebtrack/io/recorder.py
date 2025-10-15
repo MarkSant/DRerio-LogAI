@@ -385,7 +385,9 @@ class Recorder:
                 areas_df = pd.DataFrame(poly_data, columns=["roi_name", "point_index", "x", "y"])
                 table = pa.Table.from_pandas(areas_df)
                 # Phase 8: Use configured compression
-                pq.write_table(table, areas_of_interest_filename, compression=self._parquet_compression)
+                pq.write_table(
+                    table, areas_of_interest_filename, compression=self._parquet_compression
+                )
                 log.info(
                     "recorder.save_areas_of_interest.success",
                     path=areas_of_interest_filename,

@@ -283,13 +283,8 @@ class ModelSelectionStep(WizardStep):
         defaults_label = Label(
             detector_frame,
             text=(
-                "Padrões atuais: confiança {conf:.2f}, NMS {nms:.2f}, track {trk:.2f},"
-                " associação {match:.2f}."
-            ).format(
-                conf=settings.yolo_model.confidence_threshold,
-                nms=settings.yolo_model.nms_threshold,
-                trk=DEFAULT_TRACK_THRESHOLD,
-                match=DEFAULT_MATCH_THRESHOLD,
+                f"Padrões atuais: confiança {settings.yolo_model.confidence_threshold:.2f}, NMS {settings.yolo_model.nms_threshold:.2f}, track {DEFAULT_TRACK_THRESHOLD:.2f},"
+                f" associação {DEFAULT_MATCH_THRESHOLD:.2f}."
             ),
             fg="#555555",
             wraplength=520,

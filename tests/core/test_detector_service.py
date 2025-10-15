@@ -3,15 +3,13 @@ Tests for DetectorService - Phase 6
 """
 
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.utils import IntegrityError
 
 
 class MockDetectorPlugin(DetectorPlugin):

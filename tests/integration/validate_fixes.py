@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Script de validação para testar todas as correções implementadas no ZebTrack-AI
 """
@@ -235,7 +234,7 @@ def test_4_openvino_classes(model_path):
             print("   Metadata criado")
 
             # Testa carregamento
-            with open(metadata_path, "r") as f:
+            with open(metadata_path) as f:
                 loaded_metadata = json.load(f)
 
             class_names = {int(k): v for k, v in loaded_metadata["class_names"].items()}

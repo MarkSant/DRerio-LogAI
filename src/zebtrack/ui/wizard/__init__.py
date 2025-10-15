@@ -37,14 +37,14 @@ from zebtrack.ui.wizard.wizard_adapter import (
 from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
 __all__ = [
-    "WizardDialog",
     "ConfirmationStep",
     "DetectionStep",
     "FileSelectionStep",
+    "ImportAction",
     "ImportConfigStep",
     "ProjectType",
-    "ImportAction",
     "ROIMergeStrategy",
+    "WizardDialog",
     "WizardStepID",
     "adapt_wizard_data_to_controller_format",
     "extract_parquet_import_plan",

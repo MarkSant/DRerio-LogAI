@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This module defines the abstract base class for behavioral analysis of trajectory data.
 """

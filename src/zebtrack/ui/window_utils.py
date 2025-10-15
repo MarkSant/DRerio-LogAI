@@ -112,7 +112,7 @@ def _clear_ttkbootstrap_style() -> None:
     except Exception:
         return
 
-    setattr(Style, "instance", None)
+    Style.instance = None
 
 
 def create_scrollbar(parent: Any, **kwargs: Any):

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import List, Optional, Tuple
 
 Detection = Tuple[int, int, int, int, float, Optional[int]]
 TrackedDetection = Tuple[int, int, int, int, float, int]

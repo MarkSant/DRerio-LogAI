@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ProjectService: Single Responsibility Service for Project File I/O Operations.
 
@@ -147,7 +146,7 @@ class ProjectService:
             raise FileNotFoundError(f"Project configuration not found: {config_file}")
 
         try:
-            with open(config_file, "r", encoding="utf-8") as f:
+            with open(config_file, encoding="utf-8") as f:
                 project_data = json.load(f)
 
             # Verify integrity if hash exists
@@ -467,7 +466,7 @@ class ProjectService:
             return None
 
         try:
-            with open(template_file, "r", encoding="utf-8") as f:
+            with open(template_file, encoding="utf-8") as f:
                 template_data = json.load(f)
 
             self.log.info(
@@ -544,24 +543,24 @@ class ProjectService:
             "model_overrides",
             {"active_weight": None, "use_openvino": None},
         )
-        
+
         # Update overrides
         overrides["active_weight"] = active_weight
         overrides["use_openvino"] = use_openvino
-        
+
         # Update root-level settings for backward compatibility
         project_data["active_weight"] = active_weight
         project_data["use_openvino"] = bool(use_openvino)
-        
+
         # Save updated configuration
         self.save_project_config(project_path, project_data)
-        
+
         self.log.info(
             "project_service.save_model_overrides.success",
             weight=active_weight,
             openvino=use_openvino,
         )
-        
+
         return overrides
 
     def save_arena_polygon(
@@ -582,13 +581,13 @@ class ProjectService:
         """
         # Get or create detection_zones structure
         detection_zones = project_data.setdefault("detection_zones", {})
-        
+
         # Update arena polygon
         detection_zones["polygon"] = polygon_points
-        
+
         # Save updated configuration
         self.save_project_config(project_path, project_data)
-        
+
         self.log.info(
             "project_service.save_arena_polygon.success",
             points_count=len(polygon_points),

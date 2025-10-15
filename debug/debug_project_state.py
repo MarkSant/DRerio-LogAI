@@ -11,7 +11,7 @@ def check_project_state(project_path):
         print(f"❌ Arquivo não encontrado: {json_path}")
         return
 
-    with open(json_path, "r") as f:
+    with open(json_path) as f:
         data = json.load(f)
 
     print("\n=== ESTADO DO PROJETO ===")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for ProjectWorkflowService.
 
@@ -7,10 +6,7 @@ opening, configuration, and post-creation guide generation.
 """
 
 import unittest
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from zebtrack.core.project_workflow_service import ProjectWorkflowService
 
@@ -539,9 +535,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
                     "import_trajectory": False,
                 }
             ],
-            "scanned_videos": [
-                {"video": "/video1.mp4", "path": "/video1.mp4"}
-            ],
+            "scanned_videos": [{"video": "/video1.mp4", "path": "/video1.mp4"}],
         }
 
         guide = self.service.generate_post_creation_guide(

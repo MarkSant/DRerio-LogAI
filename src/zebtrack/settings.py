@@ -615,13 +615,13 @@ def load_settings(
 
     try:
         # Load base configuration
-        with open(default_config_path, "r", encoding="utf-8") as f:
+        with open(default_config_path, encoding="utf-8") as f:
             config_data = yaml.safe_load(f) or {}
 
         # Merge with override configuration if it exists
         if override_config_path.is_file():
             log.info("settings.load.override", path=str(override_config_path))
-            with open(override_config_path, "r", encoding="utf-8") as f:
+            with open(override_config_path, encoding="utf-8") as f:
                 override_data = yaml.safe_load(f)
             if override_data:
                 config_data = _deep_merge_dicts(config_data, override_data)

@@ -260,9 +260,7 @@ class ProjectWorkflowService:
             if project_data.get("use_openvino") is not None:
                 resolved_openvino = bool(project_data.get("use_openvino"))
             else:
-                resolved_openvino = bool(
-                    self._global_model_defaults.get("use_openvino", False)
-                )
+                resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
         else:
             resolved_openvino = bool(openvino_override)
 
@@ -375,6 +373,7 @@ class ProjectWorkflowService:
                 - import_success: bool | None
         """
         from pathlib import Path
+
         from zebtrack.settings import settings
 
         # Prepare parameters
@@ -665,9 +664,8 @@ class ProjectWorkflowService:
 
         # Check suppression flags
         if check_suppression:
-            suppressed = (
-                os.environ.get("PYTEST_CURRENT_TEST")
-                or os.environ.get("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE")
+            suppressed = os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get(
+                "ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE"
             )
 
             if suppressed:

@@ -442,7 +442,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(success)
         self.assertTrue(os.path.exists(os.path.join(project_path, CONFIG_FILE_NAME)))
 
-        with open(os.path.join(project_path, CONFIG_FILE_NAME), "r") as f:
+        with open(os.path.join(project_path, CONFIG_FILE_NAME)) as f:
             data = json.load(f)
             self.assertEqual(data["project_name"], "live_project")
             self.assertEqual(data["project_type"], "live")
@@ -463,7 +463,7 @@ class TestProjectManager(unittest.TestCase):
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
             self.assertEqual(data["project_type"], "pre-recorded")
             self.assertEqual(len(data["batches"]), 1)
@@ -480,7 +480,7 @@ class TestProjectManager(unittest.TestCase):
 
         self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
 
         self.assertIn("model_overrides", data)
@@ -545,7 +545,7 @@ class TestProjectManager(unittest.TestCase):
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
             self.assertEqual(data["calibration"]["num_aquariums"], 2)
             self.assertEqual(data["calibration"]["animals_per_aquarium"], 3)
@@ -569,7 +569,7 @@ class TestProjectManager(unittest.TestCase):
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
             # Check default values
             self.assertEqual(data["calibration"]["num_aquariums"], 1)
@@ -594,7 +594,7 @@ class TestProjectManager(unittest.TestCase):
 
         self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
 
         self.assertEqual(data["camera_index"], 3)
@@ -680,7 +680,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(pm.project_data["calibration"]["animals_per_aquarium"], 1)
         self.assertIn("file_hash", pm.project_data)
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             saved_data = json.load(f)
 
         for field in [

@@ -138,9 +138,7 @@ class VideoProcessingService:
         results_path.mkdir(parents=True, exist_ok=True)
         return results_path
 
-    def ensure_arena_polygon(
-        self, arena_polygon_px: list | None, video_path: str
-    ) -> list | None:
+    def ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: str) -> list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
         Args:

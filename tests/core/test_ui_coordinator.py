@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for UICoordinator.
 
@@ -7,9 +6,7 @@ event bus integration, and convenience methods.
 """
 
 import unittest
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 from zebtrack.core.ui_coordinator import UICoordinator
 
@@ -62,9 +59,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1", kwarg1="value1")
 
-        mock_event_bus.publish_callable.assert_called_once_with(
-            mock_func, "arg1", kwarg1="value1"
-        )
+        mock_event_bus.publish_callable.assert_called_once_with(mock_func, "arg1", kwarg1="value1")
         mock_func.assert_not_called()  # Should not be called directly
 
     def test_schedule_with_event_bus_failure_fallback_to_root(self):
@@ -245,16 +240,12 @@ class TestUICoordinatorViewUpdates(unittest.TestCase):
         """Test update_detection_overlay convenience method."""
         payload = {"detections": []}
         processing_info = {"fps": 30}
-        self.coordinator.update_detection_overlay(
-            self.mock_view, payload, processing_info
-        )
+        self.coordinator.update_detection_overlay(self.mock_view, payload, processing_info)
 
         self.mock_root.after.assert_called_once()
         # Execute scheduled lambda
         self.mock_root.after.call_args[0][1]()
-        self.mock_view.update_detection_overlay.assert_called_once_with(
-            payload, processing_info
-        )
+        self.mock_view.update_detection_overlay.assert_called_once_with(payload, processing_info)
 
     def test_show_progress_bar(self):
         """Test show_progress_bar convenience method."""

@@ -14,7 +14,6 @@ Responsibilities:
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from pathlib import Path
 from tkinter import Label, Toplevel
@@ -38,7 +37,7 @@ class RecordingService:
 
     Coordinates between Recorder, StateManager, ProjectManager, and ArduinoManager
     to orchestrate recording sessions with proper state tracking and hardware control.
-    
+
     Note: Stores controller reference to access dynamically updated recorder and
     arduino_manager instances (which can be replaced in tests).
     """
@@ -69,12 +68,12 @@ class RecordingService:
 
         # UI callbacks (injected by MainViewModel)
         self._ui_callbacks: dict[str, Callable] = {}
-    
+
     @property
     def recorder(self):
         """Access controller's current recorder (supports test mocking)."""
         return self.controller.recorder
-    
+
     @property
     def arduino_manager(self):
         """Access controller's current arduino_manager (supports test mocking)."""

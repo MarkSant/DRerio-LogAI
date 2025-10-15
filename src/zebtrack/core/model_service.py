@@ -17,7 +17,6 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.core.weight_manager import WeightManager
-    from zebtrack.plugins.base import DetectorPlugin
 
 log = structlog.get_logger()
 
@@ -54,23 +53,23 @@ class ModelService:
     def convert_to_openvino(self, weight_name: str) -> bool:
         """
         Convert a weight file to OpenVINO format.
-        
+
         Phase 2.1: Moved from MainViewModel.convert_active_weight_to_openvino()
-        
+
         Args:
             weight_name: Name of the weight file to convert
-            
+
         Returns:
             bool: True if conversion succeeded, False otherwise
-            
+
         Raises:
             ValueError: If weight_name is invalid or not found
         """
         if not weight_name:
             raise ValueError("weight_name cannot be empty")
-        
+
         log.info("model_service.convert_start", weight=weight_name)
-        
+
         try:
             self.weight_manager.convert_to_openvino(weight_name)
             log.info("model_service.convert_success", weight=weight_name)
@@ -87,10 +86,10 @@ class ModelService:
     def get_weight_details(self, weight_name: str) -> dict | None:
         """
         Get details about a weight file.
-        
+
         Args:
             weight_name: Name of the weight file
-            
+
         Returns:
             dict: Weight details or None if not found
         """
@@ -99,13 +98,13 @@ class ModelService:
     def get_openvino_status(self, weight_name: str, use_openvino: bool) -> str:
         """
         Get OpenVINO status text for a weight.
-        
+
         Phase 2.1: Moved from MainViewModel.get_openvino_status()
-        
+
         Args:
             weight_name: Name of the weight file
             use_openvino: Whether OpenVINO is enabled
-            
+
         Returns:
             str: Human-readable status message
         """
@@ -128,7 +127,7 @@ class ModelService:
     def list_available_weights(self) -> list[str]:
         """
         List all available weight files.
-        
+
         Returns:
             list[str]: List of weight file names
         """
@@ -139,17 +138,17 @@ class ModelService:
     def validate_weight(self, weight_name: str) -> bool:
         """
         Validate that a weight file exists and is usable.
-        
+
         Args:
             weight_name: Name of the weight file
-            
+
         Returns:
             bool: True if weight is valid
         """
         details = self.weight_manager.get_weight_details(weight_name)
         if not details:
             return False
-            
+
         weight_path = details.get("path")
         if not weight_path:
             return False
@@ -262,9 +261,7 @@ class ModelService:
             "error": last_error,
         }
 
-    def validate_model_configuration(
-        self, weight_name: str | None, use_openvino: bool
-    ) -> dict:
+    def validate_model_configuration(self, weight_name: str | None, use_openvino: bool) -> dict:
         """
         Validate a complete model configuration.
 

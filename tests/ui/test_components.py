@@ -34,21 +34,21 @@ from zebtrack.ui.event_bus import EventBus, NamedEvent
 @pytest.fixture(scope="module")
 def root():
     """Create a single Tkinter root window shared by all tests in this module.
-    
+
     Using module scope prevents ttkbootstrap Style singleton issues that occur
     when creating/destroying multiple Tk instances in rapid succession. The Style
     singleton Publisher maintains widget references that become stale when Tk is
     destroyed between tests, causing "application has been destroyed" errors.
-    
+
     Trade-off: Tests share the same Tk instance, so they must clean up after
     themselves by destroying any widgets they create. This is acceptable since
     these are unit tests for individual widgets, not integration tests.
     """
     root = tk.Tk()
     root.withdraw()  # Hide window during tests
-    
+
     yield root
-    
+
     # Final cleanup after all tests complete
     try:
         for widget in list(root.winfo_children()):

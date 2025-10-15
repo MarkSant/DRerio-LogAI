@@ -8,7 +8,8 @@
       "Bash(poetry show:*)",
       "WebSearch",
       "Bash(awk:*)",
-      "Bash(poetry run python:*)"
+      "Bash(poetry run python:*)",
+      "Bash(poetry lock:*)"
     ],
     "deny": [],
     "ask": []

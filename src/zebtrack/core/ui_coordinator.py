@@ -20,6 +20,7 @@ import structlog
 
 if TYPE_CHECKING:
     from tkinter import Tk
+
     from zebtrack.event_bus import EventBus
 
 log = structlog.get_logger()

@@ -12,7 +12,6 @@ These tests verify:
 """
 
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from zebtrack.core.controller import AppController
@@ -214,7 +213,9 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.assertAlmostEqual(plugin.match_threshold, 0.20)
 
         # Verify changes were saved to project
-        self.assertEqual(self.mock_pm.save_detector_state.call_count, 2)  # Once on init, once on update
+        self.assertEqual(
+            self.mock_pm.save_detector_state.call_count, 2
+        )  # Once on init, once on update
 
     def test_get_parameters_returns_plugin_values(self):
         """Test get_current_detector_parameters returns actual plugin values."""

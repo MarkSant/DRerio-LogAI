@@ -455,7 +455,7 @@ class LiveConfigStep(WizardStep):
             return (True, "")
 
         except Exception as e:
-            return (False, f"Erro ao validar dados: {str(e)}")
+            return (False, f"Erro ao validar dados: {e!s}")
 
     def get_data(self) -> dict:
         """
@@ -496,7 +496,7 @@ class LiveConfigStep(WizardStep):
         if "use_arduino" in data:
             self.use_arduino_var.set(data["use_arduino"])
 
-        if "arduino_port" in data and data["arduino_port"]:
+        if data.get("arduino_port"):
             self.arduino_port_var.set(data["arduino_port"])
 
         if "use_timed_recording" in data:

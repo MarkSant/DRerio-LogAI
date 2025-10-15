@@ -83,7 +83,7 @@ def _load_translator():
 _translator: Callable[[str], str] = _load_translator()
 
 
-def _(message: str) -> str:  # noqa: N802 - conventional gettext alias
+def _(message: str) -> str:
     return _translator(message)
 
 
@@ -949,9 +949,7 @@ class Reporter:
             list: List of (BytesIO buffer, name) tuples in original order
         """
         # Get configured max parallel plots from settings
-        max_workers = getattr(
-            getattr(settings, "performance", None), "max_parallel_plots", 3
-        )
+        max_workers = getattr(getattr(settings, "performance", None), "max_parallel_plots", 3)
 
         # Store results with their original indices to maintain order
         indexed_results: dict[int, tuple[io.BytesIO, str]] = {}
@@ -960,9 +958,7 @@ class Reporter:
             # Submit all plot generation tasks
             future_to_index = {}
             for i, (plot_func, name) in enumerate(plot_configs):
-                future = executor.submit(
-                    self._generate_single_plot_thread_safe, plot_func, name
-                )
+                future = executor.submit(self._generate_single_plot_thread_safe, plot_func, name)
                 future_to_index[future] = i
 
             # Collect results as they complete

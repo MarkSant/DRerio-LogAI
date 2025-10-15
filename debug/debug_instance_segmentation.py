@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Script completo de diagnóstico para Instance Segmentation
 Desenvolvido para o projeto ZebTrack-AI - UNESP

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for robust angular velocity calculation that handles detection jitter.
 

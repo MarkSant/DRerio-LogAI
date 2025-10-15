@@ -100,7 +100,7 @@ class ProjectState:
     active_zone_video: Optional[str] = None
     last_zone_source_video: Optional[str] = None
 
-    def copy(self) -> "ProjectState":
+    def copy(self) -> ProjectState:
         """Create a deep copy of project state."""
         return ProjectState(
             project_path=self.project_path,
@@ -124,7 +124,7 @@ class DetectorState:
     frame_width: Optional[int] = None
     frame_height: Optional[int] = None
 
-    def copy(self) -> "DetectorState":
+    def copy(self) -> DetectorState:
         """Create a deep copy of detector state."""
         return DetectorState(
             detector_initialized=self.detector_initialized,
@@ -149,7 +149,7 @@ class RecordingState:
     arduino_port: Optional[str] = None
     timed_recording_active: bool = False
 
-    def copy(self) -> "RecordingState":
+    def copy(self) -> RecordingState:
         """Create a deep copy of recording state."""
         return RecordingState(
             is_recording=self.is_recording,
@@ -173,7 +173,7 @@ class ProcessingState:
     processing_start_time: Optional[datetime] = None
     cancel_requested: bool = False
 
-    def copy(self) -> "ProcessingState":
+    def copy(self) -> ProcessingState:
         """Create a deep copy of processing state."""
         return ProcessingState(
             is_processing=self.is_processing,
@@ -196,7 +196,7 @@ class UIState:
     display_interval_frames: int = 10
     current_tab: Optional[str] = None
 
-    def copy(self) -> "UIState":
+    def copy(self) -> UIState:
         """Create a deep copy of UI state."""
         return UIState(
             canvas_view_mode=self.canvas_view_mode,
@@ -217,7 +217,7 @@ class ApplicationState:
     processing: ProcessingState = field(default_factory=ProcessingState)
     ui: UIState = field(default_factory=UIState)
 
-    def copy(self) -> "ApplicationState":
+    def copy(self) -> ApplicationState:
         """Create a deep copy of all application state."""
         return ApplicationState(
             project=self.project.copy(),
@@ -992,9 +992,7 @@ class StateManager:
                 },
                 "observers": {
                     "total": self.get_observer_count(),
-                    "by_category": {
-                        cat.name: len(self._observers[cat]) for cat in StateCategory
-                    },
+                    "by_category": {cat.name: len(self._observers[cat]) for cat in StateCategory},
                     "global": len(self._global_observers),
                 },
             }

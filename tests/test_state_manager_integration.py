@@ -267,7 +267,7 @@ class TestStateManagerControllerIntegration:
         assert snapshot1.recording.is_recording is True
 
         # Modify snapshot (should not affect original)
-        _snapshot1_copy = snapshot1.recording.copy()  # noqa: F841
+        _snapshot1_copy = snapshot1.recording.copy()
         # Original state should be unchanged in StateManager
         assert controller.is_recording is True
 

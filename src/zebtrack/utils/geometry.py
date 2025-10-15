@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import Tuple
 
 Point = Tuple[float, float]
 

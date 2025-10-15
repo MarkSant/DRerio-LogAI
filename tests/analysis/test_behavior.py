@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for the BehavioralAnalyzer abstract base class and its concrete methods.
 """

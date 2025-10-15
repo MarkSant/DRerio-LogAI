@@ -256,7 +256,7 @@ def main():
     controller = None  # Mock
 
     # Criar exemplo
-    _app = IntegrationExample(root, controller, event_bus)  # noqa: F841
+    _app = IntegrationExample(root, controller, event_bus)
 
     # Iniciar event bus polling (se usando event bus real)
     # event_bus.start_polling(root)

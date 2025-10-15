@@ -17,7 +17,7 @@ class Camera(FrameSource):
         self._camera_index = settings.camera.index
         self.cap = cv2.VideoCapture(self._camera_index)
         if not self.cap.isOpened():
-            raise IOError(f"Cannot open camera at index {self._camera_index}")
+            raise OSError(f"Cannot open camera at index {self._camera_index}")
 
         self._desired_width = settings.camera.desired_width
         self._desired_height = settings.camera.desired_height
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
-    except IOError as e:
+    except OSError as e:
         print(e)
     except KeyboardInterrupt:
         print("Interrupted by user.")

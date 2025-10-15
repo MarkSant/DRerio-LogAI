@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for ProjectService.
 
@@ -166,7 +165,7 @@ class TestProjectServiceLoadSave(unittest.TestCase):
 
         # Read raw file
         config_file = self.project_path / CONFIG_FILE_NAME
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(config_file, encoding="utf-8") as f:
             raw_data = json.load(f)
 
         assert "_integrity_hash" in raw_data
@@ -197,7 +196,7 @@ class TestProjectServiceLoadSave(unittest.TestCase):
 
         # Tamper with the file - change data but keep original hash
         config_file = self.project_path / CONFIG_FILE_NAME
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(config_file, encoding="utf-8") as f:
             data = json.load(f)
 
         # Save the original hash before tampering
@@ -465,7 +464,7 @@ class TestProjectServiceROITemplates(unittest.TestCase):
         assert result_path.name == f"{template_name}.json"
 
         # Verify content
-        with open(result_path, "r") as f:
+        with open(result_path) as f:
             loaded = json.load(f)
         assert loaded == template_data
 

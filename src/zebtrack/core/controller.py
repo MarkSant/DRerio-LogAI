@@ -5,17 +5,17 @@ import shutil
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Iterator, cast
+from typing import Any, cast
 
 import cv2
 import numpy as np
 import pandas as pd
 import structlog
-import yaml
 from shapely.geometry import Polygon
 
 try:
@@ -26,7 +26,6 @@ except ImportError:
     YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
-import zebtrack.settings as settings_module
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
@@ -55,7 +54,6 @@ from zebtrack.settings import settings
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
-from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
 
@@ -109,9 +107,10 @@ class MainViewModel:
         # State managers (pass StateManager reference to ProjectManager)
         self.project_manager = ProjectManager(state_manager=self.state_manager)
         self.weight_manager = WeightManager()
-        
+
         # Model management service (Phase 2, Step 1)
         from zebtrack.core.model_service import ModelService
+
         self.model_service = ModelService(self.weight_manager)
 
         # Detector management service (Phase 6)
@@ -149,7 +148,7 @@ class MainViewModel:
         self.report_results_paths = {}
         # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
-        
+
         # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
         self.recording_service: RecordingService | None = None
 
@@ -177,6 +176,7 @@ class MainViewModel:
 
         # Phase 5: Project Workflow Service for project creation/opening orchestration
         from zebtrack.core.project_workflow_service import ProjectWorkflowService
+
         self.project_workflow_service = ProjectWorkflowService(
             project_manager=self.project_manager,
             model_service=self.model_service,
@@ -271,10 +271,10 @@ class MainViewModel:
     ) -> None:
         """
         Observer callback for test synchronization.
-        
+
         Phase 1.1: Signals test_sync_event after state changes are processed,
         eliminating race conditions in integration tests.
-        
+
         Args:
             category: State category that changed
             key: State key that changed
@@ -293,12 +293,11 @@ class MainViewModel:
     def get_openvino_status(self) -> str:
         """
         Gets the current OpenVINO status text based on the model and settings.
-        
+
         Delegates to ModelService for business logic (Phase 2.1).
         """
         return self.model_service.get_openvino_status(
-            weight_name=self.active_weight_name,
-            use_openvino=self.use_openvino
+            weight_name=self.active_weight_name, use_openvino=self.use_openvino
         )
 
     def on_close(self):
@@ -360,10 +359,10 @@ class MainViewModel:
     def _init_recording_service(self) -> None:
         """
         Initialize RecordingService with dependencies and UI callbacks.
-        
+
         Phase 2.2: Extracts recording orchestration logic from MainViewModel.
-        
-        Note: 
+
+        Note:
         - recorder, state_manager, project_manager are passed as references (will update)
         - arduino_manager is initially None and updated via _sync_recording_service_arduino()
           when setup_arduino() is called.
@@ -375,27 +374,33 @@ class MainViewModel:
             project_manager=self.project_manager,
             root=self.root,
         )
-        
+
         # Inject UI callbacks for view updates
-        self.recording_service.set_ui_callbacks({
-            "show_error": lambda title, msg: self._schedule_on_ui(self.view.show_error, title, msg),
-            "update_button_state": lambda btn, state: self._schedule_on_ui(self.view.update_button_state, btn, state),
-            "set_status": lambda msg: self._schedule_on_ui(self.view.set_status, msg),
-            "stop_recording_callback": self.stop_recording,
-        })
+        self.recording_service.set_ui_callbacks(
+            {
+                "show_error": lambda title, msg: self._schedule_on_ui(
+                    self.view.show_error, title, msg
+                ),
+                "update_button_state": lambda btn, state: self._schedule_on_ui(
+                    self.view.update_button_state, btn, state
+                ),
+                "set_status": lambda msg: self._schedule_on_ui(self.view.set_status, msg),
+                "stop_recording_callback": self.stop_recording,
+            }
+        )
 
     def _init_analysis_service(self) -> None:
         """
         Initialize AnalysisService for processing orchestration.
-        
+
         Phase 3: Extracts video processing orchestration logic from MainViewModel.
         AnalysisService now handles batch processing and coordinates with existing
         _process_single_video methods.
         """
         from zebtrack.analysis.analysis_service import AnalysisService
-        
+
         self.analysis_service = AnalysisService()
-        
+
         log.info(
             "controller.init_analysis_service.complete",
             service=type(self.analysis_service).__name__,
@@ -430,51 +435,93 @@ class MainViewModel:
         Events.RECORDING_START: ("start_recording", ["day", "group", "cobaia"], "kwargs_get"),
         Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
         Events.RECORDING_TRIGGER: ("trigger_recording", ["event_code"], "kwargs_get"),
-
         # Project events
         Events.PROJECT_CREATE: ("create_project_workflow", None, "kwargs_all"),
         Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
         Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
-        Events.PROJECT_PROCESS_VIDEOS: ("process_pending_project_videos", ["video_paths"], "kwargs_get"),
-        Events.PROJECT_GENERATE_SUMMARIES: ("generate_parquet_summaries", ["video_paths"], "positional"),
-        Events.PROJECT_APPLY_SETTINGS: ("apply_project_settings_to_batch", ["videos"], "positional"),
-        Events.PROJECT_DELETE_ASSET: ("delete_project_asset", ["video_path", "asset"], "positional"),
-
+        Events.PROJECT_PROCESS_VIDEOS: (
+            "process_pending_project_videos",
+            ["video_paths"],
+            "kwargs_get",
+        ),
+        Events.PROJECT_GENERATE_SUMMARIES: (
+            "generate_parquet_summaries",
+            ["video_paths"],
+            "positional",
+        ),
+        Events.PROJECT_APPLY_SETTINGS: (
+            "apply_project_settings_to_batch",
+            ["videos"],
+            "positional",
+        ),
+        Events.PROJECT_DELETE_ASSET: (
+            "delete_project_asset",
+            ["video_path", "asset"],
+            "positional",
+        ),
         # Video processing events
-        Events.VIDEO_ANALYZE_SINGLE: ("start_single_video_workflow", ["video_path", "config"], "positional"),
+        Events.VIDEO_ANALYZE_SINGLE: (
+            "start_single_video_workflow",
+            ["video_path", "config"],
+            "positional",
+        ),
         Events.VIDEO_CANCEL_ANALYSIS: ("cancel_current_analysis", [], "no_params"),
-
         # Model & weight events
         Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
-        Events.MODEL_SET_OPENVINO: ("set_openvino_usage", ["use_openvino", "dialog"], "positional_optional"),
-        Events.MODEL_CONVERT_OPENVINO: ("convert_active_weight_to_openvino", ["dialog"], "kwargs_get"),
+        Events.MODEL_SET_OPENVINO: (
+            "set_openvino_usage",
+            ["use_openvino", "dialog"],
+            "positional_optional",
+        ),
+        Events.MODEL_CONVERT_OPENVINO: (
+            "convert_active_weight_to_openvino",
+            ["dialog"],
+            "kwargs_get",
+        ),
         Events.MODEL_UPDATE_OPENVINO_STATUS: ("update_openvino_status", ["dialog"], "kwargs_get"),
-        Events.MODEL_ADD_WEIGHT: ("add_new_weight", ["path", "set_as_default", "weight_type"], "positional_optional"),
+        Events.MODEL_ADD_WEIGHT: (
+            "add_new_weight",
+            ["path", "set_as_default", "weight_type"],
+            "positional_optional",
+        ),
         Events.MODEL_DELETE_WEIGHT: ("delete_weight", ["name"], "positional"),
         Events.MODEL_RUN_DIAGNOSTIC: ("run_model_diagnostic", ["config"], "positional"),
-
         # Detector & zone events
         Events.DETECTOR_SETUP: ("setup_detector", ["temp_animal_method"], "kwargs_get"),
         Events.DETECTOR_SETUP_ZONES: ("setup_detector_zones", [], "no_params"),
-        Events.DETECTOR_UPDATE_PARAMETERS: ("update_detector_parameters",
-                                           ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"],
-                                           "kwargs_get"),
+        Events.DETECTOR_UPDATE_PARAMETERS: (
+            "update_detector_parameters",
+            ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"],
+            "kwargs_get",
+        ),
         Events.ZONE_SET_ARENA_POLYGON: ("set_main_arena_polygon", ["points"], "positional"),
         Events.ZONE_SAVE_MANUAL_ARENA: ("save_manual_arena", ["polygon_points"], "positional"),
         Events.ZONE_UPDATE_ARENA: ("update_main_arena", ["polygon_points"], "positional"),
-
         # Calibration events
-        Events.CALIBRATION_RUN_LIVE: ("run_live_calibration", ["temp_aquarium_method"], "kwargs_get"),
-        Events.CALIBRATION_COPY_TO_PROJECT: ("copy_global_model_settings_to_project", [], "no_params"),
-        Events.CALIBRATION_SAVE_TO_PROJECT: ("save_current_calibration_to_project", [], "no_params"),
-
+        Events.CALIBRATION_RUN_LIVE: (
+            "run_live_calibration",
+            ["temp_aquarium_method"],
+            "kwargs_get",
+        ),
+        Events.CALIBRATION_COPY_TO_PROJECT: (
+            "copy_global_model_settings_to_project",
+            [],
+            "no_params",
+        ),
+        Events.CALIBRATION_SAVE_TO_PROJECT: (
+            "save_current_calibration_to_project",
+            [],
+            "no_params",
+        ),
         # Arduino events
         Events.ARDUINO_SETUP: ("setup_arduino", [], "no_params"),
         Events.ARDUINO_LOG_EVENT: ("log_arduino_event", ["message"], "positional"),
-
         # Report events
-        Events.REPORT_GENERATE: ("generate_report", ["videos", "report_type"], "positional_optional"),
-
+        Events.REPORT_GENERATE: (
+            "generate_report",
+            ["videos", "report_type"],
+            "positional_optional",
+        ),
         # Application events
         Events.APP_CLOSE: ("on_close", [], "no_params"),
     }
@@ -511,8 +558,7 @@ class MainViewModel:
                 args = [data.get(param) for param in param_names]
                 method(*args)
             else:
-                log.error("controller.event_dispatcher.unknown_mode",
-                         event=event_name, mode=mode)
+                log.error("controller.event_dispatcher.unknown_mode", event=event_name, mode=mode)
 
         return dispatcher
 
@@ -533,8 +579,9 @@ class MainViewModel:
             dispatcher = self._create_event_dispatcher(event_name)
             bus.subscribe(event_name, dispatcher)
 
-        log.info("controller.register_event_handlers.complete",
-                count=len(self._EVENT_METHOD_MAPPING))
+        log.info(
+            "controller.register_event_handlers.complete", count=len(self._EVENT_METHOD_MAPPING)
+        )
 
     # Phase 7.1: Removed 32 individual _handle_* methods (108 lines) -
     # replaced by generic dispatcher pattern above
@@ -676,8 +723,10 @@ class MainViewModel:
         camera_height = getattr(self.view.camera, "actual_height", None)
         context["camera_width"] = camera_width
         context["camera_height"] = camera_height
-        
-        self.recording_service.schedule_recording(context, project_data, trigger_source=trigger_source)
+
+        self.recording_service.schedule_recording(
+            context, project_data, trigger_source=trigger_source
+        )
 
     def close_project(self):
         # Restore global defaults before clearing project state
@@ -1049,7 +1098,7 @@ class MainViewModel:
     def convert_active_weight_to_openvino(self, dialog):
         """
         Convert the active weight to OpenVINO format.
-        
+
         Delegates conversion logic to ModelService (Phase 2.1).
         MainViewModel only handles UI updates and status feedback.
         """
@@ -1057,10 +1106,10 @@ class MainViewModel:
             return
         self.view.set_status(f"Convertendo {self.active_weight_name} para OpenVINO...")
         self.view.update_idletasks()
-        
+
         # Delegate conversion to ModelService
         self.model_service.convert_to_openvino(self.active_weight_name)
-        
+
         self.update_openvino_status(dialog)
         self.view.set_status("Verificação de conversão concluída. Pronto.")
 
@@ -1209,27 +1258,27 @@ class MainViewModel:
     def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
         """
         Persist model settings to project configuration.
-        
+
         Phase 2.1: Uses ProjectService for data structure management,
         but delegates actual persistence to ProjectManager to maintain
         backward compatibility with existing test mocks.
         """
         project_data = self._get_project_data_dict()
         overrides = self._ensure_project_overrides_record()
-        
+
         # Update overrides (business logic extracted to helper)
         overrides["active_weight"] = weight
         overrides["use_openvino"] = use_openvino
         project_data["active_weight"] = weight
         project_data["use_openvino"] = bool(use_openvino)
-        
+
         # Update in-memory state
         self.project_manager.project_data = project_data
-        
+
         # Delegate persistence to ProjectManager (maintains test compatibility)
         if getattr(self.project_manager, "project_path", None):
             self.project_manager.save_project()
-        
+
         return overrides
 
     def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
@@ -1548,7 +1597,7 @@ class MainViewModel:
     def save_manual_arena(self, polygon_points: list[list[int]]):
         """
         Saves the manually adjusted arena and updates the detector.
-        
+
         Delegates to ProjectService for persistence (Phase 2.1).
         MainViewModel handles UI coordination and detector updates.
         """
@@ -1558,7 +1607,7 @@ class MainViewModel:
     def update_main_arena(self, polygon_points: list[list[int]]):
         """
         Updates the main arena polygon in the project's zone data.
-        
+
         Phase 2.1: Logic simplified but maintains compatibility with existing tests.
         ProjectService methods available for future direct usage.
         """
@@ -2030,7 +2079,7 @@ class MainViewModel:
 
         # Delegate to RecordingService
         self.recording_service.stop_session()
-        
+
         # Update UI on main thread
         self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
         self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
@@ -3485,14 +3534,22 @@ class MainViewModel:
             metadata,
             config.get("aquarium_width_cm"),
             config.get("aquarium_height_cm"),
-            config.get("sharp_turn_threshold_deg_s", settings.video_processing.sharp_turn_threshold_deg_s),
-            config.get("freezing_velocity_threshold", settings.video_processing.freezing_velocity_threshold),
-            config.get("freezing_min_duration_s", settings.video_processing.freezing_min_duration_s),
+            config.get(
+                "sharp_turn_threshold_deg_s", settings.video_processing.sharp_turn_threshold_deg_s
+            ),
+            config.get(
+                "freezing_velocity_threshold", settings.video_processing.freezing_velocity_threshold
+            ),
+            config.get(
+                "freezing_min_duration_s", settings.video_processing.freezing_min_duration_s
+            ),
             config.get("smoothing_window_length", settings.trajectory_smoothing.window_length),
             config.get("smoothing_polyorder", settings.trajectory_smoothing.polyorder),
         )
 
-    def _collect_params_from_project(self, metadata_context: dict | None, experiment_id: str, video_path: str):
+    def _collect_params_from_project(
+        self, metadata_context: dict | None, experiment_id: str, video_path: str
+    ):
         """Extract parameters from project data (Phase 7.3)."""
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         calibration = project_data.get("calibration", {})
@@ -3503,7 +3560,11 @@ class MainViewModel:
             metadata.update(csv_metadata)
         if not metadata:
             metadata = self.project_manager.derive_processing_metadata(experiment_id, video_path)
-            log.info("controller.processing.metadata_fallback", experiment_id=experiment_id, fields=list(metadata.keys()))
+            log.info(
+                "controller.processing.metadata_fallback",
+                experiment_id=experiment_id,
+                fields=list(metadata.keys()),
+            )
 
         return (
             metadata,
@@ -3631,7 +3692,9 @@ class MainViewModel:
         analysis_profile: dict | None,
     ) -> bool:
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
-        trajectory_df = self.video_processing_service.load_trajectory_dataframe(trajectory_path, experiment_id)
+        trajectory_df = self.video_processing_service.load_trajectory_dataframe(
+            trajectory_path, experiment_id
+        )
         if trajectory_df is None:
             return False
 
@@ -3699,7 +3762,9 @@ class MainViewModel:
                 metadata.setdefault("analysis_profile_tracks", list(track_list))
 
         zone_data = self.project_manager.get_zone_data()
-        arena_polygon_px = self.video_processing_service.ensure_arena_polygon(arena_polygon_px, video_path)
+        arena_polygon_px = self.video_processing_service.ensure_arena_polygon(
+            arena_polygon_px, video_path
+        )
         if not all([width_cm, height_cm, arena_polygon_px]):
             self.root.after(
                 0,
@@ -4226,11 +4291,11 @@ class MainViewModel:
         """
         Private helper to process a list of videos and save results. This is
         designed to be run in a background thread.
-        
+
         Phase 3: Delegates batch processing orchestration to AnalysisService.
         """
         log.info("controller.processing.start_delegating", count=len(videos_to_process))
-        
+
         # Delegate to AnalysisService for batch processing orchestration
         with self._temporary_single_animal_mode(single_video_config) as _:
             self.analysis_service.process_videos_batch(
@@ -4529,7 +4594,7 @@ class MainViewModel:
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(report_str)
                 self.view.show_info("Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}")
-            except IOError as e:
+            except OSError as e:
                 self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
 
         self._publish_processing_mode(

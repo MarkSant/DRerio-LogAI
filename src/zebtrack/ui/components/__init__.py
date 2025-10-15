@@ -17,10 +17,10 @@ from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 
 __all__ = [
+    "AnalysisControlsWidget",
     "BaseWidget",
-    "VideoDisplayWidget",
-    "ZoneControlsWidget",
     "ControlPanelWidget",
     "ProjectOverviewWidget",
-    "AnalysisControlsWidget",
+    "VideoDisplayWidget",
+    "ZoneControlsWidget",
 ]

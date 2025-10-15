@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import math
 import random
-from typing import Iterable, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import Tuple
 
 import numpy as np
 import structlog
@@ -36,7 +37,7 @@ def calculate_sha256(filepath: str) -> str:
             for chunk in iter(lambda: handle.read(4096), b""):
                 sha256_hash.update(chunk)
         return sha256_hash.hexdigest()
-    except IOError:
+    except OSError:
         log.error("file.hash.read_error", filepath=filepath)
         return ""
 
@@ -123,7 +124,7 @@ def snap_point_to_axes(
 __all__ = [
     "IntegrityError",
     "calculate_sha256",
-    "set_seed",
     "polygon_centroid",
+    "set_seed",
     "snap_point_to_axes",
 ]

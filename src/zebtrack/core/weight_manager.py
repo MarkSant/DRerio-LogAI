@@ -40,7 +40,7 @@ class WeightManager:
         """Loads the weights configuration from the JSON file."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     self.weights = json.load(f)
 
                 # Migrate old format weights to new format with type support
@@ -75,7 +75,7 @@ class WeightManager:
                     log.info("weights.migration.completed")
 
                 log.info("weights.config.loaded", path=self.config_path)
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 log.error("weights.config.load_error", error=str(e))
                 self.weights = {}
                 self._initialize_default_weight()
@@ -211,7 +211,7 @@ class WeightManager:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self.weights, f, indent=4)
             log.info("weights.config.saved", path=self.config_path)
-        except IOError as e:
+        except OSError as e:
             log.error("weights.config.save_error", error=str(e))
             messagebox.showerror(
                 "Erro", "Não foi possível salvar o arquivo de configuração de pesos."

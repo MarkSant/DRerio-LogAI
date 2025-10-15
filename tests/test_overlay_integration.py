@@ -20,7 +20,7 @@ class TestOverlayIntegration(unittest.TestCase):
             os.path.dirname(__file__), "..", "src", "zebtrack", "core", "controller.py"
         )
 
-        with open(controller_file, "r", encoding="utf-8") as f:
+        with open(controller_file, encoding="utf-8") as f:
             content = f.read()
 
         # Verify that draw_overlay is called in the tracking method
@@ -41,7 +41,7 @@ class TestOverlayIntegration(unittest.TestCase):
         """Test that display_analysis_frame doesn't redraw overlays."""
         gui_file = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-        with open(gui_file, "r", encoding="utf-8") as f:
+        with open(gui_file, encoding="utf-8") as f:
             content = f.read()
 
         # Find the display_analysis_frame method
@@ -68,7 +68,7 @@ class TestOverlayIntegration(unittest.TestCase):
             os.path.dirname(__file__), "..", "src", "zebtrack", "core", "detector.py"
         )
 
-        with open(detector_file, "r", encoding="utf-8") as f:
+        with open(detector_file, encoding="utf-8") as f:
             content = f.read()
 
         # Verify draw_overlay method exists
@@ -86,7 +86,7 @@ class TestOverlayIntegration(unittest.TestCase):
             os.path.dirname(__file__), "..", "src", "zebtrack", "core", "controller.py"
         )
 
-        with open(controller_file, "r", encoding="utf-8") as f:
+        with open(controller_file, encoding="utf-8") as f:
             content = f.read()
 
         if "def _run_tracking_if_needed(" in content:

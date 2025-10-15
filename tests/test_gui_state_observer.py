@@ -20,40 +20,37 @@ class TestGUIStateObserver:
     def mock_root(self):
         """
         Create a mock Tkinter root with realistic event processing.
-        
+
         Phase 1.2: Simulates Tkinter's event queue and update_idletasks()
         to make GUI tests deterministic.
         """
         root = MagicMock()
-        
+
         # Store scheduled callbacks in order
         root._scheduled_callbacks = []
-        
+
         def mock_after(delay, callback, *args):
             """Mock after() that stores callbacks for later execution."""
             root._scheduled_callbacks.append((delay, callback, args))
             return len(root._scheduled_callbacks)  # Return a fake job ID
-        
+
         def mock_update_idletasks():
             """
             Mock update_idletasks() that processes all scheduled callbacks.
-            
+
             Phase 1.2: This ensures all UI updates scheduled via after()
             are executed synchronously before assertions.
             """
             # Process all callbacks with delay=0 (idle tasks)
             callbacks_to_execute = [
-                (callback, args) 
-                for delay, callback, args in root._scheduled_callbacks 
+                (callback, args)
+                for delay, callback, args in root._scheduled_callbacks
                 if delay == 0
             ]
-            
+
             # Clear processed callbacks
-            root._scheduled_callbacks = [
-                item for item in root._scheduled_callbacks 
-                if item[0] != 0
-            ]
-            
+            root._scheduled_callbacks = [item for item in root._scheduled_callbacks if item[0] != 0]
+
             # Execute all idle callbacks
             for callback, args in callbacks_to_execute:
                 try:
@@ -61,11 +58,11 @@ class TestGUIStateObserver:
                 except Exception as e:
                     # Log but don't fail - matches Tk behavior
                     print(f"Callback error: {e}")
-        
+
         root.after = mock_after
         root.update_idletasks = mock_update_idletasks
         root.mainloop = MagicMock()
-        
+
         return root
 
     @pytest.fixture
@@ -205,22 +202,16 @@ class TestGUIStateObserver:
 
         # Verify all UI updates were scheduled via root.after(0, ...)
         # This ensures thread safety
-        zero_delay_callbacks = [
-            item for item in mock_gui.root._scheduled_callbacks 
-            if item[0] == 0
-        ]
+        zero_delay_callbacks = [item for item in mock_gui.root._scheduled_callbacks if item[0] == 0]
 
         # Should have at least 3 calls (one per state change)
         assert len(zero_delay_callbacks) >= 3
-        
+
         # Phase 1.2: Process all scheduled updates
         mock_gui.root.update_idletasks()
-        
+
         # All callbacks should have been executed and cleared
-        remaining_zero_delay = [
-            item for item in mock_gui.root._scheduled_callbacks 
-            if item[0] == 0
-        ]
+        remaining_zero_delay = [item for item in mock_gui.root._scheduled_callbacks if item[0] == 0]
         assert len(remaining_zero_delay) == 0
 
     def test_recording_state_stop_updates_ui(self, mock_gui, controller):
@@ -228,7 +219,7 @@ class TestGUIStateObserver:
         # Start recording
         controller.state_manager.update_recording_state(source="test", is_recording=True)
         mock_gui.root.update_idletasks()
-        
+
         # Reset mocks to track only the stop action
         mock_gui.start_rec_btn.config.reset_mock()
         mock_gui.stop_rec_btn.config.reset_mock()
@@ -248,7 +239,7 @@ class TestGUIStateObserver:
         # Start processing
         controller.state_manager.update_processing_state(source="test", is_processing=True)
         mock_gui.root.update_idletasks()
-        
+
         # Reset mock to track only the stop action
         mock_gui.process_video_btn.config.reset_mock()
 

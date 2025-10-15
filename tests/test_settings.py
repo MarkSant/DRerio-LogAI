@@ -391,7 +391,7 @@ camera:
 
             # Verify file was created and contains valid JSON
             self.assertTrue(temp_path.exists())
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 loaded_schema = json.load(f)
 
             # Should match the returned schema

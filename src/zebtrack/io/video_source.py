@@ -31,7 +31,7 @@ class VideoFileSource(FrameSource):
         self.cap = cv2.VideoCapture(video_path)
 
         if not self.cap.isOpened():
-            raise IOError(f"Cannot open video file: {video_path}")
+            raise OSError(f"Cannot open video file: {video_path}")
 
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
             print(f"\nTotal frames read: {frame_counter}")
             video_source.release()
-        except (FileNotFoundError, IOError) as e:
+        except (OSError, FileNotFoundError) as e:
             print(f"Error: {e}")
         finally:
             if os.path.exists(test_video_path):

@@ -12,7 +12,7 @@ def test_gui_zone_config_structure():
     """Test that the GUI zone configuration structure has been correctly fixed."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Test that viz_frame is now self.viz_frame
@@ -70,7 +70,7 @@ def test_zone_summary_cards_section_present():
     """Ensure that the new zone summary cards section is rendered."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     assert "STATUS_SYMBOLS['summary']" in gui_code, "Summary status symbol should be registered"
@@ -88,7 +88,7 @@ def test_gui_attribute_guards():
     """Test that proper attribute guards have been added."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Test that update_zone_listbox has guards
@@ -104,7 +104,7 @@ def test_treeview_column_proportions():
     """Test that TreeView columns have correct proportions."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Test TreeView column configuration
@@ -123,7 +123,7 @@ def test_button_placement_in_fixed_frame():
     """Test that the analysis button is correctly placed in the fixed frame."""
     gui_file_path = os.path.join(os.path.dirname(__file__), "..", "src", "zebtrack", "ui", "gui.py")
 
-    with open(gui_file_path, "r", encoding="utf-8") as f:
+    with open(gui_file_path, encoding="utf-8") as f:
         gui_code = f.read()
 
     # Find setup_zone_definition_for_single_video method
