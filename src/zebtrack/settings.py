@@ -754,28 +754,31 @@ except (FileNotFoundError, ValueError) as e:
 # =============================================================================
 # Public API
 # =============================================================================
-__all__ = sorted([
-    # Main settings object (use this in most cases)
-    "settings",
-    # Settings model classes (for type hints and validation)
-    "Settings",
-    "CameraSettings",
-    "ArduinoSettings",
-    "RecorderSettings",
-    "YOLOModelSettings",
-    "ByteTrackSettings",
-    "VideoProcessingSettings",
-    "TrajectorySmoothingSettings",
-    "AngularVelocitySettings",
-    "TrackingSettings",
-    "DetectionZonesSettings",
-    "ReproducibilitySettings",
-    "ModelSelectionSettings",
-    "WeightsSelectionSettings",
-    "UIFeatureFlags",
-    "PerformanceSettings",
-    # Utility functions
-    "load_settings",
-    "reload_settings",
-    "export_schema",
-], key=str.casefold)
+__all__ = sorted(
+    [
+        # Main settings object (use this in most cases)
+        "settings",
+        # Settings model classes (for type hints and validation)
+        "Settings",
+        "CameraSettings",
+        "ArduinoSettings",
+        "RecorderSettings",
+        "YOLOModelSettings",
+        "ByteTrackSettings",
+        "VideoProcessingSettings",
+        "TrajectorySmoothingSettings",
+        "AngularVelocitySettings",
+        "TrackingSettings",
+        "DetectionZonesSettings",
+        "ReproducibilitySettings",
+        "ModelSelectionSettings",
+        "WeightsSelectionSettings",
+        "UIFeatureFlags",
+        "PerformanceSettings",
+        # Utility functions
+        "load_settings",
+        "reload_settings",
+        "export_schema",
+    ],
+    key=str.casefold,
+)

@@ -452,12 +452,10 @@ class Reporter:
         total_roi_entries = 0
         for roi_name in r_analyzer.rois:
             # Time spent
-            combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
-                "seconds"
+            combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get("seconds")
+            combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(roi_name, {}).get(
+                "percentage"
             )
-            combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(
-                roi_name, {}
-            ).get("percentage")
 
             # Entry and Exit counts
             entries = entry_counts.get(roi_name, 0)
@@ -479,18 +477,14 @@ class Reporter:
             # Intra-ROI Freezing
             roi_freeze = freezing.get(roi_name)
             if roi_freeze:
-                combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get(
-                    "count"
-                )
+                combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get("count")
                 combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = roi_freeze.get(
                     "total_duration"
                 )
 
             # ROI Color - convert to color name
             if roi_name in self.roi_colors:
-                combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(
-                    self.roi_colors[roi_name]
-                )
+                combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(self.roi_colors[roi_name])
 
         combined_data["total_entradas_roi"] = total_roi_entries
         return combined_data
@@ -1178,14 +1172,10 @@ class Reporter:
         event_log_df = self.r_analyzer.get_event_log()
         if not event_log_df.empty:
             document.add_paragraph(
-                _(
-                    "Chronological log of all entries and exits from defined ROIs."
-                )
+                _("Chronological log of all entries and exits from defined ROIs.")
             )
 
-            event_log_df = event_log_df.rename(
-                columns={"roi_name": "ROI", "event": _("Event")}
-            )
+            event_log_df = event_log_df.rename(columns={"roi_name": "ROI", "event": _("Event")})
 
             start_time = event_log_df["timestamp"].iloc[0]
 

@@ -445,7 +445,7 @@ class AnalysisService:
         single_video_config: dict | None,
         experiment_id: str,
         video_path: str,
-    derive_callback: Callable[[str, str], dict] | None = None,
+        derive_callback: Callable[[str, str], dict] | None = None,
     ) -> dict | None:
         """
         Build metadata context for a video.

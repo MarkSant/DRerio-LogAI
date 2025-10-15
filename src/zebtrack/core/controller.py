@@ -1469,7 +1469,7 @@ class MainViewModel:
         self,
         video_path: str | None = None,
         stabilization_frames: int = 10,
-    temp_aquarium_method: str | None = None,
+        temp_aquarium_method: str | None = None,
     ):
         """Runs the aquarium detection model on the specified or first project video.
 
@@ -2711,7 +2711,6 @@ class MainViewModel:
         )
         self.processing_thread.start()
 
-
     def _run_tracking_if_needed(
         self,
         video_path: str,
@@ -3435,8 +3434,7 @@ class MainViewModel:
         video: dict,
         settings_obj,
     ) -> tuple[str, str | None, str | None, bool]:
-        """Process a single video for summary generation. Extracted from the main method.
-        """
+        """Process a single video for summary generation. Extracted from the main method."""
         path = video.get("path")
         if not isinstance(path, str) or not path:
             return "skipped", "Caminho do vídeo não definido.", None, False
@@ -3543,8 +3541,7 @@ class MainViewModel:
                 )
 
             roi_colors = {
-                (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"):
-                roi_colors_list[i]
+                (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
                 for i in range(len(roi_colors_list))
             }
 
@@ -3583,7 +3580,6 @@ class MainViewModel:
             return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
         finally:
             self.project_manager.set_active_zone_video(None)
-
 
     def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
         payload = dict(metadata)

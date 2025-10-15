@@ -46,7 +46,7 @@ class TemplateManager:
         self,
         name: str,
         wizard_data: dict,
-    destination_path: str | Path | None = None,
+        destination_path: str | Path | None = None,
     ) -> bool:
         """
         Save wizard configuration as a template.

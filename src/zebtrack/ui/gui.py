@@ -1411,8 +1411,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                     return False, f"O nome do Grupo {i + 1} não pode estar vazio."
         except (ValueError, TypeError):
             return False, (
-                "Os parâmetros do design experimental devem ser "
-                "números positivos válidos."
+                "Os parâmetros do design experimental devem ser números positivos válidos."
             )
 
         if self.use_timed_recording_var.get():
@@ -1441,8 +1440,7 @@ class CreateProjectDialog(simpledialog.Dialog):
                 raise ValueError
         except ValueError:
             return False, (
-                "Os intervalos de análise e exibição devem ser "
-                "números inteiros positivos."
+                "Os intervalos de análise e exibição devem ser números inteiros positivos."
             )
 
         return True, ""
@@ -2347,22 +2345,22 @@ class ApplicationGUI:
         )
         theme_name = preferred_theme or "cosmo"
 
-    # ttkbootstrap changed its API in some versions and may no longer accept
-    # the `master` keyword in Style.__init__.
-    #
-    # Behaviour:
-    # - Older ttkbootstrap accepted `master=self.root` in Style(...)
-    # - Newer releases removed that kwarg and raise TypeError if present
-    #
-    # Strategy: try the call that includes `master` first (compatible with
-    # older ttkbootstrap), and on TypeError retry without `master`. This
-    # keeps the code compatible across multiple installed versions. If you
-    # prefer to enforce a single supported ttkbootstrap version, pin an
-    # appropriate range in `pyproject.toml` (e.g. "ttkbootstrap~=1.1"),
-    # and remove the fallback.
-    #
-    # We also log the installed ttkbootstrap version when falling back so
-    # maintainers can identify mismatches in CI or user environments.
+        # ttkbootstrap changed its API in some versions and may no longer accept
+        # the `master` keyword in Style.__init__.
+        #
+        # Behaviour:
+        # - Older ttkbootstrap accepted `master=self.root` in Style(...)
+        # - Newer releases removed that kwarg and raise TypeError if present
+        #
+        # Strategy: try the call that includes `master` first (compatible with
+        # older ttkbootstrap), and on TypeError retry without `master`. This
+        # keeps the code compatible across multiple installed versions. If you
+        # prefer to enforce a single supported ttkbootstrap version, pin an
+        # appropriate range in `pyproject.toml` (e.g. "ttkbootstrap~=1.1"),
+        # and remove the fallback.
+        #
+        # We also log the installed ttkbootstrap version when falling back so
+        # maintainers can identify mismatches in CI or user environments.
         # Resolve installed ttkbootstrap version for better logging. Try
         # importlib.metadata first (Python 3.8+), fallback to pkg_resources if
         # importlib.metadata is not available or package metadata is missing.
@@ -6645,22 +6643,13 @@ class ApplicationGUI:
             if total_videos == 0:
                 continue
             total_arena = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_arena"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
             )
             total_rois = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_rois"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
             )
             total_trajectory = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_trajectory"]
+                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
             )
             total_complete = sum(
                 1
@@ -6731,9 +6720,7 @@ class ApplicationGUI:
                     video_node = self.reports_tree.insert(
                         day_node,
                         "end",
-                        text=(
-                            f"🐟 Sujeito {subject_label}  ({entry['filename']})"
-                        ),
+                        text=(f"🐟 Sujeito {subject_label}  ({entry['filename']})"),
                         values=(
                             self._format_status_token(entry["has_arena"], "arena"),
                             self._format_status_token(entry["has_rois"], "rois"),

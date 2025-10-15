@@ -318,8 +318,8 @@ class ObserverAdapter:
     def __init__(
         self,
         callback: Callable[[StateCategory, str, Any, Any], None],
-    categories: set[StateCategory] | None = None,
-    keys: set[str] | None = None,
+        categories: set[StateCategory] | None = None,
+        keys: set[str] | None = None,
     ):
         """
         Initialize the adapter.

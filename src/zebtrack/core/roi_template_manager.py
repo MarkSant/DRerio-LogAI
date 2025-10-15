@@ -72,8 +72,8 @@ class ROITemplateManager:
         save_arena: bool = True,
         save_rois: bool = True,
         save_location: Literal["global", "project", "custom"] = "global",
-    project_path: str | None = None,
-    custom_path: str | Path | None = None,
+        project_path: str | None = None,
+        custom_path: str | Path | None = None,
         overwrite: bool = True,
     ) -> dict[str, Any]:
         """
@@ -225,7 +225,7 @@ class ROITemplateManager:
             with open(template_path, encoding="utf-8") as f:
                 payload = json.load(f)
         except json.JSONDecodeError as e:
-                raise ValueError(f"Arquivo JSON inválido: {e}") from e
+            raise ValueError(f"Arquivo JSON inválido: {e}") from e
 
         if not isinstance(payload, dict):
             raise ValueError("Formato de template inválido.")

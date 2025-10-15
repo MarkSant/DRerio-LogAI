@@ -429,7 +429,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     def detect_freezing_episodes(
         self,
         min_duration: float,
-    vel_threshold: float | None = None,
+        vel_threshold: float | None = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
@@ -573,7 +573,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return angular_velocity_series
 
     def get_tortuosity(
-    self, window_size: float | None = None, step: float | None = None
+        self, window_size: float | None = None, step: float | None = None
     ) -> Union[float, pd.Series]:
         # Implementation for the entire trajectory
         if window_size is not None:
@@ -621,7 +621,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_speed_bursts(
         self,
-    threshold_cm_s: float | None = None,
+        threshold_cm_s: float | None = None,
         min_duration: float = 0.5,
         quantile: float = 0.9,
     ) -> dict[str, Union[int, float, list[dict[str, float]]]]:

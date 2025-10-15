@@ -40,8 +40,8 @@ class ROIAnalyzer:
         rois: list[ROI],
         flutter_n_frames: int = 3,
         inclusion_rule: str = "bbox_intersects",
-    buffer_radius_value: float | None = None,
-    min_bbox_overlap_ratio: float | None = None,
+        buffer_radius_value: float | None = None,
+        min_bbox_overlap_ratio: float | None = None,
     ):
         """
         Initializes the ROIAnalyzer.

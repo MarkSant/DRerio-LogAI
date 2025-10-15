@@ -1159,9 +1159,7 @@ class ProjectManager:
 
         parquet_files = video_parquet_map.get(video_path, {})
         if not parquet_files:
-            log.warning(
-                "project_manager.import_parquets.no_parquets", video=Path(video_path).name
-            )
+            log.warning("project_manager.import_parquets.no_parquets", video=Path(video_path).name)
             return counts
 
         zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
@@ -2269,9 +2267,7 @@ class ProjectManager:
             )
             # Add the video to the in-memory project data
             # This can happen during single video workflows
-            self.add_video_batch([
-                {"path": video_path, "status": "processing"}
-            ], save_project=False)
+            self.add_video_batch([{"path": video_path, "status": "processing"}], save_project=False)
             video_entry = self.find_video_entry(path=video_path)
             if not video_entry:
                 log.warning(
