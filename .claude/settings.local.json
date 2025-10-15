@@ -9,7 +9,8 @@
       "WebSearch",
       "Bash(awk:*)",
       "Bash(poetry run python:*)",
-      "Bash(poetry lock:*)"
+      "Bash(poetry lock:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

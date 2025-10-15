@@ -723,10 +723,8 @@ class DetectionStep(WizardStep):
                 self.status_var.set("Regex personalizado aplicado ✓")
             else:
                 self.status_var.set(
-
-                        "Regex personalizado não encontrou design; "
-                        "ajuste os padrões ou edite manualmente."
-
+                    "Regex personalizado não encontrou design; "
+                    "ajuste os padrões ou edite manualmente."
                 )
         else:
             if new_design:
