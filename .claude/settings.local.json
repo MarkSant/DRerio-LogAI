@@ -6,7 +6,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(poetry show:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
