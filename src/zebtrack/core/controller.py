@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from tkinter import Label, Toplevel
 from typing import Any, Iterator, cast
 
 import cv2
@@ -3474,6 +3473,49 @@ class MainViewModel:
     # - _ensure_arena_polygon
     # - _load_trajectory_dataframe
 
+    def _collect_params_from_single_video(self, config: dict, experiment_id: str):
+        """Extract parameters from single video config (Phase 7.3)."""
+        metadata = dict(config)
+        metadata.setdefault("experiment_id", experiment_id)
+        metadata.setdefault("video_name", experiment_id)
+        if not metadata.get("group_id"):
+            metadata["group_id"] = "single_video"
+
+        return (
+            metadata,
+            config.get("aquarium_width_cm"),
+            config.get("aquarium_height_cm"),
+            config.get("sharp_turn_threshold_deg_s", settings.video_processing.sharp_turn_threshold_deg_s),
+            config.get("freezing_velocity_threshold", settings.video_processing.freezing_velocity_threshold),
+            config.get("freezing_min_duration_s", settings.video_processing.freezing_min_duration_s),
+            config.get("smoothing_window_length", settings.trajectory_smoothing.window_length),
+            config.get("smoothing_polyorder", settings.trajectory_smoothing.polyorder),
+        )
+
+    def _collect_params_from_project(self, metadata_context: dict | None, experiment_id: str, video_path: str):
+        """Extract parameters from project data (Phase 7.3)."""
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        calibration = project_data.get("calibration", {})
+
+        metadata = dict(metadata_context or {})
+        csv_metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
+        if csv_metadata:
+            metadata.update(csv_metadata)
+        if not metadata:
+            metadata = self.project_manager.derive_processing_metadata(experiment_id, video_path)
+            log.info("controller.processing.metadata_fallback", experiment_id=experiment_id, fields=list(metadata.keys()))
+
+        return (
+            metadata,
+            calibration.get("aquarium_width_cm"),
+            calibration.get("aquarium_height_cm"),
+            settings.video_processing.sharp_turn_threshold_deg_s,
+            settings.video_processing.freezing_velocity_threshold,
+            settings.video_processing.freezing_min_duration_s,
+            settings.trajectory_smoothing.window_length,
+            settings.trajectory_smoothing.polyorder,
+        )
+
     def _collect_analysis_parameters(
         self,
         *,
@@ -3481,81 +3523,12 @@ class MainViewModel:
         metadata_context: dict | None,
         experiment_id: str,
         video_path: str,
-    ) -> tuple[
-        dict,
-        float | None,
-        float | None,
-        float,
-        float,
-        float,
-        int,
-        int,
-    ]:
+    ) -> tuple[dict, float | None, float | None, float, float, float, int, int]:
+        """Phase 7.3: Simplified via extraction of collection logic to submethods."""
         if single_video_config:
-            metadata = dict(single_video_config)
-            metadata.setdefault("experiment_id", experiment_id)
-            metadata.setdefault("video_name", experiment_id)
-            if not metadata.get("group_id"):
-                metadata["group_id"] = "single_video"
-
-            width_cm = single_video_config.get("aquarium_width_cm")
-            height_cm = single_video_config.get("aquarium_height_cm")
-            sharp_turn_threshold = single_video_config.get(
-                "sharp_turn_threshold_deg_s",
-                settings.video_processing.sharp_turn_threshold_deg_s,
-            )
-            freezing_threshold = single_video_config.get(
-                "freezing_velocity_threshold",
-                settings.video_processing.freezing_velocity_threshold,
-            )
-            freezing_duration = single_video_config.get(
-                "freezing_min_duration_s",
-                settings.video_processing.freezing_min_duration_s,
-            )
-            smoothing_window = single_video_config.get(
-                "smoothing_window_length",
-                settings.trajectory_smoothing.window_length,
-            )
-            smoothing_polyorder = single_video_config.get(
-                "smoothing_polyorder",
-                settings.trajectory_smoothing.polyorder,
-            )
+            return self._collect_params_from_single_video(single_video_config, experiment_id)
         else:
-            project_data = getattr(self.project_manager, "project_data", {}) or {}
-            calibration = project_data.get("calibration", {})
-            width_cm = calibration.get("aquarium_width_cm")
-            height_cm = calibration.get("aquarium_height_cm")
-            sharp_turn_threshold = settings.video_processing.sharp_turn_threshold_deg_s
-            freezing_threshold = settings.video_processing.freezing_velocity_threshold
-            freezing_duration = settings.video_processing.freezing_min_duration_s
-            smoothing_window = settings.trajectory_smoothing.window_length
-            smoothing_polyorder = settings.trajectory_smoothing.polyorder
-
-            metadata = dict(metadata_context or {})
-            csv_metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
-            if csv_metadata:
-                metadata.update(csv_metadata)
-            if not metadata:
-                metadata = self.project_manager.derive_processing_metadata(
-                    experiment_id,
-                    video_path,
-                )
-                log.info(
-                    "controller.processing.metadata_fallback",
-                    experiment_id=experiment_id,
-                    fields=list(metadata.keys()),
-                )
-
-        return (
-            metadata,
-            width_cm,
-            height_cm,
-            sharp_turn_threshold,
-            freezing_threshold,
-            freezing_duration,
-            smoothing_window,
-            smoothing_polyorder,
-        )
+            return self._collect_params_from_project(metadata_context, experiment_id, video_path)
 
     def _prepare_calibration_context(
         self,
