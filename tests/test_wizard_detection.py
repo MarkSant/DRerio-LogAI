@@ -64,7 +64,16 @@ class TestDetectionStep(unittest.TestCase):
                 except OSError:
                     pass
 
-        self.root.destroy()
+        # Clean up all child widgets but DON'T destroy root
+        # Destroying Tk root pollutes ttkbootstrap Style singleton
+        try:
+            for widget in list(self.root.winfo_children()):
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def test_detection_step_builds_ui_without_error(self):
         """Detection step should build UI without errors."""

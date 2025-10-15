@@ -38,7 +38,16 @@ class TestConfirmationStep(unittest.TestCase):
         # Clean up temp directory
         Path(self.temp_dir).rmdir()
 
-        self.root.destroy()
+        # Clean up all child widgets but DON'T destroy root
+        # Destroying Tk root pollutes ttkbootstrap Style singleton
+        try:
+            for widget in list(self.root.winfo_children()):
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def test_confirmation_step_builds_ui_without_error(self):
         """Confirmation step should build UI without errors."""

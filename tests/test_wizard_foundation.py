@@ -32,7 +32,16 @@ class TestWizardFoundation(unittest.TestCase):
 
     def tearDown(self):
         """Destroy Tkinter root."""
-        self.root.destroy()
+        # Clean up all child widgets but DON'T destroy root
+        # Destroying Tk root pollutes ttkbootstrap Style singleton
+        try:
+            for widget in list(self.root.winfo_children()):
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def test_wizard_initializes_with_schema_version(self):
         """Wizard should initialize with wizard_schema_version: 1."""

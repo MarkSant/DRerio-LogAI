@@ -60,7 +60,19 @@ class TestWizardIntegration(unittest.TestCase):
                 except OSError:
                     pass
 
-        self.root.destroy()
+        # Clean up all child widgets but DON'T destroy root
+        # Destroying Tk root pollutes ttkbootstrap Style singleton and causes
+        # test isolation issues with subsequent UI tests
+        try:
+            for widget in list(self.root.winfo_children()):
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+            # NOTE: self.root.destroy() is intentionally omitted to prevent
+            # ttkbootstrap Style singleton pollution between test modules
+        except Exception:
+            pass
 
     def test_step1_to_step2_data_flow(self):
         """Test data flow from Discovery to File Selection."""

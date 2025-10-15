@@ -42,7 +42,16 @@ class TestFileSelectionStep(unittest.TestCase):
         if Path(self.temp_dir).exists():
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-        self.root.destroy()
+        # Clean up all child widgets but DON'T destroy root
+        # Destroying Tk root pollutes ttkbootstrap Style singleton
+        try:
+            for widget in list(self.root.winfo_children()):
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def test_file_selection_step_builds_ui_without_error(self):
         """File selection step should build UI without errors."""

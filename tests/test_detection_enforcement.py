@@ -78,6 +78,8 @@ def test_detection_mode_with_single_animal_allowed():
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
                 controller.project_manager.create_new_project.return_value = True
+                # Also update the service's reference to project_manager
+                controller.project_workflow_service.project_manager = controller.project_manager
                 controller.weight_manager = MagicMock()
                 controller.active_weight_name = "test_weight"
 
@@ -126,6 +128,8 @@ def test_segmentation_mode_with_multiple_animals_allowed():
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
                 controller.project_manager.create_new_project.return_value = True
+                # Also update the service's reference to project_manager
+                controller.project_workflow_service.project_manager = controller.project_manager
                 controller.weight_manager = MagicMock()
                 controller.active_weight_name = "test_weight"
 

@@ -380,6 +380,10 @@ class ProjectWorkflowService:
         animal_method = kwargs.get("animal_method", settings.model_selection.animal_method)
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
+        # Add animal_method to kwargs if not present (needed for validation)
+        if "animal_method" not in kwargs:
+            kwargs["animal_method"] = animal_method
+
         # Set use_single_subject_tracker if not provided
         if "use_single_subject_tracker" not in kwargs:
             kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
