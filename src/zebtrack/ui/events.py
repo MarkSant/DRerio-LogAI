@@ -56,6 +56,24 @@ Report Events:
 
 Application Events:
 - app:close: {}
+
+Controller→UI Events (New in Phase 1 Refactoring):
+-------------------
+These events are published by the MainViewModel and consumed by the ApplicationGUI
+or its components to decouple the view model from the view.
+
+- ui:show_error: {title: str, message: str}
+- ui:show_warning: {title: str, message: str}
+- ui:show_info: {title: str, message: str}
+- ui:set_status: {message: str}
+- ui:update_button_state: {button_name: str, state: str}
+- ui:refresh_project_views: {reason: str, append_summary: bool, immediate: bool}
+- ui:update_arduino_status: {connected: bool, port: str | None}
+- ui:append_arduino_log: {message: str}
+- ui:update_openvino_status: {status: str}
+- ui:setup_interactive_polygon: {polygon: list}
+- ui:display_video_frame: {video_path: str}
+- ui:update_processing_mode: {report: Any} # ProcessingReport
 """
 
 
@@ -112,6 +130,22 @@ class Events:
 
     # Application
     APP_CLOSE = "app:close"
+
+    # --------------------------------------------------------------------------
+    # Controller -> UI Events
+    # --------------------------------------------------------------------------
+    UI_SHOW_ERROR = "ui:show_error"
+    UI_SHOW_WARNING = "ui:show_warning"
+    UI_SHOW_INFO = "ui:show_info"
+    UI_SET_STATUS = "ui:set_status"
+    UI_UPDATE_BUTTON_STATE = "ui:update_button_state"
+    UI_REFRESH_PROJECT_VIEWS = "ui:refresh_project_views"
+    UI_UPDATE_ARDUINO_STATUS = "ui:update_arduino_status"
+    UI_APPEND_ARDUINO_LOG = "ui:append_arduino_log"
+    UI_UPDATE_OPENVINO_STATUS = "ui:update_openvino_status"
+    UI_SETUP_INTERACTIVE_POLYGON = "ui:setup_interactive_polygon"
+    UI_DISPLAY_VIDEO_FRAME = "ui:display_video_frame"
+    UI_UPDATE_PROCESSING_MODE = "ui:update_processing_mode"
 
 
 __all__ = ["Events"]

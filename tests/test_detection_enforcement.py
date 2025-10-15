@@ -16,9 +16,9 @@ def test_detection_mode_with_multiple_animals_blocked():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
@@ -66,9 +66,9 @@ def test_detection_mode_with_single_animal_allowed():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
@@ -116,9 +116,9 @@ def test_segmentation_mode_with_multiple_animals_allowed():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
@@ -167,9 +167,9 @@ def test_single_video_detection_mode_enforcement():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()

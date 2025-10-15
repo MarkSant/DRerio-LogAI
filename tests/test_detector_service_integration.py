@@ -14,7 +14,7 @@ These tests verify:
 import unittest
 from unittest.mock import MagicMock, patch
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import ZoneData
 
 
@@ -54,9 +54,9 @@ class MockDetectorPlugin:
 class TestDetectorServiceIntegration(unittest.TestCase):
     """Integration tests for DetectorService and Controller."""
 
-    @patch("zebtrack.core.controller.WeightManager")
-    @patch("zebtrack.core.controller.ProjectManager")
-    @patch("zebtrack.core.controller.ApplicationGUI")
+    @patch("zebtrack.core.main_view_model.WeightManager")
+    @patch("zebtrack.core.main_view_model.ProjectManager")
+    @patch("zebtrack.core.main_view_model.ApplicationGUI")
     def setUp(self, mock_gui, mock_pm, mock_wm):
         """Set up test environment."""
         self.root = MagicMock()

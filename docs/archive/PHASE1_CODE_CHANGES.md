@@ -80,7 +80,7 @@ def controller(self, mock_root):
     """Create a MainViewModel with mocked dependencies."""
     with patch("zebtrack.core.controller.ApplicationGUI"):
         with patch("zebtrack.core.controller.settings"):
-            from zebtrack.core.controller import MainViewModel
+            from zebtrack.core.main_view_model import MainViewModel
             controller = MainViewModel(mock_root)
             return controller
 ```
@@ -95,9 +95,9 @@ def test_event(self):
 @pytest.fixture
 def controller(self, mock_root, test_event):
     """Create a MainViewModel with test synchronization."""
-    with patch("zebtrack.core.controller.ApplicationGUI"):
-        with patch("zebtrack.core.controller.settings"):
-            from zebtrack.core.controller import MainViewModel
+    with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+        with patch("zebtrack.core.main_view_model.settings"):
+            from zebtrack.core.main_view_model import MainViewModel
             controller = MainViewModel(mock_root, test_sync_event=test_event)
             return controller
 ```

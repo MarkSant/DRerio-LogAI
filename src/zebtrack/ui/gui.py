@@ -1883,10 +1883,80 @@ class ApplicationGUI:
 
         if self.event_bus is not None:
             self._register_event_bus_handlers()
+            self._subscribe_to_ui_events()  # New: Subscribe to Controller->UI events
             self._schedule_event_bus_poll()
 
         # Subscribe to StateManager state changes for reactive UI updates
         self._subscribe_to_state_changes()
+
+    def _subscribe_to_ui_events(self) -> None:
+        """Subscribe to events published by the MainViewModel for UI updates."""
+        if not self.event_bus:
+            return
+
+        # A mapping from event names to their handler methods in the GUI
+        ui_event_handlers = {
+            Events.UI_SET_STATUS: self._handle_set_status,
+            Events.UI_SHOW_ERROR: self._handle_show_error,
+            Events.UI_SHOW_WARNING: self._handle_show_warning,
+            Events.UI_SHOW_INFO: self._handle_show_info,
+            Events.UI_UPDATE_BUTTON_STATE: self._handle_update_button_state,
+            Events.UI_REFRESH_PROJECT_VIEWS: self._handle_refresh_project_views,
+            Events.UI_UPDATE_ARDUINO_STATUS: self._handle_update_arduino_status,
+            Events.UI_APPEND_ARDUINO_LOG: self._handle_append_arduino_log,
+            Events.UI_UPDATE_OPENVINO_STATUS: self._handle_update_openvino_status,
+            Events.UI_SETUP_INTERACTIVE_POLYGON: self._handle_setup_interactive_polygon,
+            Events.UI_DISPLAY_VIDEO_FRAME: self._handle_display_video_frame,
+            Events.UI_UPDATE_PROCESSING_MODE: self._handle_update_processing_mode,
+        }
+
+        for event_name, handler in ui_event_handlers.items():
+            self.event_bus.subscribe(event_name, handler)
+
+    # --- UI Event Handlers ---
+
+    def _handle_set_status(self, data: dict) -> None:
+        self.set_status(data.get("message", ""))
+        self.update_idletasks()
+
+    def _handle_show_error(self, data: dict) -> None:
+        self.show_error(data.get("title", "Erro"), data.get("message", ""))
+
+    def _handle_show_warning(self, data: dict) -> None:
+        self.show_warning(data.get("title", "Aviso"), data.get("message", ""))
+
+    def _handle_show_info(self, data: dict) -> None:
+        self.show_info(data.get("title", "Informação"), data.get("message", ""))
+
+    def _handle_update_button_state(self, data: dict) -> None:
+        self.update_button_state(data.get("button_name"), data.get("state"))
+
+    def _handle_refresh_project_views(self, data: dict) -> None:
+        self.refresh_project_views(
+            reason=data.get("reason"),
+            append_summary=data.get("append_summary", False),
+            immediate=data.get("immediate", False),
+        )
+
+    def _handle_update_arduino_status(self, data: dict) -> None:
+        self.update_arduino_status_indicator(data.get("connected"), data.get("port"))
+
+    def _handle_append_arduino_log(self, data: dict) -> None:
+        self.append_arduino_log(data.get("message", ""))
+
+    def _handle_update_openvino_status(self, data: dict) -> None:
+        self.update_openvino_status_display(data.get("status", ""))
+
+    def _handle_setup_interactive_polygon(self, data: dict) -> None:
+        polygon = data.get("polygon")
+        if polygon is not None:
+            self.setup_interactive_polygon(np.array(polygon))
+
+    def _handle_display_video_frame(self, data: dict) -> None:
+        self.display_roi_video_frame(data.get("video_path"))
+
+    def _handle_update_processing_mode(self, data: dict) -> None:
+        self.update_processing_mode(data.get("report"))
 
     def _subscribe_to_state_changes(self) -> None:
         """Subscribe to StateManager events for reactive UI updates."""
@@ -8822,8 +8892,8 @@ class ApplicationGUI:
         then calls the controller with the collected data.
         """
         # Always use the wizard (v1.6+, wizard is now permanent)
-        from zebtrack.ui.wizard import (
-            WizardDialog,
+        from zebtrack.ui.wizard.wizard_dialog import WizardDialog
+        from zebtrack.ui.wizard.wizard_adapter import (
             adapt_wizard_data_to_controller_format,
         )
 

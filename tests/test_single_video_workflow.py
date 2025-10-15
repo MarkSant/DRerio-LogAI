@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import Detector
 from zebtrack.plugins.base import DetectorPlugin
 
@@ -63,7 +63,7 @@ def single_video_test_setup(tmp_path: Path):
     generate_mock_video(str(video_path))
 
     # 2. Mock the controller and its UI
-    with patch("zebtrack.core.controller.ApplicationGUI") as mock_gui:
+    with patch("zebtrack.core.main_view_model.ApplicationGUI") as mock_gui:
         mock_root = MagicMock()
         controller = AppController(root=mock_root)
         # The real controller creates its own view, so we just use the one it created

@@ -70,9 +70,9 @@ class TestGUIStateObserver:
         """Create a MainViewModel with mocked dependencies."""
         from unittest.mock import patch
 
-        with patch("zebtrack.core.controller.ApplicationGUI"):
-            with patch("zebtrack.core.controller.settings"):
-                from zebtrack.core.controller import MainViewModel
+        with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+            with patch("zebtrack.core.main_view_model.settings"):
+                from zebtrack.core.main_view_model import MainViewModel
 
                 controller = MainViewModel(mock_root)
                 return controller

@@ -924,7 +924,13 @@ class MainViewModel:
         )
 
         if not success:
-            self.view.show_error("Erro de Detector", error or "Falha ao inicializar o detector")
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro de Detector",
+                    "message": error or "Falha ao inicializar o detector",
+                },
+            )
             return False
 
         return True
@@ -1001,12 +1007,17 @@ class MainViewModel:
                 self.view.notebook.select(self.view.zone_tab_frame)
                 first_video = self.project_manager.get_next_video()
                 if first_video:
-                    self.view.display_roi_video_frame(first_video)
-                self.view.show_error(
-                    "Configuração Necessária",
-                    "Erro: A área de processamento principal (aquário) não foi "
-                    "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
-                    "antes de continuar.",
+                    self.ui_event_bus.publish(
+                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    )
+                self.ui_event_bus.publish(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Configuração Necessária",
+                        "message": "Erro: A área de processamento principal (aquário) não foi "
+                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
+                        "antes de continuar.",
+                    },
                 )
 
     # --- New Methods for Weight Management ---
@@ -1113,14 +1124,20 @@ class MainViewModel:
         """
         if not self.active_weight_name:
             return
-        self.view.set_status(f"Convertendo {self.active_weight_name} para OpenVINO...")
-        self.view.update_idletasks()
+
+        self.ui_event_bus.publish(
+            Events.UI_SET_STATUS,
+            {"message": f"Convertendo {self.active_weight_name} para OpenVINO..."},
+        )
 
         # Delegate conversion to ModelService
         self.model_service.convert_to_openvino(self.active_weight_name)
 
         self.update_openvino_status(dialog)
-        self.view.set_status("Verificação de conversão concluída. Pronto.")
+        self.ui_event_bus.publish(
+            Events.UI_SET_STATUS,
+            {"message": "Verificação de conversão concluída. Pronto."},
+        )
 
     def update_openvino_status(self, dialog=None):
         """Updates the status label in the GUI based on the current state."""
@@ -1254,8 +1271,11 @@ class MainViewModel:
                 params=params, reset_overrides=reset_overrides
             )
 
-            if success and hasattr(self.view, "set_status"):
-                self.view.set_status("Parâmetros do detector atualizados.")
+            if success:
+                self.ui_event_bus.publish(
+                    Events.UI_SET_STATUS,
+                    {"message": "Parâmetros do detector atualizados."},
+                )
 
             return success
         except ValueError as e:
@@ -1292,11 +1312,13 @@ class MainViewModel:
 
     def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
         if not getattr(self.project_manager, "project_path", None):
-            if hasattr(self.view, "show_warning"):
-                self.view.show_warning(
-                    "Nenhum Projeto",
-                    "Abra um projeto antes de copiar configurações globais.",
-                )
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Nenhum Projeto",
+                    "message": "Abra um projeto antes de copiar configurações globais.",
+                },
+            )
             return None
 
         defaults = self.get_global_model_defaults()
@@ -1306,19 +1328,20 @@ class MainViewModel:
         overrides = self._persist_project_model_settings(weight, use_openvino)
 
         message = "Configurações globais aplicadas ao projeto."
-        if hasattr(self.view, "set_status"):
-            self.view.set_status(message)
+        self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": message})
         self.refresh_project_views(reason=message, append_summary=True)
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 
     def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
         if not getattr(self.project_manager, "project_path", None):
-            if hasattr(self.view, "show_warning"):
-                self.view.show_warning(
-                    "Nenhum Projeto",
-                    "Abra um projeto antes de salvar overrides de calibração.",
-                )
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Nenhum Projeto",
+                    "message": "Abra um projeto antes de salvar overrides de calibração.",
+                },
+            )
             return None
 
         overrides = self._persist_project_model_settings(
@@ -1330,8 +1353,7 @@ class MainViewModel:
         self.apply_project_model_overrides(overrides)
 
         message = "Overrides do projeto atualizados a partir desta calibração."
-        if hasattr(self.view, "set_status"):
-            self.view.set_status(message)
+        self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": message})
         self.refresh_project_views(reason=message, append_summary=True)
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
@@ -1480,8 +1502,10 @@ class MainViewModel:
                 ('det' or 'seg'). If None, uses global settings.
         """
         log.info("controller.aquarium_detection.start")
-        self.view.set_status("Detectando aquário, por favor aguarde...")
-        self.view.update_idletasks()
+        self.ui_event_bus.publish(
+            Events.UI_SET_STATUS,
+            {"message": "Detectando aquário, por favor aguarde..."},
+        )
         self._publish_processing_mode(
             source="calibration.aquarium.start",
             force=True,
@@ -1545,13 +1569,19 @@ class MainViewModel:
 
         except Exception as e:
             log.error("controller.aquarium_detection.error", exc_info=True)
-            self.view.show_error("Erro na Detecção", f"Ocorreu um erro ao detectar o aquário: {e}")
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro na Detecção",
+                    "message": f"Ocorreu um erro ao detectar o aquário: {e}",
+                },
+            )
         finally:
             self._publish_processing_mode(
                 source="calibration.aquarium.complete",
                 force=True,
             )
-            self.view.set_status("Pronto.")
+            self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def set_main_arena_polygon(self, points: list) -> bool:
         """Salva polígono com validações robustas"""
@@ -1836,8 +1866,10 @@ class MainViewModel:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
 
-            self.view.set_status("Calibrando... Gravando um pequeno clipe.")
-            self.view.update_idletasks()
+            self.ui_event_bus.publish(
+                Events.UI_SET_STATUS,
+                {"message": "Calibrando... Gravando um pequeno clipe."},
+            )
 
             start_time = time.time()
             while time.time() - start_time < 5:  # Record for 5 seconds
@@ -1846,8 +1878,10 @@ class MainViewModel:
                     break
                 writer.write(frame)
             writer.release()
-            self.view.set_status("Calibração: Analisando o clipe...")
-            self.view.update_idletasks()
+            self.ui_event_bus.publish(
+                Events.UI_SET_STATUS,
+                {"message": "Calibração: Analisando o clipe..."},
+            )
 
             # 3. Run detection on the clip using selected aquarium method
             # Use temporary override if provided, otherwise use global settings
@@ -1877,7 +1911,10 @@ class MainViewModel:
 
         except Exception as e:
             log.error("controller.live_calibration.error", exc_info=True)
-            self.view.show_error("Erro na Calibração", f"Ocorreu um erro: {e}")
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro na Calibração", "message": f"Ocorreu um erro: {e}"},
+            )
         finally:
             # 4. Clean up the temporary file
             if temp_video_path and os.path.exists(temp_video_path):
@@ -1886,7 +1923,7 @@ class MainViewModel:
                 source="calibration.live.complete",
                 force=True,
             )
-            self.view.set_status("Pronto.")
+            self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def start_recording(
         self,
@@ -2134,16 +2171,17 @@ class MainViewModel:
         log.info("controller.single_video.openvino_set", use_openvino=use_openvino)
 
         if animal_method == "det" and animals_per_aquarium != 1:
-            self.view.show_error(
-                "Configuração Inválida",
-                (
-                    "O modo de detecção (det) para animais só é compatível com 1 "
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Configuração Inválida",
+                    "message": "O modo de detecção (det) para animais só é compatível com 1 "
                     f"animal por aquário.\n"
                     f"Configuração atual: {animals_per_aquarium} "
                     "animais por aquário.\n\n"
                     "Para usar múltiplos animais por aquário, altere o método de "
-                    "detecção de animais para 'seg' (segmentação) nas configurações."
-                ),
+                    "detecção de animais para 'seg' (segmentação) nas configurações.",
+                },
             )
             return
 
@@ -2226,7 +2264,10 @@ class MainViewModel:
         # We need to know the video dimensions to set up the zones correctly
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            self.view.show_error("Erro", f"Não foi possível abrir o vídeo: {video_path}")
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
+            )
             return
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -2283,11 +2324,14 @@ class MainViewModel:
 
         # Permanecer na tela principal para exibir a barra de progresso
         # self.view._create_welcome_frame()
-        self.view.show_info(
-            "Análise Iniciada",
-            "A análise do vídeo foi iniciada em segundo plano.\n"
-            "Você será notificado quando terminar. Os resultados serão salvos em:\n"
-            f"{output_dir}",
+        self.ui_event_bus.publish(
+            Events.UI_SHOW_INFO,
+            {
+                "title": "Análise Iniciada",
+                "message": "A análise do vídeo foi iniciada em segundo plano.\n"
+                "Você será notificado quando terminar. Os resultados serão salvos em:\n"
+                f"{output_dir}",
+            },
         )
 
     def start_project_processing_workflow(self):
@@ -2476,9 +2520,12 @@ class MainViewModel:
         for video in videos_to_process:
             self.project_manager.update_video_status(video["path"], "complete")
 
-        self.view.show_info(
-            "Sucesso",
-            f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
+        self.ui_event_bus.publish(
+            Events.UI_SHOW_INFO,
+            {
+                "title": "Sucesso",
+                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
+            },
         )
 
     def process_pending_project_videos(
@@ -2742,8 +2789,10 @@ class MainViewModel:
             return False, None
 
         log.info("controller.tracking.generating", video=experiment_id)
-        self.view.set_status(f"Gerando trajetória para {experiment_id}...")
-        self.view.update_idletasks()
+        self.ui_event_bus.publish(
+            Events.UI_SET_STATUS,
+            {"message": f"Gerando trajetória para {experiment_id}..."},
+        )
 
         recorder = Recorder()
         cap = cv2.VideoCapture(video_path)
@@ -2875,7 +2924,10 @@ class MainViewModel:
 
             recorder.stop_recording()  # This saves the parquet file
             log.info("controller.tracking.success", path=trajectory_path)
-            self.view.set_status(f"Trajetória para {experiment_id} gerada.")
+            self.ui_event_bus.publish(
+                Events.UI_SET_STATUS,
+                {"message": f"Trajetória para {experiment_id} gerada."},
+            )
             return True, arena_polygon
 
         except Exception as e:
@@ -2885,9 +2937,12 @@ class MainViewModel:
                 error=str(e),
                 exc_info=True,
             )
-            self.view.show_error(
-                "Erro de Rastreamento",
-                f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",
+            self.ui_event_bus.publish(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro de Rastreamento",
+                    "message": f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",
+                },
             )
             return False, None
         finally:
@@ -3405,25 +3460,30 @@ class MainViewModel:
 
         def finalize() -> None:
             if completed:
-                self.view.show_info(
-                    "Sumários Gerados",
-                    (
-                        "Sumários parquet atualizados para "
+                self.ui_event_bus.publish(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Sumários Gerados",
+                        "message": "Sumários parquet atualizados para "
                         f"{len(completed)} vídeo(s).\n"
-                        + "\n".join(f"• {item}" for item in completed)
-                    ),
+                        + "\n".join(f"• {item}" for item in completed),
+                    },
                 )
                 status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
             else:
                 status_msg = "Nenhum sumário foi atualizado."
 
             if details:
-                self.view.show_warning(
-                    "Vídeos ignorados",
-                    "Alguns sumários não puderam ser gerados:\n" + "\n".join(details),
+                self.ui_event_bus.publish(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Vídeos ignorados",
+                        "message": "Alguns sumários não puderam ser gerados:\n"
+                        + "\n".join(details),
+                    },
                 )
 
-            self.view.set_status(status_msg)
+            self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": status_msg})
             self.refresh_project_views(reason=status_msg, append_summary=True)
             self.processing_thread = None
 
@@ -4738,15 +4798,29 @@ class MainViewModel:
             try:
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(report_str)
-                self.view.show_info("Sucesso", f"Relatório de diagnóstico salvo em:\n{save_path}")
+                self.ui_event_bus.publish(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Sucesso",
+                        "message": f"Relatório de diagnóstico salvo em:\n{save_path}",
+                    },
+                )
             except OSError as e:
-                self.view.show_error("Erro ao Salvar", f"Não foi possível salvar o arquivo: {e}")
+                self.ui_event_bus.publish(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro ao Salvar",
+                        "message": f"Não foi possível salvar o arquivo: {e}",
+                    },
+                )
 
         self._publish_processing_mode(
             source="diagnostic.complete",
             force=True,
         )
-        self.view.set_status("Diagnóstico concluído. Pronto.")
+        self.ui_event_bus.publish(
+            Events.UI_SET_STATUS, {"message": "Diagnóstico concluído. Pronto."}
+        )
 
     def _format_diagnostic_report(self, config, results) -> str:
         """Formats the collected diagnostic data into a string."""

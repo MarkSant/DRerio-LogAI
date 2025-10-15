@@ -6,7 +6,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import cv2
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino_manager import ArduinoManager

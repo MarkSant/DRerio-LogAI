@@ -162,7 +162,7 @@ class TestControllerEventIntegration:
     ):
         """Test that controller registers all event handlers when event bus is enabled."""
         import zebtrack.settings
-        from zebtrack.core.controller import AppController
+        from zebtrack.core.main_view_model import AppController
 
         # Enable event bus for this test by patching the module-level settings object
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)
@@ -188,7 +188,7 @@ class TestControllerEventIntegration:
     ):
         """Test that publishing RECORDING_START event invokes the controller method."""
         import zebtrack.settings
-        from zebtrack.core.controller import AppController
+        from zebtrack.core.main_view_model import AppController
 
         # Enable event bus for this test
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)
@@ -218,7 +218,7 @@ class TestControllerEventIntegration:
     ):
         """Test that publishing PROJECT_CLOSE event invokes the controller method."""
         import zebtrack.settings
-        from zebtrack.core.controller import AppController
+        from zebtrack.core.main_view_model import AppController
 
         # Enable event bus for this test
         monkeypatch.setattr(zebtrack.settings.settings.ui_features, "enable_event_queue", True)

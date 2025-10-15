@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.core.project_manager import ProjectManager
 
 CONFIG_FILENAME = "project_config.json"
@@ -96,7 +96,7 @@ def test_project_manager_persists_interval_settings(
     assert saved_data["batches"][0]["videos"][0]["path"] == str(video_path)
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
 def test_controller_workflow_roundtrip_persists_intervals(
     mock_gui,
     tmp_path,
