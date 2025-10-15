@@ -246,11 +246,20 @@ class MainViewModel:
     @detector.setter
     def detector(self, value: Detector | None) -> None:
         """
-        Set detector instance (for testing).
+        Set detector instance on DetectorService.
 
-        Phase 6: Allows tests to inject mock detectors.
+        Phase 6: Allows tests to inject mock detectors and provides backward compatibility.
         """
         self.detector_service.detector = value
+
+    @detector.deleter
+    def detector(self) -> None:
+        """
+        Delete detector instance from DetectorService.
+
+        Phase 6: Allows proper cleanup in mocked tests.
+        """
+        self.detector_service.detector = None
 
     @property
     def detector_initialized(self) -> bool:
@@ -3274,6 +3283,29 @@ class MainViewModel:
             return enabled
 
         return None
+
+    def _resolve_single_subject_tracker_preference(self, single_video_config: dict | None) -> bool | None:
+        """
+        Resolve single-subject tracker preference from project or single video config.
+
+        Args:
+            single_video_config: Optional single video configuration dict
+
+        Returns:
+            bool | None: Tracker preference or None if not set
+        """
+        # Try to get project type from single video config or project manager
+        project_type = None
+        if single_video_config:
+            project_type = single_video_config.get("project_type")
+
+        if not project_type:
+            project_data = getattr(self.project_manager, "project_data", {})
+            if project_data:
+                project_type = project_data.get("project_type")
+
+        # Delegate to detector service
+        return self.detector_service._resolve_single_subject_tracker_preference(project_type)
 
     def _configure_single_subject_tracker(self, enabled: bool) -> None:
         """

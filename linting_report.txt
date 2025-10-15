@@ -1,0 +1,2910 @@
+B006 Do not use mutable data structures for argument defaults
+  --> debug\debug_instance_segmentation.py:85:64
+   |
+85 | def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5]):
+   |                                                                ^^^^^^^^^^^^^^^^
+86 |     """Testa um frame com diferentes configurações"""
+87 |     print_separator(f"FRAME {frame_idx + 1}", "-")
+   |
+help: Replace with `None`; initialize within function
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+  --> src\zebtrack\analysis\analysis_service.py:15:1
+   |
+13 | import os
+14 | from pathlib import Path
+15 | from typing import Any, Callable, Dict, List, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |
+17 | import pandas as pd
+   |
+
+UP035 `typing.List` is deprecated, use `list` instead
+  --> src\zebtrack\analysis\analysis_service.py:15:1
+   |
+13 | import os
+14 | from pathlib import Path
+15 | from typing import Any, Callable, Dict, List, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |
+17 | import pandas as pd
+   |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+  --> src\zebtrack\analysis\analysis_service.py:15:1
+   |
+13 | import os
+14 | from pathlib import Path
+15 | from typing import Any, Callable, Dict, List, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |
+17 | import pandas as pd
+   |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\analysis\analysis_service.py:51:27
+   |
+49 |         pixelcm_y: float,
+50 |         video_height_px: int,
+51 |         arena_polygon_px: List[tuple[float, float]],
+   |                           ^^^^
+52 |         rois: List[ROI],
+53 |         fps: float,
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\analysis\analysis_service.py:52:15
+   |
+50 |         video_height_px: int,
+51 |         arena_polygon_px: List[tuple[float, float]],
+52 |         rois: List[ROI],
+   |               ^^^^
+53 |         fps: float,
+54 |         # Analysis-specific parameters
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\analysis\analysis_service.py:59:10
+   |
+57 |         smoothing_window_length: int | None = None,
+58 |         smoothing_polyorder: int | None = None,
+59 |     ) -> Tuple[Dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
+   |          ^^^^^
+60 |         """
+61 |         Runs a complete analysis pipeline on the given trajectory data.
+   |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\analysis\analysis_service.py:59:16
+   |
+57 |         smoothing_window_length: int | None = None,
+58 |         smoothing_polyorder: int | None = None,
+59 |     ) -> Tuple[Dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
+   |                ^^^^
+60 |         """
+61 |         Runs a complete analysis pipeline on the given trajectory data.
+   |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\analysis_service.py:113:17
+    |
+112 |         # 2. Initialize the behavioral report
+113 |         report: Dict[str, Any] = {
+    |                 ^^^^
+114 |             "comportamento_geral": {
+115 |                 "distancia_total_cm": b_analyzer.calculate_total_distance(),
+    |
+help: Replace with `dict`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\analysis\behavior.py:6:1
+  |
+5 | from abc import ABC, abstractmethod
+6 | from typing import Dict, List, Optional, Tuple, Union
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\analysis\behavior.py:6:1
+  |
+5 | from abc import ABC, abstractmethod
+6 | from typing import Dict, List, Optional, Tuple, Union
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\analysis\behavior.py:6:1
+  |
+5 | from abc import ABC, abstractmethod
+6 | from typing import Dict, List, Optional, Tuple, Union
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\analysis\behavior.py:38:27
+   |
+36 |         pixelcm_y: float,
+37 |         video_height_px: int,
+38 |         arena_polygon_px: List[Tuple[float, float]],
+   |                           ^^^^
+39 |         fps: float = 30.0,
+40 |         window_length: int = 7,
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\analysis\behavior.py:38:32
+   |
+36 |         pixelcm_y: float,
+37 |         video_height_px: int,
+38 |         arena_polygon_px: List[Tuple[float, float]],
+   |                                ^^^^^
+39 |         fps: float = 30.0,
+40 |         window_length: int = 7,
+   |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:223:37
+    |
+221 |         pass
+222 |
+223 |     def get_velocity_stats(self) -> Dict[str, float]:
+    |                                     ^^^^
+224 |         """
+225 |         Calculates summary statistics for the velocity magnitude.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:255:10
+    |
+253 |         threshold_method: str = "absolute",
+254 |         quantile: float = 0.1,
+255 |     ) -> List[Dict[str, float]]:
+    |          ^^^^
+256 |         """
+257 |         Detects freezing episodes based on a velocity threshold.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:255:15
+    |
+253 |         threshold_method: str = "absolute",
+254 |         quantile: float = 0.1,
+255 |     ) -> List[Dict[str, float]]:
+    |               ^^^^
+256 |         """
+257 |         Detects freezing episodes based on a velocity threshold.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:435:10
+    |
+433 |         threshold_method: str = "absolute",
+434 |         quantile: float = 0.1,
+435 |     ) -> List[Dict[str, float]]:
+    |          ^^^^
+436 |         self.calculate_velocity_timeseries()
+437 |         v_mag = self._trajectory_data["v_mag"]
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:435:15
+    |
+433 |         threshold_method: str = "absolute",
+434 |         quantile: float = 0.1,
+435 |     ) -> List[Dict[str, float]]:
+    |               ^^^^
+436 |         self.calculate_velocity_timeseries()
+437 |         v_mag = self._trajectory_data["v_mag"]
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:627:10
+    |
+625 |         min_duration: float = 0.5,
+626 |         quantile: float = 0.9,
+627 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |          ^^^^
+628 |         """
+629 |         Detects episodes where the animal exceeds a velocity threshold.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:627:38
+    |
+625 |         min_duration: float = 0.5,
+626 |         quantile: float = 0.9,
+627 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |                                      ^^^^
+628 |         """
+629 |         Detects episodes where the animal exceeds a velocity threshold.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:627:43
+    |
+625 |         min_duration: float = 0.5,
+626 |         quantile: float = 0.9,
+627 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |                                           ^^^^
+628 |         """
+629 |         Detects episodes where the animal exceeds a velocity threshold.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:678:10
+    |
+676 |         velocity_threshold_cm_s: float = 1.0,
+677 |         min_duration: float = 1.0,
+678 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |          ^^^^
+679 |         """
+680 |         Detects inactivity episodes where the velocity stays below a threshold.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:678:38
+    |
+676 |         velocity_threshold_cm_s: float = 1.0,
+677 |         min_duration: float = 1.0,
+678 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |                                      ^^^^
+679 |         """
+680 |         Detects inactivity episodes where the velocity stays below a threshold.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:678:43
+    |
+676 |         velocity_threshold_cm_s: float = 1.0,
+677 |         min_duration: float = 1.0,
+678 |     ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    |                                           ^^^^
+679 |         """
+680 |         Detects inactivity episodes where the velocity stays below a threshold.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:725:10
+    |
+723 |     def calculate_sharp_turns(
+724 |         self, threshold_deg_s: float, cooldown_s: float = 0.5
+725 |     ) -> Dict[str, Union[float, pd.Index]]:
+    |          ^^^^
+726 |         """
+727 |         Calculates the number of sharp turns based on angular velocity.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:789:10
+    |
+787 |     def _extract_velocity_episodes(
+788 |         self, mask: pd.Series, min_duration: float
+789 |     ) -> List[Dict[str, float]]:
+    |          ^^^^
+790 |         if min_duration < 0:
+791 |             raise ValueError("min_duration must be non-negative.")
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:789:15
+    |
+787 |     def _extract_velocity_episodes(
+788 |         self, mask: pd.Series, min_duration: float
+789 |     ) -> List[Dict[str, float]]:
+    |               ^^^^
+790 |         if min_duration < 0:
+791 |             raise ValueError("min_duration must be non-negative.")
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\behavior.py:797:19
+    |
+795 |         min_duration_td = pd.to_timedelta(min_duration, unit="s")
+796 |
+797 |         episodes: List[Dict[str, float]] = []
+    |                   ^^^^
+798 |         for _, block in self._trajectory_data[aligned_mask].groupby(change_groups):
+799 |             if block.empty:
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\behavior.py:797:24
+    |
+795 |         min_duration_td = pd.to_timedelta(min_duration, unit="s")
+796 |
+797 |         episodes: List[Dict[str, float]] = []
+    |                        ^^^^
+798 |         for _, block in self._trajectory_data[aligned_mask].groupby(change_groups):
+799 |             if block.empty:
+    |
+help: Replace with `dict`
+
+UP035 `typing.List` is deprecated, use `list` instead
+  --> src\zebtrack\analysis\reporter.py:8:1
+   |
+ 6 | from datetime import datetime
+ 7 | from pathlib import Path
+ 8 | from typing import Callable, List, cast
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 9 |
+10 | import cv2
+   |
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\reporter.py:373:42
+    |
+372 |     @staticmethod
+373 |     def _iter_polygon_parts(geometry) -> List[ShapelyPolygon]:
+    |                                          ^^^^
+374 |         if geometry is None:
+375 |             return []
+    |
+help: Replace with `list`
+
+C901 `export_individual_report_step_by_step` is too complex (21 > 20)
+   --> src\zebtrack\analysis\reporter.py:986:9
+    |
+984 |         self.export_individual_report_step_by_step(output_path, lambda p, s: None)
+985 |
+986 |     def export_individual_report_step_by_step(
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+987 |         self, output_path: str, progress_callback: Callable[[float, str], None]
+988 |     ):
+    |
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\analysis\roi.py:6:1
+  |
+4 | """
+5 |
+6 | from typing import Any, Dict, List, Literal, Optional
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\analysis\roi.py:6:1
+  |
+4 | """
+5 |
+6 | from typing import Any, Dict, List, Literal, Optional
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\analysis\roi.py:40:15
+   |
+38 |         self,
+39 |         behavior_analyzer: BehavioralAnalyzer,
+40 |         rois: List[ROI],
+   |               ^^^^
+41 |         flutter_n_frames: int = 3,
+42 |         inclusion_rule: str = "bbox_intersects",
+   |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\analysis\roi.py:75:23
+   |
+74 |     @property
+75 |     def rois(self) -> Dict[str, ROI]:
+   |                       ^^^^
+76 |         """Returns the dictionary of ROI objects."""
+77 |         return self._rois
+   |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\analysis\roi.py:88:44
+   |
+86 |                 raise ValueError(f"ROI '{name}' has invalid geometry.")
+87 |
+88 |     def _normalize_roi_geometries(self) -> Dict[str, BaseGeometry]:
+   |                                            ^^^^
+89 |         """Converts ROI geometries to warped pixel space when necessary."""
+90 |         normalized: Dict[str, BaseGeometry] = {}
+   |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\analysis\roi.py:90:21
+   |
+88 |     def _normalize_roi_geometries(self) -> Dict[str, BaseGeometry]:
+89 |         """Converts ROI geometries to warped pixel space when necessary."""
+90 |         normalized: Dict[str, BaseGeometry] = {}
+   |                     ^^^^
+91 |         pixelcm_x = getattr(self._b_analyzer, "_pixelcm_x", 1.0)
+92 |         pixelcm_y = getattr(self._b_analyzer, "_pixelcm_y", 1.0)
+   |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:295:41
+    |
+293 |         )
+294 |
+295 |     def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:
+    |                                         ^^^^
+296 |         """
+297 |         Calculates the total time (seconds and percentage) spent in each ROI.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:295:51
+    |
+293 |         )
+294 |
+295 |     def get_time_spent_in_rois(self) -> Dict[str, Dict[str, float]]:
+    |                                                   ^^^^
+296 |         """
+297 |         Calculates the total time (seconds and percentage) spent in each ROI.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:327:45
+    |
+325 |         return results
+326 |
+327 |     def get_latency_to_first_entry(self) -> Dict[str, Optional[float]]:
+    |                                             ^^^^
+328 |         """
+329 |         Calculates the latency to the first entry into each ROI.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:349:35
+    |
+347 |         return results
+348 |
+349 |     def get_entry_counts(self) -> Dict[str, int]:
+    |                                   ^^^^
+350 |         """Counts the number of entries into each ROI."""
+351 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:358:34
+    |
+356 |         return results
+357 |
+358 |     def get_exit_counts(self) -> Dict[str, int]:
+    |                                  ^^^^
+359 |         """Counts the number of exits from each ROI."""
+360 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:367:44
+    |
+365 |         return results
+366 |
+367 |     def get_inter_visit_latencies(self) -> Dict[str, List[float]]:
+    |                                            ^^^^
+368 |         """
+369 |         Calculates latencies for re-entries into each ROI.
+    |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\analysis\roi.py:367:54
+    |
+365 |         return results
+366 |
+367 |     def get_inter_visit_latencies(self) -> Dict[str, List[float]]:
+    |                                                      ^^^^
+368 |         """
+369 |         Calculates latencies for re-entries into each ROI.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:477:39
+    |
+475 |         return self._trajectory[self._trajectory[f"in_{roi_name}_stable"]]
+476 |
+477 |     def get_distance_in_rois(self) -> Dict[str, float]:
+    |                                       ^^^^
+478 |         """Calculates the total distance traveled within each ROI."""
+479 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:496:45
+    |
+494 |         return results
+495 |
+496 |     def get_velocity_stats_in_rois(self) -> Dict[str, Optional[Dict[str, float]]]:
+    |                                             ^^^^
+497 |         """Calculates velocity statistics within each ROI."""
+498 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:496:64
+    |
+494 |         return results
+495 |
+496 |     def get_velocity_stats_in_rois(self) -> Dict[str, Optional[Dict[str, float]]]:
+    |                                                                ^^^^
+497 |         """Calculates velocity statistics within each ROI."""
+498 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:519:10
+    |
+517 |     def get_freezing_in_rois(
+518 |         self, vel_threshold: float, min_duration: float
+519 |     ) -> Dict[str, Dict[str, Any]]:
+    |          ^^^^
+520 |         """Calculates freezing episodes that occur within each ROI."""
+521 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:519:20
+    |
+517 |     def get_freezing_in_rois(
+518 |         self, vel_threshold: float, min_duration: float
+519 |     ) -> Dict[str, Dict[str, Any]]:
+    |                    ^^^^
+520 |         """Calculates freezing episodes that occur within each ROI."""
+521 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:543:41
+    |
+541 |         return results
+542 |
+543 |     def get_tortuosity_in_rois(self) -> Dict[str, Optional[float]]:
+    |                                         ^^^^
+544 |         """Calculates trajectory tortuosity within each ROI."""
+545 |         results = {}
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:571:73
+    |
+569 |         return results
+570 |
+571 |     def analyze_center_vs_periphery(self, method: str, value: float) -> Dict[str, Any]:
+    |                                                                         ^^^^
+572 |         """
+573 |         Generates center and periphery ROIs and runs a full analysis on them.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\analysis\roi.py:627:10
+    |
+625 |         pixelcm_x: float,
+626 |         pixelcm_y: float,
+627 |     ) -> Dict[str, Any]:
+    |          ^^^^
+628 |         """
+629 |         Performs social proximity analysis on a multi-animal trajectory DataFrame.
+    |
+help: Replace with `dict`
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src\zebtrack\analysis\roi.py:643:13
+    |
+641 |             import networkx as nx
+642 |         except ImportError:
+643 |             raise ImportError("Please install 'networkx' to use social proximity analysis.")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+644 |
+645 |         if "track_id" not in full_trajectory_df.columns:
+    |
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+   --> src\zebtrack\core\controller.py:433:29
+    |
+432 |       # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
+433 |       _EVENT_METHOD_MAPPING = {
+    |  _____________________________^
+434 | |         # Recording events
+435 | |         Events.RECORDING_START: ("start_recording", ["day", "group", "cobaia"], "kwargs_get"),
+436 | |         Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
+437 | |         Events.RECORDING_TRIGGER: ("trigger_recording", ["event_code"], "kwargs_get"),
+438 | |         # Project events
+439 | |         Events.PROJECT_CREATE: ("create_project_workflow", None, "kwargs_all"),
+440 | |         Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
+441 | |         Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
+442 | |         Events.PROJECT_PROCESS_VIDEOS: (
+443 | |             "process_pending_project_videos",
+444 | |             ["video_paths"],
+445 | |             "kwargs_get",
+446 | |         ),
+447 | |         Events.PROJECT_GENERATE_SUMMARIES: (
+448 | |             "generate_parquet_summaries",
+449 | |             ["video_paths"],
+450 | |             "positional",
+451 | |         ),
+452 | |         Events.PROJECT_APPLY_SETTINGS: (
+453 | |             "apply_project_settings_to_batch",
+454 | |             ["videos"],
+455 | |             "positional",
+456 | |         ),
+457 | |         Events.PROJECT_DELETE_ASSET: (
+458 | |             "delete_project_asset",
+459 | |             ["video_path", "asset"],
+460 | |             "positional",
+461 | |         ),
+462 | |         # Video processing events
+463 | |         Events.VIDEO_ANALYZE_SINGLE: (
+464 | |             "start_single_video_workflow",
+465 | |             ["video_path", "config"],
+466 | |             "positional",
+467 | |         ),
+468 | |         Events.VIDEO_CANCEL_ANALYSIS: ("cancel_current_analysis", [], "no_params"),
+469 | |         # Model & weight events
+470 | |         Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
+471 | |         Events.MODEL_SET_OPENVINO: (
+472 | |             "set_openvino_usage",
+473 | |             ["use_openvino", "dialog"],
+474 | |             "positional_optional",
+475 | |         ),
+476 | |         Events.MODEL_CONVERT_OPENVINO: (
+477 | |             "convert_active_weight_to_openvino",
+478 | |             ["dialog"],
+479 | |             "kwargs_get",
+480 | |         ),
+481 | |         Events.MODEL_UPDATE_OPENVINO_STATUS: ("update_openvino_status", ["dialog"], "kwargs_get"),
+482 | |         Events.MODEL_ADD_WEIGHT: (
+483 | |             "add_new_weight",
+484 | |             ["path", "set_as_default", "weight_type"],
+485 | |             "positional_optional",
+486 | |         ),
+487 | |         Events.MODEL_DELETE_WEIGHT: ("delete_weight", ["name"], "positional"),
+488 | |         Events.MODEL_RUN_DIAGNOSTIC: ("run_model_diagnostic", ["config"], "positional"),
+489 | |         # Detector & zone events
+490 | |         Events.DETECTOR_SETUP: ("setup_detector", ["temp_animal_method"], "kwargs_get"),
+491 | |         Events.DETECTOR_SETUP_ZONES: ("setup_detector_zones", [], "no_params"),
+492 | |         Events.DETECTOR_UPDATE_PARAMETERS: (
+493 | |             "update_detector_parameters",
+494 | |             ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"],
+495 | |             "kwargs_get",
+496 | |         ),
+497 | |         Events.ZONE_SET_ARENA_POLYGON: ("set_main_arena_polygon", ["points"], "positional"),
+498 | |         Events.ZONE_SAVE_MANUAL_ARENA: ("save_manual_arena", ["polygon_points"], "positional"),
+499 | |         Events.ZONE_UPDATE_ARENA: ("update_main_arena", ["polygon_points"], "positional"),
+500 | |         # Calibration events
+501 | |         Events.CALIBRATION_RUN_LIVE: (
+502 | |             "run_live_calibration",
+503 | |             ["temp_aquarium_method"],
+504 | |             "kwargs_get",
+505 | |         ),
+506 | |         Events.CALIBRATION_COPY_TO_PROJECT: (
+507 | |             "copy_global_model_settings_to_project",
+508 | |             [],
+509 | |             "no_params",
+510 | |         ),
+511 | |         Events.CALIBRATION_SAVE_TO_PROJECT: (
+512 | |             "save_current_calibration_to_project",
+513 | |             [],
+514 | |             "no_params",
+515 | |         ),
+516 | |         # Arduino events
+517 | |         Events.ARDUINO_SETUP: ("setup_arduino", [], "no_params"),
+518 | |         Events.ARDUINO_LOG_EVENT: ("log_arduino_event", ["message"], "positional"),
+519 | |         # Report events
+520 | |         Events.REPORT_GENERATE: (
+521 | |             "generate_report",
+522 | |             ["videos", "report_type"],
+523 | |             "positional_optional",
+524 | |         ),
+525 | |         # Application events
+526 | |         Events.APP_CLOSE: ("on_close", [], "no_params"),
+527 | |     }
+    | |_____^
+528 |
+529 |       def _create_event_dispatcher(self, event_name: str):
+    |
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1036:76
+     |
+1034 |         return self.weight_manager._classify_weight_type(filename)
+1035 |
+1036 |     def add_new_weight(self, path: str, set_as_default: bool, weight_type: str = None):
+     |                                                                            ^^^
+1037 |         """Add a new weight with type classification."""
+1038 |         self.weight_manager.add_weight(path, set_as_default, weight_type)
+     |
+help: Convert to `Optional[T]`
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1463:31
+     |
+1461 |         video_path: str | None = None,
+1462 |         stabilization_frames: int = 10,
+1463 |         temp_aquarium_method: str = None,
+     |                               ^^^
+1464 |     ):
+1465 |         """Runs the aquarium detection model on the specified or first project video.
+     |
+help: Convert to `Optional[T]`
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1800:58
+     |
+1798 |             return False
+1799 |
+1800 |     def run_live_calibration(self, temp_aquarium_method: str = None):
+     |                                                          ^^^
+1801 |         """Records a short clip from the live camera and runs aquarium detection.
+     |
+help: Convert to `Optional[T]`
+
+C901 `start_recording` is too complex (22 > 20)
+    --> src\zebtrack\core\controller.py:1882:9
+     |
+1880 |             self.view.set_status("Pronto.")
+1881 |
+1882 |     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
+     |         ^^^^^^^^^^^^^^^
+1883 |         """Starts a recording session (live mode) with zone validation."""
+1884 |         log.info("controller.recording.start")
+     |
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1882:36
+     |
+1880 |             self.view.set_status("Pronto.")
+1881 |
+1882 |     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
+     |                                    ^^^
+1883 |         """Starts a recording session (live mode) with zone validation."""
+1884 |         log.info("controller.recording.start")
+     |
+help: Convert to `Optional[T]`
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1882:55
+     |
+1880 |             self.view.set_status("Pronto.")
+1881 |
+1882 |     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
+     |                                                       ^^^
+1883 |         """Starts a recording session (live mode) with zone validation."""
+1884 |         log.info("controller.recording.start")
+     |
+help: Convert to `Optional[T]`
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\core\controller.py:1882:75
+     |
+1880 |             self.view.set_status("Pronto.")
+1881 |
+1882 |     def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
+     |                                                                           ^^^
+1883 |         """Starts a recording session (live mode) with zone validation."""
+1884 |         log.info("controller.recording.start")
+     |
+help: Convert to `Optional[T]`
+
+C901 `start_project_processing_workflow` is too complex (21 > 20)
+    --> src\zebtrack\core\controller.py:2268:9
+     |
+2266 |         )
+2267 |
+2268 |     def start_project_processing_workflow(self):
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2269 |         """Adiciona vídeos com validação robusta de zonas"""
+2270 |         log.info("workflow.project_processing.start")
+     |
+
+C901 `process_pending_project_videos` is too complex (44 > 20)
+    --> src\zebtrack\core\controller.py:2475:9
+     |
+2473 |         )
+2474 |
+2475 |     def process_pending_project_videos(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2476 |         self,
+2477 |         video_paths: list[str] | None = None,
+     |
+
+C901 `generate_parquet_summaries` is too complex (31 > 20)
+    --> src\zebtrack\core\controller.py:2770:9
+     |
+2768 |         )
+2769 |
+2770 |     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2771 |         """Regera arquivos de sumário em Parquet para os vídeos selecionados."""
+2772 |         log.info(
+     |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\core\detector.py:4:1
+  |
+2 | from dataclasses import dataclass, field
+3 | from types import SimpleNamespace
+4 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |
+6 | import cv2
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\core\detector.py:4:1
+  |
+2 | from dataclasses import dataclass, field
+3 | from types import SimpleNamespace
+4 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |
+6 | import cv2
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:22:14
+   |
+20 |     """Holds the configuration for detection zones."""
+21 |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+   |              ^^^^
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+24 |     roi_names: List[str] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:22:19
+   |
+20 |     """Holds the configuration for detection zones."""
+21 |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+   |                   ^^^^
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+24 |     roi_names: List[str] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:23:19
+   |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+   |                   ^^^^
+24 |     roi_names: List[str] = field(default_factory=list)
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:23:24
+   |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+   |                        ^^^^
+24 |     roi_names: List[str] = field(default_factory=list)
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:23:29
+   |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+   |                             ^^^^
+24 |     roi_names: List[str] = field(default_factory=list)
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:24:16
+   |
+22 |     polygon: List[List[int]] = field(default_factory=list)
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+24 |     roi_names: List[str] = field(default_factory=list)
+   |                ^^^^
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:25:17
+   |
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+24 |     roi_names: List[str] = field(default_factory=list)
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |                 ^^^^
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\core\detector.py:25:22
+   |
+23 |     roi_polygons: List[List[List[int]]] = field(default_factory=list)
+24 |     roi_names: List[str] = field(default_factory=list)
+25 |     roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+   |                      ^^^^^
+   |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\detector.py:68:35
+   |
+66 |         self.zones: ZoneData = ZoneData()
+67 |         self.scaled_polygon: np.ndarray = np.array([])
+68 |         self.scaled_roi_polygons: List[np.ndarray] = []
+   |                                   ^^^^
+69 |         self._scaling_cache: dict = {}
+70 |         self._single_subject_mode = False
+   |
+help: Replace with `list`
+
+C901 `update_tracking_parameters` is too complex (23 > 20)
+   --> src\zebtrack\core\detector_service.py:266:9
+    |
+264 |         return True
+265 |
+266 |     def update_tracking_parameters(
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+267 |         self,
+268 |         params: dict[str, float] | None = None,
+    |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+  --> src\zebtrack\core\project_manager.py:11:1
+   |
+ 9 | from pathlib import Path
+10 | from tkinter import messagebox
+11 | from typing import Any, Literal, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+12 |
+13 | import pandas as pd
+   |
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+  --> src\zebtrack\core\project_manager.py:34:46
+   |
+32 | class ProjectManager:
+33 |     _SCAN_CACHE_TTL_SECONDS = 30.0
+34 |     _scan_cache: dict[str, dict[str, Any]] = {}
+   |                                              ^^
+35 |
+36 |     _PROFILE_SYNONYMS: dict[str, tuple[str, ...]] = {
+   |
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+  --> src\zebtrack\core\project_manager.py:36:53
+   |
+34 |       _scan_cache: dict[str, dict[str, Any]] = {}
+35 |
+36 |       _PROFILE_SYNONYMS: dict[str, tuple[str, ...]] = {
+   |  _____________________________________________________^
+37 | |         "group": (
+38 | |             "group",
+39 | |             "group_id",
+40 | |             "group_name",
+41 | |             "group_display_name",
+42 | |         ),
+43 | |         "day": (
+44 | |             "day",
+45 | |             "day_id",
+46 | |             "day_label",
+47 | |             "day_display_name",
+48 | |         ),
+49 | |         "subject": (
+50 | |             "subject",
+51 | |             "subject_id",
+52 | |             "subject_label",
+53 | |             "individual",
+54 | |             "individuo",
+55 | |             "animal",
+56 | |             "animal_id",
+57 | |             "cobaia",
+58 | |         ),
+59 | |         "experiment_id": ("experiment_id", "video_name"),
+60 | |     }
+   | |_____^
+61 |
+62 |       def __init__(self, state_manager=None):
+   |
+
+C901 `import_parquets_from_wizard` is too complex (27 > 20)
+    --> src\zebtrack\core\project_manager.py:1052:9
+     |
+1050 |             return None
+1051 |
+1052 |     def import_parquets_from_wizard(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1053 |         self,
+1054 |         import_config: list[dict],
+     |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+    --> src\zebtrack\core\project_manager.py:1861:70
+     |
+1859 |             return False
+1860 |
+1861 |     def can_remove_asset(self, video_path: str, asset: AssetType) -> Tuple[bool, str | None]:
+     |                                                                      ^^^^^
+1862 |         video_entry = self.find_video_entry(path=video_path)
+1863 |         if not video_entry:
+     |
+help: Replace with `tuple`
+
+C901 `register_processing_outputs` is too complex (21 > 20)
+    --> src\zebtrack\core\project_manager.py:2240:9
+     |
+2238 |         return f"Sujeito_{suffix}"
+2239 |
+2240 |     def register_processing_outputs(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2241 |         self,
+2242 |         video_path: str,
+     |
+
+RUF013 PEP 484 prohibits implicit `Optional`
+   --> src\zebtrack\core\project_workflow_service.py:278:31
+    |
+276 |         self,
+277 |         overrides: dict | None = None,
+278 |         active_weight_setter: callable = None,
+    |                               ^^^^^^^^
+279 |         use_openvino_setter: callable = None,
+280 |     ) -> tuple[str | None, bool]:
+    |
+help: Convert to `Optional[T]`
+
+RUF013 PEP 484 prohibits implicit `Optional`
+   --> src\zebtrack\core\project_workflow_service.py:279:30
+    |
+277 |         overrides: dict | None = None,
+278 |         active_weight_setter: callable = None,
+279 |         use_openvino_setter: callable = None,
+    |                              ^^^^^^^^
+280 |     ) -> tuple[str | None, bool]:
+281 |         """
+    |
+help: Convert to `Optional[T]`
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src\zebtrack\core\roi_template_manager.py:228:13
+    |
+226 |                 payload = json.load(f)
+227 |         except json.JSONDecodeError as e:
+228 |             raise ValueError(f"Arquivo JSON inválido: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+229 |
+230 |         if not isinstance(payload, dict):
+    |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\core\single_subject_tracker.py:6:1
+  |
+5 | from collections.abc import Iterable, Sequence
+6 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | Detection = Tuple[int, int, int, int, float, Optional[int]]
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\core\single_subject_tracker.py:6:1
+  |
+5 | from collections.abc import Iterable, Sequence
+6 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | Detection = Tuple[int, int, int, int, float, Optional[int]]
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+ --> src\zebtrack\core\single_subject_tracker.py:8:13
+  |
+6 | from typing import List, Optional, Tuple
+7 |
+8 | Detection = Tuple[int, int, int, int, float, Optional[int]]
+  |             ^^^^^
+9 | TrackedDetection = Tuple[int, int, int, int, float, int]
+  |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+ --> src\zebtrack\core\single_subject_tracker.py:9:20
+  |
+8 | Detection = Tuple[int, int, int, int, float, Optional[int]]
+9 | TrackedDetection = Tuple[int, int, int, int, float, int]
+  |                    ^^^^^
+  |
+help: Replace with `tuple`
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\core\single_subject_tracker.py:18:26
+   |
+16 |         self.track_id = int(track_id)
+17 |         self.iou_threshold = float(iou_threshold)
+18 |         self._last_bbox: Optional[Tuple[int, int, int, int]] = None
+   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+19 |
+20 |     def reset(self) -> None:
+   |
+help: Convert to `X | None`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\core\single_subject_tracker.py:18:35
+   |
+16 |         self.track_id = int(track_id)
+17 |         self.iou_threshold = float(iou_threshold)
+18 |         self._last_bbox: Optional[Tuple[int, int, int, int]] = None
+   |                                   ^^^^^
+19 |
+20 |     def reset(self) -> None:
+   |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\core\single_subject_tracker.py:25:58
+   |
+23 |         self._last_bbox = None
+24 |
+25 |     def assign(self, detections: Sequence[Detection]) -> List[TrackedDetection]:
+   |                                                          ^^^^
+26 |         """Return the best candidate annotated with the stable ``track_id``.
+   |
+help: Replace with `list`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+  --> src\zebtrack\core\state_manager.py:62:1
+   |
+60 | from enum import Enum, auto
+61 | from pathlib import Path
+62 | from typing import Any, Callable, Dict, List, Optional, Protocol, Set
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+63 |
+64 | import structlog
+   |
+
+UP035 `typing.List` is deprecated, use `list` instead
+  --> src\zebtrack\core\state_manager.py:62:1
+   |
+60 | from enum import Enum, auto
+61 | from pathlib import Path
+62 | from typing import Any, Callable, Dict, List, Optional, Protocol, Set
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+63 |
+64 | import structlog
+   |
+
+UP035 `typing.Set` is deprecated, use `set` instead
+  --> src\zebtrack\core\state_manager.py:62:1
+   |
+60 | from enum import Enum, auto
+61 | from pathlib import Path
+62 | from typing import Any, Callable, Dict, List, Optional, Protocol, Set
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+63 |
+64 | import structlog
+   |
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\core\state_manager.py:97:19
+   |
+95 |     """Immutable snapshot of project-related state."""
+96 |
+97 |     project_path: Optional[Path] = None
+   |                   ^^^^^^^^^^^^^^
+98 |     project_data: Dict[str, Any] = field(default_factory=dict)
+99 |     metadata: Optional[Any] = None  # DataFrame
+   |
+help: Convert to `X | None`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\core\state_manager.py:98:19
+    |
+ 97 |     project_path: Optional[Path] = None
+ 98 |     project_data: Dict[str, Any] = field(default_factory=dict)
+    |                   ^^^^
+ 99 |     metadata: Optional[Any] = None  # DataFrame
+100 |     active_zone_video: Optional[str] = None
+    |
+help: Replace with `dict`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:99:15
+    |
+ 97 |     project_path: Optional[Path] = None
+ 98 |     project_data: Dict[str, Any] = field(default_factory=dict)
+ 99 |     metadata: Optional[Any] = None  # DataFrame
+    |               ^^^^^^^^^^^^^
+100 |     active_zone_video: Optional[str] = None
+101 |     last_zone_source_video: Optional[str] = None
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:100:24
+    |
+ 98 |     project_data: Dict[str, Any] = field(default_factory=dict)
+ 99 |     metadata: Optional[Any] = None  # DataFrame
+100 |     active_zone_video: Optional[str] = None
+    |                        ^^^^^^^^^^^^^
+101 |     last_zone_source_video: Optional[str] = None
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:101:29
+    |
+ 99 |     metadata: Optional[Any] = None  # DataFrame
+100 |     active_zone_video: Optional[str] = None
+101 |     last_zone_source_video: Optional[str] = None
+    |                             ^^^^^^^^^^^^^
+102 |
+103 |     def copy(self) -> ProjectState:
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:121:27
+    |
+119 |     active_weight_name: str = ""
+120 |     use_openvino: bool = False
+121 |     detector_plugin_name: Optional[str] = None
+    |                           ^^^^^^^^^^^^^
+122 |     zones_configured: bool = False
+123 |     zone_data: Optional[Any] = None  # ZoneData
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:123:16
+    |
+121 |     detector_plugin_name: Optional[str] = None
+122 |     zones_configured: bool = False
+123 |     zone_data: Optional[Any] = None  # ZoneData
+    |                ^^^^^^^^^^^^^
+124 |     frame_width: Optional[int] = None
+125 |     frame_height: Optional[int] = None
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:124:18
+    |
+122 |     zones_configured: bool = False
+123 |     zone_data: Optional[Any] = None  # ZoneData
+124 |     frame_width: Optional[int] = None
+    |                  ^^^^^^^^^^^^^
+125 |     frame_height: Optional[int] = None
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:125:19
+    |
+123 |     zone_data: Optional[Any] = None  # ZoneData
+124 |     frame_width: Optional[int] = None
+125 |     frame_height: Optional[int] = None
+    |                   ^^^^^^^^^^^^^
+126 |
+127 |     def copy(self) -> DetectorState:
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:146:18
+    |
+145 |     is_recording: bool = False
+146 |     output_path: Optional[Path] = None
+    |                  ^^^^^^^^^^^^^^
+147 |     recording_start_time: Optional[datetime] = None
+148 |     arduino_connected: bool = False
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:147:27
+    |
+145 |     is_recording: bool = False
+146 |     output_path: Optional[Path] = None
+147 |     recording_start_time: Optional[datetime] = None
+    |                           ^^^^^^^^^^^^^^^^^^
+148 |     arduino_connected: bool = False
+149 |     arduino_port: Optional[str] = None
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:149:19
+    |
+147 |     recording_start_time: Optional[datetime] = None
+148 |     arduino_connected: bool = False
+149 |     arduino_port: Optional[str] = None
+    |                   ^^^^^^^^^^^^^
+150 |     timed_recording_active: bool = False
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:170:20
+    |
+168 |     is_processing: bool = False
+169 |     processing_mode: str = "MULTI_TRACK"  # ProcessingMode enum
+170 |     current_video: Optional[str] = None
+    |                    ^^^^^^^^^^^^^
+171 |     current_frame: int = 0
+172 |     total_frames: int = 0
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:173:28
+    |
+171 |     current_frame: int = 0
+172 |     total_frames: int = 0
+173 |     processing_start_time: Optional[datetime] = None
+    |                            ^^^^^^^^^^^^^^^^^^
+174 |     cancel_requested: bool = False
+    |
+help: Convert to `X | None`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\core\state_manager.py:194:22
+    |
+193 |     canvas_view_mode: str = "zones"  # "zones" or "analysis"
+194 |     selected_videos: List[str] = field(default_factory=list)
+    |                      ^^^^
+195 |     analysis_interval_frames: int = 10
+196 |     display_interval_frames: int = 10
+    |
+help: Replace with `list`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:197:18
+    |
+195 |     analysis_interval_frames: int = 10
+196 |     display_interval_frames: int = 10
+197 |     current_tab: Optional[str] = None
+    |                  ^^^^^^^^^^^^^
+198 |
+199 |     def copy(self) -> UIState:
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:321:21
+    |
+319 |         self,
+320 |         callback: Callable[[StateCategory, str, Any, Any], None],
+321 |         categories: Optional[Set[StateCategory]] = None,
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+322 |         keys: Optional[Set[str]] = None,
+323 |     ):
+    |
+help: Convert to `X | None`
+
+UP006 Use `set` instead of `Set` for type annotation
+   --> src\zebtrack\core\state_manager.py:321:30
+    |
+319 |         self,
+320 |         callback: Callable[[StateCategory, str, Any, Any], None],
+321 |         categories: Optional[Set[StateCategory]] = None,
+    |                              ^^^
+322 |         keys: Optional[Set[str]] = None,
+323 |     ):
+    |
+help: Replace with `set`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:322:15
+    |
+320 |         callback: Callable[[StateCategory, str, Any, Any], None],
+321 |         categories: Optional[Set[StateCategory]] = None,
+322 |         keys: Optional[Set[str]] = None,
+    |               ^^^^^^^^^^^^^^^^^^
+323 |     ):
+324 |         """
+    |
+help: Convert to `X | None`
+
+UP006 Use `set` instead of `Set` for type annotation
+   --> src\zebtrack\core\state_manager.py:322:24
+    |
+320 |         callback: Callable[[StateCategory, str, Any, Any], None],
+321 |         categories: Optional[Set[StateCategory]] = None,
+322 |         keys: Optional[Set[str]] = None,
+    |                        ^^^
+323 |     ):
+324 |         """
+    |
+help: Replace with `set`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\core\state_manager.py:400:26
+    |
+399 |         # Observer pattern: category -> set of callbacks
+400 |         self._observers: Dict[StateCategory, Set[StateObserver]] = {
+    |                          ^^^^
+401 |             category: set() for category in StateCategory
+402 |         }
+    |
+help: Replace with `dict`
+
+UP006 Use `set` instead of `Set` for type annotation
+   --> src\zebtrack\core\state_manager.py:400:46
+    |
+399 |         # Observer pattern: category -> set of callbacks
+400 |         self._observers: Dict[StateCategory, Set[StateObserver]] = {
+    |                                              ^^^
+401 |             category: set() for category in StateCategory
+402 |         }
+    |
+help: Replace with `set`
+
+UP006 Use `set` instead of `Set` for type annotation
+   --> src\zebtrack\core\state_manager.py:404:33
+    |
+402 |         }
+403 |         # Global observers that receive all state changes
+404 |         self._global_observers: Set[StateObserver] = set()
+    |                                 ^^^
+405 |
+406 |         # State change history for debugging
+    |
+help: Replace with `set`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\core\state_manager.py:409:24
+    |
+407 |         self._enable_history = enable_history
+408 |         self._max_history_size = max_history_size
+409 |         self._history: List[StateChange] = []
+    |                        ^^^^
+410 |
+411 |         log.info("state_manager.initialized", history_enabled=enable_history)
+    |
+help: Replace with `list`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:845:19
+    |
+843 |     def get_history(
+844 |         self,
+845 |         category: Optional[StateCategory] = None,
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+846 |         key: Optional[str] = None,
+847 |         limit: Optional[int] = None,
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:846:14
+    |
+844 |         self,
+845 |         category: Optional[StateCategory] = None,
+846 |         key: Optional[str] = None,
+    |              ^^^^^^^^^^^^^
+847 |         limit: Optional[int] = None,
+848 |     ) -> List[StateChange]:
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:847:16
+    |
+845 |         category: Optional[StateCategory] = None,
+846 |         key: Optional[str] = None,
+847 |         limit: Optional[int] = None,
+    |                ^^^^^^^^^^^^^
+848 |     ) -> List[StateChange]:
+849 |         """
+    |
+help: Convert to `X | None`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\core\state_manager.py:848:10
+    |
+846 |         key: Optional[str] = None,
+847 |         limit: Optional[int] = None,
+848 |     ) -> List[StateChange]:
+    |          ^^^^
+849 |         """
+850 |         Get state change history for debugging.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\core\state_manager.py:885:29
+    |
+883 |     # ==================== Debugging Utilities ====================
+884 |
+885 |     def dump_state(self) -> Dict[str, Any]:
+    |                             ^^^^
+886 |         """
+887 |         Dump the entire state as a dictionary for debugging.
+    |
+help: Replace with `dict`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\core\state_manager.py:938:44
+    |
+936 |         }
+937 |
+938 |     def get_observer_count(self, category: Optional[StateCategory] = None) -> int:
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^
+939 |         """
+940 |         Get the number of registered observers.
+    |
+help: Convert to `X | None`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\core\state_manager.py:957:41
+    |
+955 |                 return total
+956 |
+957 |     def verify_state_integrity(self) -> Dict[str, Any]:
+    |                                         ^^^^
+958 |         """
+959 |         Verify state integrity and return diagnostic information.
+    |
+help: Replace with `dict`
+
+UP035 `typing.Type` is deprecated, use `type` instead
+ --> src\zebtrack\io\arduino.py:3:1
+  |
+1 | import time
+2 | from types import TracebackType
+3 | from typing import Any, Optional, Type
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 |
+5 | import serial
+  |
+
+UP006 Use `type` instead of `Type` for type annotation
+  --> src\zebtrack\io\arduino.py:65:28
+   |
+63 |     def __exit__(
+64 |         self,
+65 |         exc_type: Optional[Type[BaseException]],
+   |                            ^^^^
+66 |         exc_value: Optional[BaseException],
+67 |         traceback: Optional[TracebackType],
+   |
+help: Replace with `type`
+
+N818 Exception name `SerialException` should be named with an Error suffix
+  --> src\zebtrack\io\arduino_manager.py:15:11
+   |
+13 | except Exception:  # pragma: no cover - fallback when pyserial is missing
+14 |
+15 |     class SerialException(Exception):
+   |           ^^^^^^^^^^^^^^^
+16 |         """Fallback SerialException when pyserial is not installed."""
+   |
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\io\arduino_manager.py:34:23
+   |
+32 |         self.controller = controller
+33 |         self._arduino_factory = arduino_factory
+34 |         self.arduino: Optional[Arduino] = None
+   |                       ^^^^^^^^^^^^^^^^^
+35 |         self._reader_thread: Optional[threading.Thread] = None
+36 |         self._stop_event = threading.Event()
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\io\arduino_manager.py:35:30
+   |
+33 |         self._arduino_factory = arduino_factory
+34 |         self.arduino: Optional[Arduino] = None
+35 |         self._reader_thread: Optional[threading.Thread] = None
+   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+36 |         self._stop_event = threading.Event()
+37 |         self._lock = threading.Lock()
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\io\arduino_manager.py:38:21
+   |
+36 |         self._stop_event = threading.Event()
+37 |         self._lock = threading.Lock()
+38 |         self._port: Optional[str] = None
+   |                     ^^^^^^^^^^^^^
+39 |         self._baud_rate: Optional[int] = None
+40 |         self._last_command: Optional[int] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\io\arduino_manager.py:39:26
+   |
+37 |         self._lock = threading.Lock()
+38 |         self._port: Optional[str] = None
+39 |         self._baud_rate: Optional[int] = None
+   |                          ^^^^^^^^^^^^^
+40 |         self._last_command: Optional[int] = None
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+  --> src\zebtrack\io\arduino_manager.py:40:29
+   |
+38 |         self._port: Optional[str] = None
+39 |         self._baud_rate: Optional[int] = None
+40 |         self._last_command: Optional[int] = None
+   |                             ^^^^^^^^^^^^^
+41 |
+42 |     # ---------------------------------------------------------------------
+   |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\io\arduino_manager.py:121:31
+    |
+119 |         return bool(serial_conn and getattr(serial_conn, "is_open", False))
+120 |
+121 |     def current_port(self) -> Optional[str]:
+    |                               ^^^^^^^^^^^^^
+122 |         """Returns the serial port in use, if any."""
+123 |         return self._port
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\io\arduino_manager.py:153:31
+    |
+151 |         return success
+152 |
+153 |     def last_command(self) -> Optional[int]:
+    |                               ^^^^^^^^^^^^^
+154 |         """Returns the last successful command sent."""
+155 |         return self._last_command
+    |
+help: Convert to `X | None`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\io\arduino_manager.py:231:53
+    |
+229 |             log.error("arduino_manager.event.dispatch_failed", code=event_code, exc_info=True)
+230 |
+231 |     def _notify_status(self, connected: bool, port: Optional[str]) -> None:
+    |                                                     ^^^^^^^^^^^^^
+232 |         try:
+233 |             if hasattr(self.controller, "on_arduino_status_change"):
+    |
+help: Convert to `X | None`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\io\camera.py:3:1
+  |
+1 | import threading
+2 | import time
+3 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 |
+5 | import cv2
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\io\camera.py:3:1
+  |
+1 | import threading
+2 | import time
+3 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 |
+5 | import cv2
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\io\camera.py:37:29
+   |
+36 |         self._lock = threading.Lock()
+37 |         self._latest_frame: Tuple[bool, np.ndarray | None] = (False, None)
+   |                             ^^^^^
+38 |         self._stopped = threading.Event()
+39 |         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
+   |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\io\camera.py:76:28
+   |
+74 |         log.info("camera.reader_thread.stopped")
+75 |
+76 |     def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+   |                            ^^^^^
+77 |         """
+78 |         Returns the most recent frame read by the background thread.
+   |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\io\camera.py:94:33
+   |
+92 |             log.info("camera.released")
+93 |
+94 |     def get_properties(self) -> Dict[str, Any]:
+   |                                 ^^^^
+95 |         """
+96 |         Returns the actual properties of the camera feed.
+   |
+help: Replace with `dict`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\io\frame_source.py:6:1
+  |
+5 | from abc import ABC, abstractmethod
+6 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\io\frame_source.py:6:1
+  |
+5 | from abc import ABC, abstractmethod
+6 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | import numpy as np
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\io\frame_source.py:22:28
+   |
+21 |     @abstractmethod
+22 |     def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+   |                            ^^^^^
+23 |         """
+24 |         Reads the next frame from the source.
+   |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\io\frame_source.py:46:33
+   |
+45 |     @abstractmethod
+46 |     def get_properties(self) -> Dict[str, Any]:
+   |                                 ^^^^
+47 |         """
+48 |         Returns a dictionary of key properties of the frame source.
+   |
+help: Replace with `dict`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\io\video_source.py:7:1
+  |
+6 | import os
+7 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import cv2
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\io\video_source.py:7:1
+  |
+6 | import os
+7 | from typing import Any, Dict, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import cv2
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\io\video_source.py:53:28
+   |
+51 |         )
+52 |
+53 |     def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+   |                            ^^^^^
+54 |         """Reads the next frame from the video file."""
+55 |         ret, frame = self.cap.read()
+   |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\io\video_source.py:64:33
+   |
+62 |         return self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+63 |
+64 |     def get_properties(self) -> Dict[str, Any]:
+   |                                 ^^^^
+65 |         """Returns a dictionary with the video properties."""
+66 |         return {
+   |
+help: Replace with `dict`
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\plugins\base.py:2:1
+  |
+1 | from abc import ABC, abstractmethod
+2 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |
+4 | import numpy as np
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\plugins\base.py:2:1
+  |
+1 | from abc import ABC, abstractmethod
+2 | from typing import List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |
+4 | import numpy as np
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\plugins\base.py:26:44
+   |
+25 |     @abstractmethod
+26 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+   |                                            ^^^^
+27 |         """
+28 |         Performs object detection on a single frame.
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\plugins\base.py:26:49
+   |
+25 |     @abstractmethod
+26 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+   |                                                 ^^^^^
+27 |         """
+28 |         Performs object detection on a single frame.
+   |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\plugins\base.py:52:36
+   |
+50 |     @property
+51 |     @abstractmethod
+52 |     def model_input_shape(self) -> Tuple[int, int]:
+   |                                    ^^^^^
+53 |         """
+54 |         Returns the expected input shape (height, width) of the model.
+   |
+help: Replace with `tuple`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\plugins\openvino_detector.py:4:1
+  |
+2 | import json
+3 | import os
+4 | from typing import Any, Dict, List, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |
+6 | import cv2
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\plugins\openvino_detector.py:4:1
+  |
+2 | import json
+3 | import os
+4 | from typing import Any, Dict, List, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |
+6 | import cv2
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\plugins\openvino_detector.py:4:1
+  |
+2 | import json
+3 | import os
+4 | from typing import Any, Dict, List, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |
+6 | import cv2
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:164:44
+    |
+162 |             self.match_threshold = match_threshold
+163 |
+164 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int | None]]:
+    |                                            ^^^^
+165 |         """Run inference using the OpenVINO model and return raw detections."""
+    |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:164:49
+    |
+162 |             self.match_threshold = match_threshold
+163 |
+164 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int | None]]:
+    |                                                 ^^^^^
+165 |         """Run inference using the OpenVINO model and return raw detections."""
+    |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:172:22
+    |
+170 |         detections = self._postprocess(results, frame.shape)
+171 |
+172 |         predictions: List[Tuple[int, int, int, int, float, int | None]] = []
+    |                      ^^^^
+173 |         for det in detections:
+174 |             x1, y1, x2, y2, score = det[:5]
+    |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:172:27
+    |
+170 |         detections = self._postprocess(results, frame.shape)
+171 |
+172 |         predictions: List[Tuple[int, int, int, int, float, int | None]] = []
+    |                           ^^^^^
+173 |         for det in detections:
+174 |             x1, y1, x2, y2, score = det[:5]
+    |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:190:10
+    |
+188 |     def predict(
+189 |         self, frame: np.ndarray, conf_threshold: float | None = None
+190 |     ) -> List[Dict[str, Any]]:
+    |          ^^^^
+191 |         """
+192 |         Compatibility method for diagnostic workflow.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:190:15
+    |
+188 |     def predict(
+189 |         self, frame: np.ndarray, conf_threshold: float | None = None
+190 |     ) -> List[Dict[str, Any]]:
+    |               ^^^^
+191 |         """
+192 |         Compatibility method for diagnostic workflow.
+    |
+help: Replace with `dict`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\plugins\openvino_detector.py:327:36
+    |
+326 |     @property
+327 |     def model_input_shape(self) -> Tuple[int, int]:
+    |                                    ^^^^^
+328 |         return self.input_layer.shape[2], self.input_layer.shape[3]  # (h, w)
+    |
+help: Replace with `tuple`
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:353:17
+    |
+352 |     ratio = r, r
+353 |     new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^
+354 |     dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+355 |     if auto:
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:353:43
+    |
+352 |     ratio = r, r
+353 |     new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+354 |     dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+355 |     if auto:
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:367:19
+    |
+365 |     if shape[::-1] != new_unpad:
+366 |         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+367 |     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    |                   ^^^^^^^^^^^^^^^^^^^^
+368 |     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+369 |     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:367:41
+    |
+365 |     if shape[::-1] != new_unpad:
+366 |         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+367 |     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    |                                         ^^^^^^^^^^^^^^^^^^^^
+368 |     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+369 |     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:368:19
+    |
+366 |         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+367 |     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+368 |     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    |                   ^^^^^^^^^^^^^^^^^^^^
+369 |     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+370 |     return img, ratio, (dw, dh)
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src\zebtrack\plugins\openvino_detector.py:368:41
+    |
+366 |         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+367 |     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+368 |     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    |                                         ^^^^^^^^^^^^^^^^^^^^
+369 |     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+370 |     return img, ratio, (dw, dh)
+    |
+help: Remove unnecessary `int` call
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\plugins\ultralytics_detector.py:1:1
+  |
+1 | from typing import Any, Dict, List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |
+3 | import numpy as np
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\plugins\ultralytics_detector.py:1:1
+  |
+1 | from typing import Any, Dict, List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |
+3 | import numpy as np
+  |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\plugins\ultralytics_detector.py:1:1
+  |
+1 | from typing import Any, Dict, List, Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |
+3 | import numpy as np
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\plugins\ultralytics_detector.py:44:44
+   |
+42 |         self._use_single_subject_mode = False
+43 |
+44 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+   |                                            ^^^^
+45 |         """
+46 |         Run the Ultralytics model and return raw detection boxes.
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\plugins\ultralytics_detector.py:44:49
+   |
+42 |         self._use_single_subject_mode = False
+43 |
+44 |     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+   |                                                 ^^^^^
+45 |         """
+46 |         Run the Ultralytics model and return raw detection boxes.
+   |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\plugins\ultralytics_detector.py:63:22
+   |
+61 |         )
+62 |
+63 |         predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
+   |                      ^^^^
+64 |         if results and results[0].boxes is not None:
+65 |             boxes = results[0].boxes
+   |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\plugins\ultralytics_detector.py:63:27
+   |
+61 |         )
+62 |
+63 |         predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
+   |                           ^^^^^
+64 |         if results and results[0].boxes is not None:
+65 |             boxes = results[0].boxes
+   |
+help: Replace with `tuple`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\plugins\ultralytics_detector.py:112:10
+    |
+110 |     def predict(
+111 |         self, frame: np.ndarray, conf_threshold: float | None = None
+112 |     ) -> List[Dict[str, Any]]:
+    |          ^^^^
+113 |         """
+114 |         Method for diagnostic with instance segmentation support.
+    |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\plugins\ultralytics_detector.py:112:15
+    |
+110 |     def predict(
+111 |         self, frame: np.ndarray, conf_threshold: float | None = None
+112 |     ) -> List[Dict[str, Any]]:
+    |               ^^^^
+113 |         """
+114 |         Method for diagnostic with instance segmentation support.
+    |
+help: Replace with `dict`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\plugins\ultralytics_detector.py:194:36
+    |
+193 |     @property
+194 |     def model_input_shape(self) -> Tuple[int, int]:
+    |                                    ^^^^^
+195 |         # This is a bit of a simplification. YOLOv8 can handle various input sizes,
+196 |         # but 640 is the default and what's implicitly used.
+    |
+help: Replace with `tuple`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+  --> src\zebtrack\settings.py:27:1
+   |
+26 | from pathlib import Path
+27 | from typing import Any, Dict, List, Literal, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+28 |
+29 | import structlog
+   |
+
+UP035 `typing.List` is deprecated, use `list` instead
+  --> src\zebtrack\settings.py:27:1
+   |
+26 | from pathlib import Path
+27 | from typing import Any, Dict, List, Literal, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+28 |
+29 | import structlog
+   |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+  --> src\zebtrack\settings.py:27:1
+   |
+26 | from pathlib import Path
+27 | from typing import Any, Dict, List, Literal, Optional, Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+28 |
+29 | import structlog
+   |
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:276:14
+    |
+274 |     model_config = ConfigDict(validate_assignment=True, extra="forbid")
+275 |
+276 |     polygon: List[List[int]] = Field(
+    |              ^^^^
+277 |         default_factory=list,
+278 |         description="A list of [x, y] points defining the main detection polygon.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:276:19
+    |
+274 |     model_config = ConfigDict(validate_assignment=True, extra="forbid")
+275 |
+276 |     polygon: List[List[int]] = Field(
+    |                   ^^^^
+277 |         default_factory=list,
+278 |         description="A list of [x, y] points defining the main detection polygon.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:280:19
+    |
+278 |         description="A list of [x, y] points defining the main detection polygon.",
+279 |     )
+280 |     roi_polygons: List[List[List[int]]] = Field(
+    |                   ^^^^
+281 |         default_factory=list,
+282 |         description="A list of polygons, where each polygon is a list of [x,y] points.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:280:24
+    |
+278 |         description="A list of [x, y] points defining the main detection polygon.",
+279 |     )
+280 |     roi_polygons: List[List[List[int]]] = Field(
+    |                        ^^^^
+281 |         default_factory=list,
+282 |         description="A list of polygons, where each polygon is a list of [x,y] points.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:280:29
+    |
+278 |         description="A list of [x, y] points defining the main detection polygon.",
+279 |     )
+280 |     roi_polygons: List[List[List[int]]] = Field(
+    |                             ^^^^
+281 |         default_factory=list,
+282 |         description="A list of polygons, where each polygon is a list of [x,y] points.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:284:16
+    |
+282 |         description="A list of polygons, where each polygon is a list of [x,y] points.",
+283 |     )
+284 |     roi_names: List[str] = Field(
+    |                ^^^^
+285 |         default_factory=list,
+286 |         description="The names for each ROI polygon.",
+    |
+help: Replace with `list`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\settings.py:288:17
+    |
+286 |         description="The names for each ROI polygon.",
+287 |     )
+288 |     roi_colors: List[Tuple[int, int, int]] = Field(
+    |                 ^^^^
+289 |         default_factory=list,
+290 |         description="The BGR colors for drawing each ROI polygon on the overlay.",
+    |
+help: Replace with `list`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\settings.py:288:22
+    |
+286 |         description="The names for each ROI polygon.",
+287 |     )
+288 |     roi_colors: List[Tuple[int, int, int]] = Field(
+    |                      ^^^^^
+289 |         default_factory=list,
+290 |         description="The BGR colors for drawing each ROI polygon on the overlay.",
+    |
+help: Replace with `tuple`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\settings.py:549:29
+    |
+549 | def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    |                             ^^^^
+550 |     """Recursively merge two dictionaries, with override taking precedence.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\settings.py:549:55
+    |
+549 | def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    |                                                       ^^^^
+550 |     """Recursively merge two dictionaries, with override taking precedence.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\settings.py:549:74
+    |
+549 | def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    |                                                                          ^^^^
+550 |     """Recursively merge two dictionaries, with override taking precedence.
+    |
+help: Replace with `dict`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+   --> src\zebtrack\settings.py:692:6
+    |
+690 |     output_path: Optional[Path] = None,
+691 |     indent: int = 2,
+692 | ) -> Dict[str, Any]:
+    |      ^^^^
+693 |     """Export the Settings JSON schema for documentation or validation purposes.
+    |
+help: Replace with `dict`
+
+RUF022 `__all__` is not sorted
+   --> src\zebtrack\settings.py:757:11
+    |
+755 |   # Public API
+756 |   # =============================================================================
+757 |   __all__ = [
+    |  ___________^
+758 | |     # Main settings object (use this in most cases)
+759 | |     "settings",
+760 | |     # Settings model classes (for type hints and validation)
+761 | |     "Settings",
+762 | |     "CameraSettings",
+763 | |     "ArduinoSettings",
+764 | |     "RecorderSettings",
+765 | |     "YOLOModelSettings",
+766 | |     "ByteTrackSettings",
+767 | |     "VideoProcessingSettings",
+768 | |     "TrajectorySmoothingSettings",
+769 | |     "AngularVelocitySettings",
+770 | |     "TrackingSettings",
+771 | |     "DetectionZonesSettings",
+772 | |     "ReproducibilitySettings",
+773 | |     "ModelSelectionSettings",
+774 | |     "WeightsSelectionSettings",
+775 | |     "UIFeatureFlags",
+776 | |     "PerformanceSettings",
+777 | |     # Utility functions
+778 | |     "load_settings",
+779 | |     "reload_settings",
+780 | |     "export_schema",
+781 | | ]
+    | |_^
+    |
+help: Apply an isort-style sorting to `__all__`
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+  --> src\zebtrack\tracker\basetrack.py:20:15
+   |
+18 |     state = TrackState.New
+19 |
+20 |     history = OrderedDict()
+   |               ^^^^^^^^^^^^^
+21 |     features = []
+22 |     curr_feature = None
+   |
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+  --> src\zebtrack\tracker\basetrack.py:21:16
+   |
+20 |     history = OrderedDict()
+21 |     features = []
+   |                ^^
+22 |     curr_feature = None
+23 |     score = 0
+   |
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\ui\components\video_display.py:7:1
+  |
+5 | import os
+6 | from tkinter import Canvas
+7 | from typing import Optional, Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import cv2
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\ui\components\video_display.py:66:44
+   |
+64 |         self._raw_bg_image: Optional[Image.Image] = None
+65 |         self._canvas_bg_image: Optional[ImageTk.PhotoImage] = None
+66 |         self._canvas_bg_position: Optional[Tuple[int, int, str]] = None
+   |                                            ^^^^^
+67 |
+68 |         # Coordinate transformation state
+   |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\ui\components\video_display.py:70:26
+   |
+68 |         # Coordinate transformation state
+69 |         self._bg_scale: float = 1.0
+70 |         self._bg_offset: Tuple[int, int] = (0, 0)
+   |                          ^^^^^
+71 |         self._bg_img_size: Tuple[int, int] = (width, height)
+   |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\ui\components\video_display.py:71:28
+   |
+69 |         self._bg_scale: float = 1.0
+70 |         self._bg_offset: Tuple[int, int] = (0, 0)
+71 |         self._bg_img_size: Tuple[int, int] = (width, height)
+   |                            ^^^^^
+72 |
+73 |         super().__init__(parent, event_bus=event_bus, **kwargs)
+   |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\ui\components\video_display.py:251:66
+    |
+249 |         )
+250 |
+251 |     def video_to_canvas(self, video_x: float, video_y: float) -> Tuple[float, float]:
+    |                                                                  ^^^^^
+252 |         """
+253 |         Convert video frame coordinates to canvas coordinates.
+    |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\ui\components\video_display.py:275:68
+    |
+273 |         return (float(canvas_x), float(canvas_y))
+274 |
+275 |     def canvas_to_video(self, canvas_x: float, canvas_y: float) -> Tuple[float, float]:
+    |                                                                    ^^^^^
+276 |         """
+277 |         Convert canvas coordinates to video frame coordinates.
+    |
+help: Replace with `tuple`
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+   --> src\zebtrack\ui\components\video_display.py:299:42
+    |
+297 |         return (float(video_x), float(video_y))
+298 |
+299 |     def get_image_size(self) -> Optional[Tuple[int, int]]:
+    |                                          ^^^^^
+300 |         """
+301 |         Get the original image size.
+    |
+help: Replace with `tuple`
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> src\zebtrack\ui\event_bus.py:7:1
+  |
+5 | from dataclasses import dataclass
+6 | from enum import Enum, auto
+7 | from typing import Any, Callable, Dict, List, Optional
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import structlog
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src\zebtrack\ui\event_bus.py:7:1
+  |
+5 | from dataclasses import dataclass
+6 | from enum import Enum, auto
+7 | from typing import Any, Callable, Dict, List, Optional
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import structlog
+  |
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> src\zebtrack\ui\event_bus.py:60:28
+   |
+58 |         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
+59 |         # Subscribers map: event_name -> list of handlers
+60 |         self._subscribers: Dict[str, List[Callable[[dict], Any]]] = defaultdict(list)
+   |                            ^^^^
+61 |
+62 |     def publish(
+   |
+help: Replace with `dict`
+
+UP006 Use `list` instead of `List` for type annotation
+  --> src\zebtrack\ui\event_bus.py:60:38
+   |
+58 |         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
+59 |         # Subscribers map: event_name -> list of handlers
+60 |         self._subscribers: Dict[str, List[Callable[[dict], Any]]] = defaultdict(list)
+   |                                      ^^^^
+61 |
+62 |     def publish(
+   |
+help: Replace with `list`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\ui\event_bus.py:106:15
+    |
+104 |         self,
+105 |         event_name: str,
+106 |         data: Optional[dict[str, Any]] = None,
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+107 |         *,
+108 |         block: bool = False,
+    |
+help: Convert to `X | None`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\ui\event_bus.py:190:51
+    |
+188 |                 )
+189 |
+190 |     def get_subscribers(self, event_name: str) -> List[Callable]:
+    |                                                   ^^^^
+191 |         """Get list of subscribers for a given event name (for testing)."""
+192 |         return list(self._subscribers.get(event_name, []))
+    |
+help: Replace with `list`
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\ui\event_bus.py:194:35
+    |
+192 |         return list(self._subscribers.get(event_name, []))
+193 |
+194 |     def drain(self, *, max_items: Optional[int] = None) -> List[UIEvent]:
+    |                                   ^^^^^^^^^^^^^
+195 |         """Retrieve up to ``max_items`` events without blocking."""
+    |
+help: Convert to `X | None`
+
+UP006 Use `list` instead of `List` for type annotation
+   --> src\zebtrack\ui\event_bus.py:194:60
+    |
+192 |         return list(self._subscribers.get(event_name, []))
+193 |
+194 |     def drain(self, *, max_items: Optional[int] = None) -> List[UIEvent]:
+    |                                                            ^^^^
+195 |         """Retrieve up to ``max_items`` events without blocking."""
+    |
+help: Replace with `list`
+
+RUF005 Consider `[self.WEIGHT_INHERIT_LABEL, *weights]` instead of concatenation
+   --> src\zebtrack\ui\gui.py:624:26
+    |
+623 |         weights = self.controller.get_all_weight_names()
+624 |         display_values = [self.WEIGHT_INHERIT_LABEL] + weights
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+625 |
+626 |         current_weight_override = overrides.get("active_weight")
+    |
+help: Replace with `[self.WEIGHT_INHERIT_LABEL, *weights]`
+
+RUF012 Mutable class attributes should be annotated with `typing.ClassVar`
+   --> src\zebtrack\ui\gui.py:837:18
+    |
+835 |       """Dialog para revisar vídeos pendentes em formato hierárquico."""
+836 |
+837 |       TAG_STYLES = {
+    |  __________________^
+838 | |         "ready_full": {"background": "#d4edda", "foreground": "#1e4620"},
+839 | |         "ready_partial": {"background": "#fff3cd", "foreground": "#5c470b"},
+840 | |         "ready_missing": {"background": "#f8d7da", "foreground": "#842029"},
+841 | |     }
+    | |_____^
+842 |
+843 |       def __init__(
+    |
+
+C901 `validate` is too complex (22 > 20)
+    --> src\zebtrack\ui\gui.py:1333:9
+     |
+1331 |                 self.countdown_entry.config(state="disabled")
+1332 |
+1333 |     def validate(self):
+     |         ^^^^^^^^
+1334 |         base_path = self.path_entry.get()
+1335 |         if not base_path or not os.path.isdir(base_path):
+     |
+
+RUF015 Prefer `next(iter(self.available_cameras.keys()))` over single element slice
+    --> src\zebtrack\ui\gui.py:1515:33
+     |
+1514 |         if self.available_cameras:
+1515 |             self.camera_var.set(list(self.available_cameras.keys())[0])
+     |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1516 |         else:
+1517 |             self.camera_menu.config(state="disabled")
+     |
+help: Replace with `next(iter(self.available_cameras.keys()))`
+
+RUF015 Prefer `next(iter(self.available_ports.keys()))` over single element slice
+    --> src\zebtrack\ui\gui.py:1536:39
+     |
+1535 |         if self.available_ports:
+1536 |             self.arduino_port_var.set(list(self.available_ports.keys())[0])
+     |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1537 |
+1538 |         self._toggle_arduino_menu()  # Set initial state
+     |
+help: Replace with `next(iter(self.available_ports.keys()))`
+
+C901 `_create_welcome_frame` is too complex (26 > 20)
+    --> src\zebtrack\ui\gui.py:2144:9
+     |
+2142 |             self.start_single_analysis_btn = None
+2143 |
+2144 |     def _create_welcome_frame(self):
+     |         ^^^^^^^^^^^^^^^^^^^^^
+2145 |         """Creates the initial UI for project selection and model configuration."""
+2146 |         self._cleanup_single_analysis_button()
+     |
+
+RUF034 Useless `if`-`else` condition
+    --> src\zebtrack\ui\gui.py:2399:24
+     |
+2397 |         style.configure(
+2398 |             "Zebtrack.TNotebook.Tab",
+2399 |             focuscolor="" if current_theme else "",
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2400 |         )
+2401 |         style.configure("Zebtrack.TNotebook", padding=(4, 4))
+     |
+
+RUF013 PEP 484 prohibits implicit `Optional`
+    --> src\zebtrack\ui\gui.py:5801:54
+     |
+5799 |         return (float(canvas_x), float(canvas_y))
+5800 |
+5801 |     def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
+     |                                                      ^^^
+5802 |         """Carrega um frame do vídeo no canvas"""
+5803 |         if video_path is None:
+     |
+help: Convert to `Optional[T]`
+
+C901 `update_reports_tree` is too complex (23 > 20)
+    --> src\zebtrack\ui\gui.py:6415:9
+     |
+6413 |         self.generate_unified_report_btn.pack(side="left", padx=10)
+6414 |
+6415 |     def update_reports_tree(self):
+     |         ^^^^^^^^^^^^^^^^^^^
+6416 |         """Atualiza a árvore de relatórios com estrutura hierárquica."""
+6417 |         for item in self.reports_tree.get_children():
+     |
+
+C901 `_on_report_item_double_click` is too complex (22 > 20)
+    --> src\zebtrack\ui\gui.py:6716:9
+     |
+6714 |             self.generate_partial_report_btn.config(state="disabled")
+6715 |
+6716 |     def _on_report_item_double_click(self, event=None):
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6717 |         """Open the results folder for the selected video when reports exist."""
+6718 |         tree = getattr(self, "reports_tree", None)
+     |
+
+RUF005 Consider `["Todos", *normalized_tracks]` instead of concatenation
+    --> src\zebtrack\ui\gui.py:9169:44
+     |
+9167 |             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
+9168 |             if normalized_tracks:
+9169 |                 self._update_track_options(["Todos"] + normalized_tracks)
+     |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+9170 |
+9171 |     def _reset_analysis_controls(self) -> None:
+     |
+help: Replace with `["Todos", *normalized_tracks]`
+
+RUF005 Consider `["Todos", *ordered]` instead of concatenation
+    --> src\zebtrack\ui\gui.py:9199:16
+     |
+9198 |         ordered = sorted(observed, key=str)
+9199 |         return ["Todos"] + ordered
+     |                ^^^^^^^^^^^^^^^^^^^
+9200 |
+9201 |     def _update_track_options(self, options: list[str]) -> None:
+     |
+help: Replace with `["Todos", *ordered]`
+
+C901 `_generate_summary` is too complex (28 > 20)
+   --> src\zebtrack\ui\wizard\confirmation_step.py:210:9
+    |
+208 |             self.project_location_var.set(directory)
+209 |
+210 |     def _generate_summary(self):
+    |         ^^^^^^^^^^^^^^^^^
+211 |         """Generate summary text from all wizard data."""
+212 |         lines = []
+    |
+
+E501 Line too long (174 > 100)
+   --> src\zebtrack\ui\wizard\model_selection_step.py:286:101
+    |
+284 | …
+285 | …
+286 | …ence_threshold:.2f}, NMS {settings.yolo_model.nms_threshold:.2f}, track {DEFAULT_TRACK_THRESHOLD:.2f},"
+    |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+287 | …
+288 | …
+    |
+
+C901 `enrich_videos_with_design_metadata` is too complex (27 > 20)
+  --> src\zebtrack\ui\wizard\wizard_adapter.py:68:5
+   |
+68 | def enrich_videos_with_design_metadata(
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+69 |     scanned_videos: list[dict],
+70 |     detected_design: dict | None,
+   |
+
+UP045 Use `X | None` for type annotations
+   --> src\zebtrack\ui\wizard\wizard_adapter.py:419:55
+    |
+419 | def extract_parquet_import_plan(wizard_data: dict) -> Optional[dict]:
+    |                                                       ^^^^^^^^^^^^^^
+420 |     """
+421 |     Extract parquet import plan from wizard metadata.
+    |
+help: Convert to `X | None`
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\utils.py:7:1
+  |
+5 | import random
+6 | from collections.abc import Iterable, Sequence
+7 | from typing import Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | import numpy as np
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\utils.py:60:9
+   |
+60 | Point = Tuple[float, float]
+   |         ^^^^^
+   |
+help: Replace with `tuple`
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+  --> src\zebtrack\utils\__init__.py:9:1
+   |
+ 7 | import random
+ 8 | from collections.abc import Iterable, Sequence
+ 9 | from typing import Tuple
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+10 |
+11 | import numpy as np
+   |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+  --> src\zebtrack\utils\__init__.py:62:9
+   |
+62 | Point = Tuple[float, float]
+   |         ^^^^^
+   |
+help: Replace with `tuple`
+
+UP035 `typing.Tuple` is deprecated, use `tuple` instead
+ --> src\zebtrack\utils\geometry.py:7:1
+  |
+5 | import math
+6 | from collections.abc import Iterable, Sequence
+7 | from typing import Tuple
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+8 |
+9 | Point = Tuple[float, float]
+  |
+
+UP006 Use `tuple` instead of `Tuple` for type annotation
+ --> src\zebtrack\utils\geometry.py:9:9
+  |
+7 | from typing import Tuple
+8 |
+9 | Point = Tuple[float, float]
+  |         ^^^^^
+  |
+help: Replace with `tuple`
+
+B017 Do not assert blind exception: `Exception`
+   --> tests\analysis\test_analysis_service.py:223:14
+    |
+221 |         invalid_file.write_text("not a parquet file")
+222 |
+223 |         with pytest.raises(Exception):
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+224 |             self.service.load_trajectory_dataframe(invalid_file)
+    |
+
+UP035 `typing.Dict` is deprecated, use `dict` instead
+ --> tests\analysis\test_behavior.py:5:1
+  |
+3 | """
+4 |
+5 | from typing import Dict, List, Optional, Union
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6 |
+7 | import numpy as np
+  |
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> tests\analysis\test_behavior.py:5:1
+  |
+3 | """
+4 |
+5 | from typing import Dict, List, Optional, Union
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6 |
+7 | import numpy as np
+  |
+
+UP006 Use `list` instead of `List` for type annotation
+  --> tests\analysis\test_behavior.py:86:10
+   |
+84 |         threshold_method: str = "absolute",
+85 |         quantile: float = 0.1,
+86 |     ) -> List[Dict[str, float]]:
+   |          ^^^^
+87 |         return [{"start_time": 1.0, "end_time": 2.5, "duration": 1.5}]
+   |
+help: Replace with `list`
+
+UP006 Use `dict` instead of `Dict` for type annotation
+  --> tests\analysis\test_behavior.py:86:15
+   |
+84 |         threshold_method: str = "absolute",
+85 |         quantile: float = 0.1,
+86 |     ) -> List[Dict[str, float]]:
+   |               ^^^^
+87 |         return [{"start_time": 1.0, "end_time": 2.5, "duration": 1.5}]
+   |
+help: Replace with `dict`
+
+RUF005 Consider `["Todos", *sorted(observed)]` instead of concatenation
+   --> tests\test_analysis_view_toggle.py:170:23
+    |
+168 |                 if len(det) >= 6 and det[5] is not None:
+169 |                     observed.add(str(det[5]))
+170 |             options = ["Todos"] + sorted(observed)
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+171 |             self._update_track_options(options)
+    |
+help: Replace with `["Todos", *sorted(observed)]`
+
+Found 244 errors.
+No fixes available (175 hidden fixes can be enabled with the `--unsafe-fixes` option).

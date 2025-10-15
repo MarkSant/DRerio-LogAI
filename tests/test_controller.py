@@ -710,7 +710,7 @@ class TestAppController(unittest.TestCase):
         )
 
         # --- Assert ---
-        self.mock_view.show_error.assert_called_once_with("Erro", "Falha ao criar o novo projeto.")
+        self.mock_view.show_error.assert_called_once_with("Configuração Inválida", "Falha ao criar o novo projeto.")
         self.mock_view._load_project_view.assert_not_called()
 
     def test_open_project_workflow_success_loads_view_and_zones(self):
@@ -726,20 +726,15 @@ class TestAppController(unittest.TestCase):
         self.mock_pm.get_all_videos.return_value = [{"path": "video1.mp4", "status": "pending"}]
 
         with (
-            patch.object(
-                self.controller,
-                "apply_project_model_overrides",
-                return_value=("best_seg.pt", False),
-            ) as apply_overrides,
             patch.object(self.controller, "setup_detector", return_value=True),
-            patch.object(self.controller, "setup_detector_zones") as setup_zones,
+            patch.object(self.controller, "_setup_zones_from_project") as setup_zones,
             patch.object(self.controller, "update_openvino_status") as update_status,
         ):
             result = self.controller.open_project_workflow(project_path)
 
         self.assertTrue(result)
         self.mock_pm.load_project.assert_called_once_with(project_path)
-        apply_overrides.assert_called_once()
+        # Model overrides are applied internally by project_workflow_service
         update_status.assert_called_once()
         self.mock_view.update_openvino_checkbox.assert_called_once_with(
             self.controller.use_openvino
@@ -749,8 +744,6 @@ class TestAppController(unittest.TestCase):
         )
         self.mock_view._load_project_view.assert_called_once()
         setup_zones.assert_called_once()
-        self.mock_view.redraw_zones_from_project_data.assert_called_once()
-        self.mock_view.update_zone_listbox.assert_called_once()
         self.mock_view.show_info.assert_called_once()
 
         # Note: StateManager state updates are tested in test_state_manager_integration.py

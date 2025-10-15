@@ -414,11 +414,11 @@ class ProjectWorkflowService:
         if "use_openvino" in kwargs and use_openvino_setter:
             use_openvino_setter(kwargs["use_openvino"])
 
-        # Add active weight and OpenVINO to kwargs
-        # These will be retrieved from global defaults via callbacks
-        if active_weight_setter is not None:
+        # Add active weight and OpenVINO to kwargs if not already provided
+        # Use global defaults as fallback for missing parameters
+        if active_weight_setter is not None and "active_weight" not in kwargs:
             kwargs["active_weight"] = self._global_model_defaults.get("active_weight")
-        if use_openvino_setter is not None:
+        if use_openvino_setter is not None and "use_openvino" not in kwargs:
             kwargs["use_openvino"] = self._global_model_defaults.get("use_openvino", False)
 
         # Filter parameters using whitelist
