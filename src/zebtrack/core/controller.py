@@ -402,11 +402,103 @@ class MainViewModel:
             service=type(self.analysis_service).__name__,
         )
 
+    # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
+    _EVENT_METHOD_MAPPING = {
+        # Recording events
+        Events.RECORDING_START: ("start_recording", ["day", "group", "cobaia"], "kwargs_get"),
+        Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
+        Events.RECORDING_TRIGGER: ("trigger_recording", ["event_code"], "kwargs_get"),
+
+        # Project events
+        Events.PROJECT_CREATE: ("create_project_workflow", None, "kwargs_all"),
+        Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
+        Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
+        Events.PROJECT_PROCESS_VIDEOS: ("process_pending_project_videos", ["video_paths"], "kwargs_get"),
+        Events.PROJECT_GENERATE_SUMMARIES: ("generate_parquet_summaries", ["video_paths"], "positional"),
+        Events.PROJECT_APPLY_SETTINGS: ("apply_project_settings_to_batch", ["videos"], "positional"),
+        Events.PROJECT_DELETE_ASSET: ("delete_project_asset", ["video_path", "asset"], "positional"),
+
+        # Video processing events
+        Events.VIDEO_ANALYZE_SINGLE: ("start_single_video_workflow", ["video_path", "config"], "positional"),
+        Events.VIDEO_CANCEL_ANALYSIS: ("cancel_current_analysis", [], "no_params"),
+
+        # Model & weight events
+        Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
+        Events.MODEL_SET_OPENVINO: ("set_openvino_usage", ["use_openvino", "dialog"], "positional_optional"),
+        Events.MODEL_CONVERT_OPENVINO: ("convert_active_weight_to_openvino", ["dialog"], "kwargs_get"),
+        Events.MODEL_UPDATE_OPENVINO_STATUS: ("update_openvino_status", ["dialog"], "kwargs_get"),
+        Events.MODEL_ADD_WEIGHT: ("add_new_weight", ["path", "set_as_default", "weight_type"], "positional_optional"),
+        Events.MODEL_DELETE_WEIGHT: ("delete_weight", ["name"], "positional"),
+        Events.MODEL_RUN_DIAGNOSTIC: ("run_model_diagnostic", ["config"], "positional"),
+
+        # Detector & zone events
+        Events.DETECTOR_SETUP: ("setup_detector", ["temp_animal_method"], "kwargs_get"),
+        Events.DETECTOR_SETUP_ZONES: ("setup_detector_zones", [], "no_params"),
+        Events.DETECTOR_UPDATE_PARAMETERS: ("update_detector_parameters",
+                                           ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"],
+                                           "kwargs_get"),
+        Events.ZONE_SET_ARENA_POLYGON: ("set_main_arena_polygon", ["points"], "positional"),
+        Events.ZONE_SAVE_MANUAL_ARENA: ("save_manual_arena", ["polygon_points"], "positional"),
+        Events.ZONE_UPDATE_ARENA: ("update_main_arena", ["polygon_points"], "positional"),
+
+        # Calibration events
+        Events.CALIBRATION_RUN_LIVE: ("run_live_calibration", ["temp_aquarium_method"], "kwargs_get"),
+        Events.CALIBRATION_COPY_TO_PROJECT: ("copy_global_model_settings_to_project", [], "no_params"),
+        Events.CALIBRATION_SAVE_TO_PROJECT: ("save_current_calibration_to_project", [], "no_params"),
+
+        # Arduino events
+        Events.ARDUINO_SETUP: ("setup_arduino", [], "no_params"),
+        Events.ARDUINO_LOG_EVENT: ("log_arduino_event", ["message"], "positional"),
+
+        # Report events
+        Events.REPORT_GENERATE: ("generate_report", ["videos", "report_type"], "positional_optional"),
+
+        # Application events
+        Events.APP_CLOSE: ("on_close", [], "no_params"),
+    }
+
+    def _create_event_dispatcher(self, event_name: str):
+        """Factory to create event-specific dispatcher closures.
+
+        Phase 7.1: Generic dispatcher that replaces 32 individual _handle_* methods.
+
+        Args:
+            event_name: The event identifier (e.g., Events.RECORDING_START)
+
+        Returns:
+            Callable that extracts params from event data and calls controller method
+        """
+        method_name, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
+
+        def dispatcher(data: dict) -> None:
+            """Generic event handler that delegates to controller method."""
+            method = getattr(self, method_name)
+
+            if mode == "no_params":
+                method()
+            elif mode == "kwargs_all":
+                method(**data)
+            elif mode == "kwargs_get":
+                kwargs = {param: data.get(param) for param in param_names}
+                method(**kwargs)
+            elif mode == "positional":
+                args = [data[param] for param in param_names]
+                method(*args)
+            elif mode == "positional_optional":
+                # Positional args where later params are optional (use .get() for all)
+                args = [data.get(param) for param in param_names]
+                method(*args)
+            else:
+                log.error("controller.event_dispatcher.unknown_mode",
+                         event=event_name, mode=mode)
+
+        return dispatcher
+
     def _register_event_handlers(self) -> None:
         """Subscribe to all UI→Controller events when event bus is enabled.
 
-        This method wires up the event-driven communication layer, replacing
-        direct method calls from GUI with event-based invocations.
+        Phase 7.1: Uses generic dispatcher to eliminate 32 individual handler methods.
+        Each event is mapped to (method_name, params, mode) in _EVENT_METHOD_MAPPING.
         """
         if not self.ui_event_bus:
             return
@@ -414,171 +506,16 @@ class MainViewModel:
         bus = self.ui_event_bus
         log.info("controller.register_event_handlers.start")
 
-        # Recording events
-        bus.subscribe(Events.RECORDING_START, self._handle_recording_start)
-        bus.subscribe(Events.RECORDING_STOP, self._handle_recording_stop)
-        bus.subscribe(Events.RECORDING_TRIGGER, self._handle_recording_trigger)
+        # Subscribe all events to generic dispatcher
+        for event_name in self._EVENT_METHOD_MAPPING.keys():
+            dispatcher = self._create_event_dispatcher(event_name)
+            bus.subscribe(event_name, dispatcher)
 
-        # Project events
-        bus.subscribe(Events.PROJECT_CREATE, self._handle_project_create)
-        bus.subscribe(Events.PROJECT_OPEN, self._handle_project_open)
-        bus.subscribe(Events.PROJECT_CLOSE, self._handle_project_close)
-        bus.subscribe(Events.PROJECT_PROCESS_VIDEOS, self._handle_project_process_videos)
-        bus.subscribe(Events.PROJECT_GENERATE_SUMMARIES, self._handle_project_generate_summaries)
-        bus.subscribe(Events.PROJECT_APPLY_SETTINGS, self._handle_project_apply_settings)
-        bus.subscribe(Events.PROJECT_DELETE_ASSET, self._handle_project_delete_asset)
+        log.info("controller.register_event_handlers.complete",
+                count=len(self._EVENT_METHOD_MAPPING))
 
-        # Video processing events
-        bus.subscribe(Events.VIDEO_ANALYZE_SINGLE, self._handle_video_analyze_single)
-        bus.subscribe(Events.VIDEO_CANCEL_ANALYSIS, self._handle_video_cancel_analysis)
-
-        # Model & weight events
-        bus.subscribe(Events.MODEL_SET_WEIGHT, self._handle_model_set_weight)
-        bus.subscribe(Events.MODEL_SET_OPENVINO, self._handle_model_set_openvino)
-        bus.subscribe(Events.MODEL_CONVERT_OPENVINO, self._handle_model_convert_openvino)
-        bus.subscribe(
-            Events.MODEL_UPDATE_OPENVINO_STATUS,
-            self._handle_model_update_openvino_status,
-        )
-        bus.subscribe(Events.MODEL_ADD_WEIGHT, self._handle_model_add_weight)
-        bus.subscribe(Events.MODEL_DELETE_WEIGHT, self._handle_model_delete_weight)
-        bus.subscribe(Events.MODEL_RUN_DIAGNOSTIC, self._handle_model_run_diagnostic)
-
-        # Detector & zone events
-        bus.subscribe(Events.DETECTOR_SETUP, self._handle_detector_setup)
-        bus.subscribe(Events.DETECTOR_SETUP_ZONES, self._handle_detector_setup_zones)
-        bus.subscribe(Events.DETECTOR_UPDATE_PARAMETERS, self._handle_detector_update_parameters)
-        bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._handle_zone_set_arena_polygon)
-        bus.subscribe(Events.ZONE_SAVE_MANUAL_ARENA, self._handle_zone_save_manual_arena)
-        bus.subscribe(Events.ZONE_UPDATE_ARENA, self._handle_zone_update_arena)
-
-        # Calibration events
-        bus.subscribe(Events.CALIBRATION_RUN_LIVE, self._handle_calibration_run_live)
-        bus.subscribe(Events.CALIBRATION_COPY_TO_PROJECT, self._handle_calibration_copy_to_project)
-        bus.subscribe(Events.CALIBRATION_SAVE_TO_PROJECT, self._handle_calibration_save_to_project)
-
-        # Arduino events
-        bus.subscribe(Events.ARDUINO_SETUP, self._handle_arduino_setup)
-        bus.subscribe(Events.ARDUINO_LOG_EVENT, self._handle_arduino_log_event)
-
-        # Report events
-        bus.subscribe(Events.REPORT_GENERATE, self._handle_report_generate)
-
-        # Application events
-        bus.subscribe(Events.APP_CLOSE, self._handle_app_close)
-
-        log.info("controller.register_event_handlers.complete", count=len(bus._subscribers))
-
-    # Event handler methods (adapters from events to existing controller methods)
-
-    def _handle_recording_start(self, data: dict) -> None:
-        self.start_recording(
-            day=data.get("day"),
-            group=data.get("group"),
-            cobaia=data.get("cobaia"),
-        )
-
-    def _handle_recording_stop(self, data: dict) -> None:
-        self.stop_recording()
-
-    def _handle_recording_trigger(self, data: dict) -> None:
-        self.trigger_recording(event_code=data.get("event_code"))
-
-    def _handle_project_create(self, data: dict) -> None:
-        self.create_project_workflow(**data)
-
-    def _handle_project_open(self, data: dict) -> None:
-        self.open_project_workflow(data["project_path"])
-
-    def _handle_project_close(self, data: dict) -> None:
-        self.close_project()
-
-    def _handle_project_process_videos(self, data: dict) -> None:
-        self.process_pending_project_videos(video_paths=data.get("video_paths"))
-
-    def _handle_project_generate_summaries(self, data: dict) -> None:
-        self.generate_parquet_summaries(data["video_paths"])
-
-    def _handle_project_apply_settings(self, data: dict) -> None:
-        self.apply_project_settings_to_batch(data["videos"])
-
-    def _handle_project_delete_asset(self, data: dict) -> None:
-        self.delete_project_asset(data["video_path"], data["asset"])
-
-    def _handle_video_analyze_single(self, data: dict) -> None:
-        self.start_single_video_workflow(data["video_path"], data["config"])
-
-    def _handle_video_cancel_analysis(self, data: dict) -> None:
-        self.cancel_current_analysis()
-
-    def _handle_model_set_weight(self, data: dict) -> None:
-        self.set_active_weight(data.get("name"), data.get("dialog"))
-
-    def _handle_model_set_openvino(self, data: dict) -> None:
-        self.set_openvino_usage(data["use_openvino"], data.get("dialog"))
-
-    def _handle_model_convert_openvino(self, data: dict) -> None:
-        self.convert_active_weight_to_openvino(data.get("dialog"))
-
-    def _handle_model_update_openvino_status(self, data: dict) -> None:
-        self.update_openvino_status(data.get("dialog"))
-
-    def _handle_model_add_weight(self, data: dict) -> None:
-        self.add_new_weight(
-            data["path"],
-            data["set_as_default"],
-            data.get("weight_type"),
-        )
-
-    def _handle_model_delete_weight(self, data: dict) -> None:
-        self.delete_weight(data["name"])
-
-    def _handle_model_run_diagnostic(self, data: dict) -> None:
-        self.run_model_diagnostic(data["config"])
-
-    def _handle_detector_setup(self, data: dict) -> None:
-        self.setup_detector(data.get("temp_animal_method"))
-
-    def _handle_detector_setup_zones(self, data: dict) -> None:
-        self.setup_detector_zones()
-
-    def _handle_detector_update_parameters(self, data: dict) -> None:
-        self.update_detector_parameters(
-            conf_threshold=data.get("conf_threshold"),
-            nms_threshold=data.get("nms_threshold"),
-            track_threshold=data.get("track_threshold"),
-            match_threshold=data.get("match_threshold"),
-        )
-
-    def _handle_zone_set_arena_polygon(self, data: dict) -> None:
-        self.set_main_arena_polygon(data["points"])
-
-    def _handle_zone_save_manual_arena(self, data: dict) -> None:
-        self.save_manual_arena(data["polygon_points"])
-
-    def _handle_zone_update_arena(self, data: dict) -> None:
-        self.update_main_arena(data["polygon_points"])
-
-    def _handle_calibration_run_live(self, data: dict) -> None:
-        self.run_live_calibration(data.get("temp_aquarium_method"))
-
-    def _handle_calibration_copy_to_project(self, data: dict) -> None:
-        self.copy_global_model_settings_to_project()
-
-    def _handle_calibration_save_to_project(self, data: dict) -> None:
-        self.save_current_calibration_to_project()
-
-    def _handle_arduino_setup(self, data: dict) -> None:
-        self.setup_arduino()
-
-    def _handle_arduino_log_event(self, data: dict) -> None:
-        self.log_arduino_event(data["message"])
-
-    def _handle_report_generate(self, data: dict) -> None:
-        self.generate_report(data["videos"], data.get("report_type", "unified"))
-
-    def _handle_app_close(self, data: dict) -> None:
-        self.on_close()
+    # Phase 7.1: Removed 32 individual _handle_* methods (108 lines) -
+    # replaced by generic dispatcher pattern above
 
     def _determine_processing_mode(self) -> ProcessingMode:
         """Inspect current detector/settings state to infer active mode."""
