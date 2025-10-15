@@ -34,6 +34,7 @@ from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
@@ -113,6 +114,14 @@ class MainViewModel:
         from zebtrack.core.model_service import ModelService
         self.model_service = ModelService(self.weight_manager)
 
+        # Detector management service (Phase 6)
+        self.detector_service = DetectorService(
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+        )
+
         # Project workflow service (Phase 5) - initialize after UICoordinator
         # Will be fully initialized after UICoordinator is created
         self.project_workflow_service = None
@@ -131,7 +140,8 @@ class MainViewModel:
         self._using_project_overrides = False
 
         # Core runtime attributes
-        self.detector = None
+        # Note: detector is now managed by detector_service (Phase 6)
+        # Access via self.detector property which delegates to service
         self.recorder = Recorder()
         self.arduino: Arduino | None = None
         self.arduino_manager: ArduinoManager | None = None
@@ -223,6 +233,25 @@ class MainViewModel:
             source="controller.is_recording_setter",
             is_recording=value,
         )
+
+    @property
+    def detector(self) -> Detector | None:
+        """
+        Get detector instance from DetectorService.
+
+        Phase 6: Detector is now managed by detector_service.
+        This property provides backward compatibility.
+        """
+        return self.detector_service.detector
+
+    @detector.setter
+    def detector(self, value: Detector | None) -> None:
+        """
+        Set detector instance (for testing).
+
+        Phase 6: Allows tests to inject mock detectors.
+        """
+        self.detector_service.detector = value
 
     @property
     def detector_initialized(self) -> bool:
@@ -778,132 +807,12 @@ class MainViewModel:
         """
         Restore detector settings from saved configuration.
 
-        Phase 5: Extracted from open_project_workflow for use as callback.
+        Phase 6: Delegates to DetectorService.
 
         Args:
             saved_detector_config: Saved detector configuration from project
         """
-        if not saved_detector_config or not self.detector:
-            return
-
-        log.info(
-            "controller.detector.state.restore_start",
-            config=saved_detector_config,
-        )
-
-        plugin = self.detector.plugin
-        settings_changed = False
-
-        # Restore confidence threshold
-        if "confidence_threshold" in saved_detector_config and hasattr(
-            plugin, "conf_threshold"
-        ):
-            old_conf = plugin.conf_threshold
-            new_conf = saved_detector_config["confidence_threshold"]
-            if old_conf != new_conf:
-                plugin.conf_threshold = new_conf
-                settings_changed = True
-                log.info(
-                    "controller.detector.threshold.restored",
-                    old=old_conf,
-                    new=new_conf,
-                    type="confidence",
-                )
-
-        # Restore NMS threshold
-        if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
-            old_nms = plugin.nms_threshold
-            new_nms = saved_detector_config["nms_threshold"]
-            if old_nms != new_nms:
-                plugin.nms_threshold = new_nms
-                settings_changed = True
-                log.info(
-                    "controller.detector.threshold.restored",
-                    old=old_nms,
-                    new=new_nms,
-                    type="nms",
-                )
-
-        # Restore ByteTrack thresholds when supported by the plugin
-        restore_track = "track_threshold" in saved_detector_config
-        restore_match = "match_threshold" in saved_detector_config
-        if (restore_track or restore_match) and (
-            hasattr(plugin, "track_threshold") or hasattr(plugin, "set_tracking_parameters")
-        ):
-            old_track = getattr(plugin, "track_threshold", None)
-            old_match = getattr(plugin, "match_threshold", None)
-            track_value = saved_detector_config.get("track_threshold", old_track)
-            match_value = saved_detector_config.get("match_threshold", old_match)
-
-            if hasattr(plugin, "set_tracking_parameters"):
-                plugin.set_tracking_parameters(
-                    track_threshold=track_value if restore_track else None,
-                    match_threshold=match_value if restore_match else None,
-                )
-            else:
-                if restore_track:
-                    plugin.track_threshold = track_value
-                if restore_match:
-                    plugin.match_threshold = match_value
-
-            if restore_track and track_value != old_track:
-                settings_changed = True
-                log.info(
-                    "controller.detector.threshold.restored",
-                    old=old_track,
-                    new=track_value,
-                    type="track_threshold",
-                )
-            if restore_match and match_value != old_match:
-                settings_changed = True
-                log.info(
-                    "controller.detector.threshold.restored",
-                    old=old_match,
-                    new=match_value,
-                    type="match_threshold",
-                )
-
-        # Restore context
-        if "context" in saved_detector_config and hasattr(plugin, "set_context"):
-            saved_context = saved_detector_config["context"]
-            current_context = getattr(plugin, "_context", "tracking")
-            if current_context != saved_context:
-                plugin.set_context(saved_context)
-                settings_changed = True
-                log.info(
-                    "controller.detector.context.restored",
-                    old=current_context,
-                    new=saved_context,
-                )
-
-        # Log restoration summary
-        if settings_changed:
-            log.info(
-                "controller.detector.state.restored",
-                plugin=saved_detector_config.get("plugin_name"),
-                last_updated=saved_detector_config.get("last_updated"),
-            )
-            # Save back to project to ensure consistency
-            current_config = {
-                "plugin_name": saved_detector_config.get(
-                    "plugin_name",
-                    "OpenVINO" if self.use_openvino else "YOLO (Ultralytics)",
-                ),
-                "confidence_threshold": plugin.conf_threshold,
-                "nms_threshold": plugin.nms_threshold,
-                "context": getattr(plugin, "_context", "tracking"),
-            }
-            if hasattr(plugin, "track_threshold"):
-                track_val = getattr(plugin, "track_threshold", None)
-                if track_val is not None:
-                    current_config["track_threshold"] = float(track_val)
-            if hasattr(plugin, "match_threshold"):
-                match_val = getattr(plugin, "match_threshold", None)
-                if match_val is not None:
-                    current_config["match_threshold"] = float(match_val)
-            self.project_manager.save_detector_state(current_config)
-        else:
-            log.info("controller.detector.state.no_changes_needed")
+        self.detector_service.restore_detector_settings(saved_detector_config)
 
     def _setup_zones_from_project(self) -> None:
         """
@@ -982,148 +891,26 @@ class MainViewModel:
         return True
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
-        """Initializes the detector instance based on the animal method selection.
+        """
+        Initializes the detector instance based on the animal method selection.
+
+        Phase 6: Delegates to DetectorService.
 
         Args:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global settings.
         """
-        # Use temporary override if provided, otherwise use global settings
-        animal_method = temp_animal_method or settings.model_selection.animal_method
-        log.info(
-            "detector.setup.start",
-            animal_method=animal_method,
-            temp_override=temp_animal_method is not None,
+        success, error = self.detector_service.initialize_detector(
+            animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
+            active_weight_name=self.active_weight_name,
         )
 
-        # Get weight path based on animal method
-        model_path = self.weight_manager.get_weight_path_by_method(animal_method, "animal")
-        log.info(
-            "detector.setup.model_path_selected",
-            animal_method=animal_method,
-            task="animal",
-            model_path=model_path,
-        )
-        if not model_path:
-            self.view.show_error(
-                "Erro de Detector",
-                f"Nenhum modelo {animal_method} está disponível para detecção de animais.",
-            )
+        if not success:
+            self.view.show_error("Erro de Detector", error or "Falha ao inicializar o detector")
             return False
 
-        # Phase 2.4: Use ModelService to find weight and get correct model path
-        weight_name, weight_details = self.model_service.find_weight_by_path(model_path)
-        if not weight_name:
-            self.view.show_error(
-                "Erro de Detector",
-                f"Não foi possível encontrar o peso correspondente ao caminho: {model_path}",
-            )
-            return False
-
-        try:
-            if self.use_openvino:
-                plugin_name = "OpenVINO"
-                # Phase 2.4: Use ModelService method to get OpenVINO path
-                final_model_path, weight_details = self.model_service.get_model_path_for_inference(
-                    weight_name, use_openvino=True
-                )
-                if not final_model_path:
-                    raise ValueError(
-                        "Caminho do modelo OpenVINO não encontrado ou inválido. "
-                        "Por favor, converta o modelo primeiro."
-                    )
-                model_path = final_model_path
-            else:
-                plugin_name = "YOLO (Ultralytics)"
-                if not os.path.exists(model_path):
-                    raise ValueError("Caminho do modelo YOLO .pt não encontrado ou inválido.")
-
-            plugin_class = DETECTOR_PLUGINS.get(plugin_name)
-            if not plugin_class:
-                raise ValueError(f"Detector plugin '{plugin_name}' not found.")
-
-            log.info(
-                "detector.load.start",
-                plugin=plugin_name,
-                path=model_path,
-                method=animal_method,
-            )
-            # Pass hash for OpenVINO models for integrity check
-            if self.use_openvino:
-                expected_hash = weight_details.get("openvino_hash")
-                plugin_instance = plugin_class(model_path=model_path, expected_hash=expected_hash)
-            else:
-                plugin_instance = plugin_class(model_path=model_path)
-
-            self.detector = Detector(
-                plugin=plugin_instance,
-                base_width=settings.camera.desired_width,
-                base_height=settings.camera.desired_height,
-            )
-
-            # Update detector state in StateManager
-            self.state_manager.update_detector_state(
-                source="controller.setup_detector",
-                detector_initialized=True,
-                active_weight_name=self.active_weight_name,
-                use_openvino=self.use_openvino,
-                detector_plugin_name=plugin_instance.get_name()
-                if hasattr(plugin_instance, "get_name")
-                else plugin_class.__name__,
-            )
-
-            tracker_pref = self._resolve_single_subject_tracker_preference(None)
-            if tracker_pref is None:
-                tracker_pref = settings.tracking.use_single_subject_tracker
-            else:
-                settings.tracking.use_single_subject_tracker = tracker_pref
-            self._configure_single_subject_tracker(tracker_pref)
-            log.info(
-                "detector.single_subject_tracker.configured",
-                enabled=tracker_pref,
-            )
-
-            # Set context for tracking
-            if hasattr(plugin_instance, "set_context"):
-                plugin_instance.set_context("tracking")
-                log.info("detector.context.set", context="tracking")
-
-            # Save detector state to project
-            if self.project_manager.project_data:
-                detector_config = {
-                    "plugin_name": ("OpenVINO" if self.use_openvino else "YOLO (Ultralytics)"),
-                    "confidence_threshold": plugin_instance.conf_threshold,
-                    "nms_threshold": plugin_instance.nms_threshold,
-                    "context": getattr(plugin_instance, "_context", "tracking"),
-                }
-
-                if hasattr(plugin_instance, "track_threshold"):
-                    track_val = getattr(plugin_instance, "track_threshold", None)
-                    if track_val is not None:
-                        detector_config["track_threshold"] = float(track_val)
-                if hasattr(plugin_instance, "match_threshold"):
-                    match_val = getattr(plugin_instance, "match_threshold", None)
-                    if match_val is not None:
-                        detector_config["match_threshold"] = float(match_val)
-
-                if hasattr(plugin_instance, "get_context_info"):
-                    # For plugins that provide more detailed context info
-                    context_info = plugin_instance.get_context_info()
-                    detector_config["context"] = context_info.get("context", "tracking")
-
-                save_result = self.project_manager.save_detector_state(detector_config)
-                if save_result:
-                    log.info("controller.detector.state.saved", config=detector_config)
-                else:
-                    log.warning("controller.detector.state.save_failed")
-
-            log.info("detector.setup.success", method=animal_method)
-            return True
-        except (ValueError, FileNotFoundError, IntegrityError) as e:
-            log.error("detector.init.failed", error=str(e), exc_info=True)
-            self.view.show_error("Erro de Detector", f"Falha ao inicializar o detector: {e}")
-            return False
+        return True
 
     def _is_arduino_connected(self) -> bool:
         """Checks whether there is an active Arduino connection."""
@@ -1178,29 +965,20 @@ class MainViewModel:
         return False
 
     def setup_detector_zones(self):
-        """Loads zone data from project and sets it on the detector instance."""
-        if not self.detector:
-            log.warning("detector.setup_zones.no_detector")
+        """
+        Loads zone data from project and sets it on the detector instance.
+
+        Phase 6: Delegates zone configuration to DetectorService.
+        """
+        # Delegate zone configuration to service
+        success = self.detector_service.configure_zones()
+
+        if not success:
+            log.warning("controller.setup_zones.failed")
             return
 
+        # UI logic remains in controller
         zone_data = self.project_manager.get_zone_data()
-
-        # For now, we need to know the actual width/height of the source.
-        # This logic will be improved when the workflows are implemented.
-        # We'll default to the camera settings for now.
-        width = settings.camera.desired_width
-        height = settings.camera.desired_height
-
-        self.detector.set_zones(zone_data, width, height)
-        log.info("controller.setup_zones.success")
-
-        # Informa ao plugin se o aquário está definido
-        plugin = getattr(self.detector, "plugin", None)
-        if plugin and hasattr(plugin, "set_aquarium_region_defined"):
-            has_aquarium = bool(zone_data and zone_data.polygon)
-            plugin.set_aquarium_region_defined(has_aquarium)
-            log.info("detector.aquarium_status", defined=has_aquarium)
-
         if not zone_data.polygon:
             if self.project_manager.get_project_type() == "pre-recorded":
                 self.view.notebook.select(self.view.zone_tab_frame)
@@ -1416,85 +1194,32 @@ class MainViewModel:
         }
 
     def get_current_detector_parameters(self) -> dict[str, float]:
-        """Return detector thresholds, falling back to saved or default values."""
+        """
+        Return detector thresholds, falling back to saved or default values.
 
-        track_default = DEFAULT_TRACK_THRESHOLD
-        match_default = DEFAULT_MATCH_THRESHOLD
-        bytetrack_settings = getattr(settings, "bytetrack", None)
-        if bytetrack_settings is not None:
-            track_default = float(getattr(bytetrack_settings, "track_threshold", track_default))
-            match_default = float(getattr(bytetrack_settings, "match_threshold", match_default))
+        Phase 6: Delegates to DetectorService.
 
-        params = {
-            "confidence_threshold": float(settings.yolo_model.confidence_threshold),
-            "nms_threshold": float(settings.yolo_model.nms_threshold),
-            "track_threshold": track_default,
-            "match_threshold": match_default,
-        }
-
-        plugin = getattr(getattr(self, "detector", None), "plugin", None)
-        saved_config: dict | None = None
-        if hasattr(self.project_manager, "get_detector_state"):
-            try:
-                saved_config = self.project_manager.get_detector_state() or {}
-            except Exception:  # pragma: no cover - defensive
-                saved_config = {}
-        else:
-            saved_config = {}
-
-        if plugin:
-            if hasattr(plugin, "conf_threshold"):
-                params["confidence_threshold"] = float(plugin.conf_threshold)
-            elif saved_config.get("confidence_threshold") is not None:
-                params["confidence_threshold"] = float(saved_config["confidence_threshold"])
-
-            if hasattr(plugin, "nms_threshold"):
-                params["nms_threshold"] = float(plugin.nms_threshold)
-            elif saved_config.get("nms_threshold") is not None:
-                params["nms_threshold"] = float(saved_config["nms_threshold"])
-
-            if hasattr(plugin, "track_threshold"):
-                params["track_threshold"] = float(plugin.track_threshold)
-            elif saved_config.get("track_threshold") is not None:
-                params["track_threshold"] = float(saved_config["track_threshold"])
-
-            if hasattr(plugin, "match_threshold"):
-                params["match_threshold"] = float(plugin.match_threshold)
-            elif saved_config.get("match_threshold") is not None:
-                params["match_threshold"] = float(saved_config["match_threshold"])
-        elif saved_config:
-            for key in params.keys():
-                if saved_config.get(key) is not None:
-                    params[key] = float(saved_config[key])
-
+        Returns parameters with long-form names for backward compatibility.
+        """
+        params = self.detector_service.get_detector_parameters()
+        # Normalize conf_threshold to confidence_threshold for backward compatibility
+        if "conf_threshold" in params:
+            params["confidence_threshold"] = params.pop("conf_threshold")
         return params
 
     def get_factory_detector_parameters(self) -> dict[str, float]:
-        """Return detector thresholds defined in config.yaml without overrides."""
+        """
+        Return detector thresholds defined in config.yaml without overrides.
 
-        try:
-            factory_settings = settings_module.load_settings(
-                default_config_path=Path("config.yaml"),
-                override_config_path=Path("__factory_defaults__.yaml"),
-            )
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.error(
-                "controller.detector.defaults.load_failed",
-                error=str(exc),
-                exc_info=True,
-            )
-            raise ValueError("Não foi possível carregar os valores padrão do detector.") from exc
+        Phase 6: Delegates to DetectorService.
 
-        bytetrack_section = getattr(factory_settings, "bytetrack", None)
-        track_default = float(getattr(bytetrack_section, "track_threshold", 0.25))
-        match_default = float(getattr(bytetrack_section, "match_threshold", 0.15))
-
-        return {
-            "confidence_threshold": float(factory_settings.yolo_model.confidence_threshold),
-            "nms_threshold": float(factory_settings.yolo_model.nms_threshold),
-            "track_threshold": track_default,
-            "match_threshold": match_default,
-        }
+        Returns parameters with long-form names for backward compatibility.
+        """
+        params = self.detector_service.get_factory_detector_parameters()
+        # Normalize conf_threshold to confidence_threshold for backward compatibility
+        if "conf_threshold" in params:
+            params["confidence_threshold"] = params.pop("conf_threshold")
+        return params
 
     def update_detector_parameters(
         self,
@@ -1502,291 +1227,25 @@ class MainViewModel:
         *,
         reset_overrides: bool = False,
     ) -> bool:
-        """Apply detector threshold updates and persist them when possible."""
+        """
+        Apply detector threshold updates and persist them when possible.
 
-        detector = getattr(self, "detector", None)
-        plugin = getattr(detector, "plugin", None)
-
-        def _validate(name: str, value: float | None) -> None:
-            if value is None:
-                return
-            if not 0.0 < value < 1.0:
-                raise ValueError(f"{name} fora do intervalo esperado (0, 1): {value}")
-
-        confidence = params.get("confidence_threshold")
-        nms = params.get("nms_threshold")
-        track_thresh = params.get("track_threshold")
-        match_thresh = params.get("match_threshold")
-
-        _validate("confidence_threshold", confidence)
-        _validate("nms_threshold", nms)
-        _validate("track_threshold", track_thresh)
-        _validate("match_threshold", match_thresh)
-
-        if not plugin:
-            current_defaults = self.get_current_detector_parameters()
-            payload: dict[str, float] = {}
-            has_change = False
-
-            for key, value in (
-                ("confidence_threshold", confidence),
-                ("nms_threshold", nms),
-                ("track_threshold", track_thresh),
-                ("match_threshold", match_thresh),
-            ):
-                if value is None:
-                    continue
-                payload[key] = float(value)
-                existing = current_defaults.get(key)
-                if existing is None or float(existing) != float(value):
-                    has_change = True
-
-            if not payload:
-                log.info("controller.detector.update.no_values_provided")
-                return False
-
-            if not has_change and not reset_overrides:
-                log.info("controller.detector.update.no_changes")
-                return False
-
-            self._persist_global_detector_defaults(payload, reset=reset_overrides)
-
-            save_success = False
-            if hasattr(self.project_manager, "save_detector_state"):
-                try:
-                    combined_config = {
-                        "plugin_name": None,
-                        "context": "global_defaults",
-                        **payload,
-                    }
-                    save_success = bool(self.project_manager.save_detector_state(combined_config))
-                except Exception:  # pragma: no cover - defensive
-                    save_success = False
-            else:
-                combined_config = payload
-
-            log.info(
-                "controller.detector.update.defaults_applied",
-                config=combined_config,
-                persisted=save_success,
-                reset=reset_overrides,
+        Phase 6: Delegates to DetectorService.
+        """
+        try:
+            success = self.detector_service.update_tracking_parameters(
+                params=params, reset_overrides=reset_overrides
             )
 
-            if hasattr(self.view, "set_status"):
+            if success and hasattr(self.view, "set_status"):
                 self.view.set_status("Parâmetros do detector atualizados.")
 
-            return True
-
-        updated = False
-
-        if confidence is not None and hasattr(plugin, "conf_threshold"):
-            if float(plugin.conf_threshold) != float(confidence):
-                plugin.conf_threshold = float(confidence)
-                updated = True
-
-        if nms is not None and hasattr(plugin, "nms_threshold"):
-            if float(plugin.nms_threshold) != float(nms):
-                plugin.nms_threshold = float(nms)
-                updated = True
-
-        if track_thresh is not None or match_thresh is not None:
-            old_track = getattr(plugin, "track_threshold", None)
-            old_match = getattr(plugin, "match_threshold", None)
-            if hasattr(plugin, "set_tracking_parameters"):
-                plugin.set_tracking_parameters(
-                    track_threshold=track_thresh,
-                    match_threshold=match_thresh,
-                )
-            else:
-                if track_thresh is not None:
-                    setattr(plugin, "track_threshold", track_thresh)
-                if match_thresh is not None:
-                    setattr(plugin, "match_threshold", match_thresh)
-
-            if (track_thresh is not None and track_thresh != old_track) or (
-                match_thresh is not None and match_thresh != old_match
-            ):
-                updated = True
-
-        if not updated and not reset_overrides:
-            log.info("controller.detector.update.no_changes")
+            return success
+        except ValueError as e:
+            log.error("controller.detector.update.validation_failed", error=str(e))
+            if hasattr(self.view, "show_error"):
+                self.view.show_error("Erro de Validação", str(e))
             return False
-        if reset_overrides:
-            updated = True
-
-        detector_config = {
-            "plugin_name": plugin.get_name() if hasattr(plugin, "get_name") else None,
-            "context": getattr(plugin, "_context", "tracking"),
-        }
-
-        if hasattr(plugin, "conf_threshold"):
-            detector_config["confidence_threshold"] = float(plugin.conf_threshold)
-        if hasattr(plugin, "nms_threshold"):
-            detector_config["nms_threshold"] = float(plugin.nms_threshold)
-        if hasattr(plugin, "track_threshold"):
-            track_val = getattr(plugin, "track_threshold", None)
-            if track_val is not None:
-                detector_config["track_threshold"] = float(track_val)
-        if hasattr(plugin, "match_threshold"):
-            match_val = getattr(plugin, "match_threshold", None)
-            if match_val is not None:
-                detector_config["match_threshold"] = float(match_val)
-
-        self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
-
-        save_success = False
-        if hasattr(self.project_manager, "save_detector_state"):
-            try:
-                save_success = bool(self.project_manager.save_detector_state(detector_config))
-            except Exception:  # pragma: no cover - defensive
-                save_success = False
-
-        log.info(
-            "controller.detector.parameters_updated",
-            config=detector_config,
-            persisted=save_success,
-        )
-
-        if hasattr(self.view, "set_status"):
-            self.view.set_status("Parâmetros do detector atualizados.")
-
-        return True
-
-    def _persist_global_detector_defaults(
-        self,
-        detector_config: dict[str, float],
-        *,
-        reset: bool = False,
-    ) -> None:
-        """Sync in-memory settings and config.local.yaml with detector defaults."""
-
-        yolo_updates: dict[str, float] = {}
-        bytetrack_updates: dict[str, float] = {}
-
-        if "confidence_threshold" in detector_config:
-            yolo_updates["confidence_threshold"] = float(detector_config["confidence_threshold"])
-        if "nms_threshold" in detector_config:
-            yolo_updates["nms_threshold"] = float(detector_config["nms_threshold"])
-        if "track_threshold" in detector_config:
-            bytetrack_updates["track_threshold"] = float(detector_config["track_threshold"])
-        if "match_threshold" in detector_config:
-            bytetrack_updates["match_threshold"] = float(detector_config["match_threshold"])
-
-        if not yolo_updates and not bytetrack_updates:
-            return
-
-        active_settings = settings_module.settings
-        if active_settings is None:
-            try:
-                active_settings = settings_module.load_settings()
-                settings_module.settings = active_settings
-            except Exception:  # pragma: no cover - defensive reload
-                log.warning(
-                    "controller.detector.persist_settings_reload_failed",
-                    exc_info=True,
-                )
-                active_settings = None
-
-        if active_settings is not None:
-            if yolo_updates:
-                for key, value in yolo_updates.items():
-                    setattr(active_settings.yolo_model, key, value)
-            if bytetrack_updates:
-                bytetrack_model = getattr(active_settings, "bytetrack", None)
-                if bytetrack_model is None:
-                    bytetrack_model = settings_module.ByteTrackSettings()
-                    active_settings.bytetrack = bytetrack_model
-                for key, value in bytetrack_updates.items():
-                    setattr(bytetrack_model, key, value)
-
-        override_path = Path("config.local.yaml")
-        try:
-            if override_path.exists():
-                with open(override_path, "r", encoding="utf-8") as handle:
-                    override_content = yaml.safe_load(handle) or {}
-            else:
-                override_content = {}
-        except Exception:  # pragma: no cover - defensive logging
-            log.warning(
-                "controller.detector.persist_override_load_failed",
-                exc_info=True,
-            )
-            return
-
-        if reset:
-            modified = False
-            if yolo_updates:
-                section = override_content.get("yolo_model")
-                if isinstance(section, dict):
-                    for key in yolo_updates:
-                        if key in section:
-                            section.pop(key)
-                            modified = True
-                    if not section:
-                        override_content.pop("yolo_model")
-                        modified = True
-            if bytetrack_updates:
-                section = override_content.get("bytetrack")
-                if isinstance(section, dict):
-                    for key in bytetrack_updates:
-                        if key in section:
-                            section.pop(key)
-                            modified = True
-                    if not section:
-                        override_content.pop("bytetrack")
-                        modified = True
-
-            if modified:
-                try:
-                    if override_content:
-                        with open(override_path, "w", encoding="utf-8") as handle:
-                            yaml.safe_dump(
-                                override_content,
-                                handle,
-                                sort_keys=False,
-                                allow_unicode=True,
-                            )
-                    else:
-                        override_path.unlink()
-                except FileNotFoundError:
-                    pass
-                except Exception:  # pragma: no cover - defensive logging
-                    log.warning(
-                        "controller.detector.persist_override_write_failed",
-                        exc_info=True,
-                    )
-            return
-
-        if not yolo_updates and not bytetrack_updates:
-            return
-
-        if yolo_updates:
-            section = override_content.setdefault("yolo_model", {})
-            if isinstance(section, dict):
-                section.update(yolo_updates)
-            else:  # pragma: no cover - guard against corrupted overrides
-                override_content["yolo_model"] = dict(yolo_updates)
-
-        if bytetrack_updates:
-            section = override_content.setdefault("bytetrack", {})
-            if isinstance(section, dict):
-                section.update(bytetrack_updates)
-            else:  # pragma: no cover - guard against corrupted overrides
-                override_content["bytetrack"] = dict(bytetrack_updates)
-
-        try:
-            with open(override_path, "w", encoding="utf-8") as handle:
-                yaml.safe_dump(
-                    override_content,
-                    handle,
-                    sort_keys=False,
-                    allow_unicode=True,
-                )
-        except Exception:  # pragma: no cover - defensive logging
-            log.warning(
-                "controller.detector.persist_override_write_failed",
-                exc_info=True,
-            )
 
     def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
         """
@@ -3808,52 +3267,17 @@ class MainViewModel:
 
         return None
 
-    def _resolve_single_subject_tracker_preference(
-        self, single_video_config: dict | None
-    ) -> bool | None:
-        """Determine if the lightweight single-subject tracker should be used."""
-
-        if single_video_config is not None:
-            if "use_single_subject_tracker" in single_video_config:
-                value = single_video_config.get("use_single_subject_tracker")
-                if value is not None:
-                    enabled = bool(value)
-                    log.debug(
-                        "controller.single_subject_tracker.resolved_single_video",
-                        enabled=enabled,
-                    )
-                    return enabled
-
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        tracking_config = project_data.get("tracking")
-        if isinstance(tracking_config, dict):
-            value = tracking_config.get("use_single_subject_tracker")
-            if value is not None:
-                enabled = bool(value)
-                log.debug(
-                    "controller.single_subject_tracker.resolved_project",
-                    enabled=enabled,
-                )
-                return enabled
-
-        return None
-
     def _configure_single_subject_tracker(self, enabled: bool) -> None:
-        if not self.detector:
-            return
+        """
+        Configure single-subject tracking mode.
 
-        try:
-            self.detector.set_single_subject_mode(bool(enabled))
-        except AttributeError:  # pragma: no cover - detector without support
-            log.debug(
-                "controller.single_subject_tracker.unavailable",
-                plugin=getattr(self.detector, "plugin", "unknown"),
-            )
-        finally:
-            self._publish_processing_mode(
-                source="tracker_configuration",
-                force=True,
-            )
+        Phase 6: Delegates to DetectorService.
+        """
+        self.detector_service.set_single_subject_mode(bool(enabled))
+        self._publish_processing_mode(
+            source="tracker_configuration",
+            force=True,
+        )
 
     def _determine_processing_intervals(self, single_video_config: dict | None) -> tuple[int, int]:
         analysis_interval_frames = 10
