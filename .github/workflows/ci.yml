@@ -17,17 +17,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache Poetry virtualenv
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry/virtualenvs
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
-
       - name: Install Poetry
         run: |
           pip install poetry
+
+      - name: Configure Poetry virtualenv path
+        run: |
+          # Ensure Poetry creates virtualenvs in the cache path so caching works
+          poetry config virtualenvs.in-project false || true
+          poetry config virtualenvs.path ~/.cache/pypoetry/virtualenvs || true
 
       - name: Install dependencies
         run: |
@@ -41,6 +39,11 @@ jobs:
         run: |
           poetry run python scripts/compile_translations.py
 
+      - name: Ensure build artifact paths exist
+        run: |
+          mkdir -p src/zebtrack/locale
+          ls -la src/zebtrack || true
+
       - name: Cache build artifacts
         uses: actions/cache@v4
         with:
@@ -50,6 +53,25 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
           restore-keys: |
             ${{ runner.os }}-build-
+
+      - name: Debug - list poetry cache candidate
+        run: |
+          echo "Checking for poetry virtualenv cache path"
+          ls -la ~/.cache || true
+          ls -la ~/.cache/pypoetry || true
+
+      - name: Ensure poetry virtualenv cache dir exists
+        run: |
+          mkdir -p ~/.cache/pypoetry/virtualenvs
+          ls -la ~/.cache/pypoetry || true
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
 
       - name: Run ruff check
         run: |
@@ -74,17 +96,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
 
-      - name: Cache Poetry virtualenv
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry/virtualenvs
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
-
       - name: Install Poetry
         run: |
           pip install poetry
+
+      - name: Configure Poetry virtualenv path
+        run: |
+          poetry config virtualenvs.in-project false || true
+          poetry config virtualenvs.path ~/.cache/pypoetry/virtualenvs || true
 
       - name: Install dependencies
         run: |
@@ -98,6 +117,11 @@ jobs:
         run: |
           poetry run python scripts/compile_translations.py
 
+      - name: Ensure build artifact paths exist
+        run: |
+          mkdir -p src/zebtrack/locale
+          ls -la src/zebtrack || true
+
       - name: Cache build artifacts
         uses: actions/cache@v4
         with:
@@ -107,6 +131,25 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
           restore-keys: |
             ${{ runner.os }}-build-
+
+      - name: Debug - list poetry cache candidate
+        run: |
+          echo "Checking for poetry virtualenv cache path"
+          ls -la ~/.cache || true
+          ls -la ~/.cache/pypoetry || true
+
+      - name: Ensure poetry virtualenv cache dir exists
+        run: |
+          mkdir -p ~/.cache/pypoetry/virtualenvs
+          ls -la ~/.cache/pypoetry || true
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
 
       - name: Run tests with coverage
         run: |
