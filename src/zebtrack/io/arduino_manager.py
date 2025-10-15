@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 
@@ -12,10 +12,13 @@ try:  # pragma: no cover - serial may not be available during unit tests
     from serial import SerialException  # type: ignore
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
-    class SerialException(Exception):
-        """Fallback SerialException when pyserial is not installed."""
+    class SerialError(Exception):
+        """Fallback SerialError when pyserial is not installed."""
 
         pass
+
+    # Backwards-compatible alias for callers expecting SerialException
+    SerialException = SerialError
 
 
 log = structlog.get_logger()
@@ -31,13 +34,13 @@ class ArduinoManager:
     ) -> None:
         self.controller = controller
         self._arduino_factory = arduino_factory
-        self.arduino: Optional[Arduino] = None
-        self._reader_thread: Optional[threading.Thread] = None
+        self.arduino: Arduino | None = None
+        self._reader_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
-        self._port: Optional[str] = None
-        self._baud_rate: Optional[int] = None
-        self._last_command: Optional[int] = None
+        self._port: str | None = None
+        self._baud_rate: int | None = None
+        self._last_command: int | None = None
 
     # ---------------------------------------------------------------------
     # Public API
@@ -118,7 +121,7 @@ class ArduinoManager:
         serial_conn = getattr(self.arduino, "ser", None)
         return bool(serial_conn and getattr(serial_conn, "is_open", False))
 
-    def current_port(self) -> Optional[str]:
+    def current_port(self) -> str | None:
         """Returns the serial port in use, if any."""
         return self._port
 
@@ -150,7 +153,7 @@ class ArduinoManager:
         self._notify_command(command, success=success, source=source)
         return success
 
-    def last_command(self) -> Optional[int]:
+    def last_command(self) -> int | None:
         """Returns the last successful command sent."""
         return self._last_command
 
@@ -228,7 +231,7 @@ class ArduinoManager:
         except Exception:  # pragma: no cover - controller should handle safely
             log.error("arduino_manager.event.dispatch_failed", code=event_code, exc_info=True)
 
-    def _notify_status(self, connected: bool, port: Optional[str]) -> None:
+    def _notify_status(self, connected: bool, port: str | None) -> None:
         try:
             if hasattr(self.controller, "on_arduino_status_change"):
                 self.controller.on_arduino_status_change(connected, port)

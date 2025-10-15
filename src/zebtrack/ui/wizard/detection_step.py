@@ -15,7 +15,6 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
-from typing import Optional
 
 import structlog
 
@@ -318,7 +317,7 @@ class DetectionStep(WizardStep):
             self.design_editor_confirmed = False
             log.info("wizard.design.editor_cancelled", auto_invoked=auto_invoked)
 
-    def _detect_design(self, video_paths: list[str]) -> Optional[dict]:
+    def _detect_design(self, video_paths: list[str]) -> dict | None:
         """
         Auto-detect experimental design from folder structure.
 
@@ -360,7 +359,7 @@ class DetectionStep(WizardStep):
 
         return best_result
 
-    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> Optional[dict]:
+    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> dict | None:
         """
         Pattern: User-defined custom regex patterns.
 
@@ -456,7 +455,7 @@ class DetectionStep(WizardStep):
             "pattern_used": "custom_regex",
         }
 
-    def _pattern_groups_as_folders(self, paths: list[Path]) -> Optional[dict]:
+    def _pattern_groups_as_folders(self, paths: list[Path]) -> dict | None:
         """Pattern 1: Groups as folders (e.g., /Control/Day1/video.mp4)."""
         if len(paths) < 2:
             log.debug("pattern_groups_as_folders.skipped", reason="Less than 2 videos")
@@ -532,16 +531,16 @@ class DetectionStep(WizardStep):
             "pattern_used": "groups_as_folders",
         }
 
-    def _pattern_days_as_folders(self, paths: list[Path]) -> Optional[dict]:
+    def _pattern_days_as_folders(self, paths: list[Path]) -> dict | None:
         """Pattern 2: Days as folders (e.g., /Day1/Control/video.mp4)."""
         # Similar logic but prioritize day detection
         return None  # Simplified for MVP - implement if needed
 
-    def _pattern_mixed_folders(self, paths: list[Path]) -> Optional[dict]:
+    def _pattern_mixed_folders(self, paths: list[Path]) -> dict | None:
         """Pattern 3: Mixed folders (e.g., /Exp1/Control/D01/video.mp4)."""
         return None  # Simplified for MVP
 
-    def _pattern_filename_based(self, paths: list[Path]) -> Optional[dict]:
+    def _pattern_filename_based(self, paths: list[Path]) -> dict | None:
         """Pattern 4: Filename-based (e.g., Control_Day1_S01.mp4)."""
         # Extract from filenames only
         groups_found = set()

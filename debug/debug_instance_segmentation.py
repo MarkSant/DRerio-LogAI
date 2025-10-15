@@ -82,12 +82,15 @@ def analyze_video_info(video_path):
     return cap
 
 
-def test_single_frame(model, frame, frame_idx, conf_thresholds=[0.1, 0.25, 0.5]):
+def test_single_frame(model, frame, frame_idx, conf_thresholds=None):
     """Testa um frame com diferentes configurações"""
     print_separator(f"FRAME {frame_idx + 1}", "-")
 
     frame_height, frame_width = frame.shape[:2]
     print(f"Dimensões do frame: {frame_width}x{frame_height}")
+
+    if conf_thresholds is None:
+        conf_thresholds = [0.1, 0.25, 0.5]
 
     for conf_thresh in conf_thresholds:
         print(f"\n🔍 TESTE - Confidence threshold: {conf_thresh}")

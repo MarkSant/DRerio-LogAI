@@ -8,7 +8,6 @@ Cache is invalidated when video selection changes (Step 2).
 """
 
 import hashlib
-from typing import Optional
 
 import structlog
 
@@ -40,8 +39,8 @@ class WizardCache:
     def __init__(self):
         """Initialize empty cache."""
         self._scan_results: dict[str, dict] = {}
-        self._design_detection: Optional[dict] = None
-        self._videos_hash: Optional[str] = None
+        self._design_detection: dict | None = None
+        self._videos_hash: str | None = None
 
     def get_scan_results(self, video_paths: list[str], scan_func: callable) -> dict[str, dict]:
         """
@@ -75,7 +74,7 @@ class WizardCache:
 
         return self._scan_results
 
-    def get_design_detection(self, video_paths: list[str], detect_func: callable) -> Optional[dict]:
+    def get_design_detection(self, video_paths: list[str], detect_func: callable) -> dict | None:
         """
         Get cached design detection or compute if cache miss.
 

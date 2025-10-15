@@ -1,7 +1,6 @@
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -69,8 +68,8 @@ class Detector:
         self._scaling_cache: dict = {}
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
-        self._byte_tracker: Optional[BYTETracker] = None
-        self._byte_tracker_params: Optional[tuple[float, float, int]] = None
+        self._byte_tracker: BYTETracker | None = None
+        self._byte_tracker_params: tuple[float, float, int] | None = None
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
@@ -346,7 +345,7 @@ class Detector:
 
         return results
 
-    def _ensure_byte_tracker(self) -> Optional[BYTETracker]:
+    def _ensure_byte_tracker(self) -> BYTETracker | None:
         track_thresh = self._get_track_threshold()
         match_thresh = self._get_match_threshold()
         track_buffer = self._get_track_buffer()

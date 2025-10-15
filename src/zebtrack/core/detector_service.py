@@ -339,61 +339,64 @@ class DetectorService:
             self._persist_global_detector_defaults(payload, reset=reset_overrides)
             return True
 
-        # Update plugin parameters
+        # Update plugin parameters (delegated to helper)
         try:
-            conf_val = params.get("conf_threshold")
-            nms_val = params.get("nms_threshold")
-            track_val = params.get("track_threshold")
-            match_val = params.get("match_threshold")
-
-            # Update confidence threshold
-            if conf_val is not None and hasattr(plugin, "conf_threshold"):
-                plugin.conf_threshold = float(conf_val)
-                log.info("detector_service.conf_threshold.updated", value=conf_val)
-
-            # Update NMS threshold
-            if nms_val is not None and hasattr(plugin, "nms_threshold"):
-                plugin.nms_threshold = float(nms_val)
-                log.info("detector_service.nms_threshold.updated", value=nms_val)
-
-            # Update ByteTrack thresholds
-            if hasattr(plugin, "set_tracking_parameters"):
-                plugin.set_tracking_parameters(track_threshold=track_val, match_threshold=match_val)
-                log.info(
-                    "detector_service.tracking_params.updated",
-                    track_threshold=track_val,
-                    match_threshold=match_val,
-                )
-
-            # Build detector config for persistence
-            detector_config: dict[str, float] = {}
-            if conf_val is not None:
-                detector_config["conf_threshold"] = float(conf_val)
-            if nms_val is not None:
-                detector_config["nms_threshold"] = float(nms_val)
-            if track_val is not None:
-                detector_config["track_threshold"] = float(track_val)
-            if match_val is not None:
-                detector_config["match_threshold"] = float(match_val)
-
-            # Persist to global config and project
-            self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
-
-            # Save to project
-            save_success = False
-            if hasattr(self.project_manager, "save_detector_state"):
-                save_success = self.project_manager.save_detector_state(detector_config)
-
-            if save_success:
-                log.info("detector_service.params.saved_to_project", config=detector_config)
-            else:
-                log.warning("detector_service.params.save_to_project_failed")
-
-            return True
-
+            return self._apply_tracking_params_to_plugin(plugin, params, reset_overrides)
         except Exception as e:
             log.error("detector_service.update_params.failed", error=str(e), exc_info=True)
             return False
+
+    def _apply_tracking_params_to_plugin(self, plugin, params: dict, reset_overrides: bool) -> bool:
+        """Apply tracking parameters to the plugin and persist configuration."""
+        conf_val = params.get("conf_threshold")
+        nms_val = params.get("nms_threshold")
+        track_val = params.get("track_threshold")
+        match_val = params.get("match_threshold")
+
+        # Update confidence threshold
+        if conf_val is not None and hasattr(plugin, "conf_threshold"):
+            plugin.conf_threshold = float(conf_val)
+            log.info("detector_service.conf_threshold.updated", value=conf_val)
+
+        # Update NMS threshold
+        if nms_val is not None and hasattr(plugin, "nms_threshold"):
+            plugin.nms_threshold = float(nms_val)
+            log.info("detector_service.nms_threshold.updated", value=nms_val)
+
+        # Update ByteTrack thresholds
+        if hasattr(plugin, "set_tracking_parameters"):
+            plugin.set_tracking_parameters(track_threshold=track_val, match_threshold=match_val)
+            log.info(
+                "detector_service.tracking_params.updated",
+                track_threshold=track_val,
+                match_threshold=match_val,
+            )
+
+        # Build detector config for persistence
+        detector_config: dict[str, float] = {}
+        if conf_val is not None:
+            detector_config["conf_threshold"] = float(conf_val)
+        if nms_val is not None:
+            detector_config["nms_threshold"] = float(nms_val)
+        if track_val is not None:
+            detector_config["track_threshold"] = float(track_val)
+        if match_val is not None:
+            detector_config["match_threshold"] = float(match_val)
+
+        # Persist to global config and project
+        self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
+
+        # Save to project
+        save_success = False
+        if hasattr(self.project_manager, "save_detector_state"):
+            save_success = self.project_manager.save_detector_state(detector_config)
+
+        if save_success:
+            log.info("detector_service.params.saved_to_project", config=detector_config)
+        else:
+            log.warning("detector_service.params.save_to_project_failed")
+
+        return True
 
     def reset_tracking_state(self) -> None:
         """

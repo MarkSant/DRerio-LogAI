@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._aquarium_region_defined = False
         self._use_single_subject_mode = False
 
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None]]:
         """
         Run the Ultralytics model and return raw detection boxes.
 
@@ -60,7 +60,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             classes=classes_param,
         )
 
-        predictions: list[tuple[int, int, int, int, float, Optional[int]]] = []
+        predictions: list[tuple[int, int, int, int, float, int | None]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
             xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]

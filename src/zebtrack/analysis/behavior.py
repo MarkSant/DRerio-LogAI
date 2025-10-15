@@ -3,7 +3,7 @@ This module defines the abstract base class for behavioral analysis of trajector
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -193,12 +193,12 @@ class BehavioralAnalyzer(ABC):
         return df
 
     @abstractmethod
-    def calculate_total_distance(self, max_time_gap: Optional[float] = None) -> float:
+    def calculate_total_distance(self, max_time_gap: float | None = None) -> float:
         """
         Calculates the total distance traveled along the smoothed trajectory.
 
         Args:
-            max_time_gap (Optional[float]): If the time between consecutive
+            max_time_gap (float | None): If the time between consecutive
                 points exceeds this value (in seconds), the distance segment
                 is ignored. This handles tracking gaps.
 
@@ -249,7 +249,7 @@ class BehavioralAnalyzer(ABC):
     def detect_freezing_episodes(
         self,
         min_duration: float,
-        vel_threshold: Optional[float] = None,
+        vel_threshold: float | None = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
@@ -262,7 +262,7 @@ class BehavioralAnalyzer(ABC):
         Args:
             min_duration (float): The minimum duration (in seconds) to be
                 considered a freezing episode.
-            vel_threshold (Optional[float]): The velocity threshold (in cm/s) for
+            vel_threshold (float | None): The velocity threshold (in cm/s) for
                 the 'absolute' method.
             threshold_method (str): 'absolute' or 'relative'. 'absolute' uses
                 `vel_threshold`. 'relative' calculates the threshold based on
@@ -294,7 +294,7 @@ class BehavioralAnalyzer(ABC):
 
     @abstractmethod
     def get_tortuosity(
-        self, window_size: Optional[float] = None, step: Optional[float] = None
+        self, window_size: float | None = None, step: float | None = None
     ) -> Union[float, pd.Series]:
         """
         Calculates the tortuosity of the trajectory.
@@ -303,9 +303,9 @@ class BehavioralAnalyzer(ABC):
         distance between the start and end points.
 
         Args:
-            window_size (Optional[float]): The size of the sliding window in
+            window_size (float | None): The size of the sliding window in
                 seconds. If None, calculates tortuosity for the entire trajectory.
-            step (Optional[float]): The step size for the sliding window in
+            step (float | None): The step size for the sliding window in
                 seconds. Used only if `window_size` is specified.
 
         Returns:
@@ -328,7 +328,7 @@ class BehavioralAnalyzer(ABC):
         pass
 
     def calculate_thigmotaxis_index(
-        self, method: str, distance_threshold: Optional[float] = None
+        self, method: str, distance_threshold: float | None = None
     ) -> float:
         """
         Calculates a numerical index for thigmotaxis behavior.
@@ -341,7 +341,7 @@ class BehavioralAnalyzer(ABC):
         Args:
             method (str): The calculation method, either 'average_distance' or
                 'time_near_wall'.
-            distance_threshold (Optional[float]): The distance threshold in cm,
+            distance_threshold (float | None): The distance threshold in cm,
                 required only for the 'time_near_wall' method.
 
         Returns:
@@ -396,7 +396,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     A concrete implementation of BehavioralAnalyzer providing basic analysis methods.
     """
 
-    def calculate_total_distance(self, max_time_gap: Optional[float] = None) -> float:
+    def calculate_total_distance(self, max_time_gap: float | None = None) -> float:
         df = self._trajectory_data
         if max_time_gap is not None:
             time_diffs = df.index.to_series().diff()
@@ -429,7 +429,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     def detect_freezing_episodes(
         self,
         min_duration: float,
-        vel_threshold: Optional[float] = None,
+    vel_threshold: float | None = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
@@ -573,7 +573,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return angular_velocity_series
 
     def get_tortuosity(
-        self, window_size: Optional[float] = None, step: Optional[float] = None
+    self, window_size: float | None = None, step: float | None = None
     ) -> Union[float, pd.Series]:
         # Implementation for the entire trajectory
         if window_size is not None:
@@ -621,7 +621,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_speed_bursts(
         self,
-        threshold_cm_s: Optional[float] = None,
+    threshold_cm_s: float | None = None,
         min_duration: float = 0.5,
         quantile: float = 0.9,
     ) -> dict[str, Union[int, float, list[dict[str, float]]]]:

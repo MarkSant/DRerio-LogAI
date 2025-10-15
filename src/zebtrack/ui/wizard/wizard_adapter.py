@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import re
-from typing import Optional
 
 import structlog
 
@@ -19,15 +18,19 @@ from zebtrack.ui.wizard.enums import ProjectType
 log = structlog.get_logger()
 
 
-def _normalise_subject_id(raw_subject: str) -> str:
-    """Normalize subject identifiers to the ``SXX`` format when possible."""
+def _normalise_subject_id(raw_subject: str | None) -> str | None:
+    """Normalize subject identifiers to the ``SXX`` format when possible.
+
+    Accepts None and returns None when input is absent to match callers
+    that may pass missing values.
+    """
 
     if raw_subject is None:
-        return raw_subject
+        return None
 
     value = raw_subject.strip()
     if not value:
-        return raw_subject
+        return None
 
     # Remove common prefixes for digits-only normalization
     # Examples: "Subject01", "S01", "s1" → "S01"
@@ -98,38 +101,13 @@ def enrich_videos_with_design_metadata(
     days = detected_design.get("days") or []
     subjects_per_group = detected_design.get("subjects_per_group") or {}
 
-    group_lookup = {str(g).lower(): g for g in groups if isinstance(g, str)}
-    day_lookup = {str(d).lower(): d for d in days if isinstance(d, str)}
-    for canonical_day in list(day_lookup.values()):
-        if isinstance(canonical_day, str):
-            digit_match = re.search(r"(\d+)", canonical_day)
-            if digit_match:
-                day_lookup[digit_match.group(1)] = canonical_day
-
-    subject_lookup = {}
-    for group_id, subjects in subjects_per_group.items():
-        if not isinstance(subjects, (list, tuple, set)):
-            continue
-        subject_lookup[group_id] = {
-            str(subject).lower(): subject for subject in subjects if subject is not None
-        }
-
-    def _build_pattern(explicit: str | None, values: list[str]) -> str | None:
-        if explicit:
-            return explicit
-
-        valid_values = [v for v in values if isinstance(v, str) and v]
-        if not valid_values:
-            return None
-
-        escaped = [re.escape(v) for v in valid_values]
-        return f"({'|'.join(escaped)})"
+    group_lookup, day_lookup, subject_lookup = _build_design_lookups(
+        groups, days, subjects_per_group
+    )
 
     group_pattern = _build_pattern(custom_patterns.get("group_pattern"), groups)
-
     day_pattern = _build_pattern(custom_patterns.get("day_pattern"), days)
 
-    # Build subject pattern from all subjects when explicit pattern is absent.
     all_subject_values = [
         subject
         for values in subject_lookup.values()
@@ -143,65 +121,25 @@ def enrich_videos_with_design_metadata(
     for original_video in scanned_videos:
         enriched = copy.deepcopy(original_video)
         path_str = str(enriched.get("path", ""))
-
         metadata: dict = copy.deepcopy(enriched.get("metadata") or {})
 
-        # --- Group extraction -------------------------------------------------
-        group_id = metadata.get("group") or enriched.get("group")
-        if not group_id and group_pattern:
-            match = re.search(group_pattern, path_str, re.IGNORECASE)
-            if match:
-                matched_group = match.group(1) if match.groups() else match.group(0)
-                lookup_key = matched_group.lower()
-                group_id = group_lookup.get(lookup_key, matched_group)
-
-        if isinstance(group_id, str):
-            metadata["group"] = group_id
-            enriched["group"] = group_id
-            display_name = group_display_names.get(group_id) or group_lookup.get(
-                group_id.lower(), group_id
-            )
-            metadata.setdefault("group_display_name", display_name)
-            enriched["group_display_name"] = metadata.get("group_display_name")
-
-        # --- Day extraction ---------------------------------------------------
-        day_value = metadata.get("day") or enriched.get("day")
-        if not day_value and day_pattern:
-            match = re.search(day_pattern, path_str, re.IGNORECASE)
-            if match:
-                matched_day = match.group(1) if match.groups() else match.group(0)
-                if isinstance(matched_day, str) and matched_day.isdigit():
-                    matched_day = f"Day{int(matched_day):02d}"
-                lookup_key = matched_day.lower()
-                day_value = day_lookup.get(lookup_key, matched_day)
-
-        if day_value is not None:
-            metadata["day"] = day_value
-            enriched["day"] = day_value
-            day_label = _normalise_day_label(day_value)
-            if day_label:
-                metadata.setdefault("day_label", day_label)
-                enriched["day_label"] = day_label
-
-        # --- Subject extraction -----------------------------------------------
-        subject_value = metadata.get("subject") or enriched.get("subject")
-        if not subject_value and subject_pattern:
-            match = re.search(subject_pattern, path_str, re.IGNORECASE)
-            if match:
-                matched_subject = match.group(1) if match.groups() else match.group(0)
-                normalised = _normalise_subject_id(matched_subject)
-                subject_value = normalised
-
-        if subject_value is None and group_id:
-            candidates = subject_lookup.get(group_id, {})
-            for candidate_lower, candidate_value in candidates.items():
-                if candidate_lower in path_str.lower():
-                    subject_value = candidate_value
-                    break
-
-        if subject_value is not None:
-            metadata["subject"] = subject_value
-            enriched["subject"] = subject_value
+        group_id = _extract_group(
+            metadata,
+            enriched,
+            path_str,
+            group_pattern,
+            group_lookup,
+            group_display_names,
+        )
+        _extract_day(metadata, enriched, path_str, day_pattern, day_lookup)
+        _extract_subject(
+            metadata,
+            enriched,
+            path_str,
+            subject_pattern,
+            subject_lookup,
+            group_id,
+        )
 
         if metadata:
             enriched["metadata"] = metadata
@@ -217,6 +155,140 @@ def enrich_videos_with_design_metadata(
     )
 
     return enriched_videos
+
+
+def _build_design_lookups(
+    groups: list,
+    days: list,
+    subjects_per_group: dict,
+) -> tuple[dict, dict, dict]:
+    group_lookup = {str(g).lower(): g for g in groups if isinstance(g, str)}
+    day_lookup = {str(d).lower(): d for d in days if isinstance(d, str)}
+    for canonical_day in list(day_lookup.values()):
+        if isinstance(canonical_day, str):
+            digit_match = re.search(r"(\d+)", canonical_day)
+            if digit_match:
+                day_lookup[digit_match.group(1)] = canonical_day
+
+    subject_lookup: dict = {}
+    for group_id, subjects in subjects_per_group.items():
+        if not isinstance(subjects, (list, tuple, set)):
+            continue
+        subject_lookup[group_id] = {
+            str(subject).lower(): subject for subject in subjects if subject is not None
+        }
+
+    return group_lookup, day_lookup, subject_lookup
+
+
+def _build_pattern(
+    explicit: str | None,
+    values: list[str],
+) -> str | None:
+    if explicit:
+        return explicit
+
+    valid_values = [v for v in values if isinstance(v, str) and v]
+    if not valid_values:
+        return None
+
+    escaped = [re.escape(v) for v in valid_values]
+    return f"({'|'.join(escaped)})"
+
+
+def _extract_group(
+    metadata: dict,
+    enriched: dict,
+    path_str: str,
+    group_pattern: str | None,
+    group_lookup: dict,
+    group_display_names: dict | None = None,
+) -> str | None:
+    group_id = metadata.get("group") or enriched.get("group")
+    if not group_id and group_pattern:
+        match = re.search(group_pattern, path_str, re.IGNORECASE)
+        if match:
+            matched_group = match.group(1) if match.groups() else match.group(0)
+            lookup_key = matched_group.lower()
+            group_id = group_lookup.get(lookup_key, matched_group)
+
+    if isinstance(group_id, str):
+        metadata["group"] = group_id
+        enriched["group"] = group_id
+        # Prefer an explicit display-name mapping when provided by the detected design
+        display_name = None
+        if group_display_names:
+            # Try exact key first, then lowercase key
+            if group_id in group_display_names:
+                display_name = group_display_names.get(group_id)
+            elif group_id.lower() in group_display_names:
+                display_name = group_display_names.get(group_id.lower())
+
+        if display_name is None:
+            display_name = group_lookup.get(group_id.lower(), group_id)
+
+        metadata.setdefault("group_display_name", display_name)
+        enriched["group_display_name"] = metadata.get("group_display_name")
+
+    return group_id
+
+
+def _extract_day(
+    metadata: dict,
+    enriched: dict,
+    path_str: str,
+    day_pattern: str | None,
+    day_lookup: dict,
+) -> str | None:
+    day_value = metadata.get("day") or enriched.get("day")
+    if not day_value and day_pattern:
+        match = re.search(day_pattern, path_str, re.IGNORECASE)
+        if match:
+            matched_day = match.group(1) if match.groups() else match.group(0)
+            if isinstance(matched_day, str) and matched_day.isdigit():
+                matched_day = f"Day{int(matched_day):02d}"
+            lookup_key = matched_day.lower()
+            day_value = day_lookup.get(lookup_key, matched_day)
+
+    if day_value is not None:
+        metadata["day"] = day_value
+        enriched["day"] = day_value
+        day_label = _normalise_day_label(day_value)
+        if day_label:
+            metadata.setdefault("day_label", day_label)
+            enriched["day_label"] = day_label
+
+    return day_value
+
+
+def _extract_subject(
+    metadata: dict,
+    enriched: dict,
+    path_str: str,
+    subject_pattern: str | None,
+    subject_lookup: dict,
+    group_id: str | None,
+) -> str | None:
+    subject_value = metadata.get("subject") or enriched.get("subject")
+    if not subject_value and subject_pattern:
+        match = re.search(subject_pattern, path_str, re.IGNORECASE)
+        if match:
+            matched_subject = match.group(1) if match.groups() else match.group(0)
+            normalised = _normalise_subject_id(matched_subject)
+            subject_value = normalised
+
+    if subject_value is None and group_id:
+        candidates = subject_lookup.get(group_id, {})
+        for candidate_lower, candidate_value in candidates.items():
+            if candidate_lower in path_str.lower():
+                subject_value = candidate_value
+                break
+
+    if subject_value is not None:
+        metadata["subject"] = subject_value
+        enriched["subject"] = subject_value
+
+    return subject_value
 
 
 def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
@@ -416,7 +488,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
     return controller_data
 
 
-def extract_parquet_import_plan(wizard_data: dict) -> Optional[dict]:
+def extract_parquet_import_plan(wizard_data: dict) -> dict | None:
     """
     Extract parquet import plan from wizard metadata.
 

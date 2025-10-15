@@ -12,7 +12,7 @@ Now handles batch processing, single video processing, and all coordination logi
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import pandas as pd
 import structlog
@@ -56,7 +56,7 @@ class AnalysisService:
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
-    ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
+    ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None]:
         """
         Runs a complete analysis pipeline on the given trajectory data.
 
@@ -445,7 +445,7 @@ class AnalysisService:
         single_video_config: dict | None,
         experiment_id: str,
         video_path: str,
-        derive_callback: Optional[Callable[[str, str], dict]] = None,
+    derive_callback: Callable[[str, str], dict] | None = None,
     ) -> dict | None:
         """
         Build metadata context for a video.

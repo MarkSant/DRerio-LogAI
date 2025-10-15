@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -8,7 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import pandas as pd
 import structlog
@@ -17,6 +19,7 @@ import yaml
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.roi_template_manager import ROITemplateManager
+from zebtrack.core.state_manager import StateManager
 from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
 
@@ -30,10 +33,10 @@ AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class ProjectManager:
-    _SCAN_CACHE_TTL_SECONDS = 30.0
-    _scan_cache: dict[str, dict[str, Any]] = {}
+    _SCAN_CACHE_TTL_SECONDS: ClassVar[float] = 30.0
+    _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
 
-    _PROFILE_SYNONYMS: dict[str, tuple[str, ...]] = {
+    _PROFILE_SYNONYMS: ClassVar[dict[str, tuple[str, ...]]] = {
         "group": (
             "group",
             "group_id",
@@ -59,7 +62,7 @@ class ProjectManager:
         "experiment_id": ("experiment_id", "video_name"),
     }
 
-    def __init__(self, state_manager=None):
+    def __init__(self, state_manager: StateManager | None = None):
         # Phase 1, Step 3: Delegate file I/O to ProjectService
         self.project_service = ProjectService()
 
@@ -1107,170 +1110,12 @@ class ProjectManager:
 
         try:
             for config in import_config:
-                video_path = config.get("video")
-                import_arena = config.get("import_arena", False)
-                import_rois = config.get("import_rois", False)
-                import_trajectory = config.get("import_trajectory", False)
-
-                if not video_path:
-                    log.warning(
-                        "project_manager.import_parquets.invalid_video_path",
-                        config=config,
-                    )
-                    continue
-
-                if not any([import_arena, import_rois, import_trajectory]):
-                    continue  # Skip if nothing to import for this video
-
-                # Get parquet file paths for this video
-                parquet_files = video_parquet_map.get(video_path, {})
-                if not parquet_files:
-                    log.warning(
-                        "project_manager.import_parquets.no_parquets",
-                        video=Path(video_path).name,
-                    )
-                    continue
-
-                # Start from existing per-video zone data if available
-                zone_data = self.get_zone_data(
-                    video_path=video_path,
-                    fallback_to_global=False,
+                # Delegate per-video import processing to a helper to reduce complexity
+                per_counts = self._process_single_parquet_import(
+                    config, video_parquet_map, roi_merge_strategy
                 )
-
-                # Import arena
-                if import_arena:
-                    arena_path = parquet_files.get("arena")
-                    if arena_path and os.path.exists(arena_path):
-                        arena_df = pd.read_parquet(arena_path)
-                        if (
-                            not arena_df.empty
-                            and "x" in arena_df.columns
-                            and "y" in arena_df.columns
-                        ):
-                            polygon_points = arena_df[["x", "y"]].values.tolist()
-                            zone_data.polygon = polygon_points
-                            imported_count["arena"] += 1
-                            log.info(
-                                "project_manager.import_parquets.arena_imported",
-                                video=Path(video_path).name,
-                                points=len(polygon_points),
-                            )
-
-                # Import ROIs
-                if import_rois:
-                    rois_path = parquet_files.get("rois")
-                    if rois_path and os.path.exists(rois_path):
-                        rois_df = pd.read_parquet(rois_path)
-                        if not rois_df.empty:
-                            required_cols = {"roi_name", "point_index", "x", "y"}
-                            if required_cols.issubset(rois_df.columns):
-                                # Load imported ROIs
-                                imported_roi_polygons = []
-                                imported_roi_names = []
-
-                                for roi_name in rois_df["roi_name"].unique():
-                                    roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
-                                        "point_index"
-                                    )
-                                    roi_points = roi_df[["x", "y"]].values.tolist()
-                                    imported_roi_polygons.append(roi_points)
-                                    imported_roi_names.append(roi_name)
-
-                                # Apply merge strategy
-                                if roi_merge_strategy == "replace":
-                                    # Replace all existing ROIs
-                                    zone_data.roi_polygons = imported_roi_polygons
-                                    zone_data.roi_names = imported_roi_names
-                                elif roi_merge_strategy == "merge":
-                                    # Keep existing ROIs, add imported ones
-                                    # Rename conflicts by adding "_imported" suffix
-                                    existing_names = set(zone_data.roi_names)
-                                    for roi_poly, roi_name in zip(
-                                        imported_roi_polygons, imported_roi_names
-                                    ):
-                                        final_name = roi_name
-                                        if roi_name in existing_names:
-                                            # Find unique name
-                                            counter = 1
-                                            while f"{roi_name}_imported{counter}" in existing_names:
-                                                counter += 1
-                                            final_name = f"{roi_name}_imported{counter}"
-                                            log.info(
-                                                "project_manager.import_parquets.roi_renamed",
-                                                original=roi_name,
-                                                renamed=final_name,
-                                            )
-
-                                        zone_data.roi_polygons.append(roi_poly)
-                                        zone_data.roi_names.append(final_name)
-                                        existing_names.add(final_name)
-                                elif roi_merge_strategy == "manual":
-                                    # TODO: Implement interactive conflict resolution
-                                    log.warning(
-                                        "project_manager.import_parquets.manual_strategy_not_implemented",
-                                        fallback="replace",
-                                    )
-                                    zone_data.roi_polygons = imported_roi_polygons
-                                    zone_data.roi_names = imported_roi_names
-
-                                # Regenerate colors for all ROIs
-                                default_colors = [
-                                    (0, 255, 0),  # Green
-                                    (255, 0, 0),  # Blue
-                                    (0, 0, 255),  # Red
-                                    (255, 255, 0),  # Cyan
-                                    (255, 0, 255),  # Magenta
-                                    (0, 255, 255),  # Yellow
-                                ]
-                                zone_data.roi_colors = [
-                                    default_colors[i % len(default_colors)]
-                                    for i in range(len(zone_data.roi_names))
-                                ]
-
-                                imported_count["rois"] += len(imported_roi_names)
-                                log.info(
-                                    "project_manager.import_parquets.rois_imported",
-                                    video=Path(video_path).name,
-                                    count=len(imported_roi_names),
-                                    names=imported_roi_names,
-                                    strategy=roi_merge_strategy,
-                                )
-
-                # Persist zone data in memory for this video
-                self.save_zone_data(zone_data, video_path, persist=False)
-
-                # Import trajectory (copy parquet to project folder)
-                if import_trajectory:
-                    trajectory_path = parquet_files.get("trajectory")
-                    if trajectory_path and os.path.exists(trajectory_path):
-                        # Copy trajectory parquet to project results folder
-                        video_name = Path(video_path).stem
-                        if not self.project_path:
-                            log.warning(
-                                "project_manager.import_parquets.no_project_path",
-                                video=video_name,
-                            )
-                            continue
-
-                        results_dir = self.resolve_results_directory(
-                            video_name,
-                            video_path=video_path,
-                        )
-                        results_dir.mkdir(parents=True, exist_ok=True)
-
-                        dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
-
-                        import shutil
-
-                        shutil.copy2(trajectory_path, dest_path)
-
-                        imported_count["trajectory"] += 1
-                        log.info(
-                            "project_manager.import_parquets.trajectory_imported",
-                            video=video_name,
-                            source=trajectory_path,
-                            dest=str(dest_path),
-                        )
+                for k, v in per_counts.items():
+                    imported_count[k] += v
 
             # Save updated zone data to project
             self.save_project()
@@ -1290,6 +1135,153 @@ class ProjectManager:
                 exc_info=True,
             )
             return False
+
+    def _process_single_parquet_import(
+        self, config: dict, video_parquet_map: dict, roi_merge_strategy: str
+    ) -> dict:
+        """Process a single video import configuration and return counts.
+
+        Returns a dict with keys: arena, rois, trajectory (counts)
+        """
+        counts = {"arena": 0, "rois": 0, "trajectory": 0}
+
+        video_path = config.get("video")
+        import_arena = config.get("import_arena", False)
+        import_rois = config.get("import_rois", False)
+        import_trajectory = config.get("import_trajectory", False)
+
+        if not video_path:
+            log.warning("project_manager.import_parquets.invalid_video_path", config=config)
+            return counts
+
+        if not any([import_arena, import_rois, import_trajectory]):
+            return counts
+
+        parquet_files = video_parquet_map.get(video_path, {})
+        if not parquet_files:
+            log.warning(
+                "project_manager.import_parquets.no_parquets", video=Path(video_path).name
+            )
+            return counts
+
+        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
+
+        # Arena import
+        if import_arena:
+            arena_path = parquet_files.get("arena")
+            if arena_path and os.path.exists(arena_path):
+                arena_df = pd.read_parquet(arena_path)
+                if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
+                    polygon_points = arena_df[["x", "y"]].values.tolist()
+                    zone_data.polygon = polygon_points
+                    counts["arena"] += 1
+                    log.info(
+                        "project_manager.import_parquets.arena_imported",
+                        video=Path(video_path).name,
+                        points=len(polygon_points),
+                    )
+
+        # ROIs import
+        if import_rois:
+            rois_path = parquet_files.get("rois")
+            if rois_path and os.path.exists(rois_path):
+                rois_df = pd.read_parquet(rois_path)
+                if not rois_df.empty:
+                    required_cols = {"roi_name", "point_index", "x", "y"}
+                    if required_cols.issubset(rois_df.columns):
+                        imported_roi_polygons = []
+                        imported_roi_names = []
+
+                        for roi_name in rois_df["roi_name"].unique():
+                            roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
+                                "point_index"
+                            )
+                            roi_points = roi_df[["x", "y"]].values.tolist()
+                            imported_roi_polygons.append(roi_points)
+                            imported_roi_names.append(roi_name)
+
+                        if roi_merge_strategy == "replace":
+                            zone_data.roi_polygons = imported_roi_polygons
+                            zone_data.roi_names = imported_roi_names
+                        elif roi_merge_strategy == "merge":
+                            existing_names = set(zone_data.roi_names)
+                            for roi_poly, roi_name in zip(
+                                imported_roi_polygons, imported_roi_names
+                            ):
+                                final_name = roi_name
+                                if roi_name in existing_names:
+                                    counter = 1
+                                    while f"{roi_name}_imported{counter}" in existing_names:
+                                        counter += 1
+                                    final_name = f"{roi_name}_imported{counter}"
+                                    log.info(
+                                        "project_manager.import_parquets.roi_renamed",
+                                        original=roi_name,
+                                        renamed=final_name,
+                                    )
+
+                                zone_data.roi_polygons.append(roi_poly)
+                                zone_data.roi_names.append(final_name)
+                                existing_names.add(final_name)
+                        else:
+                            log.warning(
+                                "project_manager.import_parquets.manual_strategy_not_implemented",
+                                fallback="replace",
+                            )
+                            zone_data.roi_polygons = imported_roi_polygons
+                            zone_data.roi_names = imported_roi_names
+
+                        default_colors = [
+                            (0, 255, 0),
+                            (255, 0, 0),
+                            (0, 0, 255),
+                            (255, 255, 0),
+                            (255, 0, 255),
+                            (0, 255, 255),
+                        ]
+                        zone_data.roi_colors = [
+                            default_colors[i % len(default_colors)]
+                            for i in range(len(zone_data.roi_names))
+                        ]
+
+                        counts["rois"] += len(imported_roi_names)
+                        log.info(
+                            "project_manager.import_parquets.rois_imported",
+                            video=Path(video_path).name,
+                            count=len(imported_roi_names),
+                            names=imported_roi_names,
+                            strategy=roi_merge_strategy,
+                        )
+
+        # Persist zone data in memory for this video
+        self.save_zone_data(zone_data, video_path, persist=False)
+
+        # Trajectory import
+        if import_trajectory := config.get("import_trajectory", False):
+            trajectory_path = parquet_files.get("trajectory")
+            if trajectory_path and os.path.exists(trajectory_path):
+                video_name = Path(video_path).stem
+                if not self.project_path:
+                    log.warning("project_manager.import_parquets.no_project_path", video=video_name)
+                    return counts
+
+                results_dir = self.resolve_results_directory(video_name, video_path=video_path)
+                results_dir.mkdir(parents=True, exist_ok=True)
+                dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
+
+                import shutil
+
+                shutil.copy2(trajectory_path, dest_path)
+
+                counts["trajectory"] += 1
+                log.info(
+                    "project_manager.import_parquets.trajectory_imported",
+                    video=video_name,
+                    source=trajectory_path,
+                    dest=str(dest_path),
+                )
+
+        return counts
 
     def _save_settings_snapshot(self):
         """Saves a snapshot of the current settings to the project directory."""
@@ -2269,7 +2261,6 @@ class ProjectManager:
         report_path: str | None = None,
     ) -> bool:
         """Update project metadata with freshly generated analysis artifacts."""
-
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             log.info(
@@ -2278,7 +2269,9 @@ class ProjectManager:
             )
             # Add the video to the in-memory project data
             # This can happen during single video workflows
-            self.add_video_batch([{"path": video_path, "status": "processing"}], save_project=False)
+            self.add_video_batch([
+                {"path": video_path, "status": "processing"}
+            ], save_project=False)
             video_entry = self.find_video_entry(path=video_path)
             if not video_entry:
                 log.warning(
@@ -2287,20 +2280,57 @@ class ProjectManager:
                 )
                 return False
 
-        # Update zone flags if they weren't set during registration
-        # This ensures has_arena and has_rois are properly marked
-        zone_data = self.get_zone_data(video_path, fallback_to_global=False)
-        if zone_data:
-            if zone_data.polygon and not video_entry.get("has_arena"):
-                video_entry["has_arena"] = True
-                log.info("project.outputs.arena_flag_updated", video=video_path)
-            if zone_data.roi_polygons and not video_entry.get("has_rois"):
-                video_entry["has_rois"] = True
-                log.info("project.outputs.rois_flag_updated", video=video_path)
-
+        # Update flags, parquet mapping and persist as needed using helpers
+        self._update_entry_zone_flags(video_entry, video_path)
         if results_dir:
             video_entry["results_dir"] = results_dir
 
+        changed = self._update_parquet_files_and_status(
+            video_entry,
+            trajectory_path=trajectory_path,
+            summary_parquet=summary_parquet,
+            summary_excel=summary_excel,
+            report_path=report_path,
+        )
+
+        if changed:
+            log.info(
+                "project.outputs.registered",
+                video=os.path.basename(video_path),
+                trajectory=bool(trajectory_path),
+                summary=bool(summary_parquet or summary_excel or report_path),
+                status=video_entry.get("status"),
+            )
+            if self.project_path:
+                self.save_project()
+
+        return True
+
+    def _update_entry_zone_flags(self, video_entry: dict, video_path: str) -> None:
+        """Update has_arena/has_rois flags from zone data when missing for a video entry."""
+        zone_data = self.get_zone_data(video_path, fallback_to_global=False)
+        if not zone_data:
+            return
+        if zone_data.polygon and not video_entry.get("has_arena"):
+            video_entry["has_arena"] = True
+            log.info("project.outputs.arena_flag_updated", video=video_path)
+        if zone_data.roi_polygons and not video_entry.get("has_rois"):
+            video_entry["has_rois"] = True
+            log.info("project.outputs.rois_flag_updated", video=video_path)
+
+    def _update_parquet_files_and_status(
+        self,
+        video_entry: dict,
+        *,
+        trajectory_path: str | None = None,
+        summary_parquet: str | None = None,
+        summary_excel: str | None = None,
+        report_path: str | None = None,
+    ) -> bool:
+        """Update parquet file references and derived flags/status.
+
+        Returns True if any field changed.
+        """
         parquet_files = video_entry.setdefault("parquet_files", {})
         changed = False
 
@@ -2339,25 +2369,11 @@ class ProjectManager:
             video_entry["has_complete_data"] = True
             changed = True
 
-        # Update status to 'processed' if we have trajectory data
         if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":
             video_entry["status"] = "processed"
             changed = True
 
-        if changed:
-            log.info(
-                "project.outputs.registered",
-                video=os.path.basename(video_path),
-                trajectory=bool(trajectory_path),
-                summary=bool(summary_parquet or summary_excel or report_path),
-                status=video_entry.get("status"),
-            )
-            # Only save to disk if there's a project path
-            # For single video workflows, keep in memory only
-            if self.project_path:
-                self.save_project()
-
-        return True
+        return changed
 
     def get_next_video(self):
         """

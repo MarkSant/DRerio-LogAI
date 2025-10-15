@@ -208,23 +208,55 @@ class ConfirmationStep(WizardStep):
             self.project_location_var.set(directory)
 
     def _generate_summary(self):
-        """Generate summary text from all wizard data."""
-        lines = []
+        """Generate summary text from all wizard data (refactored)."""
+        lines: list[str] = []
 
-        metadata = self.wizard_data.get("template_metadata")
-        if metadata:
-            lines.append("📝 Template Carregado:")
-            banner_text = format_template_banner(metadata)
-            if banner_text:
-                lines.append(f"  • {banner_text.replace('Template carregado: ', '')}")
-            if metadata.get("created_at"):
-                lines.append(f"  • Criado em: {metadata['created_at']}")
-            lines.append("")
+        # Template metadata
+        self._append_template_info(lines)
 
-        # Project type summary
+        # Project type
         project_type = self.wizard_data.get("project_type", "experimental")
         is_live = project_type == ProjectType.LIVE.value
+        self._append_project_type(lines, project_type)
 
+        # Live-specific configuration
+        if is_live:
+            self._append_live_configuration(lines)
+        else:
+            # Pre-recorded specifics
+            self._append_detected_design(lines)
+            self._append_folder_preview(lines)
+
+        # Calibration
+        self._append_calibration(lines)
+
+        # Processing plan and parquet/import summaries (pre-recorded only)
+        if not is_live:
+            self._append_processing_plan(lines)
+            self._append_parquet_summary(lines)
+            self._append_import_configuration(lines)
+            self._append_roi_strategy(lines)
+
+        self.summary_text = "\n".join(lines)
+        self.summary_label.config(text=self.summary_text)
+
+    # ------------------------------------------------------------------
+    # Summary helper methods (split from _generate_summary)
+    # ------------------------------------------------------------------
+    def _append_template_info(self, lines: list[str]) -> None:
+        metadata = self.wizard_data.get("template_metadata")
+        if not metadata:
+            return
+
+        lines.append("📝 Template Carregado:")
+        banner_text = format_template_banner(metadata)
+        if banner_text:
+            lines.append(f"  • {banner_text.replace('Template carregado: ', '')}")
+        if metadata.get("created_at"):
+            lines.append(f"  • Criado em: {metadata['created_at']}")
+        lines.append("")
+
+    def _append_project_type(self, lines: list[str], project_type: str) -> None:
         lines.append("📋 Tipo de Projeto:")
         type_names = {
             ProjectType.EXPERIMENTAL.value: "Experimental (pré-gravado)",
@@ -233,65 +265,65 @@ class ConfirmationStep(WizardStep):
         }
         lines.append(f"  • {type_names.get(project_type, project_type.capitalize())}")
 
-        # Live configuration (if applicable)
-        if is_live:
-            lines.append("")
-            lines.append("📹 Configuração ao Vivo:")
-            camera_index = self.wizard_data.get("camera_index", 0)
-            lines.append(f"  • Câmera: Índice {camera_index}")
+    def _append_live_configuration(self, lines: list[str]) -> None:
+        lines.append("")
+        lines.append("📹 Configuração ao Vivo:")
+        camera_index = self.wizard_data.get("camera_index", 0)
+        lines.append(f"  • Câmera: Índice {camera_index}")
 
-            if self.wizard_data.get("use_arduino"):
-                arduino_port = self.wizard_data.get("arduino_port", "N/A")
-                lines.append(f"  • Arduino: {arduino_port}")
+        if self.wizard_data.get("use_arduino"):
+            arduino_port = self.wizard_data.get("arduino_port", "N/A")
+            lines.append(f"  • Arduino: {arduino_port}")
 
-            if self.wizard_data.get("use_timed_recording"):
-                duration = self.wizard_data.get("recording_duration_s", 0)
-                minutes = int(duration // 60)
-                seconds = int(duration % 60)
-                lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
+        if self.wizard_data.get("use_timed_recording"):
+            duration = self.wizard_data.get("recording_duration_s", 0)
+            minutes = int(duration // 60)
+            seconds = int(duration % 60)
+            lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
 
-            if self.wizard_data.get("use_countdown"):
-                countdown = self.wizard_data.get("countdown_duration_s", 0)
-                lines.append(f"  • Contagem regressiva: {countdown}s")
+        if self.wizard_data.get("use_countdown"):
+            countdown = self.wizard_data.get("countdown_duration_s", 0)
+            lines.append(f"  • Contagem regressiva: {countdown}s")
 
-        # Design detection (only for pre-recorded experimental)
-        if not is_live:
-            detected_design = self.wizard_data.get("detected_design")
-            if detected_design:
-                lines.append("")
-                lines.append("🔍 Design Detectado / Design:")
-                groups = detected_design.get("groups", [])
-                days = detected_design.get("days", [])
-                confidence = detected_design.get("confidence", 0)
-
-                if groups:
-                    preview = ", ".join(groups[:3])
-                    suffix = "..." if len(groups) > 3 else ""
-                    lines.append(f"  • Grupos: {len(groups)} ({preview}{suffix})")
-
-                if days:
-                    lines.append(f"  • Dias: {len(days)}")
-
-                lines.append(f"  • Confiança: {confidence:.0%}")
-
-            video_count = self.wizard_data.get("video_count", 0)
-            if video_count > 0:
-                lines.append(f"  • Total de Vídeos: {video_count}")
-
-            folder_preview = self.wizard_data.get("folder_preview") or []
-            if folder_preview:
-                lines.append("")
-                lines.append("🌳 Estrutura de Pastas (prévia):")
-                for entry in folder_preview[:2]:
-                    lines.extend(self._render_folder_preview(entry))
-
-                remaining = len(folder_preview) - 2
-                if remaining > 0:
-                    lines.append(f"  • (+ {remaining} seleção(ões) adicional(is))")
+    def _append_detected_design(self, lines: list[str]) -> None:
+        detected_design = self.wizard_data.get("detected_design")
+        if not detected_design:
+            return
 
         lines.append("")
+        lines.append("🔍 Design Detectado / Design:")
+        groups = detected_design.get("groups", [])
+        days = detected_design.get("days", [])
+        confidence = detected_design.get("confidence", 0)
 
-        # Calibration summary
+        if groups:
+            preview = ", ".join(groups[:3])
+            suffix = "..." if len(groups) > 3 else ""
+            lines.append(f"  • Grupos: {len(groups)} ({preview}{suffix})")
+
+        if days:
+            lines.append(f"  • Dias: {len(days)}")
+
+        lines.append(f"  • Confiança: {confidence:.0%}")
+
+    def _append_folder_preview(self, lines: list[str]) -> None:
+        video_count = self.wizard_data.get("video_count", 0)
+        if video_count > 0:
+            lines.append(f"  • Total de Vídeos: {video_count}")
+
+        folder_preview = self.wizard_data.get("folder_preview") or []
+        if folder_preview:
+            lines.append("")
+            lines.append("🌳 Estrutura de Pastas (prévia):")
+            for entry in folder_preview[:2]:
+                lines.extend(self._render_folder_preview(entry))
+
+            remaining = len(folder_preview) - 2
+            if remaining > 0:
+                lines.append(f"  • (+ {remaining} seleção(ões) adicional(is))")
+
+    def _append_calibration(self, lines: list[str]) -> None:
+        lines.append("")
         lines.append("📏 Calibração Física:")
         num_aquariums = self.wizard_data.get("num_aquariums", 1)
         animals_per_aquarium = self.wizard_data.get("animals_per_aquarium", 1)
@@ -302,97 +334,98 @@ class ConfirmationStep(WizardStep):
         lines.append(f"  • Animais por aquário: {animals_per_aquarium}")
         lines.append(f"  • Dimensões: {width} × {height} cm")
 
+    def _append_processing_plan(self, lines: list[str]) -> None:
         lines.append("")
+        lines.append("⚙️ Plano de Processamento:")
+        import_config = self.wizard_data.get("import_config", [])
 
-        # Processing plan summary (only for pre-recorded)
-        if not is_live:
-            lines.append("⚙️ Plano de Processamento:")
-            import_config = self.wizard_data.get("import_config", [])
+        if not import_config:
+            return
 
-            if import_config:
-                action_counts = {}
-                for config in import_config:
-                    action = config.get("action", ImportAction.FULL.value)
-                    action_counts[action] = action_counts.get(action, 0) + 1
+        action_counts: dict[str, int] = {}
+        for config in import_config:
+            action = config.get("action", ImportAction.FULL.value)
+            action_counts[action] = action_counts.get(action, 0) + 1
 
-                action_names = {
-                    ImportAction.SKIP.value: "Skip (dados completos)",
-                    ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
-                    ImportAction.PARTIAL.value: "Partial (arena apenas)",
-                    ImportAction.FULL.value: "Full (processar do zero)",
-                }
+        action_names = {
+            ImportAction.SKIP.value: "Skip (dados completos)",
+            ImportAction.IMPORT_ZONES.value: "Import Zones + rastrear",
+            ImportAction.PARTIAL.value: "Partial (arena apenas)",
+            ImportAction.FULL.value: "Full (processar do zero)",
+        }
 
-                for action, count in sorted(action_counts.items()):
-                    name = action_names.get(action, action)
-                    lines.append(f"  • {count} vídeo(s): {name}")
+        for action, count in sorted(action_counts.items()):
+            name = action_names.get(action, action)
+            lines.append(f"  • {count} vídeo(s): {name}")
 
-                # Estimate processing time (rough estimate: 5 min per video to process)
-                videos_to_process = sum(
-                    1 for c in import_config if c.get("action") not in [ImportAction.SKIP.value]
-                )
+        # Estimate processing time (rough estimate: 5 min per video to process)
+        videos_to_process = sum(
+            1 for c in import_config if c.get("action") not in [ImportAction.SKIP.value]
+        )
 
-                if videos_to_process > 0:
-                    estimated_minutes = videos_to_process * 5
-                    lines.append("")
-                    lines.append(f"⏱️ Tempo Estimado: ~{estimated_minutes} minutos")
-                    lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
-
+        if videos_to_process > 0:
+            estimated_minutes = videos_to_process * 5
             lines.append("")
+            lines.append(f"⏱️ Tempo Estimado: ~{estimated_minutes} minutos")
+            lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
 
-            # Parquet summary (only for pre-recorded)
-            parquet_summary = self.wizard_data.get("parquet_summary", {})
-            if parquet_summary:
-                lines.append("📦 Parquets Existentes:")
-                arena_total = parquet_summary.get("total_arena", 0)
-                rois_total = parquet_summary.get("total_rois", 0)
-                trajectory_total = parquet_summary.get("total_trajectory", 0)
-                complete_total = parquet_summary.get("total_complete", 0)
-                lines.append(f"  • Arena: {arena_total}")
-                lines.append(f"  • ROIs: {rois_total}")
-                lines.append(f"  • Trajetória: {trajectory_total}")
-                lines.append(f"  • Completos: {complete_total}")
-                lines.append("")
+    def _append_parquet_summary(self, lines: list[str]) -> None:
+        parquet_summary = self.wizard_data.get("parquet_summary", {})
+        if not parquet_summary:
+            return
 
-            # Import configuration summary (pre-recorded only)
-            if import_config:
-                importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
-                importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
-                importing_trajectory = any(
-                    cfg.get("import_trajectory", False) for cfg in import_config
-                )
+        lines.append("")
+        lines.append("📦 Parquets Existentes:")
+        arena_total = parquet_summary.get("total_arena", 0)
+        rois_total = parquet_summary.get("total_rois", 0)
+        trajectory_total = parquet_summary.get("total_trajectory", 0)
+        complete_total = parquet_summary.get("total_complete", 0)
+        lines.append(f"  • Arena: {arena_total}")
+        lines.append(f"  • ROIs: {rois_total}")
+        lines.append(f"  • Trajetória: {trajectory_total}")
+        lines.append(f"  • Completos: {complete_total}")
 
-                if importing_arena or importing_rois or importing_trajectory:
-                    lines.append("📥 Configuração de Importação:")
-                    if importing_arena:
-                        arena_count = sum(1 for c in import_config if c.get("import_arena"))
-                        lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
-                    if importing_rois:
-                        rois_count = sum(1 for c in import_config if c.get("import_rois"))
-                        lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
-                    if importing_trajectory:
-                        traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
-                        lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
-                    lines.append("")
+    def _append_import_configuration(self, lines: list[str]) -> None:
+        import_config = self.wizard_data.get("import_config", [])
+        if not import_config:
+            return
 
-            # ROI merge strategy (only show if importing ROIs)
-            importing_rois = (
-                any(cfg.get("import_rois", False) for cfg in import_config)
-                if import_config
-                else False
-            )
+        importing_arena = any(cfg.get("import_arena", False) for cfg in import_config)
+        importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+        importing_trajectory = any(cfg.get("import_trajectory", False) for cfg in import_config)
 
+        if importing_arena or importing_rois or importing_trajectory:
+            lines.append("")
+            lines.append("📥 Configuração de Importação:")
+            if importing_arena:
+                arena_count = sum(1 for c in import_config if c.get("import_arena"))
+                lines.append(f"  ✅ Arena: {arena_count} vídeo(s)")
             if importing_rois:
-                roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
-                strategy_names = {
-                    "replace": "Substituir ROIs existentes",
-                    "merge": "Mesclar (manter ambos)",
-                    "manual": "Resolução manual de conflitos",
-                }
-                lines.append("🔀 Estratégia de ROIs:")
-                lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
+                rois_count = sum(1 for c in import_config if c.get("import_rois"))
+                lines.append(f"  ✅ ROIs: {rois_count} vídeo(s)")
+            if importing_trajectory:
+                traj_count = sum(1 for c in import_config if c.get("import_trajectory"))
+                lines.append(f"  ✅ Trajetória: {traj_count} vídeo(s)")
 
-        self.summary_text = "\n".join(lines)
-        self.summary_label.config(text=self.summary_text)
+    def _append_roi_strategy(self, lines: list[str]) -> None:
+        import_config = self.wizard_data.get("import_config", [])
+        if import_config:
+            importing_rois = any(cfg.get("import_rois", False) for cfg in import_config)
+        else:
+            importing_rois = False
+
+        if not importing_rois:
+            return
+
+        roi_strategy = self.wizard_data.get("roi_merge_strategy", "replace")
+        strategy_names = {
+            "replace": "Substituir ROIs existentes",
+            "merge": "Mesclar (manter ambos)",
+            "manual": "Resolução manual de conflitos",
+        }
+        lines.append("")
+        lines.append("🔀 Estratégia de ROIs:")
+        lines.append(f"  • {strategy_names.get(roi_strategy, roi_strategy)}")
 
     def _render_folder_preview(self, entry: dict) -> list[str]:
         """Convert folder preview structure into formatted summary lines."""

@@ -426,54 +426,74 @@ class Reporter:
 
         # --- ROI-Specific Metrics (only if ROI analysis was performed) ---
         if self.r_analyzer:
-            roi_analysis = self.report.get("analise_roi", {})
-            time_spent = roi_analysis.get("tempo_gasto_por_roi", {})
-            entry_counts = roi_analysis.get("contagem_entradas", {})
-            exit_counts = roi_analysis.get("contagem_saidas", {})
-            latencies = roi_analysis.get("latencia_primeira_entrada", {})
-            distances = roi_analysis.get("distancia_por_roi", {})
-            velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
-            freezing = roi_analysis.get("congelamento_por_roi", {})
-
-            total_roi_entries = 0
-            for roi_name in self.r_analyzer.rois:
-                # Time spent
-                combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
-                    "seconds"
-                )
-                combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(roi_name, {}).get(
-                    "percentage"
-                )
-                # Entry and Exit counts
-                entries = entry_counts.get(roi_name, 0)
-                combined_data[f"entradas_no_{roi_name}"] = entries
-                total_roi_entries += entries
-                combined_data[f"saidas_do_{roi_name}"] = exit_counts.get(roi_name, 0)
-                # Latency
-                combined_data[f"latencia_para_{roi_name}_s"] = latencies.get(roi_name)
-                # Intra-ROI Distance
-                combined_data[f"distancia_no_{roi_name}_cm"] = distances.get(roi_name)
-                # Intra-ROI Velocity
-                roi_vel = velocities.get(roi_name)
-                if roi_vel:
-                    combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
-                # Intra-ROI Freezing
-                roi_freeze = freezing.get(roi_name)
-                if roi_freeze:
-                    combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get("count")
-                    combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = roi_freeze.get(
-                        "total_duration"
-                    )
-                # ROI Color - convert to color name
-                if roi_name in self.roi_colors:
-                    combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(
-                        self.roi_colors[roi_name]
-                    )
-
-            combined_data["total_entradas_roi"] = total_roi_entries
+            combined_data = self._collect_roi_metrics(combined_data)
         combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         combined_data["group_id"] = self._resolve_group_id(combined_data)
         return pd.DataFrame([combined_data])
+
+    def _collect_roi_metrics(self, combined_data: dict) -> dict:
+        """Collect ROI-specific metrics and append them to combined_data.
+
+        This helper centralizes extraction from the report's ROI analysis
+        structure and reduces the complexity of the main tidy-dataframe builder.
+        """
+        roi_analysis = self.report.get("analise_roi", {})
+        r_analyzer = self.r_analyzer
+        if r_analyzer is None:
+            return combined_data
+        time_spent = roi_analysis.get("tempo_gasto_por_roi", {})
+        entry_counts = roi_analysis.get("contagem_entradas", {})
+        exit_counts = roi_analysis.get("contagem_saidas", {})
+        latencies = roi_analysis.get("latencia_primeira_entrada", {})
+        distances = roi_analysis.get("distancia_por_roi", {})
+        velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
+        freezing = roi_analysis.get("congelamento_por_roi", {})
+
+        total_roi_entries = 0
+        for roi_name in r_analyzer.rois:
+            # Time spent
+            combined_data[f"tempo_no_{roi_name}_s"] = time_spent.get(roi_name, {}).get(
+                "seconds"
+            )
+            combined_data[f"percentual_tempo_no_{roi_name}"] = time_spent.get(
+                roi_name, {}
+            ).get("percentage")
+
+            # Entry and Exit counts
+            entries = entry_counts.get(roi_name, 0)
+            combined_data[f"entradas_no_{roi_name}"] = entries
+            total_roi_entries += entries
+            combined_data[f"saidas_do_{roi_name}"] = exit_counts.get(roi_name, 0)
+
+            # Latency
+            combined_data[f"latencia_para_{roi_name}_s"] = latencies.get(roi_name)
+
+            # Intra-ROI Distance
+            combined_data[f"distancia_no_{roi_name}_cm"] = distances.get(roi_name)
+
+            # Intra-ROI Velocity
+            roi_vel = velocities.get(roi_name)
+            if roi_vel:
+                combined_data[f"velocidade_media_no_{roi_name}_cm_s"] = roi_vel.get("mean")
+
+            # Intra-ROI Freezing
+            roi_freeze = freezing.get(roi_name)
+            if roi_freeze:
+                combined_data[f"episodios_congelamento_no_{roi_name}"] = roi_freeze.get(
+                    "count"
+                )
+                combined_data[f"duracao_total_congelamento_no_{roi_name}_s"] = roi_freeze.get(
+                    "total_duration"
+                )
+
+            # ROI Color - convert to color name
+            if roi_name in self.roi_colors:
+                combined_data[f"cor_roi_{roi_name}"] = _rgb_to_color_name(
+                    self.roi_colors[roi_name]
+                )
+
+        combined_data["total_entradas_roi"] = total_roi_entries
+        return combined_data
 
     def _resolve_group_id(self, combined_data: dict) -> str:
         """Ensures the summary dataframe includes a populated group_id column."""
@@ -992,6 +1012,31 @@ class Reporter:
             experiment_id=self.metadata.get("experiment_id", "Unknown")
         )
 
+        doc_template, document = self._prepare_report_document(template_path, heading_text)
+
+        # Step 1: Metadata section
+        self._append_metadata_section(document, progress_callback, total_steps)
+        # Final step: ensure document is written to disk. If a DocxTemplate
+        # was used, save via its API to preserve any template context. Otherwise
+        # save the Document object directly.
+        try:
+            file_path = (
+                f"{output_path}.docx"
+                if not str(output_path).lower().endswith(".docx")
+                else str(output_path)
+            )
+            if doc_template is not None:
+                # DocxTemplate saves via .save()
+                doc_template.save(file_path)
+            else:
+                document.save(file_path)
+            progress_callback(1.0, _("Report saved"))
+            log.info("reporter.individual_report.saved", path=file_path)
+        except Exception as e:
+            log.error("reporter.individual_report.save_failed", error=str(e), exc_info=True)
+
+    def _prepare_report_document(self, template_path: Path, heading_text: str):
+        """Prepare a docx document using template if available, return (doc_template, document)."""
         doc_template: DocxTemplate | None = None
         document: DocxDocument | None = None
 
@@ -1020,7 +1065,15 @@ class Reporter:
         if doc_template is None:
             document.add_heading(heading_text, level=1)
 
-        # Step 1: Metadata section
+        return doc_template, document
+
+    def _append_metadata_section(
+        self,
+        document: DocxDocument,
+        progress_callback: Callable[[float, str], None],
+        total_steps: int,
+    ) -> None:
+        """Append the metadata section to the provided document and call progress callback."""
         document.add_heading(_("Experiment Metadata"), level=2)
         for key, value in self.metadata.items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
@@ -1056,18 +1109,37 @@ class Reporter:
         document.add_page_break()
         progress_callback(2 / total_steps, _("Summary table added"))
 
-        # Step 3: ROI Reference Map (optional)
-        if self.r_analyzer:
-            document.add_heading(_("ROI Reference Map"), level=2)
-            fig = self.generate_roi_reference_plot()
-            memfile = io.BytesIO()
-            fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
-            plt.close(fig)
-            memfile.seek(0)
-            document.add_picture(memfile, width=Inches(6.5))
+        # Step 3: ROI Reference Map (optional) + Visualizations + ROI Event Log
+        # These are extracted into helpers to keep this method concise.
+        self._append_roi_reference_map(document, progress_callback, total_steps)
+        self._append_visualizations(document, progress_callback, total_steps)
+        self._append_roi_event_log(document, progress_callback, total_steps)
+
+    def _append_roi_reference_map(
+        self,
+        document: DocxDocument,
+        progress_callback: Callable[[float, str], None],
+        total_steps: int,
+    ) -> None:
+        """Append ROI reference map if available."""
+        if not self.r_analyzer:
+            return
+        document.add_heading(_("ROI Reference Map"), level=2)
+        fig = self.generate_roi_reference_plot()
+        memfile = io.BytesIO()
+        fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        memfile.seek(0)
+        document.add_picture(memfile, width=Inches(6.5))
         progress_callback(3 / total_steps, _("ROI map added"))
 
-        # Step 4-8: Visualization plots (Phase 8: Parallel generation)
+    def _append_visualizations(
+        self,
+        document: DocxDocument,
+        progress_callback: Callable[[float, str], None],
+        total_steps: int,
+    ) -> None:
+        """Generate and append visualization plots in parallel."""
         document.add_heading(_("Visualizations"), level=2)
         plot_configs = [
             (
@@ -1080,13 +1152,11 @@ class Reporter:
             (self.generate_angular_velocity_plot, _("Angular Velocity")),
         ]
 
-        # Generate all plots in parallel (Phase 8 optimization)
         log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
         plot_results = self._generate_plots_parallel(plot_configs)
 
-        # Add plots to document in order
         for i, (memfile, name) in enumerate(plot_results):
-            if memfile.getbuffer().nbytes > 0:  # Only add non-empty plots
+            if memfile.getbuffer().nbytes > 0:
                 document.add_paragraph(_("Chart: {name}:").format(name=name))
                 document.add_picture(memfile, width=Inches(6.0))
             progress_callback(
@@ -1094,50 +1164,52 @@ class Reporter:
                 _("Visualization added: {name}").format(name=name),
             )
 
-        # Step 9: ROI Event Log
-        if self.r_analyzer:
-            document.add_page_break()
-            document.add_heading(_("Appendix: ROI Event Log"), level=2)
-            event_log_df = self.r_analyzer.get_event_log()
-            if not event_log_df.empty:
-                document.add_paragraph(
-                    _("Chronological log of all entries and exits from defined ROIs.")
+    def _append_roi_event_log(
+        self,
+        document: DocxDocument,
+        progress_callback: Callable[[float, str], None],
+        total_steps: int,
+    ) -> None:
+        """Append ROI event log appendix if ROI analyzer produced events."""
+        if not self.r_analyzer:
+            return
+        document.add_page_break()
+        document.add_heading(_("Appendix: ROI Event Log"), level=2)
+        event_log_df = self.r_analyzer.get_event_log()
+        if not event_log_df.empty:
+            document.add_paragraph(
+                _(
+                    "Chronological log of all entries and exits from defined ROIs."
                 )
+            )
 
-                event_log_df = event_log_df.rename(columns={"roi_name": "ROI", "event": _("Event")})
+            event_log_df = event_log_df.rename(
+                columns={"roi_name": "ROI", "event": _("Event")}
+            )
 
-                start_time = event_log_df["timestamp"].iloc[0]
+            start_time = event_log_df["timestamp"].iloc[0]
 
-                table = document.add_table(rows=1, cols=len(event_log_df.columns))
-                table.style = "Table Grid"
-                for i, col_name in enumerate(event_log_df.columns):
+            table = document.add_table(rows=1, cols=len(event_log_df.columns))
+            table.style = "Table Grid"
+            for i, col_name in enumerate(event_log_df.columns):
+                if col_name == "timestamp":
+                    table.cell(0, i).text = _("Time (mm:ss)")
+                else:
+                    table.cell(0, i).text = str(col_name)
+
+            for _index, row in event_log_df.iterrows():
+                cells = table.add_row().cells
+                for i, (col_name, value) in enumerate(row.items()):
                     if col_name == "timestamp":
-                        table.cell(0, i).text = _("Time (mm:ss)")
+                        elapsed = (value - start_time).total_seconds()
+                        minutes = int(elapsed // 60)
+                        seconds = elapsed % 60
+                        cells[i].text = f"{minutes:02d}:{seconds:06.3f}"
                     else:
-                        table.cell(0, i).text = str(col_name)
-
-                for _index, row in event_log_df.iterrows():
-                    cells = table.add_row().cells
-                    for i, (col_name, value) in enumerate(row.items()):
-                        if col_name == "timestamp":
-                            elapsed = (value - start_time).total_seconds()
-                            minutes = int(elapsed // 60)
-                            seconds = elapsed % 60
-                            cells[i].text = f"{minutes:02d}:{seconds:06.3f}"
-                        else:
-                            cells[i].text = str(value)
-            else:
-                document.add_paragraph(_("No ROI entry or exit events were recorded."))
-        progress_callback(9 / total_steps, _("Event log added"))
-
-        # Step 10: Save the document
-        file_path = str(output_path)
-        if doc_template is not None:
-            doc_template.save(file_path)
+                        cells[i].text = str(value)
         else:
-            document.save(file_path)
-        progress_callback(10 / total_steps, _("Report saved"))
-        log.info("analysis.reporter.individual_saved", path=file_path)
+            document.add_paragraph(_("No ROI entry or exit events were recorded."))
+        progress_callback(9 / total_steps, _("Event log added"))
 
     @staticmethod
     def _generate_comparative_boxplot(df: pd.DataFrame, metric: str, title: str) -> Figure:

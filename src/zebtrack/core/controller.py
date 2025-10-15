@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import cv2
 import numpy as np
@@ -439,7 +439,7 @@ class MainViewModel:
         )
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
-    _EVENT_METHOD_MAPPING = {
+    _EVENT_METHOD_MAPPING: ClassVar[dict] = {
         # Recording events
         Events.RECORDING_START: ("start_recording", ["day", "group", "cobaia"], "kwargs_get"),
         Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
@@ -1042,7 +1042,7 @@ class MainViewModel:
         """Classify weight type from filename - delegates to weight manager."""
         return self.weight_manager._classify_weight_type(filename)
 
-    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str = None):
+    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
         """Add a new weight with type classification."""
         self.weight_manager.add_weight(path, set_as_default, weight_type)
         new_name = os.path.basename(path)
@@ -1469,7 +1469,7 @@ class MainViewModel:
         self,
         video_path: str | None = None,
         stabilization_frames: int = 10,
-        temp_aquarium_method: str = None,
+    temp_aquarium_method: str | None = None,
     ):
         """Runs the aquarium detection model on the specified or first project video.
 
@@ -1806,7 +1806,7 @@ class MainViewModel:
             )
             return False
 
-    def run_live_calibration(self, temp_aquarium_method: str = None):
+    def run_live_calibration(self, temp_aquarium_method: str | None = None):
         """Records a short clip from the live camera and runs aquarium detection.
 
         Args:
@@ -1888,7 +1888,12 @@ class MainViewModel:
             )
             self.view.set_status("Pronto.")
 
-    def start_recording(self, day: int = None, group: str = None, cobaia: str = None):
+    def start_recording(
+        self,
+        day: int | None = None,
+        group: str | None = None,
+        cobaia: str | None = None,
+    ):
         """Starts a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
 
@@ -1899,82 +1904,8 @@ class MainViewModel:
         self._clear_external_trigger_wait()
 
         # Enhanced zone validation for Live projects
-        if self.project_manager.project_path:
-            project_type = self.project_manager.get_project_type()
-            zone_data = self.project_manager.get_zone_data()
-
-            if project_type == "live" and (not zone_data or not zone_data.polygon):
-                log.info("controller.recording.live_zone_validation.start")
-
-                # For Live projects, prompt for automatic calibration
-                response = self.view.ask_ok_cancel(
-                    "Calibração Necessária",
-                    "Deseja fazer calibração automática do aquário?\n"
-                    "(Recomendado para projetos ao vivo)",
-                )
-
-                if response:
-                    # Run auto-calibration
-                    self.run_live_calibration()
-
-                    # Check if calibration was successful
-                    zone_data = self.project_manager.get_zone_data()
-                    if not zone_data or not zone_data.polygon:
-                        self.view.show_error(
-                            "Calibração Falhou",
-                            "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",
-                        )
-                        # Switch to zones tab
-                        if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
-                            self.view.notebook.select(self.view.zone_tab_frame)
-                        return
-                    else:
-                        log.info("controller.recording.live_zone_validation.success")
-                else:
-                    # User declined calibration
-                    self.view.show_error(
-                        "Zonas Obrigatórias",
-                        "Projetos ao vivo requerem definição de zonas.\n"
-                        "Defina o polígono principal antes de gravar.",
-                    )
-                    return
-
-            elif not zone_data or not zone_data.polygon:
-                # Generic validation for non-Live projects (preserve existing behavior)
-                log.warning("controller.recording.no_main_arena")
-
-                response = self.view.ask_ok_cancel(
-                    "Arena Principal Não Definida",
-                    "O polígono principal do aquário não foi definido.\n\n"
-                    "É recomendado definir a arena antes de iniciar gravação.\n"
-                    "Deseja definir agora?",
-                )
-
-                if response:
-                    # Muda para aba de zonas e inicia câmera para calibração
-                    if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
-                        self.view.notebook.select(self.view.zone_tab_frame)
-
-                    self.view.show_info(
-                        "Defina a Arena Principal",
-                        "Por favor:\n"
-                        "1. Use a câmera ao vivo para calibrar\n"
-                        "2. Use 'Detectar Aquário (Auto)' ou\n"
-                        "3. Desenhe manualmente o polígono principal\n"
-                        "4. Depois volte para iniciar a gravação",
-                    )
-                    return
-                else:
-                    # Continua sem arena definida (usando padrão)
-                    if not self.view.ask_ok_cancel(
-                        "Continuar Sem Arena?",
-                        "Deseja continuar a gravação sem arena definida?\n"
-                        "(A arena padrão será o frame completo)",
-                    ):
-                        log.info("controller.recording.cancelled_no_arena")
-                        return
-
-                    log.info("controller.recording.proceeding_without_arena")
+        if not self._ensure_zones_before_recording():
+            return
 
         # Ensure detector is set up before recording
         if not self.detector:
@@ -2092,6 +2023,91 @@ class MainViewModel:
         # Update UI on main thread
         self._schedule_on_ui(self.view.update_button_state, "start_rec", "normal")
         self._schedule_on_ui(self.view.update_button_state, "stop_rec", "disabled")
+
+    def _ensure_zones_before_recording(self) -> bool:
+        """Ensure project zones are defined (live or non-live) before starting recording.
+
+        Returns True if recording can proceed, False if it should be cancelled.
+        """
+        # Enhanced zone validation for Live projects
+        if self.project_manager.project_path:
+            project_type = self.project_manager.get_project_type()
+            zone_data = self.project_manager.get_zone_data()
+
+            if project_type == "live" and (not zone_data or not zone_data.polygon):
+                log.info("controller.recording.live_zone_validation.start")
+
+                # For Live projects, prompt for automatic calibration
+                response = self.view.ask_ok_cancel(
+                    "Calibração Necessária",
+                    "Deseja fazer calibração automática do aquário?\n"
+                    "(Recomendado para projetos ao vivo)",
+                )
+
+                if response:
+                    # Run auto-calibration
+                    self.run_live_calibration()
+
+                    # Check if calibration was successful
+                    zone_data = self.project_manager.get_zone_data()
+                    if not zone_data or not zone_data.polygon:
+                        self.view.show_error(
+                            "Calibração Falhou",
+                            "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",
+                        )
+                        # Switch to zones tab
+                        if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
+                            self.view.notebook.select(self.view.zone_tab_frame)
+                        return False
+                    else:
+                        log.info("controller.recording.live_zone_validation.success")
+                else:
+                    # User declined calibration
+                    self.view.show_error(
+                        "Zonas Obrigatórias",
+                        "Projetos ao vivo requerem definição de zonas.\n"
+                        "Defina o polígono principal antes de gravar.",
+                    )
+                    return False
+
+            elif not zone_data or not zone_data.polygon:
+                # Generic validation for non-Live projects (preserve existing behavior)
+                log.warning("controller.recording.no_main_arena")
+
+                response = self.view.ask_ok_cancel(
+                    "Arena Principal Não Definida",
+                    "O polígono principal do aquário não foi definido.\n\n"
+                    "É recomendado definir a arena antes de iniciar gravação.\n"
+                    "Deseja definir agora?",
+                )
+
+                if response:
+                    # Muda para aba de zonas e inicia câmera para calibração
+                    if hasattr(self.view, "notebook") and hasattr(self.view, "zone_tab_frame"):
+                        self.view.notebook.select(self.view.zone_tab_frame)
+
+                    self.view.show_info(
+                        "Defina a Arena Principal",
+                        "Por favor:\n"
+                        "1. Use a câmera ao vivo para calibrar\n"
+                        "2. Use 'Detectar Aquário (Auto)' ou\n"
+                        "3. Desenhe manualmente o polígono principal\n"
+                        "4. Depois volte para iniciar a gravação",
+                    )
+                    return False
+                else:
+                    # Continua sem arena definida (usando padrão)
+                    if not self.view.ask_ok_cancel(
+                        "Continuar Sem Arena?",
+                        "Deseja continuar a gravação sem arena definida?\n"
+                        "(A arena padrão será o frame completo)",
+                    ):
+                        log.info("controller.recording.cancelled_no_arena")
+                        return False
+
+                    log.info("controller.recording.proceeding_without_arena")
+
+        return True
 
     # --- New Refactored Workflows ---
 
@@ -2443,23 +2459,7 @@ class MainViewModel:
         self.project_manager.add_video_batch(scanned_videos)
 
         # 4.5. Save current interval settings to project data
-        try:
-            analysis_interval = int(self.view.analysis_interval_var.get())
-            display_interval = int(self.view.display_interval_var.get())
-            self.project_manager.project_data["analysis_interval_frames"] = analysis_interval
-            self.project_manager.project_data["display_interval_frames"] = display_interval
-            # Save the project to persist the intervals
-            self.project_manager.save_project()
-            log.info(
-                "controller.workflow.intervals_saved",
-                analysis=analysis_interval,
-                display=display_interval,
-            )
-        except (ValueError, AttributeError) as e:
-            log.warning("controller.workflow.intervals_save_failed", error=str(e))
-            # Use defaults if there's an issue
-            self.project_manager.project_data["analysis_interval_frames"] = 10
-            self.project_manager.project_data["display_interval_frames"] = 10
+        self._save_interval_settings()
 
         # 5. Process the videos that need it using worker
         self.cancel_event.clear()
@@ -2515,133 +2515,24 @@ class MainViewModel:
             path_value = video.get("path")
             if isinstance(path_value, str) and path_value:
                 videos_by_norm[os.path.normpath(path_value)] = video
-
         skip_dialog = bool(video_paths)
-
-        if video_paths:
-            normalized_targets: list[str] = []
-            raw_lookup: dict[str, str] = {}
-            for raw_path in video_paths:
-                if not isinstance(raw_path, str) or not raw_path:
-                    continue
-                norm_path = os.path.normpath(raw_path)
-                normalized_targets.append(norm_path)
-                raw_lookup.setdefault(norm_path, raw_path)
-
-            if not normalized_targets:
-                self.view.show_info(
-                    "Processamento",
-                    "Nenhum vídeo selecionado para processamento.",
-                )
-                return
-
-            candidate_entries = [
-                videos_by_norm[norm_path]
-                for norm_path in normalized_targets
-                if norm_path in videos_by_norm
-            ]
-
-            missing_targets = [
-                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
-            ]
-            if missing_targets:
-                sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
-                if len(missing_targets) > 5:
-                    sample.append(f"... (+{len(missing_targets) - 5})")
-                self.view.show_warning(
-                    "Vídeos fora do projeto",
-                    "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                    + "\n".join(sample),
-                )
-
-            if not candidate_entries:
-                self.view.show_info(
-                    "Processamento",
-                    "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                )
-                return
-        else:
-            candidate_entries = [
-                video
-                for video in all_videos
-                if video.get("status") not in {"processed", "complete"}
-            ]
-            if not candidate_entries:
-                self.view.show_info("Processamento", "Nenhum vídeo pendente para ser processado.")
-                return
-
-        candidate_paths = [
-            video.get("path")
-            for video in candidate_entries
-            if isinstance(video.get("path"), str) and video.get("path")
-        ]
-        if not candidate_paths:
-            self.view.show_error(
-                "Erro",
-                ("Não foi possível localizar caminhos válidos para os vídeos selecionados."),
-            )
+        candidate_entries = self._gather_candidate_entries(video_paths, all_videos)
+        if candidate_entries is None:
             return
 
-        scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
-        info_by_norm = {
-            os.path.normpath(info["path"]): info
-            for info in scanned_videos
-            if isinstance(info.get("path"), str)
-        }
+        info_by_norm, missing_files, scanned_videos = self._scan_and_validate_candidate_paths(
+            candidate_entries
+        )
+        if info_by_norm is None:
+            return
 
-        missing_files = [
-            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
-        ]
-        if missing_files:
-            sample_names = [os.path.basename(path) for path in missing_files[:5]]
-            if len(missing_files) > 5:
-                sample_names.append(f"... (+{len(missing_files) - 5})")
-            self.view.show_warning(
-                "Vídeos Não Encontrados",
-                "Alguns vídeos foram ignorados porque não foram localizados:\n"
-                + "\n".join(sample_names),
-            )
-            log.warning(
-                "workflow.project_processing.missing_sources",
-                missing=len(missing_files),
-            )
-
-        ready_with_trajectory: list[dict] = []
-        ready_with_zones: list[dict] = []
-        arena_only: list[dict] = []
-        without_arena: list[dict] = []
-
-        data_changed = False
-
-        for video in candidate_entries:
-            path = video.get("path")
-            if not isinstance(path, str) or not path:
-                continue
-
-            info = info_by_norm.get(os.path.normpath(path))
-            if not info:
-                continue
-
-            for key in (
-                "has_arena",
-                "has_rois",
-                "has_trajectory",
-                "has_complete_data",
-            ):
-                new_value = info.get(key, False)
-                if video.get(key) != new_value:
-                    video[key] = new_value
-                    data_changed = True
-
-            if info.get("has_arena"):
-                if info.get("has_trajectory"):
-                    ready_with_trajectory.append(info)
-                elif info.get("has_rois"):
-                    ready_with_zones.append(info)
-                else:
-                    arena_only.append(info)
-            else:
-                without_arena.append(info)
+        (
+            ready_with_trajectory,
+            ready_with_zones,
+            arena_only,
+            without_arena,
+            data_changed,
+        ) = self._classify_candidate_videos(candidate_entries, info_by_norm)
 
         if data_changed:
             self.project_manager.save_project()
@@ -2653,67 +2544,11 @@ class MainViewModel:
             )
             return
 
-        eligible_videos: list[dict] = []
-
-        if skip_dialog:
-            eligible_videos.extend(ready_with_trajectory)
-            eligible_videos.extend(ready_with_zones)
-
-            if arena_only:
-                skipped_names = [
-                    os.path.basename(info.get("path", "")) or "(desconhecido)"
-                    for info in arena_only[:5]
-                ]
-                if len(arena_only) > 5:
-                    skipped_names.append(f"... (+{len(arena_only) - 5})")
-                self.view.show_warning(
-                    "Processamento",
-                    (
-                        "Alguns vídeos selecionados foram ignorados porque não "
-                        "possuem ROIs desenhadas:\n"
-                        + "\n".join(f"• {name}" for name in skipped_names)
-                    ),
-                )
-
-            if not eligible_videos:
-                self.view.show_info(
-                    "Processamento",
-                    (
-                        "Nenhum dos vídeos selecionados contém arena e ROIs "
-                        "suficientes para gerar trajetórias."
-                    ),
-                )
-                return
-        else:
-            dialog_result = self.view.show_pending_videos_dialog(
-                ready_with_trajectory=ready_with_trajectory,
-                ready_with_zones=ready_with_zones,
-                arena_only=arena_only,
-                without_arena=without_arena,
-            )
-
-            if not dialog_result or not dialog_result.get("confirmed"):
-                log.info("workflow.project_processing.resume_cancelled_by_user")
-                return
-
-            include_arena_only = bool(dialog_result.get("include_arena_only"))
-
-            eligible_videos.extend(ready_with_trajectory)
-            eligible_videos.extend(ready_with_zones)
-            if include_arena_only:
-                eligible_videos.extend(arena_only)
-            elif arena_only:
-                log.info(
-                    "workflow.project_processing.skip_arena_only",
-                    skipped=len(arena_only),
-                )
-
-            if not eligible_videos:
-                self.view.show_info(
-                    "Processamento",
-                    ("Nenhum vídeo foi selecionado para processamento neste momento."),
-                )
-                return
+        eligible_videos = self._select_eligible_videos(
+            skip_dialog, ready_with_trajectory, ready_with_zones, arena_only, without_arena
+        )
+        if eligible_videos is None:
+            return
 
         zones_updated = False
         for video_info in eligible_videos:
@@ -2868,202 +2703,14 @@ class MainViewModel:
             return
 
         settings_obj = settings
-
-        def worker(target_videos: list[dict]) -> None:
-            completed: list[str] = []
-            skipped: list[str] = []
-            details: list[str] = []
-            data_changed = False
-
-            for video in target_videos:
-                path = video.get("path")
-                if not isinstance(path, str) or not path:
-                    skipped.append("(desconhecido)")
-                    details.append("• Caminho do vídeo não definido.")
-                    continue
-
-                experiment_id = os.path.splitext(os.path.basename(path))[0]
-                metadata_hint = dict(video.get("metadata") or {})
-                results_path = self.project_manager.resolve_results_directory(
-                    experiment_id,
-                    video_path=path,
-                    metadata=metadata_hint,
-                )
-                results_dir = str(results_path)
-
-                parquet_info = video.get("parquet_files") or {}
-                trajectory_path = parquet_info.get("trajectory")
-                if trajectory_path and not os.path.exists(trajectory_path):
-                    trajectory_path = None
-                if not trajectory_path:
-                    candidates = [
-                        os.path.join(
-                            results_dir,
-                            f"3_CoordMovimento_{experiment_id}.parquet",
-                        ),
-                        os.path.join(
-                            os.path.dirname(path),
-                            f"3_CoordMovimento_{experiment_id}.parquet",
-                        ),
-                    ]
-                    for candidate in candidates:
-                        if os.path.exists(candidate):
-                            trajectory_path = candidate
-                            break
-
-                if not trajectory_path:
-                    skipped.append(experiment_id)
-                    details.append(f"• {experiment_id}: arquivo de trajetória ausente.")
-                    continue
-
-                try:
-                    trajectory_df = pd.read_parquet(trajectory_path)
-                except Exception as exc:  # pragma: no cover - I/O defensive
-                    skipped.append(experiment_id)
-                    details.append(f"• {experiment_id}: falha ao ler trajetória ({exc}).")
-                    continue
-
-                if trajectory_df.empty:
-                    skipped.append(experiment_id)
-                    details.append(f"• {experiment_id}: trajetória vazia, sumário não gerado.")
-                    continue
-
-                self.project_manager.set_active_zone_video(path)
-                try:
-                    zone_data = self.project_manager.get_zone_data(video_path=path)
-
-                    arena_polygon_px = list(zone_data.polygon or [])
-
-                    if not arena_polygon_px:
-                        cap = cv2.VideoCapture(path)
-                        if not cap.isOpened():
-                            skipped.append(experiment_id)
-                            details.append(f"• {experiment_id}: não foi possível abrir o vídeo.")
-                            continue
-                        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        cap.release()
-                        arena_polygon_px = [
-                            [0, 0],
-                            [frame_width, 0],
-                            [frame_width, frame_height],
-                            [0, frame_height],
-                        ]
-
-                    calib_data = self.project_manager.project_data.get(
-                        "calibration",
-                        {},
-                    )
-                    width_cm = calib_data.get("aquarium_width_cm")
-                    height_cm = calib_data.get("aquarium_height_cm")
-                    if not width_cm or not height_cm:
-                        skipped.append(experiment_id)
-                        details.append(f"• {experiment_id}: calibração incompleta (px/cm).")
-                        continue
-
-                    cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-                    video_width_px, video_height_px = cal.target_dims_px
-                    pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-                    arena_polygon_warped = cal.transform_points(arena_polygon_px)
-
-                    roi_polygons = list(zone_data.roi_polygons or [])
-                    roi_names = list(zone_data.roi_names or [])
-                    roi_colors_list = list(zone_data.roi_colors or [])
-
-                    rois: list[ROI] = []
-                    for idx, roi_points in enumerate(roi_polygons):
-                        warped_points = cal.transform_points(roi_points)
-                        roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
-                        roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
-                        rois.append(
-                            ROI(
-                                name=roi_name,
-                                geometry=Polygon(roi_polygon_px),
-                                coordinate_space="px",
-                            )
-                        )
-
-                    roi_colors = {
-                        (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
-                        for i in range(len(roi_colors_list))
-                    }
-
-                    metadata = self.project_manager.get_metadata_for_experiment(experiment_id) or {
-                        "experiment_id": experiment_id,
-                        "video_name": experiment_id,
-                    }
-
-                    reporter = Reporter(
-                        trajectory_df=trajectory_df,
-                        metadata=metadata,
-                        pixelcm_x=pixelcm_x,
-                        pixelcm_y=pixelcm_y,
-                        video_height_px=video_height_px,
-                        arena_polygon_px=arena_polygon_warped,
-                        rois=rois,
-                        fps=settings_obj.video_processing.fps,
-                        roi_colors=roi_colors,
-                        video_path=path,
-                        calibration=cal,
-                        sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
-                        freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
-                        freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
-                        smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
-                        smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
-                    )
-
-                    os.makedirs(results_dir, exist_ok=True)
-                    parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-                    reporter.export_summary_data(parquet_path, format="parquet")
-
-                    video.setdefault("parquet_files", {})["summary"] = parquet_path
-                    video["has_complete_data"] = True
-                    data_changed = True
-                    completed.append(experiment_id)
-                except Exception as exc:  # pragma: no cover - defensive
-                    skipped.append(experiment_id)
-                    details.append(f"• {experiment_id}: erro inesperado ({exc}).")
-                finally:
-                    self.project_manager.set_active_zone_video(None)
-
-            if data_changed:
-                self.project_manager.save_project()
-
-            def finalize() -> None:
-                if completed:
-                    self.view.show_info(
-                        "Sumários Gerados",
-                        (
-                            "Sumários parquet atualizados para "
-                            f"{len(completed)} vídeo(s).\n"
-                            + "\n".join(f"• {item}" for item in completed)
-                        ),
-                    )
-                    status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
-                else:
-                    status_msg = "Nenhum sumário foi atualizado."
-
-                if details:
-                    self.view.show_warning(
-                        "Vídeos ignorados",
-                        "Alguns sumários não puderam ser gerados:\n" + "\n".join(details),
-                    )
-
-                self.view.set_status(status_msg)
-                self.refresh_project_views(
-                    reason=status_msg,
-                    append_summary=True,
-                )
-                self.processing_thread = None
-
-            self.root.after(0, finalize)
-
+        # Offload the heavy per-video processing to a dedicated worker method.
         self.processing_thread = threading.Thread(
-            target=worker,
-            args=(eligible_videos,),
+            target=self._generate_parquet_summaries_worker,
+            args=(eligible_videos, settings_obj),
             daemon=True,
         )
         self.processing_thread.start()
+
 
     def _run_tracking_if_needed(
         self,
@@ -3284,7 +2931,9 @@ class MainViewModel:
 
         return None
 
-    def _resolve_single_subject_tracker_preference(self, single_video_config: dict | None) -> bool | None:
+    def _resolve_single_subject_tracker_preference(
+        self, single_video_config: dict | None
+    ) -> bool | None:
         """
         Resolve single-subject tracker preference from project or single video config.
 
@@ -3467,6 +3116,474 @@ class MainViewModel:
             )
 
         return metadata_context
+
+    def _gather_candidate_entries(
+        self,
+        video_paths: list[str] | None,
+        all_videos: list[dict],
+    ) -> list[dict] | None:
+        """Return a list of candidate video entries to process, or None if the
+        calling function should abort (due to user cancel or invalid selection).
+        """
+        videos_by_norm: dict[str, dict] = {}
+        for video in all_videos:
+            path_value = video.get("path")
+            if isinstance(path_value, str) and path_value:
+                videos_by_norm[os.path.normpath(path_value)] = video
+
+        if video_paths:
+            normalized_targets: list[str] = []
+            raw_lookup: dict[str, str] = {}
+            for raw_path in video_paths:
+                if not isinstance(raw_path, str) or not raw_path:
+                    continue
+                norm_path = os.path.normpath(raw_path)
+                normalized_targets.append(norm_path)
+                raw_lookup.setdefault(norm_path, raw_path)
+
+            if not normalized_targets:
+                self.view.show_info("Processamento", "Nenhum vídeo selecionado para processamento.")
+                return None
+
+            candidate_entries = [
+                videos_by_norm[norm_path]
+                for norm_path in normalized_targets
+                if norm_path in videos_by_norm
+            ]
+
+            missing_targets = [
+                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
+            ]
+            if missing_targets:
+                sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
+                if len(missing_targets) > 5:
+                    sample.append(f"... (+{len(missing_targets) - 5})")
+                self.view.show_warning(
+                    "Vídeos fora do projeto",
+                    "Alguns itens selecionados não pertencem ao projeto atual:\n"
+                    + "\n".join(sample),
+                )
+
+            if not candidate_entries:
+                self.view.show_info(
+                    "Processamento",
+                    "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
+                )
+                return None
+
+            return candidate_entries
+        else:
+            candidate_entries = [
+                video
+                for video in all_videos
+                if video.get("status") not in {"processed", "complete"}
+            ]
+            if not candidate_entries:
+                self.view.show_info("Processamento", "Nenhum vídeo pendente para ser processado.")
+                return None
+            return candidate_entries
+
+    def _classify_candidate_videos(
+        self, candidate_entries: list[dict], info_by_norm: dict
+    ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
+        """Given candidate entries and a lookup, classify them into buckets and
+        return (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
+        """
+        ready_with_trajectory: list[dict] = []
+        ready_with_zones: list[dict] = []
+        arena_only: list[dict] = []
+        without_arena: list[dict] = []
+
+        data_changed = False
+
+        for video in candidate_entries:
+            path = video.get("path")
+            if not isinstance(path, str) or not path:
+                continue
+
+            info = info_by_norm.get(os.path.normpath(path))
+            if not info:
+                continue
+
+            for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
+                new_value = info.get(key, False)
+                if video.get(key) != new_value:
+                    video[key] = new_value
+                    data_changed = True
+
+            if info.get("has_arena"):
+                if info.get("has_trajectory"):
+                    ready_with_trajectory.append(info)
+                elif info.get("has_rois"):
+                    ready_with_zones.append(info)
+                else:
+                    arena_only.append(info)
+            else:
+                without_arena.append(info)
+
+        return (
+            ready_with_trajectory,
+            ready_with_zones,
+            arena_only,
+            without_arena,
+            data_changed,
+        )
+
+    def _select_eligible_videos(
+        self,
+        skip_dialog: bool,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> list[dict] | None:
+        """Select eligible videos for processing (either skip dialog or show it).
+
+        Returns list of eligible videos or None if user cancelled.
+        """
+        eligible_videos: list[dict] = []
+
+        if skip_dialog:
+            eligible_videos.extend(ready_with_trajectory)
+            eligible_videos.extend(ready_with_zones)
+
+            if arena_only:
+                skipped_names = [
+                    os.path.basename(info.get("path", "")) or "(desconhecido)"
+                    for info in arena_only[:5]
+                ]
+                if len(arena_only) > 5:
+                    skipped_names.append(f"... (+{len(arena_only) - 5})")
+                self.view.show_warning(
+                    "Processamento",
+                    (
+                        "Alguns vídeos selecionados foram ignorados porque não "
+                        "possuem ROIs desenhadas:\n"
+                        + "\n".join(f"• {name}" for name in skipped_names)
+                    ),
+                )
+
+            if not eligible_videos:
+                self.view.show_info(
+                    "Processamento",
+                    (
+                        "Nenhum dos vídeos selecionados contém arena e ROIs "
+                        "suficientes para gerar trajetórias."
+                    ),
+                )
+                return None
+        else:
+            dialog_result = self.view.show_pending_videos_dialog(
+                ready_with_trajectory=ready_with_trajectory,
+                ready_with_zones=ready_with_zones,
+                arena_only=arena_only,
+                without_arena=without_arena,
+            )
+
+            if not dialog_result or not dialog_result.get("confirmed"):
+                log.info("workflow.project_processing.resume_cancelled_by_user")
+                return None
+
+            include_arena_only = bool(dialog_result.get("include_arena_only"))
+
+            eligible_videos.extend(ready_with_trajectory)
+            eligible_videos.extend(ready_with_zones)
+            if include_arena_only:
+                eligible_videos.extend(arena_only)
+            elif arena_only:
+                log.info(
+                    "workflow.project_processing.skip_arena_only",
+                    skipped=len(arena_only),
+                )
+
+            if not eligible_videos:
+                self.view.show_info(
+                    "Processamento",
+                    ("Nenhum vídeo foi selecionado para processamento neste momento."),
+                )
+                return None
+
+        return eligible_videos
+
+    def _scan_and_validate_candidate_paths(self, candidate_entries: list[dict]):
+        """Scan candidate paths and return (info_by_norm, missing_files, scanned_videos).
+
+        Returns (None, None, None) if there are no valid candidate paths.
+        """
+        candidate_paths = [
+            video.get("path")
+            for video in candidate_entries
+            if isinstance(video.get("path"), str) and video.get("path")
+        ]
+        if not candidate_paths:
+            self.view.show_error(
+                "Erro",
+                ("Não foi possível localizar caminhos válidos para os vídeos selecionados."),
+            )
+            return None, None, None
+
+        scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
+        info_by_norm = {
+            os.path.normpath(info["path"]): info
+            for info in scanned_videos
+            if isinstance(info.get("path"), str)
+        }
+
+        missing_files = [
+            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
+        ]
+        if missing_files:
+            sample_names = [os.path.basename(path) for path in missing_files[:5]]
+            if len(missing_files) > 5:
+                sample_names.append(f"... (+{len(missing_files) - 5})")
+            self.view.show_warning(
+                "Vídeos Não Encontrados",
+                "Alguns vídeos foram ignorados porque não foram localizados:\n"
+                + "\n".join(sample_names),
+            )
+            log.warning(
+                "workflow.project_processing.missing_sources",
+                missing=len(missing_files),
+            )
+
+        return info_by_norm, missing_files, scanned_videos
+
+    def _save_interval_settings(self) -> None:
+        """Read interval widgets from the view and persist them into project data.
+
+        Keeps the main workflow method smaller.
+        """
+        try:
+            analysis_interval = int(self.view.analysis_interval_var.get())
+            display_interval = int(self.view.display_interval_var.get())
+            self.project_manager.project_data["analysis_interval_frames"] = analysis_interval
+            self.project_manager.project_data["display_interval_frames"] = display_interval
+            # Save the project to persist the intervals
+            self.project_manager.save_project()
+            log.info(
+                "controller.workflow.intervals_saved",
+                analysis=analysis_interval,
+                display=display_interval,
+            )
+        except (ValueError, AttributeError) as e:
+            log.warning("controller.workflow.intervals_save_failed", error=str(e))
+            # Use defaults if there's an issue
+            self.project_manager.project_data["analysis_interval_frames"] = 10
+            self.project_manager.project_data["display_interval_frames"] = 10
+
+    def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
+        """Worker method to generate parquet summaries for a list of videos.
+
+        Separated to reduce complexity in the public API method.
+        """
+        completed: list[str] = []
+        skipped: list[str] = []
+        details: list[str] = []
+        data_changed = False
+
+        for video in target_videos:
+            # Reuse the same logic previously extracted inlined; keep small and focused
+            state = None
+            try:
+                # Simplified wrapper calling existing logic for each video. Defer to the
+                # per-video helper implemented earlier.
+                state, info_msg, _ppath, changed = self._process_summary_video(
+                    video,
+                    settings_obj,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                state, info_msg, _ppath, changed = "failed", str(exc), None, False
+
+            if state == "completed":
+                completed.append(info_msg or "(desconhecido)")
+                data_changed = data_changed or bool(changed)
+            else:
+                skipped.append(info_msg.split(":")[0] if info_msg else "(desconhecido)")
+                details.append(f"• {info_msg}")
+
+        if data_changed:
+            self.project_manager.save_project()
+
+        def finalize() -> None:
+            if completed:
+                self.view.show_info(
+                    "Sumários Gerados",
+                    (
+                        "Sumários parquet atualizados para "
+                        f"{len(completed)} vídeo(s).\n"
+                        + "\n".join(f"• {item}" for item in completed)
+                    ),
+                )
+                status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
+            else:
+                status_msg = "Nenhum sumário foi atualizado."
+
+            if details:
+                self.view.show_warning(
+                    "Vídeos ignorados",
+                    "Alguns sumários não puderam ser gerados:\n" + "\n".join(details),
+                )
+
+            self.view.set_status(status_msg)
+            self.refresh_project_views(reason=status_msg, append_summary=True)
+            self.processing_thread = None
+
+        self.root.after(0, finalize)
+
+    def _process_summary_video(
+        self,
+        video: dict,
+        settings_obj,
+    ) -> tuple[str, str | None, str | None, bool]:
+        """Process a single video for summary generation. Extracted from the main method.
+        """
+        path = video.get("path")
+        if not isinstance(path, str) or not path:
+            return "skipped", "Caminho do vídeo não definido.", None, False
+
+        experiment_id = os.path.splitext(os.path.basename(path))[0]
+        metadata_hint = dict(video.get("metadata") or {})
+        results_path = self.project_manager.resolve_results_directory(
+            experiment_id, video_path=path, metadata=metadata_hint
+        )
+        results_dir = str(results_path)
+
+        parquet_info = video.get("parquet_files") or {}
+        trajectory_path = parquet_info.get("trajectory")
+        if trajectory_path and not os.path.exists(trajectory_path):
+            trajectory_path = None
+
+        if not trajectory_path:
+            candidates = [
+                os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet"),
+                os.path.join(os.path.dirname(path), f"3_CoordMovimento_{experiment_id}.parquet"),
+            ]
+            for candidate in candidates:
+                if os.path.exists(candidate):
+                    trajectory_path = candidate
+                    break
+
+        if not trajectory_path:
+            return (
+                "skipped",
+                f"{experiment_id}: arquivo de trajetória ausente.",
+                None,
+                False,
+            )
+
+        try:
+            trajectory_df = pd.read_parquet(trajectory_path)
+        except Exception as exc:  # pragma: no cover - I/O defensive
+            return (
+                "skipped",
+                f"{experiment_id}: falha ao ler trajetória ({exc}).",
+                None,
+                False,
+            )
+
+        if trajectory_df.empty:
+            return (
+                "skipped",
+                f"{experiment_id}: trajetória vazia, sumário não gerado.",
+                None,
+                False,
+            )
+
+        self.project_manager.set_active_zone_video(path)
+        try:
+            zone_data = self.project_manager.get_zone_data(video_path=path)
+
+            arena_polygon_px = list(zone_data.polygon or [])
+
+            if not arena_polygon_px:
+                cap = cv2.VideoCapture(path)
+                if not cap.isOpened():
+                    return (
+                        "skipped",
+                        f"{experiment_id}: não foi possível abrir o vídeo.",
+                        None,
+                        False,
+                    )
+                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                arena_polygon_px = [
+                    [0, 0],
+                    [frame_width, 0],
+                    [frame_width, frame_height],
+                    [0, frame_height],
+                ]
+
+            calib_data = self.project_manager.project_data.get("calibration", {})
+            width_cm = calib_data.get("aquarium_width_cm")
+            height_cm = calib_data.get("aquarium_height_cm")
+            if not width_cm or not height_cm:
+                return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
+
+            cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
+            video_width_px, video_height_px = cal.target_dims_px
+            pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
+            arena_polygon_warped = cal.transform_points(arena_polygon_px)
+
+            roi_polygons = list(zone_data.roi_polygons or [])
+            roi_names = list(zone_data.roi_names or [])
+            roi_colors_list = list(zone_data.roi_colors or [])
+
+            rois: list[ROI] = []
+            for idx, roi_points in enumerate(roi_polygons):
+                warped_points = cal.transform_points(roi_points)
+                roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
+                roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
+                rois.append(
+                    ROI(
+                        name=roi_name,
+                        geometry=Polygon(roi_polygon_px),
+                        coordinate_space="px",
+                    )
+                )
+
+            roi_colors = {
+                (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"):
+                roi_colors_list[i]
+                for i in range(len(roi_colors_list))
+            }
+
+            metadata = self.project_manager.get_metadata_for_experiment(experiment_id) or {
+                "experiment_id": experiment_id,
+                "video_name": experiment_id,
+            }
+
+            reporter = Reporter(
+                trajectory_df=trajectory_df,
+                metadata=metadata,
+                pixelcm_x=pixelcm_x,
+                pixelcm_y=pixelcm_y,
+                video_height_px=video_height_px,
+                arena_polygon_px=arena_polygon_warped,
+                rois=rois,
+                fps=settings_obj.video_processing.fps,
+                roi_colors=roi_colors,
+                video_path=path,
+                calibration=cal,
+                sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
+                freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
+                freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
+                smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
+                smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
+            )
+
+            os.makedirs(results_dir, exist_ok=True)
+            parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+            reporter.export_summary_data(parquet_path, format="parquet")
+
+            video.setdefault("parquet_files", {})["summary"] = parquet_path
+            video["has_complete_data"] = True
+            return "completed", experiment_id, parquet_path, True
+        except Exception as exc:  # pragma: no cover - defensive
+            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
+        finally:
+            self.project_manager.set_active_zone_video(None)
+
 
     def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
         payload = dict(metadata)

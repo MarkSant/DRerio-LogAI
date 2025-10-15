@@ -3,7 +3,6 @@ Control panel widget component - recording and detector controls.
 """
 
 from tkinter import BooleanVar, Button, StringVar, ttk
-from typing import Optional
 
 import structlog
 
@@ -31,7 +30,7 @@ class ControlPanelWidget(BaseWidget):
     - control.interval_changed: User changed processing interval
     """
 
-    def __init__(self, parent, event_bus: Optional[EventBus] = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
         """
         Initialize the control panel widget.
 
@@ -45,9 +44,9 @@ class ControlPanelWidget(BaseWidget):
         self.processing_interval_var = StringVar(value="10")
 
         # Widget references
-        self.start_rec_btn: Optional[Button] = None
-        self.stop_rec_btn: Optional[Button] = None
-        self.process_video_btn: Optional[ttk.Button] = None
+        self.start_rec_btn: Button | None = None
+        self.stop_rec_btn: Button | None = None
+        self.process_video_btn: ttk.Button | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 

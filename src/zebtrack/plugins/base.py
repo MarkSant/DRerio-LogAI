@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
 
@@ -23,7 +22,7 @@ class DetectorPlugin(ABC):
         pass
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None]]:
         """
         Performs object detection on a single frame.
 

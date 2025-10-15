@@ -3,7 +3,7 @@ Base widget class providing event bus integration and common functionality.
 """
 
 from tkinter import ttk
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import structlog
 
@@ -28,7 +28,7 @@ class BaseWidget(ttk.Frame):
     - Use emit_event() to notify about user actions
     """
 
-    def __init__(self, parent: ttk.Widget, event_bus: Optional[EventBus] = None, **kwargs):
+    def __init__(self, parent: ttk.Widget, event_bus: EventBus | None = None, **kwargs):
         """
         Initialize the base widget.
 

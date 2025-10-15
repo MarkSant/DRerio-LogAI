@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
+
 # No typing imports needed
 
 Point = tuple[float, float]

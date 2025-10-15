@@ -4,7 +4,6 @@ Video display widget component - handles canvas rendering and video frame displa
 
 import os
 from tkinter import Canvas
-from typing import Optional
 
 import cv2
 import structlog
@@ -37,7 +36,7 @@ class VideoDisplayWidget(BaseWidget):
     def __init__(
         self,
         parent,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
         width: int = DEFAULT_WIDTH,
         height: int = DEFAULT_HEIGHT,
         bg: str = "gray",
@@ -59,11 +58,11 @@ class VideoDisplayWidget(BaseWidget):
         self._canvas_bg = bg
 
         # Canvas and image state
-        self.canvas: Optional[Canvas] = None
-        self._original_image: Optional[Image.Image] = None
-        self._raw_bg_image: Optional[Image.Image] = None
-        self._canvas_bg_image: Optional[ImageTk.PhotoImage] = None
-        self._canvas_bg_position: Optional[tuple[int, int, str]] = None
+        self.canvas: Canvas | None = None
+        self._original_image: Image.Image | None = None
+        self._raw_bg_image: Image.Image | None = None
+        self._canvas_bg_image: ImageTk.PhotoImage | None = None
+        self._canvas_bg_position: tuple[int, int, str] | None = None
 
         # Coordinate transformation state
         self._bg_scale: float = 1.0
@@ -230,8 +229,17 @@ class VideoDisplayWidget(BaseWidget):
         offset_y = center_y - new_height // 2
         self._bg_offset = (offset_x, offset_y)
 
+        # Choose a resampling filter compatible with multiple Pillow versions
+        try:
+            RESAMPLING_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
+        except Exception:
+            try:
+                RESAMPLING_LANCZOS = Image.LANCZOS  # type: ignore[attr-defined]
+            except Exception:
+                RESAMPLING_LANCZOS = Image.BICUBIC
+
         # Scale the image
-        scaled_image = image_to_draw.resize((new_width, new_height), Image.LANCZOS)
+        scaled_image = image_to_draw.resize((new_width, new_height), RESAMPLING_LANCZOS)
 
         # Clear canvas and display centered image
         self.canvas.delete("all")
@@ -296,13 +304,8 @@ class VideoDisplayWidget(BaseWidget):
 
         return (float(video_x), float(video_y))
 
-    def get_image_size(self) -> Optional[tuple[int, int]]:
-        """
-        Get the original image size.
-
-        Returns:
-            Tuple of (width, height) or None if no image loaded
-        """
+    def get_image_size(self) -> tuple[int, int] | None:
+        """Return the size of the currently loaded image (width, height) if any."""
         if self._bg_img_size:
             return self._bg_img_size
         return None

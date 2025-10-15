@@ -3,7 +3,7 @@ This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -40,8 +40,8 @@ class ROIAnalyzer:
         rois: list[ROI],
         flutter_n_frames: int = 3,
         inclusion_rule: str = "bbox_intersects",
-        buffer_radius_value: Optional[float] = None,
-        min_bbox_overlap_ratio: Optional[float] = None,
+    buffer_radius_value: float | None = None,
+    min_bbox_overlap_ratio: float | None = None,
     ):
         """
         Initializes the ROIAnalyzer.
@@ -55,8 +55,8 @@ class ROIAnalyzer:
             inclusion_rule (str): Rule for determining ROI inclusion.
                 Options: "centroid_in", "centroid_in_on_buffered_roi",
                 "bbox_intersects", "seg_overlap"
-            buffer_radius_value (Optional[float]): Radius for buffered ROI rule.
-            min_bbox_overlap_ratio (Optional[float]): Minimum overlap ratio
+            buffer_radius_value (float | None): Radius for buffered ROI rule.
+            min_bbox_overlap_ratio (float | None): Minimum overlap ratio
                 for bbox rule.
         """
         self._b_analyzer = behavior_analyzer
@@ -324,7 +324,7 @@ class ROIAnalyzer:
             }
         return results
 
-    def get_latency_to_first_entry(self) -> dict[str, Optional[float]]:
+    def get_latency_to_first_entry(self) -> dict[str, float | None]:
         """
         Calculates the latency to the first entry into each ROI.
         Returns None for a given ROI if the animal never enters it.
@@ -493,7 +493,7 @@ class ROIAnalyzer:
             results[name] = total_dist_in_roi
         return results
 
-    def get_velocity_stats_in_rois(self) -> dict[str, Optional[dict[str, float]]]:
+    def get_velocity_stats_in_rois(self) -> dict[str, dict[str, float] | None]:
         """Calculates velocity statistics within each ROI."""
         results = {}
         # Ensure velocity is calculated on the base analyzer
@@ -540,7 +540,7 @@ class ROIAnalyzer:
             }
         return results
 
-    def get_tortuosity_in_rois(self) -> dict[str, Optional[float]]:
+    def get_tortuosity_in_rois(self) -> dict[str, float | None]:
         """Calculates trajectory tortuosity within each ROI."""
         results = {}
         for name in self._rois:
@@ -640,7 +640,10 @@ class ROIAnalyzer:
         try:
             import networkx as nx
         except ImportError:
-            raise ImportError("Please install 'networkx' to use social proximity analysis.")
+            # Avoid chaining the ImportError to the new exception context
+            raise ImportError(
+                "Please install 'networkx' to use social proximity analysis."
+            ) from None
 
         if "track_id" not in full_trajectory_df.columns:
             raise ValueError("Input DataFrame must contain a 'track_id' column.")

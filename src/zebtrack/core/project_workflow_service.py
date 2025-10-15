@@ -16,7 +16,7 @@ This service provides:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import structlog
 
@@ -275,8 +275,8 @@ class ProjectWorkflowService:
     def apply_project_model_overrides(
         self,
         overrides: dict | None = None,
-        active_weight_setter: callable = None,
-        use_openvino_setter: callable = None,
+        active_weight_setter: Callable[..., Any] | None = None,
+        use_openvino_setter: Callable[..., Any] | None = None,
     ) -> tuple[str | None, bool]:
         """
         Apply project model overrides and update project data.

@@ -30,7 +30,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any, Callable
+from typing import Any, Callable, ClassVar
 
 import cv2
 import numpy as np
@@ -621,7 +621,7 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         )
 
         weights = self.controller.get_all_weight_names()
-        display_values = [self.WEIGHT_INHERIT_LABEL] + weights
+        display_values = [self.WEIGHT_INHERIT_LABEL, *weights]
 
         current_weight_override = overrides.get("active_weight")
         if current_weight_override and current_weight_override not in weights:
@@ -754,7 +754,12 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
 class ManageWeightsDialog(simpledialog.Dialog):
     """Dialog to manage the available weights."""
 
-    def __init__(self, parent, controller, refresh_callback=None):
+    def __init__(
+        self,
+        parent,
+        controller,
+        refresh_callback: Callable[..., Any] | None = None,
+    ):
         self.controller = controller
         self.refresh_callback = refresh_callback
         super().__init__(parent, "Gerenciar Pesos de Detecção")
@@ -834,7 +839,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
 class PendingVideosDialog(simpledialog.Dialog):
     """Dialog para revisar vídeos pendentes em formato hierárquico."""
 
-    TAG_STYLES = {
+    TAG_STYLES: ClassVar[dict[str, dict[str, str]]] = {
         "ready_full": {"background": "#d4edda", "foreground": "#1e4620"},
         "ready_partial": {"background": "#fff3cd", "foreground": "#5c470b"},
         "ready_missing": {"background": "#f8d7da", "foreground": "#842029"},
@@ -1331,103 +1336,116 @@ class CreateProjectDialog(simpledialog.Dialog):
                 self.countdown_entry.config(state="disabled")
 
     def validate(self):
+        # Run a sequence of focused validators. Each returns (ok, message)
+        validators = [
+            self._validate_base_path_and_name,
+            self._validate_video_selection_if_prerecorded,
+            self._validate_calibration_numbers,
+            self._validate_live_settings_if_needed,
+            self._validate_intervals,
+        ]
+
+        for validator in validators:
+            ok, msg = validator()
+            if not ok:
+                messagebox.showerror("Erro", msg)
+                return 0
+
+        return 1
+
+    # ---------------------- helper validators ------------------------
+    def _validate_base_path_and_name(self) -> tuple[bool, str]:
         base_path = self.path_entry.get()
         if not base_path or not os.path.isdir(base_path):
-            messagebox.showerror("Erro", "Por favor, selecione uma pasta principal válida.")
-            return 0
+            return False, "Por favor, selecione uma pasta principal válida."
 
         project_name = self.project_name_var.get()
         if not project_name.strip():
-            messagebox.showerror("Erro", "O nome do projeto não pode estar vazio.")
-            return 0
+            return False, "O nome do projeto não pode estar vazio."
 
         self.project_path = os.path.join(base_path, project_name)
         if os.path.exists(self.project_path) and os.listdir(self.project_path):
-            messagebox.showerror(
-                "Erro",
-                "Uma pasta de projeto com este nome já existe e não está vazia.",
+            return False, "Uma pasta de projeto com este nome já existe e não está vazia."
+
+        return True, ""
+
+    def _validate_video_selection_if_prerecorded(self) -> tuple[bool, str]:
+        if self.project_type_var.get() != "pre-recorded":
+            return True, ""
+
+        if not hasattr(self, "video_paths") or not self.video_paths:
+            return False, (
+                "Por favor, selecione pelo menos um arquivo de vídeo ou pasta para "
+                "análise pré-gravada."
             )
-            return 0
 
-        if self.project_type_var.get() == "pre-recorded":
-            if not hasattr(self, "video_paths") or not self.video_paths:
-                messagebox.showerror(
-                    "Erro",
-                    "Por favor, selecione pelo menos um arquivo de vídeo ou pasta para "
-                    "análise pré-gravada.",
-                )
-                return 0
+        return True, ""
 
+    def _validate_calibration_numbers(self) -> tuple[bool, str]:
         try:
             num_aquariums = int(self.num_aquariums_var.get())
             animals_per_aquarium = int(self.animals_per_aquarium_var.get())
             float(self.aquarium_width_var.get())
             float(self.aquarium_height_var.get())
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
-                raise ValueError("Os valores devem ser positivos.")
+                raise ValueError
         except ValueError:
-            messagebox.showerror("Erro", "Os valores devem ser positivos.")
-            return 0
+            return False, "Os valores devem ser positivos."
 
-        if self.project_type_var.get() == "live":
+        return True, ""
+
+    def _validate_live_settings_if_needed(self) -> tuple[bool, str]:
+        if self.project_type_var.get() != "live":
+            return True, ""
+
+        try:
+            total_days = int(self.total_days_var.get())
+            subjects_per_group = int(self.subjects_per_group_var.get())
+            num_groups = int(self.num_groups_var.get())
+            if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
+                raise ValueError
+            if not 1 <= num_groups <= 6:
+                return False, "O número de grupos deve ser entre 1 e 6."
+            for i in range(num_groups):
+                if not self.group_name_vars[i].get().strip():
+                    return False, f"O nome do Grupo {i + 1} não pode estar vazio."
+        except (ValueError, TypeError):
+            return False, (
+                "Os parâmetros do design experimental devem ser "
+                "números positivos válidos."
+            )
+
+        if self.use_timed_recording_var.get():
             try:
-                total_days = int(self.total_days_var.get())
-                subjects_per_group = int(self.subjects_per_group_var.get())
-                num_groups = int(self.num_groups_var.get())
-                if total_days <= 0 or subjects_per_group <= 0 or num_groups <= 0:
-                    raise ValueError("Os valores devem ser positivos.")
-                if not 1 <= num_groups <= 6:
-                    messagebox.showerror("Erro", "O número de grupos deve ser entre 1 e 6.")
-                    return 0
-                # Check that required group names are not empty
-                for i in range(num_groups):
-                    if not self.group_name_vars[i].get().strip():
-                        messagebox.showerror(
-                            "Erro", f"O nome do Grupo {i + 1} não pode estar vazio."
-                        )
-                        return 0
-            except (ValueError, TypeError):
-                messagebox.showerror(
-                    "Erro",
-                    "Os parâmetros do design experimental devem ser números positivos válidos.",
-                )
-                return 0
-            if self.use_timed_recording_var.get():
-                try:
-                    duration = float(self.recording_duration_var.get())
-                    if duration <= 0:
-                        raise ValueError("A duração deve ser positiva.")
-                except ValueError:
-                    messagebox.showerror(
-                        "Erro", "A duração da gravação deve ser um número positivo."
-                    )
-                    return 0
-            if self.use_countdown_var.get():
-                try:
-                    countdown = int(self.countdown_duration_var.get())
-                    if countdown <= 0:
-                        raise ValueError("A contagem regressiva deve ser um inteiro positivo.")
-                except ValueError:
-                    messagebox.showerror(
-                        "Erro",
-                        "A duração da contagem regressiva deve ser um inteiro positivo.",
-                    )
-                    return 0
+                duration = float(self.recording_duration_var.get())
+                if duration <= 0:
+                    raise ValueError
+            except ValueError:
+                return False, "A duração da gravação deve ser um número positivo."
 
-        # Validate interval frames
+        if self.use_countdown_var.get():
+            try:
+                countdown = int(self.countdown_duration_var.get())
+                if countdown <= 0:
+                    raise ValueError
+            except ValueError:
+                return False, "A duração da contagem regressiva deve ser um inteiro positivo."
+
+        return True, ""
+
+    def _validate_intervals(self) -> tuple[bool, str]:
         try:
             analysis_interval = int(self.analysis_interval_var.get())
             display_interval = int(self.display_interval_var.get())
             if analysis_interval <= 0 or display_interval <= 0:
-                raise ValueError("Os intervalos devem ser números inteiros positivos.")
+                raise ValueError
         except ValueError:
-            messagebox.showerror(
-                "Erro",
-                "Os intervalos de análise e exibição devem ser números inteiros positivos.",
+            return False, (
+                "Os intervalos de análise e exibição devem ser "
+                "números inteiros positivos."
             )
-            return 0
 
-        return 1
+        return True, ""
 
     def apply(self):
         duration = 0
@@ -1512,7 +1530,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.camera_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
 
         if self.available_cameras:
-            self.camera_var.set(list(self.available_cameras.keys())[0])
+            self.camera_var.set(next(iter(self.available_cameras.keys())))
         else:
             self.camera_menu.config(state="disabled")
 
@@ -1533,7 +1551,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.arduino_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
 
         if self.available_ports:
-            self.arduino_port_var.set(list(self.available_ports.keys())[0])
+            self.arduino_port_var.set(next(iter(self.available_ports.keys())))
 
         self._toggle_arduino_menu()  # Set initial state
         return self.camera_menu  # Initial focus
@@ -2144,12 +2162,42 @@ class ApplicationGUI:
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
         self._cleanup_single_analysis_button()
-
         # CRITICAL: Force process all pending GUI events before cleanup
         # This ensures all scheduled callbacks are executed
         self.root.update_idletasks()
 
-        # Reset analysis tab widgets before destroying the notebook
+        # Reset + destroy analysis-related widgets
+        self._reset_analysis_widgets()
+
+        # Force final GUI update before creating welcome frame
+        self.root.update_idletasks()
+
+        reset_geometry_if_not_maximized(self.root)
+        self.welcome_frame = ttk.Frame(self.root, padding="10")
+        self.welcome_frame.pack(expand=True, fill="both")
+
+        # --- Title ---
+        ttk.Label(
+            self.welcome_frame,
+            text="Bem-vindo ao Controlador Zebtrack",
+            font=("Helvetica", 16),
+        ).pack(pady=(0, 15))
+
+        # Project actions and model status widgets
+        self._build_project_actions(self.welcome_frame)
+        self._build_model_status(self.welcome_frame)
+
+    def _reset_analysis_widgets(self) -> None:
+        """Encapsula a limpeza e destruição de widgets da aba de análise."""
+        # Break the cleanup into smaller helpers to reduce cognitive complexity
+        self._reset_analysis_media()
+        self._reset_analysis_progress_and_metadata()
+        self._reset_roi_and_visual_frames()
+        self._destroy_notebook_and_main_controls()
+        self.analysis_tab_frame = None
+
+    def _reset_analysis_media(self) -> None:
+        """Reset media-related widgets such as analysis image overlays."""
         if hasattr(self, "analysis_video_label") and self.analysis_video_label:
             try:
                 if self.analysis_video_label.winfo_exists():
@@ -2158,7 +2206,8 @@ class ApplicationGUI:
             except Exception:
                 pass
 
-        # Ensure progress UI is hidden and status reset
+    def _reset_analysis_progress_and_metadata(self) -> None:
+        """Reset progress indicators and analysis metadata to defaults."""
         try:
             self.hide_progress_bar()
         except Exception:
@@ -2186,6 +2235,8 @@ class ApplicationGUI:
                 except Exception:
                     pass
 
+    def _reset_roi_and_visual_frames(self) -> None:
+        """Handle ROI canvas and visualization frame teardown."""
         if hasattr(self, "roi_canvas") and self.roi_canvas:
             try:
                 if self.roi_canvas.winfo_exists():
@@ -2213,7 +2264,8 @@ class ApplicationGUI:
             self.zone_summary_frame = None
             self.zone_summary_cards = {}
 
-        # Destroy notebook and main controls
+    def _destroy_notebook_and_main_controls(self) -> None:
+        """Destroy the main notebook and controls, clear project overview state."""
         if self.notebook:
             self.notebook.destroy()
             self.notebook = None
@@ -2245,26 +2297,9 @@ class ApplicationGUI:
             self._project_status_containers.clear()
             self._last_overview_counts = {}
 
-        self.analysis_tab_frame = None
-
-        # Force final GUI update before creating welcome frame
-        self.root.update_idletasks()
-
-        reset_geometry_if_not_maximized(self.root)
-        self.welcome_frame = ttk.Frame(self.root, padding="10")
-        self.welcome_frame.pack(expand=True, fill="both")
-
-        # --- Title ---
-        ttk.Label(
-            self.welcome_frame,
-            text="Bem-vindo ao Controlador Zebtrack",
-            font=("Helvetica", 16),
-        ).pack(pady=(0, 15))
-
-        # --- Project Actions ---
-        project_actions_frame = ttk.LabelFrame(
-            self.welcome_frame, text="Ações do Projeto", padding=10
-        )
+    def _build_project_actions(self, parent) -> None:
+        """Create the project actions controls in the welcome frame."""
+        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
         project_actions_frame.pack(fill="x", pady=10, expand=True)
 
         ttk.Button(
@@ -2288,12 +2323,9 @@ class ApplicationGUI:
             command=self._open_project_workflow,
         ).pack(fill="x", padx=10, pady=5)
 
-        # --- Modelo ativo e status do OpenVINO ---
-        model_status_frame = ttk.LabelFrame(
-            self.welcome_frame,
-            text="Estado do Modelo de Detecção",
-            padding=10,
-        )
+    def _build_model_status(self, parent) -> None:
+        """Create the model status display in the welcome frame."""
+        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
         model_status_frame.pack(fill="x", pady=10, expand=True)
         ttk.Label(
             model_status_frame,
@@ -2315,11 +2347,81 @@ class ApplicationGUI:
         )
         theme_name = preferred_theme or "cosmo"
 
+    # ttkbootstrap changed its API in some versions and may no longer accept
+    # the `master` keyword in Style.__init__.
+    #
+    # Behaviour:
+    # - Older ttkbootstrap accepted `master=self.root` in Style(...)
+    # - Newer releases removed that kwarg and raise TypeError if present
+    #
+    # Strategy: try the call that includes `master` first (compatible with
+    # older ttkbootstrap), and on TypeError retry without `master`. This
+    # keeps the code compatible across multiple installed versions. If you
+    # prefer to enforce a single supported ttkbootstrap version, pin an
+    # appropriate range in `pyproject.toml` (e.g. "ttkbootstrap~=1.1"),
+    # and remove the fallback.
+    #
+    # We also log the installed ttkbootstrap version when falling back so
+    # maintainers can identify mismatches in CI or user environments.
+        # Resolve installed ttkbootstrap version for better logging. Try
+        # importlib.metadata first (Python 3.8+), fallback to pkg_resources if
+        # importlib.metadata is not available or package metadata is missing.
+        # Detect installed ttkbootstrap version without importing pkg_resources
+        # to avoid triggering setuptools/pkg_resources deprecation warnings.
+        ttk_version = getattr(ttkb, "__version__", None)
         try:
-            self._ttkbootstrap_style = ttkb.Style(
+            from importlib.metadata import PackageNotFoundError
+            from importlib.metadata import version as _pkg_version
+
+            try:
+                ttk_version = _pkg_version("ttkbootstrap")
+            except PackageNotFoundError:
+                # leave ttk_version as ttkb.__version__ if present
+                pass
+        except Exception:
+            # importlib.metadata not available or failed; keep ttkb.__version__
+            pass
+
+        if not ttk_version:
+            ttk_version = "unknown"
+
+        try:
+            self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
+        except TypeError:
+            # Older/newer mismatch: try without the master kwarg
+            try:
+                self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
+                log.warning(
+                    "ui.theme.bootstrap_master_removed",
+                    message=(
+                        "ttkbootstrap.Style no longer accepts 'master'; "
+                        "initialized Style without master keyword"
+                    ),
+                    ttkbootstrap_version=ttk_version,
+                    theme=theme_name,
+                )
+            except Exception:
+                log.warning(
+                    "ui.theme.bootstrap_failed",
+                    theme=theme_name,
+                    exc_info=True,
+                )
+                self._ttkbootstrap_style = None
+                self._ttkbootstrap_theme = None
+                return
+        except Exception:
+            log.warning(
+                "ui.theme.bootstrap_failed",
                 theme=theme_name,
-                master=self.root,
+                exc_info=True,
             )
+            self._ttkbootstrap_style = None
+            self._ttkbootstrap_theme = None
+            return
+
+        # If we get here, _ttkbootstrap_style is set. Configure theme usage and
+        # root background if the theme provides a frame background color.
+        try:
             active_theme = self._ttkbootstrap_style.theme_use()
             self._ttkbootstrap_theme = active_theme
 
@@ -2329,8 +2431,10 @@ class ApplicationGUI:
 
             log.debug("ui.theme.bootstrap_applied", theme=active_theme)
         except Exception:
+            # If anything goes wrong after creating the Style instance, log and
+            # clear the style references so callers can fall back to ttk.
             log.warning(
-                "ui.theme.bootstrap_failed",
+                "ui.theme.bootstrap_failed_post_init",
                 theme=theme_name,
                 exc_info=True,
             )
@@ -2343,9 +2447,8 @@ class ApplicationGUI:
         self._style = style
 
         try:
-            current_theme = style.theme_use()
+            style.theme_use()
         except Exception:  # pragma: no cover - defensive safeguard
-            current_theme = "default"
             style.theme_use("default")
 
         base_background = (
@@ -2396,7 +2499,7 @@ class ApplicationGUI:
 
         style.configure(
             "Zebtrack.TNotebook.Tab",
-            focuscolor="" if current_theme else "",
+            focuscolor="",
         )
         style.configure("Zebtrack.TNotebook", padding=(4, 4))
 
@@ -4372,6 +4475,8 @@ class ApplicationGUI:
         )
         zone_list_frame.pack(fill="x", pady=5)
 
+        from zebtrack.ui.window_utils import create_scrollbar
+
         self.zone_listbox = ttk.Treeview(
             zone_list_frame,
             columns=("name", "type", "color"),
@@ -4381,14 +4486,16 @@ class ApplicationGUI:
         self.zone_listbox.heading("name", text="Nome")
         self.zone_listbox.heading("type", text="Tipo")
         self.zone_listbox.heading("color", text="Cor")
-        # Configure columns with proper sizing for better proportions
+
+        # Configure column widths
         self.zone_listbox.column("name", width=240, minwidth=160, stretch=True)
         self.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
         self.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
+
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
-        # Scrollbar for the listbox
-        scrollbar = ttk.Scrollbar(
+        # Scrollbar
+        scrollbar = create_scrollbar(
             zone_list_frame, orient="vertical", command=self.zone_listbox.yview
         )
         self.zone_listbox.configure(yscrollcommand=scrollbar.set)
@@ -5798,7 +5905,7 @@ class ApplicationGUI:
 
         return (float(canvas_x), float(canvas_y))
 
-    def load_video_frame_to_canvas(self, video_path: str = None, frame_number: int = 0):
+    def load_video_frame_to_canvas(self, video_path: str | None = None, frame_number: int = 0):
         """Carrega um frame do vídeo no canvas"""
         if video_path is None:
             # Tenta usar o vídeo pendente ou do projeto
@@ -6414,9 +6521,11 @@ class ApplicationGUI:
 
     def update_reports_tree(self):
         """Atualiza a árvore de relatórios com estrutura hierárquica."""
+        # Clear existing tree
         for item in self.reports_tree.get_children():
             self.reports_tree.delete(item)
 
+        # Reset metadata store
         if not hasattr(self, "_report_tree_metadata"):
             self._report_tree_metadata = {}
         else:
@@ -6440,35 +6549,45 @@ class ApplicationGUI:
             log.debug("gui.update_reports.no_videos")
             return
 
-        # Allow displaying reports even without a project file
-        # For single video workflows, we still want to show the reports
+        hierarchy = self._build_report_hierarchy(all_videos, pm)
+        self._populate_reports_tree_from_hierarchy(hierarchy, pm)
 
-        def _sort_key(value):
+        log.info(
+            "gui.reports_tree.updated",
+            groups=len(hierarchy),
+            total_videos=len(all_videos),
+        )
+
+        # Keep selector synced
+        self._populate_video_selector_tree()
+
+    def _sort_key_for_reports(self, value):
+        try:
+            return (0, int(value))
+        except (TypeError, ValueError):
+            value_str = str(value) if value is not None else ""
+            return (1, value_str.lower())
+
+    def _format_subject_for_reports(self, value):
+        if value is None:
+            return "??"
+        if isinstance(value, int):
+            return f"{value:02d}"
+        if isinstance(value, float) and value.is_integer():
+            return f"{int(value):02d}"
+        value_str = str(value).strip()
+        if not value_str:
+            return "??"
+        if value_str.isdigit():
             try:
-                return (0, int(value))
-            except (TypeError, ValueError):
-                value_str = str(value) if value is not None else ""
-                return (1, value_str.lower())
+                return f"{int(value_str):02d}"
+            except ValueError:
+                return value_str
+        return value_str
 
-        def _format_subject(value):
-            if value is None:
-                return "??"
-            if isinstance(value, int):
-                return f"{value:02d}"
-            if isinstance(value, float) and value.is_integer():
-                return f"{int(value):02d}"
-            value_str = str(value).strip()
-            if not value_str:
-                return "??"
-            if value_str.isdigit():
-                try:
-                    return f"{int(value_str):02d}"
-                except ValueError:
-                    return value_str
-            return value_str
-
+    def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
+        """Build a nested hierarchy of groups -> days -> entries used to populate the tree."""
         hierarchy: dict[str, dict] = {}
-
         for video in all_videos:
             metadata = video.get("metadata") or {}
             group_id = metadata.get("group") or "Sem Grupo"
@@ -6510,13 +6629,14 @@ class ApplicationGUI:
                         video=entry["path"],
                     )
 
-            group_data = hierarchy.setdefault(
-                group_id,
-                {"display": group_display, "days": {}},
-            )
+            group_data = hierarchy.setdefault(group_id, {"display": group_display, "days": {}})
             group_days = group_data["days"]
             group_days.setdefault(day_id, []).append(entry)
 
+        return hierarchy
+
+    def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
+        """Insert nodes into the reports tree from a precomputed hierarchy."""
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
@@ -6524,15 +6644,23 @@ class ApplicationGUI:
             total_videos = sum(len(items) for items in videos_by_day.values())
             if total_videos == 0:
                 continue
-
             total_arena = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_arena"]
             )
             total_rois = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_rois"]
             )
             total_trajectory = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_trajectory"]
             )
             total_complete = sum(
                 1
@@ -6555,17 +6683,13 @@ class ApplicationGUI:
                 open=True,
             )
 
-            self._report_tree_metadata[group_node] = {
-                "type": "group",
-                "identifier": group_id,
-            }
+            self._report_tree_metadata[group_node] = {"type": "group", "identifier": group_id}
 
             for day_id, entries in sorted(
-                videos_by_day.items(), key=lambda item: _sort_key(item[0])
+                videos_by_day.items(), key=lambda item: self._sort_key_for_reports(item[0])
             ):
                 if not entries:
                     continue
-
                 day_arena = sum(1 for entry in entries if entry["has_arena"])
                 day_rois = sum(1 for entry in entries if entry["has_rois"])
                 day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
@@ -6596,19 +6720,20 @@ class ApplicationGUI:
                 }
 
                 for entry in sorted(
-                    entries,
-                    key=lambda item: _sort_key(item.get("subject")),
+                    entries, key=lambda item: self._sort_key_for_reports(item.get("subject"))
                 ):
                     video_path = entry.get("path")
                     if not video_path:
                         continue
 
-                    subject_label = _format_subject(entry.get("subject"))
+                    subject_label = self._format_subject_for_reports(entry.get("subject"))
 
                     video_node = self.reports_tree.insert(
                         day_node,
                         "end",
-                        text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
+                        text=(
+                            f"🐟 Sujeito {subject_label}  ({entry['filename']})"
+                        ),
                         values=(
                             self._format_status_token(entry["has_arena"], "arena"),
                             self._format_status_token(entry["has_rois"], "rois"),
@@ -6631,15 +6756,6 @@ class ApplicationGUI:
                     }
 
                     self._append_report_artifacts(video_node, entry)
-
-        log.info(
-            "gui.reports_tree.updated",
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-        )
-
-        # Mantenha o seletor hierárquico sincronizado com a lista de relatórios
-        self._populate_video_selector_tree()
 
     def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
         tree = getattr(self, "reports_tree", None)
@@ -6737,22 +6853,28 @@ class ApplicationGUI:
         node_type = metadata.get("type")
 
         if node_type == "file":
-            artifact_path = metadata.get("path")
-            if artifact_path and os.path.exists(artifact_path):
-                self._open_path_in_explorer(artifact_path)
-            else:
-                self.show_warning(
-                    "Arquivo não encontrado",
-                    (
-                        "O relatório selecionado não foi localizado no disco. Gere "
-                        "novamente o relatório para restaurar o arquivo."
-                    ),
-                )
+            self._handle_report_file_node(metadata)
             return
 
         if node_type != "video":
             return
 
+        self._handle_report_video_node(metadata)
+
+    def _handle_report_file_node(self, metadata: dict) -> None:
+        artifact_path = metadata.get("path")
+        if artifact_path and os.path.exists(artifact_path):
+            self._open_path_in_explorer(artifact_path)
+        else:
+            self.show_warning(
+                "Arquivo não encontrado",
+                (
+                    "O relatório selecionado não foi localizado no disco. Gere "
+                    "novamente o relatório para restaurar o arquivo."
+                ),
+            )
+
+    def _handle_report_video_node(self, metadata: dict) -> None:
         video_path = metadata.get("video_path")
         if not video_path:
             return
@@ -9166,7 +9288,7 @@ class ApplicationGUI:
         if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
             if normalized_tracks:
-                self._update_track_options(["Todos"] + normalized_tracks)
+                self._update_track_options(["Todos", *normalized_tracks])
 
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""
@@ -9196,7 +9318,7 @@ class ApplicationGUI:
                 observed.add(text)
 
         ordered = sorted(observed, key=str)
-        return ["Todos"] + ordered
+        return ["Todos", *ordered]
 
     def _update_track_options(self, options: list[str]) -> None:
         cleaned: list[str] = []

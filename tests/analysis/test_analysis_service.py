@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from pyarrow import ArrowInvalid
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
@@ -220,7 +221,7 @@ class TestAnalysisServiceTrajectoryLoading(unittest.TestCase):
         invalid_file = self.test_dir / "invalid.parquet"
         invalid_file.write_text("not a parquet file")
 
-        with pytest.raises(Exception):
+        with pytest.raises(ArrowInvalid):
             self.service.load_trajectory_dataframe(invalid_file)
 
 

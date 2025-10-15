@@ -6,8 +6,8 @@ import hashlib
 import math
 import random
 from collections.abc import Iterable, Sequence
-# No typing imports needed
 
+# No typing imports needed
 import numpy as np
 import structlog
 

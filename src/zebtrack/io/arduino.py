@@ -1,6 +1,6 @@
 import time
 from types import TracebackType
-from typing import Any, Optional
+from typing import Any
 
 import serial
 import structlog
@@ -24,7 +24,7 @@ class Arduino:
         """
         self.port = port
         self.baud_rate = baud_rate
-        self.ser: Optional[serial.Serial] = None
+        self.ser: serial.Serial | None = None
         log.info("arduino.init", port=self.port, baud_rate=self.baud_rate)
 
     def connect(self) -> bool:
@@ -62,9 +62,9 @@ class Arduino:
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the runtime context and close the connection."""
         self.close()

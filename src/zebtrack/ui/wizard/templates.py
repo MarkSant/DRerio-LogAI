@@ -7,7 +7,6 @@ Allows saving and loading project configuration templates for quick project crea
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
@@ -26,7 +25,7 @@ class TemplateManager:
     - Parquet import scope
     """
 
-    def __init__(self, templates_dir: Optional[Path] = None):
+    def __init__(self, templates_dir: Path | None = None):
         """
         Initialize template manager.
 
@@ -47,7 +46,7 @@ class TemplateManager:
         self,
         name: str,
         wizard_data: dict,
-        destination_path: Optional[str | Path] = None,
+    destination_path: str | Path | None = None,
     ) -> bool:
         """
         Save wizard configuration as a template.
@@ -104,7 +103,7 @@ class TemplateManager:
             )
             return False
 
-    def load_template(self, name: str) -> Optional[dict]:
+    def load_template(self, name: str) -> dict | None:
         """
         Load a template by name.
 
@@ -137,7 +136,7 @@ class TemplateManager:
             )
             return None
 
-    def load_template_from_path(self, path: str | Path) -> Optional[dict]:
+    def load_template_from_path(self, path: str | Path) -> dict | None:
         """
         Load a template directly from a filesystem path.
 
@@ -266,7 +265,7 @@ class TemplateManager:
         return safe_name or "template"
 
 
-def format_template_banner(metadata: Optional[dict]) -> str:
+def format_template_banner(metadata: dict | None) -> str:
     """Format banner text for loaded templates."""
 
     if not metadata:

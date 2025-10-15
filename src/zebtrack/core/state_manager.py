@@ -59,7 +59,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Protocol
 
 import structlog
 
@@ -94,11 +94,11 @@ class StateChange:
 class ProjectState:
     """Immutable snapshot of project-related state."""
 
-    project_path: Optional[Path] = None
+    project_path: Path | None = None
     project_data: dict[str, Any] = field(default_factory=dict)
-    metadata: Optional[Any] = None  # DataFrame
-    active_zone_video: Optional[str] = None
-    last_zone_source_video: Optional[str] = None
+    metadata: Any | None = None  # DataFrame
+    active_zone_video: str | None = None
+    last_zone_source_video: str | None = None
 
     def copy(self) -> ProjectState:
         """Create a deep copy of project state."""
@@ -118,11 +118,11 @@ class DetectorState:
     detector_initialized: bool = False
     active_weight_name: str = ""
     use_openvino: bool = False
-    detector_plugin_name: Optional[str] = None
+    detector_plugin_name: str | None = None
     zones_configured: bool = False
-    zone_data: Optional[Any] = None  # ZoneData
-    frame_width: Optional[int] = None
-    frame_height: Optional[int] = None
+    zone_data: Any | None = None  # ZoneData
+    frame_width: int | None = None
+    frame_height: int | None = None
 
     def copy(self) -> DetectorState:
         """Create a deep copy of detector state."""
@@ -143,10 +143,10 @@ class RecordingState:
     """Immutable snapshot of recording-related state."""
 
     is_recording: bool = False
-    output_path: Optional[Path] = None
-    recording_start_time: Optional[datetime] = None
+    output_path: Path | None = None
+    recording_start_time: datetime | None = None
     arduino_connected: bool = False
-    arduino_port: Optional[str] = None
+    arduino_port: str | None = None
     timed_recording_active: bool = False
 
     def copy(self) -> RecordingState:
@@ -167,10 +167,10 @@ class ProcessingState:
 
     is_processing: bool = False
     processing_mode: str = "MULTI_TRACK"  # ProcessingMode enum
-    current_video: Optional[str] = None
+    current_video: str | None = None
     current_frame: int = 0
     total_frames: int = 0
-    processing_start_time: Optional[datetime] = None
+    processing_start_time: datetime | None = None
     cancel_requested: bool = False
 
     def copy(self) -> ProcessingState:
@@ -194,7 +194,7 @@ class UIState:
     selected_videos: list[str] = field(default_factory=list)
     analysis_interval_frames: int = 10
     display_interval_frames: int = 10
-    current_tab: Optional[str] = None
+    current_tab: str | None = None
 
     def copy(self) -> UIState:
         """Create a deep copy of UI state."""
@@ -318,8 +318,8 @@ class ObserverAdapter:
     def __init__(
         self,
         callback: Callable[[StateCategory, str, Any, Any], None],
-        categories: Optional[set[StateCategory]] = None,
-        keys: Optional[set[str]] = None,
+    categories: set[StateCategory] | None = None,
+    keys: set[str] | None = None,
     ):
         """
         Initialize the adapter.
@@ -842,9 +842,9 @@ class StateManager:
 
     def get_history(
         self,
-        category: Optional[StateCategory] = None,
-        key: Optional[str] = None,
-        limit: Optional[int] = None,
+        category: StateCategory | None = None,
+        key: str | None = None,
+        limit: int | None = None,
     ) -> list[StateChange]:
         """
         Get state change history for debugging.
@@ -935,7 +935,7 @@ class StateManager:
             },
         }
 
-    def get_observer_count(self, category: Optional[StateCategory] = None) -> int:
+    def get_observer_count(self, category: StateCategory | None = None) -> int:
         """
         Get the number of registered observers.
 

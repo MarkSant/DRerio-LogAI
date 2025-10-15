@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Optional
 
-Detection = tuple[int, int, int, int, float, Optional[int]]
+Detection = tuple[int, int, int, int, float, int | None]
 TrackedDetection = tuple[int, int, int, int, float, int]
 
 
@@ -15,7 +14,7 @@ class SingleSubjectTracker:
     def __init__(self, track_id: int = 1, iou_threshold: float = 0.3) -> None:
         self.track_id = int(track_id)
         self.iou_threshold = float(iou_threshold)
-        self._last_bbox: Optional[tuple[int, int, int, int]] = None
+        self._last_bbox: tuple[int, int, int, int] | None = None
 
     def reset(self) -> None:
         """Forget any previously tracked bounding box."""

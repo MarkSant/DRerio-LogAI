@@ -244,7 +244,7 @@ class KalmanFilter:
             An Nx4 dimensional matrix of N measurements, each in
             format (x, y, a, h) where (x, y) is the bounding box center
             position, a the aspect ratio, and h the height.
-        only_position : Optional[bool]
+        only_position : bool | None
             If True, distance computation is done with respect to the bounding
             box center position only.
         Returns

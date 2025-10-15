@@ -3,7 +3,6 @@ Analysis controls widget component - analysis tab controls and status display.
 """
 
 from tkinter import Label, StringVar, ttk
-from typing import Optional
 
 import structlog
 from PIL import Image, ImageTk
@@ -30,7 +29,7 @@ class AnalysisControlsWidget(BaseWidget):
     - analysis.track_selected: User selected a track ID
     """
 
-    def __init__(self, parent, event_bus: Optional[EventBus] = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
         """
         Initialize the analysis controls widget.
 
@@ -52,15 +51,15 @@ class AnalysisControlsWidget(BaseWidget):
         self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
 
         # Widget references
-        self.analysis_status_label: Optional[ttk.Label] = None
-        self.analysis_task_label: Optional[ttk.Label] = None
-        self.analysis_group_label: Optional[ttk.Label] = None
-        self.analysis_day_label: Optional[ttk.Label] = None
-        self.analysis_subject_label: Optional[ttk.Label] = None
-        self.tracking_mode_label: Optional[ttk.Label] = None
-        self.analysis_profile_label: Optional[ttk.Label] = None
-        self.track_selector_widget: Optional[ttk.Combobox] = None
-        self.analysis_video_label: Optional[Label] = None
+        self.analysis_status_label: ttk.Label | None = None
+        self.analysis_task_label: ttk.Label | None = None
+        self.analysis_group_label: ttk.Label | None = None
+        self.analysis_day_label: ttk.Label | None = None
+        self.analysis_subject_label: ttk.Label | None = None
+        self.tracking_mode_label: ttk.Label | None = None
+        self.analysis_profile_label: ttk.Label | None = None
+        self.track_selector_widget: ttk.Combobox | None = None
+        self.analysis_video_label: Label | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 

@@ -2,7 +2,7 @@
 Tests for the BehavioralAnalyzer abstract base class and its concrete methods.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -83,7 +83,7 @@ class ConcreteAnalyzer(BehavioralAnalyzer):
         vel_threshold: Optional[float] = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
-    ) -> List[Dict[str, float]]:
+    ) -> list[dict[str, float]]:
         return [{"start_time": 1.0, "end_time": 2.5, "duration": 1.5}]
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:

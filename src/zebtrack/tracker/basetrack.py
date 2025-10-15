@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import ClassVar
 
 import numpy as np
 
@@ -17,8 +18,8 @@ class BaseTrack:
     is_activated = False
     state = TrackState.New
 
-    history = OrderedDict()
-    features = []
+    history: ClassVar[OrderedDict] = OrderedDict()
+    features: ClassVar[list] = []
     curr_feature = None
     score = 0
     start_frame = 0

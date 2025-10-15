@@ -3,7 +3,6 @@ Zone controls widget component - zone drawing and management UI.
 """
 
 from tkinter import StringVar, ttk
-from typing import Optional
 
 import structlog
 
@@ -40,7 +39,7 @@ class ZoneControlsWidget(BaseWidget):
     - zone.roi_settings_apply: User clicked apply ROI settings
     """
 
-    def __init__(self, parent, event_bus: Optional[EventBus] = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
         """
         Initialize the zone controls widget.
 
@@ -61,18 +60,18 @@ class ZoneControlsWidget(BaseWidget):
         self.roi_overlap_ratio_var = StringVar(value="0.10")
 
         # Widget references
-        self.draw_roi_button: Optional[ttk.Button] = None
-        self.toggle_view_btn: Optional[ttk.Button] = None
-        self.roi_template_combobox: Optional[ttk.Combobox] = None
-        self.video_selector_tree: Optional[ttk.Treeview] = None
-        self.zone_listbox: Optional[ttk.Treeview] = None
-        self.save_arena_btn: Optional[ttk.Button] = None
-        self.discard_arena_btn: Optional[ttk.Button] = None
-        self.interactive_buttons_frame: Optional[ttk.Frame] = None
-        self.roi_rule_combo: Optional[ttk.Combobox] = None
-        self.radius_frame: Optional[ttk.Frame] = None
-        self.overlap_frame: Optional[ttk.Frame] = None
-        self.rule_help_label: Optional[ttk.Label] = None
+        self.draw_roi_button: ttk.Button | None = None
+        self.toggle_view_btn: ttk.Button | None = None
+        self.roi_template_combobox: ttk.Combobox | None = None
+        self.video_selector_tree: ttk.Treeview | None = None
+        self.zone_listbox: ttk.Treeview | None = None
+        self.save_arena_btn: ttk.Button | None = None
+        self.discard_arena_btn: ttk.Button | None = None
+        self.interactive_buttons_frame: ttk.Frame | None = None
+        self.roi_rule_combo: ttk.Combobox | None = None
+        self.radius_frame: ttk.Frame | None = None
+        self.overlap_frame: ttk.Frame | None = None
+        self.rule_help_label: ttk.Label | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 

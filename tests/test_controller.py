@@ -709,8 +709,10 @@ class TestAppController(unittest.TestCase):
             aquarium_height_cm=10.0,
         )
 
-        # --- Assert ---
-        self.mock_view.show_error.assert_called_once_with("Configuração Inválida", "Falha ao criar o novo projeto.")
+        self.mock_view.show_error.assert_called_once_with(
+            "Configuração Inválida",
+            "Falha ao criar o novo projeto.",
+        )
         self.mock_view._load_project_view.assert_not_called()
 
     def test_open_project_workflow_success_loads_view_and_zones(self):

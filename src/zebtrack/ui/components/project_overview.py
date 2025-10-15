@@ -3,7 +3,6 @@ Project overview widget component - project status and video tree display.
 """
 
 from tkinter import StringVar, ttk
-from typing import Optional
 
 import structlog
 
@@ -30,7 +29,7 @@ class ProjectOverviewWidget(BaseWidget):
     - project.refresh_requested: User requested overview refresh
     """
 
-    def __init__(self, parent, event_bus: Optional[EventBus] = None, **kwargs):
+    def __init__(self, parent, event_bus: EventBus | None = None, **kwargs):
         """
         Initialize the project overview widget.
 
@@ -43,8 +42,8 @@ class ProjectOverviewWidget(BaseWidget):
         self.project_status_vars: dict[str, StringVar] = {}
 
         # Widget references
-        self.project_overview_tree: Optional[ttk.Treeview] = None
-        self.status_cards_frame: Optional[ttk.Frame] = None
+        self.project_overview_tree: ttk.Treeview | None = None
+        self.status_cards_frame: ttk.Frame | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 

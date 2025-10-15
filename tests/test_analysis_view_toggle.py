@@ -167,7 +167,7 @@ class MockApplicationGUI:
             for det in self._current_detections:
                 if len(det) >= 6 and det[5] is not None:
                     observed.add(str(det[5]))
-            options = ["Todos"] + sorted(observed)
+            options = ["Todos", *sorted(observed)]
             self._update_track_options(options)
 
     def show_progress_bar(self):

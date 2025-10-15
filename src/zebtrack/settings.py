@@ -24,7 +24,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import structlog
 import yaml
@@ -687,7 +687,7 @@ def reload_settings(
 
 
 def export_schema(
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
     indent: int = 2,
 ) -> dict[str, Any]:
     """Export the Settings JSON schema for documentation or validation purposes.
@@ -754,7 +754,7 @@ except (FileNotFoundError, ValueError) as e:
 # =============================================================================
 # Public API
 # =============================================================================
-__all__ = [
+__all__ = sorted([
     # Main settings object (use this in most cases)
     "settings",
     # Settings model classes (for type hints and validation)
@@ -778,4 +778,4 @@ __all__ = [
     "load_settings",
     "reload_settings",
     "export_schema",
-]
+], key=str.casefold)
