@@ -46,6 +46,7 @@ from zebtrack.core.project_service import ProjectService
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -198,21 +199,20 @@ class MainViewModel:
             event_bus=self.ui_event_bus if self._use_event_bus else None,
         )
         self._publish_processing_mode(source="init", force=True)
-        
-        # Initialize services (Phase 2.2 + Phase 3)
-        self._init_recording_service()
-        self._init_analysis_service()
-        
-        # Other initializations...
+
+        # Initialize core threading primitives first
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
-
-        # New worker-based processing
         self.processing_worker: ProcessingWorker | None = None
-
         self._pending_external_trigger: dict | None = None
+
+        # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
+        # Note: video_processing_service needs cancel_event, so init it after threading setup
+        self._init_recording_service()
+        self._init_analysis_service()
+        self._init_video_processing_service()
 
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
@@ -400,6 +400,29 @@ class MainViewModel:
         log.info(
             "controller.init_analysis_service.complete",
             service=type(self.analysis_service).__name__,
+        )
+
+    def _init_video_processing_service(self) -> None:
+        """
+        Initialize VideoProcessingService for video processing orchestration.
+
+        Phase 7.2: Extracts video processing logic (tracking, single video workflow)
+        from MainViewModel into dedicated service layer.
+        """
+        self.video_processing_service = VideoProcessingService(
+            detector=self.detector,
+            recorder=self.recorder,
+            project_manager=self.project_manager,
+            state_manager=self.state_manager,
+            ui_coordinator=self.ui_coordinator,
+            root=self.root,
+            view=self.view,
+            cancel_event=self.cancel_event,
+        )
+
+        log.info(
+            "controller.init_video_processing_service.complete",
+            service=type(self.video_processing_service).__name__,
         )
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
@@ -3444,83 +3467,12 @@ class MainViewModel:
 
         return progress_callback
 
-    def _display_initial_frame(self, video_path: str) -> None:
-        cap = None
-        try:
-            cap = cv2.VideoCapture(video_path)
-            ret, frame = cap.read()
-            if ret:
-                # Phase 4: Use UICoordinator for frame display
-                self.ui_coordinator.display_frame(self.view, frame)
-        except Exception as exc:
-            log.warning("controller.progress.frame_display_error", error=str(exc))
-        finally:
-            if cap is not None:
-                cap.release()
-
-    def _resolve_results_path(
-        self,
-        *,
-        experiment_id: str,
-        video_path: str,
-        metadata_context: dict | None,
-        single_video_config: dict | None,
-        output_base_dir: str,
-    ) -> Path:
-        if self.project_manager.project_path and not single_video_config:
-            results_path = self.project_manager.resolve_results_directory(
-                experiment_id,
-                video_path=video_path,
-                metadata=metadata_context,
-            )
-        else:
-            results_path = Path(output_base_dir)
-
-        results_path.mkdir(parents=True, exist_ok=True)
-        return results_path
-
-    def _ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: str) -> list | None:
-        if arena_polygon_px:
-            return arena_polygon_px
-
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return None
-
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        return [[0, 0], [width, 0], [width, height], [0, height]]
-
-    def _load_trajectory_dataframe(
-        self, trajectory_path: str, experiment_id: str
-    ) -> pd.DataFrame | None:
-        if not os.path.exists(trajectory_path):
-            self.root.after(
-                0,
-                lambda: self.view.show_error(
-                    "Erro de Processamento",
-                    f"Falha ao gerar arquivo de trajetória para {experiment_id}.",
-                ),
-            )
-            return None
-
-        try:
-            return pd.read_parquet(trajectory_path)
-        except Exception as exc:
-            log.error(
-                "controller.processing.trajectory_read_failed",
-                path=trajectory_path,
-                error=str(exc),
-            )
-            self.root.after(
-                0,
-                lambda: self.view.show_error(
-                    "Erro de Processamento",
-                    f"Falha ao ler arquivo de trajetória para {experiment_id}.",
-                ),
-            )
-            return None
+    # Phase 7.2b: Removed 4 auxiliary methods (75 lines) -
+    # migrated to VideoProcessingService:
+    # - _display_initial_frame
+    # - _resolve_results_path
+    # - _ensure_arena_polygon
+    # - _load_trajectory_dataframe
 
     def _collect_analysis_parameters(
         self,
@@ -3706,7 +3658,7 @@ class MainViewModel:
         analysis_profile: dict | None,
     ) -> bool:
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
-        trajectory_df = self._load_trajectory_dataframe(trajectory_path, experiment_id)
+        trajectory_df = self.video_processing_service.load_trajectory_dataframe(trajectory_path, experiment_id)
         if trajectory_df is None:
             return False
 
@@ -3774,7 +3726,7 @@ class MainViewModel:
                 metadata.setdefault("analysis_profile_tracks", list(track_list))
 
         zone_data = self.project_manager.get_zone_data()
-        arena_polygon_px = self._ensure_arena_polygon(arena_polygon_px, video_path)
+        arena_polygon_px = self.video_processing_service.ensure_arena_polygon(arena_polygon_px, video_path)
         if not all([width_cm, height_cm, arena_polygon_px]):
             self.root.after(
                 0,
@@ -3947,9 +3899,9 @@ class MainViewModel:
             experiment_id=experiment_id,
         )
 
-        self._display_initial_frame(video_path)
+        self.video_processing_service.display_initial_frame(video_path)
 
-        results_path = self._resolve_results_path(
+        results_path = self.video_processing_service.resolve_results_path(
             experiment_id=experiment_id,
             video_path=video_path,
             metadata_context=metadata_context,
