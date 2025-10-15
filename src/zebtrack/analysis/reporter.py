@@ -2,6 +2,7 @@ import gettext
 import io
 import locale
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, cast
@@ -30,6 +31,7 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
+from zebtrack.settings import settings
 
 log = structlog.get_logger(__name__)
 
@@ -898,6 +900,86 @@ class Reporter:
         ax.grid(True)
         return fig
 
+    @staticmethod
+    def _generate_single_plot_thread_safe(
+        plot_func: Callable, name: str, *args, **kwargs
+    ) -> tuple[io.BytesIO, str]:
+        """
+        Generate a single plot in a thread-safe manner (Phase 8).
+
+        This method creates an independent figure context for each plot,
+        allowing matplotlib to safely generate plots in parallel threads.
+
+        Args:
+            plot_func: The plotting function to call
+            name: Name of the plot for logging
+            *args, **kwargs: Arguments to pass to the plotting function
+
+        Returns:
+            tuple: (BytesIO buffer with PNG data, plot name)
+        """
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plot_func(ax, *args, **kwargs)
+            memfile = io.BytesIO()
+            fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+            memfile.seek(0)
+            log.debug("reporter.plot.generated", name=name)
+            return (memfile, name)
+        except Exception as e:
+            log.error("reporter.plot.failed", name=name, error=str(e), exc_info=True)
+            # Return empty buffer to avoid breaking the report
+            empty_buffer = io.BytesIO()
+            return (empty_buffer, name)
+
+    def _generate_plots_parallel(
+        self, plot_configs: list[tuple[Callable, str]]
+    ) -> list[tuple[io.BytesIO, str]]:
+        """
+        Generate multiple plots in parallel using ThreadPoolExecutor (Phase 8).
+
+        This method leverages parallel execution for I/O-bound matplotlib operations,
+        significantly reducing report generation time.
+
+        Args:
+            plot_configs: List of (plot_function, name) tuples
+
+        Returns:
+            list: List of (BytesIO buffer, name) tuples in original order
+        """
+        # Get configured max parallel plots from settings
+        max_workers = getattr(
+            getattr(settings, "performance", None), "max_parallel_plots", 3
+        )
+
+        # Store results with their original indices to maintain order
+        indexed_results: dict[int, tuple[io.BytesIO, str]] = {}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all plot generation tasks
+            future_to_index = {}
+            for i, (plot_func, name) in enumerate(plot_configs):
+                future = executor.submit(
+                    self._generate_single_plot_thread_safe, plot_func, name
+                )
+                future_to_index[future] = i
+
+            # Collect results as they complete
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                try:
+                    result = future.result(timeout=60)  # 60s timeout per plot
+                    indexed_results[index] = result
+                except Exception as e:
+                    name = plot_configs[index][1]
+                    log.error("reporter.plot.executor_failed", name=name, error=str(e))
+                    # Add empty buffer as fallback
+                    indexed_results[index] = (io.BytesIO(), name)
+
+        # Return results in original order
+        return [indexed_results[i] for i in range(len(plot_configs))]
+
     def export_individual_report(self, output_path: str):
         """
         Exports a complete individual report. This is a convenience wrapper
@@ -989,7 +1071,7 @@ class Reporter:
             document.add_picture(memfile, width=Inches(6.5))
         progress_callback(3 / total_steps, _("ROI map added"))
 
-        # Step 4-8: Visualization plots
+        # Step 4-8: Visualization plots (Phase 8: Parallel generation)
         document.add_heading(_("Visualizations"), level=2)
         plot_configs = [
             (
@@ -1002,15 +1084,15 @@ class Reporter:
             (self.generate_angular_velocity_plot, _("Angular Velocity")),
         ]
 
-        for i, (plot_func, name) in enumerate(plot_configs):
-            fig, ax = plt.subplots(figsize=(10, 6))
-            plot_func(ax)
-            memfile = io.BytesIO()
-            fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
-            plt.close(fig)
-            memfile.seek(0)
-            document.add_paragraph(_("Chart: {name}:").format(name=name))
-            document.add_picture(memfile, width=Inches(6.0))
+        # Generate all plots in parallel (Phase 8 optimization)
+        log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
+        plot_results = self._generate_plots_parallel(plot_configs)
+
+        # Add plots to document in order
+        for i, (memfile, name) in enumerate(plot_results):
+            if memfile.getbuffer().nbytes > 0:  # Only add non-empty plots
+                document.add_paragraph(_("Chart: {name}:").format(name=name))
+                document.add_picture(memfile, width=Inches(6.0))
             progress_callback(
                 (4 + i) / total_steps,
                 _("Visualization added: {name}").format(name=name),

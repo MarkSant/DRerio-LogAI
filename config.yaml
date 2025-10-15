@@ -191,10 +191,35 @@ ui_features:
   # Use 5-step wizard for project creation (v1.6+ default: true)
   # Legacy dialog remains available for backward compatibility
   use_wizard_for_project_creation: true
-  
+
   # Enable async event bus for controller↔GUI communication (Phase 1 refactoring)
   # Default: false (staged migration, still using root.after for UI updates)
   enable_event_queue: false
+
+# -----------------------------------------------------------------------------
+# Performance & Parallelization (Phase 8)
+# -----------------------------------------------------------------------------
+performance:
+  # Maximum number of videos to process concurrently
+  # Higher values improve batch throughput but consume more RAM
+  # Recommended: 2-3 for typical systems, 4 for high-RAM machines
+  max_parallel_videos: 2
+
+  # Maximum number of plots to generate in parallel during report generation
+  # Speeds up report creation by parallelizing matplotlib operations
+  # Recommended: 3 (higher values may cause thread contention)
+  max_parallel_plots: 3
+
+  # Parquet compression codec
+  # Options:
+  #   - "snappy": Fast compression with good ratio (default, recommended)
+  #   - "gzip": Better compression but slower write/read
+  #   - "none": No compression (fastest but larger files)
+  parquet_compression: "snappy"
+
+  # Enable parallel execution of independent analysis components
+  # When true, BehavioralAnalyzer and ROIAnalyzer may run concurrently
+  enable_parallel_analysis: true
 
 # =============================================================================
 # End of Configuration

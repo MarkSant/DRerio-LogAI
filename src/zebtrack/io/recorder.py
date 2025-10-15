@@ -39,10 +39,17 @@ class Recorder:
         self._last_flush_time: float = 0.0
 
         recorder_settings = getattr(settings, "recorder", None)
+        performance_settings = getattr(settings, "performance", None)
+
         self._flush_interval_seconds: float = float(
             getattr(recorder_settings, "flush_interval_seconds", 5.0)
         )
         self._flush_row_threshold: int = int(getattr(recorder_settings, "flush_row_threshold", 500))
+
+        # Phase 8: Performance settings for compression
+        self._parquet_compression: str = str(
+            getattr(performance_settings, "parquet_compression", "snappy")
+        )
 
     def start_recording(
         self,
@@ -251,14 +258,20 @@ class Recorder:
             if self._parquet_schema is None:
                 table = pa.Table.from_pandas(df, preserve_index=False)
                 self._parquet_schema = table.schema
+                # Phase 8: Use configured compression
                 self._parquet_writer = pq.ParquetWriter(
-                    self._parquet_filename, self._parquet_schema
+                    self._parquet_filename,
+                    self._parquet_schema,
+                    compression=self._parquet_compression,
                 )
             else:
                 table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
                 if self._parquet_writer is None:
+                    # Phase 8: Use configured compression
                     self._parquet_writer = pq.ParquetWriter(
-                        self._parquet_filename, self._parquet_schema
+                        self._parquet_filename,
+                        self._parquet_schema,
+                        compression=self._parquet_compression,
                     )
 
             assert self._parquet_writer is not None
@@ -320,7 +333,8 @@ class Recorder:
                         columns=self._parquet_columns or self._determine_parquet_columns()
                     )
                     table = pa.Table.from_pandas(df, preserve_index=False)
-                    pq.write_table(table, parquet_path)
+                    # Phase 8: Use configured compression
+                    pq.write_table(table, parquet_path, compression=self._parquet_compression)
                     log.info("recorder.save_parquet.success", path=parquet_path)
             except Exception as e:
                 log.error(
@@ -346,7 +360,8 @@ class Recorder:
         try:
             processing_df = pd.DataFrame(zones.polygon, columns=["x", "y"])
             table = pa.Table.from_pandas(processing_df)
-            pq.write_table(table, processing_area_filename)
+            # Phase 8: Use configured compression
+            pq.write_table(table, processing_area_filename, compression=self._parquet_compression)
             log.info("recorder.save_processing_area.success", path=processing_area_filename)
         except Exception as e:
             log.error(
@@ -369,7 +384,8 @@ class Recorder:
             if poly_data:
                 areas_df = pd.DataFrame(poly_data, columns=["roi_name", "point_index", "x", "y"])
                 table = pa.Table.from_pandas(areas_df)
-                pq.write_table(table, areas_of_interest_filename)
+                # Phase 8: Use configured compression
+                pq.write_table(table, areas_of_interest_filename, compression=self._parquet_compression)
                 log.info(
                     "recorder.save_areas_of_interest.success",
                     path=areas_of_interest_filename,

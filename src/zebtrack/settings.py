@@ -365,6 +365,49 @@ class UIFeatureFlags(BaseModel):
     )
 
 
+class PerformanceSettings(BaseModel):
+    """Performance and parallelization settings (Phase 8)."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    max_parallel_videos: int = Field(
+        2,
+        ge=1,
+        le=4,
+        description=(
+            "Maximum number of videos to process in parallel. "
+            "Higher values increase throughput but consume more RAM. "
+            "Recommended: 2-3 for typical systems."
+        ),
+    )
+    max_parallel_plots: int = Field(
+        3,
+        ge=1,
+        le=5,
+        description=(
+            "Maximum number of matplotlib plots to generate in parallel during report generation. "
+            "Higher values speed up report generation but may cause thread contention. "
+            "Recommended: 3 for optimal performance."
+        ),
+    )
+    parquet_compression: Literal["snappy", "gzip", "none"] = Field(
+        "snappy",
+        description=(
+            "Compression codec for Parquet files. "
+            "'snappy': Fast compression with good ratio (default). "
+            "'gzip': Better compression ratio but slower. "
+            "'none': No compression, fastest but larger files."
+        ),
+    )
+    enable_parallel_analysis: bool = Field(
+        True,
+        description=(
+            "Enable parallel execution of independent analysis components. "
+            "When True, BehavioralAnalyzer and ROIAnalyzer may run concurrently where possible."
+        ),
+    )
+
+
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections.
 
@@ -449,6 +492,12 @@ class Settings(BaseModel):
         default_factory=lambda: AngularVelocitySettings(),  # type: ignore[call-arg]
         description=(
             "Parameters for robust angular velocity calculation to handle detection jitter."
+        ),
+    )
+    performance: PerformanceSettings = Field(
+        default_factory=lambda: PerformanceSettings(),  # type: ignore[call-arg]
+        description=(
+            "Performance and parallelization settings for optimizing throughput (Phase 8)."
         ),
     )
 
@@ -724,6 +773,7 @@ __all__ = [
     "ModelSelectionSettings",
     "WeightsSelectionSettings",
     "UIFeatureFlags",
+    "PerformanceSettings",
     # Utility functions
     "load_settings",
     "reload_settings",
