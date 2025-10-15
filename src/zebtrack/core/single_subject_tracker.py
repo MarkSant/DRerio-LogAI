@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import List, Optional, Tuple
+from typing import Optional
 
-Detection = Tuple[int, int, int, int, float, Optional[int]]
-TrackedDetection = Tuple[int, int, int, int, float, int]
+Detection = tuple[int, int, int, int, float, Optional[int]]
+TrackedDetection = tuple[int, int, int, int, float, int]
 
 
 class SingleSubjectTracker:
@@ -15,14 +15,14 @@ class SingleSubjectTracker:
     def __init__(self, track_id: int = 1, iou_threshold: float = 0.3) -> None:
         self.track_id = int(track_id)
         self.iou_threshold = float(iou_threshold)
-        self._last_bbox: Optional[Tuple[int, int, int, int]] = None
+        self._last_bbox: Optional[tuple[int, int, int, int]] = None
 
     def reset(self) -> None:
         """Forget any previously tracked bounding box."""
 
         self._last_bbox = None
 
-    def assign(self, detections: Sequence[Detection]) -> List[TrackedDetection]:
+    def assign(self, detections: Sequence[Detection]) -> list[TrackedDetection]:
         """Return the best candidate annotated with the stable ``track_id``.
 
         When multiple detections are available, prefer the one that overlaps the

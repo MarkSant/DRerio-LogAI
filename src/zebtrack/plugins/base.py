@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 
@@ -23,7 +23,7 @@ class DetectorPlugin(ABC):
         pass
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, Optional[int]]]:
         """
         Performs object detection on a single frame.
 
@@ -49,7 +49,7 @@ class DetectorPlugin(ABC):
 
     @property
     @abstractmethod
-    def model_input_shape(self) -> Tuple[int, int]:
+    def model_input_shape(self) -> tuple[int, int]:
         """
         Returns the expected input shape (height, width) of the model.
         """

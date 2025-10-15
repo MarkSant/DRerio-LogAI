@@ -59,7 +59,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol, Set
+from typing import Any, Callable, Optional, Protocol
 
 import structlog
 
@@ -95,7 +95,7 @@ class ProjectState:
     """Immutable snapshot of project-related state."""
 
     project_path: Optional[Path] = None
-    project_data: Dict[str, Any] = field(default_factory=dict)
+    project_data: dict[str, Any] = field(default_factory=dict)
     metadata: Optional[Any] = None  # DataFrame
     active_zone_video: Optional[str] = None
     last_zone_source_video: Optional[str] = None
@@ -191,7 +191,7 @@ class UIState:
     """Immutable snapshot of UI-related state."""
 
     canvas_view_mode: str = "zones"  # "zones" or "analysis"
-    selected_videos: List[str] = field(default_factory=list)
+    selected_videos: list[str] = field(default_factory=list)
     analysis_interval_frames: int = 10
     display_interval_frames: int = 10
     current_tab: Optional[str] = None
@@ -318,8 +318,8 @@ class ObserverAdapter:
     def __init__(
         self,
         callback: Callable[[StateCategory, str, Any, Any], None],
-        categories: Optional[Set[StateCategory]] = None,
-        keys: Optional[Set[str]] = None,
+        categories: Optional[set[StateCategory]] = None,
+        keys: Optional[set[str]] = None,
     ):
         """
         Initialize the adapter.
@@ -397,16 +397,16 @@ class StateManager:
         self._lock = threading.RLock()
 
         # Observer pattern: category -> set of callbacks
-        self._observers: Dict[StateCategory, Set[StateObserver]] = {
+        self._observers: dict[StateCategory, set[StateObserver]] = {
             category: set() for category in StateCategory
         }
         # Global observers that receive all state changes
-        self._global_observers: Set[StateObserver] = set()
+        self._global_observers: set[StateObserver] = set()
 
         # State change history for debugging
         self._enable_history = enable_history
         self._max_history_size = max_history_size
-        self._history: List[StateChange] = []
+        self._history: list[StateChange] = []
 
         log.info("state_manager.initialized", history_enabled=enable_history)
 
@@ -845,7 +845,7 @@ class StateManager:
         category: Optional[StateCategory] = None,
         key: Optional[str] = None,
         limit: Optional[int] = None,
-    ) -> List[StateChange]:
+    ) -> list[StateChange]:
         """
         Get state change history for debugging.
 
@@ -882,7 +882,7 @@ class StateManager:
 
     # ==================== Debugging Utilities ====================
 
-    def dump_state(self) -> Dict[str, Any]:
+    def dump_state(self) -> dict[str, Any]:
         """
         Dump the entire state as a dictionary for debugging.
 
@@ -954,7 +954,7 @@ class StateManager:
                 total += len(self._global_observers)
                 return total
 
-    def verify_state_integrity(self) -> Dict[str, Any]:
+    def verify_state_integrity(self) -> dict[str, Any]:
         """
         Verify state integrity and return diagnostic information.
 

@@ -4,7 +4,7 @@ import queue
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 import structlog
 
@@ -57,7 +57,7 @@ class EventBus:
     def __init__(self, maxsize: int = 0) -> None:
         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
         # Subscribers map: event_name -> list of handlers
-        self._subscribers: Dict[str, List[Callable[[dict], Any]]] = defaultdict(list)
+        self._subscribers: dict[str, list[Callable[[dict], Any]]] = defaultdict(list)
 
     def publish(
         self,
@@ -187,11 +187,11 @@ class EventBus:
                     handler=getattr(handler, "__name__", repr(handler)),
                 )
 
-    def get_subscribers(self, event_name: str) -> List[Callable]:
+    def get_subscribers(self, event_name: str) -> list[Callable]:
         """Get list of subscribers for a given event name (for testing)."""
         return list(self._subscribers.get(event_name, []))
 
-    def drain(self, *, max_items: Optional[int] = None) -> List[UIEvent]:
+    def drain(self, *, max_items: Optional[int] = None) -> list[UIEvent]:
         """Retrieve up to ``max_items`` events without blocking."""
 
         events: list[UIEvent] = []

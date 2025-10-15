@@ -1,7 +1,7 @@
 import glob
 import json
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import cv2
 import numpy as np
@@ -161,7 +161,7 @@ class OpenVINOPlugin(DetectorPlugin):
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, int | None]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None]]:
         """Run inference using the OpenVINO model and return raw detections."""
 
         input_tensor = self._preprocess(frame)
@@ -169,7 +169,7 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        predictions: List[Tuple[int, int, int, int, float, int | None]] = []
+        predictions: list[tuple[int, int, int, int, float, int | None]] = []
         for det in detections:
             x1, y1, x2, y2, score = det[:5]
             predictions.append(
@@ -187,7 +187,7 @@ class OpenVINOPlugin(DetectorPlugin):
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Compatibility method for diagnostic workflow.
         Returns raw detections without tracking, formatted for diagnostic reporting.
@@ -324,7 +324,7 @@ class OpenVINOPlugin(DetectorPlugin):
         return "OpenVINO"
 
     @property
-    def model_input_shape(self) -> Tuple[int, int]:
+    def model_input_shape(self) -> tuple[int, int]:
         return self.input_layer.shape[2], self.input_layer.shape[3]  # (h, w)
 
 

@@ -3,7 +3,7 @@ This module defines the abstract base class for behavioral analysis of trajector
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -35,7 +35,7 @@ class BehavioralAnalyzer(ABC):
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: List[Tuple[float, float]],
+        arena_polygon_px: list[tuple[float, float]],
         fps: float = 30.0,
         window_length: int = 7,
         polyorder: int = 3,
@@ -220,7 +220,7 @@ class BehavioralAnalyzer(ABC):
         """
         pass
 
-    def get_velocity_stats(self) -> Dict[str, float]:
+    def get_velocity_stats(self) -> dict[str, float]:
         """
         Calculates summary statistics for the velocity magnitude.
 
@@ -252,7 +252,7 @@ class BehavioralAnalyzer(ABC):
         vel_threshold: Optional[float] = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
-    ) -> List[Dict[str, float]]:
+    ) -> list[dict[str, float]]:
         """
         Detects freezing episodes based on a velocity threshold.
 
@@ -432,7 +432,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         vel_threshold: Optional[float] = None,
         threshold_method: str = "absolute",
         quantile: float = 0.1,
-    ) -> List[Dict[str, float]]:
+    ) -> list[dict[str, float]]:
         self.calculate_velocity_timeseries()
         v_mag = self._trajectory_data["v_mag"]
 
@@ -624,7 +624,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         threshold_cm_s: Optional[float] = None,
         min_duration: float = 0.5,
         quantile: float = 0.9,
-    ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    ) -> dict[str, Union[int, float, list[dict[str, float]]]]:
         """
         Detects episodes where the animal exceeds a velocity threshold.
 
@@ -675,7 +675,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         self,
         velocity_threshold_cm_s: float = 1.0,
         min_duration: float = 1.0,
-    ) -> Dict[str, Union[int, float, List[Dict[str, float]]]]:
+    ) -> dict[str, Union[int, float, list[dict[str, float]]]]:
         """
         Detects inactivity episodes where the velocity stays below a threshold.
 
@@ -722,7 +722,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_sharp_turns(
         self, threshold_deg_s: float, cooldown_s: float = 0.5
-    ) -> Dict[str, Union[float, pd.Index]]:
+    ) -> dict[str, Union[float, pd.Index]]:
         """
         Calculates the number of sharp turns based on angular velocity.
 
@@ -786,7 +786,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def _extract_velocity_episodes(
         self, mask: pd.Series, min_duration: float
-    ) -> List[Dict[str, float]]:
+    ) -> list[dict[str, float]]:
         if min_duration < 0:
             raise ValueError("min_duration must be non-negative.")
 
@@ -794,7 +794,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         change_groups = aligned_mask.ne(aligned_mask.shift()).cumsum()
         min_duration_td = pd.to_timedelta(min_duration, unit="s")
 
-        episodes: List[Dict[str, float]] = []
+        episodes: list[dict[str, float]] = []
         for _, block in self._trajectory_data[aligned_mask].groupby(change_groups):
             if block.empty:
                 continue

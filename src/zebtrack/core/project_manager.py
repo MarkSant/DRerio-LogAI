@@ -8,7 +8,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
-from typing import Any, Literal, Tuple
+from typing import Any, Literal
 
 import pandas as pd
 import structlog
@@ -1858,7 +1858,7 @@ class ProjectManager:
             )
             return False
 
-    def can_remove_asset(self, video_path: str, asset: AssetType) -> Tuple[bool, str | None]:
+    def can_remove_asset(self, video_path: str, asset: AssetType) -> tuple[bool, str | None]:
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             return False, "Vídeo não encontrado no projeto."

@@ -4,7 +4,7 @@ import hashlib
 import math
 import random
 from collections.abc import Iterable, Sequence
-from typing import Tuple
+# No typing imports needed
 
 import numpy as np
 import structlog
@@ -57,7 +57,7 @@ def set_seed(seed: int) -> None:
     log.info("reproducibility.seed.set", seed=seed)
 
 
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 
 def polygon_centroid(points: Sequence[Point]) -> Point | None:

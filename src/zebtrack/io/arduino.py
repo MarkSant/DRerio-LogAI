@@ -1,6 +1,6 @@
 import time
 from types import TracebackType
-from typing import Any, Optional, Type
+from typing import Any, Optional
 
 import serial
 import structlog
@@ -62,7 +62,7 @@ class Arduino:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:

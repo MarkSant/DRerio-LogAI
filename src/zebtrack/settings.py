@@ -24,7 +24,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 
 import structlog
 import yaml
@@ -273,19 +273,19 @@ class DetectionZonesSettings(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
-    polygon: List[List[int]] = Field(
+    polygon: list[list[int]] = Field(
         default_factory=list,
         description="A list of [x, y] points defining the main detection polygon.",
     )
-    roi_polygons: List[List[List[int]]] = Field(
+    roi_polygons: list[list[list[int]]] = Field(
         default_factory=list,
         description="A list of polygons, where each polygon is a list of [x,y] points.",
     )
-    roi_names: List[str] = Field(
+    roi_names: list[str] = Field(
         default_factory=list,
         description="The names for each ROI polygon.",
     )
-    roi_colors: List[Tuple[int, int, int]] = Field(
+    roi_colors: list[tuple[int, int, int]] = Field(
         default_factory=list,
         description="The BGR colors for drawing each ROI polygon on the overlay.",
     )
@@ -546,7 +546,7 @@ class Settings(BaseModel):
         return self
 
 
-def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge two dictionaries, with override taking precedence.
 
     This function performs a deep merge where:
@@ -689,7 +689,7 @@ def reload_settings(
 def export_schema(
     output_path: Optional[Path] = None,
     indent: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Export the Settings JSON schema for documentation or validation purposes.
 
     This generates a complete JSON Schema document describing all configuration

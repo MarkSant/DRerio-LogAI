@@ -5,7 +5,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, List, cast
+from typing import Callable, cast
 
 import cv2
 import matplotlib
@@ -370,7 +370,7 @@ class Reporter:
         return geometry
 
     @staticmethod
-    def _iter_polygon_parts(geometry) -> List[ShapelyPolygon]:
+    def _iter_polygon_parts(geometry) -> list[ShapelyPolygon]:
         if geometry is None:
             return []
 

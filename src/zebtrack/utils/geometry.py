@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
-from typing import Tuple
+# No typing imports needed
 
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 
 def polygon_centroid(points: Sequence[Point]) -> Point | None:

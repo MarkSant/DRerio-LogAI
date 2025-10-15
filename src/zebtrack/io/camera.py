@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import cv2
 import numpy as np
@@ -34,7 +34,7 @@ class Camera(FrameSource):
         )
 
         self._lock = threading.Lock()
-        self._latest_frame: Tuple[bool, np.ndarray | None] = (False, None)
+        self._latest_frame: tuple[bool, np.ndarray | None] = (False, None)
         self._stopped = threading.Event()
         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
         self._thread.start()
@@ -73,7 +73,7 @@ class Camera(FrameSource):
                 self._latest_frame = (ret, frame)
         log.info("camera.reader_thread.stopped")
 
-    def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+    def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """
         Returns the most recent frame read by the background thread.
         """
@@ -91,7 +91,7 @@ class Camera(FrameSource):
             self.cap.release()
             log.info("camera.released")
 
-    def get_properties(self) -> Dict[str, Any]:
+    def get_properties(self) -> dict[str, Any]:
         """
         Returns the actual properties of the camera feed.
         """

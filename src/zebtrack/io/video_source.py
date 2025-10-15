@@ -4,7 +4,7 @@ do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
 """
 
 import os
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import cv2
 import numpy as np
@@ -50,7 +50,7 @@ class VideoFileSource(FrameSource):
             frame_count=self.frame_count,
         )
 
-    def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+    def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """Reads the next frame from the video file."""
         ret, frame = self.cap.read()
         if not ret:
@@ -61,7 +61,7 @@ class VideoFileSource(FrameSource):
         """Returns the index of the next frame to be decoded."""
         return self.cap.get(cv2.CAP_PROP_POS_FRAMES)
 
-    def get_properties(self) -> Dict[str, Any]:
+    def get_properties(self) -> dict[str, Any]:
         """Returns a dictionary with the video properties."""
         return {
             "width": self.width,

@@ -12,7 +12,7 @@ Now handles batch processing, single video processing, and all coordination logi
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 import pandas as pd
 import structlog
@@ -48,15 +48,15 @@ class AnalysisService:
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: List[tuple[float, float]],
-        rois: List[ROI],
+        arena_polygon_px: list[tuple[float, float]],
+        rois: list[ROI],
         fps: float,
         # Analysis-specific parameters
         freezing_vel_threshold: float,
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
-    ) -> Tuple[Dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
+    ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, Optional[ROIAnalyzer]]:
         """
         Runs a complete analysis pipeline on the given trajectory data.
 
@@ -110,7 +110,7 @@ class AnalysisService:
         )
 
         # 2. Initialize the behavioral report
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "comportamento_geral": {
                 "distancia_total_cm": b_analyzer.calculate_total_distance(),
                 "estatisticas_velocidade": b_analyzer.get_velocity_stats(),

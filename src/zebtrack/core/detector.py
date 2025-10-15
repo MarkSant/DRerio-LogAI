@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -19,10 +19,10 @@ log = structlog.get_logger()
 class ZoneData:
     """Holds the configuration for detection zones."""
 
-    polygon: List[List[int]] = field(default_factory=list)
-    roi_polygons: List[List[List[int]]] = field(default_factory=list)
-    roi_names: List[str] = field(default_factory=list)
-    roi_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+    polygon: list[list[int]] = field(default_factory=list)
+    roi_polygons: list[list[list[int]]] = field(default_factory=list)
+    roi_names: list[str] = field(default_factory=list)
+    roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
 
 
 class Detector:
@@ -65,7 +65,7 @@ class Detector:
         # Zone configuration is now set dynamically via set_zones()
         self.zones: ZoneData = ZoneData()
         self.scaled_polygon: np.ndarray = np.array([])
-        self.scaled_roi_polygons: List[np.ndarray] = []
+        self.scaled_roi_polygons: list[np.ndarray] = []
         self._scaling_cache: dict = {}
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()

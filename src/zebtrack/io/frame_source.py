@@ -3,7 +3,7 @@ This module defines the abstract base class for all frame sources.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -19,7 +19,7 @@ class FrameSource(ABC):
     """
 
     @abstractmethod
-    def get_frame(self) -> Tuple[bool, np.ndarray | None]:
+    def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """
         Reads the next frame from the source.
 
@@ -43,7 +43,7 @@ class FrameSource(ABC):
         pass
 
     @abstractmethod
-    def get_properties(self) -> Dict[str, Any]:
+    def get_properties(self) -> dict[str, Any]:
         """
         Returns a dictionary of key properties of the frame source.
 

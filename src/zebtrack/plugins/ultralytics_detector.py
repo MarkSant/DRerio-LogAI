@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._aquarium_region_defined = False
         self._use_single_subject_mode = False
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, Optional[int]]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, Optional[int]]]:
         """
         Run the Ultralytics model and return raw detection boxes.
 
@@ -60,7 +60,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             classes=classes_param,
         )
 
-        predictions: List[Tuple[int, int, int, int, float, Optional[int]]] = []
+        predictions: list[tuple[int, int, int, int, float, Optional[int]]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
             xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
@@ -109,7 +109,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Method for diagnostic with instance segmentation support.
 
@@ -191,7 +191,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         return "YOLO (Ultralytics)"
 
     @property
-    def model_input_shape(self) -> Tuple[int, int]:
+    def model_input_shape(self) -> tuple[int, int]:
         # This is a bit of a simplification. YOLOv8 can handle various input sizes,
         # but 640 is the default and what's implicitly used.
         # For a more robust implementation, one might inspect the model's properties.

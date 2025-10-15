@@ -4,7 +4,7 @@ Video display widget component - handles canvas rendering and video frame displa
 
 import os
 from tkinter import Canvas
-from typing import Optional, Tuple
+from typing import Optional
 
 import cv2
 import structlog
@@ -63,12 +63,12 @@ class VideoDisplayWidget(BaseWidget):
         self._original_image: Optional[Image.Image] = None
         self._raw_bg_image: Optional[Image.Image] = None
         self._canvas_bg_image: Optional[ImageTk.PhotoImage] = None
-        self._canvas_bg_position: Optional[Tuple[int, int, str]] = None
+        self._canvas_bg_position: Optional[tuple[int, int, str]] = None
 
         # Coordinate transformation state
         self._bg_scale: float = 1.0
-        self._bg_offset: Tuple[int, int] = (0, 0)
-        self._bg_img_size: Tuple[int, int] = (width, height)
+        self._bg_offset: tuple[int, int] = (0, 0)
+        self._bg_img_size: tuple[int, int] = (width, height)
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -248,7 +248,7 @@ class VideoDisplayWidget(BaseWidget):
             tags="background_image",
         )
 
-    def video_to_canvas(self, video_x: float, video_y: float) -> Tuple[float, float]:
+    def video_to_canvas(self, video_x: float, video_y: float) -> tuple[float, float]:
         """
         Convert video frame coordinates to canvas coordinates.
 
@@ -272,7 +272,7 @@ class VideoDisplayWidget(BaseWidget):
 
         return (float(canvas_x), float(canvas_y))
 
-    def canvas_to_video(self, canvas_x: float, canvas_y: float) -> Tuple[float, float]:
+    def canvas_to_video(self, canvas_x: float, canvas_y: float) -> tuple[float, float]:
         """
         Convert canvas coordinates to video frame coordinates.
 
@@ -296,7 +296,7 @@ class VideoDisplayWidget(BaseWidget):
 
         return (float(video_x), float(video_y))
 
-    def get_image_size(self) -> Optional[Tuple[int, int]]:
+    def get_image_size(self) -> Optional[tuple[int, int]]:
         """
         Get the original image size.
 
