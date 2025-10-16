@@ -13,13 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import structlog
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 
 log = structlog.get_logger()
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
-@patch("zebtrack.core.controller.WeightManager")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.WeightManager")
 def test_single_video_appears_in_project_overview(mock_wm, mock_gui):
     """
     Test that a processed single video appears in the project overview
@@ -109,8 +109,8 @@ def test_single_video_appears_in_project_overview(mock_wm, mock_gui):
         )
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
-@patch("zebtrack.core.controller.WeightManager")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.WeightManager")
 def test_single_video_does_not_create_project_file(mock_wm, mock_gui):
     """
     Test that single video workflow does not create a project file on disk.
@@ -151,8 +151,8 @@ def test_single_video_does_not_create_project_file(mock_wm, mock_gui):
         log.info("test.single_video_no_project_file.success")
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
-@patch("zebtrack.core.controller.WeightManager")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.WeightManager")
 def test_register_outputs_auto_adds_missing_video(mock_wm, mock_gui):
     """
     Test that register_processing_outputs auto-adds missing videos.

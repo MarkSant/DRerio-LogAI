@@ -1883,10 +1883,153 @@ class ApplicationGUI:
 
         if self.event_bus is not None:
             self._register_event_bus_handlers()
+            self._subscribe_to_ui_events()  # New: Subscribe to Controller->UI events
             self._schedule_event_bus_poll()
 
         # Subscribe to StateManager state changes for reactive UI updates
         self._subscribe_to_state_changes()
+
+    def _subscribe_to_ui_events(self) -> None:
+        """Subscribe to events published by the MainViewModel for UI updates."""
+        if not self.event_bus:
+            return
+
+        # A mapping from event names to their handler methods in the GUI
+        ui_event_handlers = {
+            # Basic UI feedback
+            Events.UI_SET_STATUS: self._handle_set_status,
+            Events.UI_SHOW_ERROR: self._handle_show_error,
+            Events.UI_SHOW_WARNING: self._handle_show_warning,
+            Events.UI_SHOW_INFO: self._handle_show_info,
+            Events.UI_UPDATE_BUTTON_STATE: self._handle_update_button_state,
+            # Navigation and view updates
+            Events.UI_NAVIGATE_TO_WELCOME: self._handle_navigate_to_welcome,
+            Events.UI_NAVIGATE_TO_PROJECT_VIEW: self._handle_navigate_to_project_view,
+            Events.UI_REFRESH_PROJECT_VIEWS: self._handle_refresh_project_views,
+            Events.UI_SELECT_TAB: self._handle_select_tab,
+            # Model and weight management
+            Events.UI_UPDATE_WEIGHTS_LIST: self._handle_update_weights_list,
+            Events.UI_SET_ACTIVE_WEIGHT: self._handle_set_active_weight,
+            Events.UI_UPDATE_OPENVINO_CHECKBOX: self._handle_update_openvino_checkbox,
+            Events.UI_UPDATE_OPENVINO_STATUS: self._handle_update_openvino_status,
+            # Zone and drawing management
+            Events.UI_REDRAW_ZONES: self._handle_redraw_zones,
+            Events.UI_UPDATE_ZONE_LIST: self._handle_update_zone_list,
+            Events.UI_SETUP_INTERACTIVE_POLYGON: self._handle_setup_interactive_polygon,
+            # Frame and overlay display
+            Events.UI_DISPLAY_VIDEO_FRAME: self._handle_display_video_frame,
+            Events.UI_DISPLAY_FRAME: self._handle_display_frame,
+            Events.UI_UPDATE_DETECTION_OVERLAY: self._handle_update_detection_overlay,
+            # Live recording and Arduino
+            Events.UI_UPDATE_ARDUINO_STATUS: self._handle_update_arduino_status,
+            Events.UI_APPEND_ARDUINO_LOG: self._handle_append_arduino_log,
+            Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE: self._handle_show_external_trigger_notice,
+            Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE: self._handle_clear_external_trigger_notice,
+            # Analysis and processing
+            Events.UI_UPDATE_PROCESSING_MODE: self._handle_update_processing_mode,
+            Events.UI_UPDATE_PROCESSING_STATS: self._handle_update_processing_stats,
+            Events.UI_UPDATE_ANALYSIS_METADATA: self._handle_update_analysis_metadata,
+            Events.UI_UPDATE_ANALYSIS_TASK_STATUS: self._handle_update_analysis_task_status,
+            Events.UI_UPDATE_SOCIAL_SUMMARY: self._handle_update_social_summary,
+        }
+
+        for event_name, handler in ui_event_handlers.items():
+            self.event_bus.subscribe(event_name, handler)
+
+    # --- UI Event Handlers ---
+
+    def _handle_set_status(self, data: dict) -> None:
+        self.set_status(data.get("message", ""))
+        self.update_idletasks()
+
+    def _handle_navigate_to_welcome(self, data: dict) -> None:
+        self._create_welcome_frame()
+
+    def _handle_navigate_to_project_view(self, data: dict) -> None:
+        self._load_project_view()
+
+    def _handle_select_tab(self, data: dict) -> None:
+        tab_name = data.get("tab_name")
+        if tab_name == "zone_tab" and self.zone_tab_frame:
+            self.notebook.select(self.zone_tab_frame)
+
+    def _handle_update_weights_list(self, data: dict) -> None:
+        self.update_weights_dropdown(data.get("weights", []))
+
+    def _handle_set_active_weight(self, data: dict) -> None:
+        self.set_active_weight_in_dropdown(data.get("weight_name"))
+
+    def _handle_update_openvino_checkbox(self, data: dict) -> None:
+        self.update_openvino_checkbox(data.get("is_checked", False))
+
+    def _handle_redraw_zones(self, data: dict) -> None:
+        self.redraw_zones_from_project_data()
+
+    def _handle_update_zone_list(self, data: dict) -> None:
+        self.update_zone_listbox()
+
+    def _handle_display_frame(self, data: dict) -> None:
+        self.display_frame(data.get("frame"))
+
+    def _handle_update_detection_overlay(self, data: dict) -> None:
+        self.update_detection_overlay(data.get("detections"), data.get("report"))
+
+    def _handle_show_external_trigger_notice(self, data: dict) -> None:
+        self.show_external_trigger_notice(**data)
+
+    def _handle_clear_external_trigger_notice(self, data: dict) -> None:
+        self.clear_external_trigger_notice()
+
+    def _handle_update_processing_stats(self, data: dict) -> None:
+        self.update_progress_stats(**data.get("stats", {}))
+
+    def _handle_update_analysis_metadata(self, data: dict) -> None:
+        self.update_analysis_metadata(**data)
+
+    def _handle_update_analysis_task_status(self, data: dict) -> None:
+        self.update_analysis_task_status(**data.get("payload", {}))
+
+    def _handle_update_social_summary(self, data: dict) -> None:
+        self.update_social_summary(**data)
+
+    def _handle_show_error(self, data: dict) -> None:
+        self.show_error(data.get("title", "Erro"), data.get("message", ""))
+
+    def _handle_show_warning(self, data: dict) -> None:
+        self.show_warning(data.get("title", "Aviso"), data.get("message", ""))
+
+    def _handle_show_info(self, data: dict) -> None:
+        self.show_info(data.get("title", "Informação"), data.get("message", ""))
+
+    def _handle_update_button_state(self, data: dict) -> None:
+        self.update_button_state(data.get("button_name"), data.get("state"))
+
+    def _handle_refresh_project_views(self, data: dict) -> None:
+        self.refresh_project_views(
+            reason=data.get("reason"),
+            append_summary=data.get("append_summary", False),
+            immediate=data.get("immediate", False),
+        )
+
+    def _handle_update_arduino_status(self, data: dict) -> None:
+        self.update_arduino_status_indicator(data.get("connected"), data.get("port"))
+
+    def _handle_append_arduino_log(self, data: dict) -> None:
+        self.append_arduino_log(data.get("message", ""))
+
+    def _handle_update_openvino_status(self, data: dict) -> None:
+        self.update_openvino_status_display(data.get("status", ""))
+
+    def _handle_setup_interactive_polygon(self, data: dict) -> None:
+        polygon = data.get("polygon")
+        if polygon is not None:
+            self.setup_interactive_polygon(np.array(polygon))
+
+    def _handle_display_video_frame(self, data: dict) -> None:
+        self.display_roi_video_frame(data.get("video_path"))
+
+    def _handle_update_processing_mode(self, data: dict) -> None:
+        self.update_processing_mode(data.get("report"))
 
     def _subscribe_to_state_changes(self) -> None:
         """Subscribe to StateManager events for reactive UI updates."""
@@ -8822,8 +8965,8 @@ class ApplicationGUI:
         then calls the controller with the collected data.
         """
         # Always use the wizard (v1.6+, wizard is now permanent)
-        from zebtrack.ui.wizard import (
-            WizardDialog,
+        from zebtrack.ui.wizard.wizard_dialog import WizardDialog
+        from zebtrack.ui.wizard.wizard_adapter import (
             adapt_wizard_data_to_controller_format,
         )
 

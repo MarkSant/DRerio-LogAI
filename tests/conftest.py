@@ -55,3 +55,28 @@ else:
             _mock_tkinter_modules()
     except Exception:
         _mock_tkinter_modules()
+
+import tkinter as tk
+import pytest
+
+@pytest.fixture
+def tkinter_root():
+    """
+    Fixture for creating a tkinter root window.
+    This is necessary for any UI components that are tested.
+    """
+    # Create the virtual display
+    from pyvirtualdisplay import Display
+
+    display = Display(visible=0, size=(800, 600))
+    display.start()
+
+    # Create the tkinter root window
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+
+    yield root
+
+    # Clean up the tkinter window and the virtual display
+    root.destroy()
+    display.stop()

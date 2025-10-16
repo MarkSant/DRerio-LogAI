@@ -11,52 +11,38 @@ Validates:
 """
 
 import tempfile
-import unittest
 from pathlib import Path
-from tkinter import TclError, Tk
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
 
 
-class TestConfirmationStep(unittest.TestCase):
+@pytest.mark.usefixtures("tkinter_root")
+class TestConfirmationStep:
     """Tests for confirmation step."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup(self, monkeypatch, tkinter_root):
         """Create Tkinter root and temp directory for testing."""
-        try:
-            self.root = Tk()
-            self.root.withdraw()  # Hide window during tests
-        except TclError as exc:  # pragma: no cover - environment guard
-            self.skipTest(f"Tkinter not available: {exc}")
-
-        # Create temporary directory for project location
+        self.root = tkinter_root
         self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        """Destroy Tkinter root and clean up temp files."""
-        # Clean up temp directory
-        Path(self.temp_dir).rmdir()
-
-        # Clean up all child widgets but DON'T destroy root
-        # Destroying Tk root pollutes ttkbootstrap Style singleton
-        try:
-            for widget in list(self.root.winfo_children()):
-                try:
-                    widget.destroy()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        monkeypatch.setattr(Path, 'home', lambda: Path(self.temp_dir))
+        # Mock filedialog to prevent it from opening during tests
+        self.mock_filedialog = MagicMock()
+        monkeypatch.setattr(
+            "zebtrack.ui.wizard.confirmation_step.filedialog", self.mock_filedialog
+        )
 
     def test_confirmation_step_builds_ui_without_error(self):
         """Confirmation step should build UI without errors."""
         wizard_data = {}
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
-
         # Should have step_id set
-        self.assertEqual(step.step_id, WizardStepID.CONFIRMATION)
+        assert step.step_id == WizardStepID.CONFIRMATION
 
     def test_confirmation_step_default_state(self):
         """Confirmation step should have reasonable defaults."""
@@ -65,11 +51,11 @@ class TestConfirmationStep(unittest.TestCase):
         step.build_ui()
 
         # Project name starts empty
-        self.assertEqual(step.project_name_var.get(), "")
+        assert step.project_name_var.get() == ""
 
         # Location defaults to Documents
         location = step.project_location_var.get()
-        self.assertIn("Documents", location)
+        assert "Documents" in location
 
     def test_default_project_name_experimental(self):
         """Default name should be generated for experimental projects."""
@@ -88,8 +74,8 @@ class TestConfirmationStep(unittest.TestCase):
         name = step.project_name_var.get()
 
         # Should contain group name and timestamp
-        self.assertIn("Experimento", name)
-        self.assertIn("Control", name)
+        assert "Experimento" in name
+        assert "Control" in name
 
     def test_default_project_name_exploratory(self):
         """Default name should be generated for exploratory projects."""
@@ -103,7 +89,7 @@ class TestConfirmationStep(unittest.TestCase):
 
         name = step.project_name_var.get()
 
-        self.assertIn("Exploratorio", name)
+        assert "Exploratorio" in name
 
     def test_summary_generation_with_design(self):
         """Summary should be generated with detected design."""
@@ -136,17 +122,17 @@ class TestConfirmationStep(unittest.TestCase):
         summary = step.summary_text
 
         # Should contain design info
-        self.assertIn("Experimental", summary)
-        self.assertIn("Grupos: 2", summary)
-        self.assertIn("Dias: 2", summary)
-        self.assertIn("85%", summary)  # Confidence
-        self.assertIn("Total de Vídeos: 10", summary)
+        assert "Experimental" in summary
+        assert "Grupos: 2" in summary
+        assert "Dias: 2" in summary
+        assert "85%" in summary  # Confidence
+        assert "Total de Vídeos: 10" in summary
 
         # Should contain processing plan
-        self.assertIn("Plano de Processamento", summary)
+        assert "Plano de Processamento" in summary
 
         # Should contain parquet summary
-        self.assertIn("Arena: 5", summary)
+        assert "Arena: 5" in summary
 
     def test_summary_includes_template_metadata(self):
         """Summary should mention loaded template when metadata is present."""
@@ -164,9 +150,9 @@ class TestConfirmationStep(unittest.TestCase):
 
         summary = step.summary_text
 
-        self.assertIn("Template", summary)
-        self.assertIn("Template Especial", summary)
-        self.assertIn("Template carregado", step.template_info_var.get())
+        assert "Template" in summary
+        assert "Template Especial" in summary
+        assert "Template carregado" in step.template_info_var.get()
 
     def test_summary_includes_folder_preview(self):
         """Summary should include folder preview details when provided."""
@@ -196,8 +182,8 @@ class TestConfirmationStep(unittest.TestCase):
         step._generate_summary()
 
         summary = step.summary_text
-        self.assertIn("Estrutura de Pastas", summary)
-        self.assertIn("📁 Estudo", summary)
+        assert "Estrutura de Pastas" in summary
+        assert "📁 Estudo" in summary
 
     def test_validate_succeeds_with_valid_data(self):
         """Validation should succeed with valid project name and location."""
@@ -213,8 +199,8 @@ class TestConfirmationStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertTrue(is_valid)
-        self.assertEqual(error_message, "")
+        assert is_valid
+        assert error_message == ""
 
     def test_validate_fails_with_empty_name(self):
         """Validation should fail with empty project name."""
@@ -230,8 +216,8 @@ class TestConfirmationStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertFalse(is_valid)
-        self.assertIn("nome", error_message.lower())
+        assert not is_valid
+        assert "nome" in error_message.lower()
 
     def test_validate_fails_with_invalid_characters(self):
         """Validation should fail with invalid characters in name."""
@@ -247,8 +233,8 @@ class TestConfirmationStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertFalse(is_valid)
-        self.assertIn("caracteres inválidos", error_message.lower())
+        assert not is_valid
+        assert "caracteres inválidos" in error_message.lower()
 
     def test_validate_fails_with_nonexistent_location(self):
         """Validation should fail with non-existent location."""
@@ -264,8 +250,8 @@ class TestConfirmationStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertFalse(is_valid)
-        self.assertIn("não existe", error_message.lower())
+        assert not is_valid
+        assert "não existe" in error_message.lower()
 
     def test_validate_fails_with_existing_project(self):
         """Validation should fail if project directory already exists."""
@@ -279,6 +265,8 @@ class TestConfirmationStep(unittest.TestCase):
         # Create existing directory
         existing_project = Path(self.temp_dir) / "Existing_Project"
         existing_project.mkdir()
+        # Add a file to make it non-empty
+        (existing_project / "file.txt").touch()
 
         step.project_name_var.set("Existing_Project")
         step.project_location_var.set(self.temp_dir)
@@ -286,10 +274,11 @@ class TestConfirmationStep(unittest.TestCase):
         is_valid, error_message = step.validate()
 
         # Clean up
+        (existing_project / "file.txt").unlink()
         existing_project.rmdir()
 
-        self.assertFalse(is_valid)
-        self.assertIn("já existe", error_message.lower())
+        assert not is_valid
+        assert "já existe um projeto com esse nome" in error_message.lower()
 
     def test_validate_fails_with_no_videos(self):
         """Validation should fail with no videos."""
@@ -305,8 +294,8 @@ class TestConfirmationStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertFalse(is_valid)
-        self.assertIn("nenhum vídeo", error_message.lower())
+        assert not is_valid
+        assert "nenhum vídeo" in error_message.lower()
 
     def test_get_data_returns_project_info(self):
         """get_data should return project name and full path."""
@@ -320,14 +309,14 @@ class TestConfirmationStep(unittest.TestCase):
 
         data = step.get_data()
 
-        self.assertIn("project_name", data)
-        self.assertIn("project_path", data)
+        assert "project_name" in data
+        assert "project_path" in data
 
-        self.assertEqual(data["project_name"], "My_Project")
+        assert data["project_name"] == "My_Project"
 
         # project_path should be full path
         expected_path = str(Path(self.temp_dir) / "My_Project")
-        self.assertEqual(data["project_path"], expected_path)
+        assert data["project_path"] == expected_path
 
     def test_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
@@ -345,57 +334,52 @@ class TestConfirmationStep(unittest.TestCase):
         step.set_data(previous_data)
 
         # Verify state restored
-        self.assertEqual(step.project_name_var.get(), "Restored_Project")
-        self.assertEqual(step.project_location_var.get(), self.temp_dir)
+        assert step.project_name_var.get() == "Restored_Project"
+        assert step.project_location_var.get() == self.temp_dir
 
-    def test_valid_project_names(self):
-        """Test various valid project name formats."""
-        wizard_data = {"video_count": 1}
-
-        valid_names = [
+    @pytest.mark.parametrize(
+        "name",
+        [
             "Simple",
             "Project_2025",
             "Test-Project",
             "My Project Name",
             "ABC_123-Test",
-        ]
-
-        for name in valid_names:
-            with self.subTest(name=name):
-                step = ConfirmationStep(self.root, wizard_data)
-                step.build_ui()
-
-                step.project_name_var.set(name)
-                step.project_location_var.set(self.temp_dir)
-
-                is_valid, error_message = step.validate()
-
-                msg = f"Name '{name}' should be valid but got error: {error_message}"
-                self.assertTrue(is_valid, msg)
-
-    def test_invalid_project_names(self):
-        """Test various invalid project name formats."""
+        ],
+    )
+    def test_valid_project_names(self, name):
+        """Test various valid project name formats."""
         wizard_data = {"video_count": 1}
 
-        invalid_names = [
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set(name)
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        msg = f"Name '{name}' should be valid but got error: {error_message}"
+        assert is_valid, msg
+
+    @pytest.mark.parametrize(
+        "name",
+        [
             "Project@2025",  # @ not allowed
             "Test#Project",  # # not allowed
             "Name$Invalid",  # $ not allowed
             "Proj/ect",  # / not allowed
-        ]
+        ],
+    )
+    def test_invalid_project_names(self, name):
+        """Test various invalid project name formats."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
 
-        for name in invalid_names:
-            with self.subTest(name=name):
-                step = ConfirmationStep(self.root, wizard_data)
-                step.build_ui()
+        step.project_name_var.set(name)
+        step.project_location_var.set(self.temp_dir)
 
-                step.project_name_var.set(name)
-                step.project_location_var.set(self.temp_dir)
+        is_valid, error_message = step.validate()
 
-                is_valid, error_message = step.validate()
-
-                self.assertFalse(is_valid, f"Name '{name}' should be invalid")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert not is_valid, f"Name '{name}' should be invalid"

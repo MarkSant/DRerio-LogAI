@@ -5,13 +5,12 @@ Each wizard step inherits from WizardStep and implements the required
 interface methods for UI building, validation, and data management.
 """
 
-from abc import ABC, abstractmethod
 from tkinter import Frame
 
 
-class WizardStep(Frame, ABC):
+class WizardStep(Frame):
     """
-    Abstract base class for all wizard steps.
+    Base class for all wizard steps.
 
     Each step is a Tkinter Frame that manages its own UI and data.
     The WizardDialog orchestrator calls lifecycle methods at appropriate times.
@@ -46,7 +45,6 @@ class WizardStep(Frame, ABC):
         self.wizard_data = wizard_data
         self.step_id = None  # Set by subclass
 
-    @abstractmethod
     def build_ui(self):
         """
         Build UI widgets for this step.
@@ -56,9 +54,8 @@ class WizardStep(Frame, ABC):
 
         This method must be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def validate(self) -> tuple[bool, str]:
         """
         Validate step data before allowing advancement.
@@ -77,9 +74,8 @@ class WizardStep(Frame, ABC):
 
         This method must be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def get_data(self) -> dict:
         """
         Extract step's data for inclusion in wizard_data.
@@ -99,7 +95,7 @@ class WizardStep(Frame, ABC):
 
         This method must be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError
 
     def set_data(self, data: dict):
         """

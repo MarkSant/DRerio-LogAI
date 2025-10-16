@@ -56,6 +56,42 @@ Report Events:
 
 Application Events:
 - app:close: {}
+
+Controller→UI Events (New in Phase 1 Refactoring):
+-------------------
+These events are published by the MainViewModel and consumed by the ApplicationGUI
+or its components to decouple the view model from the view.
+
+- ui:show_error: {title: str, message: str}
+- ui:show_warning: {title: str, message: str}
+- ui:show_info: {title: str, message: str}
+- ui:set_status: {message: str}
+- ui:update_button_state: {button_name: str, state: str}
+- ui:refresh_project_views: {reason: str, append_summary: bool, immediate: bool}
+- ui:update_arduino_status: {connected: bool, port: str | None}
+- ui:append_arduino_log: {message: str}
+- ui:update_openvino_status: {status: str}
+- ui:setup_interactive_polygon: {polygon: list}
+- ui:display_video_frame: {video_path: str}
+- ui:update_processing_mode: {report: Any} # ProcessingReport
+- ui:navigate_to_welcome: {}
+- ui:navigate_to_project_view: {}
+- ui:navigate_to_analysis_view: {}
+- ui:navigate_from_analysis_view: {}
+- ui:update_openvino_checkbox: {is_checked: bool}
+- ui:set_active_weight: {weight_name: str}
+- ui:update_weights_list: {weights: list[str]}
+- ui:redraw_zones: {}
+- ui:update_zone_list: {}
+- ui:select_tab: {tab_name: str} # e.g., "zone_tab"
+- ui:show_external_trigger_notice: {context: dict}
+- ui:clear_external_trigger_notice: {}
+- ui:update_analysis_metadata: {metadata: dict}
+- ui:update_analysis_task_status: {payload: dict}
+- ui:update_detection_overlay: {detections: list, report: Any}
+- ui:display_frame: {frame: Any} # numpy array
+- ui:update_social_summary: {summary: dict}
+- ui:update_processing_stats: {stats: dict}
 """
 
 
@@ -112,6 +148,48 @@ class Events:
 
     # Application
     APP_CLOSE = "app:close"
+
+    # --------------------------------------------------------------------------
+    # Controller -> UI Events
+    # --------------------------------------------------------------------------
+    UI_SHOW_ERROR = "ui:show_error"
+    UI_SHOW_WARNING = "ui:show_warning"
+    UI_SHOW_INFO = "ui:show_info"
+    UI_SET_STATUS = "ui:set_status"
+    UI_UPDATE_BUTTON_STATE = "ui:update_button_state"
+    UI_REFRESH_PROJECT_VIEWS = "ui:refresh_project_views"
+    UI_UPDATE_ARDUINO_STATUS = "ui:update_arduino_status"
+    UI_APPEND_ARDUINO_LOG = "ui:append_arduino_log"
+    UI_UPDATE_OPENVINO_STATUS = "ui:update_openvino_status"
+    UI_SETUP_INTERACTIVE_POLYGON = "ui:setup_interactive_polygon"
+    UI_DISPLAY_VIDEO_FRAME = "ui:display_video_frame"
+    UI_UPDATE_PROCESSING_MODE = "ui:update_processing_mode"
+
+    # Navigation
+    UI_NAVIGATE_TO_WELCOME = "ui:navigate_to_welcome"
+    UI_NAVIGATE_TO_PROJECT_VIEW = "ui:navigate_to_project_view"
+    UI_NAVIGATE_TO_ANALYSIS_VIEW = "ui:navigate_to_analysis_view"
+    UI_NAVIGATE_FROM_ANALYSIS_VIEW = "ui:navigate_from_analysis_view"
+    UI_SELECT_TAB = "ui:select_tab"
+
+    # Widget updates
+    UI_UPDATE_OPENVINO_CHECKBOX = "ui:update_openvino_checkbox"
+    UI_SET_ACTIVE_WEIGHT = "ui:set_active_weight"
+    UI_UPDATE_WEIGHTS_LIST = "ui:update_weights_list"
+    UI_REDRAW_ZONES = "ui:redraw_zones"
+    UI_UPDATE_ZONE_LIST = "ui:update_zone_list"
+
+    # Recording/Triggering
+    UI_SHOW_EXTERNAL_TRIGGER_NOTICE = "ui:show_external_trigger_notice"
+    UI_CLEAR_EXTERNAL_TRIGGER_NOTICE = "ui:clear_external_trigger_notice"
+
+    # Analysis/Processing View
+    UI_UPDATE_ANALYSIS_METADATA = "ui:update_analysis_metadata"
+    UI_UPDATE_ANALYSIS_TASK_STATUS = "ui:update_analysis_task_status"
+    UI_UPDATE_DETECTION_OVERLAY = "ui:update_detection_overlay"
+    UI_DISPLAY_FRAME = "ui:display_frame"
+    UI_UPDATE_SOCIAL_SUMMARY = "ui:update_social_summary"
+    UI_UPDATE_PROCESSING_STATS = "ui:update_processing_stats"
 
 
 __all__ = ["Events"]

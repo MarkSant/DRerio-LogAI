@@ -15,14 +15,14 @@ from unittest.mock import MagicMock, patch
 
 import structlog
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import ZoneData
 
 log = structlog.get_logger()
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
-@patch("zebtrack.core.controller.WeightManager")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.WeightManager")
 def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
     """
     Test that a single video with zone data shows all flags correctly.
@@ -170,8 +170,8 @@ def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
         )
 
 
-@patch("zebtrack.core.controller.ApplicationGUI")
-@patch("zebtrack.core.controller.WeightManager")
+@patch("zebtrack.core.main_view_model.ApplicationGUI")
+@patch("zebtrack.core.main_view_model.WeightManager")
 def test_zone_flags_updated_during_output_registration(mock_wm, mock_gui):
     """
     Test that zone flags are updated if missing during output registration.
