@@ -17,13 +17,12 @@ def test_detection_mode_with_multiple_animals_blocked():
 
             # Also patch settings import in the controller module
             with patch("zebtrack.core.main_view_model.settings", mock_settings):
-                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                with patch("zebtrack.core.main_view_model.ApplicationGUI"):
                     from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
-                    mock_view = MockApplicationGUI.return_value
 
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
@@ -75,7 +74,6 @@ def test_detection_mode_with_single_animal_allowed():
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
                     mock_view = MockApplicationGUI.return_value
-
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
                 controller.project_manager.create_new_project.return_value = True
@@ -176,7 +174,6 @@ def test_single_video_detection_mode_enforcement():
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
                     mock_view = MockApplicationGUI.return_value
-
                     # Mock detector
                 controller.detector = MagicMock()
 

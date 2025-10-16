@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, patch
 
 import structlog
 
-from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.main_view_model import AppController
 
 log = structlog.get_logger()
 

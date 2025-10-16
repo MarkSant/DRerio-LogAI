@@ -14,8 +14,8 @@ These tests verify:
 import unittest
 from unittest.mock import MagicMock, patch
 
-from zebtrack.core.main_view_model import AppController
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.main_view_model import AppController
 
 
 class MockDetectorPlugin:

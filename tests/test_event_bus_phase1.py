@@ -2,9 +2,7 @@
 Test event bus implementation for Phase 1 refactoring.
 """
 
-from unittest.mock import Mock
 
-import pytest
 
 from zebtrack.ui.event_bus import EventBus, EventType
 from zebtrack.ui.events import Events
@@ -152,5 +150,3 @@ class TestEventCatalog:
         assert Events.PROJECT_CLOSE == "project:close"
         assert Events.MODEL_SET_WEIGHT == "model:set_weight"
         assert Events.VIDEO_CANCEL_ANALYSIS == "video:cancel_analysis"
-
-
