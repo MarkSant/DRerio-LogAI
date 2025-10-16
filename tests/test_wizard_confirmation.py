@@ -12,7 +12,7 @@ Validates:
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -29,12 +29,10 @@ class TestConfirmationStep:
         """Create Tkinter root and temp directory for testing."""
         self.root = tkinter_root
         self.temp_dir = tempfile.mkdtemp()
-        monkeypatch.setattr(Path, 'home', lambda: Path(self.temp_dir))
+        monkeypatch.setattr(Path, "home", lambda: Path(self.temp_dir))
         # Mock filedialog to prevent it from opening during tests
         self.mock_filedialog = MagicMock()
-        monkeypatch.setattr(
-            "zebtrack.ui.wizard.confirmation_step.filedialog", self.mock_filedialog
-        )
+        monkeypatch.setattr("zebtrack.ui.wizard.confirmation_step.filedialog", self.mock_filedialog)
 
     def test_confirmation_step_builds_ui_without_error(self):
         """Confirmation step should build UI without errors."""

@@ -8,7 +8,6 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
@@ -1556,7 +1555,9 @@ class MainViewModel:
             self.project_manager.set_active_zone_video(video_path)
 
             # Display the first frame of the video as a preview background
-            self.ui_event_bus.publish_event(Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": video_path})
+            self.ui_event_bus.publish_event(
+                Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": video_path}
+            )
 
             # Use selected aquarium method and get appropriate weight
             # Use temporary override if provided, otherwise use global settings
@@ -1946,7 +1947,7 @@ class MainViewModel:
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "Detecção Falhou",
-                        "message": "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",
+                        "message": "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",  # noqa: E501
                     },
                 )
                 return
@@ -2147,27 +2148,29 @@ class MainViewModel:
                     zone_data = self.project_manager.get_zone_data()
                     if not zone_data or not zone_data.polygon:
                         self.ui_event_bus.publish_event(
-                                Events.UI_SHOW_ERROR,
-                                {
-                                    "title": "Calibração Falhou",
-                                    "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",
-                                },
-                            )
+                            Events.UI_SHOW_ERROR,
+                            {
+                                "title": "Calibração Falhou",
+                                "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",  # noqa: E501
+                            },
+                        )
                         # Switch to zones tab
-                        self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SELECT_TAB, {"tab_name": "zone_tab"}
+                        )
                         return False
                     else:
                         log.info("controller.recording.live_zone_validation.success")
                 else:
                     # User declined calibration
                     self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {
-                                "title": "Zonas Obrigatórias",
-                                "message": "Projetos ao vivo requerem definição de zonas.\n"
-                                "Defina o polígono principal antes de gravar.",
-                            },
-                        )
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Zonas Obrigatórias",
+                            "message": "Projetos ao vivo requerem definição de zonas.\n"
+                            "Defina o polígono principal antes de gravar.",
+                        },
+                    )
                     return False
 
             elif not zone_data or not zone_data.polygon:
@@ -2186,16 +2189,16 @@ class MainViewModel:
                     self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
 
                     self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Defina a Arena Principal",
-                                "message": "Por favor:\n"
-                                "1. Use a câmera ao vivo para calibrar\n"
-                                "2. Use 'Detectar Aquário (Auto)' ou\n"
-                                "3. Desenhe manualmente o polígono principal\n"
-                                "4. Depois volte para iniciar a gravação",
-                            },
-                        )
+                        Events.UI_SHOW_INFO,
+                        {
+                            "title": "Defina a Arena Principal",
+                            "message": "Por favor:\n"
+                            "1. Use a câmera ao vivo para calibrar\n"
+                            "2. Use 'Detectar Aquário (Auto)' ou\n"
+                            "3. Desenhe manualmente o polígono principal\n"
+                            "4. Depois volte para iniciar a gravação",
+                        },
+                    )
                     return False
                 else:
                     # Continua sem arena definida (usando padrão)
@@ -2548,7 +2551,7 @@ class MainViewModel:
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Nenhum Vídeo Encontrado",
-                    "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",
+                    "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",  # noqa: E501
                 },
             )
             return
@@ -2626,11 +2629,11 @@ class MainViewModel:
             Events.UI_SHOW_INFO,
             {
                 "title": "Sucesso",
-                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
+                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",  # noqa: E501
             },
         )
 
-    def process_pending_project_videos(
+    def process_pending_project_videos(  # noqa: C901
         self,
         video_paths: list[str] | None = None,
     ) -> None:
@@ -2701,7 +2704,7 @@ class MainViewModel:
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
-                    "message": "Nenhum vídeo elegível foi encontrado com dados suficientes para análise.",
+                    "message": "Nenhum vídeo elegível foi encontrado com dados suficientes para análise.",  # noqa: E501
                 },
             )
             return
@@ -2790,7 +2793,7 @@ class MainViewModel:
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Processamento em andamento",
-                    "message": "Aguarde a conclusão do processamento atual antes de gerar os sumários.",
+                    "message": "Aguarde a conclusão do processamento atual antes de gerar os sumários.",  # noqa: E501
                 },
             )
             return
@@ -3083,7 +3086,7 @@ class MainViewModel:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro de Rastreamento",
-                    "message": f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",
+                    "message": f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",  # noqa: E501
                 },
             )
             return False, None
@@ -3540,7 +3543,7 @@ class MainViewModel:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
+                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
                 },
             )
             return None, None, None
@@ -3792,7 +3795,9 @@ class MainViewModel:
 
     def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
         if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ANALYSIS_METADATA, {"metadata": metadata})
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_ANALYSIS_METADATA, {"metadata": metadata}
+            )
 
     def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
         if self.ui_event_bus:
@@ -3840,7 +3845,9 @@ class MainViewModel:
 
             if stats:
                 if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
+                    self.ui_event_bus.publish_event(
+                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
+                    )
 
             processing_report = self._publish_processing_mode(
                 source="analysis_progress",
@@ -4687,7 +4694,7 @@ class MainViewModel:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro no Relatório",
-                    "message": "Não foi possível encontrar dados de resumo para os vídeos selecionados.",
+                    "message": "Não foi possível encontrar dados de resumo para os vídeos selecionados.",  # noqa: E501
                 },
             )
             return

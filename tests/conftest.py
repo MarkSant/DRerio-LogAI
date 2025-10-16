@@ -1,8 +1,8 @@
 import os
-import sys
+import tkinter as tk
 import warnings
-from importlib import util
-from unittest.mock import MagicMock
+
+import pytest
 
 os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
@@ -29,10 +29,6 @@ def pytest_configure(config):
         category=UserWarning,
         message=".*pkg_resources.*",
     )
-
-
-import tkinter as tk
-import pytest
 
 
 @pytest.fixture

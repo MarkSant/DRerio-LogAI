@@ -8965,10 +8965,10 @@ class ApplicationGUI:
         then calls the controller with the collected data.
         """
         # Always use the wizard (v1.6+, wizard is now permanent)
-        from zebtrack.ui.wizard.wizard_dialog import WizardDialog
         from zebtrack.ui.wizard.wizard_adapter import (
             adapt_wizard_data_to_controller_format,
         )
+        from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
         wizard = WizardDialog(self.root)
         if not wizard.result:

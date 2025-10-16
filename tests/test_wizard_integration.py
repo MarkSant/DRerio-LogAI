@@ -354,9 +354,6 @@ class TestWizardIntegration:
         step1_new.set_data(data1)
 
         # Verify restoration
-        assert (
-            step1_new.project_type_var.get()
-            == ProjectType.EXPERIMENTAL.value
-        )
+        assert step1_new.project_type_var.get() == ProjectType.EXPERIMENTAL.value
         assert step1_new.folder_organization_var.get() == 2
         assert step1_new.parquet_scope_var.get() == 2
