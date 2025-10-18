@@ -1,8 +1,5 @@
 import math
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
 
 def validate_calibration(pixel_per_cm_ratio: tuple[float, float] | None) -> None:
     """

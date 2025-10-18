@@ -82,15 +82,8 @@ class Recorder:
         Returns:
             bool: True if recording started successfully, False otherwise.
         """
-        try:
-            validate_calibration(pixel_per_cm_ratio)
-            self.pixel_per_cm_ratio = pixel_per_cm_ratio
-        except (TypeError, ValueError) as e:
-            log.error("recorder.calibration.invalid", error=str(e), pixel_per_cm_ratio=pixel_per_cm_ratio)
-            # To maintain backward compatibility and stability, we proceed without calibration
-            # instead of stopping the recording. The error is logged for later analysis.
-            self.pixel_per_cm_ratio = None
-
+        validate_calibration(pixel_per_cm_ratio)
+        self.pixel_per_cm_ratio = pixel_per_cm_ratio
         self.calibration = calibration
         if self.is_recording:
             log.warning("recorder.start.already_recording")

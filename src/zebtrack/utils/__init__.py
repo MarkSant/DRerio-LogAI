@@ -11,6 +11,8 @@ from collections.abc import Iterable, Sequence
 import numpy as np
 import structlog
 
+from zebtrack.utils.validation import validate_calibration
+
 try:  # pragma: no cover - optional dependency
     import torch
 
@@ -127,4 +129,5 @@ __all__ = [
     "polygon_centroid",
     "set_seed",
     "snap_point_to_axes",
+    "validate_calibration",
 ]

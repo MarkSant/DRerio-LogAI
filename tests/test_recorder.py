@@ -254,3 +254,24 @@ def test_video_writing(recorder_setup):
 
     final_size = os.path.getsize(video_file)
     assert final_size > initial_size
+
+
+def test_start_recording_with_invalid_calibration_raises_error(recorder_setup):
+    """Test that invalid calibration raises a ValueError."""
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    mock_zones = ZoneData()
+
+    # Try with invalid calibration, expecting a ValueError
+    with pytest.raises(ValueError, match="must be finite"):
+        recorder.start_recording(
+            output_folder,
+            frame_width,
+            frame_height,
+            zones=mock_zones,
+            pixel_per_cm_ratio=(float("nan"), 5.0),  # Invalid
+        )
+
+    # Ensure no recording files were created due to the failure
+    assert not os.path.exists(os.path.join(output_folder, "3_CoordMovimento.parquet"))
