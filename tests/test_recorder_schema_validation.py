@@ -17,48 +17,39 @@ def recorder_setup():
     frame_width = 100
     frame_height = 100
 
-    # Yield the necessary objects to the tests
     yield recorder, output_folder, frame_width, frame_height
 
-    # Teardown: clean up the temporary directory
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
 
 
-def test_schema_change_after_start_raises_error(recorder_setup):
+def test_schema_change_after_start_raises_error_and_cleans_up(recorder_setup):
     """
-    Tests that changing the calibration (and thus the schema) after recording
-    has started raises a ValueError during flush.
+    Tests that changing calibration after recording starts raises a ValueError
+    and that the recorder cleans up its state.
     """
     recorder, output_folder, frame_width, frame_height = recorder_setup
 
-    # 1. Start recording WITHOUT calibration
     recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+    assert recorder.is_recording
 
-    # 2. Add some data
     recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])
-
-    # 3. Now, add calibration mid-way through. This is the problematic scenario.
     recorder.pixel_per_cm_ratio = (1.0, 1.0)
-
-    # 4. Trigger a flush (by writing more data with flush threshold set low)
-    # The recorder is now in an error state. We expect the flush to fail.
     recorder._flush_row_threshold = 1
+
     with pytest.raises(ValueError, match="Parquet schema cannot change during recording"):
         recorder.write_detection_data(0.2, 2, [(10, 10, 20, 20, 0.9, 1)])
 
-    # Do not call stop_recording, as the recorder is in a known error state.
-    # The fixture's teardown will handle directory cleanup.
+    assert not recorder.is_recording, "Recorder should stop on critical error."
 
 
-def test_schema_change_from_calibrated_to_uncalibrated_raises_error(recorder_setup):
+def test_schema_change_from_calibrated_to_uncalibrated_cleans_up(recorder_setup):
     """
-    Tests that removing calibration after recording has started with it
-    raises a ValueError during flush.
+    Tests that removing calibration after recording starts raises a ValueError
+    and that the recorder cleans up its state.
     """
     recorder, output_folder, frame_width, frame_height = recorder_setup
 
-    # 1. Start recording WITH calibration
     recorder.start_recording(
         output_folder,
         frame_width,
@@ -66,17 +57,94 @@ def test_schema_change_from_calibrated_to_uncalibrated_raises_error(recorder_set
         zones=ZoneData(),
         pixel_per_cm_ratio=(1.0, 1.0),
     )
+    assert recorder.is_recording
 
-    # 2. Add some data
     recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])
-
-    # 3. Now, REMOVE calibration mid-way through.
     recorder.pixel_per_cm_ratio = None
-
-    # 4. Trigger a flush and expect an error
     recorder._flush_row_threshold = 1
+
     with pytest.raises(ValueError, match="Parquet schema cannot change during recording"):
         recorder.write_detection_data(0.2, 2, [(10, 10, 20, 20, 0.9, 1)])
 
-    # Do not call stop_recording, as the recorder is in a known error state.
-    # The fixture's teardown will handle directory cleanup.
+    assert not recorder.is_recording, "Recorder should stop on critical error."
+
+
+def test_can_start_new_recording_after_error(recorder_setup):
+    """
+    Tests that a new recording can be started successfully after a schema
+    validation error has occurred, ensuring the recorder is reset.
+    """
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    # First recording fails
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+    recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)]) # Add data to trigger flush
+    recorder.pixel_per_cm_ratio = (1.0, 1.0)
+    with pytest.raises(ValueError):
+        recorder._flush_detection_data(force=True)
+
+    assert not recorder.is_recording
+
+    # Second recording should succeed
+    new_output_folder = os.path.join(os.path.dirname(output_folder), "test_run_2")
+    success = recorder.start_recording(
+        new_output_folder,
+        frame_width,
+        frame_height,
+        zones=ZoneData(),
+        pixel_per_cm_ratio=(1.0, 1.0),
+    )
+    assert success
+    assert recorder.is_recording
+    recorder.stop_recording()
+
+
+def test_sequential_recordings_work_correctly(recorder_setup):
+    """
+    Tests that the schema is correctly reset and used across multiple
+    independent recording sessions.
+    """
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    # First recording (no calibration)
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+    recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])
+    recorder.stop_recording()
+    assert not recorder.is_recording
+
+    # Second recording (with calibration)
+    new_output_folder = os.path.join(os.path.dirname(output_folder), "test_run_2")
+    success = recorder.start_recording(
+        new_output_folder,
+        frame_width,
+        frame_height,
+        zones=ZoneData(),
+        pixel_per_cm_ratio=(2.0, 2.0),
+    )
+    assert success
+    assert recorder.is_recording
+    recorder.write_detection_data(0.2, 2, [(10, 10, 20, 20, 0.9, 1)])
+    recorder.stop_recording()
+    assert not recorder.is_recording
+
+
+def test_schema_change_before_first_flush_raises_error(recorder_setup):
+    """
+    Tests that a schema change raises an error on the first flush, even if
+    the flush happens late (e.g., at stop_recording).
+    """
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+
+    recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+    recorder._flush_row_threshold = 1000  # Ensure no flush happens automatically
+
+    recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])
+
+    # Change schema before any flush has occurred
+    recorder.pixel_per_cm_ratio = (1.0, 1.0)
+
+    with pytest.raises(ValueError, match="Parquet schema cannot change during recording"):
+        # The error should be raised when stop_recording forces the first flush
+        recorder.stop_recording()
+
+    assert not recorder.is_recording

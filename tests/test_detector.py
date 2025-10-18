@@ -239,6 +239,16 @@ class TestDetector(unittest.TestCase):
         empty_roi = np.array([])
         self.assertFalse(self.detector.bbox_hits_roi_polygon(75, 75, 85, 85, empty_roi))
 
+    def test_set_zones_with_invalid_dimensions_raises_error(self):
+        """Test that set_zones raises ValueError for non-positive dimensions."""
+        from zebtrack.core.detector import ZoneData
+
+        zones = ZoneData(polygon=[[0, 0], [1, 1]])
+        with self.assertRaisesRegex(ValueError, "Actual dimensions must be positive"):
+            self.detector.set_zones(zones, 0, 720)
+        with self.assertRaisesRegex(ValueError, "Actual dimensions must be positive"):
+            self.detector.set_zones(zones, 1280, -1)
+
 
 if __name__ == "__main__":
     unittest.main()
