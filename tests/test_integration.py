@@ -144,8 +144,8 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
         ret, frame = cap.read()
         if not ret:
             break
-        # Use the real detector's process_frame method
-        detections, _ = detector.process_frame(frame, project_type="pre-recorded")
+        # Use the real detector's detect method
+        detections, _ = detector.detect(frame, project_type="pre-recorded")
         timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         recorder.write_detection_data(timestamp, frame_num, detections)
         frame_num += 1
