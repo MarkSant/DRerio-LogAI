@@ -11,6 +11,7 @@ from pyarrow import parquet as pq
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.settings import settings
+from zebtrack.utils.validation import validate_calibration
 
 log = structlog.get_logger()
 
@@ -82,6 +83,7 @@ class Recorder:
         Returns:
             bool: True if recording started successfully, False otherwise.
         """
+        validate_calibration(pixel_per_cm_ratio)
         self.pixel_per_cm_ratio = pixel_per_cm_ratio
         self.calibration = calibration
         if self.is_recording:
