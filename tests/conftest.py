@@ -47,6 +47,7 @@ def tkinter_root():
     if platform.system() == "Linux":
         try:
             from pyvirtualdisplay import Display
+
             display = Display(visible=0, size=(800, 600))
             display.start()
         except ImportError:
@@ -55,7 +56,7 @@ def tkinter_root():
             pass
         except Exception as e:
             # Failed to start display, continue without it
-            warnings.warn(f"Could not start virtual display: {e}")
+            warnings.warn(f"Could not start virtual display: {e}", stacklevel=2)
 
     # Create the tkinter root window
     root = tk.Tk()

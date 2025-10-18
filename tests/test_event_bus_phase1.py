@@ -2,8 +2,6 @@
 Test event bus implementation for Phase 1 refactoring.
 """
 
-
-
 from zebtrack.ui.event_bus import EventBus, EventType
 from zebtrack.ui.events import Events
 
