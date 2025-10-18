@@ -130,6 +130,7 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     zones = ZoneData(polygon=arena_polygon)
     detector.set_zones(zones, frame_width, frame_height)
 
+    experiment_id = video_path.stem
     recorder.start_recording(
         output_folder=str(tracking_output_dir),
         frame_width=frame_width,
@@ -137,6 +138,7 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
         zones=zones,
         pixel_per_cm_ratio=(10.0, 10.0),  # Mock calibration
         is_video_file=True,  # Don't create a new video, we're analyzing one
+        base_name=experiment_id,
     )
 
     frame_num = 0
