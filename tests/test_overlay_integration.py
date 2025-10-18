@@ -96,8 +96,8 @@ class TestOverlayIntegration(unittest.TestCase):
 
             # Verify processing order:
             # 1. detect frames -> 2. draw overlay -> 3. send to callback
-            assert "process_frame" in tracking_section, (
-                "Should call process_frame to detect objects"
+            assert "self.detector.detect" in tracking_section, (
+                "Should call detect to detect objects"
             )
             assert "draw_overlay" in tracking_section, "Should call draw_overlay after detection"
             assert "progress_callback" in tracking_section, (
@@ -105,7 +105,7 @@ class TestOverlayIntegration(unittest.TestCase):
             )
 
             # Verify draw_overlay comes before progress_callback in the flow
-            detect_pos = tracking_section.find("process_frame")
+            detect_pos = tracking_section.find("self.detector.detect")
             overlay_pos = tracking_section.find("draw_overlay")
             callback_pos = tracking_section.find("progress_callback(")
 

@@ -8802,7 +8802,7 @@ class ApplicationGUI:
                     h_matrix = np.array(h_matrix)
                     frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
 
-                detections, command = self.controller.detector.process_frame(frame, "live")
+                detections, command = self.controller.detector.detect(frame, "live")
                 if command is not None:
                     self.controller.arduino.send_command(command)
                 if self.controller.is_recording and detections:
