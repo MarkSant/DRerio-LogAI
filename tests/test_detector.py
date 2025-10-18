@@ -275,7 +275,8 @@ class TestDetector(unittest.TestCase):
             mock_log.assert_called_once_with(
                 "detector.dimension_mismatch",
                 expected=(640, 480),
-                actual=(1920, 1080)
+                actual=(1920, 1080),
+                message="Frame dimensions differ from dimensions used to set zones. This may cause inaccurate detection scaling."
             )
 
 if __name__ == "__main__":
