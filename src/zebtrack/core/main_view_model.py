@@ -4566,6 +4566,28 @@ class MainViewModel:
                 lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
             )
 
+        def _on_processing_fatal_error(exc, context, recovery_info):
+            log.error(
+                "controller.processing.fatal_error",
+                context=context,
+                error=str(exc),
+                affected_videos=len(recovery_info["affected_videos"]),
+            )
+            self.ui_coordinator.schedule(
+                lambda: self.view.show_error(
+                    "Erro Crítico de Processamento",
+                    f"{context}\n\nErro: {exc}\n\n"
+                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
+                    f"Verifique os logs para detalhes."
+                )
+            )
+            self.state_manager.update_processing_state(
+                source="worker.fatal_error",
+                is_processing=False,
+                error=str(exc)
+            )
+            self.ui_coordinator.set_status(self.view, "Processamento falhou")
+
         def on_completed(was_cancelled: bool, output_dir: str):
             """Called when all processing completes."""
             # Phase 4: Use UICoordinator for UI updates
@@ -4600,6 +4622,7 @@ class MainViewModel:
             on_video_completed=on_video_completed,
             on_error=on_error,
             on_completed=on_completed,
+            on_fatal_error=_on_processing_fatal_error,
         )
 
     def _create_processing_context(

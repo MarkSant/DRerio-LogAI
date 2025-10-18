@@ -70,6 +70,13 @@ class ProcessingCallbacks:
         error: The exception that occurred
         context: Human-readable context about what was being done
     """
+    on_fatal_error: Callable[[Exception, str, dict], None] | None = None
+    """
+    Args:
+        error: The exception
+        context: Human-readable context
+        recovery_info: Dict with {can_retry: bool, affected_videos: list, state_snapshot: dict}
+    """
 
     on_completed: Callable[[bool, str], None] | None = None
     """
@@ -267,9 +274,22 @@ class ProcessingWorker:
                         break
 
         except Exception as exc:
-            log.error("worker.processing.error", error=str(exc), exc_info=True)
-            if self.callbacks.on_error:
-                self.callbacks.on_error(exc, "Erro geral no processamento")
+            log.error("worker.processing.fatal_error", error=str(exc), exc_info=True)
+            recovery_info = {
+                "can_retry": False,  # Fatal errors are not retryable by default
+                "affected_videos": [v.get("path") for v in self.context.videos_to_process],
+                "state_snapshot": {
+                    "total_videos": len(self.context.videos_to_process),
+                    "analysis_interval_frames": self.context.analysis_interval_frames,
+                    "display_interval_frames": self.context.display_interval_frames,
+                    "single_video_mode": bool(self.context.single_video_config),
+                    "output_base_dir": self.context.output_base_dir,
+                },
+            }
+            if self.callbacks.on_fatal_error:
+                self.callbacks.on_fatal_error(exc, "Erro fatal no processamento", recovery_info)
+            elif self.callbacks.on_error:
+                self.callbacks.on_error(exc, "Erro fatal no processamento")
         finally:
             # Always notify completion
             log.info(
