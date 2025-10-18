@@ -80,6 +80,12 @@ class Detector:
             actual_width (int): The width of the video/camera frame to scale to.
             actual_height (int): The height of the video/camera frame to scale to.
         """
+        if actual_width <= 0 or actual_height <= 0:
+            raise ValueError(
+                "Actual dimensions must be positive. "
+                f"set_zones(zones, actual_width={actual_width}, actual_height={actual_height})"
+            )
+
         self.zones = zones
         # Clear cache if zones are redefined, as scaling depends on zone data
         self._scaling_cache.clear()

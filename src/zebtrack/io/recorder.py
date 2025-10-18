@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any
+from typing import Any, FrozenSet  # noqa: UP035
 
 import cv2
 import numpy as np
@@ -35,6 +35,7 @@ class Recorder:
         self._parquet_writer: pq.ParquetWriter | None = None
         self._parquet_schema: pa.Schema | None = None
         self._parquet_columns: list[str] = []
+        self._initial_schema_columns: FrozenSet[str] | None = None  # noqa: UP006
         self._parquet_filename: str = ""
         self._last_flush_time: float = 0.0
 
@@ -95,6 +96,7 @@ class Recorder:
         self._parquet_writer = None
         self._parquet_schema = None
         self._parquet_columns = self._determine_parquet_columns()
+        self._initial_schema_columns = frozenset(self._parquet_columns)
         self._parquet_filename = os.path.join(
             self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
         )
@@ -122,8 +124,14 @@ class Recorder:
         log_context.info("recorder.start.success")
         return True
 
-    def stop_recording(self):
-        """Stops the recording, releases file handlers, and saves tracking data."""
+    def stop_recording(self, force_stop: bool = False):
+        """
+        Stops the recording, releases file handlers, and saves tracking data.
+
+        Args:
+            force_stop (bool): If True, forces cleanup without saving data,
+                               useful in an error state.
+        """
         if not self.is_recording:
             return
 
@@ -131,7 +139,13 @@ class Recorder:
             self.video_writer.release()
             self.video_writer = None
 
-        self._save_detection_data()
+        if not force_stop:
+            self._save_detection_data()
+        else:
+            # If forcing stop due to an error, just close writers and clear buffers.
+            self._close_parquet_writer()
+            self.detection_data.clear()
+            log.warning("recorder.stop.forced", reason="Error during recording.")
 
         self.is_recording = False
         log.info("recorder.stop.success", base_name=self.base_name)
@@ -243,22 +257,33 @@ class Recorder:
         if not force and not self._should_flush():
             return
 
-        df = pd.DataFrame(self.detection_data)
-        if df.empty:
-            self.detection_data.clear()
-            self._last_flush_time = time.time()
-            return
-
-        if not self._parquet_columns:
-            self._parquet_columns = self._determine_parquet_columns()
-
-        df = df.reindex(columns=self._parquet_columns)
-
         try:
+            current_cols = set(self._determine_parquet_columns())
+            schema_is_defined = self._initial_schema_columns is not None
+            schema_has_changed = current_cols != self._initial_schema_columns
+
+            if schema_is_defined and schema_has_changed:
+                log.error(
+                    "recorder.schema_mismatch",
+                    initial=self._initial_schema_columns,
+                    current=current_cols,
+                )
+                raise ValueError("Parquet schema cannot change during recording")
+
+            df = pd.DataFrame(self.detection_data)
+            if df.empty:
+                self.detection_data.clear()
+                self._last_flush_time = time.time()
+                return
+
+            if not self._parquet_columns:
+                self._parquet_columns = self._determine_parquet_columns()
+
+            df = df.reindex(columns=self._parquet_columns)
+
             if self._parquet_schema is None:
                 table = pa.Table.from_pandas(df, preserve_index=False)
                 self._parquet_schema = table.schema
-                # Phase 8: Use configured compression
                 self._parquet_writer = pq.ParquetWriter(
                     self._parquet_filename,
                     self._parquet_schema,
@@ -267,7 +292,6 @@ class Recorder:
             else:
                 table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
                 if self._parquet_writer is None:
-                    # Phase 8: Use configured compression
                     self._parquet_writer = pq.ParquetWriter(
                         self._parquet_filename,
                         self._parquet_schema,
@@ -283,6 +307,11 @@ class Recorder:
                 rows=table.num_rows,
                 force=force,
             )
+        except ValueError as e:
+            # Critical error, stop recording to clean up resources
+            log.error("recorder.flush.critical_error", exc_info=e)
+            self.stop_recording(force_stop=True)
+            raise  # Re-raise the exception to notify the caller
         except Exception as e:  # pragma: no cover - unexpected failures logged
             log.error(
                 "recorder.flush.error",
