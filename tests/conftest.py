@@ -1,8 +1,8 @@
 import os
-import sys
+import tkinter as tk
 import warnings
-from importlib import util
-from unittest.mock import MagicMock
+
+import pytest
 
 os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
@@ -31,27 +31,24 @@ def pytest_configure(config):
     )
 
 
-def _mock_tkinter_modules() -> None:
-    mock_module = MagicMock()
-    sys.modules["tkinter"] = mock_module
-    sys.modules["tkinter.filedialog"] = MagicMock()
-    sys.modules["tkinter.messagebox"] = MagicMock()
-    sys.modules["tkinter.simpledialog"] = MagicMock()
-    sys.modules["tkinter.ttk"] = MagicMock()
+@pytest.fixture
+def tkinter_root():
+    """
+    Fixture for creating a tkinter root window.
+    This is necessary for any UI components that are tested.
+    """
+    # Create the virtual display
+    from pyvirtualdisplay import Display
 
+    display = Display(visible=0, size=(800, 600))
+    display.start()
 
-tkinter_spec = util.find_spec("tkinter")
-if tkinter_spec is None:
-    _mock_tkinter_modules()
-else:
-    try:
-        import tkinter  # runtime import for capability check
+    # Create the tkinter root window
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
 
-        try:
-            root = tkinter.Tk()
-            root.withdraw()
-            root.destroy()
-        except Exception:
-            _mock_tkinter_modules()
-    except Exception:
-        _mock_tkinter_modules()
+    yield root
+
+    # Clean up the tkinter window and the virtual display
+    root.destroy()
+    display.stop()

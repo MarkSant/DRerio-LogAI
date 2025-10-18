@@ -17,7 +17,7 @@ class TestOverlayIntegration(unittest.TestCase):
     def test_detector_draw_overlay_called_in_controller(self):
         """Test that detector.draw_overlay is called in _run_tracking_if_needed."""
         controller_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "controller.py"
+            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
         )
 
         with open(controller_file, encoding="utf-8") as f:
@@ -83,7 +83,7 @@ class TestOverlayIntegration(unittest.TestCase):
     def test_frame_flow_with_real_overlays(self):
         """Test that frame processing flow is correct in controller."""
         controller_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "controller.py"
+            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
         )
 
         with open(controller_file, encoding="utf-8") as f:

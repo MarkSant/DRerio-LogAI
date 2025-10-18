@@ -8,11 +8,12 @@ Note: WizardDialog is a modal Dialog and cannot be fully tested in unit tests.
 These tests focus on step-to-step data flow and integration logic.
 """
 
+import shutil
 import tempfile
-import unittest
 from pathlib import Path
-from tkinter import Tk
 from unittest.mock import patch
+
+import pytest
 
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
@@ -22,13 +23,14 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 
-class TestWizardIntegration(unittest.TestCase):
+@pytest.mark.usefixtures("tkinter_root")
+class TestWizardIntegration:
     """End-to-end integration tests for the complete wizard."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup(self, tkinter_root):
         """Create Tkinter root for testing."""
-        self.root = Tk()
-        self.root.withdraw()  # Hide window during tests
+        self.root = tkinter_root
 
         # Create temp directory and files
         self.temp_dir = Path(tempfile.mkdtemp())
@@ -39,40 +41,10 @@ class TestWizardIntegration(unittest.TestCase):
         self.video1.touch()
         self.video2.touch()
 
-    def tearDown(self):
-        """Clean up temp files and destroy Tkinter root."""
-        # Clean up temp files
-        for path in [self.video1, self.video2]:
-            if path.exists():
-                path.unlink()
+        yield
 
-        # Clean up directories
-        for path in [
-            self.video1.parent,
-            self.video2.parent,
-            self.temp_dir / "Control",
-            self.temp_dir / "Treatment",
-            self.temp_dir,
-        ]:
-            if path.exists() and path.is_dir():
-                try:
-                    path.rmdir()
-                except OSError:
-                    pass
-
-        # Clean up all child widgets but DON'T destroy root
-        # Destroying Tk root pollutes ttkbootstrap Style singleton and causes
-        # test isolation issues with subsequent UI tests
-        try:
-            for widget in list(self.root.winfo_children()):
-                try:
-                    widget.destroy()
-                except Exception:
-                    pass
-            # NOTE: self.root.destroy() is intentionally omitted to prevent
-            # ttkbootstrap Style singleton pollution between test modules
-        except Exception:
-            pass
+        # Teardown
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_step1_to_step2_data_flow(self):
         """Test data flow from Discovery to File Selection."""
@@ -90,16 +62,16 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(data1)
 
         # Verify Step 1 data
-        self.assertEqual(wizard_data["project_type"], ProjectType.EXPERIMENTAL.value)
-        self.assertEqual(wizard_data["parquet_import_scope"], "zones")
-        self.assertTrue(wizard_data["has_folder_structure"])
+        assert wizard_data["project_type"] == ProjectType.EXPERIMENTAL.value
+        assert wizard_data["parquet_import_scope"] == "zones"
+        assert wizard_data["has_folder_structure"]
 
         # Step 2 should be able to access this data
         step2 = FileSelectionStep(self.root, wizard_data)
         step2.build_ui()
 
         # Step 2 doesn't directly use Step 1 data, but it's available
-        self.assertIn("project_type", step2.wizard_data)
+        assert "project_type" in step2.wizard_data
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_step2_to_step3_data_flow(self, mock_scan):
@@ -127,7 +99,7 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(data2)
 
         # Verify Step 2 data
-        self.assertEqual(len(wizard_data["video_paths"]), 1)
+        assert len(wizard_data["video_paths"]) == 1
 
         # Step 3: Detection uses Step 2 data
         step3 = DetectionStep(self.root, wizard_data)
@@ -138,8 +110,8 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(data3)
 
         # Verify Step 3 data
-        self.assertIn("scanned_videos", wizard_data)
-        self.assertEqual(len(wizard_data["scanned_videos"]), 1)
+        assert "scanned_videos" in wizard_data
+        assert len(wizard_data["scanned_videos"]) == 1
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_step3_to_step4_data_flow(self, mock_scan):
@@ -174,17 +146,17 @@ class TestWizardIntegration(unittest.TestCase):
         step4.on_show()  # Computes smart defaults
 
         # Verify smart defaults applied correctly
-        self.assertEqual(len(step4.video_configs), 1)
+        assert len(step4.video_configs) == 1
         # Should be IMPORT_ZONES based on parquet_import_scope="zones"
         action_value = step4.video_configs[0]["action"]
-        self.assertEqual(action_value, ImportAction.IMPORT_ZONES.value)
+        assert action_value == ImportAction.IMPORT_ZONES.value
 
         data4 = step4.get_data()
         wizard_data.update(data4)
 
         # Verify Step 4 data
-        self.assertIn("import_config", wizard_data)
-        self.assertEqual(len(wizard_data["import_config"]), 1)
+        assert "import_config" in wizard_data
+        assert len(wizard_data["import_config"]) == 1
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_step4_to_step5_data_flow(self, mock_scan):
@@ -230,11 +202,11 @@ class TestWizardIntegration(unittest.TestCase):
         step5.on_show()  # Generates summary
 
         # Verify summary was generated
-        self.assertIn("Design:", step5.summary_text)
-        self.assertIn("Experimental", step5.summary_text)
+        assert "Design:" in step5.summary_text
+        assert "Experimental" in step5.summary_text
 
         # Verify default project name generated
-        self.assertIn("Experimento", step5.project_name_var.get())
+        assert "Experimento" in step5.project_name_var.get()
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_complete_wizard_flow_experimental(self, mock_scan):
@@ -283,10 +255,10 @@ class TestWizardIntegration(unittest.TestCase):
         step4.build_ui()
         step4.on_show()
         # Verify smart defaults
-        self.assertEqual(len(step4.video_configs), 2)
+        assert len(step4.video_configs) == 2
         action_value = step4.video_configs[0]["action"]
-        self.assertEqual(action_value, ImportAction.IMPORT_ZONES.value)
-        self.assertEqual(step4.video_configs[1]["action"], ImportAction.FULL.value)
+        assert action_value == ImportAction.IMPORT_ZONES.value
+        assert step4.video_configs[1]["action"] == ImportAction.FULL.value
         wizard_data.update(step4.get_data())
 
         # Step 5: Confirmation
@@ -298,13 +270,13 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(step5.get_data())
 
         # Verify final wizard_data has all required fields
-        self.assertEqual(wizard_data["project_type"], ProjectType.EXPERIMENTAL.value)
-        self.assertIn("video_paths", wizard_data)
-        self.assertIn("scanned_videos", wizard_data)
-        self.assertIn("import_config", wizard_data)
-        self.assertIn("project_name", wizard_data)
-        self.assertIn("project_path", wizard_data)
-        self.assertEqual(len(wizard_data["import_config"]), 2)
+        assert wizard_data["project_type"] == ProjectType.EXPERIMENTAL.value
+        assert "video_paths" in wizard_data
+        assert "scanned_videos" in wizard_data
+        assert "import_config" in wizard_data
+        assert "project_name" in wizard_data
+        assert "project_path" in wizard_data
+        assert len(wizard_data["import_config"]) == 2
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_complete_wizard_flow_exploratory(self, mock_scan):
@@ -329,9 +301,9 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(step1.get_data())
 
         # Verify folder fields NOT in data for exploratory
-        self.assertEqual(wizard_data["project_type"], ProjectType.EXPLORATORY.value)
-        self.assertNotIn("has_folder_structure", wizard_data)
-        self.assertNotIn("folder_meaning", wizard_data)
+        assert wizard_data["project_type"] == ProjectType.EXPLORATORY.value
+        assert "has_folder_structure" not in wizard_data
+        assert "folder_meaning" not in wizard_data
 
         # Step 2: File Selection
         step2 = FileSelectionStep(self.root, wizard_data)
@@ -345,14 +317,14 @@ class TestWizardIntegration(unittest.TestCase):
         step3.on_show()
         wizard_data.update(step3.get_data())
         # Should NOT have detected design for exploratory
-        self.assertIsNone(step3.detected_design)
+        assert step3.detected_design is None
 
         # Step 4: Import Config
         step4 = ImportConfigStep(self.root, wizard_data)
         step4.build_ui()
         step4.on_show()
         # All should be FULL since no parquets
-        self.assertEqual(step4.video_configs[0]["action"], ImportAction.FULL.value)
+        assert step4.video_configs[0]["action"] == ImportAction.FULL.value
         wizard_data.update(step4.get_data())
 
         # Step 5: Confirmation
@@ -362,7 +334,7 @@ class TestWizardIntegration(unittest.TestCase):
         wizard_data.update(step5.get_data())
 
         # Verify exploratory project name
-        self.assertIn("Exploratorio", step5.project_name_var.get())
+        assert "Exploratorio" in step5.project_name_var.get()
 
     def test_set_data_restores_state_across_all_steps(self):
         """Test that set_data works for all steps (back navigation)."""
@@ -382,13 +354,6 @@ class TestWizardIntegration(unittest.TestCase):
         step1_new.set_data(data1)
 
         # Verify restoration
-        self.assertEqual(
-            step1_new.project_type_var.get(),
-            ProjectType.EXPERIMENTAL.value,
-        )
-        self.assertEqual(step1_new.folder_organization_var.get(), 2)
-        self.assertEqual(step1_new.parquet_scope_var.get(), 2)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert step1_new.project_type_var.get() == ProjectType.EXPERIMENTAL.value
+        assert step1_new.folder_organization_var.get() == 2
+        assert step1_new.parquet_scope_var.get() == 2

@@ -11,24 +11,23 @@ Validates:
 """
 
 import tempfile
-import unittest
 from pathlib import Path
-from tkinter import Tk
 from unittest.mock import patch
+
+import pytest
 
 from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 
 
-class TestDetectionStep(unittest.TestCase):
+@pytest.mark.usefixtures("tkinter_root")
+class TestDetectionStep:
     """Tests for detection step."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup(self, tkinter_root):
         """Create Tkinter root for testing."""
-        self.root = Tk()
-        self.root.withdraw()  # Hide window during tests
-
-        # Create temp directory structure for pattern testing
+        self.root = tkinter_root
         self.temp_dir = Path(tempfile.mkdtemp())
 
         # Pattern 1: Groups as folders
@@ -43,37 +42,22 @@ class TestDetectionStep(unittest.TestCase):
         self.video1.touch()
         self.video2.touch()
 
-    def tearDown(self):
-        """Destroy Tkinter root and clean up temp files."""
-        # Clean up temp files
+        yield
+
+        # Teardown
         for path in [self.video1, self.video2]:
             if path.exists():
                 path.unlink()
 
-        # Clean up directories
         for path in [
             self.temp_dir / "Control" / "Day01",
             self.temp_dir / "Treatment" / "Day01",
             self.temp_dir / "Control",
             self.temp_dir / "Treatment",
-            self.temp_dir,
         ]:
             if path.exists() and path.is_dir():
-                try:
-                    path.rmdir()
-                except OSError:
-                    pass
-
-        # Clean up all child widgets but DON'T destroy root
-        # Destroying Tk root pollutes ttkbootstrap Style singleton
-        try:
-            for widget in list(self.root.winfo_children()):
-                try:
-                    widget.destroy()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                path.rmdir()
+        self.temp_dir.rmdir()
 
     def test_detection_step_builds_ui_without_error(self):
         """Detection step should build UI without errors."""
@@ -82,7 +66,7 @@ class TestDetectionStep(unittest.TestCase):
         step.build_ui()
 
         # Should have step_id set
-        self.assertEqual(step.step_id, WizardStepID.DETECTION_VALIDATION)
+        assert step.step_id == WizardStepID.DETECTION_VALIDATION
 
     def test_detection_step_default_state_is_empty(self):
         """Detection step defaults to empty state."""
@@ -90,8 +74,8 @@ class TestDetectionStep(unittest.TestCase):
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
-        self.assertEqual(step.scanned_videos, [])
-        self.assertIsNone(step.detected_design)
+        assert step.scanned_videos == []
+        assert step.detected_design is None
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_runs_scan_on_show(self, mock_scan):
@@ -123,7 +107,7 @@ class TestDetectionStep(unittest.TestCase):
         mock_scan.assert_called_once_with([str(self.video1)])
 
         # Verify results stored
-        self.assertEqual(len(step.scanned_videos), 1)
+        assert len(step.scanned_videos) == 1
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_validate_fails_when_no_videos(self, mock_scan):
@@ -142,8 +126,8 @@ class TestDetectionStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertFalse(is_valid)
-        self.assertIn("nenhum vídeo", error_message.lower())
+        assert not is_valid
+        assert "nenhum vídeo" in error_message.lower()
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_validate_succeeds_with_videos(self, mock_scan):
@@ -170,8 +154,8 @@ class TestDetectionStep(unittest.TestCase):
 
         is_valid, error_message = step.validate()
 
-        self.assertTrue(is_valid)
-        self.assertEqual(error_message, "")
+        assert is_valid
+        assert error_message == ""
 
     def test_detection_step_pattern_groups_as_folders(self):
         """Pattern detection should identify groups from folder structure."""
@@ -184,11 +168,10 @@ class TestDetectionStep(unittest.TestCase):
         result = step._pattern_groups_as_folders(paths)
 
         # Should detect Control and Treatment groups
-        self.assertIsNotNone(result)
         assert result is not None
-        self.assertIn("Control", result["groups"])
-        self.assertIn("Treatment", result["groups"])
-        self.assertGreater(result["confidence"], 0.0)
+        assert "Control" in result["groups"]
+        assert "Treatment" in result["groups"]
+        assert result["confidence"] > 0.0
 
     def test_detection_step_pattern_filename_based(self):
         """Filename-based pattern should extract groups from filenames."""
@@ -206,11 +189,10 @@ class TestDetectionStep(unittest.TestCase):
         result = step._pattern_filename_based(paths)
 
         # Should detect Control and Treatment
-        self.assertIsNotNone(result)
         assert result is not None
-        self.assertIn("Control", result["groups"])
-        self.assertIn("Treatment", result["groups"])
-        self.assertEqual(result["pattern_used"], "filename_based")
+        assert "Control" in result["groups"]
+        assert "Treatment" in result["groups"]
+        assert result["pattern_used"] == "filename_based"
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_parquet_summary_calculation(self, mock_scan):
@@ -244,10 +226,10 @@ class TestDetectionStep(unittest.TestCase):
 
         summary = step._calculate_parquet_summary()
 
-        self.assertEqual(summary["total_arena"], 2)
-        self.assertEqual(summary["total_rois"], 2)
-        self.assertEqual(summary["total_trajectory"], 1)
-        self.assertEqual(summary["total_complete"], 1)
+        assert summary["total_arena"] == 2
+        assert summary["total_rois"] == 2
+        assert summary["total_trajectory"] == 1
+        assert summary["total_complete"] == 1
 
     @patch.object(DetectionStep, "_detect_design")
     def test_custom_regex_from_editor_recalculates_design(self, mock_detect):
@@ -290,13 +272,13 @@ class TestDetectionStep(unittest.TestCase):
         )
 
         mock_detect.assert_called_once_with([str(self.video1)])
-        self.assertEqual(result, new_design)
-        self.assertEqual(step.detected_design, new_design)
-        self.assertIsNotNone(step.custom_regex_patterns)
-        self.assertIn("regex personalizado aplicado", step.status_var.get().lower())
+        assert result == new_design
+        assert step.detected_design == new_design
+        assert step.custom_regex_patterns is not None
+        assert "regex personalizado aplicado" in step.status_var.get().lower()
 
         display_text = step.results_text.get("1.0", "end-1c")
-        self.assertIn("Regex Group", display_text)
+        assert "Regex Group" in display_text
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_get_data(self, mock_scan):
@@ -323,13 +305,13 @@ class TestDetectionStep(unittest.TestCase):
 
         data = step.get_data()
 
-        self.assertIn("scanned_videos", data)
-        self.assertIn("detected_design", data)
-        self.assertIn("video_count", data)
-        self.assertIn("parquet_summary", data)
+        assert "scanned_videos" in data
+        assert "detected_design" in data
+        assert "video_count" in data
+        assert "parquet_summary" in data
 
-        self.assertEqual(data["video_count"], 1)
-        self.assertEqual(len(data["scanned_videos"]), 1)
+        assert data["video_count"] == 1
+        assert len(data["scanned_videos"]) == 1
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_exploratory_skips_design_detection(self, mock_scan):
@@ -354,7 +336,7 @@ class TestDetectionStep(unittest.TestCase):
         step.on_show()
 
         # Design detection should be None for exploratory
-        self.assertIsNone(step.detected_design)
+        assert step.detected_design is None
 
     @patch("zebtrack.ui.wizard.detection_step.ProjectManager.scan_input_paths")
     def test_detection_step_set_data_restores_ui(self, mock_scan):
@@ -395,11 +377,6 @@ class TestDetectionStep(unittest.TestCase):
         step.set_data(previous_data)
 
         # Verify state restored
-        self.assertEqual(len(step.scanned_videos), 1)
-        self.assertIsNotNone(step.detected_design)
+        assert len(step.scanned_videos) == 1
         assert step.detected_design is not None
-        self.assertEqual(step.detected_design["confidence"], 0.75)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert step.detected_design["confidence"] == 0.75

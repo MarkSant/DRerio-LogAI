@@ -16,14 +16,13 @@ def test_detection_mode_with_multiple_animals_blocked():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
-                    mock_view = MockApplicationGUI.return_value
 
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
@@ -42,15 +41,16 @@ def test_detection_mode_with_multiple_animals_blocked():
                 }
 
                 # This should show an error and return early without creating project
-                controller.create_project_workflow(**project_kwargs)
+                with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
+                    controller.create_project_workflow(**project_kwargs)
 
-                # Verify error was shown and project creation was not called
-                mock_view.show_error.assert_called_once()
-                error_title, error_msg = mock_view.show_error.call_args[0]
-                assert "Configuração Inválida" in error_title
-                assert "modo de detecção (det)" in error_msg
-                assert "1 animal por aquário" in error_msg
-                assert "3 animais por aquário" in error_msg
+                    # Verify error was shown and project creation was not called
+                    mock_event_bus.publish_event.assert_called_once()
+                    event_name, payload = mock_event_bus.publish_event.call_args[0]
+                    assert event_name == "ui:show_error"
+                    assert "Configuração Inválida" in payload["title"]
+                    assert "modo de detecção (det)" in payload["message"]
+                    assert "3 animais por aquário" in payload["message"]
 
                 # Project manager should not have been called
                 controller.project_manager.create_new_project.assert_not_called()
@@ -66,15 +66,14 @@ def test_detection_mode_with_single_animal_allowed():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
                     mock_view = MockApplicationGUI.return_value
-
                     # Mock the project manager and weight manager
                 controller.project_manager = MagicMock()
                 controller.project_manager.create_new_project.return_value = True
@@ -116,9 +115,9 @@ def test_segmentation_mode_with_multiple_animals_allowed():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
@@ -167,15 +166,14 @@ def test_single_video_detection_mode_enforcement():
             mock_settings.camera.desired_height = 480
 
             # Also patch settings import in the controller module
-            with patch("zebtrack.core.controller.settings", mock_settings):
-                with patch("zebtrack.core.controller.ApplicationGUI") as MockApplicationGUI:
-                    from zebtrack.core.controller import AppController
+            with patch("zebtrack.core.main_view_model.settings", mock_settings):
+                with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockApplicationGUI:
+                    from zebtrack.core.main_view_model import AppController
 
                     # Create controller with mocked view and components
                     mock_root = MagicMock()
                     controller = AppController(mock_root)
                     mock_view = MockApplicationGUI.return_value
-
                     # Mock detector
                 controller.detector = MagicMock()
 
@@ -186,13 +184,15 @@ def test_single_video_detection_mode_enforcement():
                 }
 
                 # This should show an error and return early
-                controller.start_single_video_workflow("/tmp/test.mp4", config)
+                with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
+                    controller.start_single_video_workflow("/tmp/test.mp4", config)
 
-                # Verify error was shown
-                mock_view.show_error.assert_called_once()
-                error_title, error_msg = mock_view.show_error.call_args[0]
-                assert "Configuração Inválida" in error_title
-                assert "modo de detecção (det)" in error_msg
+                    # Verify error was shown
+                    mock_event_bus.publish_event.assert_called_once()
+                    event_name, payload = mock_event_bus.publish_event.call_args[0]
+                    assert event_name == "ui:show_error"
+                    assert "Configuração Inválida" in payload["title"]
+                    assert "modo de detecção (det)" in payload["message"]
 
                 # Zone setup should not have been called
                 mock_view.setup_zone_definition_for_single_video.assert_not_called()

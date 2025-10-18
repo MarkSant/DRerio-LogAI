@@ -14,8 +14,8 @@ These tests verify:
 import unittest
 from unittest.mock import MagicMock, patch
 
-from zebtrack.core.controller import AppController
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.main_view_model import AppController
 
 
 class MockDetectorPlugin:
@@ -54,9 +54,9 @@ class MockDetectorPlugin:
 class TestDetectorServiceIntegration(unittest.TestCase):
     """Integration tests for DetectorService and Controller."""
 
-    @patch("zebtrack.core.controller.WeightManager")
-    @patch("zebtrack.core.controller.ProjectManager")
-    @patch("zebtrack.core.controller.ApplicationGUI")
+    @patch("zebtrack.core.main_view_model.WeightManager")
+    @patch("zebtrack.core.main_view_model.ProjectManager")
+    @patch("zebtrack.core.main_view_model.ApplicationGUI")
     def setUp(self, mock_gui, mock_pm, mock_wm):
         """Set up test environment."""
         self.root = MagicMock()
@@ -83,7 +83,8 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.mock_pm.save_detector_state.return_value = True
 
         # Create controller
-        self.controller = AppController(self.root)
+        with patch("zebtrack.settings.settings.ui_features.enable_event_queue", True):
+            self.controller = AppController(self.root)
         self.controller.project_manager = self.mock_pm
         self.controller.view = self.mock_view
         self.controller.weight_manager = self.mock_wm

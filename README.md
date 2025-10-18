@@ -75,29 +75,28 @@ Desde a v1.6 o wizard é o fluxo oficial de criação de projetos. Não é neces
 - ✅ Integração direta com o sistema de templates de ROI e com as configurações avançadas do detector
 - ✅ Resumo final com plano de processamento por ação (SKIP/IMPORT_ZONES/PARTIAL/FULL), métricas de confiança e estimativa de tempo
 
-Consulte [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md) para o passo a passo completo e veja a wiki (`docs/wiki/2_Full_Tutorial.md`) para um tutorial guiado.
+Consulte a nossa **[Wiki](docs/wiki)** para guias de usuário detalhados, incluindo o passo a passo completo do Wizard e tutoriais.
 
 ## Principais capacidades
 
-- **Arquitetura MVVM-like com StateManager (v1.8)**: gerenciamento de estado centralizado com padrão observável thread-safe. Fonte única de verdade para 5 categorias de estado (Project, Detector, Recording, Processing, UI) com snapshots imutáveis e histórico opcional.
-- **Wizard inteligente de criação de projetos** (v1.7): assistente de 5 etapas com auto-detecção de design, importação granular de Parquets e validação contextual.
-- **Rastreamento multi-animal** com modelos YOLOv8 e suporte a pesos convertidos para OpenVINO, inclusive gerenciamento automático de cache (`openvino_model_cache/`).
-- **Gestão avançada de ROIs**: desenho assistido com snapping/clamping dentro da arena, edição segura de vértices, templates reutilizáveis e regras de inclusão configuráveis (`centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`).
-- **Relatórios científicos ricos**: exportação em Excel, CSV, Parquet e Word com mapas de ROI, gráficos e apêndice de eventos (entradas/saídas por ROI).
-- **Overlay em tempo real**: modo multi vs. single subject, progresso detalhado, indicadores de templates aplicados e estatísticas de frames processados/detectados.
-- **Cadastro de projetos persistente**: batches de vídeos, hashes SHA256, intervalos de análise/exibição, metadados experimentais e integrações de hardware (Arduino).
-- **Sistema de templates**: salvar/importar/aplicar templates de ROI, com biblioteca persistida em `templates/` e suporte a round-trip automático.
-- **Configuração avançada in-app**: editor de `config.local.yaml` com validação Pydantic v2 em tempo real (strict mode com `extra="forbid"`), tooltips e mecanismos de reset.
+- **Arquitetura MVVM com Componentes de UI**: Sistema modular, testável e reativo com `StateManager` para uma fonte única de verdade e um `EventBus` para comunicação desacoplada.
+- **Wizard inteligente de criação de projetos**: Assistente de 5 etapas com auto-detecção de design experimental, importação granular de Parquets e validação contextual.
+- **Rastreamento multi-animal**: Utiliza modelos YOLOv8 com suporte a OpenVINO para aceleração de inferência e gerenciamento de cache.
+- **Gestão avançada de ROIs**: Desenho assistido (snapping/clamping), edição segura de vértices, templates reutilizáveis e regras de inclusão configuráveis.
+- **Relatórios científicos ricos**: Exportação em Excel, CSV, Parquet e Word com mapas de ROI, gráficos e apêndice de eventos.
+- **Overlay em tempo real**: Exibição de modo de rastreamento, progresso detalhado e estatísticas de processamento.
+- **Sistema de Projetos Persistente**: Gerencia lotes de vídeos, configurações de análise, metadados e templates de ROI.
+- **Configuração avançada in-app**: Editor de `config.local.yaml` com validação Pydantic v2 em tempo real.
 
 ## Arquitetura geral
 
-A aplicação segue uma arquitetura **MVVM-like** (Model-View-ViewModel) modular organizada em três camadas principais:
+A aplicação segue uma arquitetura **MVVM-like** (Model-View-ViewModel) com uma camada de **UI baseada em componentes**, promovendo alta coesão e baixo acoplamento.
 
-- **View Layer (`zebtrack.ui.gui`)**: componentes Tkinter puros, wizard (`ui/wizard/`), editor de configurações, overlays e gerenciadores de templates. Observa StateManager para atualizações reativas.
-- **ViewModel Layer (`zebtrack.core.controller`)**: `MainViewModel` orquestra operações, coordena serviços, expõe estado para a View via propriedades. Integra `StateManager` como fonte única de verdade.
-- **Model Layer (`zebtrack.core`, `zebtrack.analysis`)**: `StateManager` (estado centralizado), `ProjectManager` (estado em memória), `ProjectService` (I/O de projetos), `AnalysisService` (orquestração de análises), `Detector` (plugins e state machine de zonas).
+- **View Layer (`zebtrack.ui`)**: Componentes Tkinter modulares e reutilizáveis que emitem eventos.
+- **ViewModel Layer (`zebtrack.core.controller`)**: O `MainViewModel` orquestra operações, ouve eventos da UI e atualiza o estado centralizado.
+- **Model Layer (`zebtrack.core`, `zebtrack.analysis`)**: O `StateManager` (fonte única de verdade), serviços de domínio (`ProjectService`, `AnalysisService`) e a lógica de negócio principal.
 
-Consulte [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para diagramas de componentes, fluxo de dados e decisões arquiteturais detalhadas.
+Consulte o documento [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para um diagrama detalhado, fluxos de dados e as decisões arquiteturais do projeto.
 
 ## Estrutura de pastas explicada
 
@@ -216,13 +215,10 @@ Relatórios consolidados (`.xlsx`, `.csv`, `.parquet`) podem ser gerados pela ab
 
 ## Documentação estendida
 
-- [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): guia operacional completo (fluxos, métricas, Arduino, tutoriais, ROI templates, clamping e overlays).
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): visão de componentes, decisões arquiteturais e padrão MVVM-like com StateManager.
-- [`docs/STATE_MANAGER_GUIDE.md`](docs/STATE_MANAGER_GUIDE.md): guia completo de desenvolvimento para gerenciamento centralizado de estado (v1.8+).
-- [`docs/PROJECT_WORKFLOW.md`](docs/PROJECT_WORKFLOW.md): fluxo detalhado de criação de projetos, processamento em lote e integração com relatórios.
-- [`docs/WIZARD_USER_GUIDE.md`](docs/WIZARD_USER_GUIDE.md): passo a passo do wizard e mapeamento das ações de importação.
-- [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): transformações de coordenadas, homografia e calibração.
-- [`docs/wiki/*.md`](docs/wiki): versão offline da wiki com instalação, tutorial completo e FAQ atualizados.
+- **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**: A documentação técnica central. Contém a visão de componentes, fluxos de dados, decisões arquiteturais e o padrão MVVM.
+- **[`docs/wiki/`](docs/wiki)**: A Wiki do projeto, com guias de usuário detalhados, tutoriais e FAQs.
+- [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): Guia de referência para métricas, fórmulas e integrações.
+- [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): Detalhes sobre transformações de coordenadas e calibração.
 
 ## Contribuindo
 

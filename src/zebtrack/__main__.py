@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 import structlog
 
-from zebtrack.core.controller import AppController
+from zebtrack.core.main_view_model import AppController
 from zebtrack.settings import settings
 from zebtrack.ui.window_utils import maximize_window
 from zebtrack.utils import set_seed

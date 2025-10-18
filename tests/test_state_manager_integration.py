@@ -36,9 +36,9 @@ class TestStateManagerControllerIntegration:
     @pytest.fixture
     def controller(self, mock_root, test_event):
         """Create a MainViewModel with mocked dependencies and test synchronization."""
-        with patch("zebtrack.core.controller.ApplicationGUI"):
-            with patch("zebtrack.core.controller.settings"):
-                from zebtrack.core.controller import MainViewModel
+        with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+            with patch("zebtrack.core.main_view_model.settings"):
+                from zebtrack.core.main_view_model import MainViewModel
 
                 controller = MainViewModel(mock_root, test_sync_event=test_event)
                 return controller
