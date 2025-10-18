@@ -9,7 +9,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox
 from typing import Any, ClassVar, cast
 
 import cv2
@@ -4568,11 +4567,17 @@ class MainViewModel:
             )
 
         def _on_processing_fatal_error(exc, context, recovery_info):
+            log.error(
+                "controller.processing.fatal_error",
+                context=context,
+                error=str(exc),
+                affected_videos=len(recovery_info["affected_videos"]),
+            )
             self.ui_coordinator.schedule(
-                lambda: messagebox.showerror(
+                lambda: self.view.show_error(
                     "Erro Crítico de Processamento",
-                    f"{context}\\n\\nErro: {exc}\\n\\n"
-                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\\n"
+                    f"{context}\n\nErro: {exc}\n\n"
+                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
                     f"Verifique os logs para detalhes."
                 )
             )

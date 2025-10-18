@@ -276,9 +276,15 @@ class ProcessingWorker:
         except Exception as exc:
             log.error("worker.processing.fatal_error", error=str(exc), exc_info=True)
             recovery_info = {
-                "can_retry": False,
+                "can_retry": False,  # Fatal errors are not retryable by default
                 "affected_videos": [v.get("path") for v in self.context.videos_to_process],
-                "state_snapshot": {}
+                "state_snapshot": {
+                    "total_videos": len(self.context.videos_to_process),
+                    "analysis_interval_frames": self.context.analysis_interval_frames,
+                    "display_interval_frames": self.context.display_interval_frames,
+                    "single_video_mode": bool(self.context.single_video_config),
+                    "output_base_dir": self.context.output_base_dir,
+                },
             }
             if self.callbacks.on_fatal_error:
                 self.callbacks.on_fatal_error(exc, "Erro fatal no processamento", recovery_info)

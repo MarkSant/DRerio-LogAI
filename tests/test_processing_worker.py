@@ -242,6 +242,29 @@ class TestProcessingWorkerCallbacks:
         # on_completed should still be called
         mock_callbacks.on_completed.assert_called_once()
 
+    def test_on_error_fallback_when_on_fatal_error_is_none(self, basic_context, mock_callbacks):
+        """on_error is called as a fallback if on_fatal_error is not set."""
+        # Ensure on_fatal_error is not set
+        mock_callbacks.on_fatal_error = None
+        basic_context.determine_intervals_func = Mock(
+            side_effect=RuntimeError("Fatal setup error")
+        )
+
+        worker = ProcessingWorker(basic_context, mock_callbacks)
+        thread = worker.start_in_thread()
+        thread.join(timeout=2.0)
+
+        # on_error should be called as a fallback
+        mock_callbacks.on_error.assert_called_once()
+        args = mock_callbacks.on_error.call_args[0]
+        error, context = args
+        assert isinstance(error, RuntimeError)
+        assert "Fatal setup error" in str(error)
+        assert "fatal" in context
+
+        # on_completed should still be called
+        mock_callbacks.on_completed.assert_called_once()
+
     def test_callbacks_can_be_none(self, basic_context):
         """Worker handles None callbacks gracefully."""
         callbacks = ProcessingCallbacks()  # All callbacks are None by default
