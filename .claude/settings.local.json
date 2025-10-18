@@ -20,7 +20,8 @@
       "Bash(find:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr view:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(poetry env info)"
     ],
     "deny": [],
     "ask": []

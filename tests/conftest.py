@@ -1,4 +1,5 @@
 import os
+import platform
 import tkinter as tk
 import warnings
 
@@ -35,20 +36,47 @@ def pytest_configure(config):
 def tkinter_root():
     """
     Fixture for creating a tkinter root window.
-    This is necessary for any UI components that are tested.
-    """
-    # Create the virtual display
-    from pyvirtualdisplay import Display
+    Platform-aware: uses virtual display on Linux, native window on Windows.
 
-    display = Display(visible=0, size=(800, 600))
-    display.start()
+    This fixture is necessary for any UI components that are tested.
+    """
+    display = None
+
+    # Only use virtual display on Linux/Unix systems
+    # Windows and macOS can run Tkinter natively during tests
+    if platform.system() == "Linux":
+        try:
+            from pyvirtualdisplay import Display
+            display = Display(visible=0, size=(800, 600))
+            display.start()
+        except ImportError:
+            # pyvirtualdisplay not available, try to run without it
+            # This will fail in headless environments but works in CI with X11
+            pass
+        except Exception as e:
+            # Failed to start display, continue without it
+            warnings.warn(f"Could not start virtual display: {e}")
 
     # Create the tkinter root window
     root = tk.Tk()
     root.withdraw()  # Hide the main window
 
+    # Process pending events to ensure window is fully initialized
+    root.update_idletasks()
+
     yield root
 
-    # Clean up the tkinter window and the virtual display
-    root.destroy()
-    display.stop()
+    # Clean up the tkinter window
+    try:
+        root.destroy()
+    except tk.TclError:
+        # Window already destroyed, ignore
+        pass
+
+    # Clean up the virtual display (if it was created)
+    if display is not None:
+        try:
+            display.stop()
+        except Exception:
+            # Ignore errors during cleanup
+            pass

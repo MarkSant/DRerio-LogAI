@@ -20,6 +20,7 @@ from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestFileSelectionStep:
     """Tests for file selection step."""

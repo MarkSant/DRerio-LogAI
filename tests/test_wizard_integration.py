@@ -23,6 +23,7 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestWizardIntegration:
     """End-to-end integration tests for the complete wizard."""

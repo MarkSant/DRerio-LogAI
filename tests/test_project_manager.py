@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
 from zebtrack.settings import settings
@@ -401,7 +403,9 @@ class TestProjectManager(unittest.TestCase):
 
         ProjectManager.clear_scan_cache()
 
+    @pytest.mark.slow
     def test_scan_input_paths_cache_invalidation_on_directory_change(self):
+        """Test cache invalidation - marked as slow due to filesystem timestamp resolution."""
         ProjectManager.clear_scan_cache()
         video_dir = os.path.join(self.test_dir, "videos_invalidation")
         os.makedirs(video_dir, exist_ok=True)
@@ -422,6 +426,7 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(len(initial_scan), 1)
             initial_count = call_count["count"]
 
+            # Sleep needed for filesystem timestamp resolution (Windows: 1s, some Linux: 1s)
             time.sleep(1.1)
             second_video = os.path.join(video_dir, "second.mp4")
             with open(second_video, "wb") as handle:

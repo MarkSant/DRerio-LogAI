@@ -21,6 +21,7 @@ from zebtrack.ui.wizard.enums import (
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestWizardFoundation:
     """Tests for wizard initialization and basic navigation."""

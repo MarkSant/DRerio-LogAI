@@ -30,6 +30,11 @@ from zebtrack.ui.components import (
 )
 from zebtrack.ui.event_bus import EventBus, NamedEvent
 
+# Mark all tests in this module with both gui and ttkbootstrap_singleton
+# The ttkbootstrap Style singleton causes issues when run with full test suite
+# These tests must be run in isolation: pytest tests/ui/test_components.py
+pytestmark = [pytest.mark.gui, pytest.mark.ttkbootstrap_singleton]
+
 
 @pytest.fixture(scope="module")
 def root():

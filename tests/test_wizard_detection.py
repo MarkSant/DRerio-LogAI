@@ -20,6 +20,7 @@ from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestDetectionStep:
     """Tests for detection step."""

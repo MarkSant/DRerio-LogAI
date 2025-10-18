@@ -303,9 +303,9 @@ class TestProcessingWorkerCancellation:
     def test_cancel_with_no_timeout_doesnt_wait(self, basic_context, mock_callbacks):
         """cancel(timeout=None) returns immediately without waiting."""
 
-        # Make a long-running process
+        # Make a long-running process (1s is enough to test immediate cancellation)
         def long_process(*args, **kwargs):
-            time.sleep(10)
+            time.sleep(1.0)
             return (True, "/output")
 
         basic_context.process_single_video_func = long_process

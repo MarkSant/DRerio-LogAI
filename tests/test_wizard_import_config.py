@@ -23,6 +23,7 @@ from zebtrack.ui.wizard.enums import (
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestImportConfigStep:
     """Tests for import configuration step."""

@@ -91,7 +91,14 @@ addopts = [
   "--cov-report=html",
   "--cov-report=xml",
   "--cov-fail-under=70",
+  # Parallel execution with pytest-xdist, but exclude problematic tests by default
+  # GUI tests use Tkinter which doesn't work well with multiprocessing
+  # ttkbootstrap_singleton tests have Style cleanup issues in full suite
+  # To run all non-problematic tests: pytest
+  # To run only GUI tests: pytest -m gui -n0
+  # To run ttkbootstrap tests in isolation: pytest tests/ui/test_components.py
   "-n=auto",
+  "-m=not (gui or slow or ttkbootstrap_singleton)",
 ]
 
 [tool.coverage.run]

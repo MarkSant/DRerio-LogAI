@@ -20,6 +20,7 @@ from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
 
 
+@pytest.mark.gui
 @pytest.mark.usefixtures("tkinter_root")
 class TestConfirmationStep:
     """Tests for confirmation step."""
