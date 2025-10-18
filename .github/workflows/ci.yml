@@ -21,17 +21,15 @@ jobs:
         run: |
           pip install poetry
 
-      - name: Configure Poetry virtualenv behavior
+      - name: Configure Poetry virtualenv path
         run: |
-          # Prefer per-project virtualenvs to avoid re-using a cached/broken global virtualenv
-          poetry config virtualenvs.in-project true || true
-          # Ensure the environment sees the in-project variable (helps some shells in CI)
-          echo "POETRY_VIRTUALENVS_IN_PROJECT=true" >> $GITHUB_ENV
+          # Ensure Poetry creates virtualenvs in the cache path so caching works
+          poetry config virtualenvs.in-project false || true
+          poetry config virtualenvs.path ~/.cache/pypoetry/virtualenvs || true
 
-      - name: Install dependencies (including dev)
+      - name: Install dependencies
         run: |
-          # Install all project deps + development dependencies so tools like ruff/pytest are available
-          poetry install --no-interaction --no-ansi --with dev
+          poetry install
 
       - name: Build wizard template archive
         run: |
@@ -67,20 +65,16 @@ jobs:
           mkdir -p ~/.cache/pypoetry/virtualenvs
           ls -la ~/.cache/pypoetry || true
 
-      - name: Cache Poetry and pip caches
+      - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pypoetry
-            ~/.cache/pip
-          key: ${{ runner.os }}-poetry-cache-${{ hashFiles('**/poetry.lock') }}
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-poetry-cache-
+            ${{ runner.os }}-poetry-
 
       - name: Run ruff check
         run: |
-          # Sanity check that ruff/pytest are available in the virtualenv
-          poetry run which ruff || true
           poetry run ruff check .
 
       - name: Run ruff format check
@@ -106,14 +100,14 @@ jobs:
         run: |
           pip install poetry
 
-      - name: Configure Poetry virtualenv behavior
+      - name: Configure Poetry virtualenv path
         run: |
-          poetry config virtualenvs.in-project true || true
-          echo "POETRY_VIRTUALENVS_IN_PROJECT=true" >> $GITHUB_ENV
+          poetry config virtualenvs.in-project false || true
+          poetry config virtualenvs.path ~/.cache/pypoetry/virtualenvs || true
 
-      - name: Install dependencies (including dev)
+      - name: Install dependencies
         run: |
-          poetry install --no-interaction --no-ansi --with dev
+          poetry install
 
       - name: Build wizard template archive
         run: |
@@ -149,20 +143,13 @@ jobs:
           mkdir -p ~/.cache/pypoetry/virtualenvs
           ls -la ~/.cache/pypoetry || true
 
-      - name: Cache Poetry and pip caches
+      - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pypoetry
-            ~/.cache/pip
-          key: ${{ runner.os }}-poetry-cache-${{ hashFiles('**/poetry.lock') }}
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-poetry-cache-
-
-      - name: Sanity: verify pytest installed
-        run: |
-          poetry run which pytest
-          poetry run pytest --version
+            ${{ runner.os }}-poetry-
 
       - name: Run tests with coverage
         run: |
