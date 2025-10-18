@@ -95,6 +95,7 @@ class Recorder:
         self._parquet_writer = None
         self._parquet_schema = None
         self._parquet_columns = self._determine_parquet_columns()
+        self._initial_schema_columns = frozenset(self._parquet_columns)
         self._parquet_filename = os.path.join(
             self.output_folder, f"3_CoordMovimento_{self.base_name}.parquet"
         )
@@ -251,6 +252,15 @@ class Recorder:
 
         if not self._parquet_columns:
             self._parquet_columns = self._determine_parquet_columns()
+
+        current_cols = set(self._determine_parquet_columns())
+        if hasattr(self, "_initial_schema_columns") and current_cols != self._initial_schema_columns:
+            log.error(
+                "recorder.schema_mismatch",
+                initial=self._initial_schema_columns,
+                current=current_cols,
+            )
+            raise ValueError("Parquet schema cannot change during recording")
 
         df = df.reindex(columns=self._parquet_columns)
 
