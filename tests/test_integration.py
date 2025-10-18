@@ -144,8 +144,8 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
         ret, frame = cap.read()
         if not ret:
             break
-        # Use the real detector's process_frame method
-        detections, _ = detector.process_frame(frame, project_type="pre-recorded")
+        # Use the real detector's detect method
+        detections, _ = detector.detect(frame, project_type="pre-recorded")
         timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         recorder.write_detection_data(timestamp, frame_num, detections)
         frame_num += 1
@@ -155,7 +155,7 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
 
     # -- Phase 2: Analysis and Reporting --
     # Check that the intermediate results file was created
-    experiment_id = os.path.basename(str(tracking_output_dir))
+    experiment_id = video_path.stem
     results_file = tracking_output_dir / f"3_CoordMovimento_{experiment_id}.parquet"
     assert results_file.exists()
 

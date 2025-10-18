@@ -3030,7 +3030,7 @@ class MainViewModel:
                 detections = []
 
                 if should_process:
-                    detections, _ = self.detector.process_frame(frame, project_type="pre-recorded")
+                    detections, _ = self.detector.detect(frame, project_type="pre-recorded")
 
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
