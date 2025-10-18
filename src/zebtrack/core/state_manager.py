@@ -53,6 +53,7 @@ see docs/ARCHITECTURE.md section 4.1.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -611,32 +612,55 @@ class StateManager:
             A deep copy of the current application state
         """
         with self._lock:
-            return self._state.copy()
+            return copy.deepcopy(self._state)
 
     def get_project_state(self) -> ProjectState:
         """Get an immutable snapshot of project state."""
         with self._lock:
-            return self._state.project.copy()
+            return copy.deepcopy(self._state.project)
 
     def get_detector_state(self) -> DetectorState:
         """Get an immutable snapshot of detector state."""
         with self._lock:
-            return self._state.detector.copy()
+            return copy.deepcopy(self._state.detector)
 
     def get_recording_state(self) -> RecordingState:
         """Get an immutable snapshot of recording state."""
         with self._lock:
-            return self._state.recording.copy()
+            return copy.deepcopy(self._state.recording)
 
     def get_processing_state(self) -> ProcessingState:
         """Get an immutable snapshot of processing state."""
         with self._lock:
-            return self._state.processing.copy()
+            return copy.deepcopy(self._state.processing)
 
     def get_ui_state(self) -> UIState:
         """Get an immutable snapshot of UI state."""
         with self._lock:
-            return self._state.ui.copy()
+            return copy.deepcopy(self._state.ui)
+
+    def get_state_snapshot(self) -> dict:
+        """Returns frozen snapshot for debugging. DO NOT MODIFY."""
+
+        def convert_paths_to_strings(d):
+            if isinstance(d, dict):
+                return {k: convert_paths_to_strings(v) for k, v in d.items()}
+            if isinstance(d, list):
+                return [convert_paths_to_strings(i) for i in d]
+            if isinstance(d, Path):
+                return str(d)
+            return d
+
+        with self._lock:
+            state_dict = {
+                "project": dataclasses.asdict(self._state.project),
+                "detector": dataclasses.asdict(self._state.detector),
+                "recording": dataclasses.asdict(self._state.recording),
+                "processing": dataclasses.asdict(self._state.processing),
+                "ui": dataclasses.asdict(self._state.ui),
+                "_timestamp": datetime.now().isoformat(),
+            }
+            return convert_paths_to_strings(state_dict)
 
     # ==================== Project State Updates ====================
 
