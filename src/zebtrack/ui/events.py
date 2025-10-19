@@ -22,6 +22,7 @@ Project Events:
 
 Video Processing Events:
 - video:analyze_single: {video_path: str, config: dict}
+- video:start_single_processing: {video_path: str, config: dict, zone_data: ZoneData}
 - video:cancel_analysis: {}
 
 Model & Weight Events:
@@ -32,6 +33,8 @@ Model & Weight Events:
 - model:add_weight: {path: str, set_as_default: bool, weight_type: str | None}
 - model:delete_weight: {name: str}
 - model:run_diagnostic: {config: dict}
+- model:load_new_weight: {}
+- model:manage_weights: {}
 
 Detector & Zone Events:
 - detector:setup: {temp_animal_method: str | None}
@@ -41,6 +44,7 @@ Detector & Zone Events:
 - zone:set_arena_polygon: {points: list}
 - zone:save_manual_arena: {polygon_points: list[list[int]]}
 - zone:update_arena: {polygon_points: list[list[int]]}
+- zone:auto_detect: {stabilization_frames: int}
 
 Calibration Events:
 - calibration:run_live: {temp_aquarium_method: str | None}
@@ -56,6 +60,8 @@ Report Events:
 
 Application Events:
 - app:close: {}
+- wizard:create_project: {**kwargs}
+- project:open: {project_path: str}
 
 Controller→UI Events (New in Phase 1 Refactoring):
 -------------------
@@ -115,6 +121,7 @@ class Events:
 
     # Video Processing
     VIDEO_ANALYZE_SINGLE = "video:analyze_single"
+    VIDEO_START_SINGLE_PROCESSING = "video:start_single_processing"
     VIDEO_CANCEL_ANALYSIS = "video:cancel_analysis"
 
     # Model & Weights
@@ -125,6 +132,8 @@ class Events:
     MODEL_ADD_WEIGHT = "model:add_weight"
     MODEL_DELETE_WEIGHT = "model:delete_weight"
     MODEL_RUN_DIAGNOSTIC = "model:run_diagnostic"
+    MODEL_LOAD_NEW_WEIGHT = "model:load_new_weight"
+    MODEL_MANAGE_WEIGHTS = "model:manage_weights"
 
     # Detector & Zones
     DETECTOR_SETUP = "detector:setup"
@@ -133,6 +142,7 @@ class Events:
     ZONE_SET_ARENA_POLYGON = "zone:set_arena_polygon"
     ZONE_SAVE_MANUAL_ARENA = "zone:save_manual_arena"
     ZONE_UPDATE_ARENA = "zone:update_arena"
+    ZONE_AUTO_DETECT = "zone:auto_detect"
 
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"
@@ -148,6 +158,12 @@ class Events:
 
     # Application
     APP_CLOSE = "app:close"
+
+    # Wizard
+    WIZARD_CREATE_PROJECT = "wizard:create_project"
+
+    # Project
+    PROJECT_OPEN = "project:open"
 
     # --------------------------------------------------------------------------
     # Controller -> UI Events
@@ -190,6 +206,12 @@ class Events:
     UI_DISPLAY_FRAME = "ui:display_frame"
     UI_UPDATE_SOCIAL_SUMMARY = "ui:update_social_summary"
     UI_UPDATE_PROCESSING_STATS = "ui:update_processing_stats"
+
+    # Weight Management
+    UI_REQUEST_WEIGHT_FILE = "ui:request_weight_file"
+    UI_REQUEST_WEIGHT_TYPE = "ui:request_weight_type"
+    UI_REQUEST_WEIGHT_ACTION = "ui:request_weight_action"
+    UI_OPEN_MANAGE_WEIGHTS_DIALOG = "ui:open_manage_weights_dialog"
 
 
 __all__ = ["Events"]

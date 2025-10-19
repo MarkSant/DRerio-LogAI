@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 import structlog
 
-from zebtrack.core.main_view_model import AppController
+from zebtrack.core.main_view_model import MainViewModel
 from zebtrack.settings import settings
 from zebtrack.ui.window_utils import maximize_window
 from zebtrack.utils import set_seed
@@ -82,7 +82,14 @@ def main():
     try:
         root = tk.Tk()
         maximize_window(root)
-        controller = AppController(root)
+
+        # Create the EventBus instance
+        from zebtrack.ui.event_bus import EventBus
+
+        event_bus = EventBus()
+
+        controller = MainViewModel(root, event_bus=event_bus)
+        controller.bind_events()  # Bind events after full initialization
         controller.run()
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
