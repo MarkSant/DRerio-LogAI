@@ -217,12 +217,12 @@ class TestProcessingWorkerCallbacks:
         # Completion callback should still be called
         mock_callbacks.on_completed.assert_called_once()
 
-    def test_on_fatal_error_called_when_processing_raises_outside_loop(self, basic_context, mock_callbacks):
+    def test_on_fatal_error_called_when_processing_raises_outside_loop(
+        self, basic_context, mock_callbacks
+    ):
         """on_fatal_error is called for exceptions outside the video loop."""
         mock_callbacks.on_fatal_error = Mock()
-        basic_context.determine_intervals_func = Mock(
-            side_effect=RuntimeError("Fatal setup error")
-        )
+        basic_context.determine_intervals_func = Mock(side_effect=RuntimeError("Fatal setup error"))
 
         worker = ProcessingWorker(basic_context, mock_callbacks)
         thread = worker.start_in_thread()
@@ -246,9 +246,7 @@ class TestProcessingWorkerCallbacks:
         """on_error is called as a fallback if on_fatal_error is not set."""
         # Ensure on_fatal_error is not set
         mock_callbacks.on_fatal_error = None
-        basic_context.determine_intervals_func = Mock(
-            side_effect=RuntimeError("Fatal setup error")
-        )
+        basic_context.determine_intervals_func = Mock(side_effect=RuntimeError("Fatal setup error"))
 
         worker = ProcessingWorker(basic_context, mock_callbacks)
         thread = worker.start_in_thread()

@@ -108,8 +108,9 @@ class Camera(FrameSource):
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
 
                     # Update actual dimensions after reconnect
-                    self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    with self._lock:
+                        self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     log.info(
                         "camera.reconnected.dimensions_updated",
                         width=self.actual_width,
@@ -156,11 +157,12 @@ class Camera(FrameSource):
         """
         Returns the actual properties of the camera feed.
         """
-        return {
-            "width": self.actual_width,
-            "height": self.actual_height,
-            "fps": self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps,
-        }
+        with self._lock:
+            return {
+                "width": self.actual_width,
+                "height": self.actual_height,
+                "fps": self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps,
+            }
 
 
 if __name__ == "__main__":

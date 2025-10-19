@@ -4327,7 +4327,11 @@ class MainViewModel:
             return analysis_success, results_dir
         finally:
             # Release frame references
-            if hasattr(self, "detector") and self.detector and hasattr(self.detector, "clear_cache"):
+            if (
+                hasattr(self, "detector")
+                and self.detector
+                and hasattr(self.detector, "clear_cache")
+            ):
                 self.detector.clear_cache()
 
     def apply_project_settings_to_batch(self, videos: list):

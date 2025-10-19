@@ -85,7 +85,8 @@ class ProcessingCallbacks:
     Args:
         was_cancelled: Whether processing was cancelled
         output_dir: Final output directory path
-        summary: Optional dict with batch processing summary
+        summary: Optional dict with:
+            - total_videos, successful, failed, skipped, failed_list
     """
 
 
