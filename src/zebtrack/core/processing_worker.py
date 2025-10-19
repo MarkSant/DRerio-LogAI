@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import structlog
@@ -78,12 +78,13 @@ class ProcessingCallbacks:
         recovery_info: Dict with {can_retry: bool, affected_videos: list, state_snapshot: dict}
     """
 
-    on_completed: Callable[[bool, str], None] | None = None
+    on_completed: Callable[..., None] | None = None
     """
     Called when all processing completes or is cancelled.
     Args:
         was_cancelled: Whether processing was cancelled
         output_dir: Final output directory path
+        summary: Optional dict with batch processing summary
     """
 
 
@@ -122,6 +123,9 @@ class ProcessingContext:
 
     determine_intervals_func: Callable | None = None
     """Reference to controller._determine_processing_intervals method."""
+
+    retry_strategy: str = "continue"  # "continue", "stop", "ask"
+    failed_videos: list[dict] = field(default_factory=list)
 
 
 class ProcessingWorker:
@@ -264,14 +268,30 @@ class ProcessingWorker:
                         "worker.processing.video_error",
                         experiment_id=experiment_id,
                         error=str(exc),
-                        exc_info=True,
                     )
+
                     if self.callbacks.on_error:
                         self.callbacks.on_error(exc, f"Erro ao processar {experiment_id}")
-                    # Continue with next video unless cancelled
-                    if self.context.cancel_event.is_set():
-                        was_cancelled = True
+
+                    # Record failure
+                    self.context.failed_videos.append(
+                        {
+                            "index": index,
+                            "path": video_path,
+                            "error": str(exc),
+                            "experiment_id": experiment_id,
+                        }
+                    )
+
+                    # Decide next action based on strategy
+                    if self.context.retry_strategy == "stop":
+                        log.info("worker.processing.stop_on_error", experiment_id=experiment_id)
                         break
+                    elif self.context.retry_strategy == "ask":
+                        # Emit event for UI to decide (via callback)
+                        # For now, just log and continue
+                        log.info("worker.processing.ask_user_not_implemented")
+                    # "continue" → just go to next video
 
         except Exception as exc:
             log.error("worker.processing.fatal_error", error=str(exc), exc_info=True)
@@ -298,7 +318,14 @@ class ProcessingWorker:
                 output_dir=final_output_dir,
             )
             if self.callbacks.on_completed:
-                self.callbacks.on_completed(was_cancelled, final_output_dir)
+                final_summary = {
+                    "total_videos": len(self.context.videos_to_process),
+                    "successful": len(self.context.videos_to_process)
+                    - len(self.context.failed_videos),
+                    "failed": len(self.context.failed_videos),
+                    "failed_list": self.context.failed_videos,
+                }
+                self.callbacks.on_completed(was_cancelled, final_output_dir, summary=final_summary)
 
     def _report_progress(self, fraction: float, message: str, stats: dict | None) -> None:
         """Helper to report progress through callback."""
