@@ -1265,4 +1265,3 @@ class Reporter:
 
         file_path = f"{output_path}.docx"
         document.save(file_path)
-        print(f"Project report saved to: {file_path}")

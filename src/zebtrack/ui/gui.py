@@ -4274,70 +4274,7 @@ class ApplicationGUI:
             return
 
         # Drawing action events
-        self.event_bus.subscribe(
-            "zone.auto_detect_clicked", lambda data: self._on_auto_detect_clicked()
-        )
-
-        self.event_bus.subscribe(
-            "zone.draw_main_polygon", lambda data: self._start_main_arena_drawing()
-        )
-
-        self.event_bus.subscribe("zone.draw_roi", lambda data: self._start_roi_drawing())
-
         self.event_bus.subscribe("zone.toggle_view", lambda data: self._toggle_canvas_view())
-
-        # Template events
-        self.event_bus.subscribe("zone.template_apply", lambda data: self._on_apply_roi_template())
-
-        self.event_bus.subscribe("zone.template_save", lambda data: self._on_save_roi_template())
-
-        self.event_bus.subscribe(
-            "zone.template_import",
-            lambda data: self._on_import_and_apply_roi_template(),
-        )
-
-        # Video selector events
-        self.event_bus.subscribe(
-            "zone.video_double_click",
-            lambda data: self._on_video_tree_double_click(None),
-        )
-
-        self.event_bus.subscribe(
-            "zone.video_frame_load", lambda data: self._load_selected_video_frame()
-        )
-
-        self.event_bus.subscribe(
-            "zone.video_refresh", lambda data: self._populate_video_selector_tree()
-        )
-
-        self.event_bus.subscribe(
-            "zone.video_search_changed",
-            lambda data: self._filter_video_tree(data.get("search_term", "")),
-        )
-
-        # Zone list events
-        self.event_bus.subscribe(
-            "zone.list_item_right_click",
-            lambda data: self._on_zone_right_click(self._create_mock_event(data)),
-        )
-
-        self.event_bus.subscribe(
-            "zone.list_item_double_click", lambda data: self._on_zone_double_click(None)
-        )
-
-        # Arena editing events
-        self.event_bus.subscribe("zone.arena_save", lambda data: self._on_save_arena())
-
-        self.event_bus.subscribe("zone.arena_discard", lambda data: self._on_discard_arena())
-
-        # ROI configuration events
-        self.event_bus.subscribe(
-            "zone.roi_rule_changed", lambda data: self._on_roi_rule_change(None)
-        )
-
-        self.event_bus.subscribe(
-            "zone.roi_settings_apply", lambda data: self._on_apply_roi_settings()
-        )
 
     def _create_mock_event(self, data: dict):
         """Create a mock event object for backward compatibility with old event handlers."""

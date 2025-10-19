@@ -412,6 +412,12 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         if "v_mag" in df.columns:
             return df
 
+        if df.empty:
+            df["vx"] = pd.Series(dtype=np.float64)
+            df["vy"] = pd.Series(dtype=np.float64)
+            df["v_mag"] = pd.Series(dtype=np.float64)
+            return df
+
         dt_td = df.index.to_series().diff()
         dt_s = dt_td.dt.total_seconds()
 
@@ -434,7 +440,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
         self.calculate_velocity_timeseries()
-        v_mag = self._trajectory_data["v_mag"]
+        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
 
         if threshold_method == "relative":
             threshold = v_mag.quantile(quantile)

@@ -143,6 +143,14 @@ class Events:
     ZONE_SAVE_MANUAL_ARENA = "zone:save_manual_arena"
     ZONE_UPDATE_ARENA = "zone:update_arena"
     ZONE_AUTO_DETECT = "zone:auto_detect"
+    ZONE_START_DRAW_ARENA = "zone:start_draw_arena"
+    ZONE_APPLY_ROI_TEMPLATE = "zone:apply_roi_template"
+    ZONE_SAVE_ROI_TEMPLATE = "zone:save_roi_template"
+    ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE = "zone:import_and_apply_roi_template"
+    ZONE_RENAME_SELECTED_ROI = "zone:rename_selected_roi"
+    ZONE_CHANGE_ROI_COLOR = "zone:change_roi_color"
+    ZONE_REMOVE_SELECTED_ROI = "zone:remove_selected_roi"
+    ZONE_APPLY_ROI_SETTINGS = "zone:apply_roi_settings"
 
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"

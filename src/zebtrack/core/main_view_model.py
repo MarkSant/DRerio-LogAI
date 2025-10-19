@@ -32,6 +32,7 @@ from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.model_service import ModelService
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
@@ -40,13 +41,12 @@ from zebtrack.core.processing_worker import (
 )
 from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
+from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
-from zebtrack.core.model_service import ModelService
-from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
@@ -99,7 +99,6 @@ class MainViewModel:
 
         # Test synchronization support (Phase 1.1)
         self._test_sync_event = test_sync_event
-        self.project_workflow_service = project_workflow_service
 
         # Phase 2, Step 4: Centralized state management
         self.state_manager = StateManager(enable_history=True, max_history_size=100)
@@ -173,6 +172,11 @@ class MainViewModel:
         if self._use_event_bus:
             log.info("controller.event_bus.enabled")
             # Event handlers are now registered via bind_events()
+        else:
+            log.warning(
+                "controller.event_bus.disabled",
+                message="EventBus is disabled. Using legacy direct callbacks. This is deprecated.",
+            )
 
         # Phase 4: UI Coordinator for consolidated UI scheduling
         self.ui_coordinator = UICoordinator(
@@ -181,15 +185,12 @@ class MainViewModel:
         )
 
         # Phase 5: Project Workflow Service for project creation/opening orchestration
-        if project_workflow_service:
-            self.project_workflow_service = project_workflow_service
-        else:
-            self.project_workflow_service = ProjectWorkflowService(
-                project_manager=self.project_manager,
-                model_service=self.model_service,
-                state_manager=self.state_manager,
-                ui_coordinator=self.ui_coordinator,
-            )
+        self.project_workflow_service = project_workflow_service or ProjectWorkflowService(
+            project_manager=self.project_manager,
+            model_service=self.model_service,
+            state_manager=self.state_manager,
+            ui_coordinator=self.ui_coordinator,
+        )
         # Set global model defaults
         self.project_workflow_service.set_global_model_defaults(
             active_weight=self.active_weight_name or None,
@@ -542,6 +543,17 @@ class MainViewModel:
             ["video_path", "stabilization_frames"],
             "kwargs_get",
         ),
+        Events.ZONE_APPLY_ROI_TEMPLATE: ("apply_roi_template", ["template"], "kwargs_get"),
+        Events.ZONE_SAVE_ROI_TEMPLATE: ("save_roi_template", [], "no_params"),
+        Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE: (
+            "import_and_apply_roi_template",
+            [],
+            "no_params",
+        ),
+        Events.ZONE_RENAME_SELECTED_ROI: ("rename_selected_roi", [], "no_params"),
+        Events.ZONE_CHANGE_ROI_COLOR: ("change_roi_color", [], "no_params"),
+        Events.ZONE_REMOVE_SELECTED_ROI: ("remove_selected_roi", [], "no_params"),
+        Events.ZONE_APPLY_ROI_SETTINGS: ("apply_roi_settings", [], "no_params"),
         # Calibration events
         Events.CALIBRATION_RUN_LIVE: (
             "run_live_calibration",
@@ -1692,6 +1704,100 @@ class MainViewModel:
                 force=True,
             )
             self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+
+    def apply_roi_template(self, template: dict[str, Any]) -> None:
+        """Aplica um template de ROI ao vídeo ativo."""
+        pm = self.project_manager
+        active_video = pm.get_active_zone_video()
+        if not active_video:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Vídeo não selecionado",
+                    "message": "Selecione um vídeo na lista antes de aplicar o template.",
+                },
+            )
+            return
+
+        template_name = template.get("name") or template.get("display_name") or "Template"
+        try:
+            template_zone = pm.load_roi_template(
+                template_name,
+                location=template.get("location"),
+                file_path=template.get("file"),
+            )
+            pm.save_zone_data(template_zone, video_path=active_video, persist=bool(pm.project_path))
+            pm.set_active_zone_video(active_video)
+            self.setup_detector_zones()
+            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Template Aplicado",
+                    "message": f"As zonas foram atualizadas com o template '{template_name}'.",
+                },
+            )
+        except FileNotFoundError as exc:
+            log.error(
+                "controller.roi_templates.file_missing", template=template_name, error=str(exc)
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Arquivo não encontrado",
+                    "message": "O arquivo associado ao template não foi encontrado.",
+                },
+            )
+        except Exception as exc:
+            log.error(
+                "controller.roi_templates.apply_failed", error=str(exc), template=template_name
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR, {"title": "Erro ao aplicar template", "message": str(exc)}
+            )
+
+    def save_roi_template(self) -> None:
+        """Salva as zonas atuais como um novo template."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
+
+    def import_and_apply_roi_template(self) -> None:
+        """Importa um template de ROI e o aplica ao vídeo ativo."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
+
+    def rename_selected_roi(self) -> None:
+        """Renomeia a ROI selecionada."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
+
+    def change_roi_color(self) -> None:
+        """Altera a cor da ROI selecionada."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
+
+    def remove_selected_roi(self) -> None:
+        """Remove a ROI selecionada."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
+
+    def apply_roi_settings(self) -> None:
+        """Aplica as configurações de ROI."""
+        # This will be handled by the GUI, which will then call the
+        # appropriate project manager method.
+        # This method is a placeholder to satisfy the event mapping.
+        pass
 
     def set_main_arena_polygon(self, points: list) -> bool:
         """Salva polígono com validações robustas"""
