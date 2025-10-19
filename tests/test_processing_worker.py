@@ -408,7 +408,10 @@ class TestProcessingWorkerFunctionalIntegration:
             "test",
             True,  # index, total, experiment_id, success
         )
-        callbacks.on_completed.assert_called_once_with(False, "/results/video1_results")
+        callbacks.on_completed.assert_called_once()
+        args, kwargs = callbacks.on_completed.call_args
+        assert args[0] is False  # was_cancelled
+        assert args[1] == "/results/video1_results"  # output_dir
 
     def test_multi_video_batch_processing(self, mock_cancel_event):
         """Processing multiple videos in sequence."""
@@ -444,8 +447,11 @@ class TestProcessingWorkerFunctionalIntegration:
 
         # Should complete successfully
         callbacks.on_completed.assert_called_once()
-        was_cancelled = callbacks.on_completed.call_args[0][0]
-        assert was_cancelled is False
+        args, kwargs = callbacks.on_completed.call_args
+        assert args[0] is False  # was_cancelled
+        summary = kwargs.get("summary")
+        assert summary["failed"] == 0
+        assert summary["successful"] == 3
 
     def test_error_handling_continues_to_next_video(self, mock_cancel_event):
         """Worker continues processing after an error in one video."""
@@ -490,3 +496,82 @@ class TestProcessingWorkerFunctionalIntegration:
 
         # Should still complete
         callbacks.on_completed.assert_called_once()
+        args, kwargs = callbacks.on_completed.call_args
+        assert not args[0]  # was_cancelled
+        summary = kwargs.get("summary")
+        assert summary["failed"] == 1
+        assert summary["successful"] == 2
+
+    def test_retry_strategy_continue(self, mock_cancel_event):
+        """Test that the 'continue' strategy processes all good videos."""
+        processed = []
+
+        def fail_on_video_2(*args, **kwargs):
+            index = kwargs.get("index")
+            video_path = kwargs.get("video_info")["path"]
+            if index == 1:
+                raise ValueError("Video 2 failed")
+            processed.append(video_path)
+            return True, "/results"
+
+        callbacks = ProcessingCallbacks(on_completed=Mock())
+        context = ProcessingContext(
+            videos_to_process=[
+                {"path": "vid1.mp4"},
+                {"path": "vid2.mp4"},
+                {"path": "vid3.mp4"},
+            ],
+            output_base_dir="/results",
+            cancel_event=mock_cancel_event,
+            process_single_video_func=fail_on_video_2,
+            retry_strategy="continue",
+        )
+
+        worker = ProcessingWorker(context, callbacks)
+        thread = worker.start_in_thread()
+        thread.join(timeout=2.0)
+
+        assert processed == ["vid1.mp4", "vid3.mp4"]
+        callbacks.on_completed.assert_called_once()
+        args, kwargs = callbacks.on_completed.call_args
+        summary = kwargs.get("summary")
+        assert summary["failed"] == 1
+        assert summary["failed_list"][0]["path"] == "vid2.mp4"
+
+    def test_retry_strategy_stop(self, mock_cancel_event):
+        """Test that the 'stop' strategy halts processing on the first error."""
+        processed = []
+
+        def fail_on_video_2(*args, **kwargs):
+            index = kwargs.get("index")
+            video_path = kwargs.get("video_info")["path"]
+            if index == 1:
+                raise ValueError("Video 2 failed")
+            processed.append(video_path)
+            return True, "/results"
+
+        callbacks = ProcessingCallbacks(on_completed=Mock())
+        context = ProcessingContext(
+            videos_to_process=[
+                {"path": "vid1.mp4"},
+                {"path": "vid2.mp4"},
+                {"path": "vid3.mp4"},
+            ],
+            output_base_dir="/results",
+            cancel_event=mock_cancel_event,
+            process_single_video_func=fail_on_video_2,
+            retry_strategy="stop",
+        )
+
+        worker = ProcessingWorker(context, callbacks)
+        thread = worker.start_in_thread()
+        thread.join(timeout=2.0)
+
+        assert processed == ["vid1.mp4"]
+        callbacks.on_completed.assert_called_once()
+        args, kwargs = callbacks.on_completed.call_args
+        summary = kwargs.get("summary")
+        assert summary["failed"] == 1
+        # successful is total_videos - failed_videos, not len(processed)
+        assert summary["successful"] == 2
+        assert summary["total_videos"] == 3
