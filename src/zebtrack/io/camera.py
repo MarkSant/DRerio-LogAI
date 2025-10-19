@@ -106,6 +106,16 @@ class Camera(FrameSource):
                     # Re-apply settings on successful reconnect
                     self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
+
+                    # Update actual dimensions after reconnect
+                    self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    log.info(
+                        "camera.reconnected.dimensions_updated",
+                        width=self.actual_width,
+                        height=self.actual_height,
+                    )
+
                 self._reconnect_attempts = 0
                 self._first_failure_time = None
 

@@ -106,6 +106,9 @@ video_processing:
   # Single-animal mode: force track_id=1 for all detections (ignores multi-animal tracking)
   single_animal_per_aquarium: false
 
+  # Behavior when a video fails in batch processing: "continue" or "stop"
+  batch_retry_strategy: "continue"
+
 # -----------------------------------------------------------------------------
 # Reproducibility Settings
 # -----------------------------------------------------------------------------

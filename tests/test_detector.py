@@ -78,6 +78,22 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(scaled_roi_point[0], int(original_roi_point[0] * scale_x))
         self.assertEqual(scaled_roi_point[1], int(original_roi_point[1] * scale_y))
 
+    def test_clear_cache_empties_scaling_cache(self):
+        """Test that clear_cache() purges the internal scaling cache."""
+        # First, populate the cache by calling _update_scaling
+        mock_zones = ZoneData(polygon=[[10, 20], [100, 200]])
+        self.detector.set_zones(zones=mock_zones, actual_width=640, actual_height=360)
+
+        # Ensure the cache is populated
+        self.assertIn((640, 360), self.detector._scaling_cache)
+        self.assertGreater(len(self.detector._scaling_cache), 0)
+
+        # Call the method to be tested
+        self.detector.clear_cache()
+
+        # Assert that the cache is now empty
+        self.assertEqual(len(self.detector._scaling_cache), 0)
+
     def test_detect_delegates_to_plugin(self):
         """Test that detect calls the plugin's detect method."""
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)

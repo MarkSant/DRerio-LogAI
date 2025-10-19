@@ -14,6 +14,7 @@ Architecture:
 
 from __future__ import annotations
 
+import gc
 import os
 import threading
 from dataclasses import dataclass, field
@@ -124,8 +125,9 @@ class ProcessingContext:
     determine_intervals_func: Callable | None = None
     """Reference to controller._determine_processing_intervals method."""
 
-    retry_strategy: str = "continue"  # "continue", "stop", "ask"
+    retry_strategy: str = "continue"  # "continue", "stop"
     failed_videos: list[dict] = field(default_factory=list)
+    processed_count: int = 0
 
 
 class ProcessingWorker:
@@ -259,7 +261,10 @@ class ProcessingWorker:
                             index, total_videos, experiment_id, processed
                         )
 
-                    if not processed and self.context.cancel_event.is_set():
+                    if processed:
+                        self.context.processed_count += 1
+                    elif self.context.cancel_event.is_set():
+                        # If not processed and cancel is set, it's a cancellation
                         was_cancelled = True
                         break
 
@@ -268,6 +273,7 @@ class ProcessingWorker:
                         "worker.processing.video_error",
                         experiment_id=experiment_id,
                         error=str(exc),
+                        exc_info=True,
                     )
 
                     if self.callbacks.on_error:
@@ -287,11 +293,9 @@ class ProcessingWorker:
                     if self.context.retry_strategy == "stop":
                         log.info("worker.processing.stop_on_error", experiment_id=experiment_id)
                         break
-                    elif self.context.retry_strategy == "ask":
-                        # Emit event for UI to decide (via callback)
-                        # For now, just log and continue
-                        log.info("worker.processing.ask_user_not_implemented")
                     # "continue" → just go to next video
+                finally:
+                    self._cleanup_after_video_processing()
 
         except Exception as exc:
             log.error("worker.processing.fatal_error", error=str(exc), exc_info=True)
@@ -318,11 +322,18 @@ class ProcessingWorker:
                 output_dir=final_output_dir,
             )
             if self.callbacks.on_completed:
+                total_videos = len(self.context.videos_to_process)
+                failed_count = len(self.context.failed_videos)
+                # successful_count is now just the count of videos that returned `processed=True`
+                successful_count = self.context.processed_count
+                # skipped_count is the remainder
+                skipped_count = total_videos - successful_count - failed_count
+
                 final_summary = {
-                    "total_videos": len(self.context.videos_to_process),
-                    "successful": len(self.context.videos_to_process)
-                    - len(self.context.failed_videos),
-                    "failed": len(self.context.failed_videos),
+                    "total_videos": total_videos,
+                    "successful": successful_count,
+                    "failed": failed_count,
+                    "skipped": skipped_count,
                     "failed_list": self.context.failed_videos,
                 }
                 self.callbacks.on_completed(was_cancelled, final_output_dir, summary=final_summary)
@@ -331,6 +342,11 @@ class ProcessingWorker:
         """Helper to report progress through callback."""
         if self.callbacks.on_progress:
             self.callbacks.on_progress(fraction, message, stats)
+
+    def _cleanup_after_video_processing(self):
+        """Force garbage collection after processing each video."""
+        collected = gc.collect()
+        log.debug("memory.gc.collected", objects=collected)
 
     def start_in_thread(self) -> threading.Thread:
         """

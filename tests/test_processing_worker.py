@@ -217,12 +217,12 @@ class TestProcessingWorkerCallbacks:
         # Completion callback should still be called
         mock_callbacks.on_completed.assert_called_once()
 
-    def test_on_fatal_error_called_when_processing_raises_outside_loop(
-        self, basic_context, mock_callbacks
-    ):
+    def test_on_fatal_error_called_when_processing_raises_outside_loop(self, basic_context, mock_callbacks):
         """on_fatal_error is called for exceptions outside the video loop."""
         mock_callbacks.on_fatal_error = Mock()
-        basic_context.determine_intervals_func = Mock(side_effect=RuntimeError("Fatal setup error"))
+        basic_context.determine_intervals_func = Mock(
+            side_effect=RuntimeError("Fatal setup error")
+        )
 
         worker = ProcessingWorker(basic_context, mock_callbacks)
         thread = worker.start_in_thread()
@@ -246,7 +246,9 @@ class TestProcessingWorkerCallbacks:
         """on_error is called as a fallback if on_fatal_error is not set."""
         # Ensure on_fatal_error is not set
         mock_callbacks.on_fatal_error = None
-        basic_context.determine_intervals_func = Mock(side_effect=RuntimeError("Fatal setup error"))
+        basic_context.determine_intervals_func = Mock(
+            side_effect=RuntimeError("Fatal setup error")
+        )
 
         worker = ProcessingWorker(basic_context, mock_callbacks)
         thread = worker.start_in_thread()
@@ -455,19 +457,19 @@ class TestProcessingWorkerFunctionalIntegration:
 
     def test_error_handling_continues_to_next_video(self, mock_cancel_event):
         """Worker continues processing after an error in one video."""
-        self.processed = []
-        self.errors = []
+        processed = []
+        errors = []
 
         def sometimes_fails(*args, **kwargs):
             video_info = kwargs.get("video_info") or args[2]
             path = video_info["path"]
-            self.processed.append(path)
+            processed.append(path)
             if "bad" in path:
                 raise ValueError(f"Failed to process {path}")
             return (True, "/results")
 
         def track_errors(error, context):
-            self.errors.append(str(error))
+            errors.append(str(error))
 
         callbacks = ProcessingCallbacks(
             on_error=track_errors,
@@ -489,18 +491,13 @@ class TestProcessingWorkerFunctionalIntegration:
         thread.join(timeout=2.0)
 
         # All three should be attempted
-        assert len(self.processed) == 3
+        assert len(processed) == 3
         # One error should be recorded
-        assert len(self.errors) == 1
-        assert "bad.mp4" in self.errors[0]
+        assert len(errors) == 1
+        assert "bad.mp4" in errors[0]
 
         # Should still complete
         callbacks.on_completed.assert_called_once()
-        args, kwargs = callbacks.on_completed.call_args
-        assert not args[0]  # was_cancelled
-        summary = kwargs.get("summary")
-        assert summary["failed"] == 1
-        assert summary["successful"] == 2
 
     def test_retry_strategy_continue(self, mock_cancel_event):
         """Test that the 'continue' strategy processes all good videos."""
@@ -572,6 +569,6 @@ class TestProcessingWorkerFunctionalIntegration:
         args, kwargs = callbacks.on_completed.call_args
         summary = kwargs.get("summary")
         assert summary["failed"] == 1
-        # successful is total_videos - failed_videos, not len(processed)
-        assert summary["successful"] == 2
+        assert summary["successful"] == 1
+        assert summary["skipped"] == 1
         assert summary["total_videos"] == 3

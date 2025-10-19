@@ -179,6 +179,10 @@ class VideoProcessingSettings(BaseModel):
         False,
         description="When True, forces consistent track_id=1 for single animal scenarios.",
     )
+    batch_retry_strategy: Literal["continue", "stop"] = Field(
+        "continue",
+        description="Behavior when a video fails in batch processing: 'continue' or 'stop'.",
+    )
 
 
 class TrajectorySmoothingSettings(BaseModel):
