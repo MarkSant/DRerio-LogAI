@@ -28,6 +28,14 @@ camera:
   desired_width: 1280
   desired_height: 720
 
+  # Maximum number of times to try reconnecting if the camera signal is lost
+  # 0 = try forever
+  max_reconnect_attempts: 10
+
+  # Total time (in seconds) to keep trying to reconnect before giving up
+  # 0 = no time limit
+  reconnect_timeout_seconds: 60.0
+
 # -----------------------------------------------------------------------------
 # Arduino Settings (optional hardware integration)
 # -----------------------------------------------------------------------------

@@ -36,6 +36,13 @@ class Camera(FrameSource):
         self._lock = threading.Lock()
         self._latest_frame: tuple[bool, np.ndarray | None] = (False, None)
         self._stopped = threading.Event()
+
+        # Reconnect tracking attributes
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = settings.camera.max_reconnect_attempts
+        self._reconnect_timeout_seconds = settings.camera.reconnect_timeout_seconds
+        self._first_failure_time: float | None = None
+
         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
         self._thread.start()
 
@@ -46,17 +53,61 @@ class Camera(FrameSource):
         """
         while not self._stopped.is_set():
             if not self.cap.isOpened():
-                log.warning("camera.reconnect.start")
-                self.cap.open(self._camera_index)
-                if self.cap.isOpened():
-                    log.info("camera.reconnect.success")
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
-                else:
+                if self._first_failure_time is None:
+                    self._first_failure_time = time.time()
+
+                elapsed = time.time() - self._first_failure_time
+
+                # Check global timeout
+                if (
+                    self._reconnect_timeout_seconds > 0
+                    and elapsed > self._reconnect_timeout_seconds
+                ):
+                    log.error(
+                        "camera.reconnect.timeout",
+                        elapsed_seconds=elapsed,
+                        max_seconds=self._reconnect_timeout_seconds,
+                    )
                     with self._lock:
                         self._latest_frame = (False, None)
-                    time.sleep(2)
-                    continue
+                    break  # Exit thread
+
+                # Check attempt limit
+                if (
+                    self._max_reconnect_attempts > 0
+                    and self._reconnect_attempts >= self._max_reconnect_attempts
+                ):
+                    log.error(
+                        "camera.reconnect.max_attempts",
+                        attempts=self._reconnect_attempts,
+                        max_attempts=self._max_reconnect_attempts,
+                    )
+                    with self._lock:
+                        self._latest_frame = (False, None)
+                    break  # Exit thread
+
+                self._reconnect_attempts += 1
+                log.warning(
+                    "camera.reconnect.attempt",
+                    attempt=self._reconnect_attempts,
+                    elapsed_seconds=elapsed,
+                )
+                self.cap.open(self._camera_index)
+                time.sleep(2)
+                continue
+            else:
+                # Reset counters on successful connection
+                if self._first_failure_time is not None:
+                    log.info(
+                        "camera.reconnect.recovered",
+                        total_attempts=self._reconnect_attempts,
+                        total_downtime_seconds=time.time() - self._first_failure_time,
+                    )
+                    # Re-apply settings on successful reconnect
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
+                self._reconnect_attempts = 0
+                self._first_failure_time = None
 
             ret, frame = self.cap.read()
 
