@@ -22,14 +22,13 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestWizardFoundation:
     """Tests for wizard initialization and basic navigation."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tkinter_root):
+    def setup(self, wizard_dependencies):
         """Create Tkinter root for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
 
     def test_wizard_initializes_with_schema_version(self):
         """Wizard should initialize with wizard_schema_version: 1."""

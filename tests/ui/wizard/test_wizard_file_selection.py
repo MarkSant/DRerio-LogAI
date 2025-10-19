@@ -21,14 +21,13 @@ from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestFileSelectionStep:
     """Tests for file selection step."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tkinter_root, monkeypatch):
+    def setup(self, wizard_dependencies, monkeypatch):
         """Create Tkinter root and temporary files for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
         self.temp_dir = tempfile.mkdtemp()
         self.video1 = Path(self.temp_dir) / "video1.mp4"
         self.video2 = Path(self.temp_dir) / "video2.mp4"

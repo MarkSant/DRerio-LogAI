@@ -112,6 +112,11 @@ tests/
 
 ```
 
+## Fixture Organization
+- `tests/conftest.py`: Global fixtures (tkinter_root)
+- `tests/core/conftest.py`: Core-specific fixtures (view_model, state_manager)
+- `tests/ui/wizard/conftest.py`: Wizard-specific fixtures (wizard_dependencies)
+
 ## Compatibilidade Cross-Platform
 
 ### Windows

@@ -21,14 +21,13 @@ from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestConfirmationStep:
     """Tests for confirmation step."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, monkeypatch, tkinter_root):
+    def setup(self, monkeypatch, wizard_dependencies):
         """Create Tkinter root and temp directory for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
         self.temp_dir = tempfile.mkdtemp()
         monkeypatch.setattr(Path, "home", lambda: Path(self.temp_dir))
         # Mock filedialog to prevent it from opening during tests

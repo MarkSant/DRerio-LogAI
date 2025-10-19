@@ -24,14 +24,13 @@ from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestWizardIntegration:
     """End-to-end integration tests for the complete wizard."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tkinter_root):
+    def setup(self, wizard_dependencies):
         """Create Tkinter root for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
 
         # Create temp directory and files
         self.temp_dir = Path(tempfile.mkdtemp())
