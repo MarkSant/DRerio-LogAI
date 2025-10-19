@@ -8,6 +8,7 @@ import structlog
 
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.events import Events
 
 log = structlog.get_logger()
 
@@ -119,11 +120,12 @@ class ZoneControlsWidget(BaseWidget):
         actions_frame.pack(fill="x", pady=5)
 
         # Auto-detect button
-        ttk.Button(
+        self.auto_detect_button = ttk.Button(
             actions_frame,
             text="Detectar Aquário (Auto)",
             command=self._on_auto_detect_clicked,
-        ).pack(fill="x", pady=2)
+        )
+        self.auto_detect_button.pack(fill="x", pady=2)
 
         # Stabilization frames entry
         stabilization_frame = ttk.Frame(actions_frame)
@@ -134,11 +136,12 @@ class ZoneControlsWidget(BaseWidget):
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
 
         # Manual polygon button
-        ttk.Button(
+        self.draw_arena_button = ttk.Button(
             actions_frame,
             text="Desenhar Polígono Principal",
             command=self._on_draw_main_polygon_clicked,
-        ).pack(fill="x", pady=2)
+        )
+        self.draw_arena_button.pack(fill="x", pady=2)
 
         # ROI button (initially disabled)
         self.draw_roi_button = ttk.Button(
@@ -453,18 +456,18 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_auto_detect_clicked(self) -> None:
         """Handle auto-detect button click."""
-        self.emit_event(
-            "zone.auto_detect_clicked",
+        self.event_bus.publish_event(
+            Events.ZONE_AUTO_DETECT,
             {"stabilization_frames": int(self.stabilization_frames_var.get() or 10)},
         )
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""
-        self.emit_event("zone.draw_main_polygon", {})
+        self.event_bus.publish_event(Events.ZONE_SET_ARENA_POLYGON, {})
 
     def _on_draw_roi_clicked(self) -> None:
         """Handle draw ROI button click."""
-        self.emit_event("zone.draw_roi", {})
+        self.event_bus.publish_event(Events.DETECTOR_SETUP_ZONES, {})
 
     def _on_toggle_view_clicked(self) -> None:
         """Handle toggle view button click."""
@@ -523,20 +526,22 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_save_arena_clicked(self) -> None:
         """Handle save arena button click."""
-        self.emit_event("zone.arena_save", {})
+        self.event_bus.publish_event(Events.ZONE_SAVE_MANUAL_ARENA, {})
 
     def _on_discard_arena_clicked(self) -> None:
         """Handle discard arena button click."""
-        self.emit_event("zone.arena_discard", {})
+        self.event_bus.publish_event(Events.ZONE_UPDATE_ARENA, {})
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
-        self.emit_event("zone.roi_rule_changed", {"rule": self.roi_inclusion_rule_var.get()})
+        self.event_bus.publish_event(
+            Events.DETECTOR_UPDATE_PARAMETERS, {"rule": self.roi_inclusion_rule_var.get()}
+        )
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click."""
-        self.emit_event(
-            "zone.roi_settings_apply",
+        self.event_bus.publish_event(
+            Events.DETECTOR_UPDATE_PARAMETERS,
             {
                 "rule": self.roi_inclusion_rule_var.get(),
                 "buffer_radius": float(self.roi_buffer_radius_var.get() or 0.5),
