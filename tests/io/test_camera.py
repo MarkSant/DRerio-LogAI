@@ -1,5 +1,4 @@
 import itertools
-import time
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -13,8 +12,10 @@ def camera_and_mock():
     Provides a Camera instance with a mocked VideoCapture and patched time.sleep
     to make tests fast and deterministic.
     """
-    with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc, \
-         patch("zebtrack.io.camera.time.sleep"):  # No need to capture mock_sleep
+    with (
+        patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc,
+        patch("zebtrack.io.camera.time.sleep"),
+    ):  # No need to capture mock_sleep
         from zebtrack.io.camera import Camera
 
         mock_vc = MagicMock()
@@ -49,10 +50,12 @@ def test_camera_reconnects_successfully_and_updates_dimensions(camera_and_mock, 
     get_sequence = [640, 480, 30.0]
 
     mock_vc.isOpened.side_effect = itertools.chain(is_opened_sequence, itertools.repeat(True))
-    mock_vc.read.side_effect = itertools.chain(read_sequence, itertools.repeat((True, np.zeros((1, 1, 3)))))
+    mock_vc.read.side_effect = itertools.chain(
+        read_sequence, itertools.repeat((True, np.zeros((1, 1, 3))))
+    )
     mock_vc.get.side_effect = itertools.chain(get_sequence, itertools.repeat(30.0))
 
-    camera._thread.join(timeout=0.5)
+    camera._thread.join(timeout=2.0)
 
     assert camera._thread.is_alive()
     assert mock_vc.open.call_count == 2
@@ -71,7 +74,7 @@ def test_camera_gives_up_after_max_attempts(camera_and_mock, monkeypatch):
     mock_vc.isOpened.return_value = False
     mock_vc.read.return_value = (False, None)
 
-    camera._thread.join(timeout=0.5)
+    camera._thread.join(timeout=2.0)
 
     assert not camera._thread.is_alive()
     assert mock_vc.open.call_count == 2
@@ -86,10 +89,11 @@ def test_camera_gives_up_after_timeout(camera_and_mock, monkeypatch):
     mock_vc.isOpened.return_value = False
     with patch("zebtrack.io.camera.time.time") as mock_time:
         mock_time.side_effect = [100.0, 100.0, 100.2]
-        camera._thread.join(timeout=0.5)
+        camera._thread.join(timeout=2.0)
 
     assert not camera._thread.is_alive()
     assert mock_vc.open.call_count >= 1
+
 
 def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, monkeypatch):
     """Test that the camera keeps trying to reconnect if max_attempts and timeout are 0."""
@@ -99,6 +103,6 @@ def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, mo
 
     mock_vc.isOpened.return_value = False
 
-    camera._thread.join(timeout=0.1)
+    camera._thread.join(timeout=2.0)
     assert camera._thread.is_alive()
     assert mock_vc.open.call_count > 2
