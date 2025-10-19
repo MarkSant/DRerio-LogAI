@@ -66,6 +66,7 @@ class Detector:
         self.scaled_polygon: np.ndarray = np.array([])
         self.scaled_roi_polygons: list[np.ndarray] = []
         self._scaling_cache: dict = {}
+        """Caches scaled zone polygons to avoid recalculation for each frame of the same size."""
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
         self._byte_tracker: BYTETracker | None = None

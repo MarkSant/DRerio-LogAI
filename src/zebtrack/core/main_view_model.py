@@ -4327,7 +4327,7 @@ class MainViewModel:
             return analysis_success, results_dir
         finally:
             # Release frame references
-            if hasattr(self, "detector") and self.detector:
+            if hasattr(self, "detector") and self.detector and hasattr(self.detector, "clear_cache"):
                 self.detector.clear_cache()
 
     def apply_project_settings_to_batch(self, videos: list):
@@ -4591,7 +4591,7 @@ class MainViewModel:
             )
             self.ui_coordinator.set_status(self.view, "Processamento falhou")
 
-        def on_completed(was_cancelled: bool, output_dir: str):
+        def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None):
             """Called when all processing completes."""
             # Phase 4: Use UICoordinator for UI updates
             self.project_manager.set_active_zone_video(None)
@@ -4647,6 +4647,7 @@ class MainViewModel:
             process_single_video_func=self._process_single_video,
             apply_project_settings_func=self.apply_project_settings_to_batch,
             determine_intervals_func=self._determine_processing_intervals,
+            retry_strategy=settings.video_processing.batch_retry_strategy,
         )
 
     def _process_videos(
