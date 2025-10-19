@@ -24,16 +24,22 @@ class Camera(FrameSource):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
 
-        self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self._lock = threading.Lock()
+
+        # Protect initial reads with the lock
+        with self._lock:
+            self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps
+
         log.info(
             "camera.initialized",
             index=self._camera_index,
             width=self.actual_width,
             height=self.actual_height,
+            fps=self.actual_fps,
         )
 
-        self._lock = threading.Lock()
         self._latest_frame: tuple[bool, np.ndarray | None] = (False, None)
         self._stopped = threading.Event()
 
@@ -43,6 +49,7 @@ class Camera(FrameSource):
         self._reconnect_timeout_seconds = settings.camera.reconnect_timeout_seconds
         self._first_failure_time: float | None = None
 
+        # Start the thread as the final step
         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
         self._thread.start()
 
@@ -107,14 +114,18 @@ class Camera(FrameSource):
                     self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
 
-                    # Update actual dimensions after reconnect
+                    # Update actual dimensions and FPS after reconnect, under lock
                     with self._lock:
                         self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        self.actual_fps = (
+                            self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps
+                        )
                     log.info(
                         "camera.reconnected.dimensions_updated",
                         width=self.actual_width,
                         height=self.actual_height,
+                        fps=self.actual_fps,
                     )
 
                 self._reconnect_attempts = 0
@@ -155,13 +166,13 @@ class Camera(FrameSource):
 
     def get_properties(self) -> dict[str, Any]:
         """
-        Returns the actual properties of the camera feed.
+        Returns the actual properties of the camera feed, guaranteed to be thread-safe.
         """
         with self._lock:
             return {
                 "width": self.actual_width,
                 "height": self.actual_height,
-                "fps": self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps,
+                "fps": self.actual_fps,
             }
 
 
