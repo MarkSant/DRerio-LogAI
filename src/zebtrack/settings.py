@@ -59,6 +59,16 @@ class CameraSettings(BaseModel):
     desired_height: int = Field(
         ..., description="The height (pixels) used for defining detection zones."
     )
+    max_reconnect_attempts: int = Field(
+        10,
+        ge=0,
+        description="Maximum reconnection attempts before giving up (0 = infinite)",
+    )
+    reconnect_timeout_seconds: float = Field(
+        60.0,
+        ge=0.0,
+        description="Total time to keep trying to reconnect (0 = no timeout)",
+    )
 
 
 class ArduinoSettings(BaseModel):
