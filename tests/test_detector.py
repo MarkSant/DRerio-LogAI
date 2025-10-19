@@ -102,7 +102,9 @@ class TestDetector(unittest.TestCase):
     def test_detect_returns_tracked_detections(self):
         """Detector should attach a track_id when plugin returns raw boxes."""
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.detector.set_zones(ZoneData(polygon=[[0,0], [640,0], [640,480], [0,480]]), 640, 480)
+        self.detector.set_zones(
+            ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]]), 640, 480
+        )
         fake_detection = [(150, 150, 160, 160, 0.9, None)]
         self.mock_plugin.set_detect_return_value(fake_detection)
 
@@ -122,7 +124,9 @@ class TestDetector(unittest.TestCase):
 
     def test_single_subject_mode_assigns_constant_track_id(self):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.detector.set_zones(ZoneData(polygon=[[0,0], [640,0], [640,480], [0,480]]), 640, 480)
+        self.detector.set_zones(
+            ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]]), 640, 480
+        )
         self.detector.set_single_subject_mode(True)
 
         detections_frame1 = [
@@ -153,7 +157,9 @@ class TestDetector(unittest.TestCase):
 
     def test_reset_tracking_state_clears_single_subject_tracker(self):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.detector.set_zones(ZoneData(polygon=[[0,0], [640,0], [640,480], [0,480]]), 640, 480)
+        self.detector.set_zones(
+            ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]]), 640, 480
+        )
         self.detector.set_single_subject_mode(True)
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
@@ -247,11 +253,14 @@ class TestDetector(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Actual dimensions must be positive"):
             self.detector.set_zones(zones, 1280, -1)
 
-
     def test_detect_raises_error_if_zones_not_configured(self):
         """Test that detect() raises RuntimeError if set_zones() is not called."""
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        with self.assertRaisesRegex(RuntimeError, "Must call set_zones\(\) before detect\(\)\. Zones need video dimensions for proper scaling\."):
+        with self.assertRaisesRegex(
+            RuntimeError,
+            r"Must call set_zones\(\) before detect\(\)\. "
+            r"Zones need video dimensions for proper scaling\.",
+        ):
             self.detector.detect(dummy_frame, "live")
 
     def test_detect_succeeds_after_set_zones(self):
@@ -270,14 +279,18 @@ class TestDetector(unittest.TestCase):
         zones = ZoneData(polygon=[[0, 0], [1, 1]])
         self.detector.set_zones(zones, 640, 480)
 
-        with patch('zebtrack.core.detector.log.warning') as mock_log:
+        with patch("zebtrack.core.detector.log.warning") as mock_log:
             self.detector.detect(dummy_frame, "live")
             mock_log.assert_called_once_with(
                 "detector.dimension_mismatch",
                 expected=(640, 480),
                 actual=(1920, 1080),
-                message="Frame dimensions differ from dimensions used to set zones. This may cause inaccurate detection scaling."
+                message=(
+                    "Frame dimensions differ from dimensions used to set zones. "
+                    "This may cause inaccurate detection scaling."
+                ),
             )
+
 
 if __name__ == "__main__":
     unittest.main()

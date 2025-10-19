@@ -201,13 +201,24 @@ class Detector:
         Processes a single frame for object detection and state tracking.
         """
         if not self._zones_configured:
-            raise RuntimeError("Must call set_zones() before detect(). Zones need video dimensions for proper scaling.")
+            raise RuntimeError(
+                "Must call set_zones() before detect(). "
+                "Zones need video dimensions for proper scaling."
+            )
 
-        if self._last_width is not None and frame.shape[:2] != (self._last_height, self._last_width):
-            log.warning("detector.dimension_mismatch",
-                        expected=(self._last_width, self._last_height),
-                        actual=(frame.shape[1], frame.shape[0]),
-                        message="Frame dimensions differ from dimensions used to set zones. This may cause inaccurate detection scaling.")
+        if self._last_width is not None and frame.shape[:2] != (
+            self._last_height,
+            self._last_width,
+        ):
+            log.warning(
+                "detector.dimension_mismatch",
+                expected=(self._last_width, self._last_height),
+                actual=(frame.shape[1], frame.shape[0]),
+                message=(
+                    "Frame dimensions differ from dimensions used to set zones. "
+                    "This may cause inaccurate detection scaling."
+                ),
+            )
         start_time = time.perf_counter()
 
         # Optimization: Crop the frame to the bounding box of the arena polygon
@@ -297,6 +308,11 @@ class Detector:
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None
+
+    def clear_cache(self):
+        """Clears the internal scaling cache to free memory."""
+        self._scaling_cache.clear()
+        log.debug("detector.cache.cleared")
 
     @staticmethod
     def _ensure_track_tuple(detection):

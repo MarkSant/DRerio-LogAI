@@ -4252,78 +4252,83 @@ class MainViewModel:
         metadata_context: dict | None,
         analysis_profile: dict | None,
     ) -> tuple[bool, str | None]:
-        video_path = video_info.get("path")
-        if not video_path:
-            return False, None
+        try:
+            video_path = video_info.get("path")
+            if not video_path:
+                return False, None
 
-        if metadata_context is None:
-            metadata_context = self._build_metadata_context(
-                video_info=video_info,
-                single_video_config=single_video_config,
+            if metadata_context is None:
+                metadata_context = self._build_metadata_context(
+                    video_info=video_info,
+                    single_video_config=single_video_config,
+                    experiment_id=experiment_id,
+                    video_path=video_path,
+                )
+
+            analysis_view_metadata = self._compose_analysis_view_metadata(
                 experiment_id=experiment_id,
                 video_path=video_path,
+                metadata_context=metadata_context,
+                single_video_config=single_video_config,
+                analysis_profile=analysis_profile,
+            )
+            self._schedule_analysis_metadata_update(analysis_view_metadata)
+            self._notify_task_status_start(
+                index=index,
+                total=total_videos,
+                experiment_id=experiment_id,
             )
 
-        analysis_view_metadata = self._compose_analysis_view_metadata(
-            experiment_id=experiment_id,
-            video_path=video_path,
-            metadata_context=metadata_context,
-            single_video_config=single_video_config,
-            analysis_profile=analysis_profile,
-        )
-        self._schedule_analysis_metadata_update(analysis_view_metadata)
-        self._notify_task_status_start(
-            index=index,
-            total=total_videos,
-            experiment_id=experiment_id,
-        )
+            self.project_manager.set_active_zone_video(video_path)
+            progress_callback = self._make_progress_callback(
+                index=index,
+                total_videos=total_videos,
+                experiment_id=experiment_id,
+            )
 
-        self.project_manager.set_active_zone_video(video_path)
-        progress_callback = self._make_progress_callback(
-            index=index,
-            total_videos=total_videos,
-            experiment_id=experiment_id,
-        )
+            self.video_processing_service.display_initial_frame(video_path)
 
-        self.video_processing_service.display_initial_frame(video_path)
+            results_path = self.video_processing_service.resolve_results_path(
+                experiment_id=experiment_id,
+                video_path=video_path,
+                metadata_context=metadata_context,
+                single_video_config=single_video_config,
+                output_base_dir=output_base_dir,
+            )
+            results_dir = str(results_path)
 
-        results_path = self.video_processing_service.resolve_results_path(
-            experiment_id=experiment_id,
-            video_path=video_path,
-            metadata_context=metadata_context,
-            single_video_config=single_video_config,
-            output_base_dir=output_base_dir,
-        )
-        results_dir = str(results_path)
+            tracking_success, arena_polygon_px = self._run_tracking_if_needed(
+                video_path,
+                results_dir,
+                experiment_id,
+                progress_callback,
+                calibration_data=single_video_config,
+                analysis_interval_frames=analysis_interval_frames,
+                display_interval_frames=display_interval_frames,
+            )
 
-        tracking_success, arena_polygon_px = self._run_tracking_if_needed(
-            video_path,
-            results_dir,
-            experiment_id,
-            progress_callback,
-            calibration_data=single_video_config,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-        )
+            if self.cancel_event.is_set():
+                return False, results_dir
 
-        if self.cancel_event.is_set():
-            return False, results_dir
+            if not tracking_success:
+                return False, results_dir
 
-        if not tracking_success:
-            return False, results_dir
+            analysis_success = self._run_analysis_pipeline(
+                experiment_id=experiment_id,
+                video_path=video_path,
+                results_dir=results_dir,
+                arena_polygon_px=arena_polygon_px,
+                metadata_context=metadata_context,
+                single_video_config=single_video_config,
+                progress_callback=progress_callback,
+                analysis_profile=analysis_profile,
+            )
 
-        analysis_success = self._run_analysis_pipeline(
-            experiment_id=experiment_id,
-            video_path=video_path,
-            results_dir=results_dir,
-            arena_polygon_px=arena_polygon_px,
-            metadata_context=metadata_context,
-            single_video_config=single_video_config,
-            progress_callback=progress_callback,
-            analysis_profile=analysis_profile,
-        )
-
-        return analysis_success, results_dir
+            return analysis_success, results_dir
+        finally:
+            # Release frame references
+            if hasattr(self, "detector") and self.detector:
+                self.detector.clear_cache()
 
     def apply_project_settings_to_batch(self, videos: list):
         """Aplica configurações do projeto a novos vídeos"""
@@ -4578,13 +4583,11 @@ class MainViewModel:
                     "Erro Crítico de Processamento",
                     f"{context}\n\nErro: {exc}\n\n"
                     f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
-                    f"Verifique os logs para detalhes."
+                    f"Verifique os logs para detalhes.",
                 )
             )
             self.state_manager.update_processing_state(
-                source="worker.fatal_error",
-                is_processing=False,
-                error=str(exc)
+                source="worker.fatal_error", is_processing=False, error=str(exc)
             )
             self.ui_coordinator.set_status(self.view, "Processamento falhou")
 

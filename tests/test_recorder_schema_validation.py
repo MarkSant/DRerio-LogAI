@@ -78,7 +78,7 @@ def test_can_start_new_recording_after_error(recorder_setup):
 
     # First recording fails
     recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
-    recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)]) # Add data to trigger flush
+    recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])  # Add data to trigger flush
     recorder.pixel_per_cm_ratio = (1.0, 1.0)
     with pytest.raises(ValueError):
         recorder._flush_detection_data(force=True)
