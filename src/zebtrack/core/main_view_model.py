@@ -45,6 +45,8 @@ from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.model_service import ModelService
+from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
@@ -86,11 +88,18 @@ class MainViewModel:
     State mutations now tracked through StateManager.
     """
 
-    def __init__(self, root, test_sync_event: threading.Event | None = None):
+    def __init__(
+        self,
+        root,
+        test_sync_event: threading.Event | None = None,
+        event_bus: EventBus | None = None,
+        project_workflow_service: ProjectWorkflowService = None,
+    ):
         self.root = root
 
         # Test synchronization support (Phase 1.1)
         self._test_sync_event = test_sync_event
+        self.project_workflow_service = project_workflow_service
 
         # Phase 2, Step 4: Centralized state management
         self.state_manager = StateManager(enable_history=True, max_history_size=100)
@@ -108,8 +117,6 @@ class MainViewModel:
         self.weight_manager = WeightManager()
 
         # Model management service (Phase 2, Step 1)
-        from zebtrack.core.model_service import ModelService
-
         self.model_service = ModelService(self.weight_manager)
 
         # Detector management service (Phase 6)
@@ -119,10 +126,6 @@ class MainViewModel:
             weight_manager=self.weight_manager,
             model_service=self.model_service,
         )
-
-        # Project workflow service (Phase 5) - initialize after UICoordinator
-        # Will be fully initialized after UICoordinator is created
-        self.project_workflow_service = None
 
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
@@ -157,15 +160,19 @@ class MainViewModel:
             is_recording=False,
         )
 
-        ui_features = getattr(settings, "ui_features", None)
-        self._use_event_bus = bool(
-            ui_features and getattr(ui_features, "enable_event_queue", False)
-        )
-        self.ui_event_bus: EventBus | None = EventBus() if self._use_event_bus else None
+        if event_bus:
+            self.ui_event_bus = event_bus
+            self._use_event_bus = True
+        else:
+            ui_features = getattr(settings, "ui_features", None)
+            self._use_event_bus = bool(
+                ui_features and getattr(ui_features, "enable_event_queue", False)
+            )
+            self.ui_event_bus: EventBus | None = EventBus() if self._use_event_bus else None
+
         if self._use_event_bus:
             log.info("controller.event_bus.enabled")
-            # Subscribe to all UI→Controller events
-            self._register_event_handlers()
+            # Event handlers are now registered via bind_events()
 
         # Phase 4: UI Coordinator for consolidated UI scheduling
         self.ui_coordinator = UICoordinator(
@@ -174,14 +181,15 @@ class MainViewModel:
         )
 
         # Phase 5: Project Workflow Service for project creation/opening orchestration
-        from zebtrack.core.project_workflow_service import ProjectWorkflowService
-
-        self.project_workflow_service = ProjectWorkflowService(
-            project_manager=self.project_manager,
-            model_service=self.model_service,
-            state_manager=self.state_manager,
-            ui_coordinator=self.ui_coordinator,
-        )
+        if project_workflow_service:
+            self.project_workflow_service = project_workflow_service
+        else:
+            self.project_workflow_service = ProjectWorkflowService(
+                project_manager=self.project_manager,
+                model_service=self.model_service,
+                state_manager=self.state_manager,
+                ui_coordinator=self.ui_coordinator,
+            )
         # Set global model defaults
         self.project_workflow_service.set_global_model_defaults(
             active_weight=self.active_weight_name or None,
@@ -215,6 +223,21 @@ class MainViewModel:
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
+
+    def bind_events(self):
+        """
+        Binds all UI events to their respective handlers in the ViewModel.
+
+        This method should be called after the ViewModel and View are fully
+        initialized to ensure that all dependencies are in place before
+        event listeners are attached. Separating event binding from __init__
+        is crucial for testability, as it allows mocks to be injected
+        before the event bus starts routing events.
+        """
+        if self._use_event_bus:
+            log.info("controller.bind_events.start")
+            self._register_event_handlers()
+            log.info("controller.bind_events.complete")
 
     # ==================== Phase 2, Step 4: State Manager Properties ====================  # noqa: E501
     # Backward-compatible properties that delegate to StateManager
@@ -475,6 +498,11 @@ class MainViewModel:
             ["video_path", "config"],
             "positional",
         ),
+        Events.VIDEO_START_SINGLE_PROCESSING: (
+            "start_single_video_processing",
+            ["video_path", "config", "zone_data"],
+            "positional",
+        ),
         Events.VIDEO_CANCEL_ANALYSIS: ("cancel_current_analysis", [], "no_params"),
         # Model & weight events
         Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
@@ -496,6 +524,8 @@ class MainViewModel:
         ),
         Events.MODEL_DELETE_WEIGHT: ("delete_weight", ["name"], "positional"),
         Events.MODEL_RUN_DIAGNOSTIC: ("run_model_diagnostic", ["config"], "positional"),
+        Events.MODEL_LOAD_NEW_WEIGHT: ("load_new_weight", [], "no_params"),
+        Events.MODEL_MANAGE_WEIGHTS: ("manage_weights", [], "no_params"),
         # Detector & zone events
         Events.DETECTOR_SETUP: ("setup_detector", ["temp_animal_method"], "kwargs_get"),
         Events.DETECTOR_SETUP_ZONES: ("setup_detector_zones", [], "no_params"),
@@ -507,6 +537,11 @@ class MainViewModel:
         Events.ZONE_SET_ARENA_POLYGON: ("set_main_arena_polygon", ["points"], "positional"),
         Events.ZONE_SAVE_MANUAL_ARENA: ("save_manual_arena", ["polygon_points"], "positional"),
         Events.ZONE_UPDATE_ARENA: ("update_main_arena", ["polygon_points"], "positional"),
+        Events.ZONE_AUTO_DETECT: (
+            "run_aquarium_detection",
+            ["video_path", "stabilization_frames"],
+            "kwargs_get",
+        ),
         # Calibration events
         Events.CALIBRATION_RUN_LIVE: (
             "run_live_calibration",
@@ -1126,6 +1161,44 @@ class MainViewModel:
 
         if not self._using_project_overrides:
             self._global_model_defaults["active_weight"] = self.active_weight_name or None
+
+    def manage_weights(self):
+        """Opens the weight management dialog."""
+        self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
+
+    def load_new_weight(
+        self, filepath: str | None = None, weight_type: str | None = None, choice: str | None = None
+    ):
+        """Handles the 'Load New Weight' button click."""
+        if filepath is None:
+            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE)
+            return
+
+        # Classify weight type by filename
+        filename = os.path.basename(filepath)
+        if weight_type is None:
+            weight_type = self.classify_weight_type(filename)
+
+        # If type cannot be determined, ask user
+        if weight_type is None:
+            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_TYPE)
+            return
+
+        # Ask user what to do with the new weight
+        if choice is None:
+            self.ui_event_bus.publish_event(
+                Events.UI_REQUEST_WEIGHT_ACTION, {"weight_type": weight_type}
+            )
+            return
+
+        if choice == "cancel":
+            return
+        elif choice == "yes":
+            # Add as new default for this type
+            self.add_new_weight(path=filepath, set_as_default=True, weight_type=weight_type)
+        else:  # 'no'
+            # Add as an alternative
+            self.add_new_weight(path=filepath, set_as_default=False, weight_type=weight_type)
 
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
         self.use_openvino = bool(use_openvino)

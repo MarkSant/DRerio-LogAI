@@ -8821,45 +8821,7 @@ class ApplicationGUI:
 
     def _load_new_weight_clicked(self):
         """Handles the 'Load New Weight' button click."""
-        filepath = filedialog.askopenfilename(
-            title="Selecione um arquivo de peso .pt",
-            filetypes=[("Pesos PyTorch", "*.pt")],
-        )
-        if not filepath:
-            return
-
-        # Classify weight type by filename
-        filename = os.path.basename(filepath)
-        weight_type = self.controller.classify_weight_type(filename)
-
-        # If type cannot be determined, ask user
-        if weight_type is None:
-            weight_type = self._prompt_for_weight_type()
-            if weight_type is None:  # User cancelled
-                return
-
-        # Ask user what to do with the new weight
-        choice = messagebox.askquestion(
-            "Adicionar Peso",
-            f"Deseja definir este novo peso {weight_type} como padrão para seu tipo?",
-            icon="question",
-            type="yesnocancel",
-        )
-
-        if choice == "cancel":
-            return
-        elif choice == "yes":
-            # Add as new default for this type
-            self.publish_event(
-                Events.MODEL_ADD_WEIGHT,
-                {"path": filepath, "set_as_default": True, "weight_type": weight_type},
-            )
-        else:  # 'no'
-            # Add as an alternative
-            self.publish_event(
-                Events.MODEL_ADD_WEIGHT,
-                {"path": filepath, "set_as_default": False, "weight_type": weight_type},
-            )
+        self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT)
 
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type when it cannot be determined
@@ -8918,7 +8880,7 @@ class ApplicationGUI:
 
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""
-        ManageWeightsDialog(self.root, self.controller)
+        self.publish_event(Events.MODEL_MANAGE_WEIGHTS)
 
     def update_weights_dropdown(self, weights: list[str]):
         """Caches available weights so summaries stay consistent."""
@@ -8982,7 +8944,7 @@ class ApplicationGUI:
             return
 
         # Call controller with adapted data via event
-        self.publish_event(Events.PROJECT_CREATE, controller_data)
+        self.publish_event(Events.WIZARD_CREATE_PROJECT, controller_data)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
@@ -9086,15 +9048,15 @@ class ApplicationGUI:
         # Clear any old interactive polygon before starting a new detection
         self._clear_interactive_polygon()
 
-        if self.pending_single_video_path:
-            # Single video flow
-            self.controller.run_aquarium_detection(
-                video_path=self.pending_single_video_path,
-                stabilization_frames=stabilization_frames,
-            )
-        else:
-            # Project flow
-            self.controller.run_aquarium_detection(stabilization_frames=stabilization_frames)
+        video_path = self.pending_single_video_path or None
+
+        self.publish_event(
+            Events.ZONE_AUTO_DETECT,
+            {
+                "video_path": video_path,
+                "stabilization_frames": stabilization_frames,
+            },
+        )
 
     def _on_start_single_video_processing_clicked(self):
         """Handler for the 'Start Analysis' button in the single video flow."""
@@ -9125,14 +9087,18 @@ class ApplicationGUI:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
 
-        # 2. Disable the button
+        # 2. Disable the button and publish the event
         self.start_single_analysis_btn.config(state="disabled")
-        self.controller.start_single_video_processing(
-            self.pending_single_video_path,
-            self.pending_single_video_config,
-            zone_data,
+        self.publish_event(
+            Events.VIDEO_START_SINGLE_PROCESSING,
+            {
+                "video_path": self.pending_single_video_path,
+                "config": self.pending_single_video_config,
+                "zone_data": zone_data,
+            },
         )
-        # Clear the pending state
+
+        # 3. Clear the pending state
         self.pending_single_video_path = None
         self.pending_single_video_config = None
 

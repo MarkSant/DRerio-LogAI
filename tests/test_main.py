@@ -7,11 +7,11 @@ from zebtrack.__main__ import main
 
 
 @patch("zebtrack.__main__.settings", None)
-@patch("zebtrack.__main__.AppController")
+@patch("zebtrack.__main__.MainViewModel")
 @patch("zebtrack.__main__.messagebox")
 @patch("zebtrack.__main__.tk")
 @patch("sys.exit")
-def test_main_handles_settings_load_failure(mock_exit, mock_tk, mock_messagebox, mock_controller):
+def test_main_handles_settings_load_failure(mock_exit, mock_tk, mock_messagebox, mock_vm):
     """
     Tests that the main function correctly handles the case where the
     global `settings` object is None.
@@ -33,5 +33,11 @@ def test_main_handles_settings_load_failure(mock_exit, mock_tk, mock_messagebox,
     assert "Fatal Configuration Error" in mock_messagebox.showerror.call_args.args[0]
     mock_exit.assert_called_once_with(1)
 
-    # Assert that the main application controller was NOT initialized
-    mock_controller.assert_not_called()
+    # Assert that the main view model was NOT initialized
+    mock_vm.assert_not_called()
+
+    # Assert that the Tkinter root window was created and withdrawn, but not destroyed
+    # because sys.exit halts execution.
+    mock_tk.Tk.assert_called_once()
+    mock_tk.Tk.return_value.withdraw.assert_called_once()
+    mock_tk.Tk.return_value.destroy.assert_not_called()

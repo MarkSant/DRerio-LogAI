@@ -143,8 +143,9 @@ def test_get_properties_is_thread_safe(camera_and_mock, monkeypatch):
         while not test_finished.is_set():
             props = camera.get_properties()
             # Check for an inconsistent state (new width with old height or vice-versa)
-            is_consistent = (props["width"] == 1280 and props["height"] == 720) or \
-                            (props["width"] == 640 and props["height"] == 480)
+            is_consistent = (props["width"] == 1280 and props["height"] == 720) or (
+                props["width"] == 640 and props["height"] == 480
+            )
             if not is_consistent:
                 inconsistent_states.append(props)
 
