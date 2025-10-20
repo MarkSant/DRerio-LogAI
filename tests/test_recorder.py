@@ -9,21 +9,50 @@ from zebtrack.io.recorder import Recorder
 
 
 @pytest.fixture
-def recorder_setup():
+def recorder_setup(tmp_path):
     """Set up a temporary directory and a Recorder instance for testing."""
-    test_dir = "temp_recorder_test_dir"
-    os.makedirs(test_dir, exist_ok=True)
+    import gc
+    import time
+
+    # Use pytest's tmp_path for unique directory per test (thread-safe)
+    test_dir = tmp_path / "recorder_test"
+    test_dir.mkdir(exist_ok=True)
     recorder = Recorder()
-    output_folder = os.path.join(test_dir, "test_run_1")
+    output_folder = str(test_dir / "test_run_1")
     frame_width = 100
     frame_height = 100
 
     # Yield the necessary objects to the tests
     yield recorder, output_folder, frame_width, frame_height
 
-    # Teardown: clean up the temporary directory
-    if os.path.exists(test_dir):
-        shutil.rmtree(test_dir)
+    # Teardown: ensure recorder is stopped and clean up
+    try:
+        # Stop recording if it's still active
+        if hasattr(recorder, "is_recording") and recorder.is_recording:
+            recorder.stop_recording(force_stop=True)
+    except Exception:
+        pass  # Ignore errors during cleanup
+
+    # Force garbage collection to release file handles
+    del recorder
+    gc.collect()
+
+    # Give Windows extra time to release file handles
+    time.sleep(0.2)
+
+    # Clean up the temporary directory
+    if test_dir.exists():
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                shutil.rmtree(test_dir)
+                break
+            except PermissionError:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                else:
+                    # If still fails, pytest will clean up tmp_path automatically
+                    pass  # Silently ignore - pytest tmp_path cleanup will handle it
 
 
 def test_start_recording_creates_files(recorder_setup):
@@ -126,6 +155,11 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     # Stop recording to trigger Parquet file save
     recorder.stop_recording()
 
+    # Give Windows time to flush the file to disk
+    import time
+
+    time.sleep(0.1)
+
     # Check that the Parquet file was created
     base_name = os.path.basename(output_folder)
     coord_movimento_parquet = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
@@ -186,6 +220,11 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
 
     recorder.stop_recording()
 
+    # Give Windows time to flush the file to disk
+    import time
+
+    time.sleep(0.1)
+
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
     assert os.path.exists(parquet_path)
@@ -203,6 +242,11 @@ def test_write_detection_data_coerces_track_id_types(recorder_setup):
 
     recorder.write_detection_data(0.0, 1, [(0, 0, 10, 10, 0.7, "7")])
     recorder.stop_recording()
+
+    # Give Windows time to flush the file to disk
+    import time
+
+    time.sleep(0.1)
 
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
@@ -225,6 +269,11 @@ def test_write_detection_data_handles_multiple_tracks(recorder_setup):
         ],
     )
     recorder.stop_recording()
+
+    # Give Windows time to flush the file to disk
+    import time
+
+    time.sleep(0.1)
 
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")

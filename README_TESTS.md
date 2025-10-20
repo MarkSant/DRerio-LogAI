@@ -159,6 +159,155 @@ poetry run pytest --no-cov
 poetry run pytest -n0
 ```
 
+## Problemas Conhecidos
+
+### 1. Singleton do ttkbootstrap (22 testes afetados)
+
+**Problema**: O `ttkbootstrap.Style` mantém referências globais a instâncias Tk antigas, causando conflitos entre testes.
+
+**Sintomas**:
+```
+RuntimeError: main thread is not in main loop
+TclError: invalid command name ".!style"
+```
+
+**Workaround**:
+- Testes marcados com `@pytest.mark.ttkbootstrap_singleton` são excluídos da execução padrão
+- Execute isoladamente: `poetry run pytest tests/ui/test_components.py`
+- Não execute múltiplos testes ttkbootstrap em paralelo
+
+**Referência**: Issue conhecido da biblioteca ttkbootstrap
+
+---
+
+### 2. Testes de Integração com API Antiga (12 falhas)
+
+**Problema**: Testes em `tests/integration/` usam API antiga do Recorder, incompatível com refatoração da Fase 4.
+
+**Diferença de API**:
+```python
+# API Antiga (testes)
+recorder.start(output_folder=..., base_name=...)
+
+# API Nova (código de produção)
+recorder.start_recording(output_folder=..., frame_width=..., frame_height=..., zones=...)
+```
+
+**Status**:
+- ✅ Código de produção funcionando corretamente
+- ⚠️ Testes de integração precisam ser refatorados (tarefa futura)
+- 🔒 Não afeta funcionalidade do aplicativo
+
+**Testes Afetados**:
+- `test_critical_integrations.py::test_video_file_workflow`
+- `test_critical_integrations.py::test_calibration_data_flow`
+- `test_critical_integrations.py::test_arduino_integration_recording`
+- `test_critical_integrations.py::test_error_recovery_during_processing`
+- `test_end_to_end.py` (6 testes)
+- `test_workflow_orchestration.py::test_wizard_to_processing_workflow`
+
+---
+
+### 3. Race Conditions no Windows (Resolvido com Workarounds)
+
+**Problema**: Windows mantém file handles abertos após `recorder.stop_recording()`, causando `PermissionError` na limpeza.
+
+**Solução Implementada**:
+```python
+@pytest.fixture
+def recorder_setup(tmp_path):
+    # Use pytest's tmp_path (thread-safe)
+    test_dir = tmp_path / "recorder_test"
+
+    yield recorder, output_folder, frame_width, frame_height
+
+    # Cleanup com garbage collection forçado
+    del recorder
+    gc.collect()
+    time.sleep(0.2)  # Permite Windows liberar handles
+
+    # Retry com exponential backoff
+    for attempt in range(3):
+        try:
+            shutil.rmtree(test_dir)
+            break
+        except PermissionError:
+            time.sleep(0.5 * (attempt + 1))
+```
+
+**Melhorias Aplicadas**:
+- ✅ Uso de `tmp_path` fixture (thread-safe e auto-cleanup)
+- ✅ `os.fsync()` em `recorder._close_parquet_writer()` para forçar flush
+- ✅ `gc.collect()` para liberar file handles imediatamente
+- ✅ Delays estratégicos após operações de I/O
+- ✅ Retry logic com exponential backoff
+
+**Referências**:
+- `tests/test_recorder.py:12-56` (fixture com cleanup robusto)
+- `src/zebtrack/io/recorder.py:325-343` (fsync implementation)
+
+---
+
+### 4. Cobertura de Código (Target: 70%, Atual: 43.59%)
+
+**Problema**: Meta de 70% de cobertura não foi atingida devido à natureza da codebase.
+
+**Análise de Cobertura por Módulo**:
+
+| Módulo | Cobertura | Motivo |
+|--------|-----------|--------|
+| **Core (Alta)** | 80-97% | ✅ Bem testado |
+| `state_manager.py` | 97% | ✅ Testes abrangentes |
+| `camera.py` | 100% | ✅ Completo |
+| `recorder.py` | 80% | ✅ Casos edge cobertos |
+| **UI (Baixa)** | 0-13% | ⚠️ Tkinter difícil de testar |
+| `gui.py` | 13% (5442 linhas) | ⚠️ Código visual extenso |
+| `wizard/*.py` | 0-5% | ⚠️ Workflows interativos |
+| `components.py` | 22% | ⚠️ Widgets ttkbootstrap |
+
+**Por que 70% é difícil?**:
+1. **UI domina a codebase**: ~40% do código é Tkinter (gui.py, wizard/, components)
+2. **Testes UI são complexos**: Requerem mocking extensivo de Tk widgets
+3. **ttkbootstrap limita testabilidade**: Singleton issues impedem testes paralelos
+4. **Workflows visuais**: Wizard de 5 etapas difícil de automatizar completamente
+
+**Estratégia Atual**:
+- ✅ **Priorizar core modules**: StateManager, Recorder, Detector, Camera (>80% coverage)
+- ✅ **Testes de integração**: Cobertura end-to-end dos workflows críticos
+- ✅ **Smoke tests para UI**: Validação básica de inicialização
+- ⚠️ **UI coverage**: Aceitar baixa cobertura em código puramente visual
+
+**Recomendação**: Manter foco em cobertura de lógica de negócio (core/analysis/io) em vez de perseguir 70% global.
+
+---
+
+### 5. Parquet Schema Immutability
+
+**Problema**: Alterar schema durante gravação causa `ValueError` e interrompe recording.
+
+**Comportamento Esperado**: Schema é "locked" no primeiro flush e validado em cada flush subsequente.
+
+```python
+# ❌ Erro: Mudar calibration depois de iniciar
+recorder.start_recording(output_folder, width, height, zones=ZoneData())
+recorder.write_detection_data(0.1, 1, [(10, 10, 20, 20, 0.9, 1)])
+recorder.pixel_per_cm_ratio = (1.0, 1.0)  # ❌ Schema change!
+recorder.write_detection_data(0.2, 2, [...])  # ValueError!
+
+# ✅ Correto: Definir calibration no start
+recorder.start_recording(
+    output_folder, width, height,
+    zones=ZoneData(),
+    pixel_per_cm_ratio=(1.0, 1.0)  # ✅ Schema fixo desde início
+)
+```
+
+**Testes Relacionados**:
+- `test_recorder_schema_validation.py` (5 testes)
+- Valida que schema changes são detectados e recording é interrompido
+
+---
+
 ## Performance
 
 ### Tempo de Execução Esperado

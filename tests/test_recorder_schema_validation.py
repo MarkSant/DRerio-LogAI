@@ -8,19 +8,39 @@ from zebtrack.io.recorder import Recorder
 
 
 @pytest.fixture
-def recorder_setup():
+def recorder_setup(tmp_path):
     """Set up a temporary directory and a Recorder instance for testing."""
-    test_dir = "temp_recorder_test_dir"
-    os.makedirs(test_dir, exist_ok=True)
+    import gc
+    import time
+
+    # Use pytest's tmp_path for unique directory per test
+    test_dir = tmp_path / "recorder_test"
+    test_dir.mkdir(exist_ok=True)
     recorder = Recorder()
-    output_folder = os.path.join(test_dir, "test_run_1")
+    output_folder = str(test_dir / "test_run_1")
     frame_width = 100
     frame_height = 100
 
     yield recorder, output_folder, frame_width, frame_height
 
-    if os.path.exists(test_dir):
-        shutil.rmtree(test_dir)
+    # Teardown: ensure recorder is stopped
+    try:
+        if hasattr(recorder, "is_recording") and recorder.is_recording:
+            recorder.stop_recording(force_stop=True)
+    except Exception:
+        pass
+
+    # Force garbage collection
+    del recorder
+    gc.collect()
+    time.sleep(0.2)
+
+    # Cleanup temp directory
+    if test_dir.exists():
+        try:
+            shutil.rmtree(test_dir)
+        except PermissionError:
+            pass  # pytest will clean up tmp_path
 
 
 def test_schema_change_after_start_raises_error_and_cleans_up(recorder_setup):

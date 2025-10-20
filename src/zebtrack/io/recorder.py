@@ -327,6 +327,10 @@ class Recorder:
             return
         try:
             self._parquet_writer.close()
+            # Force file sync to disk (especially important on Windows)
+            if self._parquet_filename and self._parquet_filename.exists():
+                with open(self._parquet_filename, "rb") as f:
+                    os.fsync(f.fileno())
             log.info("recorder.parquet_writer.closed", path=self._parquet_filename)
         except Exception as e:  # pragma: no cover - best effort close
             log.error(
