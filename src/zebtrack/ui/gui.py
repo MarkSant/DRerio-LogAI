@@ -452,11 +452,13 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_weight_selected_local(self, event=None):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
-        self.publish_event(Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self})
+        self.controller.ui_event_bus.publish_event(
+            Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
+        )
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.publish_event(
+        self.controller.ui_event_bus.publish_event(
             Events.MODEL_SET_OPENVINO,
             {"use_openvino": self.use_openvino_var.get(), "dialog": self},
         )
@@ -529,7 +531,7 @@ class CalibrationDialog(simpledialog.Dialog):
             "model_to_test": model_to_test,
         }
 
-        self.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
+        self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
         self.destroy()
 
     def buttonbox(self):
@@ -565,7 +567,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
-            self.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -573,7 +575,7 @@ class CalibrationDialog(simpledialog.Dialog):
                     (f"Os padrões globais foram copiados para o projeto {project_name}."),
                 )
         else:
-            self.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -822,7 +824,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
             if messagebox.askyesno(
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
-                self.publish_event(Events.MODEL_DELETE_WEIGHT, {"name": name})
+                self.controller.ui_event_bus.publish_event(
+                    Events.MODEL_DELETE_WEIGHT, {"name": name}
+                )
                 self.populate_list()
 
     def destroy(self):
@@ -2364,9 +2368,7 @@ class ApplicationGUI:
             log.warning("about.logo.load_error", error=str(e))
 
         # Application name
-        name_label = ttk.Label(
-            about_window, text="DRerio LogAI", font=("-size", 18, "bold")
-        )
+        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("-size", 18, "bold"))
         name_label.pack(pady=(10, 5))
 
         # Version (from pyproject.toml)
@@ -2377,7 +2379,9 @@ class ApplicationGUI:
             if pyproject_path.exists():
                 with open(pyproject_path, "rb") as f:
                     pyproject_data = tomli.load(f)
-                    version = pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+                    version = (
+                        pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+                    )
             else:
                 version = "Development"
         except Exception:
@@ -2393,9 +2397,7 @@ class ApplicationGUI:
             "Integração de visão computacional (YOLO/OpenVINO),\n"
             "análise comportamental e geração de relatórios científicos"
         )
-        desc_label = ttk.Label(
-            about_window, text=desc_text, justify="center", font=("-size", 9)
-        )
+        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("-size", 9))
         desc_label.pack(pady=(0, 15))
 
         # Repository link
