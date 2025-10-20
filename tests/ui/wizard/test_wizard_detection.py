@@ -21,14 +21,13 @@ from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestDetectionStep:
     """Tests for detection step."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tkinter_root):
+    def setup(self, wizard_dependencies):
         """Create Tkinter root for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
         self.temp_dir = Path(tempfile.mkdtemp())
 
         # Pattern 1: Groups as folders

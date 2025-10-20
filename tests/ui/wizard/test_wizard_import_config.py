@@ -24,14 +24,13 @@ from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 
 
 @pytest.mark.gui
-@pytest.mark.usefixtures("tkinter_root")
 class TestImportConfigStep:
     """Tests for import configuration step."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tkinter_root):
+    def setup(self, wizard_dependencies):
         """Create Tkinter root for testing."""
-        self.root = tkinter_root
+        self.root = wizard_dependencies["root"]
 
     def test_import_config_step_builds_ui_without_error(self):
         """Import config step should build UI without errors."""
