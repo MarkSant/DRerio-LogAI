@@ -422,6 +422,33 @@ class PerformanceSettings(BaseModel):
     )
 
 
+class LoggingSettings(BaseModel):
+    """Settings for per-module logging levels."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    levels: dict[str, str] = Field(
+        default_factory=lambda: {
+            "zebtrack": "INFO",
+            "zebtrack.core.detector": "INFO",
+            "zebtrack.ui": "WARNING",
+            "zebtrack.io": "WARNING",
+            "zebtrack.analysis": "INFO",
+        },
+        description="Per-module log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+
+    @field_validator("levels")
+    @classmethod
+    def validate_levels(cls, v):
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        for module, level in v.items():
+            if level.upper() not in valid_levels:
+                raise ValueError(f"Invalid log level '{level}' for module '{module}'")
+        # Return uppercase values to be stored in the model
+        return {k: v.upper() for k, v in v.items()}
+
+
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections.
 
@@ -513,6 +540,10 @@ class Settings(BaseModel):
         description=(
             "Performance and parallelization settings for optimizing throughput (Phase 8)."
         ),
+    )
+    logging: LoggingSettings = Field(
+        default_factory=lambda: LoggingSettings(),  # type: ignore[call-arg]
+        description="Per-module logging level configuration.",
     )
 
     @model_validator(mode="after")
@@ -789,6 +820,7 @@ __all__ = sorted(
         "WeightsSelectionSettings",
         "UIFeatureFlags",
         "PerformanceSettings",
+        "LoggingSettings",
         # Utility functions
         "load_settings",
         "reload_settings",
