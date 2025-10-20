@@ -135,7 +135,7 @@ Consulte o documento [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para um diag
 ## Convenções de código
 
 - **Linguagem & runtime**: Python ≥ 3.12, dependências gerenciadas por Poetry.
-- **Estilo**: [Ruff](https://docs.astral.sh/ruff/) com `line-length = 88` (execute `poetry run ruff check .`).
+- **Estilo**: [Ruff](https://docs.astral.sh/ruff/) com `line-length = 100` (execute `poetry run ruff check .`).
 - **Tipagem**: uso consistente de type hints e Pydantic para contratos de configuração.
 - **Logging**: `structlog` com padrão `dominio.acao.resultado` (`controller.load_project.success`, `recorder.save_parquet.error`, etc.).
 - **Configurações**: nunca hardcode valores; importe `from zebtrack import settings`.

@@ -1133,7 +1133,9 @@ class MainViewModel:
         """Classify weight type from filename - delegates to weight manager."""
         return self.weight_manager._classify_weight_type(filename)
 
-    def add_new_weight(self, path: Path | str, set_as_default: bool, weight_type: str | None = None):
+    def add_new_weight(
+        self, path: Path | str, set_as_default: bool, weight_type: str | None = None
+    ):
         """Add a new weight with type classification."""
         path = Path(path) if isinstance(path, str) else path
         self.weight_manager.add_weight(path, set_as_default, weight_type)
@@ -1181,7 +1183,10 @@ class MainViewModel:
         self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
 
     def load_new_weight(
-        self, filepath: Path | str | None = None, weight_type: str | None = None, choice: str | None = None
+        self,
+        filepath: Path | str | None = None,
+        weight_type: str | None = None,
+        choice: str | None = None,
     ):
         """Handles the 'Load New Weight' button click."""
         if filepath is not None:
@@ -2009,7 +2014,9 @@ class MainViewModel:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def can_remove_project_asset(self, video_path: Path | str, asset: str) -> tuple[bool, str | None]:
+    def can_remove_project_asset(
+        self, video_path: Path | str, asset: str
+    ) -> tuple[bool, str | None]:
         """Validate whether a project asset can be safely removed."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
 
@@ -2460,7 +2467,9 @@ class MainViewModel:
             {"video_path": video_path, "config": config},
         )
 
-    def start_single_video_processing(self, video_path: Path | str, config: dict, zone_data: ZoneData):
+    def start_single_video_processing(
+        self, video_path: Path | str, config: dict, zone_data: ZoneData
+    ):
         """Starts the actual processing for a single video after zone setup."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)

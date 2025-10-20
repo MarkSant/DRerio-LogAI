@@ -664,8 +664,12 @@ class ProjectManager:
 
         Returns a mapping with the copied parquet types and their new paths.
         """
-        source_video_path = str(Path(source_video_path) if isinstance(source_video_path, str) else source_video_path)
-        target_video_path = str(Path(target_video_path) if isinstance(target_video_path, str) else target_video_path)
+        source_video_path = str(
+            Path(source_video_path) if isinstance(source_video_path, str) else source_video_path
+        )
+        target_video_path = str(
+            Path(target_video_path) if isinstance(target_video_path, str) else target_video_path
+        )
 
         copied: dict[str, str] = {}
 
@@ -882,7 +886,9 @@ class ProjectManager:
         return results
 
     @classmethod
-    def _scan_directory_for_videos(cls, directory: Path | str, video_extensions: set[str]) -> list[Path]:
+    def _scan_directory_for_videos(
+        cls, directory: Path | str, video_extensions: set[str]
+    ) -> list[Path]:
         directory = Path(directory) if isinstance(directory, str) else directory
         cache_key = str(directory.resolve())
         signature = cls._compute_path_signature(directory)

@@ -3,6 +3,7 @@ Este módulo fornece a classe VideoFileSource, um wrapper conveniente em torno
 do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 

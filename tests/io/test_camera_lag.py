@@ -10,7 +10,7 @@ ensuring that:
 
 import itertools
 import time
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -25,7 +25,7 @@ def mock_cv2_capture():
     mock_cap.isOpened.return_value = True
     mock_cap.get.side_effect = lambda prop: {
         3: 1280,  # CAP_PROP_FRAME_WIDTH
-        4: 720,   # CAP_PROP_FRAME_HEIGHT
+        4: 720,  # CAP_PROP_FRAME_HEIGHT
         5: 30.0,  # CAP_PROP_FPS
     }.get(prop, 0)
     return mock_cap
@@ -51,7 +51,7 @@ def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
             (True, frame2),
             (True, frame3),
         ],
-        itertools.repeat((True, frame3))  # Keep returning frame3
+        itertools.repeat((True, frame3)),  # Keep returning frame3
     )
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
@@ -127,8 +127,7 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
     # After 5 frames, keep returning the last frame
     last_frame = frames[-1][1]  # Get frame 4
     mock_cv2_capture.read.side_effect = itertools.chain(
-        frames,
-        itertools.repeat((True, last_frame))
+        frames, itertools.repeat((True, last_frame))
     )
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
@@ -222,10 +221,7 @@ def test_frame_timestamps_match_buffer_length(mock_cv2_capture):
     """Test that timestamps deque always has same length as frame buffer."""
     frames = [(True, np.zeros((720, 1280, 3), dtype=np.uint8)) for _ in range(10)]
 
-    mock_cv2_capture.read.side_effect = itertools.chain(
-        frames,
-        itertools.repeat((False, None))
-    )
+    mock_cv2_capture.read.side_effect = itertools.chain(frames, itertools.repeat((False, None)))
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
         camera = Camera()

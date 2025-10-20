@@ -4,13 +4,9 @@ End-to-end integration tests for complete ZebTrack-AI workflow.
 Tests the integration of core components: Recorder, StateManager, and processing pipeline.
 """
 
-import json
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from zebtrack.core.state_manager import StateCategory, StateManager
@@ -292,16 +288,18 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
         # Write some data
         for frame in range(1, 11):
             recorder.write_detection_data(
-                [{
-                    "timestamp": frame / 30.0,
-                    "frame": frame,
-                    "track_id": 1,
-                    "x1": 100,
-                    "y1": 100,
-                    "x2": 150,
-                    "y2": 150,
-                    "confidence": 0.9,
-                }],
+                [
+                    {
+                        "timestamp": frame / 30.0,
+                        "frame": frame,
+                        "track_id": 1,
+                        "x1": 100,
+                        "y1": 100,
+                        "x2": 150,
+                        "y2": 150,
+                        "confidence": 0.9,
+                    }
+                ],
                 frame_number=frame,
             )
 
@@ -351,16 +349,18 @@ def test_recording_with_periodic_flush(temp_project_dir, sample_zones):
             total_frames = 60
             for frame in range(1, total_frames + 1):
                 recorder.write_detection_data(
-                    [{
-                        "timestamp": frame / 30.0,
-                        "frame": frame,
-                        "track_id": 1,
-                        "x1": 100,
-                        "y1": 100,
-                        "x2": 150,
-                        "y2": 150,
-                        "confidence": 0.9,
-                    }],
+                    [
+                        {
+                            "timestamp": frame / 30.0,
+                            "frame": frame,
+                            "track_id": 1,
+                            "x1": 100,
+                            "y1": 100,
+                            "x2": 150,
+                            "y2": 150,
+                            "confidence": 0.9,
+                        }
+                    ],
                     frame_number=frame,
                 )
 
@@ -414,16 +414,18 @@ def test_zone_metadata_preservation(temp_project_dir, sample_zones):
 
     # Write minimal data
     recorder.write_detection_data(
-        [{
-            "timestamp": 0.0,
-            "frame": 1,
-            "track_id": 1,
-            "x1": 100,
-            "y1": 100,
-            "x2": 150,
-            "y2": 150,
-            "confidence": 0.9,
-        }],
+        [
+            {
+                "timestamp": 0.0,
+                "frame": 1,
+                "track_id": 1,
+                "x1": 100,
+                "y1": 100,
+                "x2": 150,
+                "y2": 150,
+                "confidence": 0.9,
+            }
+        ],
         frame_number=1,
     )
 

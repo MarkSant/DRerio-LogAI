@@ -3,10 +3,9 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from pydantic import ValidationError
 
 from zebtrack.logging_config import configure_logging_levels
-from zebtrack.settings import Settings, load_settings
+from zebtrack.settings import load_settings
 
 
 @pytest.fixture

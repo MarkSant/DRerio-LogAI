@@ -9,8 +9,7 @@ Tests the integration of:
 
 import itertools
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -90,7 +89,8 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
                 ret, frame = camera.get_frame()
 
                 if ret and frame is not None:
-                    # Write frame to recorder (correct API: tuple of (x1, y1, x2, y2, conf, track_id))
+                    # Write frame to recorder
+                    # Correct API: tuple of (x1, y1, x2, y2, conf, track_id)
                     detections = [(100 + frame_num, 100, 150 + frame_num, 150, 0.9, 1)]
 
                     recorder.write_detection_data(
@@ -133,6 +133,7 @@ def test_detector_to_recorder_pipeline(temp_results_dir, sample_zones):
     - Zone metadata is preserved
     - Multi-object tracking IDs are handled
     """
+
     # Mock detector behavior
     class MockDetector:
         def __init__(self):
@@ -215,13 +216,15 @@ def test_state_manager_workflow_orchestration(temp_results_dir, sample_zones):
 
     def universal_observer(category, key, old_value, new_value):
         """Observer receives: category, key, old_value, new_value."""
-        all_updates.append({
-            "timestamp": time.time(),
-            "category": category,
-            "key": key,
-            "old_value": old_value,
-            "new_value": new_value,
-        })
+        all_updates.append(
+            {
+                "timestamp": time.time(),
+                "category": category,
+                "key": key,
+                "old_value": old_value,
+                "new_value": new_value,
+            }
+        )
 
     # Register observers for all categories
     for category in StateCategory:
@@ -266,7 +269,9 @@ def test_state_manager_workflow_orchestration(temp_results_dir, sample_zones):
     )
 
     # Verify observers were notified
-    assert len(all_updates) > 0, f"Observers should have been notified, got {len(all_updates)} updates"
+    assert len(all_updates) > 0, (
+        f"Observers should have been notified, got {len(all_updates)} updates"
+    )
 
     # Verify final state
     final_state = state_manager.get_state_snapshot()
@@ -428,6 +433,8 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
         # Verify that the camera kept capturing new frames during retrieval
         # (proving the buffer is updating with fresh frames, not stuck on old ones)
         final_frame_count = frame_counter[0]
-        assert final_frame_count > initial_frame_count, "Camera should continue capturing new frames"
+        assert final_frame_count > initial_frame_count, (
+            "Camera should continue capturing new frames"
+        )
 
         camera.release()

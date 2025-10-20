@@ -27,7 +27,6 @@ Dependencies (injected):
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -139,7 +138,9 @@ class VideoProcessingService:
         results_path.mkdir(parents=True, exist_ok=True)
         return results_path
 
-    def ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: Path | str) -> list | None:
+    def ensure_arena_polygon(
+        self, arena_polygon_px: list | None, video_path: Path | str
+    ) -> list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
         Args:
@@ -174,7 +175,9 @@ class VideoProcessingService:
         Returns:
             DataFrame or None if load failed
         """
-        trajectory_path = Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
+        trajectory_path = (
+            Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
+        )
         if not trajectory_path.exists():
             self.root.after(
                 0,

@@ -304,7 +304,9 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default.set", name=name_to_set)
 
-    def add_weight(self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None):
+    def add_weight(
+        self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None
+    ):
         """
         Adds a new weight from a given path after performing security checks.
 

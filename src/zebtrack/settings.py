@@ -657,8 +657,14 @@ def load_settings(
         >>> print(settings.yolo_model.confidence_threshold)
         0.05
     """
-    default_config_path = Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
-    override_config_path = Path(override_config_path) if isinstance(override_config_path, str) else override_config_path
+    default_config_path = (
+        Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
+    )
+    override_config_path = (
+        Path(override_config_path)
+        if isinstance(override_config_path, str)
+        else override_config_path
+    )
     if not default_config_path.is_file():
         log.error("settings.load.file_not_found", path=str(default_config_path))
         raise FileNotFoundError(f"Default configuration file not found at: {default_config_path}")
@@ -734,8 +740,14 @@ def reload_settings(
         >>> new_settings = reload_settings()
         >>> # Application now uses updated configuration
     """
-    default_config_path = Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
-    override_config_path = Path(override_config_path) if isinstance(override_config_path, str) else override_config_path
+    default_config_path = (
+        Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
+    )
+    override_config_path = (
+        Path(override_config_path)
+        if isinstance(override_config_path, str)
+        else override_config_path
+    )
     log.info("settings.reload.requested")
     return load_settings(default_config_path, override_config_path)
 

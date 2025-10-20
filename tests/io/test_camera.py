@@ -138,10 +138,11 @@ def test_get_properties_is_thread_safe(camera_and_mock, monkeypatch):
         return True
 
     mock_vc.open.side_effect = controlled_open
-    mock_vc.isOpened.side_effect = itertools.chain([True, False, True, True, True], itertools.repeat(True))
+    mock_vc.isOpened.side_effect = itertools.chain(
+        [True, False, True, True, True], itertools.repeat(True)
+    )
     mock_vc.read.side_effect = itertools.chain(
-        [(False, None), (True, np.zeros((1, 1, 3)))],
-        itertools.repeat((True, np.zeros((1, 1, 3))))
+        [(False, None), (True, np.zeros((1, 1, 3)))], itertools.repeat((True, np.zeros((1, 1, 3))))
     )
     mock_vc.get.side_effect = itertools.chain(new_dimensions, itertools.repeat(60.0))
 

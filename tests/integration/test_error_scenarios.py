@@ -6,8 +6,7 @@ Tests error handling, recovery, and system resilience across the full pipeline.
 
 import itertools
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -87,16 +86,18 @@ def test_video_processing_error_recovery(temp_project_dir, sample_zones):
 
             # Add sample detection data
             recorder.write_detection_data(
-                [{
-                    "timestamp": 0.0,
-                    "frame": 1,
-                    "track_id": 1,
-                    "x1": 100,
-                    "y1": 100,
-                    "x2": 150,
-                    "y2": 150,
-                    "confidence": 0.9,
-                }],
+                [
+                    {
+                        "timestamp": 0.0,
+                        "frame": 1,
+                        "track_id": 1,
+                        "x1": 100,
+                        "y1": 100,
+                        "x2": 150,
+                        "y2": 150,
+                        "confidence": 0.9,
+                    }
+                ],
                 frame_number=1,
             )
 
@@ -111,7 +112,7 @@ def test_video_processing_error_recovery(temp_project_dir, sample_zones):
             )
             processing_results["success"].append(video_name)
 
-        except Exception as e:
+        except Exception:
             # Track failure
             state_manager.update_processing_state(
                 is_processing=False,
@@ -164,12 +165,14 @@ def test_camera_reconnect_and_recovery():
 
             reconnect_get_values = [1280, 720, 30.0]
 
-            mock_vc.isOpened.side_effect = itertools.chain(is_opened_sequence, itertools.repeat(True))
-            mock_vc.read.side_effect = itertools.chain(read_sequence, itertools.repeat((True, test_frame)))
+            mock_vc.isOpened.side_effect = itertools.chain(
+                is_opened_sequence, itertools.repeat(True)
+            )
+            mock_vc.read.side_effect = itertools.chain(
+                read_sequence, itertools.repeat((True, test_frame))
+            )
             mock_vc.get.side_effect = itertools.chain(
-                initial_get_values,
-                reconnect_get_values,
-                itertools.repeat(30.0)
+                initial_get_values, reconnect_get_values, itertools.repeat(30.0)
             )
 
             mock_cv2_vc.return_value = mock_vc
@@ -217,13 +220,15 @@ def test_schema_validation_prevents_corruption(temp_project_dir):
     results_dir = temp_project_dir / "schema_test_results"
     results_dir.mkdir()
 
-    zones = [{
-        "name": "Test Zone",
-        "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
-        "color": "red",
-        "enter_commands": [],
-        "exit_commands": [],
-    }]
+    zones = [
+        {
+            "name": "Test Zone",
+            "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
+            "color": "red",
+            "enter_commands": [],
+            "exit_commands": [],
+        }
+    ]
 
     # Start recorder WITHOUT calibration
     recorder = Recorder()
@@ -242,36 +247,40 @@ def test_schema_validation_prevents_corruption(temp_project_dir):
     # Write some detections without calibration columns
     for frame in range(1, 6):
         recorder.write_detection_data(
-            [{
-                "timestamp": frame / 30.0,
-                "frame": frame,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-            }],
+            [
+                {
+                    "timestamp": frame / 30.0,
+                    "frame": frame,
+                    "track_id": 1,
+                    "x1": 100,
+                    "y1": 100,
+                    "x2": 150,
+                    "y2": 150,
+                    "confidence": 0.9,
+                }
+            ],
             frame_number=frame,
         )
 
     # Try to add detection WITH calibration data (schema change)
     with pytest.raises(ValueError, match="Parquet schema cannot change"):
         recorder.write_detection_data(
-            [{
-                "timestamp": 6 / 30.0,
-                "frame": 6,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-                "x_center_px": 125,
-                "y_center_px": 125,
-                "x_cm": 5.0,
-                "y_cm": 5.0,
-            }],
+            [
+                {
+                    "timestamp": 6 / 30.0,
+                    "frame": 6,
+                    "track_id": 1,
+                    "x1": 100,
+                    "y1": 100,
+                    "x2": 150,
+                    "y2": 150,
+                    "confidence": 0.9,
+                    "x_center_px": 125,
+                    "y_center_px": 125,
+                    "x_cm": 5.0,
+                    "y_cm": 5.0,
+                }
+            ],
             frame_number=6,
         )
 
@@ -309,13 +318,15 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     results_dir = temp_project_dir / "recorder_recovery"
     results_dir.mkdir()
 
-    zones = [{
-        "name": "Test Zone",
-        "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
-        "color": "red",
-        "enter_commands": [],
-        "exit_commands": [],
-    }]
+    zones = [
+        {
+            "name": "Test Zone",
+            "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
+            "color": "red",
+            "enter_commands": [],
+            "exit_commands": [],
+        }
+    ]
 
     # Session 1: Start and cause error
     recorder = Recorder()
@@ -331,33 +342,37 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     )
 
     recorder.write_detection_data(
-        [{
-            "timestamp": 0.0,
-            "frame": 1,
-            "track_id": 1,
-            "x1": 100,
-            "y1": 100,
-            "x2": 150,
-            "y2": 150,
-            "confidence": 0.9,
-        }],
-        frame_number=1,
-    )
-
-    # Cause schema error
-    try:
-        recorder.write_detection_data(
-            [{
-                "timestamp": 0.033,
-                "frame": 2,
+        [
+            {
+                "timestamp": 0.0,
+                "frame": 1,
                 "track_id": 1,
                 "x1": 100,
                 "y1": 100,
                 "x2": 150,
                 "y2": 150,
                 "confidence": 0.9,
-                "x_cm": 5.0,  # New column - causes error
-            }],
+            }
+        ],
+        frame_number=1,
+    )
+
+    # Cause schema error
+    try:
+        recorder.write_detection_data(
+            [
+                {
+                    "timestamp": 0.033,
+                    "frame": 2,
+                    "track_id": 1,
+                    "x1": 100,
+                    "y1": 100,
+                    "x2": 150,
+                    "y2": 150,
+                    "confidence": 0.9,
+                    "x_cm": 5.0,  # New column - causes error
+                }
+            ],
             frame_number=2,
         )
     except ValueError:
@@ -378,16 +393,18 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     )
 
     recorder.write_detection_data(
-        [{
-            "timestamp": 0.0,
-            "frame": 1,
-            "track_id": 1,
-            "x1": 100,
-            "y1": 100,
-            "x2": 150,
-            "y2": 150,
-            "confidence": 0.9,
-        }],
+        [
+            {
+                "timestamp": 0.0,
+                "frame": 1,
+                "track_id": 1,
+                "x1": 100,
+                "y1": 100,
+                "x2": 150,
+                "y2": 150,
+                "confidence": 0.9,
+            }
+        ],
         frame_number=1,
     )
 

@@ -1,7 +1,8 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 import structlog
-from pathlib import Path
 from shapely.geometry import Polygon
 
 try:

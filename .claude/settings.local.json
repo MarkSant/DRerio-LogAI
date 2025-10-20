@@ -1,27 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(poetry run pytest:*)",
-      "Bash(poetry run ruff:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(poetry show:*)",
-      "WebSearch",
-      "Bash(awk:*)",
-      "Bash(poetry run python:*)",
-      "Bash(poetry lock:*)",
-      "Bash(git mv:*)",
-      "Bash(tee:*)",
-      "Bash(for:*)",
-      "Bash(do echo \"Processing: $file\")",
-      "Bash(echo \"Failed: $file\")",
-      "Bash(done)",
-      "Bash(do sed -i 's/from typing import , /from typing import /g; s/from typing import  /from typing import /g; s/,  $/$/g; s/, $/$/g; s/from typing import $/# No typing imports needed/g' \"$file\")",
-      "Bash(find:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr diff:*)",
-      "Bash(poetry env info)"
+      "Bash(Select-Object -ExpandProperty Name)"
     ],
     "deny": [],
     "ask": []

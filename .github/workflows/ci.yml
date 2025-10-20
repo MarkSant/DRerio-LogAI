@@ -120,7 +120,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=35
+          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=70
         timeout-minutes: 20
 
       - name: Archive coverage results

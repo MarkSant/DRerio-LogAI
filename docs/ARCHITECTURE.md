@@ -177,6 +177,186 @@ A configuração e os dados de um projeto são persistidos no arquivo `<pasta_pr
 }
 ```
 
+### 4.2. Estado Imutável e Rastreabilidade
+
+O `StateManager` implementa o padrão **Observable** com garantias de **thread-safety** e rastreabilidade completa de mudanças de estado.
+
+#### Categorias de Estado
+
+O estado da aplicação é organizado em 5 categorias hierárquicas:
+
+```python
+{
+    "project": {
+        "name": str | None,
+        "path": Path | None,
+        "type": str | None,
+        "is_loaded": bool
+    },
+    "detector": {
+        "is_initialized": bool,
+        "active_plugin": str | None,
+        "confidence_threshold": float,
+        "nms_threshold": float
+    },
+    "recording": {
+        "is_recording": bool,
+        "output_dir": Path | None,
+        "current_video": str | None,
+        "frames_recorded": int
+    },
+    "processing": {
+        "status": str,  # "idle" | "running" | "paused" | "error"
+        "progress": float,  # 0.0 to 1.0
+        "current_task": str | None
+    },
+    "ui": {
+        "active_view": str,  # "welcome" | "project" | "analysis"
+        "zoom_level": float,
+        "overlay_enabled": bool
+    }
+}
+```
+
+**Arquivo**: `src/zebtrack/core/state_manager.py`
+
+#### Thread-Safety
+
+```python
+import threading
+
+class StateManager:
+    def __init__(self):
+        self._state: dict = self._initialize_state()
+        self._lock = threading.RLock()  # Recursive lock para nested updates
+        self._observers: dict[str, list[Callable]] = {}
+
+    def set(self, key: str, value: Any) -> None:
+        with self._lock:
+            self._state[key] = value
+            self._notify_observers(key, value)
+```
+
+**Garantias**:
+- Atualizações atômicas via `threading.RLock()`
+- Notificações de observers no mesmo lock para consistência
+- Suporte a nested updates (ex: `set("project.name", "X")` dentro de `on_project_loaded`)
+
+#### Rastreabilidade
+
+Todas as mudanças de estado são logadas com `structlog`:
+
+```python
+log.info(
+    "state.update",
+    key="processing.status",
+    old_value="idle",
+    new_value="running",
+    source="MainViewModel.start_processing"
+)
+```
+
+**Benefícios**:
+- Debugging de race conditions
+- Auditoria de mudanças críticas (ex: `recording.is_recording`)
+- Replay de sequências de estado para testes
+
+### 4.3. Validação de Schema Parquet
+
+O esquema Parquet é **imutável** e **versionado**, garantindo compatibilidade com análises externas e reprodutibilidade científica.
+
+#### Schema Base (Core Columns)
+
+**Sempre presentes** em qualquer arquivo de trajetórias:
+
+```python
+CORE_SCHEMA = [
+    ("timestamp", pa.float64()),
+    ("frame", pa.int64()),
+    ("track_id", pa.int64()),
+    ("x1", pa.float64()),
+    ("y1", pa.float64()),
+    ("x2", pa.float64()),
+    ("y2", pa.float64()),
+    ("confidence", pa.float64())
+]
+```
+
+#### Schema Estendido (Calibração)
+
+**Adicionado ao final** quando calibração está presente:
+
+```python
+CALIBRATION_SCHEMA = [
+    ("x_center_px", pa.float64()),
+    ("y_center_px", pa.float64()),
+    ("x_cm", pa.float64()),
+    ("y_cm", pa.float64())
+]
+```
+
+**Arquivo**: `src/zebtrack/io/recorder.py:45-80`
+
+#### Validação em Runtime
+
+```python
+class Recorder:
+    def _build_schema(self) -> pa.Schema:
+        """Constrói schema baseado em presença de calibração."""
+        schema_fields = list(CORE_SCHEMA)
+
+        if self.calibration is not None:
+            schema_fields.extend(CALIBRATION_SCHEMA)
+
+        return pa.schema(schema_fields)
+
+    def write_detection_data(self, detections: list) -> None:
+        """Valida que detections correspondem ao schema."""
+        expected_cols = len(self._schema)
+        actual_cols = len(detections[0]) if detections else 0
+
+        if actual_cols != expected_cols:
+            raise ValueError(
+                f"Schema mismatch: expected {expected_cols} columns, "
+                f"got {actual_cols}"
+            )
+```
+
+**Garantias**:
+1. **Ordem fixa**: Colunas nunca são reordenadas
+2. **Validação na escrita**: `write_detection_data` falha imediatamente se schema divergir
+3. **Testes de schema**: `tests/test_recorder.py` valida todos os cenários
+
+**Restrições**:
+- Novas colunas **só podem ser adicionadas ao final** do schema
+- Mudanças de tipo requerem incremento de versão do schema
+- Remoção de colunas é **proibida** (deprecação semântica apenas)
+
+#### Versionamento
+
+Versão do schema registrada em metadados do Parquet:
+
+```python
+metadata = {
+    "schema_version": "1.0",
+    "zebtrack_version": "1.8.0",
+    "has_calibration": "true" if self.calibration else "false"
+}
+table = table.replace_schema_metadata(metadata)
+```
+
+**Leitura segura**:
+```python
+def read_trajectory(path: Path) -> pd.DataFrame:
+    table = pq.read_table(path)
+    schema_version = table.schema.metadata.get(b"schema_version", b"1.0").decode()
+
+    if schema_version != "1.0":
+        log.warning("trajectory.read.version_mismatch", expected="1.0", got=schema_version)
+
+    return table.to_pandas()
+```
+
 ## 5. Fluxos de Dados Principais
 
 ### 5.1. Fluxo de Estado Centralizado e UI Reativa
@@ -228,6 +408,189 @@ graph LR
     style ProcessingLoop fill:#FFB6C1
     style AnalysisTask fill:#FFB6C1
 ```
+
+### 5.3. Fluxo de Tratamento de Erros
+
+O sistema implementa tratamento hierárquico de erros com callbacks especializados e estratégias de recuperação.
+
+```mermaid
+flowchart TD
+    Start[ProcessingWorker.run] --> ProcessVideo{Process Video}
+
+    ProcessVideo -->|Erro individual| RecoverableError[Erro Recuperável]
+    ProcessVideo -->|Erro fatal| FatalError[Erro Fatal]
+    ProcessVideo -->|Sucesso| NextVideo{Próximo Vídeo?}
+
+    RecoverableError --> LogError["log.error('worker.processing.video_error')"]
+    LogError --> CallOnError["callbacks.on_error(exc, context)"]
+    CallOnError --> RecordFailure[Adiciona a context.failed_videos]
+    RecordFailure --> CheckStrategy{retry_strategy?}
+
+    CheckStrategy -->|"continue"| NextVideo
+    CheckStrategy -->|"stop"| StopProcessing[Interrompe Lote]
+
+    FatalError --> LogFatal["log.error('worker.processing.fatal_error')"]
+    LogFatal --> BuildRecovery[Constrói recovery_info]
+    BuildRecovery --> CallOnFatalError["callbacks.on_fatal_error(exc, context, recovery_info)"]
+    CallOnFatalError --> StopProcessing
+
+    NextVideo -->|Sim| ProcessVideo
+    NextVideo -->|Não| Completed[callbacks.on_completed]
+    StopProcessing --> Completed
+
+    Completed --> BuildSummary["summary = {total, successful, failed, failed_list}"]
+    BuildSummary --> End[Fim]
+
+    style RecoverableError fill:#FFD700
+    style FatalError fill:#FF6B6B
+    style Completed fill:#90EE90
+```
+
+**Callbacks e Thread-Safety**:
+
+1. **on_error** (erro recuperável):
+   ```python
+   def on_error(exc: Exception, context: str):
+       # Chamado do worker thread
+       root.after(0, lambda: _show_error_toast(context))
+   ```
+
+2. **on_fatal_error** (erro fatal):
+   ```python
+   def on_fatal_error(exc: Exception, context: str, recovery_info: dict):
+       # Chamado do worker thread
+       root.after(0, lambda: _show_fatal_error_dialog(exc, recovery_info))
+   ```
+
+3. **on_completed** (sempre chamado):
+   ```python
+   def on_completed(was_cancelled: bool, output_dir: str, summary: dict):
+       # Chamado do worker thread
+       root.after(0, lambda: _finalize_processing(summary))
+   ```
+
+**Documentação completa**: [`docs/ERROR_HANDLING.md`](ERROR_HANDLING.md)
+
+**Arquivos relacionados**:
+- `src/zebtrack/core/processing_worker.py:272-340` - Implementação de callbacks
+- `src/zebtrack/core/main_view_model.py` - Handlers de callbacks no ViewModel
+
+### 5.4. Políticas de Logging Estruturado
+
+O sistema usa `structlog` com convenção `domínio.ação.resultado` para logging estruturado, facilitando debugging e análise.
+
+#### Convenção de Nomenclatura
+
+```
+<módulo>.<operação>.<resultado>
+```
+
+**Exemplos**:
+- `worker.processing.start`
+- `recorder.parquet.write_success`
+- `detector.zone.transition`
+- `state.update`
+- `config.validation.failed`
+
+#### Políticas por Módulo
+
+| Módulo | Eventos Principais | Nível Padrão | Arquivo |
+|--------|-------------------|--------------|---------|
+| **ProcessingWorker** | `worker.processing.start`<br>`worker.processing.video_start`<br>`worker.processing.video_error`<br>`worker.processing.fatal_error`<br>`worker.processing.complete` | INFO/ERROR | `core/processing_worker.py` |
+| **Recorder** | `recorder.parquet.write_success`<br>`recorder.parquet.schema_mismatch`<br>`recorder.video.save_complete` | INFO/ERROR | `io/recorder.py` |
+| **Detector** | `detector.init.success`<br>`detector.zone.enter`<br>`detector.zone.exit`<br>`detector.inference.error` | INFO/WARNING | `core/detector.py` |
+| **StateManager** | `state.update`<br>`state.observer.notify` | DEBUG | `core/state_manager.py` |
+| **ProjectService** | `project.create.success`<br>`project.load.error`<br>`project.save.integrity_check` | INFO/ERROR | `core/project_service.py` |
+| **MainViewModel** | `controller.load_project.success`<br>`controller.start_recording.request`<br>`controller.error.handled` | INFO/ERROR | `core/main_view_model.py` |
+| **AnalysisService** | `analysis.behavior.start`<br>`analysis.roi.metrics_computed`<br>`analysis.report.generated` | INFO | `analysis/analysis_service.py` |
+
+#### Estrutura de Contexto
+
+Logs incluem contexto estruturado para facilitar filtros e análises:
+
+```python
+# Exemplo completo
+log.info(
+    "worker.processing.video_start",
+    index=2,
+    total=10,
+    experiment_id="subject_003_day_01",
+    thread=threading.current_thread().name,
+    video_path=str(video_path),
+    analysis_interval=10,
+    display_interval=10
+)
+```
+
+**Campos comuns**:
+- `experiment_id`: Identificador do vídeo sendo processado
+- `thread`: Nome da thread (para debugging de concorrência)
+- `video_path` / `project_path`: Contexto de arquivo
+- `index` / `total`: Progresso em lotes
+- `error`: String de exceção (sempre em `exc_info=True` para ERROR)
+
+#### Configuração de Handlers
+
+**Arquivo**: `src/zebtrack/__main__.py:15-50`
+
+```python
+# File handler com rotação
+file_handler = logging.handlers.RotatingFileHandler(
+    "analysis.log",
+    maxBytes=5 * 1024 * 1024,  # 5 MB
+    backupCount=5,
+    mode="a"
+)
+
+# Console handler
+console_handler = logging.StreamHandler(sys.stdout)
+
+# Processadores structlog
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="%H:%M:%S", utc=False),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer(),  # Saída JSON
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+)
+```
+
+**Formato de saída** (JSON):
+```json
+{
+  "event": "worker.processing.video_start",
+  "level": "info",
+  "timestamp": "14:35:22",
+  "index": 2,
+  "total": 10,
+  "experiment_id": "subject_003_day_01",
+  "thread": "ProcessingWorker"
+}
+```
+
+#### Debugging com Logs
+
+**Filtrar por domínio**:
+```bash
+# Ver apenas erros do worker
+grep "worker.processing" analysis.log | jq 'select(.level == "error")'
+
+# Ver transições de estado
+grep "state.update" analysis.log | jq '{time: .timestamp, key: .key, new: .new_value}'
+
+# Ver apenas vídeos falhados
+grep "worker.processing.video_error" analysis.log | jq .experiment_id
+```
+
+**Níveis por ambiente**:
+- **Desenvolvimento**: `INFO` (console + file)
+- **Produção**: `WARNING` (file apenas)
+- **Debugging**: `DEBUG` (StateManager, memory GC)
 
 ## 6. Decisões Arquiteturais Chave
 

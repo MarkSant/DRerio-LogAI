@@ -1,3 +1,4 @@
+import argparse
 import logging
 import logging.handlers
 import sys
@@ -48,9 +49,6 @@ def configure_logging():
         format="%(message)s",
         handlers=[file_handler, console_handler],
     )
-
-
-import argparse
 
 
 def main():

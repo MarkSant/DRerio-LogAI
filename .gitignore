@@ -65,6 +65,21 @@ GUI_FIXES_SUMMARY.md
 # Configuration files
 weights_config.json
 
+# Local configuration overrides
+config.local.yaml
+*.local.yaml
+.claude/settings.local.json
+
+# Debug and temporary artifacts
+debug/
+*.html
+path_audit_report.txt
+fix_venv.ps1
+_ul
+sitecustomize.py
+.git_backup_*/
+temp_recorder_test_dir/
+
 # Progress callback test files
 test_progress_stats.py
 test_simple_progress.py

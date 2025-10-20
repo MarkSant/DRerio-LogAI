@@ -1,5 +1,6 @@
+
 import pytest
-import tkinter as tk
+
 
 @pytest.fixture
 def wizard_dependencies(tkinter_root):

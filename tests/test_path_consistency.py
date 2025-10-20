@@ -7,7 +7,6 @@ e os convertem corretamente internamente para Path.
 Objetivo: Zero bugs de separador de caminho Windows/Linux.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -29,9 +28,7 @@ class TestProjectServicePathConsistency:
         project_dir = tmp_path / "test_project"
         return project_dir
 
-    def test_create_project_directory_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_create_project_directory_accepts_str(self, project_service, temp_project_dir):
         """Testa que create_project_directory aceita str."""
         project_path_str = str(temp_project_dir)
 
@@ -44,9 +41,7 @@ class TestProjectServicePathConsistency:
         assert temp_project_dir.exists()
         assert result["project_name"] == "Test Project"
 
-    def test_create_project_directory_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_create_project_directory_accepts_path(self, project_service, temp_project_dir):
         """Testa que create_project_directory aceita Path."""
         result = project_service.create_project_directory(
             project_path=temp_project_dir,
@@ -57,9 +52,7 @@ class TestProjectServicePathConsistency:
         assert temp_project_dir.exists()
         assert result["project_name"] == "Test Project"
 
-    def test_load_project_config_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_load_project_config_accepts_str(self, project_service, temp_project_dir):
         """Testa que load_project_config aceita str."""
         # Criar projeto primeiro
         project_service.create_project_directory(
@@ -74,9 +67,7 @@ class TestProjectServicePathConsistency:
 
         assert loaded_data["project_name"] == "Test Project"
 
-    def test_load_project_config_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_load_project_config_accepts_path(self, project_service, temp_project_dir):
         """Testa que load_project_config aceita Path."""
         # Criar projeto primeiro
         project_service.create_project_directory(
@@ -90,9 +81,7 @@ class TestProjectServicePathConsistency:
 
         assert loaded_data["project_name"] == "Test Project"
 
-    def test_save_project_config_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_save_project_config_accepts_str(self, project_service, temp_project_dir):
         """Testa que save_project_config aceita str."""
         # Criar diretório manualmente
         temp_project_dir.mkdir(parents=True, exist_ok=True)
@@ -111,9 +100,7 @@ class TestProjectServicePathConsistency:
         config_file = temp_project_dir / "project_config.json"
         assert config_file.exists()
 
-    def test_save_project_config_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_save_project_config_accepts_path(self, project_service, temp_project_dir):
         """Testa que save_project_config aceita Path."""
         # Criar diretório manualmente
         temp_project_dir.mkdir(parents=True, exist_ok=True)
@@ -131,9 +118,7 @@ class TestProjectServicePathConsistency:
         config_file = temp_project_dir / "project_config.json"
         assert config_file.exists()
 
-    def test_resolve_results_directory_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_resolve_results_directory_accepts_str(self, project_service, temp_project_dir):
         """Testa que resolve_results_directory aceita str."""
         project_path_str = str(temp_project_dir)
         results_dir = project_service.resolve_results_directory(project_path_str)
@@ -141,18 +126,14 @@ class TestProjectServicePathConsistency:
         assert isinstance(results_dir, Path)
         assert results_dir == temp_project_dir / "results"
 
-    def test_resolve_results_directory_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_resolve_results_directory_accepts_path(self, project_service, temp_project_dir):
         """Testa que resolve_results_directory aceita Path."""
         results_dir = project_service.resolve_results_directory(temp_project_dir)
 
         assert isinstance(results_dir, Path)
         assert results_dir == temp_project_dir / "results"
 
-    def test_ensure_roi_template_directory_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_ensure_roi_template_directory_accepts_str(self, project_service, temp_project_dir):
         """Testa que ensure_roi_template_directory aceita str."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -163,9 +144,7 @@ class TestProjectServicePathConsistency:
         assert template_dir.exists()
         assert template_dir == temp_project_dir / "templates"
 
-    def test_ensure_roi_template_directory_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_ensure_roi_template_directory_accepts_path(self, project_service, temp_project_dir):
         """Testa que ensure_roi_template_directory aceita Path."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -175,9 +154,7 @@ class TestProjectServicePathConsistency:
         assert template_dir.exists()
         assert template_dir == temp_project_dir / "templates"
 
-    def test_save_roi_template_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_save_roi_template_accepts_str(self, project_service, temp_project_dir):
         """Testa que save_roi_template aceita str."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -192,9 +169,7 @@ class TestProjectServicePathConsistency:
         assert template_file.exists()
         assert template_file.name == "test_template.json"
 
-    def test_save_roi_template_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_save_roi_template_accepts_path(self, project_service, temp_project_dir):
         """Testa que save_roi_template aceita Path."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,58 +183,40 @@ class TestProjectServicePathConsistency:
         assert template_file.exists()
         assert template_file.name == "test_template.json"
 
-    def test_load_roi_template_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_load_roi_template_accepts_str(self, project_service, temp_project_dir):
         """Testa que load_roi_template aceita str."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar template primeiro
         template_data = {"zones": [], "arena": None}
-        project_service.save_roi_template(
-            temp_project_dir, "test_template", template_data
-        )
+        project_service.save_roi_template(temp_project_dir, "test_template", template_data)
 
         # Carregar usando str
         project_path_str = str(temp_project_dir)
-        loaded_data = project_service.load_roi_template(
-            project_path_str, "test_template"
-        )
+        loaded_data = project_service.load_roi_template(project_path_str, "test_template")
 
         assert loaded_data == template_data
 
-    def test_load_roi_template_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_load_roi_template_accepts_path(self, project_service, temp_project_dir):
         """Testa que load_roi_template aceita Path."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar template primeiro
         template_data = {"zones": [], "arena": None}
-        project_service.save_roi_template(
-            temp_project_dir, "test_template", template_data
-        )
+        project_service.save_roi_template(temp_project_dir, "test_template", template_data)
 
         # Carregar usando Path
-        loaded_data = project_service.load_roi_template(
-            temp_project_dir, "test_template"
-        )
+        loaded_data = project_service.load_roi_template(temp_project_dir, "test_template")
 
         assert loaded_data == template_data
 
-    def test_list_roi_templates_accepts_str(
-        self, project_service, temp_project_dir
-    ):
+    def test_list_roi_templates_accepts_str(self, project_service, temp_project_dir):
         """Testa que list_roi_templates aceita str."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar alguns templates
-        project_service.save_roi_template(
-            temp_project_dir, "template1", {"zones": []}
-        )
-        project_service.save_roi_template(
-            temp_project_dir, "template2", {"zones": []}
-        )
+        project_service.save_roi_template(temp_project_dir, "template1", {"zones": []})
+        project_service.save_roi_template(temp_project_dir, "template2", {"zones": []})
 
         # Listar usando str
         project_path_str = str(temp_project_dir)
@@ -269,19 +226,13 @@ class TestProjectServicePathConsistency:
         assert "template1" in templates
         assert "template2" in templates
 
-    def test_list_roi_templates_accepts_path(
-        self, project_service, temp_project_dir
-    ):
+    def test_list_roi_templates_accepts_path(self, project_service, temp_project_dir):
         """Testa que list_roi_templates aceita Path."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar alguns templates
-        project_service.save_roi_template(
-            temp_project_dir, "template1", {"zones": []}
-        )
-        project_service.save_roi_template(
-            temp_project_dir, "template2", {"zones": []}
-        )
+        project_service.save_roi_template(temp_project_dir, "template1", {"zones": []})
+        project_service.save_roi_template(temp_project_dir, "template2", {"zones": []})
 
         # Listar usando Path
         templates = project_service.list_roi_templates(temp_project_dir)
@@ -299,14 +250,12 @@ class TestWindowsPathsHandling:
         """Cria uma instância do ProjectService."""
         return ProjectService()
 
-    def test_handles_backslash_paths_on_windows(
-        self, project_service, tmp_path
-    ):
+    def test_handles_backslash_paths_on_windows(self, project_service, tmp_path):
         """Testa que caminhos com backslash são tratados corretamente."""
         project_dir = tmp_path / "test_project"
 
         # Criar projeto usando Path (funcionará em ambos os sistemas)
-        result = project_service.create_project_directory(
+        project_service.create_project_directory(
             project_path=project_dir,
             project_name="Test Project",
             project_type="project",
