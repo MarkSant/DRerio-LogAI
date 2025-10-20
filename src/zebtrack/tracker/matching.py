@@ -17,7 +17,7 @@ def merge_matches(m1, m2, shape):
 
     mask = M1 * M2
     match = mask.nonzero()
-    match = list(zip(match[0], match[1]))
+    match = list(zip(match[0], match[1], strict=False))
     unmatched_P = tuple(set(range(P)) - set([i for i, j in match]))
     unmatched_Q = tuple(set(range(Q)) - set([j for i, j in match]))
 
@@ -25,7 +25,7 @@ def merge_matches(m1, m2, shape):
 
 
 def _indices_to_matches(cost_matrix, indices, thresh):
-    matched_cost = cost_matrix[tuple(zip(*indices))]
+    matched_cost = cost_matrix[tuple(zip(*indices, strict=False))]
     matched_mask = matched_cost <= thresh
 
     matches = indices[matched_mask]
@@ -44,7 +44,7 @@ def linear_assignment(cost_matrix, thresh):
         )
 
     row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    indices = np.array(list(zip(row_ind, col_ind)))
+    indices = np.array(list(zip(row_ind, col_ind, strict=False)))
 
     return _indices_to_matches(cost_matrix, indices, thresh)
 

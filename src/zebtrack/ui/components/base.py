@@ -2,8 +2,9 @@
 Base widget class providing event bus integration and common functionality.
 """
 
+from collections.abc import Callable
 from tkinter import ttk
-from typing import Any, Callable
+from typing import Any
 
 import structlog
 

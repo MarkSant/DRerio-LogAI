@@ -3,7 +3,6 @@ This module defines the abstract base class for behavioral analysis of trajector
 """
 
 from abc import ABC, abstractmethod
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -295,7 +294,7 @@ class BehavioralAnalyzer(ABC):
     @abstractmethod
     def get_tortuosity(
         self, window_size: float | None = None, step: float | None = None
-    ) -> Union[float, pd.Series]:
+    ) -> float | pd.Series:
         """
         Calculates the tortuosity of the trajectory.
 
@@ -580,7 +579,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def get_tortuosity(
         self, window_size: float | None = None, step: float | None = None
-    ) -> Union[float, pd.Series]:
+    ) -> float | pd.Series:
         # Implementation for the entire trajectory
         if window_size is not None:
             # Sliding window not implemented for this concrete class
@@ -630,7 +629,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         threshold_cm_s: float | None = None,
         min_duration: float = 0.5,
         quantile: float = 0.9,
-    ) -> dict[str, Union[int, float, list[dict[str, float]]]]:
+    ) -> dict[str, int | float | list[dict[str, float]]]:
         """
         Detects episodes where the animal exceeds a velocity threshold.
 
@@ -681,7 +680,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         self,
         velocity_threshold_cm_s: float = 1.0,
         min_duration: float = 1.0,
-    ) -> dict[str, Union[int, float, list[dict[str, float]]]]:
+    ) -> dict[str, int | float | list[dict[str, float]]]:
         """
         Detects inactivity episodes where the velocity stays below a threshold.
 
@@ -728,7 +727,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
     def calculate_sharp_turns(
         self, threshold_deg_s: float, cooldown_s: float = 0.5
-    ) -> dict[str, Union[float, pd.Index]]:
+    ) -> dict[str, float | pd.Index]:
         """
         Calculates the number of sharp turns based on angular velocity.
 
