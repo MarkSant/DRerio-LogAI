@@ -452,13 +452,15 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_weight_selected_local(self, event=None):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
-        self.controller.ui_event_bus.publish(
+        self.controller.ui_event_bus.publish_event(
+
             Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
         )
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.controller.ui_event_bus.publish(
+        self.controller.ui_event_bus.publish_event(
+
             Events.MODEL_SET_OPENVINO,
             {"use_openvino": self.use_openvino_var.get(), "dialog": self},
         )
@@ -531,7 +533,7 @@ class CalibrationDialog(simpledialog.Dialog):
             "model_to_test": model_to_test,
         }
 
-        self.controller.ui_event_bus.publish(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
+        self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
         self.destroy()
 
     def buttonbox(self):
@@ -567,7 +569,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
-            self.controller.ui_event_bus.publish(Events.CALIBRATION_COPY_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -575,7 +577,7 @@ class CalibrationDialog(simpledialog.Dialog):
                     (f"Os padrões globais foram copiados para o projeto {project_name}."),
                 )
         else:
-            self.controller.ui_event_bus.publish(Events.CALIBRATION_SAVE_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -824,7 +826,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
             if messagebox.askyesno(
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
-                self.controller.ui_event_bus.publish(Events.MODEL_DELETE_WEIGHT, {"name": name})
+                self.controller.ui_event_bus.publish_event(
+                    Events.MODEL_DELETE_WEIGHT, {"name": name}
+                )
                 self.populate_list()
 
     def destroy(self):
