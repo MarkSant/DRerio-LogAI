@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Select-Object -ExpandProperty Name)"
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(poetry run python:*)",
+      "Bash(poetry lock:*)",
+      "Bash(python -m py_compile:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,126 +1,121 @@
-## ZebTrack-AI – Copilot Coding Agent Guide
+# Copilot coding agent quick guide — ZebTrack-AI
 
-Purpose: Desktop Tkinter application for multi-animal tracking (live or prerecorded video) that produces trajectories (Parquet), behavioral/ROI metrics (Excel), and rich per-experiment reports (Word, Excel, CSV). Optimize for small, well-tested changes that keep schemas and UI workflows stable.
+Purpose: desktop Tkinter app (package: `zebtrack`) for multi-animal tracking, analysis and report generation (internally: DRerio LogAI).
 
-### Quick Start Workflow
+Quick commands (Poetry):
+- Install: `poetry install`
+- Run app: `poetry run zebtrack` or `poetry run python -m zebtrack`
+- Tests (fast): `poetry run pytest -q`
+- Lint: `poetry run ruff check .` (auto-fix: `--fix`)
 
-1. Launch GUI: `python -m zebtrack` (entry point `core/controller.MainViewModel`, aliased as `AppController` for backward compatibility).
-2. Use the project wizard (`ui/wizard`) to create/select a project; the legacy dialog remains available only for backwards compatibility hooks in `core/project_manager.py`.
-3. Choose a detector plugin from `plugins/` (registry in `plugins/__init__.py`).
-4. Configure arenas/zones and optional pixel-per-cm calibration through `core/calibration.py`.
-5. Frames arrive from `io/video_source.py`; detections flow through `core/detector.py` (zone state machine + optional Arduino commands).
-6. Results stream to `io/recorder.py` (Parquet + optional MP4).
-7. Project file I/O operations (save/load config, ROI templates, metadata) are handled by `core/project_service.py`.
-8. Analysis orchestration happens in `analysis/analysis_service.py`, which coordinates `analysis/behavior.py` and `analysis/roi.py`.
-9. Reports are generated via `analysis/reporter.py`.
+Essential architecture (read these first):
+- Orchestrator / VM: `src/zebtrack/core/main_view_model.py` (MainViewModel / AppController alias)
+- Central state: `src/zebtrack/core/state_manager.py` (v1.8+, observable, thread-safe)
+- Detector pipeline: `src/zebtrack/core/detector.py`, `src/zebtrack/io/video_source.py`
+- Persistence (immutable schema): `src/zebtrack/io/recorder.py` (+ `tests/test_recorder.py`)
+- Analysis & reporting: `src/zebtrack/analysis/` (`analysis_service.py`, `behavior.py`, `roi.py`, `reporter.py`)
+- UI & wizard: `src/zebtrack/ui/gui.py`, `src/zebtrack/ui/wizard/` (5-step default wizard)
 
-### Environment & Tooling
+Non-negotiable conventions (explicit):
+- Parquet column order MUST stay: `timestamp, frame, track_id, x1, y1, x2, y2, confidence` (+ optional `x_center_px, y_center_px, x_cm, y_cm` when calibrated).
+- Always import settings from the package: `from zebtrack import settings`. Settings use Pydantic v2 with `extra='forbid'`.
+- Call `Detector.set_zones()` after video dimensions are known so zone coordinates are rescaled correctly.
+- UI updates must use `root.after(0, ...)`; heavy work runs in worker threads; `StateManager` is thread-safe.
 
-- Python is managed with Poetry (`pyproject.toml`). Install dependencies with `poetry install`.
-- Run the app/tests inside the Poetry shell or via `poetry run ...`.
-- Windows default shell is PowerShell; commands here assume that environment.
-- Use `structlog` for logging (`structlog.get_logger()`), maintaining the `domain.action.result` naming convention.
+Selected CLAUDE.md excerpts (expanded):
+- Product name: DRerio LogAI (package: `zebtrack`). See `TRANSITION_NOTE.md` for naming history.
 
-### Configuration Contract
+- MVVM architecture summary (from CLAUDE.md):
+  - Model layer: `StateManager`, `ProjectService`, `AnalysisService`, `ProjectManager`, `Detector`, `Recorder`.
+  - View layer: `ApplicationGUI` and component widgets; components emit events via `EventBus`.
+  - ViewModel: `MainViewModel` orchestrates flows and updates `StateManager` (alias `AppController` for backwards compatibility).
 
-- Settings load order: `config.yaml` → optional `config.local.yaml` (merged in `settings.load_settings()`).
-- Never hardcode configuration values; import `from zebtrack import settings`.
-- When adding a configuration field: update the Pydantic models in `settings.py`, adjust `config.yaml`, and extend `tests/test_settings.py`.
-- Per-project runtime overrides (`analysis_interval_frames`, `display_interval_frames`, etc.) live in `ProjectManager.project_data`; persist them via `ProjectManager.save_project()` so the GUI can restore interval widgets on reload.
+- Key data flow (processing pipeline):
+  1. Frames from `src/zebtrack/io/video_source.py` →
+  2. Detections in `src/zebtrack/core/detector.py` (zone state machine, optional Arduino commands) →
+  3. Persistence in `src/zebtrack/io/recorder.py` (Parquet, MP4) →
+  4. Analysis in `src/zebtrack/analysis/` → reporting in `src/zebtrack/analysis/reporter.py`.
 
-### Data & File Schemas
+- Output layout per video (filenames you must preserve):
+  - `1_ArenaROI_<video>.parquet` — arena/ROI definitions
+  - `2_Zones_<video>.parquet` — zone metadata
+  - `3_CoordMovimento_<video>.parquet` — trajectories (immutable schema)
+  - `<video>_summary.xlsx`, `<video>_report.docx`
 
-- Recorder Parquet column order is strict: `timestamp, frame, track_id, x1, y1, x2, y2, confidence`. Optional columns appended only when calibration is available: `x_center_px, y_center_px, x_cm, y_cm`.
-- Maintain zone metadata structure: `polygon`, `squares` (list of ((x1, y1), (x2, y2))), `bgr_color`, `enter_commands`, `exit_commands`.
-- Output naming prefixes `1_`, `2_`, `3_` are user-facing and must remain unchanged.
+- Critical constraints from CLAUDE.md:
+  - Parquet schema is IMMUTABLE; changes require test updates in `tests/test_recorder.py`.
+  - Settings hierarchy: `config.yaml` → `config.local.yaml`; do not hardcode values; update `src/zebtrack/settings.py` and `tests/test_settings.py` on changes.
+  - Zone coordinates are defined relative to `camera.desired_width` × `camera.desired_height` and must be rescaled with `Detector.set_zones()`.
+  - UI updates must use `root.after(0, ...)` and long tasks must run off the main thread.
 
-### Detector & Plugin Guardrails
+- Testing & validation (from CLAUDE.md):
+  - Test markers: `gui`, `slow`, `integration`, `unit`.
+  - GUI tests must run serially (`-n0`).
+  - Minimum coverage target: 70%.
+  - Use fixtures in `tests/conftest.py`; mock Tkinter in controller/service tests when needed.
 
-- Plugins implement `DetectorPlugin` (`plugins/base.py`) and expose `get_name()`.
-- Register new plugins in `plugins/__init__.py` (`DETECTOR_PLUGINS`).
-- Handle missing `track_id` values gracefully.
-- Keep inference non-blocking; heavy work belongs in detector threads, not the GUI loop.
-- OpenVINO weights require matching `.xml`/`.bin`; conversion is handled in `core/weight_manager.py`.
-- Arena inclusion uses the "4 corners OR center" logic via `_is_inside_polygon`; use `bbox_hits_roi_polygon` for ROI checks when appropriate.
+- Hardware & performance notes (useful excerpts):
+  - Optional Arduino integration (`arduino.port`) with zone-enter/exit commands; app must gracefully degrade without hardware.
+  - OpenVINO model cache at `openvino_model_cache/` speeds startup.
+  - Performance knobs: `performance.max_parallel_videos`, `performance.max_parallel_plots`, `performance.parquet_compression` (default `snappy`).
 
-### Project Creation Wizard
+Concrete code examples (copy-paste ready):
+- Logging convention with structlog:
+```python
+import structlog
+logger = structlog.get_logger()
+logger.info("controller.load_project.success", project_name=project_name)
+```
+- Ensure UI update happens on main thread:
+```python
+# inside a background thread
+root.after(0, lambda: gui.update_processing_stats(stats))
+```
+- Call to rescale zones after video opened:
+```python
+# after video_source reports width/height
+detector.set_zones(project_manager.project_data['zones'], video_width, video_height)
+```
 
-- The wizard is now the default path (v1.6+). The `settings.ui_features.use_wizard_for_project_creation` flag is retained for legacy scenarios but should remain enabled for parity with current UI flows.
-- Wizard flow lives under `src/zebtrack/ui/wizard/` (steps, dialog, adapter). It feeds controller inputs through `wizard_adapter.adapt_wizard_data_to_controller_format()` to preserve backward compatibility.
-- **v1.7+ UI Architecture**: The wizard dialog (`wizard_dialog.py`) uses a wide fixed-size window (1150×550px) designed for 3-column horizontal layouts. Discovery Step has all 3 questions side-by-side with compact spacing (padding 8-10px, column gaps 3px). Reserves 220px vertical space to ensure navigation buttons are never hidden by taskbar. Resizable 75%-120% width, 75%-110% height. Design steps with 3-column horizontal layouts - do NOT stack content vertically or create content that pushes buttons off-screen.
-- **Scrollbar Factory**: Wizard steps that need internal scrollbars (e.g., file lists) must use `window_utils.create_scrollbar()` instead of direct `ttk.Scrollbar()` to handle ttkbootstrap Style singleton teardown gracefully in tests.
-- Maintain parity with the legacy dialogs: every wizard change must still populate `ProjectManager.project_data` fields expected elsewhere (intervals, batches, calibration defaults).
-- Update wizard-specific tests when modifying the flow or adapter logic: `tests/test_wizard_adapter.py`, `tests/test_wizard_confirmation.py`, `tests/test_wizard_integration.py`, related step tests, and the controller regression `tests/test_controller.py::TestAppController::test_open_project_workflow_success_loads_view_and_zones` when project-loading side effects change.
-- Manual wizard scenarios now reside in `test_scenarios/` (documentation) and `tests/manual/`; legacy generator scripts were removed.
+How to run focused tests locally (exact commands):
+- Fast unit tests (exclude GUI & slow):
+```powershell
+poetry run pytest -q
+```
+- GUI tests (always run sequentially, no parallel):
+```powershell
+poetry run pytest -m gui -n0 -q
+```
+- Slow tests only:
+```powershell
+poetry run pytest -m slow -q
+```
+- Integration tests (example wizard integration):
+```powershell
+poetry run pytest tests/test_wizard_integration.py -q
+```
+- Run a specific test function:
+```powershell
+poetry run pytest tests/test_recorder.py::test_parquet_column_order -q
+```
 
-### Analysis Progress & Intervals
+Testing notes:
+- Use markers: `gui`, `slow`, `integration`, `unit`.
+- GUI tests must run with `-n0` to avoid parallel UI conflicts.
+- Minimum coverage target: 70%.
 
-- Progress callbacks now supply granular stats (`total_frames`, `processed_frames`, `detected_frames`, `start_time`); keep `ApplicationGUI.update_processing_stats()` and overlay labels in sync.
-- `ApplicationGUI` handles dual views (zone drawing vs. analysis overlay). Preserve detector-drawn overlays by routing frames through `display_analysis_frame()` without redrawing zones.
-- Interval controls (`analysis_interval_var`, `display_interval_var`) exist on both project and single-video dialogs; keep defaults at `10` unless project data overrides them and update the respective tests if behavior changes.
-- When adjusting controller workflows, ensure `progress_callback` continues scheduling UI updates via `root.after(0, ...)` to avoid blocking Tkinter.
+Small PR checklist for agents (practical):
+1. Read the nearest test(s) that exercise the module you're changing.
+2. Preserve Parquet schema and any user-visible naming.
+3. Run focused tests locally (see commands above).
+4. Run linter: `poetry run ruff check .` and fix issues.
+5. Add/update tests when behavior or schema changes.
 
-### Behavioral & ROI Analysis
+Files to inspect for examples:
+- `src/zebtrack/io/recorder.py` (Parquet schema)
+- `src/zebtrack/core/state_manager.py` (thread-safe patterns)
+- `src/zebtrack/core/detector.py` (zone state machine; call sites for `set_zones`)
+- `src/zebtrack/ui/wizard/wizard_adapter.py` (adapter responsibility for backward compatibility)
 
-- Behavioral metrics live in `analysis/behavior.py`; orchestration in `analysis/analysis_service.py`.
-- ROI logic is in `analysis/roi.py`. Supported inclusion rules: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects` (default), `seg_overlap`.
-- Reporting is centralized in `analysis/reporter.py`. Adding a metric requires wiring it through analyzer → reporter and creating a synthetic trajectory test under `tests/analysis/`.
-
-### Calibration & Units
-
-- Pixel-to-centimeter calibration comes from `core/calibration.py`.
-- `io/recorder` only appends cm columns when calibration is known. Downstream consumers must gracefully fall back to pixel coordinates if cm columns are absent.
-
-### Testing & Validation
-
-- Run the full test suite with `poetry run pytest -q`.
-- Run Ruff style checks with `poetry run ruff check` before handing off changes.
-- Tests mirror modules; consult them before modifying behavior (e.g., `tests/test_detector.py`, `tests/test_recorder.py`).
-- After feature changes, update or add tests covering the new behavior. For schema updates, assert new columns/fields explicitly.
-- UI/analysis workflows now have dedicated coverage: `tests/test_overlay_integration.py` (overlay preservation) and `tests/test_interval_frames_config.py` (interval dialogs + persistence). Keep them passing.
-- For wizard-related work, run the focused suite: `poetry run pytest tests/test_wizard*.py -q`.
-- All test coverage is now automated; reproduce edge cases via pytest fixtures and test scenarios in `test_scenarios/`.
-
-### Safety Checklist Before Merging
-
-- Read the relevant test file(s) tied to the module you're editing.
-- Keep GUI responsive—avoid blocking calls on the main thread.
-- Ensure zone definitions are rescaled to match the actual capture size via `Detector.set_zones(...)` after dimensions are known.
-- Handle empty detection batches without creating output artifacts.
-- Guard for missing settings/configuration and absent hardware (e.g., Arduino).
-
-### Recent Features (v1.7+)
-
-- **StateManager (v1.8+)** (`core/state_manager.py`): Centralized state management with observable pattern. Single source of truth for application state (recording, detector, processing, project). Thread-safe operations with history tracking. Controller provides backward-compatible properties (`is_recording`, `detector_initialized`, `is_processing`). See `docs/STATE_MANAGER_GUIDE.md` for usage. Tests: `test_state_manager.py` (35 tests), `test_state_manager_integration.py` (9 tests), `test_gui_state_observer.py` (7 tests).
-- **Enhanced Settings System** (`settings.py`): Pydantic v2 with strict validation (`extra="forbid"`), improved error messages with field-level details, clean lambda default factories, and utility functions (`reload_settings()`, `export_schema()`).
-- **Advanced Configuration Tab** (`gui.py::_create_configuration_tab()`): In-app editor for `config.local.yaml` with live Pydantic validation, tooltips, and load/save/reset handlers. See `docs/REFERENCE_GUIDE.md` for user docs.
-- **ROI Template System** (`gui.py` + `project_manager.py`): Save/import/apply ROI designs across projects via combobox selector. Templates persist in `templates/` folder. Geometry helpers in `utils/geometry.py` support centroid-aware snapping. Tests in `test_project_manager.py::test_save_roi_template_*`.
-- **Track-Specific Overlays** (`gui.py::update_detection_overlay()`): Analysis view now supports profile labels, track selector comboboxes, and social proximity percentage display. Covered by `test_overlay_integration.py` and `test_analysis_view_toggle.py`.
-- **Event Bus (Opt-in)** (`ui/event_bus.py`): Optional controller→GUI decoupling via `UIFeatureFlags.enable_event_queue` (default: False). Still in staged migration—continue using `root.after` for UI updates.
-- **Window Utilities** (`ui/window_utils.py`): Centralized helpers for window maximization and `create_scrollbar()` factory that handles ttkbootstrap Style singleton teardown gracefully.
-
-### Repository Landmarks
-
-- `src/zebtrack/core/controller.py`: MainViewModel (renamed from AppController) - UI-facing state and command handlers. Backward-compatible alias exists. Integrates StateManager for centralized state.
-- `src/zebtrack/core/state_manager.py`: Centralized state management with observable pattern, thread safety, and history tracking.
-- `src/zebtrack/core/project_service.py`: Service layer for project file I/O (create, load, save, ROI templates, metadata).
-- `src/zebtrack/core/project_manager.py`: In-memory project state management, zone/video tracking.
-- `src/zebtrack/core/detector.py`: Zone management and detection state machine.
-- `src/zebtrack/io/recorder.py`: Parquet/MP4 writers.
-- `src/zebtrack/plugins/`: Detector implementations.
-- `src/zebtrack/analysis/analysis_service.py`: Service layer for analysis orchestration (BehavioralAnalyzer + ROIAnalyzer + Reporter).
-- `src/zebtrack/analysis/`: Behavioral metrics, ROI analysis, reporting.
-- `src/zebtrack/settings.py`: Pydantic settings models + feature flags.
-- `src/zebtrack/utils/geometry.py`: Geometry helpers including centroid-aware snapping.
-- `tests/`: Pytest suite (unit, integration, GUI regression tests).
-- `src/zebtrack/ui/gui.py`: Main application GUI with config editor, ROI templates, track overlays.
-- `src/zebtrack/ui/wizard/`: Wizard dialog, step implementations, and adapter.
-- `src/zebtrack/ui/window_utils.py`: Window management and scrollbar factory.
-- `src/zebtrack/ui/event_bus.py`: Optional event bus (staged migration).
-
-### When in Doubt
-
-- Prefer reading the closest test to understand expectations.
-- Keep public APIs, file schemas, and user-visible naming stable.
-- Update README/CONTRIBUTING/docs when changing user-facing workflows.
-- Document recurring patterns here only after confirming they are covered by tests.
+Want more?
+- I can fold additional CLAUDE.md sections (e.g., exact wizard layout constraints, EventBus migration notes, or hardware wiring examples) into this guide. Tell me which parts to include.
