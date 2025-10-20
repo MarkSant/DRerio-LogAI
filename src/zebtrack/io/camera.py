@@ -1,5 +1,6 @@
 import threading
 import time
+from collections import deque
 from typing import Any
 
 import cv2
@@ -40,7 +41,10 @@ class Camera(FrameSource):
             fps=self.actual_fps,
         )
 
-        self._latest_frame: tuple[bool, np.ndarray | None] = (False, None)
+        # Frame buffer for lag management - keep 2 most recent frames
+        self._frame_buffer: deque[np.ndarray] = deque(maxlen=2)
+        self._frame_timestamps: deque[float] = deque(maxlen=2)
+        self._frame_available = False  # Track if any frame has been captured
         self._stopped = threading.Event()
 
         # Reconnect tracking attributes
@@ -76,7 +80,9 @@ class Camera(FrameSource):
                         max_seconds=self._reconnect_timeout_seconds,
                     )
                     with self._lock:
-                        self._latest_frame = (False, None)
+                        self._frame_buffer.clear()
+                        self._frame_timestamps.clear()
+                        self._frame_available = False
                     break  # Exit thread
 
                 # Check attempt limit
@@ -137,22 +143,45 @@ class Camera(FrameSource):
                 self.cap.release()
                 log.warning("camera.frame_read.failed")
                 with self._lock:
-                    self._latest_frame = (False, None)
+                    self._frame_buffer.clear()
+                    self._frame_timestamps.clear()
+                    self._frame_available = False
                 # Add a short sleep to prevent a tight loop on continuous read errors
                 time.sleep(0.1)
                 continue
 
             with self._lock:
-                self._latest_frame = (ret, frame)
+                self._frame_buffer.append(frame)
+                self._frame_timestamps.append(time.time())
+                self._frame_available = True
         log.info("camera.reader_thread.stopped")
 
     def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """
         Returns the most recent frame read by the background thread.
+
+        Also monitors frame lag and logs warnings if lag exceeds threshold.
         """
         with self._lock:
-            ret, frame = self._latest_frame
-            return ret, frame.copy() if ret else None
+            if not self._frame_available or not self._frame_buffer:
+                return (False, None)
+
+            # Get most recent frame
+            frame = self._frame_buffer[-1].copy()
+            frame_time = self._frame_timestamps[-1]
+
+            # Calculate lag in milliseconds
+            lag_ms = (time.time() - frame_time) * 1000
+
+            # Log warning if lag exceeds threshold
+            if lag_ms > settings.camera.max_frame_lag_ms:
+                log.warning(
+                    "camera.lag.threshold_exceeded",
+                    lag_ms=lag_ms,
+                    threshold_ms=settings.camera.max_frame_lag_ms,
+                )
+
+            return (True, frame)
 
     def release(self) -> None:
         """

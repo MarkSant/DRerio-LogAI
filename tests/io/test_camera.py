@@ -23,7 +23,8 @@ def camera_and_mock():
         mock_vc.isOpened.return_value = True
         # Initial dimensions returned during Camera.__init__
         mock_vc.get.side_effect = [1280, 720, 30.0]
-        mock_vc.read.return_value = (True, np.zeros((720, 1280, 3), np.uint8))
+        # Use itertools.repeat for infinite frame generation
+        mock_vc.read.side_effect = itertools.repeat((True, np.zeros((720, 1280, 3), np.uint8)))
         mock_cv2_vc.return_value = mock_vc
 
         camera = Camera()
@@ -77,7 +78,7 @@ def test_camera_gives_up_after_max_attempts(camera_and_mock, monkeypatch):
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 10)
 
     mock_vc.isOpened.return_value = False
-    mock_vc.read.return_value = (False, None)
+    mock_vc.read.side_effect = itertools.repeat((False, None))
 
     camera._thread.join(timeout=2.0)
 
@@ -92,8 +93,10 @@ def test_camera_gives_up_after_timeout(camera_and_mock, monkeypatch):
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 0.1)
 
     mock_vc.isOpened.return_value = False
+    mock_vc.read.side_effect = itertools.repeat((False, None))
     with patch("zebtrack.io.camera.time.time") as mock_time:
-        mock_time.side_effect = [100.0, 100.0, 100.2]
+        # Provide initial time values and then keep returning time after timeout
+        mock_time.side_effect = itertools.chain([100.0, 100.0, 100.2], itertools.repeat(100.2))
         camera._thread.join(timeout=2.0)
 
     assert not camera._thread.is_alive()
@@ -107,6 +110,7 @@ def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, mo
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 0)
 
     mock_vc.isOpened.return_value = False
+    mock_vc.read.side_effect = itertools.repeat((False, None))
 
     camera._thread.join(timeout=0.2)  # Short join to let it run a bit
     assert camera._thread.is_alive()
@@ -134,8 +138,11 @@ def test_get_properties_is_thread_safe(camera_and_mock, monkeypatch):
         return True
 
     mock_vc.open.side_effect = controlled_open
-    mock_vc.isOpened.side_effect = [True, False, True, True, True]
-    mock_vc.read.side_effect = [(False, None), (True, np.zeros((1, 1, 3)))]
+    mock_vc.isOpened.side_effect = itertools.chain([True, False, True, True, True], itertools.repeat(True))
+    mock_vc.read.side_effect = itertools.chain(
+        [(False, None), (True, np.zeros((1, 1, 3)))],
+        itertools.repeat((True, np.zeros((1, 1, 3))))
+    )
     mock_vc.get.side_effect = itertools.chain(new_dimensions, itertools.repeat(60.0))
 
     def property_getter():

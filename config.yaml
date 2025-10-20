@@ -36,6 +36,10 @@ camera:
   # 0 = no time limit
   reconnect_timeout_seconds: 60.0
 
+  # Maximum acceptable frame lag in milliseconds
+  # Warnings logged if frame age exceeds this threshold
+  max_frame_lag_ms: 500.0
+
 # -----------------------------------------------------------------------------
 # Arduino Settings (optional hardware integration)
 # -----------------------------------------------------------------------------
