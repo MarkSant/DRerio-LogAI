@@ -4,6 +4,7 @@ Design Editor Dialog
 Allows manual editing of detected experimental design (groups, days, subjects).
 """
 
+from collections.abc import Callable
 from tkinter import (
     Button,
     Canvas,
@@ -18,7 +19,6 @@ from tkinter import (
     font as tkfont,
 )
 from tkinter.simpledialog import Dialog
-from typing import Callable
 
 import structlog
 

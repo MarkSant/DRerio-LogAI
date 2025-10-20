@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from tkinter import (
     BooleanVar,
@@ -30,7 +31,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any, Callable, ClassVar
+from typing import Any, ClassVar
 
 import cv2
 import numpy as np
@@ -125,7 +126,11 @@ class CalibrationDialog(simpledialog.Dialog):
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
 
-        set_window_icon(self)
+        try:
+            set_window_icon(self)
+        except Exception:
+            # Handle cases where the dialog is destroyed before the icon is set
+            log.warning("icon.set.failed", exc_info=True)
 
     def body(self, master):
         schedule_maximize(self)
@@ -452,11 +457,13 @@ class CalibrationDialog(simpledialog.Dialog):
     def _on_weight_selected_local(self, event=None):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
-        self.publish_event(Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self})
+        self.controller.ui_event_bus.publish_event(
+            Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
+        )
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
-        self.publish_event(
+        self.controller.ui_event_bus.publish_event(
             Events.MODEL_SET_OPENVINO,
             {"use_openvino": self.use_openvino_var.get(), "dialog": self},
         )
@@ -468,7 +475,7 @@ class CalibrationDialog(simpledialog.Dialog):
     def _load_new_weight_local(self):
         """Handles the 'Load New Weight' button click."""
         # This can call the view's method as it's just a file dialog
-        self.view._load_new_weight_clicked()
+        self.controller.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE, {})
         # Repopulate this dialog's dropdown after the controller has the new weight
         self._populate_weights_dropdown()
         # Status is updated by the controller when the weight is set.
@@ -529,7 +536,7 @@ class CalibrationDialog(simpledialog.Dialog):
             "model_to_test": model_to_test,
         }
 
-        self.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
+        self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
         self.destroy()
 
     def buttonbox(self):
@@ -565,7 +572,7 @@ class CalibrationDialog(simpledialog.Dialog):
 
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
-            self.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -573,7 +580,7 @@ class CalibrationDialog(simpledialog.Dialog):
                     (f"Os padrões globais foram copiados para o projeto {project_name}."),
                 )
         else:
-            self.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
+            self.controller.ui_event_bus.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
             result = True  # Assume success for now
             if result:
                 messagebox.showinfo(
@@ -822,7 +829,9 @@ class ManageWeightsDialog(simpledialog.Dialog):
             if messagebox.askyesno(
                 "Confirmar Exclusão", f"Tem certeza que deseja excluir '{name}'?"
             ):
-                self.publish_event(Events.MODEL_DELETE_WEIGHT, {"name": name})
+                self.controller.ui_event_bus.publish_event(
+                    Events.MODEL_DELETE_WEIGHT, {"name": name}
+                )
                 self.populate_list()
 
     def destroy(self):
@@ -1939,10 +1948,53 @@ class ApplicationGUI:
             Events.UI_UPDATE_ANALYSIS_METADATA: self._handle_update_analysis_metadata,
             Events.UI_UPDATE_ANALYSIS_TASK_STATUS: self._handle_update_analysis_task_status,
             Events.UI_UPDATE_SOCIAL_SUMMARY: self._handle_update_social_summary,
+            Events.UI_REQUEST_WEIGHT_FILE: self._handle_request_weight_file,
+            Events.UI_REQUEST_WEIGHT_TYPE: self._handle_request_weight_type,
+            Events.UI_REQUEST_WEIGHT_ACTION: self._handle_request_weight_action,
+            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: self._handle_open_manage_weights_dialog,
         }
 
         for event_name, handler in ui_event_handlers.items():
             self.event_bus.subscribe(event_name, handler)
+
+    def _handle_request_weight_file(self, data: dict) -> None:
+        """Handles the request to open a file dialog for selecting a weight file."""
+        filepath = filedialog.askopenfilename(
+            title="Selecione o arquivo de peso do modelo (.pt)",
+            filetypes=[("PyTorch Model", "*.pt"), ("All files", "*.*")],
+        )
+        if filepath:
+            # Publish event back to view model with the selected file path
+            self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"filepath": filepath})
+
+    def _handle_request_weight_type(self, data: dict) -> None:
+        """Handles the request to ask the user for the weight type."""
+        weight_type = self._prompt_for_weight_type()
+        if weight_type:
+            self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"weight_type": weight_type})
+
+    def _handle_request_weight_action(self, data: dict) -> None:
+        """Handles the request to ask the user what to do with the new weight."""
+        weight_type = data.get("weight_type", "desconhecido")
+        response = messagebox.askyesnocancel(
+            "Adicionar Novo Peso",
+            f"O modelo foi identificado como do tipo '{weight_type}'.\n\n"
+            "Deseja definir este como o novo padrão para este tipo?\n\n"
+            "• Sim: Define como novo padrão.\n"
+            "• Não: Adiciona como uma opção alternativa.\n"
+            "• Cancelar: Não adiciona o peso.",
+        )
+        choice = "cancel"
+        if response is True:
+            choice = "yes"
+        elif response is False:
+            choice = "no"
+
+        self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"choice": choice})
+
+    def _handle_open_manage_weights_dialog(self, data: dict) -> None:
+        """Opens the weight management dialog."""
+        ManageWeightsDialog(self.root, self.controller)
 
     # --- UI Event Handlers ---
 
@@ -2364,9 +2416,7 @@ class ApplicationGUI:
             log.warning("about.logo.load_error", error=str(e))
 
         # Application name
-        name_label = ttk.Label(
-            about_window, text="DRerio LogAI", font=("-size", 18, "bold")
-        )
+        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("-size", 18, "bold"))
         name_label.pack(pady=(10, 5))
 
         # Version (from pyproject.toml)
@@ -2377,7 +2427,9 @@ class ApplicationGUI:
             if pyproject_path.exists():
                 with open(pyproject_path, "rb") as f:
                     pyproject_data = tomli.load(f)
-                    version = pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+                    version = (
+                        pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+                    )
             else:
                 version = "Development"
         except Exception:
@@ -2393,9 +2445,7 @@ class ApplicationGUI:
             "Integração de visão computacional (YOLO/OpenVINO),\n"
             "análise comportamental e geração de relatórios científicos"
         )
-        desc_label = ttk.Label(
-            about_window, text=desc_text, justify="center", font=("-size", 9)
-        )
+        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("-size", 9))
         desc_label.pack(pady=(0, 15))
 
         # Repository link
@@ -4023,7 +4073,7 @@ class ApplicationGUI:
         font = self._get_overview_badge_font()
         cursor = 0
 
-        for token, asset in zip(tokens, assets):
+        for token, asset in zip(tokens, assets, strict=False):
             segment = token.strip()
             if not segment:
                 continue
@@ -8933,10 +8983,6 @@ class ApplicationGUI:
                 break
         cv2.destroyAllWindows()
         log.info("gui.live_processing_loop.finished")
-
-    def _load_new_weight_clicked(self):
-        """Handles the 'Load New Weight' button click."""
-        self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT)
 
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type when it cannot be determined

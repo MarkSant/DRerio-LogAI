@@ -2,10 +2,11 @@ import gettext
 import io
 import locale
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, cast
+from typing import cast
 
 import cv2
 import matplotlib
@@ -160,7 +161,7 @@ def _rgb_to_color_name(rgb_tuple):
     closest_name = f"RGB({r},{g},{b})"
 
     for rgb, name in color_map.items():
-        distance = sum((a - b) ** 2 for a, b in zip(rgb_tuple, rgb))
+        distance = sum((a - b) ** 2 for a, b in zip(rgb_tuple, rgb, strict=False))
         if distance < min_distance:
             min_distance = distance
             closest_name = name
@@ -325,7 +326,9 @@ class Reporter:
         x2_values = warped_df["x2"].to_numpy(copy=True)
         y2_values = warped_df["y2"].to_numpy(copy=True)
 
-        for i, (x1, y1, x2, y2) in enumerate(zip(x1_values, y1_values, x2_values, y2_values)):
+        for i, (x1, y1, x2, y2) in enumerate(
+            zip(x1_values, y1_values, x2_values, y2_values, strict=False)
+        ):
             if any(pd.isna(v) for v in (x1, y1, x2, y2)):
                 continue
 

@@ -40,7 +40,7 @@ class STrack(BaseTrack):
                 multi_covariance,
             ) = STrack.shared_kalman.multi_predict(multi_mean, multi_covariance)
 
-            for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance)):
+            for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance, strict=False)):
                 stracks[i].mean = mean
                 stracks[i].covariance = cov
 
@@ -193,7 +193,8 @@ class BYTETracker:
         if len(dets) > 0:
             """Detections"""
             detections = [
-                STrack(STrack.tlbr_to_tlwh(tlbr), s) for (tlbr, s) in zip(dets, scores_keep)
+                STrack(STrack.tlbr_to_tlwh(tlbr), s)
+                for (tlbr, s) in zip(dets, scores_keep, strict=False)
             ]
         else:
             detections = []
@@ -237,7 +238,7 @@ class BYTETracker:
             """Detections"""
             detections_second = [
                 STrack(STrack.tlbr_to_tlwh(tlbr), s)
-                for (tlbr, s) in zip(dets_second, scores_second)
+                for (tlbr, s) in zip(dets_second, scores_second, strict=False)
             ]
         else:
             detections_second = []
@@ -342,7 +343,7 @@ def remove_duplicate_stracks(stracksa, stracksb):
     pdist = matching.iou_distance(stracksa, stracksb)
     pairs = np.where(pdist < 0.15)
     dupa, dupb = list(), list()
-    for p, q in zip(*pairs):
+    for p, q in zip(*pairs, strict=False):
         timep = stracksa[p].frame_id - stracksa[p].start_frame
         timeq = stracksb[q].frame_id - stracksb[q].start_frame
         if timep > timeq:

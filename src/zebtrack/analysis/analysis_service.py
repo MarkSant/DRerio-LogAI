@@ -11,8 +11,9 @@ Now handles batch processing, single video processing, and all coordination logi
 """
 
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 import structlog

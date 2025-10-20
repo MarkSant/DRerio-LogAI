@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from tkinter import TclError, ttk
-from typing import Any, Callable
+from typing import Any
 
 try:
     import ttkbootstrap as ttkb
