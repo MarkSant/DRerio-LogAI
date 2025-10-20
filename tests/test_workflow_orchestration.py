@@ -79,7 +79,6 @@ def patched_vm_setup():
 
 
 class TestWorkflowOrchestration:
-    @pytest.mark.skip(reason="Temporarily disabled to unblock coverage work")
     def test_create_project_workflow_event(self, patched_vm_setup):
         event_bus = patched_vm_setup["event_bus"]
         mock_pws = patched_vm_setup["mocks"]["project_workflow_service"]

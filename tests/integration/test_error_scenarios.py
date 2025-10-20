@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
@@ -55,10 +56,7 @@ def test_video_processing_error_recovery(temp_project_dir, sample_zones):
     video_names = [f"video{i}" for i in range(1, 6)]
 
     for idx, video_name in enumerate(video_names):
-        results_dir = temp_project_dir / f"{video_name}_results"
-        results_dir.mkdir()
-
-        # Simulate failure for video #3 (index 2)
+        # Simulate failure for video #3 (index 2) WITHOUT creating directory
         if idx == 2:
             # Track failure
             state_manager.update_processing_state(
@@ -70,38 +68,39 @@ def test_video_processing_error_recovery(temp_project_dir, sample_zones):
             processing_results["failed"].append(video_name)
             continue
 
+        results_dir = temp_project_dir / f"{video_name}_results"
+        results_dir.mkdir()
+
         # Process other videos successfully
         try:
+            processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+            # Convert to ZoneData format
+            zones_data = ZoneData(
+                polygon=processing_area_polygon,
+                roi_polygons=[z["polygon"] for z in sample_zones],
+                roi_names=[z["name"] for z in sample_zones],
+            )
+
             recorder = Recorder()
-            recorder.start(
+            recorder.start_recording(
                 output_folder=str(results_dir),
-                base_name=video_name,
-                processing_area={"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]},
-                zones=sample_zones,
                 frame_width=1280,
                 frame_height=720,
-                fps=30,
-                enable_video_output=False,
+                zones=zones_data,
+                is_video_file=True,
+                base_name=video_name,
             )
 
             # Add sample detection data
-            recorder.write_detection_data(
-                [
-                    {
-                        "timestamp": 0.0,
-                        "frame": 1,
-                        "track_id": 1,
-                        "x1": 100,
-                        "y1": 100,
-                        "x2": 150,
-                        "y2": 150,
-                        "confidence": 0.9,
-                    }
-                ],
-                frame_number=1,
-            )
+            timestamp = 0.0
+            detections = [(100, 100, 150, 150, 0.9, 1)]
+            recorder.write_detection_data(timestamp, 1, detections)
 
-            recorder.stop()
+            recorder.stop_recording()
+
+            # Give Windows time to flush
+            time.sleep(0.1)
 
             # Track success
             state_manager.update_processing_state(
@@ -130,9 +129,6 @@ def test_video_processing_error_recovery(temp_project_dir, sample_zones):
     # Verify result directories (4 should exist)
     result_dirs = list(temp_project_dir.glob("*_results"))
     assert len(result_dirs) == 4
-
-    # Cleanup
-    state_manager.clear_observers()
 
 
 @pytest.mark.integration
@@ -220,87 +216,65 @@ def test_schema_validation_prevents_corruption(temp_project_dir):
     results_dir = temp_project_dir / "schema_test_results"
     results_dir.mkdir()
 
-    zones = [
-        {
-            "name": "Test Zone",
-            "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
-            "color": "red",
-            "enter_commands": [],
-            "exit_commands": [],
-        }
-    ]
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[[(100, 100), (300, 100), (300, 300), (100, 300)]],
+        roi_names=["Test Zone"],
+    )
 
     # Start recorder WITHOUT calibration
     recorder = Recorder()
-    recorder.start(
+    recorder.start_recording(
         output_folder=str(results_dir),
-        base_name="test_video",
-        processing_area={"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]},
-        zones=zones,
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
-        calibration_data=None,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="test_video",
+        pixel_per_cm_ratio=None,  # No calibration
     )
 
     # Write some detections without calibration columns
     for frame in range(1, 6):
-        recorder.write_detection_data(
-            [
-                {
-                    "timestamp": frame / 30.0,
-                    "frame": frame,
-                    "track_id": 1,
-                    "x1": 100,
-                    "y1": 100,
-                    "x2": 150,
-                    "y2": 150,
-                    "confidence": 0.9,
-                }
-            ],
-            frame_number=frame,
-        )
+        timestamp = frame / 30.0
+        detections = [(100, 100, 150, 150, 0.9, 1)]
+        recorder.write_detection_data(timestamp, frame, detections)
 
-    # Try to add detection WITH calibration data (schema change)
-    with pytest.raises(ValueError, match="Parquet schema cannot change"):
-        recorder.write_detection_data(
-            [
-                {
-                    "timestamp": 6 / 30.0,
-                    "frame": 6,
-                    "track_id": 1,
-                    "x1": 100,
-                    "y1": 100,
-                    "x2": 150,
-                    "y2": 150,
-                    "confidence": 0.9,
-                    "x_center_px": 125,
-                    "y_center_px": 125,
-                    "x_cm": 5.0,
-                    "y_cm": 5.0,
-                }
-            ],
-            frame_number=6,
-        )
+    # Manually flush data to create the Parquet file before causing error
+    recorder._flush_detection_data(force=True)
 
-    # Stop recorder
-    recorder.stop()
+    # Give Windows time to flush
+    time.sleep(0.1)
 
-    # Verify Parquet file exists and has correct schema
+    # Verify Parquet file was created with 5 rows
     coords_file = results_dir / "3_CoordMovimento_test_video.parquet"
     assert coords_file.exists()
 
     import pyarrow.parquet as pq
 
     table = pq.read_table(str(coords_file))
+    assert len(table) == 5
 
+    # Now try to change schema by setting calibration (should fail)
+    recorder.pixel_per_cm_ratio = (10.0, 10.0)
+    recorder._flush_row_threshold = 1  # Force flush on next write
+
+    with pytest.raises(ValueError, match="Parquet schema cannot change"):
+        timestamp = 6 / 30.0
+        detections = [(100, 100, 150, 150, 0.9, 1)]
+        recorder.write_detection_data(timestamp, 6, detections)
+
+    # Verify schema remained unchanged (no calibration columns added)
+    table_after = pq.read_table(str(coords_file))
     expected_columns = {"timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"}
-    actual_columns = set(table.schema.names)
+    actual_columns = set(table_after.schema.names)
     assert expected_columns == actual_columns
 
-    # Verify data integrity (should have 5 rows, not 6)
-    assert len(table) == 5
+    # Verify data integrity (still 5 rows, not 6 - new row wasn't added due to error)
+    assert len(table_after) == 5
 
 
 @pytest.mark.integration
@@ -318,101 +292,71 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     results_dir = temp_project_dir / "recorder_recovery"
     results_dir.mkdir()
 
-    zones = [
-        {
-            "name": "Test Zone",
-            "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
-            "color": "red",
-            "enter_commands": [],
-            "exit_commands": [],
-        }
-    ]
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[[(100, 100), (300, 100), (300, 300), (100, 300)]],
+        roi_names=["Test Zone"],
+    )
 
     # Session 1: Start and cause error
     recorder = Recorder()
-    recorder.start(
-        output_folder=str(results_dir / "session1"),
-        base_name="test_session1",
-        processing_area={"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]},
-        zones=zones,
+    session1_dir = results_dir / "session1"
+    session1_dir.mkdir()
+
+    recorder.start_recording(
+        output_folder=str(session1_dir),
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="test_session1",
     )
 
-    recorder.write_detection_data(
-        [
-            {
-                "timestamp": 0.0,
-                "frame": 1,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-            }
-        ],
-        frame_number=1,
-    )
+    timestamp = 0.0
+    detections = [(100, 100, 150, 150, 0.9, 1)]
+    recorder.write_detection_data(timestamp, 1, detections)
 
-    # Cause schema error
+    # Cause schema error by changing calibration
     try:
-        recorder.write_detection_data(
-            [
-                {
-                    "timestamp": 0.033,
-                    "frame": 2,
-                    "track_id": 1,
-                    "x1": 100,
-                    "y1": 100,
-                    "x2": 150,
-                    "y2": 150,
-                    "confidence": 0.9,
-                    "x_cm": 5.0,  # New column - causes error
-                }
-            ],
-            frame_number=2,
-        )
+        recorder.pixel_per_cm_ratio = (10.0, 10.0)
+        recorder._flush_row_threshold = 1
+        timestamp = 0.033
+        detections = [(100, 100, 150, 150, 0.9, 1)]
+        recorder.write_detection_data(timestamp, 2, detections)
     except ValueError:
         pass  # Expected error
 
-    recorder.stop()
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Session 2: Start fresh
-    recorder.start(
-        output_folder=str(results_dir / "session2"),
-        base_name="test_session2",
-        processing_area={"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]},
-        zones=zones,
+    session2_dir = results_dir / "session2"
+    session2_dir.mkdir()
+
+    recorder.start_recording(
+        output_folder=str(session2_dir),
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="test_session2",
     )
 
-    recorder.write_detection_data(
-        [
-            {
-                "timestamp": 0.0,
-                "frame": 1,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-            }
-        ],
-        frame_number=1,
-    )
+    timestamp = 0.0
+    detections = [(100, 100, 150, 150, 0.9, 1)]
+    recorder.write_detection_data(timestamp, 1, detections)
 
-    recorder.stop()
+    recorder.stop_recording()
+
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Verify both sessions created files
-    session1_file = results_dir / "session1" / "3_CoordMovimento_test_session1.parquet"
-    session2_file = results_dir / "session2" / "3_CoordMovimento_test_session2.parquet"
+    session1_file = session1_dir / "3_CoordMovimento_test_session1.parquet"
+    session2_file = session2_dir / "3_CoordMovimento_test_session2.parquet"
 
     assert session1_file.exists()
     assert session2_file.exists()
@@ -439,11 +383,17 @@ def test_state_manager_observer_pattern(temp_project_dir):
     observer1_calls = []
     observer2_calls = []
 
-    def observer1(state):
-        observer1_calls.append(state.copy())
+    def observer1(category, key, old_value, new_value):
+        """Observer with correct signature."""
+        observer1_calls.append(
+            {"category": category, "key": key, "old_value": old_value, "new_value": new_value}
+        )
 
-    def observer2(state):
-        observer2_calls.append(state.copy())
+    def observer2(category, key, old_value, new_value):
+        """Observer with correct signature."""
+        observer2_calls.append(
+            {"category": category, "key": key, "old_value": old_value, "new_value": new_value}
+        )
 
     # Register observers for different categories
     state_manager.register_observer(StateCategory.PROJECT, observer1)
@@ -451,7 +401,7 @@ def test_state_manager_observer_pattern(temp_project_dir):
 
     # Trigger state changes
     state_manager.update_project_state(project_path=str(temp_project_dir))
-    state_manager.update_recording_state(is_recording=True, recorded_frames=10)
+    state_manager.update_recording_state(is_recording=True)
     state_manager.update_processing_state(
         is_processing=True,
         current_video="test.mp4",
@@ -466,9 +416,6 @@ def test_state_manager_observer_pattern(temp_project_dir):
     # Verify state history
     history = state_manager.get_history(limit=10)
     assert len(history) >= 3
-
-    # Cleanup
-    state_manager.clear_observers()
 
 
 @pytest.mark.integration
@@ -519,6 +466,3 @@ def test_concurrent_state_updates():
     # Verify state history
     history = state_manager.get_history(limit=100)
     assert len(history) >= 50, f"Expected at least 50 history entries, got {len(history)}"
-
-    # Cleanup
-    state_manager.clear_observers()

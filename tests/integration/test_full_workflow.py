@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.recorder import Recorder
 
@@ -57,47 +58,45 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
     results_dir = temp_project_dir / "test_video_results"
     results_dir.mkdir()
 
-    processing_area = {"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]}
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[z["polygon"] for z in sample_zones],
+        roi_names=[z["name"] for z in sample_zones],
+    )
 
     # Start recorder
     recorder = Recorder()
-    recorder.start(
+    recorder.start_recording(
         output_folder=str(results_dir),
-        base_name="test_video",
-        processing_area=processing_area,
-        zones=sample_zones,
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
+        zones=zones_data,
+        is_video_file=True,  # No video output in tests
+        base_name="test_video",
     )
 
     # Write 100 frames of detection data
     for frame_num in range(1, 101):
-        detections = [
-            {
-                "timestamp": frame_num / 30.0,
-                "frame": frame_num,
-                "track_id": 1,
-                "x1": 100 + frame_num,
-                "y1": 100,
-                "x2": 150 + frame_num,
-                "y2": 150,
-                "confidence": 0.95,
-            }
-        ]
-        recorder.write_detection_data(detections, frame_num)
+        timestamp = frame_num / 30.0
+        detections = [(100 + frame_num, 100, 150 + frame_num, 150, 0.95, 1)]
+        recorder.write_detection_data(timestamp, frame_num, detections)
 
     # Stop recorder
-    recorder.stop()
+    recorder.stop_recording()
+
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Verify files exist
     arena_file = results_dir / "1_ProcessingArea_test_video.parquet"
-    zones_file = results_dir / "2_Zones_test_video.parquet"
+    areas_file = results_dir / "2_AreasOfInterest_test_video.parquet"
     coords_file = results_dir / "3_CoordMovimento_test_video.parquet"
 
     assert arena_file.exists(), f"Arena file not found: {arena_file}"
-    assert zones_file.exists(), f"Zones file not found: {zones_file}"
+    assert areas_file.exists(), f"Areas file not found: {areas_file}"
     assert coords_file.exists(), f"Coords file not found: {coords_file}"
 
     # Verify detection data
@@ -111,12 +110,12 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
     actual_columns = set(coords_table.schema.names)
     assert expected_columns == actual_columns
 
-    # Verify zones metadata
-    zones_table = pq.read_table(str(zones_file))
-    zones_df = zones_table.to_pandas()
-    assert len(zones_df) == 2, f"Expected 2 zones, got {len(zones_df)}"
-    assert "Zone A" in zones_df["nome"].values
-    assert "Zone B" in zones_df["nome"].values
+    # Verify areas metadata
+    areas_table = pq.read_table(str(areas_file))
+    areas_df = areas_table.to_pandas()
+    assert len(areas_df) > 0, "Areas file should contain data"
+    assert "Zone A" in areas_df["roi_name"].values
+    assert "Zone B" in areas_df["roi_name"].values
 
 
 @pytest.mark.integration
@@ -132,44 +131,38 @@ def test_recorder_with_calibration(temp_project_dir, sample_zones):
     results_dir = temp_project_dir / "calibrated_results"
     results_dir.mkdir()
 
-    processing_area = {"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]}
-    calibration_data = {"pixels_per_cm": 10.0}
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+    pixel_per_cm_ratio = (10.0, 10.0)  # 10 pixels per cm
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[z["polygon"] for z in sample_zones],
+        roi_names=[z["name"] for z in sample_zones],
+    )
 
     # Start recorder WITH calibration
     recorder = Recorder()
-    recorder.start(
+    recorder.start_recording(
         output_folder=str(results_dir),
-        base_name="calibrated_video",
-        processing_area=processing_area,
-        zones=sample_zones,
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
-        calibration_data=calibration_data,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="calibrated_video",
+        pixel_per_cm_ratio=pixel_per_cm_ratio,
     )
 
-    # Write data with calibration columns
+    # Write data (calibration columns will be calculated automatically)
     for frame_num in range(1, 21):
-        detections = [
-            {
-                "timestamp": frame_num / 30.0,
-                "frame": frame_num,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-                "x_center_px": 125,
-                "y_center_px": 125,
-                "x_cm": 12.5,
-                "y_cm": 12.5,
-            }
-        ]
-        recorder.write_detection_data(detections, frame_num)
+        timestamp = frame_num / 30.0
+        detections = [(100, 100, 150, 150, 0.9, 1)]
+        recorder.write_detection_data(timestamp, frame_num, detections)
 
-    recorder.stop()
+    recorder.stop_recording()
+
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Verify calibrated schema
     import pyarrow.parquet as pq
@@ -203,16 +196,18 @@ def test_state_manager_tracks_workflow_progression(temp_project_dir):
     state_manager = StateManager()
     observer_notifications = []
 
-    def test_observer(state):
-        """Record observer notifications."""
-        observer_notifications.append(state.copy())
+    def test_observer(category, key, old_value, new_value):
+        """Record observer notifications with correct signature."""
+        observer_notifications.append(
+            {"category": category, "key": key, "old_value": old_value, "new_value": new_value}
+        )
 
     # Register observer for PROCESSING category
     state_manager.register_observer(StateCategory.PROCESSING, test_observer)
 
     # Simulate workflow progression
     state_manager.update_project_state(project_path=str(temp_project_dir / "project.json"))
-    state_manager.update_recording_state(is_recording=False, recorded_frames=0)
+    state_manager.update_recording_state(is_recording=False)
     state_manager.update_processing_state(
         is_processing=True,
         current_video="test1.mp4",
@@ -250,9 +245,6 @@ def test_state_manager_tracks_workflow_progression(temp_project_dir):
     history = state_manager.get_history(limit=20)
     assert len(history) >= 5, f"Expected at least 5 history entries, got {len(history)}"
 
-    # Cleanup
-    state_manager.clear_observers()
-
 
 @pytest.mark.integration
 def test_multi_video_recording_session(temp_project_dir, sample_zones):
@@ -264,7 +256,7 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
     - Each video gets separate output folder
     - Schema consistency across sessions
     """
-    processing_area = {"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]}
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
     recorder = Recorder()
 
     video_names = ["video1", "video2", "video3"]
@@ -273,38 +265,34 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
         results_dir = temp_project_dir / f"{video_name}_results"
         results_dir.mkdir()
 
+        # Convert to ZoneData format
+        zones_data = ZoneData(
+            polygon=processing_area_polygon,
+            roi_polygons=[z["polygon"] for z in sample_zones],
+            roi_names=[z["name"] for z in sample_zones],
+        )
+
         # Start recording session
-        recorder.start(
+        recorder.start_recording(
             output_folder=str(results_dir),
-            base_name=video_name,
-            processing_area=processing_area,
-            zones=sample_zones,
             frame_width=1280,
             frame_height=720,
-            fps=30,
-            enable_video_output=False,
+            zones=zones_data,
+            is_video_file=True,
+            base_name=video_name,
         )
 
         # Write some data
         for frame in range(1, 11):
-            recorder.write_detection_data(
-                [
-                    {
-                        "timestamp": frame / 30.0,
-                        "frame": frame,
-                        "track_id": 1,
-                        "x1": 100,
-                        "y1": 100,
-                        "x2": 150,
-                        "y2": 150,
-                        "confidence": 0.9,
-                    }
-                ],
-                frame_number=frame,
-            )
+            timestamp = frame / 30.0
+            detections = [(100, 100, 150, 150, 0.9, 1)]
+            recorder.write_detection_data(timestamp, frame, detections)
 
         # Stop session
-        recorder.stop()
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        time.sleep(0.1)
 
         # Verify files for this video
         coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
@@ -328,47 +316,44 @@ def test_recording_with_periodic_flush(temp_project_dir, sample_zones):
     results_dir = temp_project_dir / "flush_test_results"
     results_dir.mkdir()
 
-    processing_area = {"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]}
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[z["polygon"] for z in sample_zones],
+        roi_names=[z["name"] for z in sample_zones],
+    )
 
     # Configure shorter flush interval for testing
-    with patch("zebtrack.settings.settings.recorder.flush_interval_seconds", 0.5):
-        with patch("zebtrack.settings.settings.recorder.flush_row_threshold", 20):
-            recorder = Recorder()
-            recorder.start(
-                output_folder=str(results_dir),
-                base_name="flush_test",
-                processing_area=processing_area,
-                zones=sample_zones,
-                frame_width=1280,
-                frame_height=720,
-                fps=30,
-                enable_video_output=False,
-            )
+    recorder = Recorder()
+    recorder._flush_interval_seconds = 0.5
+    recorder._flush_row_threshold = 20
 
-            # Write data in batches
-            total_frames = 60
-            for frame in range(1, total_frames + 1):
-                recorder.write_detection_data(
-                    [
-                        {
-                            "timestamp": frame / 30.0,
-                            "frame": frame,
-                            "track_id": 1,
-                            "x1": 100,
-                            "y1": 100,
-                            "x2": 150,
-                            "y2": 150,
-                            "confidence": 0.9,
-                        }
-                    ],
-                    frame_number=frame,
-                )
+    recorder.start_recording(
+        output_folder=str(results_dir),
+        frame_width=1280,
+        frame_height=720,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="flush_test",
+    )
 
-                # Small delay to allow flush to trigger
-                if frame % 20 == 0:
-                    time.sleep(0.6)
+    # Write data in batches
+    total_frames = 60
+    for frame in range(1, total_frames + 1):
+        timestamp = frame / 30.0
+        detections = [(100, 100, 150, 150, 0.9, 1)]
+        recorder.write_detection_data(timestamp, frame, detections)
 
-            recorder.stop()
+        # Small delay to allow flush to trigger
+        if frame % 20 == 0:
+            time.sleep(0.6)
+
+    recorder.stop_recording()
+
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Verify final file
     coords_file = results_dir / "3_CoordMovimento_flush_test.parquet"
@@ -398,52 +383,48 @@ def test_zone_metadata_preservation(temp_project_dir, sample_zones):
     zones_with_commands[0]["enter_commands"] = ["LED_ON"]
     zones_with_commands[0]["exit_commands"] = ["LED_OFF"]
 
-    processing_area = {"polygon": [(0, 0), (1280, 0), (1280, 720), (0, 720)]}
+    processing_area_polygon = [(0, 0), (1280, 0), (1280, 720), (0, 720)]
+
+    # Convert to ZoneData format
+    zones_data = ZoneData(
+        polygon=processing_area_polygon,
+        roi_polygons=[z["polygon"] for z in zones_with_commands],
+        roi_names=[z["name"] for z in zones_with_commands],
+    )
 
     recorder = Recorder()
-    recorder.start(
+    recorder.start_recording(
         output_folder=str(results_dir),
-        base_name="zone_test",
-        processing_area=processing_area,
-        zones=zones_with_commands,
         frame_width=1280,
         frame_height=720,
-        fps=30,
-        enable_video_output=False,
+        zones=zones_data,
+        is_video_file=True,
+        base_name="zone_test",
     )
 
     # Write minimal data
-    recorder.write_detection_data(
-        [
-            {
-                "timestamp": 0.0,
-                "frame": 1,
-                "track_id": 1,
-                "x1": 100,
-                "y1": 100,
-                "x2": 150,
-                "y2": 150,
-                "confidence": 0.9,
-            }
-        ],
-        frame_number=1,
-    )
+    timestamp = 0.0
+    detections = [(100, 100, 150, 150, 0.9, 1)]
+    recorder.write_detection_data(timestamp, 1, detections)
 
-    recorder.stop()
+    recorder.stop_recording()
+
+    # Give Windows time to flush
+    time.sleep(0.1)
 
     # Load and verify zone metadata
-    zones_file = results_dir / "2_Zones_zone_test.parquet"
-    assert zones_file.exists()
+    areas_file = results_dir / "2_AreasOfInterest_zone_test.parquet"
+    assert areas_file.exists()
 
     import pyarrow.parquet as pq
 
-    zones_table = pq.read_table(str(zones_file))
-    zones_df = zones_table.to_pandas()
+    areas_table = pq.read_table(str(areas_file))
+    areas_df = areas_table.to_pandas()
 
-    # Verify zone A
-    zone_a = zones_df[zones_df["nome"] == "Zone A"].iloc[0]
-    assert zone_a["cor"] == "red"
+    # Verify zone A exists
+    assert "Zone A" in areas_df["roi_name"].values
+    assert "Zone B" in areas_df["roi_name"].values
 
-    # Commands should be preserved (stored as JSON strings)
-    # The exact format may vary, but they should be present
-    assert "enter_commands" in zones_df.columns or "comando_entrada" in zones_df.columns
+    # Verify we have polygon points
+    zone_a_points = areas_df[areas_df["roi_name"] == "Zone A"]
+    assert len(zone_a_points) == 4, "Zone A should have 4 polygon points"
