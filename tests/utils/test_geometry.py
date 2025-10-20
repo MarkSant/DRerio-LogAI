@@ -1,6 +1,5 @@
 """Tests for zebtrack.utils.geometry module."""
 
-
 from zebtrack.utils.geometry import polygon_centroid, snap_point_to_axes
 
 

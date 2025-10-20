@@ -5,7 +5,6 @@ Tests the integration of core components: Recorder, StateManager, and processing
 """
 
 import time
-from unittest.mock import patch
 
 import pytest
 
