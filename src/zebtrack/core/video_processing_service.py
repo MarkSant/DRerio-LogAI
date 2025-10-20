@@ -87,12 +87,13 @@ class VideoProcessingService:
 
         log.info("video_processing_service.init.complete")
 
-    def display_initial_frame(self, video_path: str) -> None:
+    def display_initial_frame(self, video_path: Path | str) -> None:
         """Display first frame of video in UI.
 
         Args:
             video_path: Path to video file
         """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         cap = None
         try:
             cap = cv2.VideoCapture(video_path)
@@ -138,7 +139,7 @@ class VideoProcessingService:
         results_path.mkdir(parents=True, exist_ok=True)
         return results_path
 
-    def ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: str) -> list | None:
+    def ensure_arena_polygon(self, arena_polygon_px: list | None, video_path: Path | str) -> list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
         Args:
@@ -148,6 +149,7 @@ class VideoProcessingService:
         Returns:
             Arena polygon (existing or full-frame fallback)
         """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         if arena_polygon_px:
             return arena_polygon_px
 
@@ -161,7 +163,7 @@ class VideoProcessingService:
         return [[0, 0], [width, 0], [width, height], [0, height]]
 
     def load_trajectory_dataframe(
-        self, trajectory_path: str, experiment_id: str
+        self, trajectory_path: Path | str, experiment_id: str
     ) -> pd.DataFrame | None:
         """Load trajectory parquet file with error handling.
 
@@ -172,7 +174,8 @@ class VideoProcessingService:
         Returns:
             DataFrame or None if load failed
         """
-        if not os.path.exists(trajectory_path):
+        trajectory_path = Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
+        if not trajectory_path.exists():
             self.root.after(
                 0,
                 lambda: self.view.show_error(
@@ -219,7 +222,7 @@ class VideoProcessingService:
 
     def run_tracking_if_needed(
         self,
-        video_path: str,
+        video_path: Path | str,
         results_dir: str,
         experiment_id: str,
         progress_callback=None,
@@ -228,6 +231,9 @@ class VideoProcessingService:
         display_interval_frames: int = 10,
     ) -> tuple[bool, list | None]:
         """Run tracking process if trajectory doesn't exist.
+
+        Args:
+            video_path: Path to video file
 
         Phase 7.2: Core tracking orchestration method (~183 lines).
 

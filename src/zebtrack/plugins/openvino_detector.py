@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -48,19 +49,20 @@ log = structlog.get_logger()
 class OpenVINOPlugin(DetectorPlugin):
     """A detector plugin that uses an OpenVINO-optimized model."""
 
-    def __init__(self, model_path: str, expected_hash: str | None = None):
+    def __init__(self, model_path: Path | str, expected_hash: str | None = None):
         """
         Initializes the plugin, verifies model integrity, and loads the model.
 
         Args:
-            model_path (str): Path to the directory containing .xml and .bin files.
-            expected_hash (str, optional): The expected SHA256 hash of the .xml file.
+            model_path: Path to the directory containing .xml and .bin files.
+            expected_hash: The expected SHA256 hash of the .xml file.
                 If provided, the file's integrity will be verified before loading.
 
         Raises:
             FileNotFoundError: If the model's .xml file cannot be found.
             IntegrityError: If the model's hash does not match the expected hash.
         """
+        model_path = Path(model_path) if isinstance(model_path, str) else model_path
         if not OPENVINO_AVAILABLE:
             raise ImportError("OpenVINO is not available. Please install openvino package.")
         if not TORCH_AVAILABLE:

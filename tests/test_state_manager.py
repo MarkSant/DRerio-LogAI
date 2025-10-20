@@ -560,7 +560,8 @@ class TestDebuggingUtilities:
     def test_get_state_snapshot(self):
         """get_state_snapshot returns a serializable dictionary."""
         mgr = StateManager()
-        mgr.update_project_state(project_path=Path("/test"))
+        test_path = Path("/test")
+        mgr.update_project_state(project_path=test_path)
         mgr.update_detector_state(detector_initialized=True)
 
         snapshot = mgr.get_state_snapshot()
@@ -570,7 +571,8 @@ class TestDebuggingUtilities:
         assert "detector" in snapshot
         assert "_timestamp" in snapshot
         assert isinstance(snapshot["_timestamp"], str)
-        assert snapshot["project"]["project_path"] == "/test"
+        # Comparar como Path para ser agnóstico de plataforma
+        assert snapshot["project"]["project_path"] == str(test_path)
 
 
 class TestIntegrationScenarios:

@@ -1,4 +1,5 @@
 import random
+from pathlib import Path
 
 
 class BehavioralAnalyzer:
@@ -7,7 +8,7 @@ class BehavioralAnalyzer:
     This implementation returns random data to simulate a real analysis.
     """
 
-    def analyze(self, video_path: str) -> dict:
+    def analyze(self, video_path: Path | str) -> dict:
         """
         Runs a simulated behavioral analysis.
 
@@ -17,6 +18,7 @@ class BehavioralAnalyzer:
         Returns:
             A dictionary containing the calculated behavioral metrics.
         """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         # Seeding based on the filename ensures some consistency, while being random
         seed = hash(video_path)
         random.seed(seed)

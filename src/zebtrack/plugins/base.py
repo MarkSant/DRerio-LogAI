@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import numpy as np
 
@@ -12,12 +13,12 @@ class DetectorPlugin(ABC):
     """
 
     @abstractmethod
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: Path | str):
         """
         Initializes the plugin and loads the specified model.
 
         Args:
-            model_path (str): The path to the model file or directory.
+            model_path: The path to the model file or directory.
         """
         pass
 

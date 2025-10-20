@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 from typing import Any, FrozenSet  # noqa: UP035
 
 import cv2
@@ -382,12 +383,11 @@ class Recorder:
 
         log.info("recorder.save_parquet.no_data")
 
-    def _save_area_definitions(self, folder_path: str, zones: ZoneData):
+    def _save_area_definitions(self, folder_path: Path | str, zones: ZoneData):
         """Saves processing and interest area definitions to Parquet files."""
+        folder_path = Path(folder_path) if isinstance(folder_path, str) else folder_path
         # Save processing area
-        processing_area_filename = os.path.join(
-            folder_path, f"1_ProcessingArea_{self.base_name}.parquet"
-        )
+        processing_area_filename = folder_path / f"1_ProcessingArea_{self.base_name}.parquet"
         try:
             processing_df = pd.DataFrame(zones.polygon, columns=["x", "y"])
             table = pa.Table.from_pandas(processing_df)
@@ -402,9 +402,7 @@ class Recorder:
             )
 
         # Save areas of interest (polygons)
-        areas_of_interest_filename = os.path.join(
-            folder_path, f"2_AreasOfInterest_{self.base_name}.parquet"
-        )
+        areas_of_interest_filename = folder_path / f"2_AreasOfInterest_{self.base_name}.parquet"
         try:
             poly_data = []
             for i, polygon_points in enumerate(zones.roi_polygons):

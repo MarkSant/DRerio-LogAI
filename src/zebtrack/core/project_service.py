@@ -62,7 +62,7 @@ class ProjectService:
 
     def create_project_directory(
         self,
-        project_path: str,
+        project_path: Path | str,
         project_name: str,
         project_type: str,
         initial_data: dict | None = None,
@@ -83,7 +83,7 @@ class ProjectService:
             FileExistsError: If project directory already exists
             OSError: If directory creation fails
         """
-        project_path_obj = Path(project_path)
+        project_path_obj = Path(project_path) if isinstance(project_path, str) else project_path
 
         if project_path_obj.exists():
             raise FileExistsError(f"Project directory already exists: {project_path}")
@@ -125,7 +125,7 @@ class ProjectService:
 
         return project_data
 
-    def load_project_config(self, project_path: str) -> dict:
+    def load_project_config(self, project_path: Path | str) -> dict:
         """
         Load project configuration from JSON file.
 
@@ -140,7 +140,8 @@ class ProjectService:
             IntegrityError: If integrity hash doesn't match
             json.JSONDecodeError: If JSON is malformed
         """
-        config_file = Path(project_path) / CONFIG_FILE_NAME
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        config_file = project_path / CONFIG_FILE_NAME
 
         if not config_file.exists():
             raise FileNotFoundError(f"Project configuration not found: {config_file}")
@@ -170,7 +171,7 @@ class ProjectService:
             )
             raise
 
-    def save_project_config(self, project_path: str, project_data: dict) -> None:
+    def save_project_config(self, project_path: Path | str, project_data: dict) -> None:
         """
         Save project configuration to JSON file with integrity hash.
 
@@ -181,7 +182,8 @@ class ProjectService:
         Raises:
             OSError: If file write fails
         """
-        config_file = Path(project_path) / CONFIG_FILE_NAME
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        config_file = project_path / CONFIG_FILE_NAME
 
         # Update last modified timestamp
         project_data["last_modified"] = datetime.now().isoformat()
@@ -222,14 +224,15 @@ class ProjectService:
         # Use hashlib directly for in-memory data hashing
         return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
 
-    def _save_settings_snapshot(self, project_path: str) -> None:
+    def _save_settings_snapshot(self, project_path: Path | str) -> None:
         """
         Save a snapshot of current application settings to project.
 
         Args:
             project_path: Path to project directory
         """
-        snapshot_file = Path(project_path) / SETTINGS_SNAPSHOT_FILE_NAME
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        snapshot_file = project_path / SETTINGS_SNAPSHOT_FILE_NAME
 
         try:
             # Convert settings to dict for serialization
@@ -302,7 +305,7 @@ class ProjectService:
 
     def resolve_results_directory(
         self,
-        project_path: str,
+        project_path: Path | str,
         metadata: dict | None = None,
     ) -> Path:
         """
@@ -315,7 +318,8 @@ class ProjectService:
         Returns:
             Path: Results directory path
         """
-        results_dir = Path(project_path) / "results"
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        results_dir = project_path / "results"
 
         if metadata:
             # Build hierarchical path from metadata
@@ -355,7 +359,7 @@ class ProjectService:
     # Metadata Operations
     # -------------------------------------------------------------------------
 
-    def load_metadata_csv(self, project_path: str) -> pd.DataFrame | None:
+    def load_metadata_csv(self, project_path: Path | str) -> pd.DataFrame | None:
         """
         Load metadata.csv from project directory.
 
@@ -365,7 +369,8 @@ class ProjectService:
         Returns:
             pd.DataFrame | None: Metadata dataframe or None if file doesn't exist
         """
-        metadata_file = Path(project_path) / "metadata.csv"
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        metadata_file = project_path / "metadata.csv"
 
         if not metadata_file.exists():
             self.log.warning(
@@ -394,7 +399,7 @@ class ProjectService:
     # ROI Template Persistence
     # -------------------------------------------------------------------------
 
-    def ensure_roi_template_directory(self, project_path: str) -> Path:
+    def ensure_roi_template_directory(self, project_path: Path | str) -> Path:
         """
         Ensure ROI template directory exists.
 
@@ -404,12 +409,13 @@ class ProjectService:
         Returns:
             Path: Template directory path
         """
-        template_dir = Path(project_path) / "templates"
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        template_dir = project_path / "templates"
         return self.ensure_directory(template_dir)
 
     def save_roi_template(
         self,
-        project_path: str,
+        project_path: Path | str,
         template_name: str,
         template_data: dict,
     ) -> Path:
@@ -424,6 +430,7 @@ class ProjectService:
         Returns:
             Path: Path to saved template file
         """
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
         template_dir = self.ensure_roi_template_directory(project_path)
         template_file = template_dir / f"{template_name}.json"
 
@@ -444,7 +451,7 @@ class ProjectService:
             )
             raise
 
-    def load_roi_template(self, project_path: str, template_name: str) -> dict | None:
+    def load_roi_template(self, project_path: Path | str, template_name: str) -> dict | None:
         """
         Load an ROI template from JSON file.
 
@@ -455,7 +462,8 @@ class ProjectService:
         Returns:
             dict | None: Template data or None if not found
         """
-        template_dir = Path(project_path) / "templates"
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        template_dir = project_path / "templates"
         template_file = template_dir / f"{template_name}.json"
 
         if not template_file.exists():
@@ -482,7 +490,7 @@ class ProjectService:
             )
             return None
 
-    def list_roi_templates(self, project_path: str) -> list[str]:
+    def list_roi_templates(self, project_path: Path | str) -> list[str]:
         """
         List all available ROI templates in project.
 
@@ -492,7 +500,8 @@ class ProjectService:
         Returns:
             list[str]: List of template names (without .json extension)
         """
-        template_dir = Path(project_path) / "templates"
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
+        template_dir = project_path / "templates"
 
         if not template_dir.exists():
             return []
@@ -519,7 +528,7 @@ class ProjectService:
 
     def save_model_overrides(
         self,
-        project_path: str,
+        project_path: Path | str,
         project_data: dict,
         active_weight: str | None,
         use_openvino: bool,
@@ -565,7 +574,7 @@ class ProjectService:
 
     def save_arena_polygon(
         self,
-        project_path: str,
+        project_path: Path | str,
         project_data: dict,
         polygon_points: list[list[int]],
     ) -> None:

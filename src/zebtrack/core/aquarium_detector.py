@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import structlog
+from pathlib import Path
 from shapely.geometry import Polygon
 
 try:
@@ -21,14 +22,15 @@ class AquariumDetector:
     Detects aquariums in a video using a YOLO segmentation model.
     """
 
-    def __init__(self, model_path: str, mode: str = "seg"):
+    def __init__(self, model_path: Path | str, mode: str = "seg"):
         """
         Initializes the AquariumDetector.
 
         Args:
-            model_path (str): Path to the YOLO model (.pt file).
-            mode (str): Detection mode - "seg" for segmentation, "det" for detection.
+            model_path: Path to the YOLO model (.pt file).
+            mode: Detection mode - "seg" for segmentation, "det" for detection.
         """
+        model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
 
@@ -382,7 +384,7 @@ class AquariumDetector:
             log.warning("aquarium_detector.detect.consensus_failed")
             return []
 
-    def detect_aquariums(self, video_path: str, stabilization_frames: int = 10) -> list:
+    def detect_aquariums(self, video_path: Path | str, stabilization_frames: int = 10) -> list:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
 
@@ -391,13 +393,14 @@ class AquariumDetector:
         - "det": Uses bounding box detections converted to rectangular polygons
 
         Args:
-            video_path (str): The path to the video file.
-            stabilization_frames (int): The number of initial frames to analyze.
+            video_path: The path to the video file.
+            stabilization_frames: The number of initial frames to analyze.
 
         Returns:
             A list containing the single most stable polygon, or an empty list if
             no stable polygon could be found.
         """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         log.info("aquarium_detector.detect.start", video_path=video_path, mode=self.mode)
         source = None
         try:

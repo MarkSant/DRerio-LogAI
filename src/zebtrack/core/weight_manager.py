@@ -304,7 +304,7 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default.set", name=name_to_set)
 
-    def add_weight(self, new_path: str, set_as_default: bool, weight_type: str | None = None):
+    def add_weight(self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None):
         """
         Adds a new weight from a given path after performing security checks.
 
@@ -314,13 +314,14 @@ class WeightManager:
             weight_type: Optional weight type ("seg" or "det"). If None, will be
                          classified from filename.
         """
+        new_path = Path(new_path) if isinstance(new_path, str) else new_path
         # --- Security Check: Path Traversal ---
         try:
             # Resolve both paths to their absolute form to prevent symbolic link
             # tricks and ensure the file exists.
             project_dir = Path(self.config_dir).resolve()
             # strict=True checks existence
-            model_path = Path(new_path).resolve(strict=True)
+            model_path = new_path.resolve(strict=True)
 
             # Check if the model path is inside the project directory.
             # This is the primary defense against path traversal.
@@ -377,7 +378,7 @@ class WeightManager:
 
         # Store the original, user-provided path for display, but know it's safe.
         self.weights[new_name] = {
-            "path": new_path,
+            "path": str(new_path),
             "is_default": set_as_default,
             "type": weight_type,
             "is_default_seg": weight_type == "seg" and set_as_default,

@@ -444,7 +444,7 @@ class AnalysisService:
         video_info: dict,
         single_video_config: dict | None,
         experiment_id: str,
-        video_path: str,
+        video_path: Path | str,
         derive_callback: Callable[[str, str], dict] | None = None,
     ) -> dict | None:
         """
@@ -460,6 +460,7 @@ class AnalysisService:
         Returns:
             dict | None: Metadata context or None for single video
         """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         if single_video_config:
             return None
 

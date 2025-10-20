@@ -555,8 +555,8 @@ class Reporter:
                 + ", ".join(sorted(missing_columns))
             )
 
-    def export_summary_data(self, output_path: str, format: str = "excel"):
-        path = Path(output_path)
+    def export_summary_data(self, output_path: Path | str, format: str = "excel"):
+        path = Path(output_path) if isinstance(output_path, str) else output_path
         path.parent.mkdir(parents=True, exist_ok=True)
         self._validate_schema(self.tidy_data)
         if format == "excel":
@@ -990,7 +990,7 @@ class Reporter:
         # Return results in original order
         return [indexed_results[i] for i in range(len(plot_configs))]
 
-    def export_individual_report(self, output_path: str):
+    def export_individual_report(self, output_path: Path | str):
         """
         Exports a complete individual report. This is a convenience wrapper
         around the step-by-step method for consumers who don't need progress updates.
@@ -998,8 +998,9 @@ class Reporter:
         self.export_individual_report_step_by_step(output_path, lambda p, s: None)
 
     def export_individual_report_step_by_step(
-        self, output_path: str, progress_callback: Callable[[float, str], None]
+        self, output_path: Path | str, progress_callback: Callable[[float, str], None]
     ):
+        output_path = Path(output_path) if isinstance(output_path, str) else output_path
         total_steps = 10
         template_path = INDIVIDUAL_REPORT_TEMPLATE
         heading_text = _("Analysis Report - {experiment_id}").format(
@@ -1213,7 +1214,8 @@ class Reporter:
         return fig
 
     @staticmethod
-    def export_project_report(aggregated_df: pd.DataFrame, output_path: str):
+    def export_project_report(aggregated_df: pd.DataFrame, output_path: Path | str):
+        output_path = Path(output_path) if isinstance(output_path, str) else output_path
         document = Document()
         document.add_heading("Aggregated Project Report", level=1)
         document.add_heading("Descriptive Statistics by Group", level=2)

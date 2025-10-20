@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,13 +18,14 @@ from zebtrack.settings import settings
 class UltralyticsDetectorPlugin(DetectorPlugin):
     """A detector plugin that uses the ultralytics YOLO model."""
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: Path | str):
         """
         Initializes the YOLO model.
 
         Args:
-            model_path (str): The path to the .pt model file.
+            model_path: The path to the .pt model file.
         """
+        model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
         assert YOLO is not None

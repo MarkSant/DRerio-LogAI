@@ -6,6 +6,7 @@ import hashlib
 import math
 import random
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
 # No typing imports needed
 import numpy as np
@@ -30,8 +31,9 @@ class IntegrityError(Exception):
     pass
 
 
-def calculate_sha256(filepath: str) -> str:
+def calculate_sha256(filepath: Path | str) -> str:
     """Calculate the SHA256 hash of a file."""
+    filepath = Path(filepath) if isinstance(filepath, str) else filepath
 
     sha256_hash = hashlib.sha256()
     try:

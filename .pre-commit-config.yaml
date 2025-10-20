@@ -38,6 +38,17 @@ repos:
       - id: poetry-lock
         args: [--check]
 
+  # Local hooks for project-specific checks
+  - repo: local
+    hooks:
+      - id: check-path-consistency
+        name: Check Path | str consistency
+        entry: poetry run python scripts/check_path_consistency.py
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+
 # Global settings
 default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]

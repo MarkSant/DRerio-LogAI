@@ -3,7 +3,7 @@ Este módulo fornece a classe VideoFileSource, um wrapper conveniente em torno
 do `cv2.VideoCapture` para lidar com arquivos de vídeo como fontes de quadros.
 """
 
-import os
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -20,15 +20,16 @@ class VideoFileSource(FrameSource):
     Representa um arquivo de vídeo como uma fonte de quadros.
     """
 
-    def __init__(self, video_path: str):
+    def __init__(self, video_path: Path | str):
         """
         Inicializa a fonte de vídeo a partir de um caminho de arquivo.
         """
-        if not os.path.exists(video_path):
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        if not video_path.exists():
             raise FileNotFoundError(f"Video file not found at: {video_path}")
 
-        self.video_path = video_path
-        self.cap = cv2.VideoCapture(video_path)
+        self.video_path = str(video_path)
+        self.cap = cv2.VideoCapture(str(video_path))
 
         if not self.cap.isOpened():
             raise OSError(f"Cannot open video file: {video_path}")

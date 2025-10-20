@@ -69,6 +69,11 @@ class CameraSettings(BaseModel):
         ge=0.0,
         description="Total time to keep trying to reconnect (0 = no timeout)",
     )
+    max_frame_lag_ms: float = Field(
+        500.0,
+        ge=0.0,
+        description="Warn if frame lag exceeds this threshold (ms)",
+    )
 
 
 class ArduinoSettings(BaseModel):
@@ -617,8 +622,8 @@ def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[st
 
 
 def load_settings(
-    default_config_path: Path = Path("config.yaml"),
-    override_config_path: Path = Path("config.local.yaml"),
+    default_config_path: Path | str = Path("config.yaml"),
+    override_config_path: Path | str = Path("config.local.yaml"),
 ) -> Settings:
     """Load and validate application settings from YAML configuration files.
 
@@ -652,6 +657,8 @@ def load_settings(
         >>> print(settings.yolo_model.confidence_threshold)
         0.05
     """
+    default_config_path = Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
+    override_config_path = Path(override_config_path) if isinstance(override_config_path, str) else override_config_path
     if not default_config_path.is_file():
         log.error("settings.load.file_not_found", path=str(default_config_path))
         raise FileNotFoundError(f"Default configuration file not found at: {default_config_path}")
@@ -706,8 +713,8 @@ def load_settings(
 
 
 def reload_settings(
-    default_config_path: Path = Path("config.yaml"),
-    override_config_path: Path = Path("config.local.yaml"),
+    default_config_path: Path | str = Path("config.yaml"),
+    override_config_path: Path | str = Path("config.local.yaml"),
 ) -> Settings:
     """Reload settings from disk, useful after editing configuration files.
 
@@ -727,6 +734,8 @@ def reload_settings(
         >>> new_settings = reload_settings()
         >>> # Application now uses updated configuration
     """
+    default_config_path = Path(default_config_path) if isinstance(default_config_path, str) else default_config_path
+    override_config_path = Path(override_config_path) if isinstance(override_config_path, str) else override_config_path
     log.info("settings.reload.requested")
     return load_settings(default_config_path, override_config_path)
 

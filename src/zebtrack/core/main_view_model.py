@@ -915,13 +915,14 @@ class MainViewModel:
         self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
         self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
 
-    def open_project_workflow(self, project_path):
+    def open_project_workflow(self, project_path: Path | str):
         """
         Load project and configure everything automatically.
 
         Phase 5: Refactored to use ProjectWorkflowService for orchestration.
         Controller now focuses on UI updates and detector/zone setup.
         """
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
         # Update global model defaults before opening
         self.project_workflow_service.set_global_model_defaults(
             active_weight=self.active_weight_name or None,
@@ -1132,10 +1133,11 @@ class MainViewModel:
         """Classify weight type from filename - delegates to weight manager."""
         return self.weight_manager._classify_weight_type(filename)
 
-    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
+    def add_new_weight(self, path: Path | str, set_as_default: bool, weight_type: str | None = None):
         """Add a new weight with type classification."""
+        path = Path(path) if isinstance(path, str) else path
         self.weight_manager.add_weight(path, set_as_default, weight_type)
-        new_name = os.path.basename(path)
+        new_name = path.name
         # Refresh UI
         self.ui_event_bus.publish_event(
             Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
@@ -1179,9 +1181,11 @@ class MainViewModel:
         self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
 
     def load_new_weight(
-        self, filepath: str | None = None, weight_type: str | None = None, choice: str | None = None
+        self, filepath: Path | str | None = None, weight_type: str | None = None, choice: str | None = None
     ):
         """Handles the 'Load New Weight' button click."""
+        if filepath is not None:
+            filepath = Path(filepath) if isinstance(filepath, str) else filepath
         if filepath is None:
             self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE)
             return
@@ -1600,7 +1604,7 @@ class MainViewModel:
 
     def run_aquarium_detection(
         self,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         stabilization_frames: int = 10,
         temp_aquarium_method: str | None = None,
     ):
@@ -1612,6 +1616,8 @@ class MainViewModel:
             temp_aquarium_method: Temporary override for aquarium detection method
                 ('det' or 'seg'). If None, uses global settings.
         """
+        if video_path is not None:
+            video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("controller.aquarium_detection.start")
         self.ui_event_bus.publish_event(
             Events.UI_SET_STATUS,
@@ -2003,12 +2009,13 @@ class MainViewModel:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
+    def can_remove_project_asset(self, video_path: Path | str, asset: str) -> tuple[bool, str | None]:
         """Validate whether a project asset can be safely removed."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
 
         try:
             asset_type = cast(AssetType, asset)
-            return self.project_manager.can_remove_asset(video_path, asset_type)
+            return self.project_manager.can_remove_asset(str(video_path), asset_type)
         except Exception as exc:  # pragma: no cover - defensive logging
             log.error(
                 "controller.project_asset.can_remove_failed",
@@ -2020,17 +2027,18 @@ class MainViewModel:
 
     def delete_project_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         asset: str,
         *,
         delete_source: bool = True,
     ) -> bool:
         """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo)."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
 
         try:
             asset_type = cast(AssetType, asset)
             removed = self.project_manager.remove_asset(
-                video_path,
+                str(video_path),
                 asset_type,
                 delete_files=delete_source,
             )
@@ -2401,11 +2409,12 @@ class MainViewModel:
             log.info("controller.analysis.cancel_requested")
             self.cancel_event.set()
 
-    def start_single_video_workflow(self, video_path: str, config: dict):
+    def start_single_video_workflow(self, video_path: Path | str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
-        log.info("workflow.single_video.setup_start", video=video_path)
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        log.info("workflow.single_video.setup_start", video=str(video_path))
 
-        self.project_manager.set_active_zone_video(video_path)
+        self.project_manager.set_active_zone_video(str(video_path))
 
         # Use detection methods from config if provided, otherwise fall back to
         # global settings
@@ -2451,8 +2460,9 @@ class MainViewModel:
             {"video_path": video_path, "config": config},
         )
 
-    def start_single_video_processing(self, video_path: str, config: dict, zone_data: ZoneData):
+    def start_single_video_processing(self, video_path: Path | str, config: dict, zone_data: ZoneData):
         """Starts the actual processing for a single video after zone setup."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)
 
         self.project_manager.set_active_zone_video(video_path)
@@ -3084,7 +3094,7 @@ class MainViewModel:
 
     def _run_tracking_if_needed(
         self,
-        video_path: str,
+        video_path: Path | str,
         results_dir: str,
         experiment_id: str,
         progress_callback=None,
@@ -3101,6 +3111,7 @@ class MainViewModel:
             - list | None: The arena polygon used for tracking, or None if tracking
               failed.
         """
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         arena_polygon = self.project_manager.get_zone_data().polygon
@@ -4079,9 +4090,10 @@ class MainViewModel:
         )
 
     def _collect_params_from_project(
-        self, metadata_context: dict | None, experiment_id: str, video_path: str
+        self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
     ):
         """Extract parameters from project data (Phase 7.3)."""
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         calibration = project_data.get("calibration", {})
 

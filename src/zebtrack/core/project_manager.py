@@ -94,20 +94,22 @@ class ProjectManager:
             self.project_data["roi_templates"] = []
 
     @staticmethod
-    def _normalize_video_path(path: str | None) -> str | None:
+    def _normalize_video_path(path: Path | str | None) -> str | None:
         if not path:
             return None
+        path = Path(path) if isinstance(path, str) else path
         try:
-            resolved = Path(path).resolve(strict=False)
+            resolved = path.resolve(strict=False)
         except Exception:
-            resolved = Path(path)
+            resolved = path
         return resolved.as_posix()
 
-    def _resolve_zone_entry(self, video_path: str | None) -> tuple[str | None, dict | None]:
+    def _resolve_zone_entry(self, video_path: Path | str | None) -> tuple[str | None, dict | None]:
         """Locate a stored zone entry matching the provided video path."""
 
         if not video_path:
             return None, None
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
 
         self._ensure_zone_structures()
         zones_map = self.project_data.get("zones_by_video", {})
@@ -329,13 +331,14 @@ class ProjectManager:
 
     def import_roi_template(
         self,
-        file_path: str,
+        file_path: Path | str,
         *,
         name: str | None = None,
         persist: bool = True,
     ) -> dict[str, Any]:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(file_path)
+        file_path = Path(file_path) if isinstance(file_path, str) else file_path
+        if not file_path.exists():
+            raise FileNotFoundError(str(file_path))
 
         with open(file_path, encoding="utf-8") as handle:
             payload = json.load(handle)
@@ -345,7 +348,7 @@ class ProjectManager:
             raise ValueError("Arquivo de template inválido: bloco 'data' ausente.")
 
         zone_data = self._zone_data_from_dict(data_block)
-        template_name = name or payload.get("name") or Path(file_path).stem
+        template_name = name or payload.get("name") or file_path.stem
 
         has_arena = bool(zone_data.polygon)
         has_rois = bool(zone_data.roi_polygons)
@@ -457,10 +460,11 @@ class ProjectManager:
 
     def _update_video_zone_flags(
         self,
-        video_path: str,
+        video_path: Path | str,
         zone_data: ZoneData | None,
     ) -> None:
         """Update has_arena/has_rois flags for a given video entry."""
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
         if not self.project_data or not video_path:
             return
@@ -480,9 +484,11 @@ class ProjectManager:
                     video["zones_finalized"] = False
                     return
 
-    def _refresh_last_zone_source(self, removed_path: str | None = None) -> None:
+    def _refresh_last_zone_source(self, removed_path: Path | str | None = None) -> None:
         """Refresh cache for last zone source video when data changes."""
 
+        if removed_path is not None:
+            removed_path = Path(removed_path) if isinstance(removed_path, str) else removed_path
         zones_map = self.project_data.get("zones_by_video", {})
 
         if removed_path and self._last_zone_source_video:
@@ -510,7 +516,7 @@ class ProjectManager:
     # Public helpers for zone lifecycle
     # ------------------------------------------------------------------
 
-    def set_active_zone_video(self, video_path: str | None) -> None:
+    def set_active_zone_video(self, video_path: Path | str | None) -> None:
         """Set the video whose zones should be considered active in memory."""
 
         self._ensure_zone_structures()
@@ -519,6 +525,7 @@ class ProjectManager:
             self._active_zone_video = None
             return
 
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
         normalized_path = self._normalize_video_path(video_path)
         key, stored = self._resolve_zone_entry(video_path)
         zones_map = self.project_data.get("zones_by_video", {})
@@ -566,12 +573,13 @@ class ProjectManager:
 
         return None
 
-    def has_zone_data(self, video_path: str | None) -> bool:
+    def has_zone_data(self, video_path: Path | str | None) -> bool:
         """Check whether the given video currently stores arena or ROI data."""
 
         if not video_path:
             return False
 
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
         self._ensure_zone_structures()
         _, stored = self._resolve_zone_entry(video_path)
 
@@ -584,12 +592,14 @@ class ProjectManager:
     def save_zone_data(
         self,
         zone_data: ZoneData,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         *,
         persist: bool = True,
     ) -> None:
         """Persist zone data for the active video and project defaults."""
 
+        if video_path is not None:
+            video_path = Path(video_path) if isinstance(video_path, str) else video_path
         self._ensure_zone_structures()
 
         target_video = video_path if video_path is not None else self._active_zone_video
@@ -613,11 +623,12 @@ class ProjectManager:
 
     def clear_zone_data_for_video(
         self,
-        video_path: str,
+        video_path: Path | str,
         *,
         persist: bool = True,
     ) -> None:
         """Remove stored zone data for a specific video."""
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
         self._ensure_zone_structures()
 
@@ -635,16 +646,17 @@ class ProjectManager:
         if persist:
             self.save_project()
 
-    def clone_zone_data_from_video(self, video_path: str) -> ZoneData:
+    def clone_zone_data_from_video(self, video_path: Path | str) -> ZoneData:
         """Return a deep copy of zone data stored for another video."""
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
         _, stored = self._resolve_zone_entry(video_path)
         return self._zone_data_from_dict(stored)
 
     def copy_zone_parquet_files(
         self,
-        source_video_path: str,
-        target_video_path: str,
+        source_video_path: Path | str,
+        target_video_path: Path | str,
         *,
         persist: bool = True,
     ) -> dict[str, str]:
@@ -652,6 +664,8 @@ class ProjectManager:
 
         Returns a mapping with the copied parquet types and their new paths.
         """
+        source_video_path = str(Path(source_video_path) if isinstance(source_video_path, str) else source_video_path)
+        target_video_path = str(Path(target_video_path) if isinstance(target_video_path, str) else target_video_path)
 
         copied: dict[str, str] = {}
 
@@ -868,7 +882,8 @@ class ProjectManager:
         return results
 
     @classmethod
-    def _scan_directory_for_videos(cls, directory: Path, video_extensions: set[str]) -> list[Path]:
+    def _scan_directory_for_videos(cls, directory: Path | str, video_extensions: set[str]) -> list[Path]:
+        directory = Path(directory) if isinstance(directory, str) else directory
         cache_key = str(directory.resolve())
         signature = cls._compute_path_signature(directory)
         now = time.time()
@@ -901,7 +916,8 @@ class ProjectManager:
         return videos
 
     @classmethod
-    def _scan_file_entry(cls, file_path: Path, video_extensions: set[str]) -> list[Path]:
+    def _scan_file_entry(cls, file_path: Path | str, video_extensions: set[str]) -> list[Path]:
+        file_path = Path(file_path) if isinstance(file_path, str) else file_path
         if file_path.suffix.lower() not in video_extensions:
             return []
 
@@ -927,7 +943,8 @@ class ProjectManager:
         return videos
 
     @staticmethod
-    def _compute_path_signature(path: Path) -> tuple[str, int]:
+    def _compute_path_signature(path: Path | str) -> tuple[str, int]:
+        path = Path(path) if isinstance(path, str) else path
         try:
             stat_result = path.stat()
         except FileNotFoundError:
@@ -936,12 +953,13 @@ class ProjectManager:
         return (str(stat_result.st_mtime_ns), stat_result.st_size)
 
     @classmethod
-    def clear_scan_cache(cls, target_path: str | None = None) -> None:
+    def clear_scan_cache(cls, target_path: Path | str | None = None) -> None:
         if target_path is None:
             cls._scan_cache.clear()
             return
 
-        resolved = str(Path(target_path).resolve())
+        target_path = Path(target_path) if isinstance(target_path, str) else target_path
+        resolved = str(target_path.resolve())
         cls._scan_cache.pop(resolved, None)
         cls._scan_cache.pop(target_path, None)
 
@@ -1313,7 +1331,7 @@ class ProjectManager:
 
     def create_new_project(
         self,
-        project_path,
+        project_path: Path | str,
         project_type,
         use_openvino=False,
         active_weight=None,
@@ -1345,6 +1363,7 @@ class ProjectManager:
         Initializes a new project, creating its directory and config file.
         It no longer handles OpenVINO conversion, just records the settings.
         """
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
         self.project_path = project_path
         log_context = log.bind(
             project_path=project_path,
@@ -1522,12 +1541,13 @@ class ProjectManager:
         if save_project:
             self.save_project()
 
-    def load_project(self, project_path):
+    def load_project(self, project_path: Path | str):
         """
         Loads project data from a config file in the given directory.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
+        project_path = Path(project_path) if isinstance(project_path, str) else project_path
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         log_context = log.bind(path=config_path)
         log_context.info("project.load.start")
@@ -1777,13 +1797,15 @@ class ProjectManager:
 
         return True
 
-    def update_video_status(self, video_path, new_status):
+    def update_video_status(self, video_path: Path | str, new_status):
         """
         Updates the status of a specific video across all batches and saves the project.
         """
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        video_path_str = str(video_path)
         for batch in self.project_data.get("batches", []):
             for video in batch.get("videos", []):
-                if video["path"] == video_path:
+                if video["path"] == video_path_str:
                     video["status"] = new_status
                     log.info(
                         "video.status.update",
@@ -1850,10 +1872,11 @@ class ProjectManager:
             and video_entry.get("has_trajectory")
         )
 
-    def _delete_file_if_exists(self, path: str | None) -> bool:
+    def _delete_file_if_exists(self, path: Path | str | None) -> bool:
         if not path:
             return False
 
+        path = Path(path) if isinstance(path, str) else path
         try:
             os.remove(path)
             log.info("project_manager.asset.file_deleted", path=path)
@@ -1869,7 +1892,8 @@ class ProjectManager:
             )
             return False
 
-    def can_remove_asset(self, video_path: str, asset: AssetType) -> tuple[bool, str | None]:
+    def can_remove_asset(self, video_path: Path | str, asset: AssetType) -> tuple[bool, str | None]:
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             return False, "Vídeo não encontrado no projeto."
@@ -1910,11 +1934,12 @@ class ProjectManager:
 
     def remove_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         asset: AssetType,
         *,
         delete_files: bool = True,
     ) -> bool:
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             log.warning("project_manager.asset.remove_video_missing", path=video_path)
@@ -1940,10 +1965,11 @@ class ProjectManager:
 
     def _remove_arena_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
     ) -> bool:
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         changed = False
 
         self.clear_zone_data_for_video(video_path, persist=False)
@@ -1969,10 +1995,11 @@ class ProjectManager:
 
     def _remove_rois_asset(
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
     ) -> bool:
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         changed = False
 
         zone_data = self.get_zone_data(video_path, fallback_to_global=False)
@@ -2043,10 +2070,11 @@ class ProjectManager:
 
     def _remove_video_entry(
         self,
-        video_path: str,
+        video_path: Path | str,
         video_entry: dict,
         delete_files: bool,
     ) -> bool:
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         changed = False
 
         parquet_files = dict(video_entry.get("parquet_files") or {})
@@ -2102,10 +2130,12 @@ class ProjectManager:
     def derive_processing_metadata(
         self,
         experiment_id: str,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
     ) -> dict:
         """Construct metadata for processing when metadata.csv has no entry."""
 
+        if video_path is not None:
+            video_path = Path(video_path) if isinstance(video_path, str) else video_path
         metadata: dict = {}
 
         video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
@@ -2250,7 +2280,7 @@ class ProjectManager:
 
     def register_processing_outputs(
         self,
-        video_path: str,
+        video_path: Path | str,
         *,
         results_dir: str | None = None,
         trajectory_path: str | None = None,
@@ -2259,6 +2289,7 @@ class ProjectManager:
         report_path: str | None = None,
     ) -> bool:
         """Update project metadata with freshly generated analysis artifacts."""
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             log.info(
@@ -2302,8 +2333,9 @@ class ProjectManager:
 
         return True
 
-    def _update_entry_zone_flags(self, video_entry: dict, video_path: str) -> None:
+    def _update_entry_zone_flags(self, video_entry: dict, video_path: Path | str) -> None:
         """Update has_arena/has_rois flags from zone data when missing for a video entry."""
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         zone_data = self.get_zone_data(video_path, fallback_to_global=False)
         if not zone_data:
             return
@@ -2388,12 +2420,14 @@ class ProjectManager:
 
     def get_zone_data(
         self,
-        video_path: str | None = None,
+        video_path: Path | str | None = None,
         *,
         fallback_to_global: bool = True,
     ) -> ZoneData:
         """Retrieve zone data for a specific video or fallback to project defaults."""
 
+        if video_path is not None:
+            video_path = Path(video_path) if isinstance(video_path, str) else video_path
         self._ensure_zone_structures()
 
         target_video = video_path if video_path is not None else self._active_zone_video

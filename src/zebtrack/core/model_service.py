@@ -390,7 +390,7 @@ class ModelService:
             "openvino_status": ov_status["status"],
         }
 
-    def find_weight_by_path(self, weight_path: str) -> tuple[str, dict] | tuple[None, None]:
+    def find_weight_by_path(self, weight_path: Path | str) -> tuple[str, dict] | tuple[None, None]:
         """
         Find a weight by its file path.
 
@@ -402,11 +402,14 @@ class ModelService:
         Returns:
             tuple: (weight_name, weight_details) or (None, None) if not found
         """
+        weight_path = Path(weight_path) if isinstance(weight_path, str) else weight_path
         if not weight_path:
             return None, None
 
+        # Compare paths as Path objects to handle cross-platform differences
         for name, details in self.weight_manager.weights.items():
-            if details.get("path") == weight_path:
+            stored_path = details.get("path")
+            if stored_path and Path(stored_path) == weight_path:
                 return name, details
 
         log.warning("model_service.weight_not_found_by_path", path=weight_path)
