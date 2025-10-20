@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-ZebTrack-AI is a desktop Tkinter application for multi-animal behavioral tracking and analysis in aquatic research. It automates video tracking (live/recorded), behavioral analysis, and scientific report generation using YOLO/OpenVINO models. The codebase follows an MVVM-like architecture with a component-based UI system.
+**DRerio LogAI** (internally packaged as `zebtrack`) is a desktop Tkinter application for multi-animal behavioral tracking and analysis in *Danio rerio* (zebrafish) research. It automates video tracking (live/recorded), behavioral analysis, and scientific report generation using YOLO/OpenVINO models. The codebase follows an MVVM-like architecture with a component-based UI system.
+
+**Note on Naming**: The product name is "DRerio LogAI", but the internal Python package remains `zebtrack` for compatibility. See `TRANSITION_NOTE.md` for full context.
 
 ## Essential Commands
 

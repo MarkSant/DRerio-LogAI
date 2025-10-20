@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "zebtrack-controller"
+name = "drerio-logai"
 version = "0.1.0"
-description = "A graphical application for object tracking in video streams, with integration for hardware control via Arduino."
+description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
 authors = ["The Project Developers <placeholder@example.com>"]
 license = "MIT"
 readme = "README.md"
@@ -29,6 +29,7 @@ docxtpl = "^0.16.7"
 openpyxl = "^3.1.5"
 cython-bbox = "^0.1.3"
 ttkbootstrap = "^1.10.1"
+tomli = "^2.0.1"
 # Pin setuptools < 81 to prevent pkg_resources removal (docxcompose dependency)
 # docxcompose (used by docxtpl for Word reports) still uses deprecated pkg_resources
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html

@@ -112,6 +112,12 @@ def main():
 
     try:
         root = tk.Tk()
+
+        # Set application icon
+        from zebtrack.ui.icon_utils import set_window_icon
+
+        set_window_icon(root)
+
         maximize_window(root)
 
         # Create the EventBus instance

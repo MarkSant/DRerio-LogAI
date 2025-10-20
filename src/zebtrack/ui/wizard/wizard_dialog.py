@@ -84,7 +84,12 @@ class WizardDialog(Dialog):
         log.info("wizard.opened")
 
         # Call parent constructor (will call body())
-        super().__init__(parent, title="Novo Projeto - Wizard")
+        super().__init__(parent, title="DRerio LogAI - Novo Projeto")
+
+        # Set application icon
+        from zebtrack.ui.icon_utils import set_window_icon
+
+        set_window_icon(self)
 
     def body(self, master):
         """
@@ -225,7 +230,7 @@ class WizardDialog(Dialog):
             # Update window title with step number
             step_number = step_index + 1
             total_steps = len(self.active_steps)
-            title_text = f"Assistente de Criacao de Projeto - Etapa {step_number}/{total_steps}"
+            title_text = f"DRerio LogAI - Assistente de Projeto (Etapa {step_number}/{total_steps})"
             self.title(title_text)
 
             log.info(

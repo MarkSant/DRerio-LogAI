@@ -1,11 +1,19 @@
-# ZebTrack-AI
+<p align="center">
+  <img src="docs/drerio_logai_logo.png" alt="DRerio LogAI Logo" width="256"/>
+</p>
 
-[![CI](https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<h1 align="center">DRerio LogAI</h1>
 
-ZebTrack-AI é uma aplicação desktop construída com Tkinter que automatiza todo o fluxo de rastreamento multi-animal, análise comportamental e geração de relatórios científicos a partir de vídeos gravados ou ao vivo. O projeto combina modelos de visão computacional (YOLO/OpenVINO), análises especializadas de comportamento e uma interface amigável para laboratórios que estudam zebrafish e outros organismos aquáticos.
+<p align="center">
+  <a href="https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml"><img src="https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+**DRerio LogAI** é uma aplicação desktop construída com Tkinter que automatiza todo o fluxo de rastreamento multi-animal, análise comportamental e geração de relatórios científicos para pesquisa com *Danio rerio* (zebrafish). O projeto combina modelos de visão computacional (YOLO/OpenVINO), análises especializadas de comportamento e uma interface amigável, oferecendo uma solução completa para laboratórios de pesquisa translacional.
+
+> **Nota sobre o nome**: Este projeto foi anteriormente conhecido como "ZebTrack-AI" durante o desenvolvimento. O nome oficial do produto é **DRerio LogAI**. O nome do pacote interno Python (`zebtrack`) foi mantido por compatibilidade.
 
 > _Screenshot/preview do app virá em breve._
 
@@ -25,9 +33,9 @@ ZebTrack-AI é uma aplicação desktop construída com Tkinter que automatiza to
 - [Contribuindo](#contribuindo)
 - [Licença](#licença)
 
-## Proposito do projeto
+## Propósito do projeto
 
-Entregar uma solução de ponta a ponta para pesquisadores que precisam rastrear múltiplos animais em vídeo, extrair métricas comportamentais e produzir relatórios publicáveis sem sair da aplicação. O ZebTrack-AI integra detecção, rastreamento, análise de ROIs, relatórios (Excel/Word/CSV/Parquet) e ferramentas de QA com foco em reprodutibilidade e alta produtividade.
+Entregar uma solução de ponta a ponta para pesquisadores que precisam rastrear múltiplos animais em vídeo, extrair métricas comportamentais e produzir relatórios publicáveis sem sair da aplicação. O **DRerio LogAI** integra detecção, rastreamento, análise de ROIs, relatórios (Excel/Word/CSV/Parquet) e ferramentas de QA com foco em reprodutibilidade e alta produtividade.
 
 ## Guia rápido
 

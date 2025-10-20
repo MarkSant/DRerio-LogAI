@@ -122,6 +122,11 @@ class CalibrationDialog(simpledialog.Dialog):
 
         super().__init__(parent, "Calibração e Diagnóstico")
 
+        # Set application icon
+        from zebtrack.ui.icon_utils import set_window_icon
+
+        set_window_icon(self)
+
     def body(self, master):
         schedule_maximize(self)
         scope_frame = ttk.LabelFrame(master, text="Contexto da Calibração", padding=10)
@@ -1667,12 +1672,15 @@ class ApplicationGUI:
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[EventType, Callable[[Any], None]] = {}
-        self.root.title("Controlador Zebtrack")
+        self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
         self._ttkbootstrap_style = None
         self._ttkbootstrap_theme = None
         self._initialize_theme()
+
+        # Create menu bar
+        self._create_menu_bar()
 
         # Dynamic widgets / state variables
         self.welcome_frame = None
@@ -2300,8 +2308,175 @@ class ApplicationGUI:
                 self.start_single_analysis_btn.destroy()
             self.start_single_analysis_btn = None
 
+    def _update_window_title(self, project_name: str | None = None):
+        """
+        Updates the window title with optional project name.
+
+        Args:
+            project_name: Name of the current project, or None for default title
+        """
+        if project_name:
+            self.root.title(f"DRerio LogAI - {project_name}")
+        else:
+            self.root.title("DRerio LogAI")
+
+    def _create_menu_bar(self):
+        """Creates the application menu bar with Help menu."""
+        menubar = Menu(self.root)
+        self.root.config(menu=menubar)
+
+        # Help menu
+        help_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Ajuda", menu=help_menu)
+        help_menu.add_command(label="Sobre DRerio LogAI", command=self._show_about_dialog)
+
+    def _show_about_dialog(self):
+        """Shows the About dialog with application information."""
+        from pathlib import Path
+        from tkinter import Toplevel
+
+        about_window = Toplevel(self.root)
+        about_window.title("Sobre DRerio LogAI")
+        about_window.resizable(False, False)
+
+        # Set icon for About window
+        from zebtrack.ui.icon_utils import set_window_icon
+
+        set_window_icon(about_window)
+
+        # Center the window
+        about_window.geometry("400x450")
+        about_window.transient(self.root)
+        about_window.grab_set()
+
+        # Logo
+        try:
+            logo_path = Path(__file__).parent / "assets" / "logo_about.png"
+            if not logo_path.exists():
+                logo_path = Path("src/zebtrack/ui/assets/logo_about.png")
+
+            if logo_path.exists():
+                logo_pil = Image.open(logo_path)
+                self._about_logo_image = ImageTk.PhotoImage(logo_pil)
+                logo_label = ttk.Label(about_window, image=self._about_logo_image)
+                logo_label.pack(pady=(20, 10))
+        except Exception as e:
+            log.warning("about.logo.load_error", error=str(e))
+
+        # Application name
+        name_label = ttk.Label(
+            about_window, text="DRerio LogAI", font=("-size", 18, "bold")
+        )
+        name_label.pack(pady=(10, 5))
+
+        # Version (from pyproject.toml)
+        try:
+            import tomli
+
+            pyproject_path = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
+            if pyproject_path.exists():
+                with open(pyproject_path, "rb") as f:
+                    pyproject_data = tomli.load(f)
+                    version = pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
+            else:
+                version = "Development"
+        except Exception:
+            version = "Unknown"
+
+        version_label = ttk.Label(about_window, text=f"Versão {version}", font=("-size", 10))
+        version_label.pack(pady=(0, 15))
+
+        # Description
+        desc_text = (
+            "Rastreamento e análise comportamental automatizada\n"
+            "para pesquisa com Danio rerio (zebrafish)\n\n"
+            "Integração de visão computacional (YOLO/OpenVINO),\n"
+            "análise comportamental e geração de relatórios científicos"
+        )
+        desc_label = ttk.Label(
+            about_window, text=desc_text, justify="center", font=("-size", 9)
+        )
+        desc_label.pack(pady=(0, 15))
+
+        # Repository link
+        repo_frame = ttk.Frame(about_window)
+        repo_frame.pack(pady=(0, 10))
+
+        ttk.Label(repo_frame, text="Repositório:", font=("-size", 9, "bold")).pack()
+        repo_link = ttk.Label(
+            repo_frame,
+            text="github.com/YOUR_USERNAME/ZebTrack-AI",
+            font=("-size", 9),
+            foreground="blue",
+            cursor="hand2",
+        )
+        repo_link.pack()
+
+        def open_repo(event):
+            import webbrowser
+
+            webbrowser.open("https://github.com/YOUR_USERNAME/ZebTrack-AI")
+
+        repo_link.bind("<Button-1>", open_repo)
+
+        # License
+        license_label = ttk.Label(about_window, text="Licença: MIT", font=("-size", 9))
+        license_label.pack(pady=(10, 15))
+
+        # Close button
+        close_btn = ttk.Button(about_window, text="Fechar", command=about_window.destroy)
+        close_btn.pack(pady=(0, 20))
+
+        # Center window on screen
+        about_window.update_idletasks()
+        x = (about_window.winfo_screenwidth() // 2) - (400 // 2)
+        y = (about_window.winfo_screenheight() // 2) - (450 // 2)
+        about_window.geometry(f"400x450+{x}+{y}")
+
+    def _display_welcome_logo(self):
+        """Displays the DRerio LogAI logo in the welcome frame."""
+        try:
+            from pathlib import Path
+
+            # Try to load logo from assets
+            logo_path = Path(__file__).parent / "assets" / "logo_welcome.png"
+
+            if not logo_path.exists():
+                # Fallback for development environment
+                logo_path = Path("src/zebtrack/ui/assets/logo_welcome.png")
+
+            if logo_path.exists():
+                # Load and display logo
+                logo_pil = Image.open(logo_path)
+                self._welcome_logo_image = ImageTk.PhotoImage(logo_pil)
+
+                logo_label = ttk.Label(self.welcome_frame, image=self._welcome_logo_image)
+                logo_label.pack(pady=(10, 20))
+
+                log.debug("welcome.logo.displayed", path=str(logo_path))
+            else:
+                # Fallback to text if logo not found
+                ttk.Label(
+                    self.welcome_frame,
+                    text="Bem-vindo ao DRerio LogAI",
+                    font=("Helvetica", 16),
+                ).pack(pady=(0, 15))
+                log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
+
+        except Exception as e:
+            # Fallback to text on any error
+            ttk.Label(
+                self.welcome_frame,
+                text="Bem-vindo ao DRerio LogAI",
+                font=("Helvetica", 16),
+            ).pack(pady=(0, 15))
+            log.warning("welcome.logo.load_error", error=str(e))
+
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""
+        # Reset title to default (no project)
+        self._update_window_title()
+
         self._cleanup_single_analysis_button()
         # CRITICAL: Force process all pending GUI events before cleanup
         # This ensures all scheduled callbacks are executed
@@ -2317,12 +2492,8 @@ class ApplicationGUI:
         self.welcome_frame = ttk.Frame(self.root, padding="10")
         self.welcome_frame.pack(expand=True, fill="both")
 
-        # --- Title ---
-        ttk.Label(
-            self.welcome_frame,
-            text="Bem-vindo ao Controlador Zebtrack",
-            font=("Helvetica", 16),
-        ).pack(pady=(0, 15))
+        # --- Logo Image ---
+        self._display_welcome_logo()
 
         # Project actions and model status widgets
         self._build_project_actions(self.welcome_frame)
@@ -8469,6 +8640,13 @@ class ApplicationGUI:
                 pass
 
         pm = self.controller.project_manager
+
+        # Update window title with project name
+        try:
+            project_name = pm.get_project_name() if hasattr(pm, "get_project_name") else None
+            self._update_window_title(project_name)
+        except Exception:
+            pass  # Keep default title if name unavailable
 
         # Load persisted user preferences if present
         if pm.get_project_type() == "pre-recorded":

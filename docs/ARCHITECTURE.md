@@ -1,10 +1,12 @@
-# ZebTrack-AI – Visão Arquitetural
+# DRerio LogAI – Visão Arquitetural
 
-Este documento descreve a arquitetura técnica do ZebTrack-AI, destacando os principais componentes, fluxos de dados e decisões que norteiam o desenvolvimento e a manutenção do projeto.
+Este documento descreve a arquitetura técnica do **DRerio LogAI** (pacote interno `zebtrack`), destacando os principais componentes, fluxos de dados e decisões que norteiam o desenvolvimento e a manutenção do projeto.
+
+> **Nota**: O nome do produto é "DRerio LogAI", mas o pacote Python interno permanece como `zebtrack`. Ver `TRANSITION_NOTE.md` para contexto completo.
 
 ## 1. Panorama
 
-ZebTrack-AI é uma aplicação desktop baseada em Tkinter que organiza o fluxo completo de análise comportamental de animais aquáticos:
+**DRerio LogAI** é uma aplicação desktop baseada em Tkinter que organiza o fluxo completo de análise comportamental de *Danio rerio* (zebrafish) e outros organismos aquáticos:
 
 1.  **Captura/Carga de vídeo** (ao vivo ou pré-gravado).
 2.  **Rastreamento multi-animal** usando plugins de detecção.
