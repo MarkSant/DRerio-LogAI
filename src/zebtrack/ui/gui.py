@@ -453,12 +453,14 @@ class CalibrationDialog(simpledialog.Dialog):
         """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
         self.controller.ui_event_bus.publish_event(
+
             Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
         )
 
     def _on_openvino_toggled_local(self):
         """Callback when user toggles the OpenVINO checkbox."""
         self.controller.ui_event_bus.publish_event(
+
             Events.MODEL_SET_OPENVINO,
             {"use_openvino": self.use_openvino_var.get(), "dialog": self},
         )
