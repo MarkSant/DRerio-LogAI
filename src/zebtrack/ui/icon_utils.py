@@ -54,6 +54,9 @@ def set_window_icon(window) -> None:
 
     try:
         window.iconbitmap(default=str(icon_path))
-        log.info("icon.set.success", window_title=window.title() if hasattr(window, "title") else "unknown")
+        log.info(
+            "icon.set.success",
+            window_title=window.title() if hasattr(window, "title") else "unknown",
+        )
     except Exception as e:
         log.warning("icon.set.failed", error=str(e), path=str(icon_path))
