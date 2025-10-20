@@ -50,11 +50,44 @@ def configure_logging():
     )
 
 
+import argparse
+
+
 def main():
     """
     Initializes and runs the application.
     """
+    # --- Argument Parsing ---
+    parser = argparse.ArgumentParser(description="ZebTrack-AI: Multi-animal tracking.")
+    parser.add_argument(
+        "--log-level",
+        action="append",
+        help="Override log level: MODULE=LEVEL (e.g., zebtrack.core.detector=DEBUG)",
+    )
+    args = parser.parse_args()
+
+    # --- Logging Configuration ---
     configure_logging()
+    from zebtrack.logging_config import configure_logging_levels
+
+    configure_logging_levels()
+
+    # Apply CLI overrides after initial configuration
+    if args.log_level:
+        for override in args.log_level:
+            try:
+                module, level = override.split("=", 1)
+                level_upper = level.upper()
+                # Basic validation, though setLevel handles unknown strings
+                if level_upper not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+                    print(f"Warning: Invalid log level '{level}' in override. Ignoring.")
+                    continue
+
+                logging.getLogger(module).setLevel(level_upper)
+                print(f"CLI override: Set log level for '{module}' to '{level_upper}'")
+            except ValueError:
+                print(f"Warning: Invalid --log-level format '{override}'. Use MODULE=LEVEL.")
+
     log = structlog.get_logger()
 
     # --- Critical Check for Settings ---

@@ -232,6 +232,17 @@ performance:
   # When true, BehavioralAnalyzer and ROIAnalyzer may run concurrently
   enable_parallel_analysis: true
 
+# -----------------------------------------------------------------------------
+# Logging Settings
+# -----------------------------------------------------------------------------
+logging:
+  levels:
+    zebtrack: INFO
+    zebtrack.core.detector: INFO  # Can be overridden to DEBUG for development
+    zebtrack.ui: WARNING
+    zebtrack.io: WARNING
+    zebtrack.analysis: INFO
+
 # =============================================================================
 # End of Configuration
 # =============================================================================
