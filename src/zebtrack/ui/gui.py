@@ -4692,16 +4692,6 @@ class ApplicationGUI:
         # Add left panel without invalid minsize parameter
         main_pane.add(left_panel_frame, weight=1)
 
-        # Set initial sash position to 420 pixels for left panel width
-        # Increased to ensure template "Aplicar" button is fully visible
-        def _set_initial_sash():
-            try:
-                main_pane.sashpos(0, 420)
-            except Exception:
-                pass  # Sash position might fail if pane isn't fully realized yet
-
-        main_pane.after(10, _set_initial_sash)
-
         # ✨ NEW: Create ZoneControlsWidget instead of inline controls
         self.zone_controls = ZoneControlsWidget(left_panel_frame, event_bus=self.event_bus)
         self.zone_controls.pack(fill="both", expand=True)
@@ -4709,6 +4699,7 @@ class ApplicationGUI:
         # Keep reference to internal widgets for backward compatibility
         # TODO: Migrate code to use ZoneControlsWidget API instead
         self.zone_controls_frame = self.zone_controls.zone_controls_frame
+        self.fixed_button_frame = self.zone_controls.fixed_button_frame
 
         # 4. Create the visualization panel on the right
         self.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
@@ -4717,10 +4708,11 @@ class ApplicationGUI:
         # Bind pane configure event to maintain minimum left panel width
         def _on_pane_configure(event=None):
             try:
-                # Clamp left panel to minimum 380px width to show all buttons
+                # Clamp left panel to minimum 560px width to show all buttons
+                # including "Aplicar" button and properly centered text
                 current_pos = main_pane.sashpos(0)
-                if current_pos < 380:
-                    main_pane.sashpos(0, 380)
+                if current_pos < 560:
+                    main_pane.sashpos(0, 560)
             except Exception:
                 pass  # Ignore errors during resize
 
@@ -4745,6 +4737,23 @@ class ApplicationGUI:
 
         # 7. ✨ NEW: Subscribe to events emitted by the components
         self._subscribe_zone_component_events()
+
+        # 8. Set initial sash position AFTER all widgets are created
+        # This ensures the geometry is properly calculated
+        def _set_initial_sash():
+            try:
+                # Use update_idletasks to ensure geometry is calculated
+                main_pane.update_idletasks()
+                # Set to 600px to ensure "Aplicar" button is fully visible with comfortable spacing
+                main_pane.sashpos(0, 600)
+            except Exception:
+                pass  # Sash position might fail if pane isn't fully realized yet
+
+        # Try multiple times with increasing delays to ensure it sticks
+        main_pane.after(10, _set_initial_sash)
+        main_pane.after(50, _set_initial_sash)
+        main_pane.after(100, _set_initial_sash)
+        main_pane.after(200, _set_initial_sash)
 
     def _subscribe_zone_component_events(self):
         """
@@ -5920,9 +5929,11 @@ class ApplicationGUI:
         """Handle ROI inclusion rule change and update UI accordingly."""
         rule = self.roi_inclusion_rule_var.get()
 
-        # Hide all parameter frames first
-        self.radius_frame.pack_forget()
-        self.overlap_frame.pack_forget()
+        # Hide all parameter frames first (only if they exist)
+        if hasattr(self, "radius_frame") and self.radius_frame:
+            self.radius_frame.pack_forget()
+        if hasattr(self, "overlap_frame") and self.overlap_frame:
+            self.overlap_frame.pack_forget()
 
         # Show appropriate parameters and help text based on rule
         if rule == "centroid_in":
@@ -5933,7 +5944,8 @@ class ApplicationGUI:
             )
 
         elif rule == "centroid_in_on_buffered_roi":
-            self.radius_frame.pack(fill="x", pady=2)
+            if hasattr(self, "radius_frame") and self.radius_frame:
+                self.radius_frame.pack(fill="x", pady=2)
             help_text = (
                 "Igual ao centróide, porém com ROI dilatada por r para capturar "
                 "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
@@ -5941,11 +5953,13 @@ class ApplicationGUI:
             )
 
         elif rule == "bbox_intersects":
-            self.overlap_frame.pack(fill="x", pady=2)
-            self.overlap_help_label.config(
-                text="A detecção é considerada dentro da ROI quando a fração de "
-                "área do bbox contida na ROI atinge este valor."
-            )
+            if hasattr(self, "overlap_frame") and self.overlap_frame:
+                self.overlap_frame.pack(fill="x", pady=2)
+            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
+                self.overlap_help_label.config(
+                    text="A detecção é considerada dentro da ROI quando a fração de "
+                    "área do bbox contida na ROI atinge este valor."
+                )
             help_text = (
                 "Considera dentro quando o retângulo do animal (bbox) sobrepõe a "
                 "ROI ao menos pela fração definida. Captura entradas parciais; "
@@ -5953,10 +5967,12 @@ class ApplicationGUI:
             )
 
         elif rule == "seg_overlap":
-            self.overlap_frame.pack(fill="x", pady=2)
-            self.overlap_help_label.config(
-                text="Requer dados de máscara. Se não houver, selecione outra regra."
-            )
+            if hasattr(self, "overlap_frame") and self.overlap_frame:
+                self.overlap_frame.pack(fill="x", pady=2)
+            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
+                self.overlap_help_label.config(
+                    text="Requer dados de máscara. Se não houver, selecione outra regra."
+                )
             help_text = (
                 "Considera dentro com base na sobreposição da máscara do animal com "
                 "a ROI. Requer segmentação; mais preciso e mais custoso."
@@ -5965,7 +5981,8 @@ class ApplicationGUI:
         else:
             help_text = ""
 
-        self.rule_help_label.config(text=help_text)
+        if hasattr(self, "rule_help_label") and self.rule_help_label:
+            self.rule_help_label.config(text=help_text)
 
     def _on_apply_roi_settings(self):
         """Apply ROI inclusion rule settings to the global settings."""

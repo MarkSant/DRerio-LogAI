@@ -83,6 +83,10 @@ class ZoneControlsWidget(BaseWidget):
 
         from zebtrack.ui.window_utils import create_scrollbar
 
+        # Create a frame for fixed buttons at the bottom (not scrollable)
+        self.fixed_button_frame = ttk.Frame(self)
+        self.fixed_button_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+
         # Container for scrollable content
         self.controls_canvas = Canvas(self, highlightthickness=0)
         scrollbar = create_scrollbar(self, orient="vertical", command=self.controls_canvas.yview)
