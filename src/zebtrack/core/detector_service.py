@@ -143,7 +143,7 @@ class DetectorService:
 
             # Get plugin class
             if detector_plugins is None:
-                from zebtrack.core.detector_plugins import DETECTOR_PLUGINS
+                from zebtrack.plugins import DETECTOR_PLUGINS
 
                 detector_plugins = DETECTOR_PLUGINS
 

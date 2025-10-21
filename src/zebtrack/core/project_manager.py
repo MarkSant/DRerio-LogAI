@@ -1713,7 +1713,7 @@ class ProjectManager:
         """
         # Critical Fix #5: Add validation before saving
         if not self.project_path:
-            log.error("project.save.no_path")
+            log.debug("project.save.no_path", reason="project not yet created")
             return False
 
         try:
@@ -2581,7 +2581,12 @@ class ProjectManager:
             bool: True if saved successfully, False otherwise
         """
         if not self.project_data:
-            log.error("project.detector_state.save.no_project_data")
+            log.debug("project.detector_state.save.no_project_data")
+            return False
+
+        # Skip saving if no project path (e.g., single video workflow before project creation)
+        if not self.project_path:
+            log.debug("project.detector_state.save.no_project_path", reason="skipping save")
             return False
 
         log.info("project.detector_state.save.start", config=detector_config)
@@ -2600,9 +2605,9 @@ class ProjectManager:
                     plugin=detector_config.get("plugin_name"),
                 )
             else:
-                log.error(
-                    "project.detector_state.save.error",
-                    message="save_project returned False",
+                log.debug(
+                    "project.detector_state.save.skipped",
+                    reason="project not yet persisted",
                 )
 
             return result
