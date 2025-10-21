@@ -47,7 +47,7 @@ def configure_logging():
     console_formatter = structlog.stdlib.ProcessorFormatter(
         processor=structlog.dev.ConsoleRenderer(
             colors=True,
-            pad_event=12,  # Minimal spacing for compact output
+            pad_event=45,  # Align to longest event names (~43 chars)
         ),
     )
 
