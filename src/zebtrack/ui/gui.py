@@ -7656,7 +7656,6 @@ class ApplicationGUI:
 
         self.roi_canvas.config(cursor="crosshair")
         self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
-        self.roi_canvas.bind("<ButtonPress-1>", self._on_vertex_drag_start)
         self.roi_canvas.bind("<B1-Motion>", self._on_vertex_drag_motion)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_vertex_drag_end)
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
@@ -7821,22 +7820,6 @@ class ApplicationGUI:
             self.roi_canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
-
-    def _on_vertex_drag_start(self, event):
-        """Handle mouse press to start dragging a vertex during drawing."""
-        if self.drawing_mode != "polygon" or not self.current_polygon_points:
-            return
-
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-
-        # Check if clicking on an existing vertex
-        for i, (vx, vy) in enumerate(self.current_polygon_points):
-            dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-            if dist <= self._vertex_hover_tolerance:
-                self._dragging_vertex_index = i
-                self.roi_canvas.config(cursor="hand2")
-                return "break"  # Prevent click from adding new point
 
     def _on_vertex_drag_motion(self, event):
         """Handle mouse motion while dragging a vertex."""
@@ -8486,6 +8469,17 @@ class ApplicationGUI:
         canvas_x = float(event.x)
         canvas_y = float(event.y)
 
+        # Check if clicking on an existing vertex (for dragging)
+        if self.current_polygon_points:
+            for i, (vx, vy) in enumerate(self.current_polygon_points):
+                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+                if dist <= self._vertex_hover_tolerance:
+                    # Start dragging this vertex
+                    self._dragging_vertex_index = i
+                    self.roi_canvas.config(cursor="hand2")
+                    return  # Don't add new point
+
+        # Not over a vertex, proceed to add new point
         # Apply snapping to nearby vertices or edges
         snapped_point = self._apply_snapping(canvas_x, canvas_y)
         if snapped_point:
