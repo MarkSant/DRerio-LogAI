@@ -114,7 +114,7 @@ class VideoProcessingService:
         metadata_context: dict | None,
         single_video_config: dict | None,
         output_base_dir: str,
-    ) -> Path:
+    ) -> tuple[Path, bool]:
         """Resolve output directory for processing results.
 
         Args:
@@ -125,7 +125,7 @@ class VideoProcessingService:
             output_base_dir: Base directory for output (fallback)
 
         Returns:
-            Path to results directory (created if needed)
+            Tuple with the resolved path and whether it existed prior to the call.
         """
         if self.project_manager.project_path and not single_video_config:
             results_path = self.project_manager.resolve_results_directory(
@@ -136,8 +136,9 @@ class VideoProcessingService:
         else:
             results_path = Path(output_base_dir)
 
+        existed_before = results_path.exists()
         results_path.mkdir(parents=True, exist_ok=True)
-        return results_path
+        return results_path, existed_before
 
     def ensure_arena_polygon(
         self, arena_polygon_px: list | None, video_path: Path | str

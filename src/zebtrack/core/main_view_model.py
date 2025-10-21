@@ -2568,6 +2568,13 @@ class MainViewModel:
             "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
         )
 
+        # Provide immediate dialog feedback so the user knows reports won't be generated
+        self.ui_coordinator.show_info(
+            self.view,
+            "Análise cancelada",
+            "A análise de vídeo foi cancelada. Nenhum relatório será gerado.",
+        )
+
     def start_single_video_workflow(self, video_path: Path | str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
@@ -3092,10 +3099,12 @@ class MainViewModel:
 
         # Extract calibration config from project for tracking mode resolution
         project_calibration = self.project_manager.project_data.get("calibration", {})
-        
+
         callbacks = self._create_processing_callbacks(eligible_videos)
         context = self._create_processing_context(
-            eligible_videos, self.project_manager.project_path, single_video_config=project_calibration
+            eligible_videos,
+            self.project_manager.project_path,
+            single_video_config=project_calibration,
         )
 
         self._cancel_feedback_displayed = False
@@ -3464,7 +3473,9 @@ class MainViewModel:
                 frame_num += 1
 
             stop_reason = "Cancelled by user" if cancel_requested else None
-            recorder.stop_recording(force_stop=cancel_requested, reason=stop_reason)  # Skip save on cancel
+            recorder.stop_recording(
+                force_stop=cancel_requested, reason=stop_reason
+            )  # Skip save on cancel
 
             if cancel_requested:
                 log.info("controller.tracking.cancelled", video=experiment_id)
@@ -3558,7 +3569,7 @@ class MainViewModel:
             has_config=single_video_config is not None,
             config_keys=list(single_video_config.keys()) if single_video_config else [],
         )
-        
+
         # Check directly in single_video_config first
         if single_video_config:
             # Explicit use_single_subject_tracker takes priority
@@ -3645,7 +3656,7 @@ class MainViewModel:
             has_config=single_video_config is not None,
             config_keys=list(single_video_config.keys()) if single_video_config else [],
         )
-        
+
         previous_mode = settings.video_processing.single_animal_per_aquarium
         resolved_mode = self._resolve_single_animal_mode(single_video_config)
 
@@ -4309,7 +4320,7 @@ class MainViewModel:
                         Events.UI_UPDATE_DETECTION_OVERLAY,
                         {"detections": detections, "report": processing_report},
                     )
-            
+
             # Publish frame for display in analysis view
             if frame is not None:
                 if self.ui_event_bus:
@@ -4455,13 +4466,44 @@ class MainViewModel:
         experiment_id: str,
         results_dir: str,
         progress_callback,
-    ) -> tuple[str, str, str]:
+        cancel_event: threading.Event | None = None,
+    ) -> tuple[str, str, str] | None:
+        if cancel_event and cancel_event.is_set():
+            log.info(
+                "controller.analysis.reports.skipped",
+                video=experiment_id,
+                reason="cancelled",
+            )
+            return None
+
         summary_parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
         summary_excel_path = os.path.join(results_dir, f"{experiment_id}_summary.xlsx")
         report_docx_path = os.path.join(results_dir, f"{experiment_id}_report.docx")
 
+        if cancel_event and cancel_event.is_set():
+            log.info(
+                "controller.analysis.reports.skipped",
+                video=experiment_id,
+                reason="cancelled_before_write",
+            )
+            return None
+
         reporter.export_summary_data(summary_parquet_path, format="parquet")
+        if cancel_event and cancel_event.is_set():
+            log.info(
+                "controller.analysis.reports.partial_skip",
+                video=experiment_id,
+                reason="cancelled_after_parquet",
+            )
+            return None
         reporter.export_summary_data(summary_excel_path, format="excel")
+        if cancel_event and cancel_event.is_set():
+            log.info(
+                "controller.analysis.reports.partial_skip",
+                video=experiment_id,
+                reason="cancelled_after_excel",
+            )
+            return None
         reporter.export_individual_report_step_by_step(report_docx_path, progress_callback)
 
         return summary_parquet_path, summary_excel_path, report_docx_path
@@ -4506,6 +4548,13 @@ class MainViewModel:
             trajectory_path, experiment_id
         )
         if trajectory_df is None:
+            return False
+
+        if self.cancel_event.is_set():
+            log.info(
+                "controller.analysis.cancelled_before_pipeline",
+                video=experiment_id,
+            )
             return False
 
         profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
@@ -4635,16 +4684,29 @@ class MainViewModel:
             smoothing_polyorder=smoothing_polyorder,
         )
 
-        (
-            summary_parquet_path,
-            summary_excel_path,
-            report_docx_path,
-        ) = self._generate_reports_for_video(
+        if self.cancel_event.is_set():
+            log.info(
+                "controller.analysis.cancelled_before_reports",
+                video=experiment_id,
+            )
+            return False
+
+        generated_outputs = self._generate_reports_for_video(
             reporter=reporter,
             experiment_id=experiment_id,
             results_dir=results_dir,
             progress_callback=progress_callback,
+            cancel_event=self.cancel_event,
         )
+
+        if generated_outputs is None:
+            return False
+
+        (
+            summary_parquet_path,
+            summary_excel_path,
+            report_docx_path,
+        ) = generated_outputs
 
         social_summary: dict | None = None
         raw_social_config = profile_dict.get("social") if isinstance(profile_dict, dict) else {}
@@ -4775,7 +4837,7 @@ class MainViewModel:
 
             self.video_processing_service.display_initial_frame(video_path)
 
-            results_path = self.video_processing_service.resolve_results_path(
+            results_path, _ = self.video_processing_service.resolve_results_path(
                 experiment_id=experiment_id,
                 video_path=video_path,
                 metadata_context=metadata_context,
@@ -4783,6 +4845,7 @@ class MainViewModel:
                 output_base_dir=output_base_dir,
             )
             results_dir = str(results_path)
+            baseline_items = self._snapshot_results_dir(results_path)
 
             tracking_success, arena_polygon_px = self._run_tracking_if_needed(
                 video_path,
@@ -4795,9 +4858,12 @@ class MainViewModel:
             )
 
             if self.cancel_event.is_set():
+                self._cleanup_cancelled_results(results_dir, baseline_items)
                 return False, results_dir
 
             if not tracking_success:
+                if self.cancel_event.is_set():
+                    self._cleanup_cancelled_results(results_dir, baseline_items)
                 return False, results_dir
 
             analysis_success = self._run_analysis_pipeline(
@@ -4810,6 +4876,10 @@ class MainViewModel:
                 progress_callback=progress_callback,
                 analysis_profile=analysis_profile,
             )
+
+            if self.cancel_event.is_set():
+                self._cleanup_cancelled_results(results_dir, baseline_items)
+                return False, results_dir
 
             return analysis_success, results_dir
         finally:
@@ -4932,6 +5002,55 @@ class MainViewModel:
             archive_dir=str(archive_dir),
             item_count=len(existing_items),
         )
+
+    def _snapshot_results_dir(self, results_path: Path) -> set[str]:
+        """Capture the initial state of a results directory for later cleanup."""
+        if not results_path.exists():
+            return set()
+        try:
+            return {item.name for item in results_path.iterdir()}
+        except Exception:  # pragma: no cover - best effort snapshot
+            log.warning(
+                "controller.results.snapshot_failed",
+                results_dir=str(results_path),
+                exc_info=True,
+            )
+            return set()
+
+    def _cleanup_cancelled_results(self, results_dir: str, baseline_items: set[str]) -> None:
+        """Remove artifacts created during a cancelled analysis run."""
+        results_path = Path(results_dir)
+        if not results_path.exists():
+            return
+
+        try:
+            for item in list(results_path.iterdir()):
+                if item.name in baseline_items:
+                    continue
+                try:
+                    if item.is_dir():
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        item.unlink(missing_ok=True)
+                except FileNotFoundError:
+                    continue
+                except Exception:
+                    log.warning(
+                        "controller.results.cleanup_failed",
+                        path=str(item),
+                        exc_info=True,
+                    )
+
+            remaining = {child.name for child in results_path.iterdir()}
+            if not baseline_items and not remaining:
+                results_path.rmdir()
+                log.info("controller.results.cleanup_removed_directory", path=str(results_path))
+        except Exception:  # pragma: no cover - defensive cleanup
+            log.warning(
+                "controller.results.cleanup_unexpected_error",
+                results_dir=str(results_dir),
+                exc_info=True,
+            )
 
     def _compose_analysis_view_metadata(
         self,
@@ -5327,9 +5446,7 @@ class MainViewModel:
                     active_weight_details = self.weight_manager.get_weight_details(
                         self.active_weight_name
                     )
-                    if not _is_valid_openvino_directory(
-                        active_weight_details.get("openvino_path")
-                    ):
+                    if not _is_valid_openvino_directory(active_weight_details.get("openvino_path")):
                         self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {"title": "Erro", "message": "A conversão para OpenVINO falhou."},
