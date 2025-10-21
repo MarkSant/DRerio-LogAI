@@ -7,7 +7,8 @@
       "Bash(python -m py_compile:*)",
       "Bash(poetry run pytest:*)",
       "Bash(Select-Object -First 30)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(Select-Object -Last 30)"
     ],
     "deny": [],
     "ask": []
