@@ -2150,6 +2150,7 @@ class ApplicationGUI:
             # Navigation and view updates
             Events.UI_NAVIGATE_TO_WELCOME: self._handle_navigate_to_welcome,
             Events.UI_NAVIGATE_TO_PROJECT_VIEW: self._handle_navigate_to_project_view,
+            Events.UI_NAVIGATE_TO_ANALYSIS_VIEW: self._handle_navigate_to_analysis_view,
             Events.UI_REFRESH_PROJECT_VIEWS: self._handle_refresh_project_views,
             Events.UI_SELECT_TAB: self._handle_select_tab,
             # Model and weight management
@@ -2235,6 +2236,13 @@ class ApplicationGUI:
 
     def _handle_navigate_to_project_view(self, data: dict) -> None:
         self._load_project_view()
+
+    def _handle_navigate_to_analysis_view(self, data: dict) -> None:
+        activate_mode = data.get("activate_mode", True)
+        if activate_mode:
+            self.start_analysis_view_mode()
+        else:
+            self._switch_to_analysis_view()
 
     def _handle_select_tab(self, data: dict) -> None:
         tab_name = data.get("tab_name")
