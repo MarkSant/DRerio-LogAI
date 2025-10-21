@@ -3,14 +3,33 @@ import logging
 import logging.handlers
 import sys
 import tkinter as tk
+import warnings
 from tkinter import messagebox
 
 import structlog
 
-from zebtrack.core.main_view_model import MainViewModel
-from zebtrack.settings import settings
-from zebtrack.ui.window_utils import maximize_window
-from zebtrack.utils import set_seed
+# Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated",
+    category=UserWarning,
+    module="docxcompose.properties",
+)
+
+
+class CompactConsoleRenderer(structlog.dev.ConsoleRenderer):
+    """Custom renderer with minimal spacing for compact output."""
+
+    def __call__(self, logger, name, event_dict):
+        """Render log with minimal spacing."""
+        # Call parent renderer
+        result = super().__call__(logger, name, event_dict)
+        # Reduce excessive whitespace to single space
+        import re
+
+        # Replace multiple spaces with single space (but preserve single spaces)
+        result = re.sub(r"  +", " ", result)
+        return result
 
 
 def configure_logging():
@@ -19,7 +38,7 @@ def configure_logging():
 
     This function sets up structlog to process logs with a consistent format
     for both application logs and standard library/third-party logs.
-    Uses ConsoleRenderer for compact, readable output with controlled spacing.
+    Uses CompactConsoleRenderer for minimal spacing in output.
     """
     # Shared processors for both structlog and stdlib logging
     shared_processors = [
@@ -45,9 +64,9 @@ def configure_logging():
 
     # Formatter for console output (human-readable, compact)
     console_formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.dev.ConsoleRenderer(
+        processor=CompactConsoleRenderer(
             colors=True,
-            pad_event=45,  # Align to longest event names (~43 chars)
+            pad_event=1,  # Minimal padding (1 space between event and fields)
         ),
     )
 
@@ -115,6 +134,12 @@ def main():
                 print(f"Warning: Invalid --log-level format '{override}'. Use MODULE=LEVEL.")
 
     log = structlog.get_logger()
+
+    # Import zebtrack modules after logging is configured to use compact format
+    from zebtrack.core.main_view_model import MainViewModel
+    from zebtrack.settings import settings
+    from zebtrack.ui.window_utils import maximize_window
+    from zebtrack.utils import set_seed
 
     # --- Critical Check for Settings ---
     # If settings failed to load, the `settings` object will be None.

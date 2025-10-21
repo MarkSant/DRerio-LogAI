@@ -85,6 +85,8 @@ pythonpath = [
 ]
 filterwarnings = [
   "ignore::UserWarning",
+  # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
+  "ignore:pkg_resources is deprecated:UserWarning:docxcompose.properties",
 ]
 addopts = [
   "--cov=zebtrack",
