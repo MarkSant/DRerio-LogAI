@@ -4732,10 +4732,14 @@ class ApplicationGUI:
         # ZoneControlsWidget already creates all the necessary control widgets
         # The old method is kept below for reference but is no longer called
 
-        # 7. ✨ NEW: Subscribe to events emitted by the components
+        # 7. ✨ NEW: Create context menu before subscribing to events
+        self.roi_context_menu = None
+        self._create_roi_context_menu()
+
+        # 8. ✨ NEW: Subscribe to events emitted by the components
         self._subscribe_zone_component_events()
 
-        # 8. Set initial sash position AFTER all widgets are created
+        # 9. Set initial sash position AFTER all widgets are created
         # This ensures the geometry is properly calculated
         def _set_initial_sash():
             try:
@@ -8008,6 +8012,12 @@ class ApplicationGUI:
         # If clear_selection is requested, always blank the combobox
         if clear_selection:
             self.roi_template_var.set("")
+        # Auto-select if there's only one template available
+        elif len(names) == 1:
+            self.roi_template_var.set(names[0])
+        # If current selection is no longer valid, clear it
+        elif self.roi_template_var.get() not in names:
+            self.roi_template_var.set("")
             return
 
         current_display = self.roi_template_var.get()
@@ -10591,7 +10601,8 @@ class ApplicationGUI:
             values = self.zone_listbox.item(item)["values"]
             if values and "Arena Principal" not in values[0]:
                 # ROI - show full menu
-                self.roi_context_menu.post(event.x_root, event.y_root)
+                if self.roi_context_menu:
+                    self.roi_context_menu.post(event.x_root, event.y_root)
             elif values and "Arena Principal" in values[0]:
                 # Arena Principal - show limited menu (only edit vertices)
                 arena_menu = Menu(self.root, tearoff=0)
