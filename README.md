@@ -5,7 +5,7 @@
 <h1 align="center">DRerio LogAI</h1>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml"><img src="https://github.com/YOUR_USERNAME/ZebTrack-AI/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml"><img src="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
