@@ -5,8 +5,15 @@ import sys
 import tkinter as tk
 import warnings
 from tkinter import messagebox
+from typing import Any
 
 import structlog
+
+# Module-level references used by tests; populated during runtime in main()
+_MAIN_VIEW_MODEL_SENTINEL = object()
+_SETTINGS_SENTINEL = object()
+MainViewModel: Any = _MAIN_VIEW_MODEL_SENTINEL  # type: ignore[assignment]
+settings: Any = _SETTINGS_SENTINEL  # type: ignore[assignment]
 
 # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
 warnings.filterwarnings(
@@ -136,10 +143,18 @@ def main():
     log = structlog.get_logger()
 
     # Import zebtrack modules after logging is configured to use compact format
-    from zebtrack.core.main_view_model import MainViewModel
-    from zebtrack.settings import settings
     from zebtrack.ui.window_utils import maximize_window
     from zebtrack.utils import set_seed
+
+    global MainViewModel, settings
+    if MainViewModel is _MAIN_VIEW_MODEL_SENTINEL:
+        from zebtrack.core.main_view_model import MainViewModel as _MainViewModel
+
+        MainViewModel = _MainViewModel
+    if settings is _SETTINGS_SENTINEL:
+        from zebtrack.settings import settings as _settings
+
+        settings = _settings
 
     # --- Critical Check for Settings ---
     # If settings failed to load, the `settings` object will be None.

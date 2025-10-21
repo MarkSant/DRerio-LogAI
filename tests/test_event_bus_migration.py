@@ -13,7 +13,10 @@ from zebtrack.ui.events import Events
 class TestEventBusMigration(unittest.TestCase):
     def setUp(self):
         """Set up a Tkinter root window before each test."""
-        self.root = tk.Tk()
+        try:
+            self.root = tk.Tk()
+        except tk.TclError as exc:  # pragma: no cover - headless CI fallback
+            self.skipTest(f"Tkinter unavailable: {exc}")
         self.mock_event_bus = MagicMock(spec=EventBus)
 
     def tearDown(self):

@@ -67,24 +67,6 @@ class Camera(FrameSource):
                 if self._first_failure_time is None:
                     self._first_failure_time = time.time()
 
-                elapsed = time.time() - self._first_failure_time
-
-                # Check global timeout
-                if (
-                    self._reconnect_timeout_seconds > 0
-                    and elapsed > self._reconnect_timeout_seconds
-                ):
-                    log.error(
-                        "camera.reconnect.timeout",
-                        elapsed_seconds=elapsed,
-                        max_seconds=self._reconnect_timeout_seconds,
-                    )
-                    with self._lock:
-                        self._frame_buffer.clear()
-                        self._frame_timestamps.clear()
-                        self._frame_available = False
-                    break  # Exit thread
-
                 # Check attempt limit
                 if (
                     self._max_reconnect_attempts > 0
@@ -99,6 +81,8 @@ class Camera(FrameSource):
                         self._latest_frame = (False, None)
                     break  # Exit thread
 
+                elapsed = time.time() - self._first_failure_time
+
                 self._reconnect_attempts += 1
                 log.warning(
                     "camera.reconnect.attempt",
@@ -107,6 +91,23 @@ class Camera(FrameSource):
                 )
                 self.cap.open(self._camera_index)
                 time.sleep(2)
+
+                elapsed = time.time() - self._first_failure_time
+
+                if (
+                    self._reconnect_timeout_seconds > 0
+                    and elapsed > self._reconnect_timeout_seconds
+                ):
+                    log.error(
+                        "camera.reconnect.timeout",
+                        elapsed_seconds=elapsed,
+                        max_seconds=self._reconnect_timeout_seconds,
+                    )
+                    with self._lock:
+                        self._frame_buffer.clear()
+                        self._frame_timestamps.clear()
+                        self._frame_available = False
+                    break  # Exit thread
                 continue
             else:
                 # Reset counters on successful connection

@@ -88,6 +88,10 @@ def _is_valid_openvino_directory(path: str | None) -> bool:
     return len(xml_files) > 0
 
 
+class DiagnosticAbortError(RuntimeError):
+    """Signal used to stop diagnostic workflow without surfacing duplicate dialogs."""
+
+
 class MainViewModel:
     """
     Main View Model for ZebTrack-AI application.
@@ -3314,46 +3318,13 @@ class MainViewModel:
 
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            zone_data = self.project_manager.get_zone_data()
-            if not zone_data.polygon:
-                log.warning("controller.tracking.no_arena_defined.using_default")
-                arena_polygon = [
-                    [0, 0],
-                    [frame_width, 0],
-                    [frame_width, frame_height],
-                    [0, frame_height],
-                ]
-                zone_data.polygon = arena_polygon
-            else:
-                arena_polygon = zone_data.polygon
-
-            self.detector.set_zones(zone_data, frame_width, frame_height)
-
-            # Inform plugin that aquarium region is defined
-            if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
-                has_aquarium = bool(zone_data and zone_data.polygon)
-                self.detector.plugin.set_aquarium_region_defined(has_aquarium)
-                log.info(
-                    "controller.tracking.aquarium_status",
-                    defined=has_aquarium,
-                    plugin=self.detector.plugin.get_name(),
-                    context=getattr(self.detector.plugin, "_context", "unknown"),
-                )
-
-            # --- New: Calculate pixel/cm ratio before recording ---
-            pixel_per_cm_ratio = None
-            cal = None
-            calibration_source = calibration_data or (
-                self.project_manager.project_data.get("calibration")
-                if self.project_manager and self.project_manager.project_data
-                else None
+            zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
+                frame_width, frame_height
             )
-            if calibration_source:
-                width_cm = calibration_source.get("aquarium_width_cm")
-                height_cm = calibration_source.get("aquarium_height_cm")
-                if width_cm and height_cm and arena_polygon:
-                    cal = Calibration(np.array(arena_polygon), width_cm, height_cm)
-                    pixel_per_cm_ratio = cal.pixel_per_cm_ratio
+
+            cal, pixel_per_cm_ratio = self._build_calibration_context(
+                arena_polygon, calibration_data
+            )
 
             recorder.start_recording(
                 output_folder=results_dir,
@@ -3387,13 +3358,12 @@ class MainViewModel:
             cancel_requested = False
             log.info("controller.tracking.loop.start", video=experiment_id)
             while True:
-                if self.cancel_event.is_set():
+                if self._tracking_cancelled(
+                    experiment_id,
+                    frame_num,
+                    "controller.tracking.cancelled.event_detected",
+                ):
                     cancel_requested = True
-                    log.info(
-                        "controller.tracking.cancelled.event_detected",
-                        frame=frame_num,
-                        video=experiment_id,
-                    )
                     break
 
                 ret, frame = cap.read()
@@ -3401,13 +3371,12 @@ class MainViewModel:
                     log.info("controller.tracking.loop.end_of_video", frame=frame_num)
                     break
 
-                if self.cancel_event.is_set():
+                if self._tracking_cancelled(
+                    experiment_id,
+                    frame_num,
+                    "controller.tracking.cancelled.after_read",
+                ):
                     cancel_requested = True
-                    log.info(
-                        "controller.tracking.cancelled.after_read",
-                        frame=frame_num,
-                        video=experiment_id,
-                    )
                     break
 
                 # Check if we should process this frame (analysis interval)
@@ -3426,13 +3395,12 @@ class MainViewModel:
                     if detections:
                         detected_frames_count += 1
 
-                if self.cancel_event.is_set():
+                if self._tracking_cancelled(
+                    experiment_id,
+                    frame_num,
+                    "controller.tracking.cancelled.before_progress",
+                ):
                     cancel_requested = True
-                    log.info(
-                        "controller.tracking.cancelled.before_progress",
-                        frame=frame_num,
-                        video=experiment_id,
-                    )
                     break
 
                 # Update GUI display every processed frame for smoother visualization
@@ -3515,6 +3483,71 @@ class MainViewModel:
         finally:
             if cap.isOpened():
                 cap.release()
+
+    def _prepare_zone_data_for_tracking(
+        self, frame_width: int, frame_height: int
+    ) -> tuple[ZoneData, list[list[int]]]:
+        """Ensure zone data is ready for tracking and inform plugins."""
+        assert self.detector is not None
+
+        zone_data = self.project_manager.get_zone_data()
+        if not zone_data.polygon:
+            log.warning("controller.tracking.no_arena_defined.using_default")
+            zone_data.polygon = [
+                [0, 0],
+                [frame_width, 0],
+                [frame_width, frame_height],
+                [0, frame_height],
+            ]
+
+        arena_polygon = zone_data.polygon
+
+        self.detector.set_zones(zone_data, frame_width, frame_height)
+
+        if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
+            has_aquarium = bool(zone_data and zone_data.polygon)
+            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            log.info(
+                "controller.tracking.aquarium_status",
+                defined=has_aquarium,
+                plugin=self.detector.plugin.get_name(),
+                context=getattr(self.detector.plugin, "_context", "unknown"),
+            )
+
+        return zone_data, arena_polygon
+
+    def _build_calibration_context(
+        self,
+        arena_polygon: list[list[int]] | list | None,
+        calibration_data: dict | None,
+    ) -> tuple[Calibration | None, tuple[float, float] | None]:
+        """Calculate calibration and pixel/cm ratio for tracking outputs."""
+        pixel_per_cm_ratio = None
+        cal = None
+
+        calibration_source = calibration_data or (
+            self.project_manager.project_data.get("calibration")
+            if self.project_manager and self.project_manager.project_data
+            else None
+        )
+
+        if calibration_source:
+            width_cm = calibration_source.get("aquarium_width_cm")
+            height_cm = calibration_source.get("aquarium_height_cm")
+            if width_cm and height_cm and arena_polygon:
+                polygon_array = np.array(arena_polygon)
+                cal = Calibration(polygon_array, width_cm, height_cm)
+                pixel_per_cm_ratio = cal.pixel_per_cm_ratio
+
+        return cal, pixel_per_cm_ratio
+
+    def _tracking_cancelled(self, experiment_id: str, frame_num: int, log_key: str) -> bool:
+        """Handle cancel-event checks during tracking loop."""
+        if not self.cancel_event.is_set():
+            return False
+
+        log.info(log_key, frame=frame_num, video=experiment_id)
+        return True
 
     def _resolve_single_animal_mode(self, single_video_config: dict | None) -> bool | None:
         """Derive whether single-animal tracking mode should be active."""
@@ -5494,138 +5527,235 @@ class MainViewModel:
         conf_threshold = config["confidence_threshold"]
         model_to_test = config["model_to_test"]
         progress_dialog = config.get("progress_dialog")
-        results = {}
-
-        # --- Model Loading ---
-        yolo_model = None
-        openvino_model = None
+        results: dict[str, list] = {}
 
         try:
-            if progress_dialog:
-                self.root.after(
-                    0,
-                    progress_dialog.update_progress,
-                    "Carregando modelos...",
-                )
+            self._update_diagnostic_progress(progress_dialog, "Carregando modelos...")
 
-            if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
-                if not ULTRALYTICS_AVAILABLE:
-                    log.error("diagnostic.yolo.unavailable")
-                    if progress_dialog:
-                        self.root.after(0, progress_dialog.finish)
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Erro",
-                            "message": "YOLO não está disponível (ultralytics não instalado)",
-                        },
-                    )
-                    return
+            yolo_model = self._initialize_diagnostic_yolo_model(
+                model_to_test, weight_details, results, progress_dialog
+            )
 
-                yolo_model = YOLO(weight_details["path"])
-                # Define contexto diagnóstico
-                if hasattr(yolo_model, "set_context"):
-                    yolo_model.set_context("diagnostic")
-                    log.info("diagnostic.thread.yolo_context_set", context="diagnostic")
-                results["YOLO (PyTorch)"] = []
+            openvino_model = self._initialize_diagnostic_openvino_model(
+                model_to_test, weight_details, results, progress_dialog
+            )
 
-            if model_to_test in ["OpenVINO", "Ambos"]:
-                ov_path = weight_details.get("openvino_path")
-                # Validate that the OpenVINO directory exists AND contains .xml files
-                if _is_valid_openvino_directory(ov_path):
-                    plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
-                    if plugin_class:
-                        openvino_model = plugin_class(ov_path)
-                        # Verify the plugin has the required predict method
-                        if not hasattr(openvino_model, "predict"):
-                            log.error(
-                                "diagnostic.thread.missing_predict_method",
-                                plugin_class=str(plugin_class),
-                            )
-                            if progress_dialog:
-                                self.root.after(0, progress_dialog.finish)
-                            self.ui_event_bus.publish_event(
-                                Events.UI_SHOW_ERROR,
-                                {
-                                    "title": "Erro de Plugin",
-                                    "message": "O plugin OpenVINO não possui o método predict "
-                                    "necessário para diagnóstico.",
-                                },
-                            )
-                            return
-                        # Set diagnostic context to allow all classes
-                        if hasattr(openvino_model, "set_context"):
-                            openvino_model.set_context("diagnostic")
-                            log.info(
-                                "diagnostic.thread.openvino_context_set",
-                                context="diagnostic",
-                            )
-                        results["OpenVINO"] = []
-                        log.info("diagnostic.thread.openvino_loaded", path=ov_path)
-                else:
-                    log.error(
-                        "diagnostic.thread.openvino_invalid",
-                        path=ov_path,
-                        exists=os.path.exists(ov_path) if ov_path else False,
-                    )
-                    if progress_dialog:
-                        self.root.after(0, progress_dialog.finish)
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Erro de Modelo",
-                            "message": (
-                                "O diretório do modelo OpenVINO não contém arquivos "
-                                ".xml necessários. Por favor, reconverta o modelo."
-                            ),
-                        },
-                    )
-                    return
+            self._run_diagnostic_frame_loop(
+                video_path,
+                frames_to_analyze,
+                conf_threshold,
+                yolo_model,
+                openvino_model,
+                results,
+                progress_dialog,
+            )
 
-            # --- Video Processing ---
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                if progress_dialog:
-                    self.root.after(0, progress_dialog.finish)
-                self.ui_event_bus.publish_event(
+            self._finish_progress_dialog(progress_dialog)
+
+            # --- Schedule report generation on main thread ---
+            self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
+        except DiagnosticAbortError:
+            pass
+        except Exception as e:
+            log.error("diagnostic.thread.load_error", exc_info=True)
+            self._finish_progress_dialog(progress_dialog)
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
+            )
+        finally:
+            self._publish_processing_mode(
+                source="diagnostic.thread_exit",
+                force=True,
+            )
+
+    def _update_diagnostic_progress(
+        self,
+        progress_dialog,
+        message: str,
+        current: int | None = None,
+        total: int | None = None,
+    ) -> None:
+        """Thread-safe progress dialog update helper."""
+        if not progress_dialog:
+            return
+
+        if current is None or total is None:
+            self.root.after(0, progress_dialog.update_progress, message)
+            return
+
+        self.root.after(0, progress_dialog.update_progress, message, current, total)
+
+    def _finish_progress_dialog(self, progress_dialog) -> None:
+        """Safely close the diagnostic progress dialog."""
+        if progress_dialog:
+            self.root.after(0, progress_dialog.finish)
+
+    def _initialize_diagnostic_yolo_model(
+        self,
+        model_to_test: str,
+        weight_details: dict,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> Any | None:
+        """Set up YOLO model for diagnostics."""
+        if model_to_test not in ["YOLO (PyTorch)", "Ambos"]:
+            return None
+
+        bus = self.ui_event_bus
+
+        if not ULTRALYTICS_AVAILABLE:
+            log.error("diagnostic.yolo.unavailable")
+            self._finish_progress_dialog(progress_dialog)
+            if bus:
+                bus.publish_event(
                     Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
+                    {
+                        "title": "Erro",
+                        "message": "YOLO não está disponível (ultralytics não instalado)",
+                    },
                 )
-                return
+            raise DiagnosticAbortError from None
 
+        if YOLO is None:  # Defensive guard for type checkers.
+            raise DiagnosticAbortError from None
+
+        yolo_ctor = cast(Any, YOLO)
+        yolo_model = yolo_ctor(weight_details["path"])
+        if hasattr(yolo_model, "set_context"):
+            yolo_model.set_context("diagnostic")
+            log.info("diagnostic.thread.yolo_context_set", context="diagnostic")
+        results["YOLO (PyTorch)"] = []
+        return yolo_model
+
+    def _initialize_diagnostic_openvino_model(
+        self,
+        model_to_test: str,
+        weight_details: dict,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> Any | None:
+        """Set up OpenVINO model for diagnostics."""
+        if model_to_test not in ["OpenVINO", "Ambos"]:
+            return None
+
+        ov_path = weight_details.get("openvino_path")
+        bus = self.ui_event_bus
+
+        if not _is_valid_openvino_directory(ov_path):
+            log.error(
+                "diagnostic.thread.openvino_invalid",
+                path=ov_path,
+                exists=os.path.exists(ov_path) if ov_path else False,
+            )
+            self._finish_progress_dialog(progress_dialog)
+            if bus:
+                bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Modelo",
+                        "message": (
+                            "O diretório do modelo OpenVINO não contém arquivos "
+                            ".xml necessários. Por favor, reconverta o modelo."
+                        ),
+                    },
+                )
+            raise DiagnosticAbortError from None
+
+        plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
+        if not plugin_class:
+            log.error("diagnostic.thread.openvino_plugin_missing")
+            self._finish_progress_dialog(progress_dialog)
+            if bus:
+                bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Plugin",
+                        "message": "Plugin OpenVINO não encontrado para diagnóstico.",
+                    },
+                )
+            raise DiagnosticAbortError from None
+
+        openvino_model = plugin_class(ov_path)
+        if not hasattr(openvino_model, "predict"):
+            log.error(
+                "diagnostic.thread.missing_predict_method",
+                plugin_class=str(plugin_class),
+            )
+            self._finish_progress_dialog(progress_dialog)
+            if bus:
+                bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Plugin",
+                        "message": "O plugin OpenVINO não possui o método predict necessário.",
+                    },
+                )
+            raise DiagnosticAbortError from None
+
+        if hasattr(openvino_model, "set_context"):
+            openvino_model.set_context("diagnostic")
+            log.info("diagnostic.thread.openvino_context_set", context="diagnostic")
+
+        results["OpenVINO"] = []
+        log.info("diagnostic.thread.openvino_loaded", path=ov_path)
+        return openvino_model
+
+    def _run_diagnostic_frame_loop(
+        self,
+        video_path: str,
+        frames_to_analyze: int,
+        conf_threshold: float,
+        yolo_model,
+        openvino_model,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> None:
+        """Process video frames for the diagnostic routine."""
+        cap = cv2.VideoCapture(video_path)
+        bus = self.ui_event_bus
+
+        if not cap.isOpened():
+            self._finish_progress_dialog(progress_dialog)
+            if bus:
+                bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro",
+                        "message": f"Não foi possível abrir o vídeo: {video_path}",
+                    },
+                )
+            raise DiagnosticAbortError from None
+
+        try:
             for frame_count in range(frames_to_analyze):
-                # Check for cancellation
                 if self.cancel_event.is_set() or (
-                    progress_dialog and progress_dialog.user_cancelled
+                    progress_dialog and getattr(progress_dialog, "user_cancelled", False)
                 ):
                     log.info("diagnostic.thread.cancelled_by_user")
-                    if progress_dialog:
-                        self.root.after(0, progress_dialog.finish)
-                    break
+                    self._finish_progress_dialog(progress_dialog)
+                    return
 
                 ret, frame = cap.read()
                 if not ret:
                     break
 
                 status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+                self._update_diagnostic_progress(
+                    progress_dialog,
+                    status_msg,
+                    frame_count + 1,
+                    frames_to_analyze,
+                )
 
-                # Update progress dialog
-                if progress_dialog:
-                    self.root.after(
-                        0,
-                        progress_dialog.update_progress,
-                        status_msg,
-                        frame_count + 1,
-                        frames_to_analyze,
-                    )
+                if bus:
+                    bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
 
-                self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
-
-                if yolo_model:
+                if yolo_model is not None:
                     preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
                     results.setdefault("YOLO (PyTorch)", []).append(preds[0])
 
-                if openvino_model:
+                if openvino_model is not None:
                     try:
                         log.debug(
                             "diagnostic.thread.openvino_predict_start",
@@ -5638,43 +5768,27 @@ class MainViewModel:
                             detections=len(preds),
                         )
                         results.setdefault("OpenVINO", []).append(preds)
-                    except Exception as e:
+                    except Exception as exc:  # pragma: no cover - plugin specific
                         log.error(
                             "diagnostic.thread.openvino_predict_error",
                             frame=frame_count + 1,
                             exc_info=True,
                         )
-                        if progress_dialog:
-                            self.root.after(0, progress_dialog.finish)
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {
-                                "title": "Erro de Inferência OpenVINO",
-                                "message": f"Falha na inferência do frame {frame_count + 1}: {e}",
-                            },
-                        )
-                        return
-            cap.release()
-
-            # Close progress dialog before showing save dialog
-            if progress_dialog:
-                self.root.after(0, progress_dialog.finish)
-
-            # --- Schedule report generation on main thread ---
-            self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
-        except Exception as e:
-            log.error("diagnostic.thread.load_error", exc_info=True)
-            if progress_dialog:
-                self.root.after(0, progress_dialog.finish)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
-            )
+                        self._finish_progress_dialog(progress_dialog)
+                        if bus:
+                            bus.publish_event(
+                                Events.UI_SHOW_ERROR,
+                                {
+                                    "title": "Erro de Inferência OpenVINO",
+                                    "message": (
+                                        "Falha na inferência do frame "
+                                        f"{frame_count + 1}: {exc}"
+                                    ),
+                                },
+                            )
+                        raise DiagnosticAbortError from None
         finally:
-            self._publish_processing_mode(
-                source="diagnostic.thread_exit",
-                force=True,
-            )
+            cap.release()
 
     def _finish_diagnostic_and_save_report(self, config, results):
         """Formats and saves the report. Runs on the main UI thread."""
