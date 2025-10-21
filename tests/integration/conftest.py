@@ -6,7 +6,6 @@ Provides reusable components for testing multi-component workflows.
 
 import gc
 import time
-from pathlib import Path
 
 import pytest
 
@@ -108,6 +107,7 @@ def integration_output_dir(tmp_path):
 
 # Helper functions for common test patterns
 
+
 def setup_basic_recording(recorder, zones, output_dir, base_name="test_video", **kwargs):
     """
     Standard recording setup for integration tests.
@@ -189,4 +189,6 @@ def create_sample_detections(num_detections=1, track_id=1):
     Returns:
         list: List of detection tuples (x1, y1, x2, y2, confidence, track_id)
     """
-    return [(100 + i * 50, 100, 150 + i * 50, 150, 0.9, track_id + i) for i in range(num_detections)]
+    return [
+        (100 + i * 50, 100, 150 + i * 50, 150, 0.9, track_id + i) for i in range(num_detections)
+    ]

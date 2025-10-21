@@ -476,10 +476,12 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # Frame 1: Two detections far apart
-        self.mock_plugin.set_detect_return_value([
-            (100, 100, 120, 120, 0.9, None),
-            (400, 400, 420, 420, 0.85, None),
-        ])
+        self.mock_plugin.set_detect_return_value(
+            [
+                (100, 100, 120, 120, 0.9, None),
+                (400, 400, 420, 420, 0.85, None),
+            ]
+        )
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
@@ -500,7 +502,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
-        track_id1 = detections1[0][5]
+        # Track ID is assigned but we'll verify the reset behavior below
 
         # Reset tracking
         self.detector.reset_tracking_state()

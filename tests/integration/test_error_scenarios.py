@@ -218,7 +218,12 @@ def test_schema_validation_prevents_corruption(
     3. Should raise ValueError
     4. Verify Parquet file is NOT corrupted
     """
-    from .conftest import create_sample_detections, setup_basic_recording, verify_parquet_row_count, verify_parquet_schema
+    from .conftest import (
+        create_sample_detections,
+        setup_basic_recording,
+        verify_parquet_row_count,
+        verify_parquet_schema,
+    )
 
     # Start recorder WITHOUT calibration
     setup_basic_recording(
@@ -351,12 +356,11 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     # Give Windows time to flush
     time.sleep(0.1)
 
-    # Verify session files
-    session1_file = session1_dir / "3_CoordMovimento_test_session1.parquet"
-    session2_file = session2_dir / "3_CoordMovimento_test_session2.parquet"
-
+    # Verify session files exist
     # Session 1 file may not exist due to force_stop after schema error
     # (recorder discards data on critical errors)
+    session2_file = session2_dir / "3_CoordMovimento_test_session2.parquet"
+
     # The test focuses on verifying session 2 can start successfully after error
 
     assert session2_file.exists(), "Session 2 file should exist"

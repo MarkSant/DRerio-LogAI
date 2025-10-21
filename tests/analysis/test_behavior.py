@@ -11,7 +11,6 @@ import pytest
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 
-
 # === Fixture Functions ===
 
 
@@ -26,16 +25,18 @@ def create_simple_trajectory(n_frames=100, fps=30.0, pixelcm=10.0):
     x_center_px = x_positions_cm * pixelcm
     y_center_px = 360 - (y_positions_cm * pixelcm)  # Invert for 720px height
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 10,
-        "y1": y_center_px - 10,
-        "x2": x_center_px + 10,
-        "y2": y_center_px + 10,
-        "confidence": 0.9,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 10,
+            "y1": y_center_px - 10,
+            "x2": x_center_px + 10,
+            "y2": y_center_px + 10,
+            "confidence": 0.9,
+        }
+    )
 
 
 def create_circular_trajectory(n_frames=120, fps=30.0, radius_cm=20.0, pixelcm=10.0):
@@ -50,16 +51,18 @@ def create_circular_trajectory(n_frames=120, fps=30.0, radius_cm=20.0, pixelcm=1
     x_center_px = x_positions_cm * pixelcm
     y_center_px = 360 - (y_positions_cm * pixelcm)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 10,
-        "y1": y_center_px - 10,
-        "x2": x_center_px + 10,
-        "y2": y_center_px + 10,
-        "confidence": 0.9,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 10,
+            "y1": y_center_px - 10,
+            "x2": x_center_px + 10,
+            "y2": y_center_px + 10,
+            "confidence": 0.9,
+        }
+    )
 
 
 def create_trajectory_with_gaps(fps=30.0, pixelcm=10.0):
@@ -86,16 +89,18 @@ def create_trajectory_with_gaps(fps=30.0, pixelcm=10.0):
     x_center_px = x_positions_cm * pixelcm
     y_center_px = 360 - (y_positions_cm * pixelcm)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 10,
-        "y1": y_center_px - 10,
-        "x2": x_center_px + 10,
-        "y2": y_center_px + 10,
-        "confidence": 0.9,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 10,
+            "y1": y_center_px - 10,
+            "x2": x_center_px + 10,
+            "y2": y_center_px + 10,
+            "confidence": 0.9,
+        }
+    )
 
 
 def create_freezing_trajectory(fps=30.0, pixelcm=10.0):
@@ -133,16 +138,18 @@ def create_freezing_trajectory(fps=30.0, pixelcm=10.0):
     x_center_px = x_positions_cm * pixelcm
     y_center_px = 360 - (y_positions_cm * pixelcm)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 10,
-        "y1": y_center_px - 10,
-        "x2": x_center_px + 10,
-        "y2": y_center_px + 10,
-        "confidence": 0.9,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 10,
+            "y1": y_center_px - 10,
+            "x2": x_center_px + 10,
+            "y2": y_center_px + 10,
+            "confidence": 0.9,
+        }
+    )
 
 
 @pytest.fixture
@@ -428,9 +435,7 @@ class TestThigmotaxis:
 
     def test_calculate_thigmotaxis_index_average_distance(self, simple_analyzer):
         """Test thigmotaxis index calculation with average distance method."""
-        thigmo_index = simple_analyzer.calculate_thigmotaxis_index(
-            method="average_distance"
-        )
+        thigmo_index = simple_analyzer.calculate_thigmotaxis_index(method="average_distance")
 
         # Should be a positive distance in cm
         assert thigmo_index >= 0 or np.isnan(thigmo_index)
@@ -567,5 +572,6 @@ class TestPropertiesAndDataAccess:
         arena = simple_analyzer.arena_polygon_cm
 
         from shapely.geometry import Polygon
+
         assert isinstance(arena, Polygon)
         assert arena.is_valid

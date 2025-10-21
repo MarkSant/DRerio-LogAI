@@ -97,8 +97,6 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def __init__(self, parent, controller):
         self.controller = controller
-        # Still need this for some callbacks like _manage_weights_clicked
-        self.view = controller.view
 
         # Local Tkinter variables for this dialog
         self.active_weight_var = StringVar()

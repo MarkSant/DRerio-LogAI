@@ -5,14 +5,14 @@ Comprehensive test suite covering time spent in ROIs, entry/exit counts,
 transitions, behavioral metrics within ROIs, and spatial analyses.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
 import pytest
 from shapely.geometry import Polygon
-from unittest.mock import MagicMock
 
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-
 
 # === Fixture Helpers ===
 
@@ -37,7 +37,7 @@ def create_mock_behavior_analyzer_with_trajectory(trajectory_df):
             mock_analyzer.trajectory_data["vx"] = dx / dt
             mock_analyzer.trajectory_data["vy"] = dy / dt
             mock_analyzer.trajectory_data["v_mag"] = np.sqrt(
-                mock_analyzer.trajectory_data["vx"]**2 + mock_analyzer.trajectory_data["vy"]**2
+                mock_analyzer.trajectory_data["vx"] ** 2 + mock_analyzer.trajectory_data["vy"] ** 2
             )
             # Also update _trajectory_data (used internally by ROIAnalyzer)
             mock_analyzer._trajectory_data = mock_analyzer.trajectory_data.copy()
@@ -54,6 +54,7 @@ def create_mock_behavior_analyzer_with_trajectory(trajectory_df):
 
     # Add arena_polygon_cm property for center_vs_periphery tests
     from shapely.geometry import Polygon
+
     arena_cm = Polygon([(0, 0), (80, 0), (80, 30), (0, 30)])  # 80x30 cm arena
     mock_analyzer.arena_polygon_cm = arena_cm
 
@@ -72,11 +73,13 @@ def create_crossing_trajectory(n_frames=90, fps=30.0):
     # Use timedelta to avoid fractional millisecond issues
     timestamps = pd.date_range(start="2023-01-01", periods=n_frames, freq="100ms")
 
-    x_positions = np.concatenate([
-        np.linspace(5, 10, 30),    # Move to edge of Zone A
-        np.linspace(15, 20, 30),   # Jump to Zone B
-        np.linspace(10, 5, 30),    # Return to Zone A
-    ])
+    x_positions = np.concatenate(
+        [
+            np.linspace(5, 10, 30),  # Move to edge of Zone A
+            np.linspace(15, 20, 30),  # Jump to Zone B
+            np.linspace(10, 5, 30),  # Return to Zone A
+        ]
+    )
 
     y_positions = np.full(n_frames, 15.0)
 
@@ -84,16 +87,19 @@ def create_crossing_trajectory(n_frames=90, fps=30.0):
     x_center_px = x_positions * 10.0
     y_center_px = 300 - (y_positions * 10.0)
 
-    df = pd.DataFrame({
-        "x_cm_smoothed": x_positions,
-        "y_cm_smoothed": y_positions,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 5,
-        "y1": y_center_px - 5,
-        "x2": x_center_px + 5,
-        "y2": y_center_px + 5,
-    }, index=timestamps)
+    df = pd.DataFrame(
+        {
+            "x_cm_smoothed": x_positions,
+            "y_cm_smoothed": y_positions,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 5,
+            "y1": y_center_px - 5,
+            "x2": x_center_px + 5,
+            "y2": y_center_px + 5,
+        },
+        index=timestamps,
+    )
 
     return df
 
@@ -109,26 +115,31 @@ def create_stationary_then_moving_trajectory(n_frames=120, fps=30.0):
     # Use timedelta to avoid fractional millisecond issues
     timestamps = pd.date_range(start="2023-01-01", periods=n_frames, freq="100ms")
 
-    x_positions = np.concatenate([
-        np.full(60, 7.5),          # Stationary in Zone A
-        np.linspace(7.5, 17.5, 60), # Move to Zone B
-    ])
+    x_positions = np.concatenate(
+        [
+            np.full(60, 7.5),  # Stationary in Zone A
+            np.linspace(7.5, 17.5, 60),  # Move to Zone B
+        ]
+    )
 
     y_positions = np.full(n_frames, 15.0)
 
     x_center_px = x_positions * 10.0
     y_center_px = 300 - (y_positions * 10.0)
 
-    df = pd.DataFrame({
-        "x_cm_smoothed": x_positions,
-        "y_cm_smoothed": y_positions,
-        "x_center_px": x_center_px,
-        "y_center_px": y_center_px,
-        "x1": x_center_px - 5,
-        "y1": y_center_px - 5,
-        "x2": x_center_px + 5,
-        "y2": y_center_px + 5,
-    }, index=timestamps)
+    df = pd.DataFrame(
+        {
+            "x_cm_smoothed": x_positions,
+            "y_cm_smoothed": y_positions,
+            "x_center_px": x_center_px,
+            "y_center_px": y_center_px,
+            "x1": x_center_px - 5,
+            "y1": y_center_px - 5,
+            "x2": x_center_px + 5,
+            "y2": y_center_px + 5,
+        },
+        index=timestamps,
+    )
 
     return df
 
@@ -139,12 +150,12 @@ def two_zone_rois():
     zone_a = ROI(
         name="Zone A",
         geometry=Polygon([(5, 10), (10, 10), (10, 20), (5, 20)]),
-        coordinate_space="cm"
+        coordinate_space="cm",
     )
     zone_b = ROI(
         name="Zone B",
         geometry=Polygon([(15, 10), (20, 10), (20, 20), (15, 20)]),
-        coordinate_space="cm"
+        coordinate_space="cm",
     )
     return [zone_a, zone_b]
 
@@ -477,7 +488,7 @@ class TestErrorHandling:
         invalid_roi = ROI(
             name="Invalid",
             geometry=Polygon(),  # Empty polygon
-            coordinate_space="cm"
+            coordinate_space="cm",
         )
 
         with pytest.raises(ValueError, match="invalid geometry"):

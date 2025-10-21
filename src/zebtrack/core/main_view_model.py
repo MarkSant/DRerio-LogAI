@@ -2611,7 +2611,7 @@ class MainViewModel:
         log.info("workflow.project_processing.start")
 
         if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Análise em Andamento",
@@ -2643,16 +2643,16 @@ class MainViewModel:
 
             if response:
                 # Muda para aba de zonas
-                self.ui_event_bus.publish(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
 
                 # Carrega frame do primeiro vídeo se disponível
                 first_video = self.project_manager.get_next_video()
                 if first_video:
-                    self.ui_event_bus.publish(
+                    self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
                     )
 
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Defina a Arena Principal",
@@ -2691,7 +2691,7 @@ class MainViewModel:
                             "workflow.project_processing.default_arena_created",
                             size=f"{width}x{height}",
                         )
-                        self.ui_event_bus.publish(
+                        self.ui_event_bus.publish_event(
                             Events.UI_SHOW_INFO,
                             {
                                 "title": "Arena Padrão Criada",
@@ -2700,13 +2700,13 @@ class MainViewModel:
                             },
                         )
                     else:
-                        self.ui_event_bus.publish(
+                        self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {"title": "Erro", "message": "Não foi possível criar arena padrão"},
                         )
                         return
                 else:
-                    self.ui_event_bus.publish(
+                    self.ui_event_bus.publish_event(
                         Events.UI_SHOW_ERROR,
                         {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
                     )
@@ -2745,7 +2745,7 @@ class MainViewModel:
         # 2. Scan the inputs
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Nenhum Vídeo Encontrado",
@@ -2781,7 +2781,7 @@ class MainViewModel:
             ):
                 videos_to_process = with_data
             else:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento Ignorado",
@@ -2796,7 +2796,7 @@ class MainViewModel:
             videos_to_process = without_data
 
         if not videos_to_process:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento Concluído",
@@ -2823,7 +2823,7 @@ class MainViewModel:
         for video in videos_to_process:
             self.project_manager.update_video_status(video["path"], "complete")
 
-        self.ui_event_bus.publish(
+        self.ui_event_bus.publish_event(
             Events.UI_SHOW_INFO,
             {
                 "title": "Sucesso",
@@ -2842,7 +2842,7 @@ class MainViewModel:
         )
 
         if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Análise em Andamento",
@@ -2853,7 +2853,7 @@ class MainViewModel:
             return
 
         if not self.project_manager.project_path:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado"}
             )
             return
@@ -2898,7 +2898,7 @@ class MainViewModel:
             self.project_manager.save_project()
 
         if not (ready_with_trajectory or ready_with_zones or arena_only):
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
@@ -2949,7 +2949,7 @@ class MainViewModel:
             if path_value:
                 self.project_manager.update_video_status(path_value, "complete")
 
-        self.ui_event_bus.publish(
+        self.ui_event_bus.publish_event(
             Events.UI_SET_STATUS,
             {"message": f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."},
         )
@@ -2967,7 +2967,7 @@ class MainViewModel:
         if preview_lines:
             message += "\n\nFila:\n" + "\n".join(preview_lines)
 
-        self.ui_event_bus.publish(
+        self.ui_event_bus.publish_event(
             Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
         )
 
@@ -2987,7 +2987,7 @@ class MainViewModel:
         )
 
         if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Processamento em andamento",
@@ -2997,7 +2997,7 @@ class MainViewModel:
             return
 
         if not video_paths:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Sumários",
@@ -3007,7 +3007,7 @@ class MainViewModel:
             return
 
         if not self.project_manager.project_path:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Projeto ausente",
@@ -3018,7 +3018,7 @@ class MainViewModel:
 
         all_videos = self.project_manager.get_all_videos() or []
         if not all_videos:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Sumários",
@@ -3062,7 +3062,7 @@ class MainViewModel:
             sample = [os.path.basename(raw_lookup[norm]) for norm in list(missing_targets)[:5]]
             if len(missing_targets) > 5:
                 sample.append(f"... (+{len(missing_targets) - 5})")
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos fora do projeto",
@@ -3072,7 +3072,7 @@ class MainViewModel:
             )
 
         if not selected_videos:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Sumários",
@@ -3083,7 +3083,7 @@ class MainViewModel:
 
         eligible_videos = [video for video in selected_videos if video.get("has_trajectory")]
         if not eligible_videos:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Sumários",
@@ -3540,7 +3540,7 @@ class MainViewModel:
                 raw_lookup.setdefault(norm_path, raw_path)
 
             if not normalized_targets:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -3562,7 +3562,7 @@ class MainViewModel:
                 sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
                 if len(missing_targets) > 5:
                     sample.append(f"... (+{len(missing_targets) - 5})")
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "Vídeos fora do projeto",
@@ -3572,7 +3572,7 @@ class MainViewModel:
                 )
 
             if not candidate_entries:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -3589,7 +3589,7 @@ class MainViewModel:
                 if video.get("status") not in {"processed", "complete"}
             ]
             if not candidate_entries:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -3670,7 +3670,7 @@ class MainViewModel:
                 ]
                 if len(arena_only) > 5:
                     skipped_names.append(f"... (+{len(arena_only) - 5})")
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "Processamento",
@@ -3716,7 +3716,7 @@ class MainViewModel:
                 )
 
             if not eligible_videos:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -3738,7 +3738,7 @@ class MainViewModel:
             if isinstance(video.get("path"), str) and video.get("path")
         ]
         if not candidate_paths:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
@@ -3761,7 +3761,7 @@ class MainViewModel:
             sample_names = [os.path.basename(path) for path in missing_files[:5]]
             if len(missing_files) > 5:
                 sample_names.append(f"... (+{len(missing_files) - 5})")
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos Não Encontrados",
@@ -3811,7 +3811,7 @@ class MainViewModel:
 
         def finalize() -> None:
             if completed:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Sumários Gerados",
@@ -3825,7 +3825,7 @@ class MainViewModel:
                 status_msg = "Nenhum sumário foi atualizado."
 
             if details:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "Vídeos ignorados",
@@ -3834,7 +3834,7 @@ class MainViewModel:
                     },
                 )
 
-            self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": status_msg})
+            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
             self.refresh_project_views(reason=status_msg, append_summary=True)
             self.processing_thread = None
 
@@ -4030,7 +4030,7 @@ class MainViewModel:
             self.ui_coordinator.update_view(
                 self.view, "update_analysis_progress", progress_fraction, step_status
             )
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
                 {
                     "payload": {
@@ -4743,16 +4743,16 @@ class MainViewModel:
                     total_frames=stats.get("total_frames", 0),
                 )
 
-                self.ui_event_bus.publish(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
+                self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
 
         def on_frame_processed(frame, detections, processing_info):
             """Called when a frame is ready for display."""
             if frame is not None:
                 # Phase 4: Use UICoordinator for frame display
-                self.ui_event_bus.publish(Events.UI_DISPLAY_FRAME, {"frame": frame})
+                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
 
             if detections is not None and processing_info:
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_UPDATE_DETECTION_OVERLAY,
                     {"detections": detections, "report": processing_info},
                 )
@@ -4989,7 +4989,7 @@ class MainViewModel:
             ),
         )
         if not active_weight_details:
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro", "message": "Nenhum peso ativo selecionado."},
             )
@@ -5009,7 +5009,7 @@ class MainViewModel:
                         self.active_weight_name
                     )
                     if not active_weight_details.get("openvino_path"):
-                        self.ui_event_bus.publish(
+                        self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {"title": "Erro", "message": "A conversão para OpenVINO falhou."},
                         )
@@ -5021,7 +5021,7 @@ class MainViewModel:
                     if model_to_test == "Ambos":
                         config["model_to_test"] = "YOLO (PyTorch)"
                     else:  # model_to_test was 'OpenVINO'
-                        self.ui_event_bus.publish(
+                        self.ui_event_bus.publish_event(
                             Events.UI_SET_STATUS, {"message": "Diagnóstico cancelado."}
                         )
                         return
@@ -5082,7 +5082,7 @@ class MainViewModel:
                                 "diagnostic.thread.missing_predict_method",
                                 plugin_class=str(plugin_class),
                             )
-                            self.ui_event_bus.publish(
+                            self.ui_event_bus.publish_event(
                                 Events.UI_SHOW_ERROR,
                                 {
                                     "title": "Erro de Plugin",
@@ -5104,7 +5104,7 @@ class MainViewModel:
             # --- Video Processing ---
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                self.ui_event_bus.publish(
+                self.ui_event_bus.publish_event(
                     Events.UI_SHOW_ERROR,
                     {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
                 )
@@ -5118,7 +5118,7 @@ class MainViewModel:
                     break
 
                 status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
-                self.ui_event_bus.publish(Events.UI_SET_STATUS, {"message": status_msg})
+                self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
 
                 if yolo_model:
                     preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
@@ -5143,7 +5143,7 @@ class MainViewModel:
                             frame=frame_count + 1,
                             exc_info=True,
                         )
-                        self.ui_event_bus.publish(
+                        self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {
                                 "title": "Erro de Inferência OpenVINO",
@@ -5157,7 +5157,7 @@ class MainViewModel:
             self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
-            self.ui_event_bus.publish(
+            self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
             )

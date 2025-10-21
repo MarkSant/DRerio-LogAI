@@ -2,6 +2,7 @@
 Utilitários para carregar ícones da aplicação DRerio LogAI.
 """
 
+import tkinter as tk
 from pathlib import Path
 
 import structlog
@@ -52,11 +53,25 @@ def set_window_icon(window) -> None:
         log.info("icon.set.skipped", reason="Icon file not found")
         return
 
+    # Check if window still exists and is valid
+    try:
+        if not window.winfo_exists():
+            log.debug("icon.set.skipped", reason="Window no longer exists")
+            return
+    except Exception:
+        # Window might be in invalid state, skip silently
+        log.debug("icon.set.skipped", reason="Window in invalid state")
+        return
+
     try:
         window.iconbitmap(default=str(icon_path))
         log.info(
             "icon.set.success",
             window_title=window.title() if hasattr(window, "title") else "unknown",
         )
+    except tk.TclError as e:
+        # Tkinter-specific errors (e.g., bad window path) - downgrade to debug
+        log.debug("icon.set.tk_error", error=str(e))
     except Exception as e:
+        # Unexpected errors - keep as warning
         log.warning("icon.set.failed", error=str(e), path=str(icon_path))

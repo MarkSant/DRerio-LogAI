@@ -6,11 +6,10 @@ Covers VideoFileSource: initialization, frame reading, metadata, error handling.
 
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
-import pytest
 
 from zebtrack.io.video_source import VideoFileSource
 
@@ -202,7 +201,7 @@ class TestVideoFileSource(unittest.TestCase):
         mock_exists.return_value = True
         mock_cap = MagicMock()
         # isOpened returns True during init (4 calls for get), then False at release time
-        mock_cap.isOpened.side_effect = [True, False]  
+        mock_cap.isOpened.side_effect = [True, False]
         mock_cap.get.side_effect = [640, 480, 30.0, 100]
         mock_capture.return_value = mock_cap
 
