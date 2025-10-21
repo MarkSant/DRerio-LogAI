@@ -6081,8 +6081,11 @@ class ApplicationGUI:
 
         self._draw_interactive_polygon()
 
-        # Show the save/discard buttons
-        if self.interactive_buttons_frame:
+        # Show the save/discard buttons using component method
+        if hasattr(self, "zone_controls") and self.zone_controls:
+            self.zone_controls.show_interactive_buttons()
+        elif self.interactive_buttons_frame:
+            # Fallback for legacy code
             self.interactive_buttons_frame.pack(
                 fill="x", padx=5, pady=5, before=self.roi_inclusion_frame
             )
@@ -6240,6 +6243,12 @@ class ApplicationGUI:
 
                     # Update to clamped position
                     canvas_x, canvas_y = closest_point
+
+        # Clamp to canvas bounds for all zones (arena and ROI)
+        canvas_width = self.roi_canvas.winfo_width() or 800
+        canvas_height = self.roi_canvas.winfo_height() or 600
+        canvas_x = max(0, min(canvas_x, canvas_width))
+        canvas_y = max(0, min(canvas_y, canvas_height))
 
         # Convert canvas coordinates to video coordinates before storing
         video_point = self._canvas_to_video(canvas_x, canvas_y)
@@ -8012,22 +8021,16 @@ class ApplicationGUI:
         # If clear_selection is requested, always blank the combobox
         if clear_selection:
             self.roi_template_var.set("")
-        # Auto-select if there's only one template available
-        elif len(names) == 1:
+            return
+
+        # Auto-select if there's exactly one template available
+        if len(names) == 1 and not self.roi_template_var.get():
             self.roi_template_var.set(names[0])
+            return
+
         # If current selection is no longer valid, clear it
-        elif self.roi_template_var.get() not in names:
+        if self.roi_template_var.get() and self.roi_template_var.get() not in names:
             self.roi_template_var.set("")
-            return
-
-        current_display = self.roi_template_var.get()
-        if names and current_display in names:
-            return
-
-        # Only auto-select first template if something was already selected
-        # (to avoid pre-populating on initial load)
-        if current_display and names:
-            self.roi_template_var.set(names[0])
         else:
             self.roi_template_var.set("")
 
