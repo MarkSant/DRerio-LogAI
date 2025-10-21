@@ -17,18 +17,25 @@ def configure_logging():
     """
     Configures logging for the application.
 
-    This function sets up structlog to process logs and configures handlers
-    for both console and file output.
+    This function sets up structlog to process logs with a consistent format
+    for both application logs and standard library/third-party logs.
+    Uses ConsoleRenderer for compact, readable output with controlled spacing.
     """
+    # Shared processors for both structlog and stdlib logging
+    shared_processors = [
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+    ]
+
+    # Configure structlog with ConsoleRenderer for compact output
     structlog.configure(
         processors=[
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.add_logger_name,
-            structlog.processors.TimeStamper(fmt="%H:%M:%S", utc=False),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer(),
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -36,19 +43,40 @@ def configure_logging():
         cache_logger_on_first_use=True,
     )
 
+    # Formatter for console output (human-readable, compact)
+    console_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.dev.ConsoleRenderer(
+            colors=True,
+            pad_event=25,  # Compact spacing for event names
+        ),
+    )
+
+    # Formatter for file output (JSON for structured logs)
+    file_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.processors.JSONRenderer(),
+    )
+
     # File handler with rotation
     file_handler = logging.handlers.RotatingFileHandler(
         "analysis.log", maxBytes=5 * 1024 * 1024, backupCount=5, mode="a"
     )
+    file_handler.setFormatter(file_formatter)
+
     # Console handler for development
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(console_formatter)
 
-    # Basic config for routing standard logs to structlog
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(message)s",
-        handlers=[file_handler, console_handler],
-    )
+    # Configure root logger to route ALL logs (including stdlib/libs) through structlog
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.INFO)
+
+    # Redirect Python warnings to logging system (will be formatted by structlog)
+    logging.captureWarnings(True)
+    warnings_logger = logging.getLogger("py.warnings")
+    warnings_logger.addHandler(console_handler)
+    warnings_logger.addHandler(file_handler)
 
 
 def main():
