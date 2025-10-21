@@ -467,11 +467,11 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""
-        self.event_bus.publish_event(Events.ZONE_SET_ARENA_POLYGON, {})
+        self.emit_event("zone.draw_arena", {})
 
     def _on_draw_roi_clicked(self) -> None:
         """Handle draw ROI button click."""
-        self.event_bus.publish_event(Events.DETECTOR_SETUP_ZONES, {})
+        self.emit_event("zone.draw_roi", {})
 
     def _on_toggle_view_clicked(self) -> None:
         """Handle toggle view button click."""
@@ -530,11 +530,11 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_save_arena_clicked(self) -> None:
         """Handle save arena button click."""
-        self.event_bus.publish_event(Events.ZONE_SAVE_MANUAL_ARENA, {})
+        self.emit_event("zone.save_arena", {})
 
     def _on_discard_arena_clicked(self) -> None:
         """Handle discard arena button click."""
-        self.event_bus.publish_event(Events.ZONE_UPDATE_ARENA, {})
+        self.emit_event("zone.discard_arena", {})
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""

@@ -909,7 +909,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             master,
             columns=("name", "type", "default_seg", "default_det"),
             show="headings",
-            height=8
+            height=8,
         )
         self.listbox.heading("name", text="Nome do Peso")
         self.listbox.heading("type", text="Tipo")
@@ -932,35 +932,26 @@ class ManageWeightsDialog(simpledialog.Dialog):
         ttk.Label(
             info_frame,
             text="• Segmentação: Para detectar peixes individuais (zebrafish)\n"
-                 "• Detecção: Para detectar aquários/arenas\n"
-                 "• Você pode ter um peso padrão diferente para cada tipo",
+            "• Detecção: Para detectar aquários/arenas\n"
+            "• Você pode ter um peso padrão diferente para cada tipo",
             justify="left",
-            foreground="gray"
+            foreground="gray",
         ).pack(anchor="w")
 
         button_frame = ttk.Frame(master)
         button_frame.pack(pady=10)
 
         ttk.Button(
-            button_frame,
-            text="Padrão para Segmentação",
-            command=self.set_default_seg,
-            width=22
+            button_frame, text="Padrão para Segmentação", command=self.set_default_seg, width=22
         ).pack(side="left", padx=5)
 
         ttk.Button(
-            button_frame,
-            text="Padrão para Detecção",
-            command=self.set_default_det,
-            width=22
+            button_frame, text="Padrão para Detecção", command=self.set_default_det, width=22
         ).pack(side="left", padx=5)
 
-        ttk.Button(
-            button_frame,
-            text="Excluir Selecionado",
-            command=self.delete,
-            width=18
-        ).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Excluir Selecionado", command=self.delete, width=18).pack(
+            side="left", padx=5
+        )
 
     def populate_list(self):
         for item in self.listbox.get_children():
@@ -982,9 +973,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             is_default_det = "✓ Sim" if name == default_det_name else ""
 
             self.listbox.insert(
-                "",
-                "end",
-                values=(name, type_label, is_default_seg, is_default_det)
+                "", "end", values=(name, type_label, is_default_seg, is_default_det)
             )
 
     def get_selected_item_name(self):
@@ -1009,15 +998,14 @@ class ManageWeightsDialog(simpledialog.Dialog):
             messagebox.showwarning(
                 "Tipo Incompatível",
                 f"O peso '{name}' é do tipo Detecção e não pode ser padrão para Segmentação.\n\n"
-                "Selecione um peso do tipo Segmentação."
+                "Selecione um peso do tipo Segmentação.",
             )
             return
 
         self.controller.weight_manager.set_default_weight_by_type(name, "seg")
         self.populate_list()
         messagebox.showinfo(
-            "Padrão Atualizado",
-            f"'{name}' agora é o peso padrão para Segmentação (zebrafish)."
+            "Padrão Atualizado", f"'{name}' agora é o peso padrão para Segmentação (zebrafish)."
         )
 
     def set_default_det(self):
@@ -1035,15 +1023,14 @@ class ManageWeightsDialog(simpledialog.Dialog):
             messagebox.showwarning(
                 "Tipo Incompatível",
                 f"O peso '{name}' é do tipo Segmentação e não pode ser padrão para Detecção.\n\n"
-                "Selecione um peso do tipo Detecção."
+                "Selecione um peso do tipo Detecção.",
             )
             return
 
         self.controller.weight_manager.set_default_weight_by_type(name, "det")
         self.populate_list()
         messagebox.showinfo(
-            "Padrão Atualizado",
-            f"'{name}' agora é o peso padrão para Detecção (aquário)."
+            "Padrão Atualizado", f"'{name}' agora é o peso padrão para Detecção (aquário)."
         )
 
     def set_default(self):
@@ -4767,6 +4754,39 @@ class ApplicationGUI:
 
         # Drawing action events
         self.event_bus.subscribe("zone.toggle_view", lambda data: self._toggle_canvas_view())
+        self.event_bus.subscribe("zone.draw_arena", lambda data: self._start_main_arena_drawing())
+        self.event_bus.subscribe("zone.draw_roi", lambda data: self._start_roi_drawing())
+        self.event_bus.subscribe("zone.save_arena", lambda data: self._on_save_arena())
+        self.event_bus.subscribe("zone.discard_arena", lambda data: self._on_discard_arena())
+
+        # ROI template events
+        self.event_bus.subscribe("zone.template_apply", lambda data: self._on_apply_roi_template())
+        self.event_bus.subscribe("zone.template_save", lambda data: self._on_save_roi_template())
+        self.event_bus.subscribe(
+            "zone.template_import", lambda data: self._on_import_roi_template()
+        )
+
+        # Zone list interaction events
+        self.event_bus.subscribe(
+            "zone.list_item_double_click", lambda data: self._edit_selected_zone_vertices()
+        )
+        self.event_bus.subscribe(
+            "zone.list_item_right_click",
+            lambda data: self._on_zone_right_click(self._create_mock_event(data)),
+        )
+
+        # Video selector events
+        self.event_bus.subscribe(
+            "zone.video_double_click", lambda data: self._load_selected_video_frame()
+        )
+        self.event_bus.subscribe(
+            "zone.video_frame_load", lambda data: self._load_selected_video_frame()
+        )
+        self.event_bus.subscribe(
+            "zone.video_refresh", lambda data: self._refresh_video_selector_tree()
+        )
+        # Note: zone.video_search_changed is handled differently (continuous filtering),
+        # so it's not subscribed here - the component handles it internally
 
     def _create_mock_event(self, data: dict):
         """Create a mock event object for backward compatibility with old event handlers."""
@@ -9370,6 +9390,7 @@ class ApplicationGUI:
         if hardware_summary.get("cuda_available", False):
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
             except Exception:

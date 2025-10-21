@@ -51,7 +51,12 @@ class TestEventBusMigration(unittest.TestCase):
         )
 
         widget.draw_arena_button.invoke()
-        self.mock_event_bus.publish_event.assert_called_with(Events.ZONE_SET_ARENA_POLYGON, {})
+        # Now emits component event using emit_event() which calls publish()
+        # Check that publish was called with a NamedEvent
+        self.mock_event_bus.publish.assert_called()
+        call_args = self.mock_event_bus.publish.call_args[0][0]
+        self.assertEqual(call_args.event_name, "zone.draw_arena")
+        self.assertEqual(call_args.data, {})
 
         # Ensure no direct controller/view_model calls exist
         with self.assertRaises(AttributeError):
