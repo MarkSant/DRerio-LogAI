@@ -272,22 +272,39 @@ class ROITemplateManager:
         try:
             for template_file in self.global_templates_dir.glob("*.json"):
                 try:
+                    # Validate file is actually readable
+                    if not template_file.exists() or not template_file.is_file():
+                        log.warning(
+                            "roi_template_manager.skipping_invalid_file",
+                            file=str(template_file),
+                            exists=template_file.exists() if hasattr(template_file, 'exists') else False
+                        )
+                        continue
+
                     with open(template_file, encoding="utf-8") as f:
                         payload = json.load(f)
 
-                    templates.append(
-                        {
-                            "name": payload.get("name", template_file.stem),
-                            "slug": template_file.stem,
-                            "file": str(template_file),
-                            "location": "global",
-                            "includes_arena": payload.get("includes_arena", True),
-                            "includes_rois": payload.get("includes_rois", True),
-                            "roi_count": len(payload.get("data", {}).get("roi_polygons", [])),
-                            "created_at": payload.get("created_at", ""),
-                            "updated_at": payload.get("updated_at", ""),
-                        }
+                    # Use the actual file path, not what's stored in the JSON
+                    # (the stored path might be outdated)
+                    template_info = {
+                        "name": payload.get("name", template_file.stem),
+                        "slug": template_file.stem,
+                        "file": str(template_file.resolve()),  # Use actual resolved path
+                        "location": "global",
+                        "includes_arena": payload.get("includes_arena", True),
+                        "includes_rois": payload.get("includes_rois", True),
+                        "roi_count": len(payload.get("data", {}).get("roi_polygons", [])),
+                        "created_at": payload.get("created_at", ""),
+                        "updated_at": payload.get("updated_at", ""),
+                    }
+
+                    log.debug(
+                        "roi_template_manager.template_loaded",
+                        name=template_info["name"],
+                        file=template_info["file"]
                     )
+
+                    templates.append(template_info)
                 except Exception as e:
                     log.warning(
                         "roi_template_manager.template_read_error",
@@ -302,6 +319,65 @@ class ROITemplateManager:
             )
 
         return sorted(templates, key=lambda t: t.get("name", "").lower())
+
+    def cleanup_orphaned_templates(self) -> dict[str, int]:
+        """
+        Remove templates cujos arquivos não existem mais.
+
+        Returns:
+            Dict com contagem de templates removidos e mantidos
+        """
+        removed = 0
+        kept = 0
+
+        try:
+            for template_file in self.global_templates_dir.glob("*.json"):
+                try:
+                    # If file exists and is readable, keep it
+                    if template_file.exists() and template_file.is_file():
+                        # Verify it's valid JSON
+                        with open(template_file, encoding="utf-8") as f:
+                            json.load(f)
+                        kept += 1
+                        log.debug(
+                            "roi_template_manager.cleanup.keeping",
+                            file=str(template_file)
+                        )
+                    else:
+                        template_file.unlink()
+                        removed += 1
+                        log.info(
+                            "roi_template_manager.cleanup.removed_missing",
+                            file=str(template_file)
+                        )
+                except json.JSONDecodeError:
+                    # Invalid JSON, remove it
+                    template_file.unlink()
+                    removed += 1
+                    log.info(
+                        "roi_template_manager.cleanup.removed_invalid_json",
+                        file=str(template_file)
+                    )
+                except Exception as e:
+                    log.warning(
+                        "roi_template_manager.cleanup.error",
+                        file=str(template_file),
+                        error=str(e)
+                    )
+        except Exception as e:
+            log.error(
+                "roi_template_manager.cleanup.failed",
+                error=str(e),
+                exc_info=True
+            )
+
+        log.info(
+            "roi_template_manager.cleanup.completed",
+            removed=removed,
+            kept=kept
+        )
+
+        return {"removed": removed, "kept": kept}
 
     def delete_template(
         self,

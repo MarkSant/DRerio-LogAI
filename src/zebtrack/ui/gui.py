@@ -1952,7 +1952,10 @@ class ApplicationGUI:
             value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10)
         )
         self.roi_template_var = StringVar(value="")
+        # Add trace to log all changes to template var
+        self.roi_template_var.trace_add("write", self._on_roi_template_var_changed)
         self._roi_templates_cache: list[dict[str, Any]] = []
+        self.delete_template_btn: ttk.Button | None = None
 
         self.config_tab_frame: ttk.Frame | None = None
         self.config_fps_var = StringVar(
@@ -5001,6 +5004,8 @@ class ApplicationGUI:
             width=25,
         )
         self.roi_template_combobox.pack(side="left", fill="x", expand=True)
+        # Add binding to log selection changes
+        self.roi_template_combobox.bind("<<ComboboxSelected>>", self._on_template_combobox_changed)
 
         ttk.Button(
             template_selector,
@@ -5011,16 +5016,34 @@ class ApplicationGUI:
         template_actions = ttk.Frame(template_frame)
         template_actions.pack(fill="x")
 
+        log.info("gui.zone_tab.creating_template_buttons")
+
         ttk.Button(
             template_actions,
             text="💾 Salvar Zonas Atuais",
             command=self._on_save_roi_template,
         ).pack(side="left", padx=(0, 4))
+
         ttk.Button(
             template_actions,
             text="📂 Importar e Aplicar Arquivo...",
             command=self._on_import_and_apply_roi_template,
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 4))
+
+        # Delete button - store reference to control state
+        self.delete_template_btn = ttk.Button(
+            template_actions,
+            text="🗑️ Deletar Template",
+            command=self._on_delete_roi_template,
+            state="disabled"  # Start disabled
+        )
+        self.delete_template_btn.pack(side="left")
+
+        log.info(
+            "gui.zone_tab.delete_button_created",
+            button_exists=self.delete_template_btn is not None,
+            button_state=self.delete_template_btn['state'] if self.delete_template_btn else None
+        )
 
         ttk.Label(
             template_frame,
@@ -8032,6 +8055,45 @@ class ApplicationGUI:
         if pm is None:
             return
 
+        # Check if delete button exists, if not, create it dynamically
+        if not self.delete_template_btn and hasattr(self, 'roi_template_combobox') and self.roi_template_combobox:
+            log.warning(
+                "gui.roi_templates.delete_button_missing_creating_now",
+                has_combobox=True
+            )
+            # Find the template actions frame and create the button
+            try:
+                # Get the parent of the combobox
+                template_selector = self.roi_template_combobox.master
+                template_frame = template_selector.master
+
+                # Look for or create template_actions frame
+                template_actions = None
+                for child in template_frame.winfo_children():
+                    if isinstance(child, ttk.Frame) and child != template_selector:
+                        # Check if this frame has buttons
+                        for grandchild in child.winfo_children():
+                            if isinstance(grandchild, ttk.Button):
+                                template_actions = child
+                                break
+                        if template_actions:
+                            break
+
+                if template_actions:
+                    # Create delete button
+                    self.delete_template_btn = ttk.Button(
+                        template_actions,
+                        text="🗑️ Deletar Template",
+                        command=self._on_delete_roi_template,
+                        state="disabled"
+                    )
+                    self.delete_template_btn.pack(side="left", padx=(4, 0))
+                    log.info("gui.roi_templates.delete_button_created_dynamically")
+                else:
+                    log.error("gui.roi_templates.could_not_find_template_actions_frame")
+            except Exception as e:
+                log.error("gui.roi_templates.failed_to_create_delete_button", error=str(e))
+
         try:
             templates = pm.list_roi_templates()
         except Exception as exc:  # pragma: no cover - defensive
@@ -8041,33 +8103,155 @@ class ApplicationGUI:
         enriched: list[dict[str, Any]] = []
         for template in templates:
             if not isinstance(template, dict):
+                log.debug("gui.roi_templates.skipping_non_dict", template_type=type(template))
                 continue
+
+            # Validate template has a name
+            template_name = template.get("name", "").strip()
+            if not template_name:
+                log.warning(
+                    "gui.roi_templates.skipping_empty_name",
+                    template_data=template
+                )
+                continue
+
+            # Validate file existence for file-based templates
+            template_file = template.get("file")
+            if template_file:
+                from pathlib import Path
+
+                # Try to fix common path issues
+                original_file = str(template_file)
+                fixed_file = original_file
+
+                # Fix comma instead of dot in .zebtrack
+                if "\\,zebtrack\\" in fixed_file or "/,zebtrack/" in fixed_file:
+                    fixed_file = fixed_file.replace("\\,zebtrack\\", "\\.zebtrack\\")
+                    fixed_file = fixed_file.replace("/,zebtrack/", "/.zebtrack/")
+                    log.warning(
+                        "gui.roi_templates.fixing_path_comma",
+                        original=original_file,
+                        fixed=fixed_file
+                    )
+                    template["file"] = fixed_file
+                    template_file = fixed_file
+
+                # Check if file exists
+                file_path = Path(template_file)
+                if not file_path.exists():
+                    log.warning(
+                        "gui.roi_templates.skipping_missing_file",
+                        name=template_name,
+                        file=template_file,
+                        file_exists=False
+                    )
+                    continue
+
+                # Verify it's actually readable
+                try:
+                    if not file_path.is_file():
+                        log.warning(
+                            "gui.roi_templates.skipping_not_a_file",
+                            name=template_name,
+                            file=template_file
+                        )
+                        continue
+                except Exception as e:
+                    log.warning(
+                        "gui.roi_templates.skipping_unreadable_file",
+                        name=template_name,
+                        file=template_file,
+                        error=str(e)
+                    )
+                    continue
 
             entry = dict(template)
             entry["display_name"] = self._format_roi_template_display(entry)
             entry["identifier"] = self._build_roi_template_identifier(entry)
+
+            # Validate display_name is not empty
+            if not entry.get("display_name", "").strip():
+                log.warning(
+                    "gui.roi_templates.skipping_empty_display_name",
+                    name=template_name,
+                    entry=entry
+                )
+                continue
+
             enriched.append(entry)
 
         self._roi_templates_cache = enriched
-        names = [entry["display_name"] for entry in enriched]
+        # Filter out any empty display names (extra safety)
+        names = [entry["display_name"] for entry in enriched if entry.get("display_name", "").strip()]
+
+        log.info(
+            "gui.roi_templates.refreshed",
+            total_templates=len(templates),
+            valid_templates=len(enriched),
+            display_names=names
+        )
 
         if self.roi_template_combobox:
             self.roi_template_combobox.configure(values=names)
 
-        # If clear_selection is requested, always blank the combobox
+        # If clear_selection is requested
         if clear_selection:
-            self.roi_template_var.set("")
+            # If there are no templates, disable the combobox
+            if not names and hasattr(self, 'roi_template_combobox'):
+                self.roi_template_var.set("")
+                self.roi_template_combobox.configure(state="disabled")
+                log.info("gui.roi_templates.combobox_disabled_no_templates")
+            # If there's exactly one template, auto-select it
+            elif len(names) == 1 and hasattr(self, 'roi_template_combobox'):
+                self.roi_template_combobox.configure(state="readonly")
+                # Set directly to the template, don't clear first
+                self.roi_template_var.set(names[0])
+                log.info(
+                    "gui.roi_templates.auto_selected_single_template",
+                    template_name=names[0]
+                )
+            # If there are multiple templates, clear selection
+            else:
+                self.roi_template_var.set("")
+                if hasattr(self, 'roi_template_combobox'):
+                    self.roi_template_combobox.configure(state="readonly")
+                log.info(
+                    "gui.roi_templates.combobox_enabled_multiple_templates",
+                    template_count=len(names),
+                    templates=names
+                )
+
+            # Update button state after selection change
+            self._update_delete_template_button_state()
             return
+
+        # Enable combobox if there are templates
+        if names and hasattr(self, 'roi_template_combobox'):
+            self.roi_template_combobox.configure(state="readonly")
+        elif not names and hasattr(self, 'roi_template_combobox'):
+            self.roi_template_combobox.configure(state="disabled")
 
         # Auto-select if there's exactly one template available
         if len(names) == 1 and not self.roi_template_var.get():
             self.roi_template_var.set(names[0])
+            log.info(
+                "gui.roi_templates.auto_selected_on_refresh",
+                template_name=names[0]
+            )
             return
 
         # If current selection is no longer valid, clear it
         current_selection = self.roi_template_var.get()
         if current_selection and current_selection not in names:
             self.roi_template_var.set("")
+            log.info(
+                "gui.roi_templates.cleared_invalid_selection",
+                old_selection=current_selection,
+                valid_names=names
+            )
+
+        # Update delete button state
+        self._update_delete_template_button_state()
 
     def _on_save_roi_template(self) -> None:
         pm = getattr(self.controller, "project_manager", None)
@@ -8171,14 +8355,37 @@ class ApplicationGUI:
         return f"{location}:{template.get('name', '')}"
 
     def _get_selected_roi_template(self) -> dict[str, Any] | None:
+        """Get the currently selected template from the dropdown."""
         if not self._roi_templates_cache:
+            log.debug("gui.get_selected_roi_template.empty_cache")
             return None
 
-        current_display = self.roi_template_var.get()
+        current_display = self.roi_template_var.get().strip()
+        if not current_display:
+            log.debug("gui.get_selected_roi_template.no_selection")
+            return None
+
+        log.debug(
+            "gui.get_selected_roi_template.searching",
+            current_display=current_display,
+            cache_size=len(self._roi_templates_cache),
+            available_names=[e.get("display_name") for e in self._roi_templates_cache]
+        )
+
         for entry in self._roi_templates_cache:
             if entry.get("display_name") == current_display:
+                log.info(
+                    "gui.get_selected_roi_template.found",
+                    display_name=current_display,
+                    template_name=entry.get("name")
+                )
                 return entry
 
+        log.warning(
+            "gui.get_selected_roi_template.not_found",
+            current_display=current_display,
+            cache_entries=[e.get("display_name") for e in self._roi_templates_cache]
+        )
         return None
 
     def _get_zone_data_for_active_context(self) -> ZoneData:
@@ -8206,19 +8413,63 @@ class ApplicationGUI:
         return pm.get_zone_data()
 
     def _select_roi_template(self, metadata: dict[str, Any]) -> None:
+        """Select a template in the dropdown by matching metadata."""
+        if not self._roi_templates_cache:
+            log.warning("gui.select_roi_template.no_cache", metadata_name=metadata.get("name"))
+            return
+
         identifier = self._build_roi_template_identifier(metadata)
+
+        # First try: exact identifier match
         for entry in self._roi_templates_cache:
             if entry.get("identifier") == identifier:
-                self.roi_template_var.set(entry.get("display_name", ""))
-                return
+                display_name = entry.get("display_name", "")
+                if display_name:
+                    self.roi_template_var.set(display_name)
+                    log.info(
+                        "gui.select_roi_template.success_by_identifier",
+                        display_name=display_name,
+                        identifier=identifier
+                    )
+                    return
 
+        # Second try: match by name
         fallback_name = metadata.get("name", "")
         if fallback_name:
             for entry in self._roi_templates_cache:
                 if entry.get("name") == fallback_name:
-                    self.roi_template_var.set(entry.get("display_name", ""))
-                    return
+                    display_name = entry.get("display_name", "")
+                    if display_name:
+                        self.roi_template_var.set(display_name)
+                        log.info(
+                            "gui.select_roi_template.success_by_name",
+                            display_name=display_name,
+                            name=fallback_name
+                        )
+                        return
 
+        # Third try: match by slug or file reference
+        slug = metadata.get("slug", "")
+        file_ref = metadata.get("file", "")
+        if slug or file_ref:
+            for entry in self._roi_templates_cache:
+                if (slug and entry.get("slug") == slug) or (file_ref and entry.get("file") == file_ref):
+                    display_name = entry.get("display_name", "")
+                    if display_name:
+                        self.roi_template_var.set(display_name)
+                        log.info(
+                            "gui.select_roi_template.success_by_slug_or_file",
+                            display_name=display_name
+                        )
+                        return
+
+        # Failed to find template
+        log.warning(
+            "gui.select_roi_template.not_found",
+            metadata_name=fallback_name,
+            identifier=identifier,
+            cache_size=len(self._roi_templates_cache)
+        )
         self.roi_template_var.set("")
 
     def _show_template_save_dialog(
@@ -8241,6 +8492,77 @@ class ApplicationGUI:
             return None
 
         return dialog.result
+
+    def _on_delete_roi_template(self) -> None:
+        """Delete the currently selected template."""
+        pm = getattr(self.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        selected_template = self._get_selected_roi_template()
+        if not selected_template:
+            self.show_warning(
+                "Nenhum template selecionado",
+                "Por favor, selecione um template na lista para deletar."
+            )
+            return
+
+        template_name = selected_template.get("name", "Template")
+        template_file = selected_template.get("file")
+        template_location = selected_template.get("location", "unknown")
+
+        # Confirm deletion
+        from tkinter import messagebox
+        response = messagebox.askyesno(
+            "Confirmar Deleção",
+            f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
+            f"Localização: {template_location}\n"
+            f"Arquivo: {template_file}\n\n"
+            f"Esta ação não pode ser desfeita.",
+            icon="warning"
+        )
+
+        if not response:
+            return
+
+        try:
+            from pathlib import Path
+
+            # Delete the file
+            if template_file:
+                file_path = Path(template_file)
+                if file_path.exists():
+                    file_path.unlink()
+                    log.info(
+                        "gui.roi_templates.deleted",
+                        template_name=template_name,
+                        file=template_file
+                    )
+                else:
+                    log.warning(
+                        "gui.roi_templates.delete_file_not_found",
+                        template_name=template_name,
+                        file=template_file
+                    )
+
+            # Refresh the template list
+            self._refresh_roi_templates(clear_selection=True)
+
+            self.show_info(
+                "Template Deletado",
+                f"O template '{template_name}' foi removido com sucesso."
+            )
+
+        except Exception as exc:
+            log.error(
+                "gui.roi_templates.delete_failed",
+                template_name=template_name,
+                error=str(exc)
+            )
+            self.show_error(
+                "Erro ao Deletar",
+                f"Não foi possível deletar o template:\n{exc}"
+            )
 
     def _on_import_roi_template(self) -> None:
         """Import a template file into the library (does not apply it)."""
@@ -8358,18 +8680,70 @@ class ApplicationGUI:
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
 
-        # Optionally import to library as well
+        # Import to library and update dropdown
+        template_name = Path(file_path).stem
         try:
             metadata = pm.import_roi_template(file_path)
             self._refresh_roi_templates()
             self._select_roi_template(metadata)
-        except Exception:  # pragma: no cover - if import fails, we still applied
-            pass
+            template_name = metadata.get("name", template_name)
+            log.info(
+                "gui.roi_templates.import_and_apply.library_updated",
+                template_name=template_name
+            )
+        except Exception as exc:  # pragma: no cover - if import fails, we still applied
+            log.warning(
+                "gui.roi_templates.import_and_apply.library_import_failed",
+                error=str(exc),
+                template_name=template_name
+            )
+            # Still refresh templates to update display
+            self._refresh_roi_templates()
 
-        template_name = Path(file_path).stem
         self.show_info(
             "Template aplicado",
             f"As zonas foram atualizadas com o template '{template_name}'.",
+        )
+
+    def _update_delete_template_button_state(self) -> None:
+        """Update the delete template button state based on selection."""
+        if not self.delete_template_btn:
+            return
+
+        current_value = self.roi_template_var.get().strip()
+        if current_value and self._get_selected_roi_template():
+            self.delete_template_btn.config(state="normal")
+        else:
+            self.delete_template_btn.config(state="disabled")
+
+    def _on_roi_template_var_changed(self, *args) -> None:
+        """Trace callback: Log whenever roi_template_var changes."""
+        current_value = self.roi_template_var.get()
+        import traceback
+        stack = ''.join(traceback.format_stack()[-4:-1])  # Get calling context
+
+        log.info(
+            "gui.roi_template.var_changed",
+            new_value=repr(current_value),
+            new_value_length=len(current_value) if current_value else 0,
+            call_stack=stack,
+        )
+
+        # Update delete button state when selection changes
+        self._update_delete_template_button_state()
+
+    def _on_template_combobox_changed(self, event=None) -> None:
+        """Log when template selection changes in combobox."""
+        current_value = self.roi_template_var.get()
+        cache_entries = self._roi_templates_cache if hasattr(self, "_roi_templates_cache") else []
+
+        log.info(
+            "gui.roi_template.combobox_selection_changed",
+            new_value=repr(current_value),
+            new_value_stripped=repr(current_value.strip()) if current_value else None,
+            new_value_length=len(current_value) if current_value else 0,
+            cache_size=len(cache_entries),
+            cache_display_names=[e.get("display_name") for e in cache_entries],
         )
 
     def _on_apply_roi_template(self) -> None:
@@ -8377,22 +8751,69 @@ class ApplicationGUI:
         if pm is None:
             return
 
-        selected_template = self._get_selected_roi_template()
+        # Detailed logging of current state
+        current_var_value = self.roi_template_var.get()
+        cache_entries = self._roi_templates_cache if hasattr(self, "_roi_templates_cache") else []
+
         log.info(
-            "gui.roi_template.apply_attempt",
-            selected_value=self.roi_template_var.get(),
+            "gui.roi_template.apply_attempt.initial_state",
+            selected_value_raw=repr(current_var_value),
+            selected_value_stripped=repr(current_var_value.strip()) if current_var_value else None,
+            selected_value_length=len(current_var_value) if current_var_value else 0,
+            cache_size=len(cache_entries),
+            cache_display_names=[e.get("display_name") for e in cache_entries],
+            cache_names=[e.get("name") for e in cache_entries],
+        )
+
+        selected_template = self._get_selected_roi_template()
+
+        log.info(
+            "gui.roi_template.apply_attempt.after_get",
             template_found=selected_template is not None,
-            cache_size=(
-                len(self._roi_templates_cache)
-                if hasattr(self, "_roi_templates_cache")
-                else 0
-            ),
+            template_data=selected_template if selected_template else "NOT_FOUND",
         )
 
         if not selected_template:
+            # More detailed error message
+            if not current_var_value.strip() and cache_entries:
+                # There are templates available but none selected
+                error_msg = (
+                    "Por favor, CLIQUE no template no menu dropdown para selecioná-lo.\n\n"
+                    "Não basta apenas abrir o menu - você precisa clicar no nome do template.\n\n"
+                    f"Templates disponíveis: {len(cache_entries)}\n"
+                    f"  • {cache_entries[0].get('display_name') if cache_entries else 'N/A'}"
+                )
+                if len(cache_entries) == 1:
+                    # Auto-select the only available template
+                    self.roi_template_var.set(cache_entries[0].get("display_name", ""))
+                    log.info(
+                        "gui.roi_template.auto_selecting_on_apply",
+                        template=cache_entries[0].get("display_name")
+                    )
+                    # Try again now that we've selected it
+                    self.root.after(100, self._on_apply_roi_template)
+                    return
+            else:
+                cache_info = "\n".join([
+                    f"  - '{e.get('display_name')}' (name: '{e.get('name')}', file: '{e.get('file')}')"
+                    for e in cache_entries
+                ]) if cache_entries else "  (vazio)"
+
+                error_msg = (
+                    f"Template não encontrado ou inválido.\n\n"
+                    f"Valor selecionado: '{current_var_value}'\n"
+                    f"Templates disponíveis:\n{cache_info}"
+                )
+
+            log.error(
+                "gui.roi_template.apply_failed_no_match",
+                selected_value=current_var_value,
+                available_display_names=[e.get("display_name") for e in cache_entries],
+            )
+
             self.show_warning(
                 "Nenhum template selecionado",
-                "Escolha um template para aplicar nas áreas de interesse.",
+                error_msg,
             )
             return
 
@@ -9753,10 +10174,8 @@ class ApplicationGUI:
         if not dialog.result:
             return  # User cancelled
 
-        video_path = self.ask_open_filenames(
-            "Selecione um Único Arquivo de Vídeo",
-            [("Arquivos de vídeo", "*.mp4 *.avi *.mov")],
-        )
+        # Video path is now included in dialog.result
+        video_path = dialog.result.get("video_path")
         if not video_path:
             return
 
@@ -9764,7 +10183,7 @@ class ApplicationGUI:
         self.publish_event(
             Events.VIDEO_ANALYZE_SINGLE,
             {
-                "video_path": video_path[0],
+                "video_path": video_path,
                 "config": dialog.result,
             },
         )
@@ -10993,6 +11412,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
     def body(self, master):
         # --- Tkinter Variables ---
+        self.video_path_var = StringVar(value="")
         self.num_aquariums_var = StringVar(value="1")
         self.animals_per_aquarium_var = StringVar(value="1")
         self.aquarium_width_var = StringVar(value="10.0")
@@ -11026,15 +11446,41 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
 
-        # Create two-column layout
-        left_column = ttk.Frame(main_frame)
-        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-
-        right_column = ttk.Frame(main_frame)
-        right_column.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
-
+        # Configure grid layout for main_frame
         main_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(1, weight=1)
+
+        # --- Video Selection (Full Width) ---
+        video_frame = ttk.LabelFrame(main_frame, text="Seleção de Vídeo", padding=10)
+        video_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        video_frame.columnconfigure(0, weight=1)
+
+        video_select_container = ttk.Frame(video_frame)
+        video_select_container.pack(fill="x")
+        video_select_container.columnconfigure(0, weight=1)
+
+        video_entry = ttk.Entry(
+            video_select_container,
+            textvariable=self.video_path_var,
+            state="readonly"
+        )
+        video_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        browse_btn = ttk.Button(
+            video_select_container,
+            text="Procurar...",
+            command=self._browse_video,
+            width=12
+        )
+        browse_btn.grid(row=0, column=1, sticky="e")
+
+        # Create two-column layout
+        left_column = ttk.Frame(main_frame)
+        left_column.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+
+        right_column = ttk.Frame(main_frame)
+        right_column.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
 
         # ===== LEFT COLUMN =====
 
@@ -11217,7 +11663,30 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         return main_frame
 
+    def _browse_video(self):
+        """Open file dialog to select a video file."""
+        from tkinter import filedialog
+
+        video_path = filedialog.askopenfilename(
+            parent=self,
+            title="Selecione um Arquivo de Vídeo",
+            filetypes=[
+                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
+                ("Todos os arquivos", "*.*")
+            ]
+        )
+        if video_path:
+            self.video_path_var.set(video_path)
+
     def validate(self):
+        # First check if a video was selected
+        if not self.video_path_var.get():
+            messagebox.showerror(
+                "Erro",
+                "Por favor, selecione um arquivo de vídeo antes de continuar."
+            )
+            return False
+
         try:
             num_aquariums = int(self.num_aquariums_var.get())
             animals_per_aquarium = int(self.animals_per_aquarium_var.get())
@@ -11261,8 +11730,10 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "single_video_dialog.apply",
             analysis_interval=analysis_interval,
             display_interval=display_interval,
+            video_path=self.video_path_var.get(),
         )
         self.result = {
+            "video_path": self.video_path_var.get(),
             "num_aquariums": num_aquariums,
             "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),

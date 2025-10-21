@@ -8,7 +8,8 @@
       "Bash(poetry run pytest:*)",
       "Bash(Select-Object -First 30)",
       "Bash(findstr:*)",
-      "Bash(Select-Object -Last 30)"
+      "Bash(Select-Object -Last 30)",
+      "Bash(poetry show:*)"
     ],
     "deny": [],
     "ask": []
