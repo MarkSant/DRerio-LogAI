@@ -4667,6 +4667,11 @@ class ApplicationGUI:
         self._drawing_history = []  # Stack of (canvas_pts, video_pts) states
         self._drawing_redo_stack = []  # Stack for redo operations
 
+        # Interactive vertex editing during drawing
+        self._dragging_vertex_index = None  # Index of vertex being dragged
+        self._vertex_hover_index = None  # Index of vertex being hovered
+        self._vertex_hover_tolerance = 10  # Pixels tolerance for vertex hover detection
+
         self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
         self._drawing_buttons_frame = None  # Frame for undo/redo buttons
@@ -4797,13 +4802,18 @@ class ApplicationGUI:
         """Create a mock event object for backward compatibility with old event handlers."""
 
         class MockEvent:
-            def __init__(self, data):
+            def __init__(self, data, zone_listbox):
                 self.x_root = data.get("x", 0)
                 self.y_root = data.get("y", 0)
-                self.x = data.get("x", 0)
-                self.y = data.get("y", 0)
+                # Convert root coordinates to widget-relative coordinates
+                if zone_listbox and "x" in data and "y" in data:
+                    self.x = data["x"] - zone_listbox.winfo_rootx()
+                    self.y = data["y"] - zone_listbox.winfo_rooty()
+                else:
+                    self.x = 0
+                    self.y = 0
 
-        return MockEvent(data)
+        return MockEvent(data, self.zone_listbox)
 
     def _on_canvas_configure(self, event=None):
         """Handle canvas resize events to properly scale and center the image."""
@@ -7641,9 +7651,14 @@ class ApplicationGUI:
         self._poly_pts_video = []  # Video coordinates for saving
         self._drawing_history = []  # Reset history
         self._drawing_redo_stack = []  # Reset redo stack
+        self._dragging_vertex_index = None  # Reset dragging state
+        self._vertex_hover_index = None  # Reset hover state
 
         self.roi_canvas.config(cursor="crosshair")
         self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
+        self.roi_canvas.bind("<ButtonPress-1>", self._on_vertex_drag_start)
+        self.roi_canvas.bind("<B1-Motion>", self._on_vertex_drag_motion)
+        self.roi_canvas.bind("<ButtonRelease-1>", self._on_vertex_drag_end)
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
 
@@ -7806,6 +7821,76 @@ class ApplicationGUI:
             self.roi_canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
+
+    def _on_vertex_drag_start(self, event):
+        """Handle mouse press to start dragging a vertex during drawing."""
+        if self.drawing_mode != "polygon" or not self.current_polygon_points:
+            return
+
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+
+        # Check if clicking on an existing vertex
+        for i, (vx, vy) in enumerate(self.current_polygon_points):
+            dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+            if dist <= self._vertex_hover_tolerance:
+                self._dragging_vertex_index = i
+                self.roi_canvas.config(cursor="hand2")
+                return "break"  # Prevent click from adding new point
+
+    def _on_vertex_drag_motion(self, event):
+        """Handle mouse motion while dragging a vertex."""
+        if self._dragging_vertex_index is None:
+            return
+
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+
+        # If drawing ROI, clamp position to arena
+        if self.current_drawing_type == "roi":
+            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            if main_arena_poly:
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                if result < 0:
+                    # Clamp to nearest arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    canvas_x, canvas_y = closest_point
+
+        # Update vertex position
+        self.current_polygon_points[self._dragging_vertex_index] = (canvas_x, canvas_y)
+        self._poly_pts_canvas[self._dragging_vertex_index] = (canvas_x, canvas_y)
+        video_pt = self._canvas_to_video(canvas_x, canvas_y)
+        self._poly_pts_video[self._dragging_vertex_index] = video_pt
+
+        # Redraw polygon
+        self._redraw_polygon_in_progress()
+
+    def _on_vertex_drag_end(self, event):
+        """Handle mouse release after dragging a vertex."""
+        if self._dragging_vertex_index is not None:
+            self._dragging_vertex_index = None
+            self.roi_canvas.config(cursor="crosshair")
 
     def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
@@ -8490,9 +8575,26 @@ class ApplicationGUI:
         canvas_y = float(event.y)
         snapped_point = self._apply_snapping(canvas_x, canvas_y)
 
-        # Use snapped point if available, otherwise use cursor position
-        display_x = snapped_point[0] if snapped_point else canvas_x
-        display_y = snapped_point[1] if snapped_point else canvas_y
+        # Check if mouse is hovering over an existing vertex (from current polygon being drawn)
+        self._vertex_hover_index = None
+        hover_color = "cyan"  # Default color
+
+        if self.current_polygon_points:
+            for i, (vx, vy) in enumerate(self.current_polygon_points):
+                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+                if dist <= self._vertex_hover_tolerance:
+                    self._vertex_hover_index = i
+                    hover_color = "orange"  # Change color when over vertex
+                    # Use vertex position for display
+                    display_x, display_y = vx, vy
+                    break
+
+        # Use snapped point if available and not hovering over vertex
+        if self._vertex_hover_index is None:
+            display_x = snapped_point[0] if snapped_point else canvas_x
+            display_y = snapped_point[1] if snapped_point else canvas_y
+        else:
+            display_x, display_y = self.current_polygon_points[self._vertex_hover_index]
 
         # When drawing ROI, clamp the display indicator within the arena
         if self.current_drawing_type == "roi":
@@ -8531,21 +8633,25 @@ class ApplicationGUI:
                     # Update display position to clamped point
                     display_x, display_y = closest_point
 
-        # Draw snap indicator if snapping is active or if we're drawing ROI
+        # Draw snap indicator if snapping is active, hovering over vertex, or if we're drawing ROI
         # (to show the clamped position within arena)
-        should_show_indicator = snapped_point is not None or (
-            self.current_drawing_type == "roi"
-            and self.controller.project_manager.get_zone_data().polygon
+        should_show_indicator = (
+            snapped_point is not None
+            or self._vertex_hover_index is not None
+            or (
+                self.current_drawing_type == "roi"
+                and self.controller.project_manager.get_zone_data().polygon
+            )
         )
 
         if should_show_indicator:
-            # Draw a small circle to indicate snap point
+            # Draw a small circle to indicate snap point (color changes when over vertex)
             self.roi_canvas.create_oval(
                 display_x - 5,
                 display_y - 5,
                 display_x + 5,
                 display_y + 5,
-                outline="cyan",
+                outline=hover_color,
                 width=2,
                 tags="snap_indicator",
             )
