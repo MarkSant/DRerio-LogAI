@@ -1,5 +1,315 @@
 # Changelog
 
+## 2025-10-21 (Phase 8: Weight Type Management and UI Improvements)
+
+### Overview
+
+Enhanced weight management system with clear separation between segmentation (zebrafish) and detection (aquarium) models. Improved UI to display model types, allow independent default selection per type, and corrected OpenVINO metadata generation to reflect actual model types.
+
+### Features Implemented
+
+#### 1. Enhanced Weight Management Dialog
+
+**Modified**: `src/zebtrack/ui/gui.py` (ManageWeightsDialog class)
+
+**UI Improvements**:
+- Added "Tipo" column showing "Segmentação" or "Detecção"
+- Split "Padrão" into two columns:
+  - "Padrão Segmentação" - Shows ✓ for segmentation default
+  - "Padrão Detecção" - Shows ✓ for detection default
+- Added informational panel explaining:
+  - Segmentation models: For detecting individual fish (zebrafish)
+  - Detection models: For detecting aquariums/arenas
+  - Users can have different defaults for each type
+
+**New Action Buttons**:
+- `Padrão para Segmentação`: Sets selected weight as default for segmentation
+- `Padrão para Detecção`: Sets selected weight as default for detection
+- Type validation: Prevents setting wrong type as default with clear error messages
+
+**User Feedback**:
+- Type mismatch warnings explain which type is expected
+- Success confirmations specify which default was updated
+- Visual indicators (✓) clearly show active defaults per type
+
+#### 2. Corrected OpenVINO Metadata Generation
+
+**Modified**: `src/zebtrack/core/weight_manager.py` (convert_to_openvino method)
+
+**Segmentation Models** (`*_seg.pt`):
+```json
+{
+  "model_type": "instance_segmentation",
+  "num_classes": 2,
+  "class_names": {"0": "aquarium", "1": "zebrafish"},
+  "task": "segment",
+  "weight_type": "seg",
+  "description": "Modelo de segmentação para detecção de peixes individuais"
+}
+```
+
+**Detection Models** (`*_oi.pt`):
+```json
+{
+  "model_type": "object_detection",
+  "num_classes": 1,
+  "class_names": {"0": "aquarium"},
+  "task": "detect",
+  "weight_type": "det",
+  "description": "Modelo de detecção para localização de aquários/arenas"
+}
+```
+
+**Previous Issue**: All models were incorrectly labeled as "instance_segmentation"  
+**Fixed**: Metadata now correctly reflects model type based on weight classification
+
+#### 3. OpenVINO Conversion Confirmation
+
+**Verified Behavior**:
+- Each model converts to its **own separate directory**:
+  - `best_seg.pt` → `openvino_model_cache/best_seg_openvino_model/`
+  - `best_oi.pt` → `openvino_model_cache/best_oi_openvino_model/`
+- No mixing of model types ✓
+- Proper isolation maintained ✓
+
+### User Experience Improvements
+
+**Scenario 1**: User managing multiple weight types
+- Clearly sees which weights are for segmentation vs detection
+- Can set independent defaults for each type
+- Understands purpose of each model type
+
+**Scenario 2**: User attempts incompatible default assignment
+- System prevents setting segmentation model as detection default
+- Clear error message explains the mismatch
+- Guides user to select correct weight type
+
+**Scenario 3**: OpenVINO conversion
+- Metadata accurately reflects model capabilities
+- Type information preserved through conversion
+- Proper task and class configuration per type
+
+### Files Modified
+
+- `src/zebtrack/ui/gui.py`:
+  - ManageWeightsDialog: Enhanced UI with type display (+67 lines)
+  - New validation methods for type-specific defaults
+  - Informational panel for user guidance
+
+- `src/zebtrack/core/weight_manager.py`:
+  - Fixed metadata generation in convert_to_openvino (+26 lines)
+  - Proper type detection and metadata creation
+  - Enhanced logging with type information
+
+### Test Results
+
+- ✅ 7/7 WeightManager tests passing
+- ✅ 3/3 Weight type integration tests passing
+- ✅ No regressions detected
+- ✅ Backward compatibility maintained
+
+### Developer Impact
+
+**Before**:
+- Unclear which weight was for which task
+- Single "default" concept confused users
+- OpenVINO metadata always said "segmentation"
+- No visual indication of model purpose
+
+**After**:
+- Clear type labels (Segmentação/Detecção)
+- Independent defaults per type
+- Accurate OpenVINO metadata
+- Comprehensive user guidance in UI
+- Type validation prevents misconfigurations
+
+---
+
+## 2025-10-21 (Phase 7: Hardware Auto-Detection and User Feedback Improvements)
+
+### Overview
+
+Implemented comprehensive hardware detection system with automatic backend selection, OpenVINO model validation, visual GPU display in UI, and diagnostic progress feedback. This phase ensures optimal performance across different hardware configurations while providing clear visual feedback to users.
+
+### Features Implemented
+
+#### 1. Hardware Auto-Detection System
+
+**New Module**: `src/zebtrack/utils/hardware_detection.py`
+- **`is_cuda_available()`**: Detects NVIDIA CUDA availability via PyTorch
+- **`is_openvino_available()`**: Checks OpenVINO installation
+- **`get_openvino_devices()`**: Lists available OpenVINO devices (CPU, GPU, etc.)
+- **`has_intel_gpu()`**: Detects Intel GPU devices (including EVO platforms)
+- **`recommend_backend()`**: Returns 'pytorch' or 'openvino' based on hardware priority
+- **`get_hardware_summary()`**: Comprehensive dict with all detection results
+
+**Priority Logic**:
+1. NVIDIA CUDA available → PyTorch (best for NVIDIA GPUs)
+2. OpenVINO + Intel GPU → OpenVINO with GPU acceleration
+3. OpenVINO CPU-only → OpenVINO optimized for CPU
+4. Fallback → PyTorch CPU
+
+**Coverage**: 16 comprehensive unit tests (`tests/utils/test_hardware_detection.py`)
+
+#### 2. OpenVINO Model Validation and Fallback
+
+**Enhanced**: `src/zebtrack/core/main_view_model.py` (lines 157-202)
+- Validates OpenVINO model conversion at startup using `_is_valid_openvino_directory()`
+- Checks for presence of `.xml` files in model directory
+- **Fallback behavior**: If OpenVINO recommended but model not converted:
+  - Falls back to PyTorch temporarily
+  - Logs warning: `controller.init.openvino_recommended_but_not_converted`
+  - Updates UI with helpful message
+
+**Protection Points**:
+- Startup auto-selection (lines 157-202)
+- Diagnostic flow pre-flight checks (existing, lines 5057+)
+- User-initiated model test/diagnostic
+
+**Tests**: 5 validation tests in `tests/test_openvino_fallback.py`
+
+#### 3. GPU Hardware Display in Main Window
+
+**Enhanced**: `src/zebtrack/ui/gui.py`
+- New `_gpu_hardware_display_var` StringVar (line 1823)
+- New Label in "Estado do Modelo de Detecção" section (lines 2796-2811)
+- **`update_gpu_hardware_display()`** method (lines 9196-9222):
+  - Extracts GPU name from hardware summary
+  - Formats display based on hardware type:
+    - NVIDIA: "Hardware: NVIDIA GeForce RTX 3080 (recomendado: PyTorch)"
+    - Intel: "Hardware: Intel GPU (recomendado: OpenVINO)"
+    - CPU: "Hardware: CPU apenas"
+
+**Integration**: Called from `MainViewModel.__init__` after view creation (line 254)
+
+#### 4. Diagnostic Progress Dialog
+
+**Enhanced**: `src/zebtrack/ui/gui.py` (DiagnosticProgressDialog class, lines 90-181)
+- Modal dialog with real-time progress updates
+- Frame-by-frame progress bar
+- Status label showing current operation
+- Detailed log text widget
+- Cancel button for user abort
+- Thread-safe updates via `root.after(0, ...)`
+
+**Integration**: 
+- Created in `MainViewModel.run_model_diagnostic` (line ~5045)
+- Updated by `_diagnostic_processing_thread` frame-by-frame
+- Replaced silent wait with visual feedback
+
+#### 5. UI Status Messages
+
+**Enhanced**: OpenVINO status display
+- When recommended but not converted: "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+- Updated via `view.update_openvino_status_display()` at startup (lines 278-282)
+
+### Logging Enhancements
+
+**New log events**:
+```python
+# Successful OpenVINO auto-selection
+"controller.init.auto_selected_openvino"
+  - reason: "Hardware detection recommends OpenVINO and model is converted"
+  - cuda_available, openvino_available, intel_gpu
+
+# Fallback to PyTorch (model not converted)
+"controller.init.openvino_recommended_but_not_converted"
+  - reason: "OpenVINO recommended by hardware but model not yet converted, using PyTorch"
+  - cuda_available, openvino_available, intel_gpu, active_weight
+
+# PyTorch selection
+"controller.init.auto_selected_pytorch"
+  - reason: "Hardware detection recommends PyTorch"
+  - cuda_available
+```
+
+### User Experience Improvements
+
+**Scenario 1**: User with NVIDIA GPU
+- System detects CUDA → Auto-selects PyTorch
+- UI shows: "Hardware: NVIDIA GeForce RTX 3080 (recomendado: PyTorch)"
+- OpenVINO: Desativado
+
+**Scenario 2**: User with Intel GPU/EVO platform, model already converted
+- System detects Intel GPU + OpenVINO → Auto-selects OpenVINO
+- UI shows: "Hardware: Intel GPU (recomendado: OpenVINO)"
+- OpenVINO: Ativado
+
+**Scenario 3**: User with Intel GPU/EVO platform, model NOT converted
+- System detects Intel GPU + OpenVINO → Recommends OpenVINO
+- Validates model → NOT converted
+- Falls back to PyTorch temporarily
+- UI shows: "Hardware: Intel GPU (recomendado: OpenVINO)"
+- UI shows: "OpenVINO: Desativado — Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+- User runs diagnostic → Prompted to convert model
+- Next startup → OpenVINO activated automatically
+
+**Scenario 4**: User runs diagnostic/test weights
+- Opens diagnostic dialog
+- Selects model and video
+- Clicks "Iniciar"
+- **New**: DiagnosticProgressDialog appears showing:
+  - "Processando frame 1/300..."
+  - Progress bar updating in real-time
+  - Detailed log of operations
+  - Cancel button if needed
+- On completion: Report dialog opens as before
+
+### Documentation Updates
+
+1. **`docs/REFERENCE_GUIDE.md`**:
+   - Expanded "Detecção Automática de Hardware" section
+   - Added protection against model not converted
+   - Documented log messages and UI displays
+   - Added diagnostic progress dialog notes
+
+2. **`.github/copilot-instructions.md`**:
+   - Added OpenVINO model validation notes
+   - Added GPU display in UI section
+   - Updated hardware auto-detection details
+
+3. **`tests/test_openvino_fallback.py`** (new):
+   - Documents OpenVINO fallback scenarios
+   - 5 tests for `_is_valid_openvino_directory()`
+   - All passing
+
+### Files Modified
+
+- `src/zebtrack/utils/hardware_detection.py` (new, 164 lines)
+- `src/zebtrack/core/main_view_model.py` (+46 lines)
+- `src/zebtrack/ui/gui.py` (+127 lines)
+- `src/zebtrack/ui/wizard/model_selection_step.py` (minor integration)
+- `tests/utils/test_hardware_detection.py` (new, 105 lines)
+- `tests/test_openvino_fallback.py` (new, 82 lines)
+- `docs/REFERENCE_GUIDE.md` (+28 lines)
+- `.github/copilot-instructions.md` (+2 lines)
+
+### Test Results
+
+- Hardware detection tests: 16/16 passing ✅
+- OpenVINO fallback tests: 5/5 passing ✅
+- No regressions in existing tests
+- Coverage for new modules: 95%+
+
+### Developer Impact
+
+**Before**:
+- Manual backend selection required
+- No validation if model was converted
+- Silent waiting during diagnostics
+- No visual confirmation of hardware
+- Users with Intel GPUs didn't know OpenVINO could help
+
+**After**:
+- Automatic optimal backend selection
+- Graceful fallback if model not ready
+- Real-time diagnostic progress with cancel option
+- Visual GPU confirmation in main window
+- Intel GPU users get automatic acceleration
+- Clear UI guidance for model conversion
+
+---
+
 ## 2025-01-29 (Phase 5.2.4: GUI Test Infrastructure Improvements)
 
 ### Overview

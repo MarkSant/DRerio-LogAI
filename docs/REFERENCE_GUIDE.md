@@ -20,9 +20,55 @@ Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de labo
 
 ### Pré-requisitos opcionais
 
-- **GPU CUDA**: habilita aceleração dos modelos YOLO nativos.
-- **OpenVINO Runtime**: aceleração CPU para modelos convertidos (`WeightManager` cuida do cache `openvino_model_cache/`).
+- **GPU CUDA**: habilita aceleração dos modelos YOLO nativos com PyTorch.
+- **OpenVINO Runtime**: aceleração CPU/GPU para modelos convertidos (`WeightManager` cuida do cache `openvino_model_cache/`).
+- **Intel GPU (incluindo plataformas EVO)**: suportadas via OpenVINO com aceleração de hardware.
 - **Arduino + relés**: use portas seriais listadas pelo sistema (`COM3`, `COM4`, …). Configure `arduino_port` no wizard ou dialog legado.
+
+#### Detecção Automática de Hardware (v1.8+)
+
+O ZebTrack-AI detecta automaticamente o hardware disponível no startup e seleciona o backend ideal:
+
+1. **Prioridade 1 - NVIDIA CUDA**: Se PyTorch detecta GPU NVIDIA com CUDA, usa backend PyTorch (melhor para GPUs NVIDIA).
+2. **Prioridade 2 - OpenVINO com GPU Intel**: Se OpenVINO está instalado e detecta GPU Intel (incluindo EVO), usa OpenVINO com aceleração GPU.
+3. **Prioridade 3 - OpenVINO CPU**: Se OpenVINO está disponível mas sem GPU, usa OpenVINO otimizado para CPU.
+4. **Fallback - PyTorch CPU**: Se nenhuma das opções acima está disponível, usa PyTorch com CPU.
+
+**Proteção contra modelo não convertido**: Se OpenVINO é recomendado mas o modelo ainda não foi convertido para formato `.xml`, o sistema automaticamente:
+- Faz fallback para PyTorch temporariamente
+- Exibe aviso na UI: "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+- Registra log de warning: `controller.init.openvino_recommended_but_not_converted`
+- Oferece conversão automática ao executar o diagnóstico de pesos
+
+**Log de startup**: A decisão é registrada no log com informações sobre hardware detectado:
+```
+controller.init.auto_selected_openvino: reason="Hardware detection recommends OpenVINO and model is converted", cuda_available=False, openvino_available=True, intel_gpu=True
+```
+
+ou (quando modelo não convertido):
+
+```
+controller.init.openvino_recommended_but_not_converted: reason="OpenVINO recommended by hardware but model not yet converted, using PyTorch", cuda_available=False, openvino_available=True, intel_gpu=True, active_weight="best_oi.pt"
+```
+
+ou (CUDA disponível):
+
+```
+controller.init.auto_selected_pytorch: reason="Hardware detection recommends PyTorch", cuda_available=True
+```
+
+**Interface visual**: Na janela principal, seção "Estado do Modelo de Detecção", o hardware detectado é exibido:
+- Com GPU: "Hardware: NVIDIA GeForce RTX 3080 (recomendado: PyTorch)"
+- Com Intel GPU: "Hardware: Intel GPU (recomendado: OpenVINO)"
+- CPU apenas: "Hardware: CPU apenas"
+
+Esta detecção automática também funciona no wizard (Model Selection Step), garantindo que usuários sem NVIDIA GPUs obtenham melhor performance automaticamente.
+
+**Progresso de diagnóstico**: Ao executar diagnóstico/teste de pesos, uma janela modal exibe:
+- Barra de progresso frame-by-frame
+- Status atual da execução
+- Botão de cancelamento
+- Log detalhado do processamento
 
 ---
 

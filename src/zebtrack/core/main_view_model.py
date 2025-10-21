@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import tempfile
@@ -55,6 +56,7 @@ from zebtrack.settings import settings
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
 
 log = structlog.get_logger()
 
@@ -64,6 +66,26 @@ try:
 except AttributeError:  # pragma: no cover - legacy settings fallback
     DEFAULT_TRACK_THRESHOLD = 0.25
     DEFAULT_MATCH_THRESHOLD = 0.15
+
+
+def _is_valid_openvino_directory(path: str | None) -> bool:
+    """
+    Validates if an OpenVINO model directory exists and contains required .xml files.
+
+    Args:
+        path: Path to the OpenVINO model directory
+
+    Returns:
+        True if the directory exists and contains at least one .xml file, False otherwise
+    """
+    if not path or not os.path.exists(path):
+        return False
+
+    if not os.path.isdir(path):
+        return False
+
+    xml_files = glob.glob(os.path.join(path, "*.xml"))
+    return len(xml_files) > 0
 
 
 class MainViewModel:
@@ -132,7 +154,57 @@ class MainViewModel:
         if self.active_weight_name is None:
             self.active_weight_name = ""
             log.warning("controller.init.no_default_weight")
-        self.use_openvino = False  # Default to not using OpenVINO
+
+        # Hardware detection and auto-configuration (Phase 7)
+        log.info("controller.init.hardware_detection_start")
+        hardware_summary = get_hardware_summary()
+        recommended_backend = recommend_backend()
+
+        # Auto-configure use_openvino based on hardware detection
+        if recommended_backend == "openvino":
+            # Check if OpenVINO model is already converted
+            default_weight_details = None
+            if self.active_weight_name:
+                default_weight_details = self.weight_manager.get_weight_details(
+                    self.active_weight_name
+                )
+
+            openvino_converted = False
+            if default_weight_details:
+                ov_path = default_weight_details.get("openvino_path")
+                openvino_converted = _is_valid_openvino_directory(ov_path)
+
+            if openvino_converted:
+                self.use_openvino = True
+                log.info(
+                    "controller.init.auto_selected_openvino",
+                    reason="Hardware detection recommends OpenVINO and model is converted",
+                    cuda_available=hardware_summary["cuda_available"],
+                    openvino_available=hardware_summary["openvino_available"],
+                    intel_gpu=hardware_summary["has_intel_gpu"],
+                )
+            else:
+                # OpenVINO recommended but model not converted - fall back to PyTorch
+                self.use_openvino = False
+                log.warning(
+                    "controller.init.openvino_recommended_but_not_converted",
+                    reason=(
+                        "OpenVINO recommended by hardware but model not yet "
+                        "converted, using PyTorch"
+                    ),
+                    cuda_available=hardware_summary["cuda_available"],
+                    openvino_available=hardware_summary["openvino_available"],
+                    intel_gpu=hardware_summary["has_intel_gpu"],
+                    active_weight=self.active_weight_name,
+                )
+        else:
+            self.use_openvino = False
+            log.info(
+                "controller.init.auto_selected_pytorch",
+                reason="Hardware detection recommends PyTorch",
+                cuda_available=hardware_summary["cuda_available"],
+            )
+
         self._global_model_defaults = {
             "active_weight": self.active_weight_name or None,
             "use_openvino": self.use_openvino,
@@ -206,6 +278,15 @@ class MainViewModel:
             event_bus=self.ui_event_bus if self._use_event_bus else None,
         )
         self._publish_processing_mode(source="init", force=True)
+
+        # Update GPU hardware display in UI (Phase 7)
+        self.view.update_gpu_hardware_display(hardware_summary)
+
+        # Update OpenVINO status if it was recommended but not available due to missing conversion
+        if recommended_backend == "openvino" and not self.use_openvino:
+            self.view.update_openvino_status_display(
+                "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+            )
 
         # Initialize core threading primitives first
         self.program_exit_event = threading.Event()
@@ -4973,8 +5054,15 @@ class MainViewModel:
     def run_model_diagnostic(self, config: dict):
         """
         Prepares for and launches the diagnostic test in a background thread.
+        Now shows a progress dialog during execution.
         """
         log.info("controller.diagnostic.start", config=config)
+
+        # Close the CalibrationDialog if passed
+        parent_dialog = config.pop("parent_dialog", None)
+        if parent_dialog:
+            parent_dialog.destroy()
+
         self.view.set_status("Iniciando diagnóstico do modelo...")
         self.view.update_idletasks()
 
@@ -4998,17 +5086,38 @@ class MainViewModel:
         # --- Pre-flight checks (OpenVINO conversion) ---
         if model_to_test in ["OpenVINO", "Ambos"]:
             ov_path = active_weight_details.get("openvino_path")
-            if not ov_path or not os.path.exists(ov_path):
+            # Validate that the OpenVINO directory exists AND contains .xml files
+            if not _is_valid_openvino_directory(ov_path):
+                log.warning(
+                    "diagnostic.openvino.invalid_directory",
+                    path=ov_path,
+                    exists=os.path.exists(ov_path) if ov_path else False,
+                )
+                # Clean up corrupted/empty directory if it exists
+                if ov_path and os.path.exists(ov_path) and os.path.isdir(ov_path):
+                    try:
+                        shutil.rmtree(ov_path, ignore_errors=True)
+                        log.info("diagnostic.openvino.corrupted_directory_removed", path=ov_path)
+                    except Exception as e:
+                        log.warning(
+                            "diagnostic.openvino.cleanup_failed", path=ov_path, error=str(e)
+                        )
+
                 if self.view.ask_ok_cancel(
                     "Converter Modelo?",
-                    "O modelo OpenVINO não foi encontrado. Deseja convertê-lo agora?",
+                    (
+                        "O modelo OpenVINO não foi encontrado ou está incompleto. "
+                        "Deseja convertê-lo agora?"
+                    ),
                 ):
                     self.convert_active_weight_to_openvino(dialog=None)
                     # Refresh details after conversion
                     active_weight_details = self.weight_manager.get_weight_details(
                         self.active_weight_name
                     )
-                    if not active_weight_details.get("openvino_path"):
+                    if not _is_valid_openvino_directory(
+                        active_weight_details.get("openvino_path")
+                    ):
                         self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {"title": "Erro", "message": "A conversão para OpenVINO falhou."},
@@ -5025,6 +5134,12 @@ class MainViewModel:
                             Events.UI_SET_STATUS, {"message": "Diagnóstico cancelado."}
                         )
                         return
+
+        # --- Create and show progress dialog ---
+        from zebtrack.ui.gui import DiagnosticProgressDialog
+
+        progress_dialog = DiagnosticProgressDialog(self.root)
+        config["progress_dialog"] = progress_dialog
 
         # --- Launch background thread ---
         self.cancel_event.clear()
@@ -5043,11 +5158,13 @@ class MainViewModel:
     def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
         """
         The actual diagnostic processing logic that runs in a background thread.
+        Updates progress dialog during execution.
         """
         video_path = config["video_path"]
         frames_to_analyze = config["frames_to_analyze"]
         conf_threshold = config["confidence_threshold"]
         model_to_test = config["model_to_test"]
+        progress_dialog = config.get("progress_dialog")
         results = {}
 
         # --- Model Loading ---
@@ -5055,11 +5172,24 @@ class MainViewModel:
         openvino_model = None
 
         try:
+            if progress_dialog:
+                self.root.after(
+                    0,
+                    progress_dialog.update_progress,
+                    "Carregando modelos...",
+                )
+
             if model_to_test in ["YOLO (PyTorch)", "Ambos"]:
                 if not ULTRALYTICS_AVAILABLE:
                     log.error("diagnostic.yolo.unavailable")
-                    config["update_progress"](
-                        "Erro: YOLO não está disponível (ultralytics não instalado)"
+                    if progress_dialog:
+                        self.root.after(0, progress_dialog.finish)
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Erro",
+                            "message": "YOLO não está disponível (ultralytics não instalado)",
+                        },
                     )
                     return
 
@@ -5072,7 +5202,8 @@ class MainViewModel:
 
             if model_to_test in ["OpenVINO", "Ambos"]:
                 ov_path = weight_details.get("openvino_path")
-                if ov_path and os.path.exists(ov_path):
+                # Validate that the OpenVINO directory exists AND contains .xml files
+                if _is_valid_openvino_directory(ov_path):
                     plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
                     if plugin_class:
                         openvino_model = plugin_class(ov_path)
@@ -5082,6 +5213,8 @@ class MainViewModel:
                                 "diagnostic.thread.missing_predict_method",
                                 plugin_class=str(plugin_class),
                             )
+                            if progress_dialog:
+                                self.root.after(0, progress_dialog.finish)
                             self.ui_event_bus.publish_event(
                                 Events.UI_SHOW_ERROR,
                                 {
@@ -5100,10 +5233,31 @@ class MainViewModel:
                             )
                         results["OpenVINO"] = []
                         log.info("diagnostic.thread.openvino_loaded", path=ov_path)
+                else:
+                    log.error(
+                        "diagnostic.thread.openvino_invalid",
+                        path=ov_path,
+                        exists=os.path.exists(ov_path) if ov_path else False,
+                    )
+                    if progress_dialog:
+                        self.root.after(0, progress_dialog.finish)
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Erro de Modelo",
+                            "message": (
+                                "O diretório do modelo OpenVINO não contém arquivos "
+                                ".xml necessários. Por favor, reconverta o modelo."
+                            ),
+                        },
+                    )
+                    return
 
             # --- Video Processing ---
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
+                if progress_dialog:
+                    self.root.after(0, progress_dialog.finish)
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_ERROR,
                     {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
@@ -5111,13 +5265,31 @@ class MainViewModel:
                 return
 
             for frame_count in range(frames_to_analyze):
-                if self.cancel_event.is_set():
+                # Check for cancellation
+                if self.cancel_event.is_set() or (
+                    progress_dialog and progress_dialog.user_cancelled
+                ):
+                    log.info("diagnostic.thread.cancelled_by_user")
+                    if progress_dialog:
+                        self.root.after(0, progress_dialog.finish)
                     break
+
                 ret, frame = cap.read()
                 if not ret:
                     break
 
                 status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
+
+                # Update progress dialog
+                if progress_dialog:
+                    self.root.after(
+                        0,
+                        progress_dialog.update_progress,
+                        status_msg,
+                        frame_count + 1,
+                        frames_to_analyze,
+                    )
+
                 self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
 
                 if yolo_model:
@@ -5143,6 +5315,8 @@ class MainViewModel:
                             frame=frame_count + 1,
                             exc_info=True,
                         )
+                        if progress_dialog:
+                            self.root.after(0, progress_dialog.finish)
                         self.ui_event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {
@@ -5153,10 +5327,16 @@ class MainViewModel:
                         return
             cap.release()
 
+            # Close progress dialog before showing save dialog
+            if progress_dialog:
+                self.root.after(0, progress_dialog.finish)
+
             # --- Schedule report generation on main thread ---
             self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
         except Exception as e:
             log.error("diagnostic.thread.load_error", exc_info=True)
+            if progress_dialog:
+                self.root.after(0, progress_dialog.finish)
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},

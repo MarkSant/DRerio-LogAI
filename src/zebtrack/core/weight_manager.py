@@ -492,21 +492,45 @@ class WeightManager:
             shutil.move(temp_export_path, cached_model_dir)
             temp_export_path = None  # The move was successful
 
-            # Cria arquivo de metadata
-            metadata = {
-                "model_type": "instance_segmentation",
-                "num_classes": 2,
-                "class_names": {"0": "aquarium", "1": "zebrafish"},
-                "task": "segment",
-                "original_model": os.path.basename(pt_path),
-                "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            }
+            # Determina o tipo de modelo e cria metadata apropriado
+            weight_type = details.get("type", "seg")
+
+            if weight_type == "seg":
+                metadata = {
+                    "model_type": "instance_segmentation",
+                    "num_classes": 2,
+                    "class_names": {"0": "aquarium", "1": "zebrafish"},
+                    "task": "segment",
+                    "weight_type": "seg",
+                    "description": (
+                        "Modelo de segmentação para detecção de peixes "
+                        "individuais (zebrafish)"
+                    ),
+                    "original_model": os.path.basename(pt_path),
+                    "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            else:  # det
+                metadata = {
+                    "model_type": "object_detection",
+                    "num_classes": 1,
+                    "class_names": {"0": "aquarium"},
+                    "task": "detect",
+                    "weight_type": "det",
+                    "description": "Modelo de detecção para localização de aquários/arenas",
+                    "original_model": os.path.basename(pt_path),
+                    "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
             metadata_path = os.path.join(cached_model_dir, "metadata.json")
             with open(metadata_path, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
-            log.info("openvino.metadata.created", path=metadata_path)
+            log.info(
+                "openvino.metadata.created",
+                path=metadata_path,
+                model_type=metadata["model_type"],
+                weight_type=weight_type
+            )
 
             # Now that the model is in place, calculate its hash and save.
             openvino_model_path = os.path.abspath(cached_model_dir)

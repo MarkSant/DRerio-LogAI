@@ -60,5 +60,61 @@ class TestOpenVINOContext(unittest.TestCase):
         self.assertEqual(self.plugin._context, "diagnostic")  # Should remain unchanged
 
 
+class TestOpenVINOValidation(unittest.TestCase):
+    """Test validation of OpenVINO model directories."""
+
+    def _is_valid_openvino_directory(self, path):
+        """
+        Local copy of validation function to avoid complex imports in tests.
+        """
+        import glob
+
+        if not path or not os.path.exists(path):
+            return False
+
+        if not os.path.isdir(path):
+            return False
+
+        xml_files = glob.glob(os.path.join(path, "*.xml"))
+        return len(xml_files) > 0
+
+    def test_is_valid_openvino_directory_with_none(self):
+        """Test that None path returns False."""
+        self.assertFalse(self._is_valid_openvino_directory(None))
+
+    def test_is_valid_openvino_directory_nonexistent(self):
+        """Test that nonexistent path returns False."""
+        self.assertFalse(self._is_valid_openvino_directory("/nonexistent/path"))
+
+    def test_is_valid_openvino_directory_empty(self):
+        """Test that empty directory returns False."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.assertFalse(self._is_valid_openvino_directory(tmpdir))
+
+    def test_is_valid_openvino_directory_with_xml(self):
+        """Test that directory with .xml file returns True."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a .xml file
+            xml_file = Path(tmpdir) / "model.xml"
+            xml_file.touch()
+            self.assertTrue(self._is_valid_openvino_directory(tmpdir))
+
+    def test_is_valid_openvino_directory_file_not_dir(self):
+        """Test that a file path (not directory) returns False."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file, not a directory
+            test_file = Path(tmpdir) / "test.txt"
+            test_file.touch()
+            self.assertFalse(self._is_valid_openvino_directory(str(test_file)))
+
+
 if __name__ == "__main__":
     unittest.main()

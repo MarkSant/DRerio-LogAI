@@ -55,9 +55,14 @@ Selected CLAUDE.md excerpts (expanded):
   - Use fixtures in `tests/conftest.py`; mock Tkinter in controller/service tests when needed.
 
 - Hardware & performance notes (useful excerpts):
+  - **Hardware auto-detection (v1.8+)**: At startup, `MainViewModel` runs `hardware_detection.get_hardware_summary()` and auto-selects backend (PyTorch if NVIDIA CUDA available, otherwise OpenVINO if available). This ensures users without NVIDIA GPUs automatically benefit from OpenVINO acceleration (including Intel GPUs/EVO platforms). See `src/zebtrack/utils/hardware_detection.py`.
+  - **OpenVINO model validation**: System validates that OpenVINO model is converted (checks for `.xml` files in model directory) before enabling OpenVINO. If model not converted, falls back to PyTorch with warning in UI: "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+  - **GPU display in UI**: Main window shows detected hardware in "Estado do Modelo de Detecção" section with format "Hardware: [GPU Name] (recomendado: [Backend])" or "Hardware: CPU apenas" for CPU-only systems.
+  - **Weight type management (v1.8+)**: System supports separate defaults for segmentation (zebrafish detection) and detection (aquarium detection) models. ManageWeightsDialog shows type columns and allows independent default selection per type. OpenVINO metadata correctly reflects model type (instance_segmentation vs object_detection).
   - Optional Arduino integration (`arduino.port`) with zone-enter/exit commands; app must gracefully degrade without hardware.
-  - OpenVINO model cache at `openvino_model_cache/` speeds startup.
+  - OpenVINO model cache at `openvino_model_cache/` speeds startup; each model gets its own subdirectory (`{name}_openvino_model/`).
   - Performance knobs: `performance.max_parallel_videos`, `performance.max_parallel_plots`, `performance.parquet_compression` (default `snappy`).
+  - **Diagnostic progress dialog**: Model diagnostics now show `DiagnosticProgressDialog` with frame-by-frame progress and cancel button. See `src/zebtrack/ui/gui.py` (DiagnosticProgressDialog class) and `run_model_diagnostic` in `main_view_model.py`.
 
 Concrete code examples (copy-paste ready):
 - Logging convention with structlog:

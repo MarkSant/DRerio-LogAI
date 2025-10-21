@@ -92,6 +92,111 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
 )
 
 
+class DiagnosticProgressDialog(simpledialog.Dialog):
+    """Modal progress dialog for diagnostic test execution."""
+
+    def __init__(self, parent, title="Diagnóstico em Progresso"):
+        self.parent = parent
+        self.user_cancelled = False
+        self.progress_var = StringVar(value="Iniciando...")
+        self.status_var = StringVar(value="Aguarde...")
+        super().__init__(parent, title=title)
+
+    def body(self, master):
+        """Create dialog body with progress indicators."""
+        # Title
+        title_label = Label(
+            master,
+            text="Executando Diagnóstico do Modelo",
+            font=("Arial", 12, "bold"),
+        )
+        title_label.grid(row=0, column=0, columnspan=2, pady=(10, 20), sticky="w")
+
+        # Progress message
+        Label(master, text="Status:").grid(row=1, column=0, sticky="w", padx=(10, 5))
+        progress_label = Label(
+            master,
+            textvariable=self.progress_var,
+            width=50,
+            anchor="w",
+        )
+        progress_label.grid(row=1, column=1, sticky="w", pady=5)
+
+        # Detailed status
+        Label(master, text="Detalhes:").grid(row=2, column=0, sticky="w", padx=(10, 5))
+        status_label = Label(
+            master,
+            textvariable=self.status_var,
+            width=50,
+            anchor="w",
+            fg="gray",
+        )
+        status_label.grid(row=2, column=1, sticky="w", pady=5)
+
+        # Progress bar (indeterminate mode initially)
+        self.progress_bar = ttk.Progressbar(
+            master,
+            mode="determinate",
+            maximum=100,
+            length=400,
+        )
+        self.progress_bar.grid(row=3, column=0, columnspan=2, pady=(10, 20), padx=10)
+
+        return None  # No initial focus
+
+    def update_progress(self, message: str, current: int | None = None, total: int | None = None):
+        """
+        Update progress display.
+
+        Args:
+            message: Progress message to display
+            current: Current frame number (optional)
+            total: Total frames (optional)
+        """
+        self.progress_var.set(message)
+
+        if current is not None and total is not None and total > 0:
+            percentage = int((current / total) * 100)
+            self.progress_bar["value"] = percentage
+            self.status_var.set(f"Frame {current}/{total} ({percentage}%)")
+        else:
+            self.status_var.set("Processando...")
+
+        self.update_idletasks()
+
+    def update_status(self, status: str):
+        """Update detailed status message."""
+        self.status_var.set(status)
+        self.update_idletasks()
+
+    def buttonbox(self):
+        """Create button box with Cancel button."""
+        box = Frame(self)
+
+        cancel_btn = Button(
+            box,
+            text="Cancelar",
+            width=10,
+            command=self.cancel,
+        )
+        cancel_btn.pack(side="left", padx=5, pady=5)
+
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
+    def cancel(self, event=None):
+        """Handle cancel action."""
+        self.user_cancelled = True
+        self.progress_var.set("Cancelando...")
+        self.status_var.set("Aguarde o processamento atual terminar...")
+        # Don't destroy immediately - let the worker thread finish current frame
+        # The controller will destroy this dialog when it detects cancellation
+
+    def finish(self):
+        """Close dialog normally when processing is complete."""
+        self.destroy()
+
+
 class CalibrationDialog(simpledialog.Dialog):
     """Dialog for model calibration and diagnostics."""
 
@@ -532,10 +637,12 @@ class CalibrationDialog(simpledialog.Dialog):
             "frames_to_analyze": int(self.frames_to_analyze_var.get()),
             "confidence_threshold": float(self.confidence_threshold_var.get()),
             "model_to_test": model_to_test,
+            "parent_dialog": self,  # Pass reference so controller can close it later
         }
 
+        # Don't destroy the dialog immediately - let controller handle it
+        # The diagnostic will now show a progress dialog
         self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
-        self.destroy()
 
     def buttonbox(self):
         # Override to have only a close button
@@ -776,36 +883,89 @@ class ManageWeightsDialog(simpledialog.Dialog):
 
     def body(self, master):
         schedule_maximize(self)
+
+        # Treeview com colunas expandidas para mostrar tipo e padrões por tipo
         self.listbox = ttk.Treeview(
-            master, columns=("name", "is_default"), show="headings", height=5
+            master,
+            columns=("name", "type", "default_seg", "default_det"),
+            show="headings",
+            height=8
         )
         self.listbox.heading("name", text="Nome do Peso")
-        self.listbox.heading("is_default", text="Padrão")
-        self.listbox.column("is_default", width=60, anchor="center")
+        self.listbox.heading("type", text="Tipo")
+        self.listbox.heading("default_seg", text="Padrão Segmentação")
+        self.listbox.heading("default_det", text="Padrão Detecção")
+
+        self.listbox.column("name", width=200, stretch=True)
+        self.listbox.column("type", width=120, anchor="center")
+        self.listbox.column("default_seg", width=140, anchor="center")
+        self.listbox.column("default_det", width=130, anchor="center")
+
         self.listbox.pack(padx=5, pady=5, fill="both", expand=True)
 
         self.populate_list()
 
-        button_frame = ttk.Frame(master)
-        button_frame.pack(pady=5)
+        # Frame de informação
+        info_frame = ttk.LabelFrame(master, text="Informações", padding=10)
+        info_frame.pack(padx=5, pady=5, fill="x")
 
-        ttk.Button(button_frame, text="Definir como Padrão", command=self.set_default).pack(
-            side="left", padx=5
-        )
-        ttk.Button(button_frame, text="Excluir Selecionado", command=self.delete).pack(
-            side="left", padx=5
-        )
+        ttk.Label(
+            info_frame,
+            text="• Segmentação: Para detectar peixes individuais (zebrafish)\n"
+                 "• Detecção: Para detectar aquários/arenas\n"
+                 "• Você pode ter um peso padrão diferente para cada tipo",
+            justify="left",
+            foreground="gray"
+        ).pack(anchor="w")
+
+        button_frame = ttk.Frame(master)
+        button_frame.pack(pady=10)
+
+        ttk.Button(
+            button_frame,
+            text="Padrão para Segmentação",
+            command=self.set_default_seg,
+            width=22
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Padrão para Detecção",
+            command=self.set_default_det,
+            width=22
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Excluir Selecionado",
+            command=self.delete,
+            width=18
+        ).pack(side="left", padx=5)
 
     def populate_list(self):
         for item in self.listbox.get_children():
             self.listbox.delete(item)
 
         weights = self.controller.get_all_weight_names()
-        default_name, _ = self.controller.weight_manager.get_default_weight()
+        default_seg_name, _ = self.controller.weight_manager.get_default_seg_weight()
+        default_det_name, _ = self.controller.weight_manager.get_default_det_weight()
 
         for name in sorted(weights):
-            is_default_str = "Sim" if name == default_name else ""
-            self.listbox.insert("", "end", values=(name, is_default_str))
+            details = self.controller.weight_manager.get_weight_details(name)
+            if not details:
+                continue
+
+            weight_type = details.get("type", "seg")
+            type_label = "Segmentação" if weight_type == "seg" else "Detecção"
+
+            is_default_seg = "✓ Sim" if name == default_seg_name else ""
+            is_default_det = "✓ Sim" if name == default_det_name else ""
+
+            self.listbox.insert(
+                "",
+                "end",
+                values=(name, type_label, is_default_seg, is_default_det)
+            )
 
     def get_selected_item_name(self):
         selected = self.listbox.selection()
@@ -814,12 +974,64 @@ class ManageWeightsDialog(simpledialog.Dialog):
             return None
         return self.listbox.item(selected[0])["values"][0]
 
+    def set_default_seg(self):
+        """Define o peso selecionado como padrão para Segmentação."""
+        name = self.get_selected_item_name()
+        if not name:
+            return
+
+        details = self.controller.weight_manager.get_weight_details(name)
+        if not details:
+            return
+
+        weight_type = details.get("type", "seg")
+        if weight_type != "seg":
+            messagebox.showwarning(
+                "Tipo Incompatível",
+                f"O peso '{name}' é do tipo Detecção e não pode ser padrão para Segmentação.\n\n"
+                "Selecione um peso do tipo Segmentação."
+            )
+            return
+
+        self.controller.weight_manager.set_default_weight_by_type(name, "seg")
+        self.populate_list()
+        messagebox.showinfo(
+            "Padrão Atualizado",
+            f"'{name}' agora é o peso padrão para Segmentação (zebrafish)."
+        )
+
+    def set_default_det(self):
+        """Define o peso selecionado como padrão para Detecção."""
+        name = self.get_selected_item_name()
+        if not name:
+            return
+
+        details = self.controller.weight_manager.get_weight_details(name)
+        if not details:
+            return
+
+        weight_type = details.get("type", "seg")
+        if weight_type != "det":
+            messagebox.showwarning(
+                "Tipo Incompatível",
+                f"O peso '{name}' é do tipo Segmentação e não pode ser padrão para Detecção.\n\n"
+                "Selecione um peso do tipo Detecção."
+            )
+            return
+
+        self.controller.weight_manager.set_default_weight_by_type(name, "det")
+        self.populate_list()
+        messagebox.showinfo(
+            "Padrão Atualizado",
+            f"'{name}' agora é o peso padrão para Detecção (aquário)."
+        )
+
     def set_default(self):
+        """Método legado mantido para compatibilidade."""
         name = self.get_selected_item_name()
         if name:
             self.controller.weight_manager.set_default_weight(name)
             self.populate_list()
-            # No longer need to update the main GUI dropdown directly
 
     def delete(self):
         name = self.get_selected_item_name()
@@ -1713,6 +1925,7 @@ class ApplicationGUI:
         self._available_weight_names: list[str] = []
         self._active_weight_display_var = StringVar(value="Peso ativo: Nenhum peso selecionado.")
         self._openvino_display_var = StringVar(value="OpenVINO: Desativado.")
+        self._gpu_hardware_display_var = StringVar(value="Hardware: Detectando...")
         self._openvino_enabled = False
         self._openvino_status_message = "Desativado."
 
@@ -2694,6 +2907,11 @@ class ApplicationGUI:
         ttk.Label(
             model_status_frame,
             textvariable=self._openvino_display_var,
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(
+            model_status_frame,
+            textvariable=self._gpu_hardware_display_var,
+            foreground="gray",
         ).pack(anchor="w", pady=(4, 0))
 
     def _initialize_theme(self) -> None:
@@ -9079,6 +9297,35 @@ class ApplicationGUI:
             self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
         else:
             self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
+
+    def update_gpu_hardware_display(self, hardware_summary: dict):
+        """Updates the GPU hardware information shown in the UI."""
+        gpu_name = "CPU apenas"
+        recommended_backend = hardware_summary.get("recommended_backend", "pytorch")
+
+        # Try to get NVIDIA GPU name first
+        if hardware_summary.get("cuda_available", False):
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    gpu_name = torch.cuda.get_device_name(0)
+            except Exception:
+                gpu_name = "NVIDIA GPU"
+        # Then check for Intel/OpenVINO GPU
+        elif hardware_summary.get("has_intel_gpu", False):
+            openvino_devices = hardware_summary.get("openvino_devices", [])
+            gpu_devices = [d for d in openvino_devices if "GPU" in d]
+            if gpu_devices:
+                gpu_name = "Intel GPU"
+
+        # Format display string
+        backend_display = "PyTorch" if recommended_backend == "pytorch" else "OpenVINO"
+        if "CPU" in gpu_name:
+            display_text = f"Hardware: {gpu_name}"
+        else:
+            display_text = f"Hardware: {gpu_name} (recomendado: {backend_display})"
+
+        self._gpu_hardware_display_var.set(display_text)
 
     def _create_project_workflow(self):
         """

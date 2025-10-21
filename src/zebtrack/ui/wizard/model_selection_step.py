@@ -13,6 +13,7 @@ from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.utils.hardware_detection import recommend_backend
 
 log = structlog.get_logger()
 
@@ -105,7 +106,14 @@ class ModelSelectionStep(WizardStep):
         animal_method = selection.get("animal_method", defaults.animal_method)
         use_openvino = selection.get("use_openvino")
         if use_openvino is None:
-            use_openvino = defaults.use_openvino
+            # Auto-detect hardware and recommend backend if not explicitly set
+            recommended = recommend_backend()
+            use_openvino = recommended == "openvino"
+            log.info(
+                "wizard.model_selection.hardware_auto_detect",
+                recommended_backend=recommended,
+                use_openvino=use_openvino,
+            )
 
         self.aquarium_method_var.set(self._method_display(aquarium_method))
         self.animal_method_var.set(self._method_display(animal_method))

@@ -43,7 +43,12 @@ Entregar uma solução de ponta a ponta para pesquisadores que precisam rastrear
 
 - Python 3.12 ou superior
 - [Poetry](https://python-poetry.org/) configurado no PATH
-- GPU opcional (YOLO via CUDA) ou suporte OpenVINO para aceleração via CPU
+- **Hardware recomendado** (auto-detectado no startup):
+  - **GPU NVIDIA com CUDA**: Melhor performance com PyTorch (auto-selecionado)
+  - **GPU Intel (incluindo plataformas EVO)**: Aceleração via OpenVINO (auto-selecionado)
+  - **CPU apenas**: Funciona com PyTorch ou OpenVINO otimizado para CPU
+
+> **Nota**: O sistema detecta automaticamente seu hardware e seleciona o melhor backend. Na janela principal, você verá o hardware detectado em "Estado do Modelo de Detecção". Se OpenVINO for recomendado mas o modelo não estiver convertido, o sistema usará PyTorch temporariamente e exibirá orientações para conversão.
 
 ### Instalação
 
@@ -87,12 +92,14 @@ Consulte a nossa **[Wiki](docs/wiki)** para guias de usuário detalhados, inclui
 
 ## Principais capacidades
 
+- **Detecção automática de hardware e otimização**: Sistema inteligente que detecta GPUs NVIDIA (CUDA), Intel (incluindo EVO) e seleciona automaticamente o melhor backend (PyTorch ou OpenVINO) para máximo desempenho.
 - **Arquitetura MVVM com Componentes de UI**: Sistema modular, testável e reativo com `StateManager` para uma fonte única de verdade e um `EventBus` para comunicação desacoplada.
 - **Wizard inteligente de criação de projetos**: Assistente de 5 etapas com auto-detecção de design experimental, importação granular de Parquets e validação contextual.
 - **Rastreamento multi-animal**: Utiliza modelos YOLOv8 com suporte a OpenVINO para aceleração de inferência e gerenciamento de cache.
 - **Gestão avançada de ROIs**: Desenho assistido (snapping/clamping), edição segura de vértices, templates reutilizáveis e regras de inclusão configuráveis.
 - **Relatórios científicos ricos**: Exportação em Excel, CSV, Parquet e Word com mapas de ROI, gráficos e apêndice de eventos.
 - **Overlay em tempo real**: Exibição de modo de rastreamento, progresso detalhado e estatísticas de processamento.
+- **Progresso visual de diagnósticos**: Janela modal com barra de progresso frame-by-frame, log detalhado e opção de cancelamento durante testes de modelo.
 - **Sistema de Projetos Persistente**: Gerencia lotes de vídeos, configurações de análise, metadados e templates de ROI.
 - **Configuração avançada in-app**: Editor de `config.local.yaml` com validação Pydantic v2 em tempo real.
 
