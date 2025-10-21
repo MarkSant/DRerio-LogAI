@@ -10567,9 +10567,21 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
 
+        # Create two-column layout
+        left_column = ttk.Frame(main_frame)
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        right_column = ttk.Frame(main_frame)
+        right_column.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+
+        # ===== LEFT COLUMN =====
+
         # --- Aquarium Dimensions ---
-        dim_frame = ttk.LabelFrame(main_frame, text="Calibração", padding=10)
-        dim_frame.pack(fill="x", pady=5)
+        dim_frame = ttk.LabelFrame(left_column, text="Calibração", padding=10)
+        dim_frame.pack(fill="x", pady=(0, 5))
         dim_frame.columnconfigure(1, weight=1)
 
         ttk.Label(dim_frame, text="Número de Aquários:").grid(
@@ -10601,7 +10613,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
 
         # --- Behavior Analysis Parameters ---
-        behavior_frame = ttk.LabelFrame(main_frame, text="Parâmetros de Análise", padding=10)
+        behavior_frame = ttk.LabelFrame(left_column, text="Parâmetros de Análise", padding=10)
         behavior_frame.pack(fill="x", pady=5)
         behavior_frame.columnconfigure(1, weight=1)
 
@@ -10626,62 +10638,63 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=2, column=1, sticky="w", padx=5
         )
 
+        # ===== RIGHT COLUMN =====
+
+        # --- Smoothing Parameters ---
+        smoothing_frame = ttk.LabelFrame(right_column, text="Suavização de Trajetória", padding=10)
+        smoothing_frame.pack(fill="x", pady=(0, 5))
+        smoothing_frame.columnconfigure(1, weight=1)
+
         # Smoothing Window Length
-        ttk.Label(behavior_frame, text="Janela de Suavização (frames):").grid(
-            row=3, column=0, sticky="w", padx=5, pady=(8, 2)
+        ttk.Label(smoothing_frame, text="Janela de Suavização (frames):").grid(
+            row=0, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(behavior_frame, textvariable=self.smoothing_window_var, width=10).grid(
-            row=3, column=1, sticky="w", padx=5, pady=(8, 2)
+        ttk.Entry(smoothing_frame, textvariable=self.smoothing_window_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=5
         )
         ttk.Label(
-            behavior_frame,
+            smoothing_frame,
             text=(
-                "Quantos frames vizinhos usar para calcular a média da posição. "
-                "Exemplo: 7 = usa 3 frames antes + frame atual + 3 frames depois. "
-                "Maior = trajetória mais lisa, mas pode perder movimentos rápidos."
+                "Quantos frames vizinhos usar para calcular a média. "
+                "Ex: 7 = 3 antes + atual + 3 depois."
             ),
-            wraplength=380,
+            wraplength=280,
             font=("TkDefaultFont", 8),
             foreground="#555",
-        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 2))
+        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
 
         # Polynomial Order
-        ttk.Label(behavior_frame, text="Ordem do Polinômio:").grid(
-            row=5, column=0, sticky="w", padx=5, pady=(8, 2)
+        ttk.Label(smoothing_frame, text="Ordem do Polinômio:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=2
         )
-        ttk.Entry(behavior_frame, textvariable=self.smoothing_polyorder_var, width=10).grid(
-            row=5, column=1, sticky="w", padx=5, pady=(8, 2)
+        ttk.Entry(smoothing_frame, textvariable=self.smoothing_polyorder_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=5
         )
         ttk.Label(
-            behavior_frame,
-            text=(
-                "Tipo de curva usada para aproximar o movimento. "
-                "1=linha reta, 2=curva suave, 3=curva com uma dobra. "
-                "Maior = permite curvas mais sinuosas (útil para mudanças bruscas de direção)."
-            ),
-            wraplength=380,
+            smoothing_frame,
+            text="Tipo de curva: 1=reta, 2=suave, 3=com dobra.",
+            wraplength=280,
             font=("TkDefaultFont", 8),
             foreground="#555",
-        ).grid(row=6, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 2))
+        ).grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
 
-        # Overall explanation with constraints
+        # Overall explanation
         ttk.Label(
-            behavior_frame,
+            smoothing_frame,
             text=(
-                "ℹ️ O que faz: Remove tremidos/ruído da câmera sem apagar "
-                "movimentos reais do animal. "
-                "Como funciona: Ajusta uma curva suave aos pontos detectados. "
-                "Restrições técnicas: janela ímpar (3, 5, 7...) e ordem < janela. "
-                "Recomendado: janela=7, ordem=3 (funciona bem na maioria dos casos)."
+                "ℹ️ Remove tremidos sem apagar movimentos reais. "
+                "Janela ímpar (3,5,7...) e ordem < janela. Padrão: 7 e 3."
             ),
-            wraplength=380,
+            wraplength=280,
             font=("TkDefaultFont", 8),
             foreground="#2563eb",
             justify="left",
-        ).grid(row=7, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 0))
+        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0))
 
         # --- Frame Interval Settings ---
-        interval_frame = ttk.LabelFrame(main_frame, text="Intervalos de Processamento", padding=10)
+        interval_frame = ttk.LabelFrame(
+            right_column, text="Intervalos de Processamento", padding=10
+        )
         interval_frame.pack(fill="x", pady=5)
         interval_frame.columnconfigure(1, weight=1)
 
@@ -10700,7 +10713,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
 
         # --- Detection Method Settings ---
-        method_frame = ttk.LabelFrame(main_frame, text="Métodos de Detecção", padding=10)
+        method_frame = ttk.LabelFrame(right_column, text="Métodos de Detecção", padding=10)
         method_frame.pack(fill="x", pady=5)
         method_frame.columnconfigure(1, weight=1)
 
