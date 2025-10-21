@@ -4,7 +4,10 @@
       "Bash(Select-Object -ExpandProperty Name)",
       "Bash(poetry run python:*)",
       "Bash(poetry lock:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(poetry run pytest:*)",
+      "Bash(Select-Object -First 30)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

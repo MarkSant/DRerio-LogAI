@@ -86,6 +86,12 @@ class TestWorkflowOrchestration:
         payload = {"project_name": "test", "animal_method": "seg"}
         event_bus.publish_event(Events.PROJECT_CREATE, payload)
 
+        # Process the event queue manually (EventBus doesn't have auto-dispatch)
+        events = event_bus.drain()
+        for event in events:
+            if event.type.name == "NAMED":
+                event_bus.dispatch_named_event(event.payload)
+
         mock_pws.create_project.assert_called_once()
         call_args, call_kwargs = mock_pws.create_project.call_args
         assert call_kwargs["project_name"] == "test"
