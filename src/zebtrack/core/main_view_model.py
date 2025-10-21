@@ -557,6 +557,7 @@ class MainViewModel:
         Events.RECORDING_TRIGGER: ("trigger_recording", ["event_code"], "kwargs_get"),
         # Project events
         Events.PROJECT_CREATE: ("create_project_workflow", None, "kwargs_all"),
+        Events.WIZARD_CREATE_PROJECT: ("create_project_workflow", None, "kwargs_all"),
         Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
         Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
         Events.PROJECT_PROCESS_VIDEOS: (
@@ -3101,14 +3102,14 @@ class MainViewModel:
 
         self.cancel_event.clear()
 
-        # Extract calibration config from project for tracking mode resolution
-        project_calibration = self.project_manager.project_data.get("calibration", {})
-
+        # For project-based processing, single_video_config must be None
+        # to ensure hierarchical directory structure (group/day/subject)
+        # is used instead of single video fallback path
         callbacks = self._create_processing_callbacks(eligible_videos)
         context = self._create_processing_context(
             eligible_videos,
             self.project_manager.project_path,
-            single_video_config=project_calibration,
+            single_video_config=None,  # None = project mode, uses metadata for paths
         )
 
         self._cancel_feedback_displayed = False

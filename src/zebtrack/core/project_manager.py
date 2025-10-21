@@ -2174,7 +2174,11 @@ class ProjectManager:
         video_path: str | None = None,
         metadata: dict | None = None,
     ) -> Path:
-        """Compute the destination directory for analysis artifacts."""
+        """Compute the destination directory for analysis artifacts.
+
+        For projects with metadata, returns: project/group/day/subject/
+        All files for a given subject are stored together in the subject folder.
+        """
 
         experiment_source = experiment_id or (metadata or {}).get("experiment_id")
         experiment_component = self._sanitize_path_component(
@@ -2184,6 +2188,7 @@ class ProjectManager:
 
         if self.project_path:
             meta_lookup = metadata or {}
+
             if not meta_lookup:
                 meta_lookup = self.get_metadata_for_experiment(experiment_id) or {}
 
@@ -2197,12 +2202,13 @@ class ProjectManager:
             day_component = self._format_day_component(meta_lookup)
             subject_component = self._format_subject_component(meta_lookup)
 
+            # Simplified structure: group/day/subject (no per-video subfolder)
+            # All files for a subject's session are stored together
             return (
                 Path(self.project_path)
                 / group_component
                 / day_component
                 / subject_component
-                / experiment_component
             )
 
         base_dir = Path(video_path).parent if video_path else Path.cwd()
@@ -2250,14 +2256,30 @@ class ProjectManager:
         if candidate is None:
             suffix = "Indefinido"
         else:
-            try:
-                day_number = float(candidate)
-                if day_number.is_integer():
-                    suffix = f"{int(day_number):02d}"
+            # Check if candidate already has "Dia" or "Day" prefix
+            candidate_str = str(candidate)
+            if candidate_str.lower().startswith(("dia", "day")):
+                # Extract just the number/suffix part after the prefix
+                # e.g., "Day01" -> "01", "Dia 5" -> "5"
+                import re
+                match = re.search(r'\d+', candidate_str)
+                if match:
+                    try:
+                        day_number = int(match.group(0))
+                        suffix = f"{day_number:02d}"
+                    except (TypeError, ValueError):
+                        suffix = self._sanitize_path_component(candidate_str, fallback="Indefinido")
                 else:
+                    suffix = self._sanitize_path_component(candidate_str, fallback="Indefinido")
+            else:
+                try:
+                    day_number = float(candidate)
+                    if day_number.is_integer():
+                        suffix = f"{int(day_number):02d}"
+                    else:
+                        suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
+                except (TypeError, ValueError):
                     suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
-            except (TypeError, ValueError):
-                suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
 
         return f"Dia_{suffix}"
 
