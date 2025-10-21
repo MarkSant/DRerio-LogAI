@@ -3282,13 +3282,14 @@ class ApplicationGUI:
         # Trajectory smoothing settings
         smoothing_frame = ttk.LabelFrame(
             self.config_tab_frame,
-            text="Suavização de Trajetória",
+            text="Suavização de Trajetória (Remove Tremidos/Ruído)",
             padding=10,
         )
         smoothing_frame.pack(fill="x", pady=6)
         smoothing_frame.columnconfigure(2, weight=1)
 
-        ttk.Label(smoothing_frame, text="Window length (ímpar):").grid(
+        # Window Length
+        ttk.Label(smoothing_frame, text="Janela de Suavização (frames):").grid(
             row=0, column=0, sticky="w", padx=(0, 6), pady=2
         )
         ttk.Entry(smoothing_frame, textvariable=self.config_window_length_var, width=8).grid(
@@ -3296,12 +3297,18 @@ class ApplicationGUI:
         )
         ttk.Label(
             smoothing_frame,
-            text="Usado pelo filtro Savitzky-Golay. Precisa ser ímpar e ≥ 3.",
+            text=(
+                "Quantos frames vizinhos usar para calcular a média. "
+                "Ex: 7 = 3 antes + atual + 3 depois. "
+                "Maior = mais liso, mas pode perder detalhes."
+            ),
             font=("TkDefaultFont", 8),
-            wraplength=320,
+            foreground="#555",
+            wraplength=380,
         ).grid(row=0, column=2, sticky="w")
 
-        ttk.Label(smoothing_frame, text="Polyorder:").grid(
+        # Polynomial Order
+        ttk.Label(smoothing_frame, text="Ordem do Polinômio:").grid(
             row=1, column=0, sticky="w", padx=(0, 6), pady=2
         )
         ttk.Entry(smoothing_frame, textvariable=self.config_polyorder_var, width=8).grid(
@@ -3309,10 +3316,29 @@ class ApplicationGUI:
         )
         ttk.Label(
             smoothing_frame,
-            text="Ordem do polinômio < window_length para evitar overfitting.",
+            text=(
+                "Tipo de curva: 1=reta, 2=curva suave, 3=curva com dobra. "
+                "Maior = curvas mais sinuosas (bom para viradas bruscas)."
+            ),
             font=("TkDefaultFont", 8),
-            wraplength=320,
+            foreground="#555",
+            wraplength=380,
         ).grid(row=1, column=2, sticky="w")
+
+        # Overall explanation
+        ttk.Label(
+            smoothing_frame,
+            text=(
+                "ℹ️ Remove tremidos da câmera sem apagar movimentos reais. "
+                "Ajusta uma curva suave aos pontos detectados. "
+                "Restrição: janela ímpar (3, 5, 7...) e ordem < janela. "
+                "Padrão: janela=7, ordem=3."
+            ),
+            font=("TkDefaultFont", 8),
+            foreground="#2563eb",
+            justify="left",
+            wraplength=550,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=(0, 6), pady=(8, 0))
 
         # Recorder settings
         recorder_frame = ttk.LabelFrame(
@@ -10600,30 +10626,59 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             row=2, column=1, sticky="w", padx=5
         )
 
+        # Smoothing Window Length
         ttk.Label(behavior_frame, text="Janela de Suavização (frames):").grid(
-            row=3, column=0, sticky="w", padx=5, pady=2
+            row=3, column=0, sticky="w", padx=5, pady=(8, 2)
         )
         ttk.Entry(behavior_frame, textvariable=self.smoothing_window_var, width=10).grid(
-            row=3, column=1, sticky="w", padx=5
+            row=3, column=1, sticky="w", padx=5, pady=(8, 2)
         )
-
-        ttk.Label(behavior_frame, text="Ordem do Polinômio:").grid(
-            row=4, column=0, sticky="w", padx=5, pady=2
-        )
-        ttk.Entry(behavior_frame, textvariable=self.smoothing_polyorder_var, width=10).grid(
-            row=4, column=1, sticky="w", padx=5
-        )
-
         ttk.Label(
             behavior_frame,
             text=(
-                "Savitzky-Golay suaviza trajetórias preservando picos. "
-                "Use janela ímpar ≥ 3 e ordem < janela para evitar distorções."
+                "Quantos frames vizinhos usar para calcular a média da posição. "
+                "Exemplo: 7 = usa 3 frames antes + frame atual + 3 frames depois. "
+                "Maior = trajetória mais lisa, mas pode perder movimentos rápidos."
             ),
-            wraplength=260,
+            wraplength=380,
             font=("TkDefaultFont", 8),
-            foreground="#444",
-        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=5, pady=(4, 0))
+            foreground="#555",
+        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 2))
+
+        # Polynomial Order
+        ttk.Label(behavior_frame, text="Ordem do Polinômio:").grid(
+            row=5, column=0, sticky="w", padx=5, pady=(8, 2)
+        )
+        ttk.Entry(behavior_frame, textvariable=self.smoothing_polyorder_var, width=10).grid(
+            row=5, column=1, sticky="w", padx=5, pady=(8, 2)
+        )
+        ttk.Label(
+            behavior_frame,
+            text=(
+                "Tipo de curva usada para aproximar o movimento. "
+                "1=linha reta, 2=curva suave, 3=curva com uma dobra. "
+                "Maior = permite curvas mais sinuosas (útil para mudanças bruscas de direção)."
+            ),
+            wraplength=380,
+            font=("TkDefaultFont", 8),
+            foreground="#555",
+        ).grid(row=6, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 2))
+
+        # Overall explanation with constraints
+        ttk.Label(
+            behavior_frame,
+            text=(
+                "ℹ️ O que faz: Remove tremidos/ruído da câmera sem apagar "
+                "movimentos reais do animal. "
+                "Como funciona: Ajusta uma curva suave aos pontos detectados. "
+                "Restrições técnicas: janela ímpar (3, 5, 7...) e ordem < janela. "
+                "Recomendado: janela=7, ordem=3 (funciona bem na maioria dos casos)."
+            ),
+            wraplength=380,
+            font=("TkDefaultFont", 8),
+            foreground="#2563eb",
+            justify="left",
+        ).grid(row=7, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 0))
 
         # --- Frame Interval Settings ---
         interval_frame = ttk.LabelFrame(main_frame, text="Intervalos de Processamento", padding=10)
