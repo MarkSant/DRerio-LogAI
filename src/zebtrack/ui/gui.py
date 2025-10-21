@@ -4663,8 +4663,13 @@ class ApplicationGUI:
         self._bg_offset = (0, 0)  # Offset of image in canvas
         self._bg_img_size = (0, 0)  # Original image dimensions
 
+        # Undo/Redo system for drawing
+        self._drawing_history = []  # Stack of (canvas_pts, video_pts) states
+        self._drawing_redo_stack = []  # Stack for redo operations
+
         self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
+        self._drawing_buttons_frame = None  # Frame for undo/redo buttons
 
         # 1. Create the main frame for the tab and rename it
         self.zone_tab_frame = ttk.Frame(self.notebook, padding="10")
@@ -7634,24 +7639,38 @@ class ApplicationGUI:
         self.current_polygon_points = []
         self._poly_pts_canvas = []  # Canvas coordinates for UI
         self._poly_pts_video = []  # Video coordinates for saving
+        self._drawing_history = []  # Reset history
+        self._drawing_redo_stack = []  # Reset redo stack
+
         self.roi_canvas.config(cursor="crosshair")
         self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
         self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
 
+        # Bind keyboard shortcuts for undo/redo
+        self.roi_canvas.bind("<Control-z>", self._on_drawing_undo)
+        self.roi_canvas.bind("<Control-y>", self._on_drawing_redo)
+        self.roi_canvas.bind("<Control-Shift-Z>", self._on_drawing_redo)  # Alternative redo
+        self.roi_canvas.focus_set()  # Ensure canvas can receive keyboard events
+
         # Add a persistent instruction label
         if not self.drawing_instruction_label:
             self.drawing_instruction_label = ttk.Label(
                 self.zone_controls_frame,
-                text="Clique para adicionar pontos.\nClique duplo para finalizar.",
+                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
+                "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
                 justify="center",
                 relief="solid",
                 padding=5,
             )
             self.drawing_instruction_label.pack(pady=5, before=self.zone_listbox.master)
 
+        # Create floating undo/redo buttons over canvas
+        self._create_drawing_buttons()
+
         self.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para finalizar."
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
+            "finalizar. Ctrl+Z para desfazer."
         )
 
     def _stop_drawing(self):
@@ -7660,6 +7679,11 @@ class ApplicationGUI:
         if self.drawing_instruction_label:
             self.drawing_instruction_label.destroy()
             self.drawing_instruction_label = None
+
+        # Destroy floating drawing buttons if they exist
+        if self._drawing_buttons_frame:
+            self._drawing_buttons_frame.destroy()
+            self._drawing_buttons_frame = None
 
         self.drawing_mode = None
         self.current_drawing_type = None
@@ -7671,6 +7695,10 @@ class ApplicationGUI:
         self.roi_canvas.unbind("<ButtonPress-1>")
         self.roi_canvas.unbind("<B1-Motion>")
         self.roi_canvas.unbind("<ButtonRelease-1>")
+        # Unbind keyboard shortcuts
+        self.roi_canvas.unbind("<Control-z>")
+        self.roi_canvas.unbind("<Control-y>")
+        self.roi_canvas.unbind("<Control-Shift-Z>")
 
         self.roi_canvas.delete("elastic_line")
         self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
@@ -7682,6 +7710,102 @@ class ApplicationGUI:
         self._poly_pts_video = []
 
         self.set_status("Pronto.")
+
+    def _create_drawing_buttons(self):
+        """Creates floating undo/redo buttons over the canvas."""
+        if self._drawing_buttons_frame:
+            self._drawing_buttons_frame.destroy()
+
+        # Create a frame that floats over the canvas (top-right corner)
+        self._drawing_buttons_frame = ttk.Frame(self.viz_frame, relief="raised", borderwidth=2)
+
+        # Undo button
+        undo_btn = ttk.Button(
+            self._drawing_buttons_frame,
+            text="↶ Desfazer (Ctrl+Z)",
+            command=lambda: self._on_drawing_undo(None),
+            width=20,
+        )
+        undo_btn.pack(side="left", padx=2)
+
+        # Redo button
+        redo_btn = ttk.Button(
+            self._drawing_buttons_frame,
+            text="↷ Refazer (Ctrl+Y)",
+            command=lambda: self._on_drawing_redo(None),
+            width=20,
+        )
+        redo_btn.pack(side="left", padx=2)
+
+        # Position the frame in top-right corner of canvas
+        self._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+
+    def _on_drawing_undo(self, event):
+        """Undo last point added to polygon."""
+        if self.drawing_mode != "polygon" or not self._poly_pts_canvas:
+            return "break"  # Prevent event propagation
+
+        # Save current state to redo stack before undoing
+        self._drawing_redo_stack.append(
+            (
+                self._poly_pts_canvas[-1],
+                self._poly_pts_video[-1],
+                self.current_polygon_points[-1],
+            )
+        )
+
+        # Remove last point
+        self._poly_pts_canvas.pop()
+        self._poly_pts_video.pop()
+        self.current_polygon_points.pop()
+
+        # Redraw the polygon
+        self._redraw_polygon_in_progress()
+
+        self.set_status(f"Último ponto desfeito. Pontos atuais: {len(self.current_polygon_points)}")
+        return "break"
+
+    def _on_drawing_redo(self, event):
+        """Redo last undone point."""
+        if self.drawing_mode != "polygon" or not self._drawing_redo_stack:
+            return "break"
+
+        # Restore point from redo stack
+        canvas_pt, video_pt, current_pt = self._drawing_redo_stack.pop()
+        self._poly_pts_canvas.append(canvas_pt)
+        self._poly_pts_video.append(video_pt)
+        self.current_polygon_points.append(current_pt)
+
+        # Redraw the polygon
+        self._redraw_polygon_in_progress()
+
+        self.set_status(f"Ponto restaurado. Pontos atuais: {len(self.current_polygon_points)}")
+        return "break"
+
+    def _redraw_polygon_in_progress(self):
+        """Redraws the polygon vertices and edges after undo/redo."""
+        # Clear existing drawing aids
+        self.roi_canvas.delete("drawing_aid")
+
+        # Redraw all vertices
+        for canvas_x, canvas_y in self.current_polygon_points:
+            self.roi_canvas.create_oval(
+                canvas_x - 2,
+                canvas_y - 2,
+                canvas_x + 2,
+                canvas_y + 2,
+                fill="red",
+                outline="red",
+                tags=("temp_vertex", "drawing_aid"),
+            )
+
+        # Redraw all edges
+        for i in range(len(self.current_polygon_points) - 1):
+            p1 = self.current_polygon_points[i]
+            p2 = self.current_polygon_points[i + 1]
+            self.roi_canvas.create_line(
+                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+            )
 
     def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
@@ -8282,9 +8406,8 @@ class ApplicationGUI:
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
-        # If drawing an ROI, check if the point is inside the main arena
-        # Skip validation if point was snapped (will be adjusted when saving)
-        if self.current_drawing_type == "roi" and not snapped_point:
+        # If drawing an ROI, clamp the point inside the main arena
+        if self.current_drawing_type == "roi":
             main_arena_poly = self.controller.project_manager.get_zone_data().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coords to canvas coords
@@ -8293,19 +8416,40 @@ class ApplicationGUI:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                # Test canvas coordinates against canvas polygon. Allow points on
-                # the boundary (result >= 0) to support snapping to edges
-                result = cv2.pointPolygonTest(
-                    np.array(canvas_arena_poly, dtype=np.float32),
-                    (canvas_x, canvas_y),
-                    False,
-                )
-                if result < -0.5:  # Small tolerance for floating point errors
-                    self.show_warning(
-                        "Ponto Inválido",
-                        "As Áreas de Interesse devem ser desenhadas dentro do Polígono Principal.",
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if click point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    # Use the clamped point
+                    canvas_x, canvas_y = closest_point
+                    log.debug(
+                        "roi_click_clamped",
+                        original=(float(event.x), float(event.y)),
+                        clamped=(canvas_x, canvas_y),
                     )
-                    return
+
+        # Clear redo stack when adding a new point (standard undo/redo behavior)
+        self._drawing_redo_stack = []
 
         self.current_polygon_points.append((canvas_x, canvas_y))
 
