@@ -8,7 +8,7 @@ from typing import Any
 
 import structlog
 
-from zebtrack.ui.event_bus import EventBus, NamedEvent
+from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -70,8 +70,8 @@ class BaseWidget(ttk.Frame):
             )
             return
 
-        event = NamedEvent(event_name=event_name, data=data)
-        self.event_bus.publish(event)
+        # Use publish_event to properly wrap in UIEvent
+        self.event_bus.publish_event(event_name=event_name, data=data)
         self._log.debug("widget.event.emitted", event_name=event_name, data_keys=list(data.keys()))
 
     def bind_callback(self, event_name: str, callback: Callable[[dict], None]) -> None:
