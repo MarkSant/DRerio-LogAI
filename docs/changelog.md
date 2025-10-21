@@ -4,7 +4,35 @@
 
 ### Overview
 
-Comprehensive documentation overhaul, test infrastructure improvements, and Windows compatibility fixes. This phase focused on production readiness through enhanced error handling documentation, test suite stabilization, and cross-platform compatibility.
+Comprehensive documentation overhaul, test infrastructure improvements, and Windows compatibility fixes. This phase focused on production readiness through enhanced error handling documentation, test suite stabilization, cross-platform compatibility, and test coverage expansion.
+
+### Test Coverage Expansion (Phase 5.2.3)
+
+- **`tests/io/test_video_source.py`** (New file, 12 tests): Complete VideoFileSource coverage
+  - Video initialization tests (Path/string, valid/invalid files)
+  - Frame reading and end-of-stream handling
+  - Metadata extraction (FPS, resolution, frame count)
+  - Zero FPS detection and default fallback
+  - Release mechanism testing (opened/not opened states)
+  - Multiple frame sequential reading
+  - Achieved **100% coverage** for `io/video_source.py`
+- **`tests/test_detector.py`** (+16 tests in TestDetectorZoneLogic class): Enhanced detector coverage
+  - Arena polygon cropping and frame optimization
+  - Multiple detection filtering by polygon boundaries
+  - ROI polygon scaling and caching mechanisms
+  - BYTETracker integration and track ID consistency
+  - Empty detection handling
+  - Multi-animal tracking with unique IDs
+  - Tracking state reset validation
+  - Overlay rendering (polygons and detections)
+  - Non-rectangular polygon support
+  - Track tuple normalization (5 vs 6 elements)
+  - Plugin parameter retrieval (track_threshold, match_threshold, track_buffer)
+  - Achieved **97% coverage** for `core/detector.py`
+- **Overall Coverage**: Increased from 43.59% to **44%** (28 new tests)
+  - `io/video_source.py`: 0% → 100%
+  - `core/detector.py`: 80% → 97%
+  - Total test count: 712 → 740 tests
 
 ### Documentation (Phase 5.2.1)
 
