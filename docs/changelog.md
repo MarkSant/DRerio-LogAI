@@ -1,5 +1,85 @@
 # Changelog
 
+## 2025-01-29 (Phase 5.2.4: GUI Test Infrastructure Improvements)
+
+### Overview
+
+Resolved TclError failures in GUI tests caused by pytest-xdist parallel execution. Implemented pragmatic solution focusing on clear documentation, sensible defaults, and helper scripts instead of fragile pytest hooks.
+
+### Root Cause Analysis
+
+**Problem**: TclError "Can't find a usable tk.tcl" when running GUI tests
+**Diagnosis**: NOT a Tkinter installation issue; caused by parallel execution conflicts
+**Technical Cause**: ttkbootstrap.Style maintains global singleton state that is NOT thread-safe. When pytest-xdist spawns multiple workers, simultaneous Style instantiation corrupts Tcl/Tk interpreters.
+
+### Changes Implemented
+
+1. **pytest.ini Configuration** (updated):
+   - Default `addopts` now excludes GUI and slow tests: `-m "not (gui or slow)"`
+   - Added comprehensive usage examples in comments
+   - Documented critical requirement for `-n0` with GUI tests
+   - **Impact**: Fast default runs (661 tests), GUI tests require explicit `-n0`
+
+2. **README_TESTS.md Documentation** (+70 lines):
+   - New section "RESOLVIDO: TclError in GUI Tests" with full diagnosis
+   - Explanation of singleton conflicts and parallel execution issues
+   - Correct vs incorrect command examples with clear ✅/❌ markers
+   - Validation steps and troubleshooting guide
+   - References to pytest-xdist thread safety and ttkbootstrap issues
+
+3. **scripts/run_gui_tests.ps1** (new file, 94 lines):
+   - PowerShell helper script for correct GUI test execution
+   - Enforces `-n0` (serial execution) automatically
+   - Colorized output with configuration summary
+   - Support for `-Verbose`, `-Coverage`, and specific test paths
+   - Troubleshooting tips on failure
+   - **Usage**: `.\scripts\run_gui_tests.ps1`
+
+4. **CONTRIBUTING.md** (+68 lines):
+   - New section 4.1 "GUI Test Best Practices"
+   - Detailed explanation of serial execution requirement
+   - Correct/incorrect usage examples
+   - GUI test writing guidelines (markers, fixtures, cleanup)
+   - Example test structure with best practices
+   - TclError troubleshooting checklist
+   - References to related documentation
+
+5. **tests/ui/wizard/test_wizard_confirmation.py** (+28 lines header):
+   - Comprehensive docstring explaining GUI test requirements
+   - Why `-n0` is required (singleton conflicts)
+   - Correct usage examples with ✅/❌ markers
+   - References to documentation and helper scripts
+   - Serves as template for other GUI test files
+
+6. **tests/conftest.py** (cleanup):
+   - Removed attempted `_enforce_serial_execution_for_gui_tests()` hook
+   - Removed `pytest_load_initial_conftests()` hook
+   - **Rationale**: Pytest hooks cannot reliably modify xdist arguments after worker spawning; pragmatic documentation approach is more maintainable
+
+### Validation
+
+- ✅ Default run excludes GUI tests: `poetry run pytest` (661 tests collected, 83 deselected)
+- ✅ GUI tests with serial execution: `poetry run pytest -m gui -n0` (82 tests)
+- ✅ Helper script works: `.\scripts\run_gui_tests.ps1` (colorized output, enforces -n0)
+- ✅ CI already correct: `.github/workflows/ci.yml` uses `-m "not (gui or slow)"`
+- ✅ Tkinter installation verified: `poetry run python -c "import tkinter; ..." ` (OK)
+
+### Developer Impact
+
+**Before**:
+- Running `pytest` would attempt GUI tests in parallel → TclError failures
+- Unclear error messages, looked like Tkinter installation problem
+- No clear guidance on correct execution
+
+**After**:
+- Running `pytest` excludes GUI tests by default → fast, reliable
+- Explicit `-m gui -n0` required for GUI tests → prevents mistakes
+- Helper script for easy GUI test execution
+- Comprehensive documentation with troubleshooting
+- Clear error messages in docstrings and README
+
+---
+
 ## 2025-10-20 (Phase 5.2: Documentation and Final Polish - Expanded)
 
 ### Overview

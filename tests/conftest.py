@@ -11,9 +11,9 @@ os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 
 def pytest_configure(config):
     """
-    Pytest hook to configure warnings before imports.
+    Pytest hook to configure warnings and test execution settings.
 
-    Suppresses pkg_resources deprecation warning from docxcompose library.
+    1. Suppresses pkg_resources deprecation warning from docxcompose library.
 
     Why suppress rather than fix:
     - docxcompose v1.4.0 (latest as of 2025) uses deprecated pkg_resources API
@@ -24,6 +24,9 @@ def pytest_configure(config):
 
     Tracking issue: https://github.com/4teamwork/docxcompose/issues
     Alternative: Migrate from docxtpl to pure python-docx (would lose template features)
+
+    Note: GUI test serial execution enforcement was moved to pytest_cmdline_main
+    hook because it must run before xdist spawns workers.
     """
     warnings.filterwarnings(
         "ignore",

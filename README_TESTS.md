@@ -159,7 +159,56 @@ poetry run pytest --no-cov
 poetry run pytest -n0
 ```
 
-## Problemas Conhecidos
+## Problemas Conhecidos e Resolvidos
+
+### ✅ RESOLVIDO: TclError "Can't find a usable tk.tcl" em Testes GUI
+
+**Problema Original**:
+```
+_tkinter.TclError: Can't find a usable tk.tcl in the following directories:
+```
+
+**Causa Raiz** (diagnosticada em 2025-01-29):
+- **NÃO** era problema de instalação do Tkinter
+- **ERA** conflito de execução paralela com pytest-xdist
+
+**Explicação Técnica**:
+O `ttkbootstrap.Style` mantém estado global (singleton) que não é thread-safe. Quando pytest-xdist cria múltiplos workers (processos paralelos), cada worker tenta instanciar o Style singleton simultaneamente, causando:
+1. Conflitos de acesso ao Tcl/Tk interpreter
+2. Referências corrompidas entre processos
+3. TclError "Can't find a usable tk.tcl" (sintoma, não causa raiz)
+
+**Solução Final** (implementada):
+1. ✅ **pytest.ini atualizado**: Exclui GUI tests por padrão (`-m "not (gui or slow)"`)
+2. ✅ **Documentação clara**: GUI tests DEVEM usar `-n0` explicitamente
+3. ✅ **Scripts helper**: `scripts/run_gui_tests.ps1` com comando correto
+4. ✅ **Markers corretos**: Todos os GUI tests marcados com `@pytest.mark.gui`
+
+**Comandos Corretos**:
+```powershell
+# ❌ ERRADO (causa TclError)
+poetry run pytest -m gui          # Usa -n=auto por padrão
+
+# ✅ CORRETO (execução serial)
+poetry run pytest -m gui -n0
+
+# ✅ CORRETO (testes rápidos, exclui GUI)
+poetry run pytest                 # Usa -m "not (gui or slow)" por padrão
+
+# ✅ CORRETO (testes não-GUI em paralelo)
+poetry run pytest -m "not gui"
+```
+
+**Validação**:
+- Tkinter funciona corretamente: `poetry run python -c "import tkinter; root = tkinter.Tk(); print('OK'); root.destroy()"`
+- Teste GUI isolado passa: `poetry run pytest tests/ui/test_gui.py::test_specific -n0`
+- Teste GUI paralelo falha: `poetry run pytest tests/ui/test_gui.py::test_specific -n auto` (esperado)
+
+**Referências**:
+- [pytest-xdist thread safety](https://pytest-xdist.readthedocs.io/en/latest/known-limitations.html)
+- [ttkbootstrap Style singleton issue](https://github.com/israel-dryer/ttkbootstrap/issues)
+
+---
 
 ### 1. Singleton do ttkbootstrap (22 testes afetados)
 

@@ -8,6 +8,33 @@ Validates:
 - Default name generation
 - Data extraction
 - Back navigation
+
+==============================================================================
+GUI TEST EXECUTION REQUIREMENTS
+==============================================================================
+
+CRITICAL: These tests MUST be run with serial execution (-n0).
+
+Why:
+  ttkbootstrap.Style maintains global state (singleton) that is NOT thread-safe.
+  When pytest-xdist runs tests in parallel workers, simultaneous Style
+  instantiation causes TclError "Can't find a usable tk.tcl" failures.
+
+Correct usage:
+  ✅ poetry run pytest -m gui -n0                 (all GUI tests, serial)
+  ✅ poetry run pytest tests/ui/wizard/ -n0       (specific dir, serial)
+  ✅ .\\scripts\\run_gui_tests.ps1                  (helper script)
+
+Incorrect usage (will fail):
+  ❌ poetry run pytest -m gui                     (missing -n0, uses -n=auto)
+  ❌ poetry run pytest                            (GUI tests excluded by default)
+
+References:
+  - pytest.ini: GUI tests excluded from default run
+  - README_TESTS.md: Full troubleshooting guide
+  - conftest.py: tkinter_root fixture provides root window
+
+==============================================================================
 """
 
 import tempfile
