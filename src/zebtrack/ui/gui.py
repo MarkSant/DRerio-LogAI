@@ -25,6 +25,7 @@ from tkinter import (
     OptionMenu,
     StringVar,
     Text,
+    Toplevel,
     filedialog,
     messagebox,
     simpledialog,
@@ -92,30 +93,48 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
 )
 
 
-class DiagnosticProgressDialog(simpledialog.Dialog):
-    """Modal progress dialog for diagnostic test execution."""
+class DiagnosticProgressDialog(Toplevel):
+    """Non-modal progress dialog for diagnostic test execution."""
 
     def __init__(self, parent, title="Diagnóstico em Progresso"):
+        super().__init__(parent)
+        self.title(title)
         self.parent = parent
         self.user_cancelled = False
         self.progress_var = StringVar(value="Iniciando...")
         self.status_var = StringVar(value="Aguarde...")
-        super().__init__(parent, title=title)
 
-    def body(self, master):
+        # Make dialog always on top and prevent closing via X button
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self.cancel)
+
+        # Create UI elements
+        self._create_widgets()
+
+        # Center dialog on parent
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
+        self.geometry(f"+{x}+{y}")
+
+    def _create_widgets(self):
         """Create dialog body with progress indicators."""
+        # Main frame with padding
+        main_frame = Frame(self, padx=20, pady=10)
+        main_frame.pack(fill="both", expand=True)
+
         # Title
         title_label = Label(
-            master,
+            main_frame,
             text="Executando Diagnóstico do Modelo",
             font=("Arial", 12, "bold"),
         )
         title_label.grid(row=0, column=0, columnspan=2, pady=(10, 20), sticky="w")
 
         # Progress message
-        Label(master, text="Status:").grid(row=1, column=0, sticky="w", padx=(10, 5))
+        Label(main_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=(10, 5))
         progress_label = Label(
-            master,
+            main_frame,
             textvariable=self.progress_var,
             width=50,
             anchor="w",
@@ -123,9 +142,9 @@ class DiagnosticProgressDialog(simpledialog.Dialog):
         progress_label.grid(row=1, column=1, sticky="w", pady=5)
 
         # Detailed status
-        Label(master, text="Detalhes:").grid(row=2, column=0, sticky="w", padx=(10, 5))
+        Label(main_frame, text="Detalhes:").grid(row=2, column=0, sticky="w", padx=(10, 5))
         status_label = Label(
-            master,
+            main_frame,
             textvariable=self.status_var,
             width=50,
             anchor="w",
@@ -135,14 +154,15 @@ class DiagnosticProgressDialog(simpledialog.Dialog):
 
         # Progress bar (indeterminate mode initially)
         self.progress_bar = ttk.Progressbar(
-            master,
+            main_frame,
             mode="determinate",
             maximum=100,
             length=400,
         )
         self.progress_bar.grid(row=3, column=0, columnspan=2, pady=(10, 20), padx=10)
 
-        return None  # No initial focus
+        # Button box
+        self._create_buttonbox(main_frame)
 
     def update_progress(self, message: str, current: int | None = None, total: int | None = None):
         """
@@ -169,9 +189,9 @@ class DiagnosticProgressDialog(simpledialog.Dialog):
         self.status_var.set(status)
         self.update_idletasks()
 
-    def buttonbox(self):
+    def _create_buttonbox(self, master):
         """Create button box with Cancel button."""
-        box = Frame(self)
+        box = Frame(master)
 
         cancel_btn = Button(
             box,
@@ -182,7 +202,7 @@ class DiagnosticProgressDialog(simpledialog.Dialog):
         cancel_btn.pack(side="left", padx=5, pady=5)
 
         self.bind("<Escape>", self.cancel)
-        box.pack()
+        box.grid(row=4, column=0, columnspan=2, pady=(0, 10))
 
     def cancel(self, event=None):
         """Handle cancel action."""
