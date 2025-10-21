@@ -2116,10 +2116,17 @@ class ApplicationGUI:
         self._configure_styles()
         self._create_welcome_frame()
 
+        log.info("gui.init.event_bus_setup", has_event_bus=self.event_bus is not None)
         if self.event_bus is not None:
+            log.info("gui.init.registering_handlers")
             self._register_event_bus_handlers()
+            log.info("gui.init.subscribing_to_ui_events")
             self._subscribe_to_ui_events()  # New: Subscribe to Controller->UI events
+            log.info("gui.init.scheduling_first_poll")
             self._schedule_event_bus_poll()
+            log.info("gui.init.event_bus_setup_complete")
+        else:
+            log.warning("gui.init.no_event_bus")
 
         # Subscribe to StateManager state changes for reactive UI updates
         self._subscribe_to_state_changes()
@@ -2247,10 +2254,13 @@ class ApplicationGUI:
         self.update_zone_listbox()
 
     def _handle_display_frame(self, data: dict) -> None:
-        self.display_frame(data.get("frame"))
+        frame = data.get("frame")
+        self.display_frame(frame)
 
     def _handle_update_detection_overlay(self, data: dict) -> None:
-        self.update_detection_overlay(data.get("detections"), data.get("report"))
+        detections = data.get("detections")
+        report = data.get("report")
+        self.update_detection_overlay(detections, report)
 
     def _handle_show_external_trigger_notice(self, data: dict) -> None:
         self.show_external_trigger_notice(**data)
@@ -2259,7 +2269,16 @@ class ApplicationGUI:
         self.clear_external_trigger_notice()
 
     def _handle_update_processing_stats(self, data: dict) -> None:
-        self.update_progress_stats(**data.get("stats", {}))
+        stats = data.get("stats", {})
+        # Map stats to the parameters expected by update_progress_stats
+        self.update_progress_stats(
+            total=stats.get("total_frames"),
+            processed=stats.get("processed_frames"),
+            detected=stats.get("detected_frames"),
+            percent=stats.get("percent"),
+            elapsed=stats.get("elapsed"),
+            eta=stats.get("eta"),
+        )
 
     def _handle_update_analysis_metadata(self, data: dict) -> None:
         self.update_analysis_metadata(**data)
@@ -2464,6 +2483,7 @@ class ApplicationGUI:
 
     def _handle_named_event(self, payload: NamedEvent) -> None:
         """Dispatch named events to controller subscribers."""
+        log.info("gui.handle_named_event.called", event_name=payload.event_name)
         try:
             if self.event_bus:
                 self.event_bus.dispatch_named_event(payload)
@@ -2491,26 +2511,41 @@ class ApplicationGUI:
             log.debug("gui.publish_event.no_bus", event_name=event_name)
 
     def _schedule_event_bus_poll(self) -> None:
+        log.debug("gui.event_bus.schedule_poll.called", has_bus=self.event_bus is not None, has_after_id=self._event_bus_after_id is not None)
         if self.event_bus is None:
+            log.warning("gui.event_bus.schedule_poll.no_bus")
             return
         if self._event_bus_after_id is None:
             self._event_bus_after_id = self.root.after(
                 self._event_bus_poll_interval_ms,
                 self._poll_event_bus,
             )
+            log.debug("gui.event_bus.schedule_poll.scheduled", after_id=self._event_bus_after_id)
+        else:
+            log.debug("gui.event_bus.schedule_poll.already_scheduled", after_id=self._event_bus_after_id)
 
     def _poll_event_bus(self) -> None:
+        """Poll the event bus for pending events and dispatch them."""
         self._event_bus_after_id = None
         if self.event_bus is None:
+            log.warning("gui.event_bus.poll_no_bus")
             return
 
+        queue_size = self.event_bus.size()
+        if queue_size > 0:
+            log.debug("gui.event_bus.poll_queue_size", size=queue_size)
+
         events = self.event_bus.drain(max_items=50)
+        if events:
+            log.debug("gui.event_bus.polling", event_count=len(events))
+
         processed = 0
         for event in events:
+            # Use the EventType handlers to dispatch CALLABLE and NAMED events
             handler = self._event_bus_handlers.get(event.type)
             if handler is None:
                 log.warning(
-                    "gui.event_bus.unhandled_event",
+                    "gui.event_bus.unhandled_event_type",
                     event_type=event.type.name,
                 )
                 continue
@@ -2527,6 +2562,7 @@ class ApplicationGUI:
         if processed:
             log.debug("gui.event_bus.processed", count=processed)
 
+        log.info("gui.event_bus.poll_complete", will_reschedule=True)
         self._schedule_event_bus_poll()
 
     @staticmethod
@@ -8029,9 +8065,8 @@ class ApplicationGUI:
             return
 
         # If current selection is no longer valid, clear it
-        if self.roi_template_var.get() and self.roi_template_var.get() not in names:
-            self.roi_template_var.set("")
-        else:
+        current_selection = self.roi_template_var.get()
+        if current_selection and current_selection not in names:
             self.roi_template_var.set("")
 
     def _on_save_roi_template(self) -> None:
@@ -8343,6 +8378,17 @@ class ApplicationGUI:
             return
 
         selected_template = self._get_selected_roi_template()
+        log.info(
+            "gui.roi_template.apply_attempt",
+            selected_value=self.roi_template_var.get(),
+            template_found=selected_template is not None,
+            cache_size=(
+                len(self._roi_templates_cache)
+                if hasattr(self, "_roi_templates_cache")
+                else 0
+            ),
+        )
+
         if not selected_template:
             self.show_warning(
                 "Nenhum template selecionado",
@@ -9867,6 +9913,8 @@ class ApplicationGUI:
             # Pack progress_frame BEFORE video_container to ensure it stays visible
             if hasattr(self, "video_container") and self.video_container:
                 self.progress_frame.pack(before=self.video_container, pady=5, fill="x", padx=10)
+                # Force layout recalculation after showing progress bar
+                self.root.update_idletasks()
             else:
                 self.progress_frame.pack(pady=5, fill="x", padx=10)
             self.progress_bar["value"] = 0
@@ -10032,7 +10080,12 @@ class ApplicationGUI:
     def display_analysis_frame(self, frame):
         """Display analysis frame in the overlay instead of separate progress bar."""
         try:
-            self._last_analysis_frame = frame.copy()
+            # Store the original frame with zones only (before detection overlay)
+            # so we can redraw detections when they update
+            frame_with_zones = self._draw_zones_on_frame(frame.copy())
+            self._last_analysis_frame = frame_with_zones.copy()
+
+            # Now render with current detections
             self._render_last_analysis_frame()
         except Exception:
             # Fallback to OpenCV window if Pillow not installed or other error
@@ -10041,6 +10094,48 @@ class ApplicationGUI:
                 cv2.waitKey(1)
             except Exception:
                 pass
+
+    def _draw_detections_on_frame(self, frame):
+        """Draw all current detections (bounding boxes, IDs, confidence) on the frame."""
+        if not hasattr(self, "_current_detections") or not self._current_detections:
+            return frame
+
+        for det in self._current_detections:
+            if len(det) < 7:  # Need at least x1, y1, x2, y2, conf, track_id, class_id
+                continue
+
+            try:
+                x1, y1, x2, y2, conf, track_id = det[:6]
+                x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
+
+                # Draw bounding box
+                color = (0, 255, 0)  # Green color for all detections
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+                # Draw track ID and confidence
+                label = f"ID {track_id}"
+                if conf is not None:
+                    label += f" {conf:.2f}"
+
+                # Background for label
+                (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(frame, (x1, y1 - label_h - 4), (x1 + label_w, y1), color, -1)
+
+                # Text label
+                cv2.putText(
+                    frame,
+                    label,
+                    (x1, y1 - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 0, 0),  # Black text
+                    1,
+                )
+            except (TypeError, ValueError):
+                # Skip invalid detections
+                continue
+
+        return frame
 
     def update_detection_overlay(
         self,
@@ -10192,7 +10287,13 @@ class ApplicationGUI:
     def _render_last_analysis_frame(self) -> None:
         if self._last_analysis_frame is None:
             return
-        frame = self._annotate_selected_tracks(self._last_analysis_frame.copy())
+        # Start with base frame (zones already drawn)
+        frame = self._last_analysis_frame.copy()
+        # Draw all detections (bounding boxes with IDs)
+        frame = self._draw_detections_on_frame(frame)
+        # Add highlight overlay for selected track if needed
+        frame = self._annotate_selected_tracks(frame)
+        # Display final result
         self._show_analysis_frame_image(frame)
 
     def _annotate_selected_tracks(self, frame):
@@ -10225,53 +10326,115 @@ class ApplicationGUI:
         return frame
 
     def _show_analysis_frame_image(self, frame) -> None:
+        """Display frame image in analysis view with proper scaling."""
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         label = getattr(self, "analysis_video_label", None)
 
+        if label is None:
+            return
+
+        # Get actual frame dimensions
+        frame_h, frame_w = frame.shape[:2]
+
+        # Strategy: Use root window dimensions as reference since tab dimensions may not be updated
         available_width = None
         available_height = None
 
-        if label is not None and hasattr(label, "winfo_width"):
-            label_width = label.winfo_width()
-            label_height = label.winfo_height()
+        # First, try to get the notebook (parent of analysis_tab_frame) dimensions
+        if hasattr(self, "notebook") and self.notebook:
+            self.notebook.update_idletasks()
+            notebook_width = self.notebook.winfo_width()
+            notebook_height = self.notebook.winfo_height()
 
-            if isinstance(label_width, (int, float)) and isinstance(label_height, (int, float)):
-                available_width = label_width
-                available_height = label_height
+            log.info("gui.notebook_dimensions",
+                    width=notebook_width,
+                    height=notebook_height,
+                    valid=notebook_width > 100 and notebook_height > 100)
 
-            if (available_width is None or available_height is None) and hasattr(
-                label, "update_idletasks"
-            ):
-                label.update_idletasks()
-                label_width = label.winfo_width()
-                label_height = label.winfo_height()
-                if isinstance(label_width, (int, float)) and isinstance(label_height, (int, float)):
-                    available_width = label_width
-                    available_height = label_height
+            if notebook_width > 100 and notebook_height > 100:
+                # IMPROVED: Calculate actual controls height dynamically
+                # Since info_frame and controls_frame are not stored as instance attrs,
+                # measure from the stored child widgets and progress_frame
+                controls_height = 0
+                
+                # Measure status label + task/metadata labels (info section)
+                if hasattr(self, "analysis_status_label") and self.analysis_status_label:
+                    self.analysis_status_label.update_idletasks()
+                    status_h = self.analysis_status_label.winfo_height()
+                    if status_h > 1:
+                        controls_height += status_h + 5
+                
+                if hasattr(self, "analysis_task_label") and self.analysis_task_label:
+                    self.analysis_task_label.update_idletasks()
+                    task_h = self.analysis_task_label.winfo_height()
+                    if task_h > 1:
+                        controls_height += task_h + 5
+                
+                # Measure metadata labels frame height (group, day, subject, profile)
+                if hasattr(self, "analysis_group_label") and self.analysis_group_label:
+                    self.analysis_group_label.update_idletasks()
+                    meta_h = self.analysis_group_label.winfo_height()
+                    if meta_h > 1:
+                        controls_height += meta_h + 5
+                
+                # Measure tracking mode label
+                if hasattr(self, "tracking_mode_label") and self.tracking_mode_label:
+                    self.tracking_mode_label.update_idletasks()
+                    mode_h = self.tracking_mode_label.winfo_height()
+                    if mode_h > 1:
+                        controls_height += mode_h + 5
+                
+                # Measure track selector (controls section)
+                if hasattr(self, "track_selector_widget") and self.track_selector_widget:
+                    self.track_selector_widget.update_idletasks()
+                    ctrl_h = self.track_selector_widget.winfo_height()
+                    if ctrl_h > 1:
+                        controls_height += ctrl_h + 15  # Extra padding for controls frame
 
-        if (available_width is None or available_height is None) and hasattr(
-            self, "video_container"
-        ):
-            container = self.video_container
-            if hasattr(container, "winfo_width"):
-                if hasattr(container, "update_idletasks"):
-                    container.update_idletasks()
-                container_width = container.winfo_width()
-                container_height = container.winfo_height()
-                if isinstance(container_width, (int, float)) and isinstance(
-                    container_height, (int, float)
-                ):
-                    available_width = available_width or container_width
-                    available_height = available_height or container_height
+                # Check if progress frame is visible and add its height
+                if hasattr(self, "progress_frame") and self.progress_frame and self.progress_frame.winfo_viewable():
+                    self.progress_frame.update_idletasks()
+                    prog_h = self.progress_frame.winfo_height()
+                    if prog_h > 10:
+                        controls_height += prog_h + 10
+                
+                # Fallback if measurements failed
+                if controls_height < 50:
+                    controls_height = 250  # More conservative fallback (was 200)
 
-        if (
-            isinstance(available_width, (int, float))
-            and isinstance(available_height, (int, float))
-            and available_width > 1
-            and available_height > 1
-        ):
-            scale = min(available_width / img.width, available_height / img.height, 1.0)
+                # Account for notebook padding and frame padding
+                available_width = notebook_width - 60  # 20 padding + 20 margins + 20 buffer
+                available_height = notebook_height - controls_height - 80  # Increased buffer (was 60)
+                
+                log.info("gui.controls_height.total", 
+                        total=controls_height,
+                        available_height=available_height)
+
+                log.info(
+                    "gui.frame_sizing",
+                    frame_size=f"{frame_w}x{frame_h}",
+                    notebook_size=f"{notebook_width}x{notebook_height}",
+                    controls_h=controls_height,
+                    available=f"{int(available_width)}x{int(available_height)}",
+                )
+
+        # Fallback: use video_container or label dimensions
+        if available_width is None or available_width <= 100 or available_height is None or available_height <= 100:
+            if hasattr(self, "video_container") and self.video_container:
+                self.video_container.update_idletasks()
+                available_width = self.video_container.winfo_width() - 10
+                available_height = self.video_container.winfo_height() - 10
+                log.info("gui.frame_sizing.fallback_container",
+                        available=f"{int(available_width)}x{int(available_height)}")
+
+        # Apply scaling to fit available space
+        if available_width and available_height and available_width > 100 and available_height > 100:
+            # Calculate scale to fit both dimensions
+            scale = min(available_width / frame_w, available_height / frame_h)
+            # Ensure we don't exceed available space (never upscale)
+            scale = min(scale, 1.0)
+
             if scale < 1.0:
                 resample_attr = getattr(Image, "Resampling", None)
                 if resample_attr is not None:
@@ -10291,8 +10454,8 @@ class ApplicationGUI:
                         getattr(Image, "BICUBIC", getattr(Image, "BILINEAR", 0)),
                     )
                 new_size = (
-                    max(1, int(img.width * scale)),
-                    max(1, int(img.height * scale)),
+                    max(1, int(frame_w * scale)),
+                    max(1, int(frame_h * scale)),
                 )
                 img = img.resize(new_size, resample=resample)
 

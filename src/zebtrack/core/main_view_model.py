@@ -749,7 +749,13 @@ class MainViewModel:
                 )
 
         try:
-            if bool(settings.tracking.use_single_subject_tracker):
+            use_single = bool(settings.tracking.use_single_subject_tracker)
+            log.info(
+                "controller.determine_processing_mode",
+                use_single_subject_tracker=use_single,
+                result="SINGLE_SUBJECT" if use_single else "MULTI_TRACK",
+            )
+            if use_single:
                 return ProcessingMode.SINGLE_SUBJECT
         except AttributeError:  # pragma: no cover - optional settings
             pass
@@ -3017,9 +3023,12 @@ class MainViewModel:
 
         self.cancel_event.clear()
 
+        # Extract calibration config from project for tracking mode resolution
+        project_calibration = self.project_manager.project_data.get("calibration", {})
+        
         callbacks = self._create_processing_callbacks(eligible_videos)
         context = self._create_processing_context(
-            eligible_videos, self.project_manager.project_path
+            eligible_videos, self.project_manager.project_path, single_video_config=project_calibration
         )
 
         self.processing_worker = ProcessingWorker(context, callbacks)
@@ -3326,6 +3335,14 @@ class MainViewModel:
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
 
+                    # Calculate elapsed time and ETA
+                    elapsed_time = time.time() - start_time
+                    if frame_num > 0 and progress_fraction > 0:
+                        estimated_total_time = elapsed_time / progress_fraction
+                        eta_time = estimated_total_time - elapsed_time
+                    else:
+                        eta_time = -1  # Unknown
+
                     # Prepare statistics for GUI update
                     stats = {
                         "total_frames": total_frames,
@@ -3333,6 +3350,9 @@ class MainViewModel:
                         "processed_frames": processed_frames_count,
                         "detected_frames": detected_frames_count,
                         "start_time": start_time,
+                        "elapsed": elapsed_time,
+                        "eta": eta_time,
+                        "percent": progress_fraction * 100,
                     }
 
                     # Always draw overlay on processed frames
@@ -3422,6 +3442,36 @@ class MainViewModel:
         Returns:
             bool | None: Tracker preference or None if not set
         """
+        log.info(
+            "controller.resolve_tracker.entry",
+            has_config=single_video_config is not None,
+            config_keys=list(single_video_config.keys()) if single_video_config else [],
+        )
+        
+        # Check directly in single_video_config first
+        if single_video_config:
+            # Explicit use_single_subject_tracker takes priority
+            if "use_single_subject_tracker" in single_video_config:
+                pref = bool(single_video_config["use_single_subject_tracker"])
+                log.info(
+                    "controller.resolve_tracker.explicit",
+                    use_single_subject=pref,
+                    source="single_video_config",
+                )
+                return pref
+
+            # Derive from animals_per_aquarium
+            animals_per_aquarium = single_video_config.get("animals_per_aquarium")
+            if animals_per_aquarium is not None:
+                pref = int(animals_per_aquarium) == 1
+                log.info(
+                    "controller.resolve_tracker.from_animals",
+                    use_single_subject=pref,
+                    animals_per_aquarium=animals_per_aquarium,
+                    source="single_video_config",
+                )
+                return pref
+
         # Try to get project type from single video config or project manager
         project_type = None
         if single_video_config:
@@ -3463,6 +3513,8 @@ class MainViewModel:
                 analysis_interval=analysis_interval_frames,
                 display_interval=display_interval_frames,
                 config_keys=list(single_video_config.keys()),
+                animals_per_aquarium=single_video_config.get("animals_per_aquarium"),
+                use_single_subject_tracker=single_video_config.get("use_single_subject_tracker"),
             )
         else:
             project_data = getattr(self.project_manager, "project_data", {}) or {}
@@ -3477,6 +3529,12 @@ class MainViewModel:
 
     @contextmanager
     def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
+        log.info(
+            "controller.temporary_mode.entry",
+            has_config=single_video_config is not None,
+            config_keys=list(single_video_config.keys()) if single_video_config else [],
+        )
+        
         previous_mode = settings.video_processing.single_animal_per_aquarium
         resolved_mode = self._resolve_single_animal_mode(single_video_config)
 
@@ -4140,6 +4198,14 @@ class MainViewModel:
                         Events.UI_UPDATE_DETECTION_OVERLAY,
                         {"detections": detections, "report": processing_report},
                     )
+            
+            # Publish frame for display in analysis view
+            if frame is not None:
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_FRAME,
+                        {"frame": frame},
+                    )
 
             if frame is not None:
                 if self.ui_event_bus:
@@ -4520,6 +4586,35 @@ class MainViewModel:
         return True
 
     def _process_single_video(
+        self,
+        *,
+        index: int,
+        total_videos: int,
+        video_info: dict,
+        single_video_config: dict | None,
+        analysis_interval_frames: int,
+        display_interval_frames: int,
+        output_base_dir: str,
+        experiment_id: str,
+        metadata_context: dict | None,
+        analysis_profile: dict | None,
+    ) -> tuple[bool, str | None]:
+        # Apply temporary single-animal mode if configured
+        with self._temporary_single_animal_mode(single_video_config):
+            return self._process_single_video_impl(
+                index=index,
+                total_videos=total_videos,
+                video_info=video_info,
+                single_video_config=single_video_config,
+                analysis_interval_frames=analysis_interval_frames,
+                display_interval_frames=display_interval_frames,
+                output_base_dir=output_base_dir,
+                experiment_id=experiment_id,
+                metadata_context=metadata_context,
+                analysis_profile=analysis_profile,
+            )
+
+    def _process_single_video_impl(
         self,
         *,
         index: int,

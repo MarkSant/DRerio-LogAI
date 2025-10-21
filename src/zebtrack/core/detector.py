@@ -279,13 +279,27 @@ class Detector:
 
         enabled = bool(enabled)
         if self._single_subject_mode == enabled:
+            log.debug(
+                "detector.single_subject_mode.unchanged",
+                enabled=enabled,
+            )
             return
 
         self._single_subject_mode = enabled
         self._single_subject_tracker.reset()
+        log.info(
+            "detector.single_subject_mode.changed",
+            enabled=enabled,
+            previous=not enabled,
+        )
+
         if hasattr(self.plugin, "set_use_single_subject_mode"):
             try:
                 self.plugin.set_use_single_subject_mode(enabled)
+                log.info(
+                    "detector.single_subject_mode.plugin_updated",
+                    enabled=enabled,
+                )
             except Exception:  # pragma: no cover - defensive
                 log.warning(
                     "detector.single_subject_mode.plugin_update_failed",
