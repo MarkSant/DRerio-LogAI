@@ -127,7 +127,7 @@ class Recorder:
         log_context.info("recorder.start.success")
         return True
 
-    def stop_recording(self, force_stop: bool = False):
+    def stop_recording(self, force_stop: bool = False, reason: str | None = None):
         """
         Stops the recording, releases file handlers, and saves tracking data.
 
@@ -148,7 +148,11 @@ class Recorder:
             # If forcing stop due to an error, just close writers and clear buffers.
             self._close_parquet_writer()
             self.detection_data.clear()
-            log.warning("recorder.stop.forced", reason="Error during recording.")
+            message = reason or "Error during recording."
+            if reason and reason.lower().startswith("cancel"):
+                log.info("recorder.stop.forced", reason=message)
+            else:
+                log.warning("recorder.stop.forced", reason=message)
 
         self.is_recording = False
         log.info("recorder.stop.success", base_name=self.base_name)

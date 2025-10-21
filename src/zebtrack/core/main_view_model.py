@@ -295,6 +295,7 @@ class MainViewModel:
         self.pending_single_video_analysis = None
         self.processing_worker: ProcessingWorker | None = None
         self._pending_external_trigger: dict | None = None
+        self._cancel_feedback_displayed = False
 
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
         # Note: video_processing_service needs cancel_event, so init it after threading setup
@@ -2497,11 +2498,75 @@ class MainViewModel:
 
     # --- New Refactored Workflows ---
 
-    def cancel_current_analysis(self):
-        """Sets the event to signal the running analysis thread to stop."""
-        if self.processing_thread and self.processing_thread.is_alive():
-            log.info("controller.analysis.cancel_requested")
-            self.cancel_event.set()
+    def cancel_current_analysis(self) -> None:
+        """Request cancellation for the currently running analysis workflow."""
+
+        worker_running = bool(self.processing_worker and self.processing_worker.is_running)
+        thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
+
+        if not worker_running and not thread_running:
+            log.info("controller.analysis.cancel_ignored", reason="no_active_processing")
+            return
+
+        log.info("controller.analysis.cancel_requested")
+        self.cancel_event.set()
+
+        self.state_manager.update_processing_state(
+            source="controller.cancel_current_analysis",
+            cancel_requested=True,
+        )
+
+        # Provide immediate feedback to the user interface
+        self.ui_coordinator.set_status(self.view, "Cancelando análise em andamento...")
+        if self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_BUTTON_STATE,
+                {"button_name": "cancel_processing", "state": "disabled"},
+            )
+        else:
+            self.ui_coordinator.update_view(
+                self.view,
+                "update_button_state",
+                "cancel_processing",
+                "disabled",
+            )
+
+        self._show_cancel_feedback()
+
+        def _await_shutdown() -> None:
+            """Wait for the worker (or legacy thread) to acknowledge cancellation."""
+            try:
+                finished = True
+                if self.processing_worker and self.processing_worker.is_running:
+                    finished = self.processing_worker.cancel()
+                elif self.processing_thread and self.processing_thread.is_alive():
+                    self.processing_thread.join(timeout=5.0)
+                    finished = not self.processing_thread.is_alive()
+
+                if not finished:
+                    log.warning("controller.analysis.cancel_wait_timeout")
+            except Exception:  # pragma: no cover - defensive
+                log.error("controller.analysis.cancel_failed", exc_info=True)
+            finally:
+                if self.processing_thread and not self.processing_thread.is_alive():
+                    self.processing_thread = None
+
+        threading.Thread(target=_await_shutdown, name="CancelAnalysisJoin", daemon=True).start()
+
+    def _show_cancel_feedback(self) -> None:
+        """Update UI immediately after a cancellation request."""
+
+        if self._cancel_feedback_displayed:
+            return
+
+        self._cancel_feedback_displayed = True
+
+        # Switch back to zone view and clear progress indicators right away
+        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        self.ui_coordinator.set_status(
+            self.view,
+            "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
+        )
 
     def start_single_video_workflow(self, video_path: Path | str, config: dict):
         """Prepares the UI for zone definition in the single video workflow."""
@@ -2665,6 +2730,7 @@ class MainViewModel:
             [video_to_process], output_dir, single_video_config=config
         )
 
+        self._cancel_feedback_displayed = False
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
@@ -2903,6 +2969,7 @@ class MainViewModel:
             videos_to_process, self.project_manager.project_path
         )
 
+        self._cancel_feedback_displayed = False
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
@@ -3031,6 +3098,7 @@ class MainViewModel:
             eligible_videos, self.project_manager.project_path, single_video_config=project_calibration
         )
 
+        self._cancel_feedback_displayed = False
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
@@ -3307,11 +3375,30 @@ class MainViewModel:
             import time
 
             start_time = time.time()  # Track processing start time
+            cancel_requested = False
             log.info("controller.tracking.loop.start", video=experiment_id)
-            while not self.cancel_event.is_set():
+            while True:
+                if self.cancel_event.is_set():
+                    cancel_requested = True
+                    log.info(
+                        "controller.tracking.cancelled.event_detected",
+                        frame=frame_num,
+                        video=experiment_id,
+                    )
+                    break
+
                 ret, frame = cap.read()
                 if not ret:
                     log.info("controller.tracking.loop.end_of_video", frame=frame_num)
+                    break
+
+                if self.cancel_event.is_set():
+                    cancel_requested = True
+                    log.info(
+                        "controller.tracking.cancelled.after_read",
+                        frame=frame_num,
+                        video=experiment_id,
+                    )
                     break
 
                 # Check if we should process this frame (analysis interval)
@@ -3329,6 +3416,15 @@ class MainViewModel:
                     # Count frames that actually have detections
                     if detections:
                         detected_frames_count += 1
+
+                if self.cancel_event.is_set():
+                    cancel_requested = True
+                    log.info(
+                        "controller.tracking.cancelled.before_progress",
+                        frame=frame_num,
+                        video=experiment_id,
+                    )
+                    break
 
                 # Update GUI display every processed frame for smoother visualization
                 if progress_callback and should_process:
@@ -3367,7 +3463,22 @@ class MainViewModel:
 
                 frame_num += 1
 
-            recorder.stop_recording()  # This saves the parquet file
+            stop_reason = "Cancelled by user" if cancel_requested else None
+            recorder.stop_recording(force_stop=cancel_requested, reason=stop_reason)  # Skip save on cancel
+
+            if cancel_requested:
+                log.info("controller.tracking.cancelled", video=experiment_id)
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SET_STATUS,
+                        {"message": f"Cancelamento solicitado para {experiment_id}."},
+                    )
+                else:
+                    self.ui_coordinator.set_status(
+                        self.view, f"Cancelamento solicitado para {experiment_id}."
+                    )
+                return False, arena_polygon
+
             log.info("controller.tracking.success", path=trajectory_path)
             self.ui_event_bus.publish_event(
                 Events.UI_SET_STATUS,
@@ -4987,12 +5098,18 @@ class MainViewModel:
             )
 
             if was_cancelled:
-                self.ui_coordinator.show_info(
-                    self.view, "Cancelado", "A análise de vídeo foi cancelada."
-                )
+                if self._cancel_feedback_displayed:
+                    self._cancel_feedback_displayed = False
+                else:
+                    self.ui_coordinator.show_info(
+                        self.view, "Cancelado", "A análise de vídeo foi cancelada."
+                    )
             elif videos_to_process:
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
                 self.ui_coordinator.show_info(self.view, "Sucesso", msg)
+                self._cancel_feedback_displayed = False
+            else:
+                self._cancel_feedback_displayed = False
 
             self.ui_coordinator.set_status(self.view, "Pronto.")
             self._publish_processing_mode(source="worker.completed", force=True)
