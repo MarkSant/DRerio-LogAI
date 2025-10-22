@@ -503,8 +503,7 @@ class WeightManager:
                     "task": "segment",
                     "weight_type": "seg",
                     "description": (
-                        "Modelo de segmentação para detecção de peixes "
-                        "individuais (zebrafish)"
+                        "Modelo de segmentação para detecção de peixes individuais (zebrafish)"
                     ),
                     "original_model": os.path.basename(pt_path),
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -529,7 +528,7 @@ class WeightManager:
                 "openvino.metadata.created",
                 path=metadata_path,
                 model_type=metadata["model_type"],
-                weight_type=weight_type
+                weight_type=weight_type,
             )
 
             # Now that the model is in place, calculate its hash and save.

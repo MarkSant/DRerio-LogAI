@@ -277,7 +277,9 @@ class ROITemplateManager:
                         log.warning(
                             "roi_template_manager.skipping_invalid_file",
                             file=str(template_file),
-                            exists=template_file.exists() if hasattr(template_file, 'exists') else False
+                            exists=template_file.exists()
+                            if hasattr(template_file, "exists")
+                            else False,
                         )
                         continue
 
@@ -301,7 +303,7 @@ class ROITemplateManager:
                     log.debug(
                         "roi_template_manager.template_loaded",
                         name=template_info["name"],
-                        file=template_info["file"]
+                        file=template_info["file"],
                     )
 
                     templates.append(template_info)
@@ -339,43 +341,28 @@ class ROITemplateManager:
                         with open(template_file, encoding="utf-8") as f:
                             json.load(f)
                         kept += 1
-                        log.debug(
-                            "roi_template_manager.cleanup.keeping",
-                            file=str(template_file)
-                        )
+                        log.debug("roi_template_manager.cleanup.keeping", file=str(template_file))
                     else:
                         template_file.unlink()
                         removed += 1
                         log.info(
-                            "roi_template_manager.cleanup.removed_missing",
-                            file=str(template_file)
+                            "roi_template_manager.cleanup.removed_missing", file=str(template_file)
                         )
                 except json.JSONDecodeError:
                     # Invalid JSON, remove it
                     template_file.unlink()
                     removed += 1
                     log.info(
-                        "roi_template_manager.cleanup.removed_invalid_json",
-                        file=str(template_file)
+                        "roi_template_manager.cleanup.removed_invalid_json", file=str(template_file)
                     )
                 except Exception as e:
                     log.warning(
-                        "roi_template_manager.cleanup.error",
-                        file=str(template_file),
-                        error=str(e)
+                        "roi_template_manager.cleanup.error", file=str(template_file), error=str(e)
                     )
         except Exception as e:
-            log.error(
-                "roi_template_manager.cleanup.failed",
-                error=str(e),
-                exc_info=True
-            )
+            log.error("roi_template_manager.cleanup.failed", error=str(e), exc_info=True)
 
-        log.info(
-            "roi_template_manager.cleanup.completed",
-            removed=removed,
-            kept=kept
-        )
+        log.info("roi_template_manager.cleanup.completed", removed=removed, kept=kept)
 
         return {"removed": removed, "kept": kept}
 

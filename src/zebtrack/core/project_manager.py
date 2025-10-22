@@ -2204,12 +2204,7 @@ class ProjectManager:
 
             # Simplified structure: group/day/subject (no per-video subfolder)
             # All files for a subject's session are stored together
-            return (
-                Path(self.project_path)
-                / group_component
-                / day_component
-                / subject_component
-            )
+            return Path(self.project_path) / group_component / day_component / subject_component
 
         base_dir = Path(video_path).parent if video_path else Path.cwd()
         return base_dir / f"{experiment_component}_results"
@@ -2262,7 +2257,8 @@ class ProjectManager:
                 # Extract just the number/suffix part after the prefix
                 # e.g., "Day01" -> "01", "Dia 5" -> "5"
                 import re
-                match = re.search(r'\d+', candidate_str)
+
+                match = re.search(r"\d+", candidate_str)
                 if match:
                     try:
                         day_number = int(match.group(0))

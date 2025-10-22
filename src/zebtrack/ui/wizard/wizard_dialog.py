@@ -294,7 +294,7 @@ class WizardDialog(Dialog):
         # Target: 1150×600 (wide for 3 columns, tall enough for buttons)
 
         target_width = 1150
-        target_height = 600
+        target_height = 680
 
         # But don't exceed available space on smaller screens
         width = min(target_width, usable_w)
@@ -302,11 +302,11 @@ class WizardDialog(Dialog):
 
         # Ensure absolute minimums for usability
         width = max(width, 950)
-        height = max(height, 580)
+        height = max(height, 620)
 
         # Set resizable bounds (75% to 120% of target)
         min_width = max(int(target_width * 0.75), 900)
-        min_height = max(int(target_height * 0.75), 400)
+        min_height = max(int(target_height * 0.75), 450)
         max_width = int(target_width * 1.2)
         max_height = int(target_height * 1.1)
 

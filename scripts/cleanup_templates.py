@@ -5,8 +5,6 @@ Uso:
     poetry run python scripts/cleanup_templates.py
 """
 
-from pathlib import Path
-
 from zebtrack.core.roi_template_manager import ROITemplateManager
 
 
@@ -20,7 +18,7 @@ def main():
     templates_dir = manager.global_templates_dir
 
     print(f"\nDiretório de templates: {templates_dir}")
-    print(f"Verificando templates...\n")
+    print("Verificando templates...\n")
 
     # List current templates
     templates = manager.list_global_templates()
@@ -33,12 +31,12 @@ def main():
     result = manager.cleanup_orphaned_templates()
 
     print("\n" + "=" * 60)
-    print(f"Resultado:")
+    print("Resultado:")
     print(f"  Templates mantidos: {result['kept']}")
     print(f"  Templates removidos: {result['removed']}")
     print("=" * 60)
 
-    if result['removed'] > 0:
+    if result["removed"] > 0:
         print("\n✓ Templates órfãos foram removidos com sucesso!")
     else:
         print("\n✓ Nenhum template órfão encontrado.")

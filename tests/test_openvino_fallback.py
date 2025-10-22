@@ -62,17 +62,18 @@ class TestOpenVINOFallback:
         # hasn't been converted yet.
 
         # Mock hardware detection to recommend OpenVINO
-        with patch('zebtrack.core.main_view_model.get_hardware_summary') as mock_summary, \
-             patch('zebtrack.core.main_view_model.recommend_backend') as mock_recommend:
-
+        with (
+            patch("zebtrack.core.main_view_model.get_hardware_summary") as mock_summary,
+            patch("zebtrack.core.main_view_model.recommend_backend") as mock_recommend,
+        ):
             mock_summary.return_value = {
-                'cuda_available': False,
-                'openvino_available': True,
-                'has_intel_gpu': True,
-                'openvino_devices': ['CPU', 'GPU'],
-                'recommended_backend': 'openvino'
+                "cuda_available": False,
+                "openvino_available": True,
+                "has_intel_gpu": True,
+                "openvino_devices": ["CPU", "GPU"],
+                "recommended_backend": "openvino",
             }
-            mock_recommend.return_value = 'openvino'
+            mock_recommend.return_value = "openvino"
 
             # The MainViewModel initialization should:
             # 1. Detect that OpenVINO is recommended
@@ -85,5 +86,5 @@ class TestOpenVINOFallback:
             assert True  # Placeholder - actual test would need full MainViewModel setup
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

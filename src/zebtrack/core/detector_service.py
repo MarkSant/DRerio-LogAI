@@ -689,15 +689,30 @@ class DetectorService:
         Returns:
             bool | None: Tracker preference or None if not set
         """
-        project_data = getattr(self.project_manager, "project_data", {})
-        if project_data is None:
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        if not project_data:
             # No project data available, check project type defaults
             if project_type == "single-video":
                 return True
             return None
 
-        # Check project-specific override
+        # Newer project files keep tracking preferences inside the tracking stanza
+        tracker_section = project_data.get("tracking")
+
         pref = project_data.get("use_single_subject_tracker")
+        if pref is None and isinstance(tracker_section, dict):
+            pref = tracker_section.get("use_single_subject_tracker")
+
+        if pref is None:
+            calibration = project_data.get("calibration") or {}
+            animals = calibration.get("animals_per_aquarium")
+            if animals is not None:
+                try:
+                    pref = int(animals) == 1
+                except (TypeError, ValueError):
+                    pref = None
+
         if pref is not None:
             return bool(pref)
 

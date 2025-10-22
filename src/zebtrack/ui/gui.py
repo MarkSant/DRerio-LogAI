@@ -62,6 +62,7 @@ from zebtrack.ui.window_utils import (
     schedule_maximize,
     set_geometry_if_not_maximized,
 )
+from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.utils import polygon_centroid, snap_point_to_axes
 
 log = structlog.get_logger()
@@ -793,27 +794,57 @@ class ProjectModelOverridesDialog(simpledialog.Dialog):
         openvino_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=(12, 4), sticky="ew")
         openvino_frame.columnconfigure(0, weight=1)
 
-        ttk.Radiobutton(
+        inherit_radio = ttk.Radiobutton(
             openvino_frame,
             text="Herdar configuração global",
             value=self.OPENVINO_INHERIT,
             variable=self.openvino_choice,
             command=self._update_preview,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Radiobutton(
+        )
+        inherit_radio.grid(row=0, column=0, sticky="w")
+        ToolTip(
+            inherit_radio,
+            "Usa exatamente a configuração global do OpenVINO para este projeto.",
+        )
+
+        force_on_radio = ttk.Radiobutton(
             openvino_frame,
             text="Forçar ativado",
             value=self.OPENVINO_ON,
             variable=self.openvino_choice,
             command=self._update_preview,
-        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
-        ttk.Radiobutton(
+        )
+        force_on_radio.grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ToolTip(
+            force_on_radio,
+            "Sempre usa OpenVINO neste projeto, independente do padrão global.",
+        )
+
+        force_off_radio = ttk.Radiobutton(
             openvino_frame,
             text="Forçar desativado",
             value=self.OPENVINO_OFF,
             variable=self.openvino_choice,
             command=self._update_preview,
-        ).grid(row=2, column=0, sticky="w", pady=(2, 0))
+        )
+        force_off_radio.grid(row=2, column=0, sticky="w", pady=(2, 0))
+        ToolTip(
+            force_off_radio,
+            "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.",
+        )
+
+        ttk.Label(
+            openvino_frame,
+            text=(
+                "Escolha como aplicar OpenVINO neste projeto:\n"
+                "• Herdar: segue o estado global atual.\n"
+                "• Forçar ativado: sempre usa OpenVINO aqui.\n"
+                "• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
+            ),
+            justify="left",
+            font=("TkDefaultFont", 9),
+            foreground="#555555",
+        ).grid(row=3, column=0, sticky="w", pady=(6, 2))
 
         preview = ttk.LabelFrame(master, text="Resultado Efetivo", padding=8)
         preview.grid(row=3, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="ew")
@@ -2522,7 +2553,11 @@ class ApplicationGUI:
             log.debug("gui.publish_event.no_bus", event_name=event_name)
 
     def _schedule_event_bus_poll(self) -> None:
-        log.debug("gui.event_bus.schedule_poll.called", has_bus=self.event_bus is not None, has_after_id=self._event_bus_after_id is not None)
+        log.debug(
+            "gui.event_bus.schedule_poll.called",
+            has_bus=self.event_bus is not None,
+            has_after_id=self._event_bus_after_id is not None,
+        )
         if self.event_bus is None:
             log.warning("gui.event_bus.schedule_poll.no_bus")
             return
@@ -2533,7 +2568,9 @@ class ApplicationGUI:
             )
             log.debug("gui.event_bus.schedule_poll.scheduled", after_id=self._event_bus_after_id)
         else:
-            log.debug("gui.event_bus.schedule_poll.already_scheduled", after_id=self._event_bus_after_id)
+            log.debug(
+                "gui.event_bus.schedule_poll.already_scheduled", after_id=self._event_bus_after_id
+            )
 
     def _poll_event_bus(self) -> None:
         """Poll the event bus for pending events and dispatch them."""
@@ -2624,6 +2661,13 @@ class ApplicationGUI:
             if self.start_single_analysis_btn.winfo_exists():
                 self.start_single_analysis_btn.destroy()
             self.start_single_analysis_btn = None
+
+        zone_controls = getattr(self, "zone_controls", None)
+        if zone_controls:
+            try:
+                zone_controls.hide_single_analysis_options()
+            except Exception:
+                pass
 
     def _update_window_title(self, project_name: str | None = None):
         """
@@ -4740,6 +4784,9 @@ class ApplicationGUI:
         self.zone_controls = ZoneControlsWidget(left_panel_frame, event_bus=self.event_bus)
         self.zone_controls.pack(fill="both", expand=True)
 
+        # Keep legacy attributes in sync with the new component state
+        self.stabilization_frames_var = self.zone_controls.stabilization_frames_var
+
         # Keep reference to internal widgets for backward compatibility
         # TODO: Migrate code to use ZoneControlsWidget API instead
         self.zone_controls_frame = self.zone_controls.zone_controls_frame
@@ -4848,6 +4895,15 @@ class ApplicationGUI:
         )
         # Note: zone.video_search_changed is handled differently (continuous filtering),
         # so it's not subscribed here - the component handles it internally
+
+        self.event_bus.subscribe("zone.auto_detect_clicked", self._handle_zone_auto_detect_event)
+
+    def _handle_zone_auto_detect_event(self, data: dict | None) -> None:
+        """Proxy auto-detect requests coming from the ZoneControlsWidget."""
+        frames_value = None
+        if data:
+            frames_value = data.get("stabilization_frames")
+        self._on_auto_detect_clicked(stabilization_frames=frames_value)
 
     def _create_mock_event(self, data: dict):
         """Create a mock event object for backward compatibility with old event handlers."""
@@ -5043,14 +5099,14 @@ class ApplicationGUI:
             template_actions,
             text="🗑️ Deletar Template",
             command=self._on_delete_roi_template,
-            state="disabled"  # Start disabled
+            state="disabled",  # Start disabled
         )
         self.delete_template_btn.pack(side="left")
 
         log.info(
             "gui.zone_tab.delete_button_created",
             button_exists=self.delete_template_btn is not None,
-            button_state=self.delete_template_btn['state'] if self.delete_template_btn else None
+            button_state=self.delete_template_btn["state"] if self.delete_template_btn else None,
         )
 
         ttk.Label(
@@ -6959,6 +7015,10 @@ class ApplicationGUI:
                     )
                     displayed_videos += 1
 
+        zone_controls = getattr(self, "zone_controls", None)
+        if zone_controls:
+            zone_controls.apply_video_tree_expand_state()
+
         log.info(
             "gui.video_selector.populated",
             filter=self._video_selector_filter,
@@ -8057,18 +8117,19 @@ class ApplicationGUI:
 
         return closest_point
 
-    def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
+    def _refresh_roi_templates(self, clear_selection: bool = False) -> None:  # noqa: C901
         """Refresh template list. If clear_selection=True, always reset to blank."""
         pm = getattr(self.controller, "project_manager", None)
         if pm is None:
             return
 
         # Check if delete button exists, if not, create it dynamically
-        if not self.delete_template_btn and hasattr(self, 'roi_template_combobox') and self.roi_template_combobox:
-            log.warning(
-                "gui.roi_templates.delete_button_missing_creating_now",
-                has_combobox=True
-            )
+        if (
+            not self.delete_template_btn
+            and hasattr(self, "roi_template_combobox")
+            and self.roi_template_combobox
+        ):
+            log.warning("gui.roi_templates.delete_button_missing_creating_now", has_combobox=True)
             # Find the template actions frame and create the button
             try:
                 # Get the parent of the combobox
@@ -8093,7 +8154,7 @@ class ApplicationGUI:
                         template_actions,
                         text="🗑️ Deletar Template",
                         command=self._on_delete_roi_template,
-                        state="disabled"
+                        state="disabled",
                     )
                     self.delete_template_btn.pack(side="left", padx=(4, 0))
                     log.info("gui.roi_templates.delete_button_created_dynamically")
@@ -8117,10 +8178,7 @@ class ApplicationGUI:
             # Validate template has a name
             template_name = template.get("name", "").strip()
             if not template_name:
-                log.warning(
-                    "gui.roi_templates.skipping_empty_name",
-                    template_data=template
-                )
+                log.warning("gui.roi_templates.skipping_empty_name", template_data=template)
                 continue
 
             # Validate file existence for file-based templates
@@ -8139,7 +8197,7 @@ class ApplicationGUI:
                     log.warning(
                         "gui.roi_templates.fixing_path_comma",
                         original=original_file,
-                        fixed=fixed_file
+                        fixed=fixed_file,
                     )
                     template["file"] = fixed_file
                     template_file = fixed_file
@@ -8151,7 +8209,7 @@ class ApplicationGUI:
                         "gui.roi_templates.skipping_missing_file",
                         name=template_name,
                         file=template_file,
-                        file_exists=False
+                        file_exists=False,
                     )
                     continue
 
@@ -8161,7 +8219,7 @@ class ApplicationGUI:
                         log.warning(
                             "gui.roi_templates.skipping_not_a_file",
                             name=template_name,
-                            file=template_file
+                            file=template_file,
                         )
                         continue
                 except Exception as e:
@@ -8169,7 +8227,7 @@ class ApplicationGUI:
                         "gui.roi_templates.skipping_unreadable_file",
                         name=template_name,
                         file=template_file,
-                        error=str(e)
+                        error=str(e),
                     )
                     continue
 
@@ -8180,9 +8238,7 @@ class ApplicationGUI:
             # Validate display_name is not empty
             if not entry.get("display_name", "").strip():
                 log.warning(
-                    "gui.roi_templates.skipping_empty_display_name",
-                    name=template_name,
-                    entry=entry
+                    "gui.roi_templates.skipping_empty_display_name", name=template_name, entry=entry
                 )
                 continue
 
@@ -8190,13 +8246,15 @@ class ApplicationGUI:
 
         self._roi_templates_cache = enriched
         # Filter out any empty display names (extra safety)
-        names = [entry["display_name"] for entry in enriched if entry.get("display_name", "").strip()]
+        names = [
+            entry["display_name"] for entry in enriched if entry.get("display_name", "").strip()
+        ]
 
         log.info(
             "gui.roi_templates.refreshed",
             total_templates=len(templates),
             valid_templates=len(enriched),
-            display_names=names
+            display_names=names,
         )
 
         if self.roi_template_combobox:
@@ -8205,28 +8263,25 @@ class ApplicationGUI:
         # If clear_selection is requested
         if clear_selection:
             # If there are no templates, disable the combobox
-            if not names and hasattr(self, 'roi_template_combobox'):
+            if not names and hasattr(self, "roi_template_combobox"):
                 self.roi_template_var.set("")
                 self.roi_template_combobox.configure(state="disabled")
                 log.info("gui.roi_templates.combobox_disabled_no_templates")
             # If there's exactly one template, auto-select it
-            elif len(names) == 1 and hasattr(self, 'roi_template_combobox'):
+            elif len(names) == 1 and hasattr(self, "roi_template_combobox"):
                 self.roi_template_combobox.configure(state="readonly")
                 # Set directly to the template, don't clear first
                 self.roi_template_var.set(names[0])
-                log.info(
-                    "gui.roi_templates.auto_selected_single_template",
-                    template_name=names[0]
-                )
+                log.info("gui.roi_templates.auto_selected_single_template", template_name=names[0])
             # If there are multiple templates, clear selection
             else:
                 self.roi_template_var.set("")
-                if hasattr(self, 'roi_template_combobox'):
+                if hasattr(self, "roi_template_combobox"):
                     self.roi_template_combobox.configure(state="readonly")
                 log.info(
                     "gui.roi_templates.combobox_enabled_multiple_templates",
                     template_count=len(names),
-                    templates=names
+                    templates=names,
                 )
 
             # Update button state after selection change
@@ -8234,18 +8289,15 @@ class ApplicationGUI:
             return
 
         # Enable combobox if there are templates
-        if names and hasattr(self, 'roi_template_combobox'):
+        if names and hasattr(self, "roi_template_combobox"):
             self.roi_template_combobox.configure(state="readonly")
-        elif not names and hasattr(self, 'roi_template_combobox'):
+        elif not names and hasattr(self, "roi_template_combobox"):
             self.roi_template_combobox.configure(state="disabled")
 
         # Auto-select if there's exactly one template available
         if len(names) == 1 and not self.roi_template_var.get():
             self.roi_template_var.set(names[0])
-            log.info(
-                "gui.roi_templates.auto_selected_on_refresh",
-                template_name=names[0]
-            )
+            log.info("gui.roi_templates.auto_selected_on_refresh", template_name=names[0])
             return
 
         # If current selection is no longer valid, clear it
@@ -8255,7 +8307,7 @@ class ApplicationGUI:
             log.info(
                 "gui.roi_templates.cleared_invalid_selection",
                 old_selection=current_selection,
-                valid_names=names
+                valid_names=names,
             )
 
         # Update delete button state
@@ -8377,7 +8429,7 @@ class ApplicationGUI:
             "gui.get_selected_roi_template.searching",
             current_display=current_display,
             cache_size=len(self._roi_templates_cache),
-            available_names=[e.get("display_name") for e in self._roi_templates_cache]
+            available_names=[e.get("display_name") for e in self._roi_templates_cache],
         )
 
         for entry in self._roi_templates_cache:
@@ -8385,14 +8437,14 @@ class ApplicationGUI:
                 log.info(
                     "gui.get_selected_roi_template.found",
                     display_name=current_display,
-                    template_name=entry.get("name")
+                    template_name=entry.get("name"),
                 )
                 return entry
 
         log.warning(
             "gui.get_selected_roi_template.not_found",
             current_display=current_display,
-            cache_entries=[e.get("display_name") for e in self._roi_templates_cache]
+            cache_entries=[e.get("display_name") for e in self._roi_templates_cache],
         )
         return None
 
@@ -8437,7 +8489,7 @@ class ApplicationGUI:
                     log.info(
                         "gui.select_roi_template.success_by_identifier",
                         display_name=display_name,
-                        identifier=identifier
+                        identifier=identifier,
                     )
                     return
 
@@ -8452,7 +8504,7 @@ class ApplicationGUI:
                         log.info(
                             "gui.select_roi_template.success_by_name",
                             display_name=display_name,
-                            name=fallback_name
+                            name=fallback_name,
                         )
                         return
 
@@ -8461,13 +8513,15 @@ class ApplicationGUI:
         file_ref = metadata.get("file", "")
         if slug or file_ref:
             for entry in self._roi_templates_cache:
-                if (slug and entry.get("slug") == slug) or (file_ref and entry.get("file") == file_ref):
+                if (slug and entry.get("slug") == slug) or (
+                    file_ref and entry.get("file") == file_ref
+                ):
                     display_name = entry.get("display_name", "")
                     if display_name:
                         self.roi_template_var.set(display_name)
                         log.info(
                             "gui.select_roi_template.success_by_slug_or_file",
-                            display_name=display_name
+                            display_name=display_name,
                         )
                         return
 
@@ -8476,7 +8530,7 @@ class ApplicationGUI:
             "gui.select_roi_template.not_found",
             metadata_name=fallback_name,
             identifier=identifier,
-            cache_size=len(self._roi_templates_cache)
+            cache_size=len(self._roi_templates_cache),
         )
         self.roi_template_var.set("")
 
@@ -8511,7 +8565,7 @@ class ApplicationGUI:
         if not selected_template:
             self.show_warning(
                 "Nenhum template selecionado",
-                "Por favor, selecione um template na lista para deletar."
+                "Por favor, selecione um template na lista para deletar.",
             )
             return
 
@@ -8521,13 +8575,14 @@ class ApplicationGUI:
 
         # Confirm deletion
         from tkinter import messagebox
+
         response = messagebox.askyesno(
             "Confirmar Deleção",
             f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
             f"Localização: {template_location}\n"
             f"Arquivo: {template_file}\n\n"
             f"Esta ação não pode ser desfeita.",
-            icon="warning"
+            icon="warning",
         )
 
         if not response:
@@ -8542,35 +8597,27 @@ class ApplicationGUI:
                 if file_path.exists():
                     file_path.unlink()
                     log.info(
-                        "gui.roi_templates.deleted",
-                        template_name=template_name,
-                        file=template_file
+                        "gui.roi_templates.deleted", template_name=template_name, file=template_file
                     )
                 else:
                     log.warning(
                         "gui.roi_templates.delete_file_not_found",
                         template_name=template_name,
-                        file=template_file
+                        file=template_file,
                     )
 
             # Refresh the template list
             self._refresh_roi_templates(clear_selection=True)
 
             self.show_info(
-                "Template Deletado",
-                f"O template '{template_name}' foi removido com sucesso."
+                "Template Deletado", f"O template '{template_name}' foi removido com sucesso."
             )
 
         except Exception as exc:
             log.error(
-                "gui.roi_templates.delete_failed",
-                template_name=template_name,
-                error=str(exc)
+                "gui.roi_templates.delete_failed", template_name=template_name, error=str(exc)
             )
-            self.show_error(
-                "Erro ao Deletar",
-                f"Não foi possível deletar o template:\n{exc}"
-            )
+            self.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
 
     def _on_import_roi_template(self) -> None:
         """Import a template file into the library (does not apply it)."""
@@ -8696,14 +8743,13 @@ class ApplicationGUI:
             self._select_roi_template(metadata)
             template_name = metadata.get("name", template_name)
             log.info(
-                "gui.roi_templates.import_and_apply.library_updated",
-                template_name=template_name
+                "gui.roi_templates.import_and_apply.library_updated", template_name=template_name
             )
         except Exception as exc:  # pragma: no cover - if import fails, we still applied
             log.warning(
                 "gui.roi_templates.import_and_apply.library_import_failed",
                 error=str(exc),
-                template_name=template_name
+                template_name=template_name,
             )
             # Still refresh templates to update display
             self._refresh_roi_templates()
@@ -8728,7 +8774,8 @@ class ApplicationGUI:
         """Trace callback: Log whenever roi_template_var changes."""
         current_value = self.roi_template_var.get()
         import traceback
-        stack = ''.join(traceback.format_stack()[-4:-1])  # Get calling context
+
+        stack = "".join(traceback.format_stack()[-4:-1])  # Get calling context
 
         log.info(
             "gui.roi_template.var_changed",
@@ -8796,16 +8843,25 @@ class ApplicationGUI:
                     self.roi_template_var.set(cache_entries[0].get("display_name", ""))
                     log.info(
                         "gui.roi_template.auto_selecting_on_apply",
-                        template=cache_entries[0].get("display_name")
+                        template=cache_entries[0].get("display_name"),
                     )
                     # Try again now that we've selected it
                     self.root.after(100, self._on_apply_roi_template)
                     return
             else:
-                cache_info = "\n".join([
-                    f"  - '{e.get('display_name')}' (name: '{e.get('name')}', file: '{e.get('file')}')"
-                    for e in cache_entries
-                ]) if cache_entries else "  (vazio)"
+                cache_info = (
+                    "\n".join(
+                        [
+                            (
+                                f"  - '{e.get('display_name')}' "
+                                f"(name: '{e.get('name')}', file: '{e.get('file')}')"
+                            )
+                            for e in cache_entries
+                        ]
+                    )
+                    if cache_entries
+                    else "  (vazio)"
+                )
 
                 error_msg = (
                     f"Template não encontrado ou inválido.\n\n"
@@ -9370,16 +9426,19 @@ class ApplicationGUI:
 
     def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
         """Habilita o botão de desenhar ROI se a arena principal existir."""
-        if not hasattr(self, "draw_roi_button") or self.draw_roi_button is None:
-            return
-
         if zone_data is None:
             zone_data = self._get_zone_data_for_active_context()
 
-        if zone_data.polygon:
-            self.draw_roi_button.config(state="normal")
-        else:
-            self.draw_roi_button.config(state="disabled")
+        widget = getattr(self, "zone_controls", None)
+        if widget:
+            widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))
+            return
+
+        if hasattr(self, "draw_roi_button") and self.draw_roi_button is not None:
+            if zone_data and zone_data.polygon:
+                self.draw_roi_button.config(state="normal")
+            else:
+                self.draw_roi_button.config(state="disabled")
 
     def redraw_zones_from_project_data(self, zone_data: ZoneData | None = None):
         """Redesenha zonas preservando o background."""
@@ -10243,7 +10302,94 @@ class ApplicationGUI:
             "Vídeo Único'.",
         )
 
-    def _on_auto_detect_clicked(self):
+        self._prepare_single_video_ui_state(config)
+
+    def _prepare_single_video_ui_state(self, config: dict | None) -> None:
+        """Ensure zone controls reflect the incoming single-video configuration."""
+        zone_controls = getattr(self, "zone_controls", None)
+        if not zone_controls:
+            return
+
+        try:
+            zone_controls.show_single_analysis_options()
+        except Exception:
+            pass
+
+        analysis_interval = None
+        display_interval = None
+        roi_choice = None
+        stabilization_frames = None
+
+        if config:
+            analysis_interval = config.get("analysis_interval_frames")
+            display_interval = config.get("display_interval_frames")
+            roi_choice = config.get("roi_choice")
+            stabilization_frames = config.get("stabilization_frames")
+
+        if analysis_interval is None:
+            analysis_interval = self.analysis_interval_var.get()
+        if display_interval is None:
+            display_interval = self.display_interval_var.get()
+        if stabilization_frames is None:
+            stabilization_frames = self.stabilization_frames_var.get()
+
+        # Share the same StringVar instances so edits from either side stay in sync
+        self.analysis_interval_var = zone_controls.analysis_interval_var
+        self.display_interval_var = zone_controls.display_interval_var
+        self.roi_choice_var = zone_controls.roi_choice_var
+        self.stabilization_frames_var = zone_controls.stabilization_frames_var
+
+        self.analysis_interval_var.set(str(analysis_interval or "10"))
+        self.display_interval_var.set(str(display_interval or "10"))
+        self.roi_choice_var.set(roi_choice or "none")
+        self.stabilization_frames_var.set(str(stabilization_frames or "10"))
+
+    def _compose_single_video_runtime_config(self) -> dict | None:
+        """Collect the latest single-video settings before starting processing."""
+        if not self.pending_single_video_config:
+            return None
+
+        config = dict(self.pending_single_video_config)
+
+        # Prefer values from the new zone controls component when available
+        zone_controls = getattr(self, "zone_controls", None)
+        if zone_controls:
+            analysis_var = zone_controls.analysis_interval_var.get()
+            display_var = zone_controls.display_interval_var.get()
+            roi_choice = zone_controls.roi_choice_var.get()
+            stabilization_var = zone_controls.stabilization_frames_var.get()
+        else:
+            analysis_var = self.analysis_interval_var.get()
+            display_var = self.display_interval_var.get()
+            roi_choice = config.get("roi_choice", "none")
+            stabilization_var = self.stabilization_frames_var.get()
+
+        try:
+            analysis_interval = int(analysis_var)
+            display_interval = int(display_var)
+            if analysis_interval <= 0 or display_interval <= 0:
+                raise ValueError
+            stabilization_frames = int(stabilization_var)
+            if stabilization_frames <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            self.show_error(
+                "Erro",
+                (
+                    "Os intervalos devem ser números inteiros positivos "
+                    "(análise, exibição e estabilização)."
+                ),
+            )
+            return None
+
+        config["analysis_interval_frames"] = analysis_interval
+        config["display_interval_frames"] = display_interval
+        config["roi_choice"] = roi_choice
+        config["stabilization_frames"] = stabilization_frames
+
+        return config
+
+    def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
         """Handler for the auto-detect button."""
         # Prevent editing during analysis
         if self.analysis_active:
@@ -10253,17 +10399,25 @@ class ApplicationGUI:
             )
             return
 
+        raw_value = (
+            stabilization_frames
+            if stabilization_frames is not None
+            else self.stabilization_frames_var.get()
+        )
+
         try:
-            stabilization_frames = int(self.stabilization_frames_var.get())
-            if stabilization_frames <= 0:
-                self.show_warning("Entrada Inválida", "O número de frames deve ser positivo.")
-                return
+            stabilization_frames_int = int(raw_value)
+            if stabilization_frames_int <= 0:
+                raise ValueError
         except (ValueError, TypeError):
             self.show_warning(
                 "Entrada Inválida",
-                "O número de frames para análise deve ser um número inteiro.",
+                "O número de frames para análise deve ser um número inteiro positivo.",
             )
             return
+
+        # Keep UI entry in sync with validated value
+        self.stabilization_frames_var.set(str(stabilization_frames_int))
 
         # Clear any old interactive polygon before starting a new detection
         self._clear_interactive_polygon()
@@ -10274,7 +10428,7 @@ class ApplicationGUI:
             Events.ZONE_AUTO_DETECT,
             {
                 "video_path": video_path,
-                "stabilization_frames": stabilization_frames,
+                "stabilization_frames": stabilization_frames_int,
             },
         )
 
@@ -10306,6 +10460,11 @@ class ApplicationGUI:
         if not zone_data.polygon:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
+
+        updated_config = self._compose_single_video_runtime_config()
+        if updated_config is None:
+            return
+        self.pending_single_video_config = updated_config
 
         # 2. Disable the button and publish the event
         self.start_single_analysis_btn.config(state="disabled")
@@ -10752,7 +10911,7 @@ class ApplicationGUI:
 
         return frame
 
-    def _show_analysis_frame_image(self, frame) -> None:
+    def _show_analysis_frame_image(self, frame) -> None:  # noqa: C901
         """Display frame image in analysis view with proper scaling."""
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
@@ -10774,44 +10933,46 @@ class ApplicationGUI:
             notebook_width = self.notebook.winfo_width()
             notebook_height = self.notebook.winfo_height()
 
-            log.info("gui.notebook_dimensions",
-                    width=notebook_width,
-                    height=notebook_height,
-                    valid=notebook_width > 100 and notebook_height > 100)
+            log.info(
+                "gui.notebook_dimensions",
+                width=notebook_width,
+                height=notebook_height,
+                valid=notebook_width > 100 and notebook_height > 100,
+            )
 
             if notebook_width > 100 and notebook_height > 100:
                 # IMPROVED: Calculate actual controls height dynamically
                 # Since info_frame and controls_frame are not stored as instance attrs,
                 # measure from the stored child widgets and progress_frame
                 controls_height = 0
-                
+
                 # Measure status label + task/metadata labels (info section)
                 if hasattr(self, "analysis_status_label") and self.analysis_status_label:
                     self.analysis_status_label.update_idletasks()
                     status_h = self.analysis_status_label.winfo_height()
                     if status_h > 1:
                         controls_height += status_h + 5
-                
+
                 if hasattr(self, "analysis_task_label") and self.analysis_task_label:
                     self.analysis_task_label.update_idletasks()
                     task_h = self.analysis_task_label.winfo_height()
                     if task_h > 1:
                         controls_height += task_h + 5
-                
+
                 # Measure metadata labels frame height (group, day, subject, profile)
                 if hasattr(self, "analysis_group_label") and self.analysis_group_label:
                     self.analysis_group_label.update_idletasks()
                     meta_h = self.analysis_group_label.winfo_height()
                     if meta_h > 1:
                         controls_height += meta_h + 5
-                
+
                 # Measure tracking mode label
                 if hasattr(self, "tracking_mode_label") and self.tracking_mode_label:
                     self.tracking_mode_label.update_idletasks()
                     mode_h = self.tracking_mode_label.winfo_height()
                     if mode_h > 1:
                         controls_height += mode_h + 5
-                
+
                 # Measure track selector (controls section)
                 if hasattr(self, "track_selector_widget") and self.track_selector_widget:
                     self.track_selector_widget.update_idletasks()
@@ -10820,23 +10981,31 @@ class ApplicationGUI:
                         controls_height += ctrl_h + 15  # Extra padding for controls frame
 
                 # Check if progress frame is visible and add its height
-                if hasattr(self, "progress_frame") and self.progress_frame and self.progress_frame.winfo_viewable():
+                if (
+                    hasattr(self, "progress_frame")
+                    and self.progress_frame
+                    and self.progress_frame.winfo_viewable()
+                ):
                     self.progress_frame.update_idletasks()
                     prog_h = self.progress_frame.winfo_height()
                     if prog_h > 10:
                         controls_height += prog_h + 10
-                
+
                 # Fallback if measurements failed
                 if controls_height < 50:
                     controls_height = 250  # More conservative fallback (was 200)
 
                 # Account for notebook padding and frame padding
                 available_width = notebook_width - 60  # 20 padding + 20 margins + 20 buffer
-                available_height = notebook_height - controls_height - 80  # Increased buffer (was 60)
-                
-                log.info("gui.controls_height.total", 
-                        total=controls_height,
-                        available_height=available_height)
+                available_height = (
+                    notebook_height - controls_height - 80
+                )  # Increased buffer (was 60)
+
+                log.info(
+                    "gui.controls_height.total",
+                    total=controls_height,
+                    available_height=available_height,
+                )
 
                 log.info(
                     "gui.frame_sizing",
@@ -10847,16 +11016,28 @@ class ApplicationGUI:
                 )
 
         # Fallback: use video_container or label dimensions
-        if available_width is None or available_width <= 100 or available_height is None or available_height <= 100:
+        if (
+            available_width is None
+            or available_width <= 100
+            or available_height is None
+            or available_height <= 100
+        ):
             if hasattr(self, "video_container") and self.video_container:
                 self.video_container.update_idletasks()
                 available_width = self.video_container.winfo_width() - 10
                 available_height = self.video_container.winfo_height() - 10
-                log.info("gui.frame_sizing.fallback_container",
-                        available=f"{int(available_width)}x{int(available_height)}")
+                log.info(
+                    "gui.frame_sizing.fallback_container",
+                    available=f"{int(available_width)}x{int(available_height)}",
+                )
 
         # Apply scaling to fit available space
-        if available_width and available_height and available_width > 100 and available_height > 100:
+        if (
+            available_width
+            and available_height
+            and available_width > 100
+            and available_height > 100
+        ):
             # Calculate scale to fit both dimensions
             scale = min(available_width / frame_w, available_height / frame_h)
             # Ensure we don't exceed available space (never upscale)
@@ -11469,17 +11650,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         video_select_container.columnconfigure(0, weight=1)
 
         video_entry = ttk.Entry(
-            video_select_container,
-            textvariable=self.video_path_var,
-            state="readonly"
+            video_select_container, textvariable=self.video_path_var, state="readonly"
         )
         video_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
 
         browse_btn = ttk.Button(
-            video_select_container,
-            text="Procurar...",
-            command=self._browse_video,
-            width=12
+            video_select_container, text="Procurar...", command=self._browse_video, width=12
         )
         browse_btn.grid(row=0, column=1, sticky="e")
 
@@ -11678,10 +11854,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         video_path = filedialog.askopenfilename(
             parent=self,
             title="Selecione um Arquivo de Vídeo",
-            filetypes=[
-                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
-                ("Todos os arquivos", "*.*")
-            ]
+            filetypes=[("Arquivos de vídeo", "*.mp4 *.avi *.mov"), ("Todos os arquivos", "*.*")],
         )
         if video_path:
             self.video_path_var.set(video_path)
@@ -11690,8 +11863,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # First check if a video was selected
         if not self.video_path_var.get():
             messagebox.showerror(
-                "Erro",
-                "Por favor, selecione um arquivo de vídeo antes de continuar."
+                "Erro", "Por favor, selecione um arquivo de vídeo antes de continuar."
             )
             return False
 

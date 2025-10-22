@@ -2755,8 +2755,7 @@ class MainViewModel:
         )
 
         # 4. Switch to analysis view mode immediately
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+        self._activate_analysis_view_mode()
 
         # Permanecer na tela principal para exibir a barra de progresso
         # self.view._create_welcome_frame()
@@ -2985,6 +2984,8 @@ class MainViewModel:
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
 
+        self._activate_analysis_view_mode()
+
         # 6. Update statuses in project file
         for video in videos_to_process:
             self.project_manager.update_video_status(video["path"], "complete")
@@ -3115,6 +3116,8 @@ class MainViewModel:
         self._cancel_feedback_displayed = False
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
+
+        self._activate_analysis_view_mode()
 
         for video_info in eligible_videos:
             path_value = video_info.get("path")
@@ -3746,6 +3749,13 @@ class MainViewModel:
                 source="processing.temporary_mode.exit",
                 force=True,
             )
+
+    def _activate_analysis_view_mode(self) -> None:
+        """Ensure the analysis tab is active so frames scale correctly."""
+        if self.ui_event_bus:
+            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+        else:
+            self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
         # Phase 4: Use UICoordinator for UI updates
@@ -5782,8 +5792,7 @@ class MainViewModel:
                                 {
                                     "title": "Erro de Inferência OpenVINO",
                                     "message": (
-                                        "Falha na inferência do frame "
-                                        f"{frame_count + 1}: {exc}"
+                                        f"Falha na inferência do frame {frame_count + 1}: {exc}"
                                     ),
                                 },
                             )

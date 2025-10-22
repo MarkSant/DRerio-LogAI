@@ -63,6 +63,7 @@ class ZoneControlsWidget(BaseWidget):
         # Widget references
         self.draw_roi_button: ttk.Button | None = None
         self.toggle_view_btn: ttk.Button | None = None
+        self.video_tree_toggle_btn: ttk.Button | None = None
         self.roi_template_combobox: ttk.Combobox | None = None
         self.video_selector_tree: ttk.Treeview | None = None
         self.zone_listbox: ttk.Treeview | None = None
@@ -73,6 +74,7 @@ class ZoneControlsWidget(BaseWidget):
         self.radius_frame: ttk.Frame | None = None
         self.overlap_frame: ttk.Frame | None = None
         self.rule_help_label: ttk.Label | None = None
+        self._video_tree_expanded = True
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -286,6 +288,13 @@ class ZoneControlsWidget(BaseWidget):
         ttk.Button(search_frame, text="🔄", width=3, command=self._on_video_refresh_clicked).pack(
             side="left"
         )
+        self.video_tree_toggle_btn = ttk.Button(
+            search_frame,
+            text="Recolher tudo",
+            width=14,
+            command=self._toggle_video_tree_nodes,
+        )
+        self.video_tree_toggle_btn.pack(side="left", padx=(5, 0))
 
         # Treeview
         tree_container = ttk.Frame(video_selector_frame)
@@ -304,7 +313,7 @@ class ZoneControlsWidget(BaseWidget):
         self.video_selector_tree.heading("status", text="Dados")
         self.video_selector_tree.heading("filename", text="Arquivo")
 
-        self.video_selector_tree.column("#0", width=220, stretch=True)
+        self.video_selector_tree.column("#0", width=280, stretch=True)
         self.video_selector_tree.column("status", width=120, anchor="center", stretch=False)
         self.video_selector_tree.column("filename", width=180, stretch=True)
 
@@ -318,12 +327,58 @@ class ZoneControlsWidget(BaseWidget):
         # Bind events
         self.video_selector_tree.bind("<Double-Button-1>", self._on_video_tree_double_click)
 
+        ttk.Label(
+            video_selector_frame,
+            text=(
+                "Legenda: 🏷️ Lote, 📅 Dia, 🐟 Sujeito. ✓ indica dados "
+                "completos; ✗ aponta dados pendentes."
+            ),
+            wraplength=320,
+            style="Small.TLabel",
+        ).pack(fill="x", pady=(6, 0))
+
         # Load frame button
         ttk.Button(
             video_selector_frame,
             text="📹 Carregar Frame do Vídeo Selecionado",
             command=self._on_load_video_frame_clicked,
         ).pack(pady=(5, 0))
+
+        self._update_video_tree_toggle_label()
+
+    def _toggle_video_tree_nodes(self) -> None:
+        """Alterna entre expandir ou recolher todos os grupos do seletor de vídeos."""
+        if not self.video_selector_tree:
+            return
+
+        self._video_tree_expanded = not self._video_tree_expanded
+        self._set_video_tree_open_state(self._video_tree_expanded)
+        self._update_video_tree_toggle_label()
+
+    def apply_video_tree_expand_state(self) -> None:
+        """Reaplica o estado atual de expansão após repovoar a árvore."""
+        self._set_video_tree_open_state(self._video_tree_expanded)
+        self._update_video_tree_toggle_label()
+
+    def _set_video_tree_open_state(self, expanded: bool) -> None:
+        """Define a abertura dos nós de nível superior."""
+        if not self.video_selector_tree:
+            return
+
+        for group_id in self.video_selector_tree.get_children(""):
+            self.video_selector_tree.item(group_id, open=expanded)
+            for day_id in self.video_selector_tree.get_children(group_id):
+                self.video_selector_tree.item(day_id, open=expanded)
+
+    def _update_video_tree_toggle_label(self) -> None:
+        """Atualiza o texto do botão de expandir/recolher conforme o estado."""
+        if not self.video_tree_toggle_btn:
+            return
+
+        if self._video_tree_expanded:
+            self.video_tree_toggle_btn.config(text="Recolher tudo")
+        else:
+            self.video_tree_toggle_btn.config(text="Expandir tudo")
 
     def _build_zone_list(self) -> None:
         """Build the zone list section."""
@@ -460,9 +515,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_auto_detect_clicked(self) -> None:
         """Handle auto-detect button click."""
-        self.event_bus.publish_event(
-            Events.ZONE_AUTO_DETECT,
-            {"stabilization_frames": int(self.stabilization_frames_var.get() or 10)},
+        self.emit_event(
+            "zone.auto_detect_clicked",
+            {"stabilization_frames": self.stabilization_frames_var.get()},
         )
 
     def _on_draw_main_polygon_clicked(self) -> None:
@@ -499,6 +554,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_video_tree_double_click(self, event) -> None:
         """Handle video tree double-click."""
+        if not self.video_selector_tree:
+            return
+
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
@@ -506,6 +564,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_load_video_frame_clicked(self) -> None:
         """Handle load video frame button click."""
+        if not self.video_selector_tree:
+            return
+
         selection = self.video_selector_tree.selection()
         if selection:
             item_id = selection[0]
@@ -513,6 +574,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_zone_right_click(self, event) -> None:
         """Handle zone list right-click."""
+        if not self.zone_listbox:
+            return
+
         selection = self.zone_listbox.selection()
         if selection:
             item_id = selection[0]
@@ -523,6 +587,9 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_zone_double_click(self, event) -> None:
         """Handle zone list double-click."""
+        if not self.zone_listbox:
+            return
+
         selection = self.zone_listbox.selection()
         if selection:
             item_id = selection[0]
@@ -538,12 +605,18 @@ class ZoneControlsWidget(BaseWidget):
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
+        if not self.event_bus:
+            return
+
         self.event_bus.publish_event(
             Events.DETECTOR_UPDATE_PARAMETERS, {"rule": self.roi_inclusion_rule_var.get()}
         )
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click."""
+        if not self.event_bus:
+            return
+
         self.event_bus.publish_event(
             Events.DETECTOR_UPDATE_PARAMETERS,
             {
