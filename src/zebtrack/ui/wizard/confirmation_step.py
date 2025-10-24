@@ -266,24 +266,85 @@ class ConfirmationStep(WizardStep):
         lines.append(f"  • {type_names.get(project_type, project_type.capitalize())}")
 
     def _append_live_configuration(self, lines: list[str]) -> None:
+        # Experimental Design
+        experiment_days = self.wizard_data.get("experiment_days")
+        num_groups = self.wizard_data.get("num_groups")
+        subjects_per_group = self.wizard_data.get("subjects_per_group")
+        group_names = self.wizard_data.get("group_names", [])
+
+        if experiment_days or num_groups or subjects_per_group:
+            lines.append("")
+            lines.append("🔬 Design Experimental:")
+            if num_groups and subjects_per_group and experiment_days:
+                total_sessions = num_groups * subjects_per_group * experiment_days
+                total_animals = num_groups * subjects_per_group
+                lines.append(
+                    f"  • {num_groups} grupos × {experiment_days} dias × "
+                    f"{subjects_per_group} animais/grupo"
+                )
+                lines.append(
+                    f"  • Total: {total_sessions} gravações ({total_animals} animais)"
+                )
+            if group_names:
+                group_list = ", ".join(group_names)
+                lines.append(f"  • Grupos: {group_list}")
+
+        # Camera & Hardware
         lines.append("")
-        lines.append("📹 Configuração ao Vivo:")
+        lines.append("📹 Hardware:")
         camera_index = self.wizard_data.get("camera_index", 0)
         lines.append(f"  • Câmera: Índice {camera_index}")
 
         if self.wizard_data.get("use_arduino"):
             arduino_port = self.wizard_data.get("arduino_port", "N/A")
             lines.append(f"  • Arduino: {arduino_port}")
+            if self.wizard_data.get("external_trigger_mode"):
+                lines.append("  • Modo: Gatilho Externo (External Trigger) ✓")
 
-        if self.wizard_data.get("use_timed_recording"):
-            duration = self.wizard_data.get("recording_duration_s", 0)
-            minutes = int(duration // 60)
-            seconds = int(duration % 60)
-            lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
+        # Recording Settings
+        if self.wizard_data.get("use_timed_recording") or self.wizard_data.get("use_countdown"):
+            lines.append("")
+            lines.append("⏱️ Configurações de Gravação:")
+            if self.wizard_data.get("use_timed_recording"):
+                duration = self.wizard_data.get("recording_duration_s", 0)
+                minutes = int(duration // 60)
+                seconds = int(duration % 60)
+                lines.append(f"  • Gravação temporizada: {minutes}min {seconds}s")
+            if self.wizard_data.get("use_countdown"):
+                countdown = self.wizard_data.get("countdown_duration_s", 0)
+                lines.append(f"  • Contagem regressiva: {countdown}s")
 
-        if self.wizard_data.get("use_countdown"):
-            countdown = self.wizard_data.get("countdown_duration_s", 0)
-            lines.append(f"  • Contagem regressiva: {countdown}s")
+        # Processing Intervals
+        analysis_interval = self.wizard_data.get("analysis_interval_frames")
+        display_interval = self.wizard_data.get("display_interval_frames")
+        if analysis_interval or display_interval:
+            lines.append("")
+            lines.append("⚙️ Intervalos de Processamento:")
+            if analysis_interval:
+                lines.append(f"  • Análise: a cada {analysis_interval} frames")
+            if display_interval:
+                lines.append(f"  • Exibição: a cada {display_interval} frames")
+
+        # Model Selection
+        weight_assignments = self.wizard_data.get("weight_assignments")
+        detector_params = self.wizard_data.get("detector_parameters")
+        if weight_assignments or detector_params:
+            lines.append("")
+            lines.append("🎯 Configuração de Detecção:")
+            if weight_assignments:
+                animal_weight = weight_assignments.get("animal")
+                if animal_weight:
+                    lines.append(f"  • Peso ativo: {animal_weight}")
+            if detector_params:
+                conf = detector_params.get("confidence_threshold")
+                nms = detector_params.get("nms_threshold")
+                track = detector_params.get("track_threshold")
+                match = detector_params.get("match_threshold")
+                if conf is not None:
+                    lines.append(
+                        f"  • Thresholds: conf={conf:.2f}, NMS={nms:.2f}, "
+                        f"track={track:.2f}, match={match:.2f}"
+                    )
 
     def _append_detected_design(self, lines: list[str]) -> None:
         detected_design = self.wizard_data.get("detected_design")
