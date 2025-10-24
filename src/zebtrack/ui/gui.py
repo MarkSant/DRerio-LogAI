@@ -3557,7 +3557,10 @@ class ApplicationGUI:
         )
         ttk.Label(
             video_frame,
-            text="Garante que offset < intervalo para manter a cadência correta.",
+            text=(
+                "Offset inicial: Número de frames iniciais ignorados antes de começar "
+                "a análise, útil para desconsiderar período de estabilização."
+            ),
             font=("TkDefaultFont", 8),
             wraplength=320,
         ).grid(row=2, column=2, sticky="w")
@@ -3581,9 +3584,8 @@ class ApplicationGUI:
         ttk.Label(
             smoothing_frame,
             text=(
-                "Quantos frames vizinhos usar para calcular a média. "
-                "Ex: 7 = 3 antes + atual + 3 depois. "
-                "Maior = mais liso, mas pode perder detalhes."
+                "Janela de suavização: Número de frames usados para calcular a média "
+                "móvel das posições, reduzindo ruído na trajetória."
             ),
             font=("TkDefaultFont", 8),
             foreground="#555",
@@ -11976,8 +11978,8 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         ttk.Label(
             smoothing_frame,
             text=(
-                "Quantos frames vizinhos usar para calcular a média. "
-                "Ex: 7 = 3 antes + atual + 3 depois."
+                "Janela de suavização: Número de frames usados para calcular a média "
+                "móvel das posições, reduzindo ruído na trajetória."
             ),
             wraplength=280,
             font=("TkDefaultFont", 8),
