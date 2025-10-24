@@ -57,6 +57,10 @@ class ModelSelectionStep(WizardStep):
         self._animal_weight_combo: ttk.Combobox | None = None
         self._methods_frame: LabelFrame | None = None
 
+        # Validation tracking: Entry widgets and error labels
+        self._threshold_entries: dict[str, ttk.Entry] = {}
+        self._threshold_error_labels: dict[str, Label] = {}
+
         self._load_weight_catalog()
         self._prefill_from_wizard_data()
 
@@ -267,6 +271,7 @@ class ModelSelectionStep(WizardStep):
                 "  → Problema: Mais falsos positivos (ruído)\n\n"
                 "💡 Padrão recomendado: 0.25"
             ),
+            param_key="confidence",
         )
         self._build_detector_param_row(
             detector_frame,
@@ -284,6 +289,7 @@ class ModelSelectionStep(WizardStep):
                 "  → Problema: Pode unir animais próximos\n\n"
                 "💡 Padrão recomendado: 0.45"
             ),
+            param_key="nms",
         )
         self._build_detector_param_row(
             detector_frame,
@@ -302,6 +308,7 @@ class ModelSelectionStep(WizardStep):
                 "  → Problema: IDs trocam frequentemente\n\n"
                 "💡 Padrão recomendado: 0.25"
             ),
+            param_key="track",
         )
         self._build_detector_param_row(
             detector_frame,
@@ -320,6 +327,7 @@ class ModelSelectionStep(WizardStep):
                 "  → Problema: Pode trocar IDs entre animais\n\n"
                 "💡 Padrão recomendado: 0.15"
             ),
+            param_key="match",
         )
 
         defaults_label = Label(
@@ -414,6 +422,9 @@ class ModelSelectionStep(WizardStep):
         self._refresh_weight_dropdowns()
         self._update_animal_method_hint()
 
+        # Setup validation callbacks after UI is built
+        self._setup_validation_callbacks()
+
     def _build_method_row(
         self,
         parent,
@@ -461,15 +472,134 @@ class ModelSelectionStep(WizardStep):
         column: int,
         row: int = 0,
         tooltip: str = "",
+        param_key: str = "",
     ) -> None:
-        frame = ttk.Frame(parent)
-        frame.grid(row=row, column=column, padx=(0, 12), pady=5, sticky="w")
+        # Create a container frame for label + entry + error message
+        container = ttk.Frame(parent)
+        container.grid(row=row, column=column, padx=(0, 12), pady=5, sticky="w")
 
-        Label(frame, text=label).pack(side="left")
-        entry = ttk.Entry(frame, textvariable=var, width=8)
+        # Horizontal frame for label and entry
+        input_frame = ttk.Frame(container)
+        input_frame.pack(fill="x")
+
+        Label(input_frame, text=label).pack(side="left")
+        entry = ttk.Entry(input_frame, textvariable=var, width=8)
         entry.pack(side="left", padx=(5, 0))
         if tooltip:
             ToolTip(entry, tooltip)
+
+        # Store entry reference for validation highlighting
+        if param_key:
+            self._threshold_entries[param_key] = entry
+
+            # Create error label (initially hidden)
+            error_label = Label(
+                container,
+                text="",
+                fg="red",
+                font=("TkDefaultFont", 8),
+                justify="left",
+            )
+            error_label.pack(fill="x", pady=(2, 0))
+            self._threshold_error_labels[param_key] = error_label
+
+    # ------------------------------------------------------------------
+    # Validation and error highlighting
+    # ------------------------------------------------------------------
+    def _setup_validation_callbacks(self) -> None:
+        """Setup real-time validation callbacks for threshold parameters."""
+        # Add trace callbacks to validate on value change
+        self.confidence_var.trace_add(
+            "write", lambda *_: self._validate_threshold_field("confidence")
+        )
+        self.nms_var.trace_add(
+            "write", lambda *_: self._validate_threshold_field("nms")
+        )
+        self.track_var.trace_add(
+            "write", lambda *_: self._validate_threshold_field("track")
+        )
+        self.match_var.trace_add(
+            "write", lambda *_: self._validate_threshold_field("match")
+        )
+
+    def _validate_threshold_field(self, param_key: str) -> bool:
+        """
+        Validate a single threshold field and update visual feedback.
+
+        Args:
+            param_key: The threshold parameter key ("confidence", "nms", "track", "match")
+
+        Returns:
+            bool: True if valid, False otherwise
+        """
+        # Get the StringVar and Entry widget
+        var_map = {
+            "confidence": (self.confidence_var, "confiança"),
+            "nms": (self.nms_var, "NMS"),
+            "track": (self.track_var, "track"),
+            "match": (self.match_var, "associação"),
+        }
+
+        if param_key not in var_map:
+            return True
+
+        var, label = var_map[param_key]
+        entry = self._threshold_entries.get(param_key)
+        error_label = self._threshold_error_labels.get(param_key)
+
+        if not entry or not error_label:
+            return True
+
+        # Get current value
+        value_str = var.get().strip()
+
+        # Empty is allowed (will be caught by main validation)
+        if not value_str:
+            self._clear_threshold_error(param_key)
+            return True
+
+        # Try to parse as float
+        try:
+            value = float(value_str)
+        except ValueError:
+            # Invalid number format - highlight with light red background
+            try:
+                entry.configure(background="#FFE0E0")  # Light red
+            except Exception:
+                pass  # Some themes may not allow background config
+            error_label.configure(text="❌ Valor deve ser decimal (ex: 0.25)")
+            return False
+
+        # Check range (0, 1) exclusive
+        if not 0.0 < value < 1.0:
+            try:
+                entry.configure(background="#FFE0E0")  # Light red
+            except Exception:
+                pass
+            error_label.configure(text=f"❌ {label.capitalize()} deve estar entre 0 e 1")
+            return False
+
+        # Valid - clear error
+        self._clear_threshold_error(param_key)
+        return True
+
+    def _clear_threshold_error(self, param_key: str) -> None:
+        """Clear error highlighting for a specific threshold field."""
+        entry = self._threshold_entries.get(param_key)
+        error_label = self._threshold_error_labels.get(param_key)
+
+        if entry:
+            try:
+                entry.configure(background="white")  # Reset to default
+            except Exception:
+                pass  # Some themes may not allow background config
+        if error_label:
+            error_label.configure(text="")
+
+    def _clear_all_threshold_errors(self) -> None:
+        """Clear all threshold error highlights."""
+        for param_key in ["confidence", "nms", "track", "match"]:
+            self._clear_threshold_error(param_key)
 
     # ------------------------------------------------------------------
     # Event handlers and derived state
@@ -580,6 +710,10 @@ class ModelSelectionStep(WizardStep):
     # ------------------------------------------------------------------
     def _restore_default_thresholds(self) -> None:
         """Restore all detector thresholds to recommended default values."""
+        # Clear any validation errors first
+        self._clear_all_threshold_errors()
+
+        # Set default values
         self.confidence_var.set(f"{settings.yolo_model.confidence_threshold:.3f}")
         self.nms_var.set(f"{settings.yolo_model.nms_threshold:.3f}")
         self.track_var.set(f"{DEFAULT_TRACK_THRESHOLD:.3f}")
