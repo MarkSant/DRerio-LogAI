@@ -638,7 +638,8 @@ class CalibrationDialog(simpledialog.Dialog):
         if not project_params:
             messagebox.showinfo(
                 "Sem overrides",
-                "Este projeto ainda não possui overrides salvos. Valores globais atuais serão mantidos.",
+                "Este projeto ainda não possui overrides salvos. "
+                "Valores globais atuais serão mantidos.",
             )
             return
 
@@ -2155,6 +2156,10 @@ class ApplicationGUI:
         self.pipeline_video_vars: dict[str, dict[str, StringVar]] = {}
         self.pipeline_selection_label: ttk.Label | None = None
         self.pipeline_action_buttons: dict[str, ttk.Button] = {}
+        # New unified Processing and Reports tab
+        self.processing_reports_tab_frame: ttk.Frame | None = None
+        self.processing_reports_widget = None
+        self._processing_reports_tree_metadata: dict[str, dict] = {}
         self.drawing_instruction_label = None
         self.current_drawing_type = None
         self.status_var = StringVar()
@@ -3453,11 +3458,9 @@ class ApplicationGUI:
         if self.controller.project_manager.get_project_type() == "live":
             self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
-        self._create_configuration_tab()
-        if self.controller.project_manager.get_project_type() == "pre-recorded":
-            self._create_pipeline_processing_tab()
+        self._create_processing_reports_tab()  # New unified tab
         self._create_analysis_tab()
-        self._create_reports_tab()
+        self._create_configuration_tab()
 
         # Status frame below the notebook
         project_type_str = self.controller.project_manager.get_project_type()
@@ -4132,40 +4135,41 @@ class ApplicationGUI:
             ).pack(side="left", padx=(4, 0))
             self._project_status_containers[key] = container
 
-        tree_container = ttk.Frame(self.project_overview_frame)
-        tree_container.pack(fill="both", expand=True)
-
-        self.project_overview_tree = ttk.Treeview(
-            tree_container,
-            columns=("status", "data"),
-            show="tree headings",
-            height=10,
+        # Add separator
+        ttk.Separator(self.project_overview_frame, orient="horizontal").pack(
+            fill="x", pady=(8, 8)
         )
-        self.project_overview_tree.heading("#0", text="Estrutura do Projeto")
-        self.project_overview_tree.heading("status", text="Status")
-        self.project_overview_tree.heading("data", text="Dados")
-        self.project_overview_tree.column("#0", width=320, stretch=True)
-        self.project_overview_tree.column("status", width=180, anchor="w", stretch=False)
-        self.project_overview_tree.column("data", width=260, anchor="w", stretch=True)
 
-        scrollbar = ttk.Scrollbar(
-            tree_container, orient="vertical", command=self.project_overview_tree.yview
-        )
-        self.project_overview_tree.configure(yscrollcommand=scrollbar.set)
-        self.project_overview_tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        # Add help text and button to access full details
+        info_frame = ttk.Frame(self.project_overview_frame)
+        info_frame.pack(fill="x", pady=(5, 5))
 
-        self.project_overview_tree.tag_configure("status_pending", foreground="#92400e")
-        self.project_overview_tree.tag_configure("status_processing", foreground="#b45309")
-        self.project_overview_tree.tag_configure("status_processed", foreground="#0f5132")
-        self.project_overview_tree.tag_configure("status_complete", foreground="#166534")
-        self.project_overview_tree.tag_configure("status_failed", foreground="#b91c1c")
+        ttk.Label(
+            info_frame,
+            text="Para visualizar a estrutura completa do projeto e realizar processamento:",
+            font=("TkDefaultFont", 9),
+        ).pack(anchor="w", pady=(0, 5))
 
-        self.project_overview_tree.bind(
-            "<Double-Button-1>", self._on_project_overview_tree_double_click
-        )
-        self.project_overview_tree.bind("<Button-3>", self._on_project_overview_right_click)
-        self.project_overview_tree.bind("<Control-Button-1>", self._on_project_overview_right_click)
+        ttk.Button(
+            info_frame,
+            text="Ver Detalhes Completos \u2192",
+            command=self._navigate_to_processing_reports_tab,
+        ).pack(anchor="w")
+
+    def _navigate_to_processing_reports_tab(self) -> None:
+        """Navigate to the Processing and Reports tab."""
+        if not self.notebook:
+            return
+
+        # Find the index of the Processing and Reports tab
+        tab_count = self.notebook.index("end")
+        for i in range(tab_count):
+            tab_text = self.notebook.tab(i, "text")
+            if "Processamento e Relatórios" in tab_text:
+                self.notebook.select(i)
+                return
+
+        log.warning("gui.navigate.processing_reports_tab_not_found")
 
     @staticmethod
     def _get_status_meta(status_key: str) -> tuple[str, str]:
@@ -4230,6 +4234,11 @@ class ApplicationGUI:
             immediate=immediate,
         )
 
+        # Refresh new unified tab if present
+        if getattr(self, "processing_reports_widget", None):
+            self._refresh_processing_reports_tab()
+
+        # Legacy: Refresh old tabs if they still exist
         if getattr(self, "pipeline_video_tree", None):
             self._refresh_pipeline_video_table()
 
@@ -4271,7 +4280,9 @@ class ApplicationGUI:
             counts=dict(counts),
         )
         self._update_project_overview_summary(counts, total, all_videos)
-        self._update_project_overview_tree(pm, all_videos)
+        # Tree removed in favor of unified Processing and Reports tab
+        if getattr(self, "project_overview_tree", None):
+            self._update_project_overview_tree(pm, all_videos)
         self._refresh_zone_indicators(all_videos)
 
         if self._pending_overview_status is not None:
@@ -5640,7 +5651,11 @@ class ApplicationGUI:
         self._update_zone_summary_cards()
 
     def _create_pipeline_processing_tab(self) -> None:
-        """Cria a aba dedicada ao pipeline de trajetórias e sumários."""
+        """
+        LEGACY: Replaced by _create_processing_reports_tab().
+
+        This method is no longer called but kept for reference.
+        """
         if not self.notebook:
             return
 
@@ -5819,6 +5834,7 @@ class ApplicationGUI:
         )
 
     def _refresh_pipeline_video_table(self, all_videos=None) -> None:
+        """LEGACY: Replaced by _refresh_processing_reports_tab()."""
         if not self.pipeline_video_tree or not self.pipeline_tab_frame:
             return
 
@@ -7482,7 +7498,11 @@ class ApplicationGUI:
         self._load_selected_video_frame()
 
     def _create_reports_tab(self):
-        """Creates the tab for viewing processed data and generating reports."""
+        """
+        LEGACY: Replaced by _create_processing_reports_tab().
+
+        This method is no longer called but kept for reference.
+        """
         reports_tab_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(reports_tab_frame, text="Relatórios")
 
@@ -7542,8 +7562,416 @@ class ApplicationGUI:
         )
         self.generate_unified_report_btn.pack(side="left", padx=10)
 
+    def _create_processing_reports_tab(self) -> None:
+        """
+        Creates the unified Processing and Reports tab.
+
+        This tab consolidates functionality from the old "Trajectories and Summaries"
+        and "Reports" tabs into a single interface for better UX and reduced redundancy.
+        """
+        if not self.notebook:
+            return
+
+        # Clean up existing tab if present
+        if self.processing_reports_tab_frame and self.processing_reports_tab_frame.winfo_exists():
+            try:
+                self.processing_reports_tab_frame.destroy()
+            except Exception:
+                pass
+
+        # Create tab frame
+        self.processing_reports_tab_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.processing_reports_tab_frame, text="Processamento e Relatórios")
+
+        # Import the component
+        from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
+
+        # Create the widget with callbacks
+        self.processing_reports_widget = ProcessingReportsWidget(
+            self.processing_reports_tab_frame,
+            on_generate_trajectories=self._trigger_batch_trajectory_processing,
+            on_export_summaries=self._trigger_parquet_summaries,
+            on_generate_partial_report=self._on_processing_reports_generate_partial,
+            on_generate_unified_report=self._generate_unified_report,
+        )
+        self.processing_reports_widget.pack(fill="both", expand=True)
+
+        # Bind double-click event for opening files
+        if self.processing_reports_widget.tree:
+            self.processing_reports_widget.tree.bind(
+                "<Double-Button-1>", self._on_processing_reports_item_double_click
+            )
+
+        # Initial refresh
+        self._refresh_processing_reports_tab()
+
+    def _on_processing_reports_item_double_click(self, event=None) -> None:
+        """Handle double-click on items in the Processing Reports tree."""
+        if not self.processing_reports_widget or not self.processing_reports_widget.tree:
+            return
+
+        tree = self.processing_reports_widget.tree
+
+        # Get item at click position
+        item_id = None
+        if event is not None:
+            item_id = tree.identify_row(event.y)
+        if not item_id:
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+        if not item_id:
+            return
+
+        metadata = self._processing_reports_tree_metadata.get(item_id)
+        if not metadata:
+            return
+
+        node_type = metadata.get("type")
+
+        # Handle file nodes (docx/xlsx) - open them
+        if node_type == "file":
+            self._handle_report_file_node(metadata)
+            return
+
+        # Handle video nodes - open results folder
+        if node_type == "video":
+            results_dir = metadata.get("results_dir")
+            if results_dir and os.path.exists(results_dir):
+                log.info("gui.open_results_folder", path=results_dir)
+                try:
+                    if os.name == "nt":  # Windows
+                        os.startfile(results_dir)
+                    elif os.name == "posix":  # macOS, Linux
+                        import subprocess
+
+                        subprocess.Popen(["xdg-open", results_dir])
+                except Exception as e:
+                    log.error("gui.open_results_folder.failed", error=str(e))
+                    self.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+
+    def _on_processing_reports_generate_partial(self) -> None:
+        """Handle partial report generation from the unified tab."""
+        if not self.processing_reports_widget:
+            return
+
+        selection = self.processing_reports_widget.get_selection()
+        if not selection:
+            return
+
+        selected_videos = []
+        all_videos = self.controller.project_manager.get_all_videos()
+        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
+
+        for item_id in selection:
+            metadata = metadata_store.get(item_id)
+            if not metadata or metadata.get("type") != "video":
+                continue
+            video_path = metadata.get("video_path")
+            if not video_path:
+                continue
+            for video_data in all_videos:
+                if video_data["path"] == video_path:
+                    selected_videos.append(video_data)
+                    break
+
+        if selected_videos:
+            self.publish_event(
+                Events.REPORT_GENERATE,
+                {"videos": selected_videos, "report_type": "partial"},
+            )
+
+    def _refresh_processing_reports_tab(self) -> None:
+        """
+        Refresh the unified Processing and Reports tab.
+
+        Consolidates logic from _refresh_pipeline_video_table() and update_reports_tree().
+        """
+        if not self.processing_reports_widget:
+            return
+
+        widget = self.processing_reports_widget
+
+        controller = getattr(self, "controller", None)
+        if not controller or not controller.project_manager:
+            log.debug("gui.refresh_processing_reports.no_controller_or_pm")
+            return
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+
+        log.debug(
+            "gui.refresh_processing_reports.start",
+            video_count=len(all_videos),
+            has_project_path=bool(pm.project_path),
+        )
+
+        # Clear tree and metadata
+        widget.clear_tree()
+        self._processing_reports_tree_metadata.clear()
+
+        if not all_videos:
+            log.debug("gui.refresh_processing_reports.no_videos")
+            return
+
+        # Update status cards
+        from collections import Counter
+
+        counts: Counter = Counter(
+            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
+        )
+        total = sum(counts.values())
+
+        status_counts = {
+            "total": total,
+            "pending": counts.get("pending", 0),
+            "processing": counts.get("processing", 0),
+            "processed": counts.get("processed", 0),
+            "complete": counts.get("complete", 0),
+            "failed": counts.get("failed", 0),
+        }
+
+        widget.update_status_counts(status_counts)
+
+        # Build hierarchy (Group > Day > Subject)
+        hierarchy = self._build_report_hierarchy(all_videos, pm)
+
+        # Populate tree
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            videos_by_day = group_data["days"]
+            total_videos = sum(len(items) for items in videos_by_day.values())
+            if total_videos == 0:
+                continue
+
+            total_arena = sum(
+                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
+            )
+            total_rois = sum(
+                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
+            )
+            total_trajectory = sum(
+                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
+            )
+            total_summary = sum(
+                1
+                for items in videos_by_day.values()
+                for entry in items
+                if entry["has_complete_data"] or entry.get("has_summary")
+            )
+
+            # Determine color tag for group based on completion
+            group_tag = self._determine_status_tag(total_summary, total_videos)
+
+            group_node_id = f"group_{group_id}"
+            widget.add_tree_item(
+                item_id=group_node_id,
+                text=f"🏷️ {group_data['display']}",
+                values=(
+                    self._format_status_ratio("arena", total_arena, total_videos),
+                    self._format_status_ratio("rois", total_rois, total_videos),
+                    self._format_status_ratio("trajectory", total_trajectory, total_videos),
+                    self._format_status_ratio("summary", total_summary, total_videos),
+                    f"{total_videos} vídeos",
+                ),
+                tags=(group_tag,),
+            )
+            widget.expand_tree_item(group_node_id)
+
+            self._processing_reports_tree_metadata[group_node_id] = {
+                "type": "group",
+                "identifier": group_id,
+            }
+
+            for day_id, entries in sorted(
+                videos_by_day.items(), key=lambda item: self._sort_key_for_reports(item[0])
+            ):
+                if not entries:
+                    continue
+
+                day_arena = sum(1 for entry in entries if entry["has_arena"])
+                day_rois = sum(1 for entry in entries if entry["has_rois"])
+                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
+                day_summary = sum(
+                    1 for entry in entries if entry["has_complete_data"] or entry.get("has_summary")
+                )
+
+                sample_metadata = entries[0].get("metadata") if entries else None
+                day_title = self._build_day_title(day_id, sample_metadata)
+
+                # Determine color tag for day based on completion
+                day_tag = self._determine_status_tag(day_summary, len(entries))
+
+                day_node_id = f"day_{group_id}_{day_id}"
+                widget.add_tree_item(
+                    item_id=day_node_id,
+                    text=f"📅 {day_title}",
+                    parent=group_node_id,
+                    values=(
+                        self._format_status_ratio("arena", day_arena, len(entries)),
+                        self._format_status_ratio("rois", day_rois, len(entries)),
+                        self._format_status_ratio("trajectory", day_trajectory, len(entries)),
+                        self._format_status_ratio("summary", day_summary, len(entries)),
+                        f"{len(entries)} vídeos",
+                    ),
+                    tags=(day_tag,),
+                )
+
+                self._processing_reports_tree_metadata[day_node_id] = {
+                    "type": "day",
+                    "identifier": day_id,
+                    "group_id": group_id,
+                }
+
+                for entry in sorted(
+                    entries, key=lambda item: self._sort_key_for_reports(item.get("subject"))
+                ):
+                    video_path = entry.get("path")
+                    if not video_path:
+                        continue
+
+                    subject_label = self._format_subject_for_reports(entry.get("subject"))
+
+                    # Determine color tag for video based on completion
+                    video_complete = entry.get("has_summary") or entry.get("has_complete_data")
+                    video_tag = (
+                        "status_complete"
+                        if video_complete
+                        else (
+                            "status_partial"
+                            if entry["has_trajectory"]
+                            else "status_missing"
+                        )
+                    )
+
+                    video_node_id = f"video_{video_path}"
+                    widget.add_tree_item(
+                        item_id=video_node_id,
+                        text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
+                        parent=day_node_id,
+                        values=(
+                            self._format_status_token(entry["has_arena"], "arena"),
+                            self._format_status_token(entry["has_rois"], "rois"),
+                            self._format_status_token(entry["has_trajectory"], "trajectory"),
+                            self._format_status_token(
+                                entry.get("has_summary") or entry.get("has_complete_data"),
+                                "summary",
+                            ),
+                            entry["status"],
+                        ),
+                        tags=(video_tag, "video-node"),
+                    )
+
+                    self._processing_reports_tree_metadata[video_node_id] = {
+                        "type": "video",
+                        "video_path": video_path,
+                        "results_dir": entry.get("results_dir") or "",
+                        "parquet_files": entry.get("parquet_files") or {},
+                        "metadata": entry.get("metadata") or {},
+                    }
+
+                    # Add report artifacts as children
+                    self._append_processing_reports_artifacts(
+                        widget, video_node_id, entry, video_path
+                    )
+
+        log.info(
+            "gui.processing_reports_tab.refreshed",
+            groups=len(hierarchy),
+            total_videos=len(all_videos),
+        )
+
+    def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
+        """
+        Determine the status tag based on completion ratio.
+
+        Args:
+            complete_count: Number of complete items
+            total_count: Total number of items
+
+        Returns:
+            Tag name for color coding
+        """
+        if total_count == 0:
+            return "status_missing"
+
+        completion_ratio = complete_count / total_count
+
+        if completion_ratio >= 1.0:
+            return "status_complete"  # All complete - green
+        elif completion_ratio > 0:
+            return "status_partial"  # Some complete - orange/yellow
+        else:
+            return "status_missing"  # None complete - red
+
+    def _append_processing_reports_artifacts(
+        self, widget, parent_id: str, entry: dict, video_path: str
+    ) -> None:
+        """
+        Append report artifacts (docx, xlsx) as children of a video node.
+
+        Args:
+            widget: The ProcessingReportsWidget instance
+            parent_id: Parent tree node ID
+            entry: Video entry dictionary
+            video_path: Path to the video file
+        """
+        results_dir = entry.get("results_dir") or ""
+        parquet_files = entry.get("parquet_files") or {}
+        experiment_id = Path(video_path).stem if video_path else None
+
+        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
+            if candidate and os.path.exists(candidate):
+                return candidate
+            if results_dir and experiment_id:
+                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
+                if guess_path.exists():
+                    return str(guess_path)
+            return None
+
+        docx_path = _resolve_artifact(
+            parquet_files.get("report_docx"),
+            "report.docx",
+        )
+        excel_path = _resolve_artifact(
+            parquet_files.get("summary_excel"),
+            "summary.xlsx",
+        )
+
+        artifacts: list[tuple[str, str, str]] = []
+        if docx_path:
+            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
+        if excel_path:
+            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
+
+        if not artifacts:
+            return
+
+        for _kind, artifact_path, label in artifacts:
+            child_id = f"file_{artifact_path}"
+            widget.add_tree_item(
+                item_id=child_id,
+                text=label,
+                parent=parent_id,
+                values=("", "", "", "", "Abrir"),
+                tags=("report-file",),
+            )
+            self._processing_reports_tree_metadata[child_id] = {
+                "type": "file",
+                "path": artifact_path,
+                "parent_video": video_path,
+            }
+
+        # Expand video node to show report files
+        widget.expand_tree_item(parent_id)
+
     def update_reports_tree(self):
-        """Atualiza a árvore de relatórios com estrutura hierárquica."""
+        """
+        LEGACY: Replaced by _refresh_processing_reports_tab().
+
+        This method is kept for backward compatibility.
+        """
         # Clear existing tree
         for item in self.reports_tree.get_children():
             self.reports_tree.delete(item)
