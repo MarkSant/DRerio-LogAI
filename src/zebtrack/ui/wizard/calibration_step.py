@@ -96,7 +96,18 @@ class CalibrationStep(WizardStep):
         aquarium_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             aquarium_entry,
-            "Número de aquários/vídeos que serão analisados neste projeto.",
+            (
+                "🎬 Número de Aquários (Vídeos)\n\n"
+                "Quantos vídeos independentes serão analisados neste projeto.\n\n"
+                "• Cada aquário = 1 vídeo separado\n"
+                "• Projeto LIVE: Tipicamente 1 (gravação única)\n"
+                "• Projeto PRÉ-GRAVADO: Pode ser múltiplos vídeos\n\n"
+                "Exemplos:\n"
+                "  • 1 aquário: Um único experimento/gravação\n"
+                "  • 6 aquários: 6 gravações diferentes (ex: 3 grupos × 2 dias)\n"
+                "  • 24 aquários: Bateria completa de experimentos\n\n"
+                "💡 Dica: Se não tiver certeza, comece com 1 e adicione mais vídeos depois."
+            ),
         )
 
         # Animals per aquarium
@@ -108,7 +119,25 @@ class CalibrationStep(WizardStep):
         animals_entry.pack(side="left", padx=(5, 0))
         ToolTip(
             animals_entry,
-            "Número de animais em cada aquário (vídeo). Use 1 para rastreamento individual.",
+            (
+                "🐟 Animais por Aquário\n\n"
+                "Quantos animais estarão presentes em CADA vídeo/aquário.\n\n"
+                "Impacto na Análise:\n"
+                "  • 1 animal: Rastreamento individual simplificado\n"
+                "    → Ideal para: Estudos comportamentais individuais\n"
+                "    → Método recomendado: Detecção (det)\n\n"
+                "  • 2-5 animais: Rastreamento multi-animal moderado\n"
+                "    → Ideal para: Interações sociais, comportamento de grupo pequeno\n"
+                "    → Método recomendado: Segmentação (seg)\n\n"
+                "  • 6+ animais: Rastreamento de cardume\n"
+                "    → Ideal para: Dinâmica de cardume, comportamento coletivo\n"
+                "    → Método recomendado: Segmentação (seg) com alta confiança\n\n"
+                "⚠️ IMPORTANTE: Este valor deve ser o MESMO para todos os vídeos do projeto.\n"
+                "Se você tem vídeos com números diferentes de animais, "
+                "crie projetos separados.\n\n"
+                "💡 Dica: Para múltiplos animais, prefira segmentação (seg) no "
+                "passo de seleção de modelo."
+            ),
         )
 
         # Physical dimensions
@@ -122,7 +151,29 @@ class CalibrationStep(WizardStep):
         Label(width_row, text="Largura (cm):", width=30, anchor="w").pack(side="left")
         width_entry = Entry(width_row, textvariable=self.aquarium_width_var, width=10)
         width_entry.pack(side="left", padx=(5, 0))
-        ToolTip(width_entry, "Largura física do aquário em centímetros.")
+        ToolTip(
+            width_entry,
+            (
+                "📏 Largura do Aquário (eixo horizontal)\n\n"
+                "Dimensão física REAL da arena visível no vídeo, medida em centímetros.\n\n"
+                "Como Medir:\n"
+                "  1. Identifique a área visível no vídeo (dentro do campo de visão)\n"
+                "  2. Meça a largura HORIZONTAL dessa área com régua/trena\n"
+                "  3. Meça em linha reta, do lado esquerdo ao direito\n\n"
+                "Valores Típicos:\n"
+                "  • Larvas (Petri dish): 5-10 cm\n"
+                "  • Adultos (aquário pequeno): 15-30 cm\n"
+                "  • Adultos (aquário médio): 30-50 cm\n"
+                "  • Setup experimental grande: 50-100 cm\n\n"
+                "Uso na Análise:\n"
+                "  • Converte coordenadas de pixels → centímetros\n"
+                "  • Permite calcular distâncias reais percorridas\n"
+                "  • Essencial para velocidade (cm/s) e aceleração\n"
+                "  • Necessário para comparar experimentos com câmeras diferentes\n\n"
+                "💡 Dica: Se não souber exatamente, use uma estimativa. "
+                "Você pode ajustar depois."
+            ),
+        )
 
         # Height
         height_row = Frame(dimensions_frame)
@@ -131,7 +182,31 @@ class CalibrationStep(WizardStep):
         Label(height_row, text="Altura (cm):", width=30, anchor="w").pack(side="left")
         height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
         height_entry.pack(side="left", padx=(5, 0))
-        ToolTip(height_entry, "Altura física do aquário em centímetros.")
+        ToolTip(
+            height_entry,
+            (
+                "📏 Altura do Aquário (eixo vertical)\n\n"
+                "Dimensão física REAL da arena visível no vídeo, medida em centímetros.\n\n"
+                "Como Medir:\n"
+                "  1. Identifique a área visível no vídeo (dentro do campo de visão)\n"
+                "  2. Meça a altura VERTICAL dessa área com régua/trena\n"
+                "  3. Meça em linha reta, de cima para baixo\n\n"
+                "Valores Típicos:\n"
+                "  • Larvas (Petri dish): 5-10 cm\n"
+                "  • Adultos (aquário pequeno): 10-20 cm\n"
+                "  • Adultos (aquário médio): 20-40 cm\n"
+                "  • Setup experimental grande: 40-80 cm\n\n"
+                "Uso na Análise:\n"
+                "  • Converte coordenadas de pixels → centímetros\n"
+                "  • Permite calcular distâncias verticais reais\n"
+                "  • Essencial para mapas de calor em escala real\n"
+                "  • Necessário para métricas espaciais (tempo em zonas, etc.)\n\n"
+                "⚠️ IMPORTANTE: Largura e altura devem corresponder à MESMA arena.\n"
+                "Use as dimensões da área VISÍVEL no vídeo, não do aquário todo.\n\n"
+                "💡 Dica: Para câmera superior (top-down), largura ≈ altura "
+                "(campo de visão quadrado/retangular)."
+            ),
+        )
 
         # Help text
         help_frame = LabelFrame(self, text="Sobre a Calibração", padx=15, pady=10)
