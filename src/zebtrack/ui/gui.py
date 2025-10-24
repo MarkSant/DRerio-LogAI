@@ -90,7 +90,10 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
     "processed",
     "complete",
     "failed",
-    "others",
+    "arena",
+    "rois",
+    "trajectory",
+    "summary",
 )
 
 
@@ -4166,8 +4169,14 @@ class ApplicationGUI:
     def _get_status_meta(status_key: str) -> tuple[str, str]:
         if status_key == "total":
             return "🧮", "Total"
-        if status_key == "others":
-            return "➕", "Outros"
+        if status_key == "arena":
+            return STATUS_SYMBOLS["arena"], "Arena"
+        if status_key == "rois":
+            return STATUS_SYMBOLS["rois"], "ROIs"
+        if status_key == "trajectory":
+            return STATUS_SYMBOLS["trajectory"], "Trajetória"
+        if status_key == "summary":
+            return STATUS_SYMBOLS["summary"], "Sumário"
         return PROJECT_STATUS_META.get(status_key, ("•", status_key.title()))
 
     def _request_overview_refresh(
@@ -4259,8 +4268,7 @@ class ApplicationGUI:
             total=total,
             counts=dict(counts),
         )
-
-        self._update_project_overview_summary(counts, total)
+        self._update_project_overview_summary(counts, total, all_videos)
         self._update_project_overview_tree(pm, all_videos)
         self._refresh_zone_indicators(all_videos)
 
@@ -4294,22 +4302,43 @@ class ApplicationGUI:
 
         return " • ".join(parts)
 
-    def _update_project_overview_summary(self, counts: Counter, total: int) -> None:
+    def _update_project_overview_summary(
+        self,
+        counts: Counter,
+        total: int,
+        videos: list[dict] | None,
+    ) -> None:
         if not self.project_overview_frame or not self.project_overview_frame.winfo_exists():
             return
 
-        known_statuses = set(PROJECT_STATUS_META.keys())
-        others_count = sum(
-            value for status, value in counts.items() if status not in known_statuses
+        videos = videos or []
+
+        summary_values: dict[str, int] = {"total": total}
+        for status_key in PROJECT_STATUS_META:
+            summary_values[status_key] = counts.get(status_key, 0)
+
+        arena_ready = sum(1 for video in videos if video.get("has_arena"))
+        rois_ready = sum(1 for video in videos if video.get("has_rois"))
+        trajectory_ready = sum(1 for video in videos if video.get("has_trajectory"))
+        summary_ready = sum(
+            1
+            for video in videos
+            if video.get("has_summary")
+            or video.get("has_complete_data")
+            or (
+                video.get("has_arena")
+                and video.get("has_rois")
+                and video.get("has_trajectory")
+            )
         )
 
+        summary_values["arena"] = arena_ready
+        summary_values["rois"] = rois_ready
+        summary_values["trajectory"] = trajectory_ready
+        summary_values["summary"] = summary_ready
+
         for key in PROJECT_STATUS_WIDGET_ORDER:
-            if key == "total":
-                value = total
-            elif key == "others":
-                value = others_count
-            else:
-                value = counts.get(key, 0)
+            value = summary_values.get(key, 0)
 
             var = self.project_status_vars.setdefault(key, StringVar(value="0"))
             var.set(str(value))
@@ -4318,13 +4347,10 @@ class ApplicationGUI:
             if not container:
                 continue
 
-            should_show = key == "total" or value > 0
-            if should_show:
-                if not container.winfo_ismapped():
-                    container.pack(side="left", padx=(0, 12))
-            else:
-                if container.winfo_ismapped():
-                    container.pack_forget()
+            # Preserve the full legend regardless of counts so users always see
+            # which statuses are tracked in the project overview.
+            if not container.winfo_ismapped():
+                container.pack(side="left", padx=(0, 12))
 
     def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
         if not self.project_overview_tree or not self.project_overview_tree.winfo_exists():
