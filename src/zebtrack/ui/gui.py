@@ -5001,11 +5001,10 @@ class ApplicationGUI:
         # Bind pane configure event to maintain minimum left panel width
         def _on_pane_configure(event=None):
             try:
-                # Clamp left panel to minimum 560px width to show all buttons
-                # including "Aplicar" button and properly centered text
+                # Clamp left panel to minimum 600px width to keep all controls visible
                 current_pos = main_pane.sashpos(0)
-                if current_pos < 560:
-                    main_pane.sashpos(0, 560)
+                if current_pos < 600:
+                    main_pane.sashpos(0, 600)
             except Exception:
                 pass  # Ignore errors during resize
 
@@ -5041,8 +5040,8 @@ class ApplicationGUI:
             try:
                 # Use update_idletasks to ensure geometry is calculated
                 main_pane.update_idletasks()
-                # Set to 600px to ensure "Aplicar" button is fully visible with comfortable spacing
-                main_pane.sashpos(0, 600)
+                # Set to 640px so the "Aplicar" button stays fully visible
+                main_pane.sashpos(0, 640)
             except Exception:
                 pass  # Sash position might fail if pane isn't fully realized yet
 

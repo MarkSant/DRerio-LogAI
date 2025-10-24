@@ -285,9 +285,6 @@ class ZoneControlsWidget(BaseWidget):
         ttk.Entry(search_frame, textvariable=self.video_search_var, width=25).pack(
             side="left", fill="x", expand=True, padx=(0, 5)
         )
-        ttk.Button(search_frame, text="🔄", width=3, command=self._on_video_refresh_clicked).pack(
-            side="left"
-        )
         self.video_tree_toggle_btn = ttk.Button(
             search_frame,
             text="Recolher tudo",
@@ -313,9 +310,9 @@ class ZoneControlsWidget(BaseWidget):
         self.video_selector_tree.heading("status", text="Dados")
         self.video_selector_tree.heading("filename", text="Arquivo")
 
-        self.video_selector_tree.column("#0", width=280, stretch=True)
-        self.video_selector_tree.column("status", width=120, anchor="center", stretch=False)
-        self.video_selector_tree.column("filename", width=180, stretch=True)
+        self.video_selector_tree.column("#0", width=280, minwidth=220, stretch=True)
+        self.video_selector_tree.column("status", width=100, anchor="center", stretch=False)
+        self.video_selector_tree.column("filename", width=140, stretch=True)
 
         scrollbar = create_scrollbar(
             tree_container, orient="vertical", command=self.video_selector_tree.yview
@@ -326,6 +323,13 @@ class ZoneControlsWidget(BaseWidget):
 
         # Bind events
         self.video_selector_tree.bind("<Double-Button-1>", self._on_video_tree_double_click)
+
+        ttk.Label(
+            video_selector_frame,
+            text="Legenda: 🏟 ✓ Arena | 🎯 ✓ ROIs | 🧭 ✓ Trajetória | ✗ Ausente",
+            font=("TkDefaultFont", 8),
+            foreground="#555555",
+        ).pack(pady=(2, 5))
 
         ttk.Label(
             video_selector_frame,
@@ -400,9 +404,9 @@ class ZoneControlsWidget(BaseWidget):
         self.zone_listbox.heading("color", text="Cor")
 
         # Configure column widths
-        self.zone_listbox.column("name", width=240, minwidth=160, stretch=True)
-        self.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
-        self.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
+        self.zone_listbox.column("name", width=180, minwidth=130, stretch=True)
+        self.zone_listbox.column("type", width=70, minwidth=60, stretch=False)
+        self.zone_listbox.column("color", width=50, minwidth=40, stretch=False)
 
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
