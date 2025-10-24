@@ -1471,6 +1471,7 @@ class MainViewModel:
         params: dict[str, float],
         *,
         reset_overrides: bool = False,
+        scope: str = "global",
     ) -> bool:
         """
         Apply detector threshold updates and persist them when possible.
@@ -1479,7 +1480,9 @@ class MainViewModel:
         """
         try:
             success = self.detector_service.update_tracking_parameters(
-                params=params, reset_overrides=reset_overrides
+                params=params,
+                reset_overrides=reset_overrides,
+                scope=scope,
             )
 
             if success:
@@ -1699,6 +1702,18 @@ class MainViewModel:
             self._using_project_overrides = previous_flag
             if previous_flag and getattr(self.project_manager, "project_path", None):
                 self.apply_project_model_overrides()
+
+    @contextmanager
+    def project_calibration_session(self):
+        previous_flag = self._using_project_overrides
+        self._using_project_overrides = True
+        try:
+            yield
+        finally:
+            if self.has_project_override_settings():
+                self._using_project_overrides = True
+            else:
+                self._using_project_overrides = previous_flag
 
     def run_aquarium_detection(
         self,

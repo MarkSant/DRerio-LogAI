@@ -1,7 +1,9 @@
 import json
 import os
 import shutil
+import stat
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -17,8 +19,7 @@ from zebtrack.settings import settings
 class TestProjectManager(unittest.TestCase):
     def setUp(self):
         """Set up a temporary directory for testing."""
-        self.test_dir = "temp_test_project_dir"
-        os.makedirs(self.test_dir, exist_ok=True)
+        self.test_dir = tempfile.mkdtemp(prefix="test_project_manager_")
         # Suppress messagebox popups during tests
         self.original_showerror = sys.modules["tkinter.messagebox"].showerror
         sys.modules["tkinter.messagebox"].showerror = (  # type: ignore[attr-defined]
@@ -28,8 +29,33 @@ class TestProjectManager(unittest.TestCase):
     def tearDown(self):
         """Clean up the temporary directory after tests."""
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            self._cleanup_test_directory(Path(self.test_dir))
+        ProjectManager.clear_scan_cache()
         sys.modules["tkinter.messagebox"].showerror = self.original_showerror  # type: ignore[attr-defined]
+
+    @staticmethod
+    def _cleanup_test_directory(path: Path, retries: int = 5, delay: float = 0.15) -> None:
+        """Attempt to delete the directory even if Windows keeps file handles open."""
+
+        def _handle_remove_error(func, target, exc_info):
+            try:
+                os.chmod(target, stat.S_IWRITE)
+                func(target)
+            except Exception:
+                # Ignore so the retry loop can continue
+                pass
+
+        last_error: OSError | None = None
+        for attempt in range(retries):
+            try:
+                shutil.rmtree(path, onerror=_handle_remove_error)
+                return
+            except OSError as exc:  # pragma: no cover - defensive for Windows timing quirks
+                last_error = exc
+                time.sleep(delay * (attempt + 1))
+
+        if last_error is not None and path.exists():
+            shutil.rmtree(path, ignore_errors=True)
 
     def _create_manager_with_assets(
         self,
@@ -39,9 +65,8 @@ class TestProjectManager(unittest.TestCase):
     ) -> tuple[ProjectManager, str, dict[str, str | None]]:
         project_root = os.path.join(self.test_dir, name)
         os.makedirs(project_root, exist_ok=True)
-
         pm = ProjectManager()
-        pm.project_path = project_root
+        pm.project_path = project_root  # type: ignore[assignment]
 
         video_path = os.path.join(project_root, "sample.mp4")
         with open(video_path, "wb") as handle:
@@ -114,7 +139,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_copy_zone_parquet_files_replicates_artifacts(self):
         pm = ProjectManager()
-        pm.project_path = self.test_dir
+        pm.project_path = self.test_dir  # type: ignore[assignment]
 
         source_video = os.path.join(self.test_dir, "source.mp4")
         target_video = os.path.join(self.test_dir, "target.mp4")
@@ -199,7 +224,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_zone_data_lookup_normalizes_video_paths(self):
         pm = ProjectManager()
-        pm.project_path = self.test_dir
+        pm.project_path = self.test_dir  # type: ignore[assignment]
         pm.project_data = {"batches": []}
 
         video_name = "canonical_sample.mp4"
@@ -498,7 +523,7 @@ class TestProjectManager(unittest.TestCase):
     def test_add_video_batch_persists_metadata(self):
         """Video batches should persist experimental metadata and flags."""
         pm = ProjectManager()
-        pm.project_path = self.test_dir
+        pm.project_path = self.test_dir  # type: ignore[assignment]
         pm.project_data = {"batches": []}
 
         video_path = os.path.join(self.test_dir, "metadata_sample.mp4")
@@ -870,6 +895,7 @@ class TestProjectManager(unittest.TestCase):
         # 3. Test updating and getting next video
         next_vid = pm_loader.get_next_video()
         self.assertIsNotNone(next_vid)
+        assert next_vid is not None
 
         pm_loader.update_video_status(next_vid, "complete")
 
@@ -878,7 +904,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_register_processing_outputs_updates_flags(self):
         pm = ProjectManager()
-        pm.project_path = self.test_dir
+        pm.project_path = self.test_dir  # type: ignore[assignment]
         video_path = os.path.join(self.test_dir, "metadata_sample.mp4")
         pm.project_data = {
             "batches": [

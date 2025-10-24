@@ -229,9 +229,14 @@ class CalibrationDialog(simpledialog.Dialog):
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
         self.scope_info = controller.get_calibration_scope_info()
+        self.scope = self.scope_info.get("scope", "global")
         self.scope_label_var = StringVar(value=self.scope_info["label"])
         self.scope_detail_var = StringVar(value=self.scope_info["detail"])
         self.scope_action_button = None
+        self.weights_dropdown: ttk.Combobox | None = None
+        self.openvino_checkbox: ttk.Checkbutton | None = None
+        self.openvino_status_label: ttk.Label | None = None
+        self.model_test_dropdown: ttk.Combobox | None = None
 
         # --- Vars for diagnostic ---
         self.frames_to_analyze_var = StringVar(value="10")
@@ -282,12 +287,18 @@ class CalibrationDialog(simpledialog.Dialog):
             )
             self.scope_action_button.pack(anchor="e", pady=(8, 0))
 
+        if self.scope == "global":
+            self._build_global_calibration_ui(master)
+        else:
+            self._build_project_calibration_ui(master)
+        return None
+
+    def _build_global_calibration_ui(self, master):
         # --- Frame for model configuration ---
         model_frame = ttk.LabelFrame(master, text="Configuração do Modelo", padding=10)
         model_frame.pack(fill="x", pady=5, padx=5)
         model_frame.columnconfigure(1, weight=1)
 
-        # --- Row 0: Weight Selection ---
         ttk.Label(model_frame, text="Peso Ativo:").grid(row=0, column=0, sticky="w", padx=5, pady=3)
         self.weights_dropdown = ttk.Combobox(
             model_frame, textvariable=self.active_weight_var, state="readonly"
@@ -296,7 +307,6 @@ class CalibrationDialog(simpledialog.Dialog):
         self.weights_dropdown.bind("<<ComboboxSelected>>", self._on_weight_selected_local)
         self._populate_weights_dropdown()
 
-        # --- Row 1: Weight Management Buttons ---
         btn_frame = ttk.Frame(model_frame)
         btn_frame.grid(row=1, column=1, sticky="w", padx=5, pady=3)
         ttk.Button(
@@ -308,7 +318,6 @@ class CalibrationDialog(simpledialog.Dialog):
             side="left"
         )
 
-        # --- Row 2: OpenVINO Toggle ---
         self.openvino_checkbox = ttk.Checkbutton(
             model_frame,
             text="Otimizar com OpenVINO (para hardware Intel)",
@@ -317,23 +326,30 @@ class CalibrationDialog(simpledialog.Dialog):
         )
         self.openvino_checkbox.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(8, 2))
 
-        # --- Row 3: OpenVINO Status ---
         self.openvino_status_label = ttk.Label(
-            model_frame, textvariable=self.openvino_status_var, font=("Segoe UI", 8)
+            model_frame,
+            textvariable=self.openvino_status_var,
+            font=("Segoe UI", 8),
         )
         self.openvino_status_label.grid(
-            row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5)
+            row=3,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            padx=10,
+            pady=(0, 5),
         )
 
-        # Set initial state from controller
         self.use_openvino_var.set(self.controller.use_openvino)
         self.update_openvino_status_label(self.controller.get_openvino_status())
 
-        # --- Frame for diagnostics ---
-        diag_frame = ttk.LabelFrame(master, text="Diagnóstico de Desempenho do Modelo", padding=10)
+        diag_frame = ttk.LabelFrame(
+            master,
+            text="Diagnóstico de Desempenho do Modelo",
+            padding=10,
+        )
         diag_frame.pack(fill="x", pady=10, padx=5)
 
-        # --- Video Selection ---
         video_frame = ttk.Frame(diag_frame)
         video_frame.pack(fill="x", padx=10, pady=5)
         ttk.Button(
@@ -343,23 +359,101 @@ class CalibrationDialog(simpledialog.Dialog):
         ).pack(side="left")
         ttk.Label(video_frame, textvariable=self.video_path_label_var).pack(side="left", padx=5)
 
-        # --- Parameters ---
-        params_frame = ttk.Frame(diag_frame, padding=5)
+        self._create_detector_params_section(
+            diag_frame,
+            include_model_test=True,
+            include_frame_count=True,
+        )
+
+        actions_frame = ttk.Frame(diag_frame)
+        actions_frame.pack(fill="x", padx=10, pady=(0, 5))
+        ttk.Button(
+            actions_frame,
+            text="Aplicar Parâmetros",
+            command=lambda: self._apply_detector_parameters(scope_override="global"),
+        ).pack(side="left", expand=True, fill="x")
+        ttk.Button(
+            actions_frame,
+            text="Restaurar Padrões",
+            command=lambda: self._restore_detector_defaults(scope_override="global"),
+        ).pack(side="left", expand=True, fill="x", padx=(8, 0))
+
+        ttk.Button(
+            diag_frame,
+            text="Testar Modelo em Vídeo...",
+            command=self._run_diagnostic_test,
+        ).pack(fill="x", padx=10, pady=5)
+
+    def _build_project_calibration_ui(self, master):
+        project_frame = ttk.LabelFrame(
+            master,
+            text="Parâmetros de Detecção do Projeto",
+            padding=10,
+        )
+        project_frame.pack(fill="x", pady=10, padx=5)
+
+        ttk.Label(
+            project_frame,
+            text=(
+                "Os valores abaixo foram calibrados ao criar o projeto. "
+                "Qualquer ajuste será aplicado somente a este projeto e aos pesos carregados nele."
+            ),
+            wraplength=460,
+            justify="left",
+            foreground="#4a4a4a",
+        ).pack(anchor="w", padx=5, pady=(0, 6))
+
+        self._create_detector_params_section(
+            project_frame,
+            include_model_test=False,
+            include_frame_count=False,
+        )
+
+        actions_frame = ttk.Frame(project_frame)
+        actions_frame.pack(fill="x", padx=10, pady=(8, 0))
+
+        ttk.Button(
+            actions_frame,
+            text="Salvar no Projeto",
+            command=lambda: self._apply_detector_parameters(scope_override="project"),
+        ).pack(side="left", expand=True, fill="x")
+        ttk.Button(
+            actions_frame,
+            text="Recarregar Valores Salvos",
+            command=self._reload_project_parameters,
+        ).pack(side="left", expand=True, fill="x", padx=8)
+        ttk.Button(
+            actions_frame,
+            text="Restaurar Padrões Globais",
+            command=lambda: self._restore_detector_defaults(scope_override="project"),
+        ).pack(side="left", expand=True, fill="x")
+
+    def _create_detector_params_section(
+        self,
+        parent,
+        *,
+        include_model_test: bool,
+        include_frame_count: bool,
+    ) -> None:
+        params_frame = ttk.Frame(parent, padding=5)
         params_frame.pack(fill="x", padx=10, pady=5)
         params_frame.columnconfigure(2, weight=1)
 
-        ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
-            row=0, column=0, sticky="w", padx=5, pady=2
-        )
-        ttk.Entry(params_frame, textvariable=self.frames_to_analyze_var, width=10).grid(
-            row=0, column=1, sticky="w", padx=5
-        )
+        row_idx = 0
+        if include_frame_count:
+            ttk.Label(params_frame, text="Nº de Frames para Analisar:").grid(
+                row=row_idx, column=0, sticky="w", padx=5, pady=2
+            )
+            ttk.Entry(params_frame, textvariable=self.frames_to_analyze_var, width=10).grid(
+                row=row_idx, column=1, sticky="w", padx=5
+            )
+            row_idx += 1
 
         ttk.Label(params_frame, text="Limiar de Confiança:").grid(
-            row=1, column=0, sticky="w", padx=5, pady=2
+            row=row_idx, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(params_frame, textvariable=self.confidence_threshold_var, width=10).grid(
-            row=1, column=1, sticky="w", padx=5
+            row=row_idx, column=1, sticky="w", padx=5
         )
         ttk.Label(
             params_frame,
@@ -372,13 +466,15 @@ class CalibrationDialog(simpledialog.Dialog):
             justify="left",
             foreground="#555555",
             font=("Segoe UI", 9),
-        ).grid(row=1, column=2, sticky="w", padx=(10, 0))
+        ).grid(row=row_idx, column=2, sticky="w", padx=(10, 0))
+
+        row_idx += 1
 
         ttk.Label(params_frame, text="Limiar NMS (IoU):").grid(
-            row=2, column=0, sticky="w", padx=5, pady=2
+            row=row_idx, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(params_frame, textvariable=self.nms_threshold_var, width=10).grid(
-            row=2, column=1, sticky="w", padx=5
+            row=row_idx, column=1, sticky="w", padx=5
         )
         ttk.Label(
             params_frame,
@@ -391,13 +487,15 @@ class CalibrationDialog(simpledialog.Dialog):
             justify="left",
             foreground="#555555",
             font=("Segoe UI", 9),
-        ).grid(row=2, column=2, sticky="w", padx=(10, 0))
+        ).grid(row=row_idx, column=2, sticky="w", padx=(10, 0))
+
+        row_idx += 1
 
         ttk.Label(params_frame, text="ByteTrack - Track Thresh:").grid(
-            row=3, column=0, sticky="w", padx=5, pady=2
+            row=row_idx, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(params_frame, textvariable=self.track_threshold_var, width=10).grid(
-            row=3, column=1, sticky="w", padx=5
+            row=row_idx, column=1, sticky="w", padx=5
         )
         ttk.Label(
             params_frame,
@@ -410,13 +508,15 @@ class CalibrationDialog(simpledialog.Dialog):
             justify="left",
             foreground="#555555",
             font=("Segoe UI", 9),
-        ).grid(row=3, column=2, sticky="w", padx=(10, 0))
+        ).grid(row=row_idx, column=2, sticky="w", padx=(10, 0))
+
+        row_idx += 1
 
         ttk.Label(params_frame, text="ByteTrack - Match Thresh:").grid(
-            row=4, column=0, sticky="w", padx=5, pady=2
+            row=row_idx, column=0, sticky="w", padx=5, pady=2
         )
         ttk.Entry(params_frame, textvariable=self.match_threshold_var, width=10).grid(
-            row=4, column=1, sticky="w", padx=5
+            row=row_idx, column=1, sticky="w", padx=5
         )
         ttk.Label(
             params_frame,
@@ -429,66 +529,120 @@ class CalibrationDialog(simpledialog.Dialog):
             justify="left",
             foreground="#555555",
             font=("Segoe UI", 9),
-        ).grid(row=4, column=2, sticky="w", padx=(10, 0))
+        ).grid(row=row_idx, column=2, sticky="w", padx=(10, 0))
 
-        # --- Model Selection for Diagnostic ---
-        ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
-            row=5, column=0, sticky="w", padx=5, pady=2
-        )
-        self.model_test_dropdown = ttk.Combobox(
-            params_frame,
-            textvariable=self.model_test_var,
-            state="readonly",
-            values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
-            width=15,
-        )
-        self.model_test_dropdown.grid(row=5, column=1, sticky="w", padx=5)
+        row_idx += 1
 
-        actions_frame = ttk.Frame(diag_frame)
-        actions_frame.pack(fill="x", padx=10, pady=(0, 5))
-        ttk.Button(
-            actions_frame,
-            text="Aplicar Parâmetros",
-            command=self._apply_detector_parameters,
-        ).pack(side="left", expand=True, fill="x")
-        ttk.Button(
-            actions_frame,
-            text="Restaurar Padrões",
-            command=self._restore_detector_defaults,
-        ).pack(side="left", expand=True, fill="x", padx=(8, 0))
-
-        ttk.Button(
-            diag_frame,
-            text="Testar Modelo em Vídeo...",
-            command=self._run_diagnostic_test,
-        ).pack(fill="x", padx=10, pady=5)
+        if include_model_test:
+            ttk.Label(params_frame, text="Modelo(s) a Testar:").grid(
+                row=row_idx, column=0, sticky="w", padx=5, pady=2
+            )
+            self.model_test_dropdown = ttk.Combobox(
+                params_frame,
+                textvariable=self.model_test_var,
+                state="readonly",
+                values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
+                width=15,
+            )
+            self.model_test_dropdown.grid(row=row_idx, column=1, sticky="w", padx=5)
+        else:
+            self.model_test_dropdown = None
 
     def _prefill_detector_parameters(self) -> None:
+        resolved_params, project_params = self._collect_prefill_detector_params()
+        if not resolved_params:
+            return
+
+        self._set_parameter_fields(resolved_params)
+
+        if project_params and self.scope_info.get("scope") == "project":
+            project_name = self.scope_info.get("project_name")
+            label = f"Escopo: Projeto ({project_name}) - Overrides Locais" if project_name else (
+                "Escopo: Projeto - Overrides Locais"
+            )
+            self.scope_label_var.set(label)
+            self.scope_detail_var.set(
+                "Os parâmetros exibidos correspondem às preferências deste projeto. "
+                "Ajustes aplicados aqui atualizam apenas este projeto."
+            )
+
+    def _collect_prefill_detector_params(self) -> tuple[dict[str, float], dict[str, float]]:
+        def _extract_params(source: dict | None) -> dict[str, float]:
+            mapping = {
+                "confidence_threshold": "confidence_threshold",
+                "conf_threshold": "confidence_threshold",
+                "nms_threshold": "nms_threshold",
+                "track_threshold": "track_threshold",
+                "match_threshold": "match_threshold",
+            }
+
+            resolved: dict[str, float] = {}
+            if not source:
+                return resolved
+
+            for key, target in mapping.items():
+                if key not in source:
+                    continue
+                try:
+                    resolved[target] = float(source[key])
+                except (TypeError, ValueError):
+                    log.warning(
+                        "ui.calibration.prefill.invalid_param",
+                        key=key,
+                        value=source[key],
+                    )
+            return resolved
+
+        project_data = getattr(self.controller.project_manager, "project_data", {}) or {}
+        overrides = project_data.get("model_overrides") or {}
+
+        project_params = _extract_params(overrides.get("detector_parameters"))
+        if not project_params:
+            project_params = _extract_params(project_data.get("detector_config"))
+        if not project_params:
+            project_params = _extract_params(project_data.get("detector_state"))
+
         try:
             params = self.controller.get_current_detector_parameters()
         except Exception:
             params = {}
 
-        if not params:
+        resolved_params = _extract_params(params)
+        if project_params:
+            resolved_params.update(project_params)
+
+        return resolved_params, project_params
+
+    def _set_parameter_fields(self, values: dict[str, float]) -> None:
+        field_map = {
+            "confidence_threshold": self.confidence_threshold_var,
+            "nms_threshold": self.nms_threshold_var,
+            "track_threshold": self.track_threshold_var,
+            "match_threshold": self.match_threshold_var,
+        }
+
+        for key, var in field_map.items():
+            raw_value = values.get(key)
+            if raw_value is None:
+                continue
+            try:
+                var.set(f"{float(raw_value):.2f}")
+            except (TypeError, ValueError):
+                log.warning("ui.calibration.prefill.coerce_failed", key=key, value=raw_value)
+
+    def _reload_project_parameters(self) -> None:
+        _, project_params = self._collect_prefill_detector_params()
+        if not project_params:
+            messagebox.showinfo(
+                "Sem overrides",
+                "Este projeto ainda não possui overrides salvos. Valores globais atuais serão mantidos.",
+            )
             return
 
-        conf = params.get("confidence_threshold")
-        if conf is not None:
-            self.confidence_threshold_var.set(f"{conf:.2f}")
+        self._set_parameter_fields(project_params)
 
-        nms = params.get("nms_threshold")
-        if nms is not None:
-            self.nms_threshold_var.set(f"{nms:.2f}")
-
-        track_thresh = params.get("track_threshold")
-        if track_thresh is not None:
-            self.track_threshold_var.set(f"{track_thresh:.2f}")
-
-        match_thresh = params.get("match_threshold")
-        if match_thresh is not None:
-            self.match_threshold_var.set(f"{match_thresh:.2f}")
-
-    def _apply_detector_parameters(self) -> None:
+    def _apply_detector_parameters(self, scope_override: str | None = None) -> None:
+        scope = scope_override or self.scope
         try:
             conf = float(self.confidence_threshold_var.get())
             nms = float(self.nms_threshold_var.get())
@@ -521,25 +675,60 @@ class CalibrationDialog(simpledialog.Dialog):
                     "nms_threshold": nms,
                     "track_threshold": track_thresh,
                     "match_threshold": match_thresh,
-                }
+                },
+                scope=scope,
             )
         except ValueError as exc:
             messagebox.showerror("Erro", str(exc))
             return
 
         if updated:
-            self.confidence_threshold_var.set(f"{conf:.2f}")
-            messagebox.showinfo(
-                "Parâmetros do Detector",
-                "Parâmetros atualizados com sucesso.",
+            self._set_parameter_fields(
+                {
+                    "confidence_threshold": conf,
+                    "nms_threshold": nms,
+                    "track_threshold": track_thresh,
+                    "match_threshold": match_thresh,
+                }
             )
+            info_message = (
+                "Parâmetros globais do detector atualizados com sucesso."
+                if scope == "global"
+                else "Calibração salva somente para este projeto."
+            )
+            messagebox.showinfo("Parâmetros do Detector", info_message)
         else:
             messagebox.showinfo(
                 "Parâmetros do Detector",
                 "Nenhuma alteração necessária.",
             )
 
-    def _restore_detector_defaults(self) -> None:
+    def _restore_detector_defaults(self, scope_override: str | None = None) -> None:
+        scope = scope_override or self.scope
+        if scope == "project":
+            try:
+                success = self.controller.update_detector_parameters(
+                    {},
+                    reset_overrides=True,
+                    scope="project",
+                )
+            except ValueError as exc:
+                messagebox.showerror("Erro", str(exc))
+                return
+
+            if success:
+                self._prefill_detector_parameters()
+                messagebox.showinfo(
+                    "Overrides removidos",
+                    "O projeto voltou a usar os padrões globais do detector.",
+                )
+            else:
+                messagebox.showinfo(
+                    "Overrides",
+                    "Nenhuma alteração necessária.",
+                )
+            return
+
         try:
             defaults = self.controller.get_factory_detector_parameters()
         except ValueError as exc:
@@ -552,7 +741,11 @@ class CalibrationDialog(simpledialog.Dialog):
         self.match_threshold_var.set(f"{defaults.get('match_threshold', 0.15):.2f}")
 
         try:
-            self.controller.update_detector_parameters(defaults, reset_overrides=True)
+            self.controller.update_detector_parameters(
+                defaults,
+                reset_overrides=True,
+                scope="global",
+            )
         except ValueError as exc:
             messagebox.showerror("Erro", str(exc))
             return
@@ -564,6 +757,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _populate_weights_dropdown(self):
         """(Re)populates the weights dropdown in the dialog."""
+        if not self.weights_dropdown:
+            return
         weights_list = self.controller.get_all_weight_names()
         self.weights_dropdown["values"] = weights_list
         if not weights_list:
@@ -595,9 +790,13 @@ class CalibrationDialog(simpledialog.Dialog):
     def update_openvino_status_label(self, status: str):
         """Updates the status label with the given text."""
         self.openvino_status_var.set(status)
+        if not self.openvino_status_label:
+            return
 
     def _load_new_weight_local(self):
         """Handles the 'Load New Weight' button click."""
+        if not self.weights_dropdown:
+            return
         # This can call the view's method as it's just a file dialog
         self.controller.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE, {})
         # Repopulate this dialog's dropdown after the controller has the new weight
@@ -606,6 +805,8 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _manage_weights_local(self):
         """Opens the weight management dialog and provides a callback to refresh."""
+        if not self.weights_dropdown:
+            return
 
         # The callback will be called by the ManageWeightsDialog upon closing
         def refresh_callback():
@@ -3191,7 +3392,8 @@ class ApplicationGUI:
             )
             return
 
-        CalibrationDialog(self.root, self.controller)
+        with self.controller.project_calibration_session():
+            CalibrationDialog(self.root, self.controller)
         self.update_openvino_checkbox(self.controller.use_openvino)
         self.set_active_weight_in_dropdown(self.controller.active_weight_name)
         self.update_openvino_status_display(self.controller.get_openvino_status())
@@ -9444,6 +9646,11 @@ class ApplicationGUI:
         """Redesenha zonas preservando o background."""
         log.info("gui.redraw_zones.start")
 
+        canvas = self.roi_canvas
+        if canvas is None:
+            log.warning("gui.redraw_zones.no_canvas")
+            return
+
         # Apaga apenas elementos de zona, preserva background
         for tag in [
             "main_polygon",
@@ -9454,30 +9661,30 @@ class ApplicationGUI:
             "drawing_aid",
             "temp_vertex",
         ]:
-            self.roi_canvas.delete(tag)
+            canvas.delete(tag)
 
         # Background já deve estar presente, se não, tenta restaurar
         if self._canvas_bg_image:
             # Verifica se a imagem ainda está no canvas
-            bg_items = self.roi_canvas.find_withtag("background_image")
+            bg_items = canvas.find_withtag("background_image")
             if not bg_items:
                 # Use stored positioning if available, otherwise default to center
                 if hasattr(self, "_canvas_bg_position"):
                     x, y, anchor = self._canvas_bg_position
                 else:
                     # Fallback to center of current canvas
-                    canvas_width = self.roi_canvas.winfo_width() or 800
-                    canvas_height = self.roi_canvas.winfo_height() or 600
+                    canvas_width = canvas.winfo_width() or 800
+                    canvas_height = canvas.winfo_height() or 600
                     x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
 
-                self.roi_canvas.create_image(
+                canvas.create_image(
                     x,
                     y,
                     anchor=anchor,
                     image=self._canvas_bg_image,
                     tags="background_image",
                 )
-                self.roi_canvas.tag_lower("background_image")  # Envia para trás
+                canvas.tag_lower("background_image")  # Envia para trás
                 log.info("gui.redraw_zones.background_restored")
         else:
             log.warning("gui.redraw_zones.no_background_image")
@@ -9501,7 +9708,7 @@ class ApplicationGUI:
                     canvas_point = self._video_to_canvas(point[0], point[1])
                     canvas_polygon.extend([canvas_point[0], canvas_point[1]])
 
-                self.roi_canvas.create_polygon(
+                canvas.create_polygon(
                     canvas_polygon,
                     fill="",
                     outline="cyan",
@@ -9534,7 +9741,7 @@ class ApplicationGUI:
                     canvas_polygon.extend([canvas_point[0], canvas_point[1]])
 
                 # Cria o polígono
-                self.roi_canvas.create_polygon(
+                canvas.create_polygon(
                     canvas_polygon,
                     fill="",  # Sem preenchimento para manter transparência
                     outline=color_hex,
@@ -9556,7 +9763,7 @@ class ApplicationGUI:
                 center_y = int(poly_array[:, 1].mean())
 
                 # Cria fundo semi-transparente para melhor legibilidade
-                self.roi_canvas.create_oval(
+                canvas.create_oval(
                     center_x - 25,
                     center_y - 10,
                     center_x + 25,
@@ -9568,7 +9775,7 @@ class ApplicationGUI:
                 )
 
                 # Cria o texto do nome
-                self.roi_canvas.create_text(
+                canvas.create_text(
                     center_x,
                     center_y,
                     text=name,

@@ -650,7 +650,7 @@ class Reporter:
                         patches.Polygon(
                             polygon.exterior.coords,
                             fill=True,
-                            color=normalized_color,
+                            facecolor=normalized_color,
                             alpha=0.3,
                             edgecolor=normalized_color,
                             linewidth=2,

@@ -10,7 +10,7 @@ updates, and plugin context management operations.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import structlog
 
@@ -272,11 +272,10 @@ class DetectorService:
         track_threshold: float | None = None,
         match_threshold: float | None = None,
         reset_overrides: bool = False,
+        scope: Literal["global", "project"] = "global",
     ) -> bool:
         """
         Update detector tracking parameters.
-
-        Phase 6: Extracted from controller.update_detector_parameters()
 
         Args:
             params: Dict of parameters to update
@@ -284,27 +283,31 @@ class DetectorService:
             nms_threshold: NMS threshold override
             track_threshold: ByteTrack track threshold override
             match_threshold: ByteTrack match threshold override
-            reset_overrides: If True, reset to factory defaults
+            reset_overrides: If True, reset overrides for the given scope
+            scope: Whether the changes apply globally or only to the project
 
         Returns:
             bool: True if parameters were updated successfully
         """
-        # Merge params dict with individual parameters
-        if params is None:
-            params = {}
+        scope_normalized = scope or "global"
+        if scope_normalized not in {"global", "project"}:
+            raise ValueError(f"Unsupported calibration scope: {scope}")
+
+        persist_global = scope_normalized == "global"
+        params_dict: dict[str, float] = dict(params or {})
 
         # Normalize parameter names (accept both long and short forms)
-        if "confidence_threshold" in params:
-            params["conf_threshold"] = params.pop("confidence_threshold")
+        if "confidence_threshold" in params_dict:
+            params_dict["conf_threshold"] = params_dict.pop("confidence_threshold")
 
         if conf_threshold is not None:
-            params["conf_threshold"] = conf_threshold
+            params_dict["conf_threshold"] = conf_threshold
         if nms_threshold is not None:
-            params["nms_threshold"] = nms_threshold
+            params_dict["nms_threshold"] = nms_threshold
         if track_threshold is not None:
-            params["track_threshold"] = track_threshold
+            params_dict["track_threshold"] = track_threshold
         if match_threshold is not None:
-            params["match_threshold"] = match_threshold
+            params_dict["match_threshold"] = match_threshold
 
         # Validation helper
         def _validate(param_name: str, value: float | None):
@@ -312,41 +315,72 @@ class DetectorService:
                 raise ValueError(f"{param_name} must be between 0 and 1, got {value}")
 
         # Validate all parameters
-        _validate("conf_threshold", params.get("conf_threshold"))
-        _validate("nms_threshold", params.get("nms_threshold"))
-        _validate("track_threshold", params.get("track_threshold"))
-        _validate("match_threshold", params.get("match_threshold"))
+        _validate("conf_threshold", params_dict.get("conf_threshold"))
+        _validate("nms_threshold", params_dict.get("nms_threshold"))
+        _validate("track_threshold", params_dict.get("track_threshold"))
+        _validate("match_threshold", params_dict.get("match_threshold"))
 
         plugin = self.detector.plugin if self.detector else None
+        clear_project_overrides = scope_normalized == "project" and reset_overrides
+
+        if clear_project_overrides:
+            self._persist_project_detector_overrides({})
+            reset_overrides = False  # Avoid resetting global defaults downstream
+            defaults = self._get_current_global_thresholds()
+            for key, value in defaults.items():
+                params_dict.setdefault(key, value)
 
         if not plugin:
-            # No detector - just save to project config
             current_defaults = self.get_detector_parameters()
             payload: dict[str, float] = {}
             has_change = False
 
             for key in ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"]:
-                new_val = params.get(key)
+                new_val = params_dict.get(key)
                 if new_val is not None and new_val != current_defaults.get(key):
                     payload[key] = new_val
                     has_change = True
 
-            if not has_change and not reset_overrides:
+            if not has_change and not clear_project_overrides:
                 log.info("detector_service.update_params.no_changes")
                 return True
 
-            # Save to project
-            self._persist_global_detector_defaults(payload, reset=reset_overrides)
+            if persist_global:
+                self._persist_global_detector_defaults(payload, reset=reset_overrides)
+
+            if clear_project_overrides:
+                return True
+
+            self._persist_project_detector_overrides(payload)
             return True
 
-        # Update plugin parameters (delegated to helper)
         try:
-            return self._apply_tracking_params_to_plugin(plugin, params, reset_overrides)
+            has_project_context = bool(getattr(self.project_manager, "project_data", None))
+            persist_project = (
+                has_project_context
+                and (scope_normalized == "project" or persist_global)
+                and not clear_project_overrides
+            )
+            return self._apply_tracking_params_to_plugin(
+                plugin,
+                params_dict,
+                persist_global=persist_global,
+                persist_project=persist_project,
+                reset_overrides=reset_overrides,
+            )
         except Exception as e:
             log.error("detector_service.update_params.failed", error=str(e), exc_info=True)
             return False
 
-    def _apply_tracking_params_to_plugin(self, plugin, params: dict, reset_overrides: bool) -> bool:
+    def _apply_tracking_params_to_plugin(
+        self,
+        plugin,
+        params: dict,
+        *,
+        persist_global: bool,
+        persist_project: bool,
+        reset_overrides: bool,
+    ) -> bool:
         """Apply tracking parameters to the plugin and persist configuration."""
         conf_val = params.get("conf_threshold")
         nms_val = params.get("nms_threshold")
@@ -383,18 +417,17 @@ class DetectorService:
         if match_val is not None:
             detector_config["match_threshold"] = float(match_val)
 
-        # Persist to global config and project
-        self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
+        if persist_global:
+            self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
+        elif reset_overrides:
+            log.info("detector_service.params.project_reset_applied", config=detector_config)
 
-        # Save to project
-        save_success = False
-        if hasattr(self.project_manager, "save_detector_state"):
-            save_success = self.project_manager.save_detector_state(detector_config)
-
-        if save_success:
-            log.info("detector_service.params.saved_to_project", config=detector_config)
-        else:
-            log.warning("detector_service.params.save_to_project_failed")
+        if persist_project:
+            save_success = self._persist_project_detector_overrides(detector_config)
+            if save_success:
+                log.info("detector_service.params.saved_to_project", config=detector_config)
+            else:
+                log.warning("detector_service.params.save_to_project_failed")
 
         return True
 
@@ -678,6 +711,51 @@ class DetectorService:
                     settings.bytetrack.match_threshold = float(match_val)
 
             log.info("detector_service.persist.overrides_applied", config=detector_config)
+
+    def _persist_project_detector_overrides(self, detector_config: dict[str, float]) -> bool:
+        """Persist detector overrides to the active project, if available."""
+        if not hasattr(self.project_manager, "save_detector_state"):
+            return False
+
+        try:
+            return bool(self.project_manager.save_detector_state(detector_config))
+        except Exception:
+            log.warning(
+                "detector_service.project_overrides.persist_failed",
+                config=detector_config,
+                exc_info=True,
+            )
+            return False
+
+    def _get_current_global_thresholds(self) -> dict[str, float]:
+        """Return the thresholds currently configured in global settings."""
+        try:
+            conf = float(getattr(settings.yolo_model, "confidence_threshold", 0.25))
+        except Exception:
+            log.debug("detector_service.global_thresholds.conf_fallback", exc_info=True)
+            conf = 0.25
+
+        try:
+            nms = float(getattr(settings.yolo_model, "nms_threshold", 0.45))
+        except Exception:
+            log.debug("detector_service.global_thresholds.nms_fallback", exc_info=True)
+            nms = 0.45
+
+        track = DEFAULT_TRACK_THRESHOLD
+        match = DEFAULT_MATCH_THRESHOLD
+        try:
+            if hasattr(settings, "bytetrack"):
+                track = float(getattr(settings.bytetrack, "track_threshold", track))
+                match = float(getattr(settings.bytetrack, "match_threshold", match))
+        except Exception:
+            log.debug("detector_service.global_thresholds.bytetrack_fallback", exc_info=True)
+
+        return {
+            "conf_threshold": conf,
+            "nms_threshold": nms,
+            "track_threshold": track,
+            "match_threshold": match,
+        }
 
     def _resolve_single_subject_tracker_preference(self, project_type: str | None) -> bool | None:
         """

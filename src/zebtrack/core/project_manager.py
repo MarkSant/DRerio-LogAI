@@ -875,13 +875,6 @@ class ProjectManager:
             }
 
             results.append(result)
-            log.info(
-                "project_manager.scan_video",
-                video=base_name,
-                has_arena=has_arena,
-                has_rois=has_rois,
-                has_trajectory=has_trajectory,
-            )
 
         return results
 
@@ -2615,6 +2608,16 @@ class ProjectManager:
                 detector_config["last_updated"] = datetime.now().isoformat()
 
             self.project_data["detector_config"] = detector_config
+
+            overrides = self.project_data.setdefault("model_overrides", {})
+            normalized_thresholds = self._normalize_detector_thresholds(detector_config)
+            if normalized_thresholds:
+                merged = dict(overrides.get("detector_parameters") or {})
+                merged.update(normalized_thresholds)
+                overrides["detector_parameters"] = merged
+            elif not detector_config:
+                overrides.pop("detector_parameters", None)
+
             result = self.save_project()
 
             if result:
@@ -2642,6 +2645,34 @@ class ProjectManager:
             dict: Detector configuration or empty dict if not found
         """
         return self.project_data.get("detector_config", {})
+
+    @staticmethod
+    def _normalize_detector_thresholds(detector_config: dict | None) -> dict[str, float]:
+        mapping = {
+            "conf_threshold": "confidence_threshold",
+            "confidence_threshold": "confidence_threshold",
+            "nms_threshold": "nms_threshold",
+            "track_threshold": "track_threshold",
+            "match_threshold": "match_threshold",
+        }
+
+        normalized: dict[str, float] = {}
+        if not detector_config:
+            return normalized
+
+        for source_key, target_key in mapping.items():
+            if source_key not in detector_config:
+                continue
+            try:
+                normalized[target_key] = float(detector_config[source_key])
+            except (TypeError, ValueError):
+                log.warning(
+                    "project.detector_state.normalize_failed",
+                    key=source_key,
+                    value=detector_config[source_key],
+                )
+
+        return normalized
 
     def get_completed_sessions(self) -> set[tuple[int, str, int]]:
         """
