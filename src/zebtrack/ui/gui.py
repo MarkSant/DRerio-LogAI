@@ -5998,8 +5998,47 @@ class ApplicationGUI:
     def _get_selected_pipeline_video_paths(self) -> list[str]:
         if not self.pipeline_video_tree:
             return []
-        selected = self.pipeline_video_tree.selection()
-        return [item for item in selected if item in self.pipeline_video_vars]
+        selected_items = list(self.pipeline_video_tree.selection() or [])
+        if not selected_items:
+            return []
+
+        final_selection: list[str] = []
+        seen_subjects: set[str] = set()
+        had_hierarchy_nodes = False
+
+        def add_subject(item_id: str) -> None:
+            if item_id in self.pipeline_video_vars and item_id not in seen_subjects:
+                seen_subjects.add(item_id)
+                final_selection.append(item_id)
+
+        def collect_descendants(item_id: str) -> None:
+            # Ensure parent nodes are expanded so children become visible.
+            try:
+                self.pipeline_video_tree.item(item_id, open=True)
+            except Exception:
+                pass
+
+            for child in self.pipeline_video_tree.get_children(item_id):
+                if child in self.pipeline_video_vars:
+                    add_subject(child)
+                else:
+                    collect_descendants(child)
+
+        for item in selected_items:
+            if item in self.pipeline_video_vars:
+                add_subject(item)
+            else:
+                had_hierarchy_nodes = True
+                collect_descendants(item)
+
+        if had_hierarchy_nodes or len(final_selection) != len(selected_items):
+            # Replace Treeview selection with the resolved subject entries only.
+            try:
+                self.pipeline_video_tree.selection_set(tuple(final_selection))
+            except Exception:
+                pass
+
+        return final_selection
 
     def _on_pipeline_selection_changed(self, event=None) -> None:
         del event
@@ -6050,6 +6089,8 @@ class ApplicationGUI:
 
         self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {"video_paths": selections})
         self._request_overview_refresh()
+        # Switch to analysis tab to show progress of the newly requested batch.
+        self._switch_to_analysis_view()
 
     def _trigger_parquet_summaries(self) -> None:
         selections = self._get_selected_pipeline_video_paths()
