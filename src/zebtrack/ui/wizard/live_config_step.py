@@ -352,6 +352,23 @@ class LiveConfigStep(WizardStep):
             ),
         )
 
+        # Restore defaults button
+        restore_btn = Button(
+            advanced_frame,
+            text="🔄 Restaurar Padrões (10, 10)",
+            command=self._restore_default_intervals,
+        )
+        restore_btn.pack(fill="x", pady=(10, 0))
+        ToolTip(
+            restore_btn,
+            (
+                "Restaura os intervalos para os valores padrão recomendados:\n"
+                "• Análise: 10 frames\n"
+                "• Exibição: 10 frames\n\n"
+                "Estes valores oferecem bom equilíbrio entre desempenho e precisão."
+            ),
+        )
+
         # Help text
         help_frame = LabelFrame(
             self,
@@ -400,6 +417,11 @@ class LiveConfigStep(WizardStep):
             self.template_info_var.set("")
             if self.template_info_label and self.template_info_label.winfo_ismapped():
                 self.template_info_label.pack_forget()
+
+    def _restore_default_intervals(self):
+        """Restore processing intervals to default values."""
+        self.analysis_interval_var.set(10)
+        self.display_interval_var.set(10)
 
     def _on_arduino_toggle(self):
         """Enable/disable Arduino controls based on checkbox."""

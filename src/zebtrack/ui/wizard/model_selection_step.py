@@ -336,6 +336,28 @@ class ModelSelectionStep(WizardStep):
         )
         defaults_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
+        # Restore defaults button
+        from tkinter import Button
+
+        restore_btn = Button(
+            detector_frame,
+            text="🔄 Restaurar Padrões Recomendados",
+            command=self._restore_default_thresholds,
+            bg="#E3F2FD",
+            fg="#1565C0",
+            font=("TkDefaultFont", 9, "bold"),
+            relief="raised",
+            cursor="hand2",
+        )
+        restore_btn.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0), padx=(0, 10))
+        ToolTip(
+            restore_btn,
+            (
+                "Restaura todos os thresholds para os valores padrão recomendados.\n\n"
+                "Útil se você fez ajustes e quer voltar ao ponto de partida."
+            ),
+        )
+
         footer = Label(
             self,
             text=(
@@ -552,6 +574,24 @@ class ModelSelectionStep(WizardStep):
             label = self.template_info_label
             if label and label.winfo_ismapped():
                 label.pack_forget()
+
+    # ------------------------------------------------------------------
+    # Threshold management
+    # ------------------------------------------------------------------
+    def _restore_default_thresholds(self) -> None:
+        """Restore all detector thresholds to recommended default values."""
+        self.confidence_var.set(f"{settings.yolo_model.confidence_threshold:.3f}")
+        self.nms_var.set(f"{settings.yolo_model.nms_threshold:.3f}")
+        self.track_var.set(f"{DEFAULT_TRACK_THRESHOLD:.3f}")
+        self.match_var.set(f"{DEFAULT_MATCH_THRESHOLD:.3f}")
+
+        log.info(
+            "wizard.model_selection.thresholds_restored",
+            confidence=settings.yolo_model.confidence_threshold,
+            nms=settings.yolo_model.nms_threshold,
+            track=DEFAULT_TRACK_THRESHOLD,
+            match=DEFAULT_MATCH_THRESHOLD,
+        )
 
     # ------------------------------------------------------------------
     # Validation and data extraction
