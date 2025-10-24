@@ -256,14 +256,34 @@ class ModelSelectionStep(WizardStep):
             label="Confiança mínima (0-1):",
             var=self.confidence_var,
             column=0,
-            tooltip="Detecções abaixo desse valor são descartadas.",
+            tooltip=(
+                "🎯 Confiança Mínima (Confidence Threshold)\n\n"
+                "Filtra detecções com baixa certeza do modelo.\n\n"
+                "• Valor ALTO (0.5-0.9): Menos detecções, mais precisas\n"
+                "  → Use quando: Animais grandes, contraste claro\n"
+                "  → Problema: Pode perder animais em movimento rápido\n\n"
+                "• Valor BAIXO (0.1-0.4): Mais detecções, menos precisas\n"
+                "  → Use quando: Animais pequenos, baixo contraste\n"
+                "  → Problema: Mais falsos positivos (ruído)\n\n"
+                "💡 Padrão recomendado: 0.25"
+            ),
         )
         self._build_detector_param_row(
             detector_frame,
             label="NMS (sobreposição, 0-1):",
             var=self.nms_var,
             column=1,
-            tooltip="Filtra caixas muito próximas com a mesma classe.",
+            tooltip=(
+                "🔲 NMS - Non-Maximum Suppression\n\n"
+                "Elimina caixas duplicadas no mesmo objeto.\n\n"
+                "• Valor ALTO (0.6-0.9): Permite mais sobreposição\n"
+                "  → Use quando: Animais muito próximos\n"
+                "  → Problema: Múltiplas detecções no mesmo animal\n\n"
+                "• Valor BAIXO (0.1-0.4): Remove sobreposições agressivamente\n"
+                "  → Use quando: Animais bem separados\n"
+                "  → Problema: Pode unir animais próximos\n\n"
+                "💡 Padrão recomendado: 0.45"
+            ),
         )
         self._build_detector_param_row(
             detector_frame,
@@ -272,8 +292,15 @@ class ModelSelectionStep(WizardStep):
             column=0,
             row=1,
             tooltip=(
-                "Pontuação mínima para manter a trajetória ativa. Ajuste quando"
-                " houver trocas frequentes de IDs."
+                "🛤️ Track Threshold (ByteTrack)\n\n"
+                "Confiança mínima para INICIAR nova trajetória.\n\n"
+                "• Valor ALTO (0.4-0.8): Inicia tracks só com alta confiança\n"
+                "  → Use quando: Animais aparecem/desaparecem (oclusão)\n"
+                "  → Problema: Demora para detectar novos animais\n\n"
+                "• Valor BAIXO (0.1-0.3): Inicia tracks rapidamente\n"
+                "  → Use quando: Animais sempre visíveis\n"
+                "  → Problema: IDs trocam frequentemente\n\n"
+                "💡 Padrão recomendado: 0.25"
             ),
         )
         self._build_detector_param_row(
@@ -283,8 +310,15 @@ class ModelSelectionStep(WizardStep):
             column=1,
             row=1,
             tooltip=(
-                "Limiar para associar detecções às trajetórias existentes."
-                " Valores mais altos evitam associações erradas."
+                "🔗 Match Threshold (ByteTrack)\n\n"
+                "Quão similar deve ser para associar detecção a track.\n\n"
+                "• Valor ALTO (0.4-0.9): Associação muito estrita\n"
+                "  → Use quando: Animais muito parecidos\n"
+                "  → Problema: Perda de tracks, IDs novos frequentes\n\n"
+                "• Valor BAIXO (0.0-0.3): Associação permissiva\n"
+                "  → Use quando: Animais claramente distintos\n"
+                "  → Problema: Pode trocar IDs entre animais\n\n"
+                "💡 Padrão recomendado: 0.15"
             ),
         )
 
@@ -313,6 +347,43 @@ class ModelSelectionStep(WizardStep):
             justify="left",
         )
         footer.pack(fill="x", pady=(5, 0))
+
+        # Visual guide section
+        guide_frame = LabelFrame(
+            self,
+            text="📊 Guia Rápido: Quando Ajustar os Thresholds",
+            padx=15,
+            pady=10,
+        )
+        guide_frame.pack(fill="x", pady=(15, 0))
+
+        guide_text = Label(
+            guide_frame,
+            text=(
+                "🔴 AUMENTAR Confiança: Se há muitos falsos positivos "
+                "(sombras, reflexos)\n"
+                "🟢 DIMINUIR Confiança: Se animais não são detectados "
+                "(especialmente em movimento)\n\n"
+                "🔴 AUMENTAR NMS: Se o mesmo animal está sendo detectado "
+                "2x simultaneamente\n"
+                "🟢 DIMINUIR NMS: Se animais próximos são unidos numa "
+                "única detecção\n\n"
+                "🔴 AUMENTAR Track: Se IDs mudam com frequência durante "
+                "oclusões\n"
+                "🟢 DIMINUIR Track: Se leva muito tempo para detectar "
+                "animais novos\n\n"
+                "🔴 AUMENTAR Match: Se IDs trocam entre animais diferentes\n"
+                "🟢 DIMINUIR Match: Se tracks são perdidos facilmente "
+                "(muitos IDs novos)\n\n"
+                "💡 Dica de Ouro: Ajuste UM parâmetro por vez e teste! "
+                "Mudanças pequenas (±0.05) geralmente são suficientes."
+            ),
+            fg="#333333",
+            justify="left",
+            font=("TkDefaultFont", 9),
+            wraplength=520,
+        )
+        guide_text.pack(anchor="w")
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)

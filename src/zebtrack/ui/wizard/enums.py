@@ -78,6 +78,7 @@ class WizardStepID(Enum):
     DISCOVERY = 1
     FILE_SELECTION = 2
     LIVE_CONFIG = 3  # Only for live projects
+    EXPERIMENTAL_DESIGN = 9  # Only for live projects - experimental structure
     CALIBRATION = 4
     DETECTION_VALIDATION = 5
     MODEL_SELECTION = 6

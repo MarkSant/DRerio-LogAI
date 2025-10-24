@@ -350,9 +350,9 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "animals_per_aquarium": wizard_data.get("animals_per_aquarium", 1),
         "aquarium_width_cm": wizard_data.get("aquarium_width_cm", 10.0),
         "aquarium_height_cm": wizard_data.get("aquarium_height_cm", 10.0),
-        # Processing intervals (use defaults for now)
-        "analysis_interval_frames": 10,
-        "display_interval_frames": 10,
+        # Processing intervals (from wizard or defaults)
+        "analysis_interval_frames": wizard_data.get("analysis_interval_frames", 10),
+        "display_interval_frames": wizard_data.get("display_interval_frames", 10),
         # Detection methods (use defaults from settings)
         "aquarium_method": "seg",
         "animal_method": "det",
@@ -377,6 +377,14 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
             use_openvino_default = False
         controller_data["use_openvino"] = use_openvino_default
 
+    # Extract active_weight from model selection if available
+    weight_assignments = wizard_data.get("weight_assignments")
+    if weight_assignments and isinstance(weight_assignments, dict):
+        # Prefer animal weight as active_weight
+        animal_weight = weight_assignments.get("animal")
+        if animal_weight:
+            controller_data["active_weight"] = animal_weight
+
     video_files: list[dict] = []
 
     detected_design = wizard_data.get("detected_design")
@@ -390,10 +398,16 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
                 "camera_index": wizard_data.get("camera_index", 0),
                 "use_arduino": wizard_data.get("use_arduino", False),
                 "arduino_port": wizard_data.get("arduino_port", ""),
+                "external_trigger_mode": wizard_data.get("external_trigger_mode", False),
                 "use_timed_recording": wizard_data.get("use_timed_recording", False),
                 "recording_duration_s": wizard_data.get("recording_duration_s", 0),
                 "use_countdown": wizard_data.get("use_countdown", False),
                 "countdown_duration_s": wizard_data.get("countdown_duration_s", 0),
+                # Experimental design parameters
+                "experiment_days": wizard_data.get("experiment_days"),
+                "num_groups": wizard_data.get("num_groups"),
+                "subjects_per_group": wizard_data.get("subjects_per_group"),
+                "group_names": wizard_data.get("group_names"),
                 "video_files": [],  # Live projects don't have pre-recorded files
             }
         )
@@ -475,6 +489,9 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         "parquet_summary": wizard_data.get("parquet_summary"),
         "video_count": wizard_data.get("video_count"),
         "folder_preview": wizard_data.get("folder_preview"),
+        "weight_assignments": wizard_data.get("weight_assignments"),
+        "detector_parameters": wizard_data.get("detector_parameters"),
+        "model_selection": wizard_data.get("model_selection"),
         "use_openvino": controller_data.get("use_openvino"),
     }
 

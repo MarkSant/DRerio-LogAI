@@ -133,13 +133,31 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.auto_detect_button.pack(fill="x", pady=2)
 
-        # Stabilization frames entry
+        # Stabilization frames entry with improved explanation
         stabilization_frame = ttk.Frame(actions_frame)
-        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(side="left", padx=(0, 5))
+
+        # Title label
+        title_label = ttk.Label(
+            stabilization_frame,
+            text="Janela de Suavização (frames):",
+            font=("TkDefaultFont", 9, "bold")
+        )
+        title_label.pack(side="left", padx=(0, 5))
+
+        # Entry field
         ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(
             side="left"
         )
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
+
+        # Explanation label
+        explanation_label = ttk.Label(
+            actions_frame,
+            text="↳ Média móvel de N frames para reduzir ruído na trajetória",
+            font=("TkDefaultFont", 8),
+            foreground="gray"
+        )
+        explanation_label.pack(fill="x", pady=(0, 5), padx=(10, 0), anchor="w")
 
         # Manual polygon button
         self.draw_arena_button = ttk.Button(

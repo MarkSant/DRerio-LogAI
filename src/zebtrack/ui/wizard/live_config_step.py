@@ -62,10 +62,14 @@ class LiveConfigStep(WizardStep):
         self.camera_index_var = IntVar(value=0)
         self.use_arduino_var = BooleanVar(value=False)
         self.arduino_port_var = StringVar(value="")
+        self.external_trigger_mode_var = BooleanVar(value=False)
         self.use_timed_recording_var = BooleanVar(value=True)
         self.recording_duration_var = DoubleVar(value=300.0)  # 5 minutes default
         self.use_countdown_var = BooleanVar(value=True)
         self.countdown_duration_var = IntVar(value=10)
+        # Processing intervals
+        self.analysis_interval_var = IntVar(value=10)
+        self.display_interval_var = IntVar(value=10)
 
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras = []
@@ -183,6 +187,24 @@ class LiveConfigStep(WizardStep):
         self.arduino_status_label = Label(self.arduino_port_frame, text="", fg="gray")
         self.arduino_status_label.pack(side="left", padx=5)
 
+        # External trigger mode
+        self.external_trigger_cb = Checkbutton(
+            arduino_frame,
+            text="Modo de Gatilho Externo (External Trigger)",
+            variable=self.external_trigger_mode_var,
+            state="disabled",
+        )
+        self.external_trigger_cb.pack(anchor="w", pady=5)
+        ToolTip(
+            self.external_trigger_cb,
+            (
+                "Modo de Gatilho Externo\n\n"
+                "Quando habilitado, o Arduino pode controlar início/parada da gravação.\n"
+                "Útil para sincronizar gravações com eventos externos ou automação.\n\n"
+                "Requer Arduino conectado e configurado."
+            ),
+        )
+
         # Recording settings
         recording_frame = LabelFrame(
             self,
@@ -263,6 +285,73 @@ class LiveConfigStep(WizardStep):
             "Duração da contagem regressiva em segundos.",
         )
 
+        # Advanced processing settings
+        advanced_frame = LabelFrame(
+            self,
+            text="⚙️ Configurações Avançadas de Processamento",
+            padx=15,
+            pady=10,
+        )
+        advanced_frame.pack(fill="x", pady=(15, 0))
+
+        # Analysis interval
+        analysis_row = Frame(advanced_frame)
+        analysis_row.pack(fill="x", pady=5)
+
+        Label(
+            analysis_row,
+            text="Intervalo de Análise (frames):",
+            width=30,
+            anchor="w",
+        ).pack(side="left")
+        analysis_spinbox = Spinbox(
+            analysis_row,
+            from_=1,
+            to=100,
+            textvariable=self.analysis_interval_var,
+            width=10,
+        )
+        analysis_spinbox.pack(side="left", padx=(5, 0))
+        ToolTip(
+            analysis_spinbox,
+            (
+                "Intervalo de Análise (frames)\n\n"
+                "Quantos frames aguardar entre detecções.\n"
+                "Valores maiores: processamento mais rápido, menos precisão.\n"
+                "Valores menores: processamento mais lento, mais precisão.\n\n"
+                "Padrão: 10 frames (recomendado para maioria dos casos)"
+            ),
+        )
+
+        # Display interval
+        display_row = Frame(advanced_frame)
+        display_row.pack(fill="x", pady=5)
+
+        Label(
+            display_row,
+            text="Intervalo de Exibição (frames):",
+            width=30,
+            anchor="w",
+        ).pack(side="left")
+        display_spinbox = Spinbox(
+            display_row,
+            from_=1,
+            to=100,
+            textvariable=self.display_interval_var,
+            width=10,
+        )
+        display_spinbox.pack(side="left", padx=(5, 0))
+        ToolTip(
+            display_spinbox,
+            (
+                "Intervalo de Exibição (frames)\n\n"
+                "Quantos frames aguardar entre atualizações visuais da interface.\n"
+                "Valores maiores: interface mais fluida, menos detalhes visuais.\n"
+                "Valores menores: mais detalhes visuais, possível lentidão.\n\n"
+                "Padrão: 10 frames (recomendado para maioria dos casos)"
+            ),
+        )
+
         # Help text
         help_frame = LabelFrame(
             self,
@@ -317,10 +406,13 @@ class LiveConfigStep(WizardStep):
         if self.use_arduino_var.get():
             self.arduino_port_entry.config(state="normal")
             self.detect_arduino_btn.config(state="normal")
+            self.external_trigger_cb.config(state="normal")
         else:
             self.arduino_port_entry.config(state="disabled")
             self.detect_arduino_btn.config(state="disabled")
+            self.external_trigger_cb.config(state="disabled")
             self.arduino_port_var.set("")
+            self.external_trigger_mode_var.set(False)
 
     def _on_timed_toggle(self):
         """Enable/disable duration controls based on checkbox."""
@@ -466,6 +558,7 @@ class LiveConfigStep(WizardStep):
                 - camera_index (int)
                 - use_arduino (bool)
                 - arduino_port (str | None)
+                - external_trigger_mode (bool)
                 - use_timed_recording (bool)
                 - recording_duration_s (float)
                 - use_countdown (bool)
@@ -477,10 +570,13 @@ class LiveConfigStep(WizardStep):
             "camera_index": self.camera_index_var.get(),
             "use_arduino": self.use_arduino_var.get(),
             "arduino_port": arduino_port,
+            "external_trigger_mode": self.external_trigger_mode_var.get(),
             "use_timed_recording": self.use_timed_recording_var.get(),
             "recording_duration_s": self.recording_duration_var.get(),
             "use_countdown": self.use_countdown_var.get(),
             "countdown_duration_s": self.countdown_duration_var.get(),
+            "analysis_interval_frames": self.analysis_interval_var.get(),
+            "display_interval_frames": self.display_interval_var.get(),
         }
 
     def set_data(self, data: dict):
@@ -499,6 +595,9 @@ class LiveConfigStep(WizardStep):
         if data.get("arduino_port"):
             self.arduino_port_var.set(data["arduino_port"])
 
+        if "external_trigger_mode" in data:
+            self.external_trigger_mode_var.set(data["external_trigger_mode"])
+
         if "use_timed_recording" in data:
             self.use_timed_recording_var.set(data["use_timed_recording"])
 
@@ -510,6 +609,12 @@ class LiveConfigStep(WizardStep):
 
         if "countdown_duration_s" in data:
             self.countdown_duration_var.set(data["countdown_duration_s"])
+
+        if "analysis_interval_frames" in data:
+            self.analysis_interval_var.set(data["analysis_interval_frames"])
+
+        if "display_interval_frames" in data:
+            self.display_interval_var.set(data["display_interval_frames"])
 
         # Update UI state
         self._on_arduino_toggle()

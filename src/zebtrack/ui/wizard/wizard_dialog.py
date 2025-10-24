@@ -16,6 +16,7 @@ from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
+from zebtrack.ui.wizard.experimental_design_step import ExperimentalDesignStep
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
 from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
@@ -115,6 +116,9 @@ class WizardDialog(Dialog):
             WizardStepID.DISCOVERY: DiscoveryStep(self.steps_container, self.wizard_data),
             WizardStepID.FILE_SELECTION: FileSelectionStep(self.steps_container, self.wizard_data),
             WizardStepID.LIVE_CONFIG: LiveConfigStep(self.steps_container, self.wizard_data),
+            WizardStepID.EXPERIMENTAL_DESIGN: ExperimentalDesignStep(
+                self.steps_container, self.wizard_data
+            ),
             WizardStepID.CALIBRATION: CalibrationStep(self.steps_container, self.wizard_data),
             WizardStepID.DETECTION_VALIDATION: DetectionStep(
                 self.steps_container, self.wizard_data
@@ -178,17 +182,20 @@ class WizardDialog(Dialog):
         project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
 
         if project_type == ProjectType.LIVE.value:
-            # Live project flow: Discovery -> Live Config -> Calibration -> Confirmation
+            # Live project flow: Discovery -> Experimental Design -> Live Config
+            # -> Calibration -> Model Selection -> Confirmation
             self.active_steps = [
                 self.all_steps[WizardStepID.DISCOVERY],
+                self.all_steps[WizardStepID.EXPERIMENTAL_DESIGN],
                 self.all_steps[WizardStepID.LIVE_CONFIG],
                 self.all_steps[WizardStepID.CALIBRATION],
+                self.all_steps[WizardStepID.MODEL_SELECTION],
                 self.all_steps[WizardStepID.CONFIRMATION],
             ]
             log.info(
                 "wizard.active_steps_updated",
                 project_type="live",
-                step_count=4,
+                step_count=6,
             )
         else:
             # Pre-recorded flow (experimental or exploratory):
