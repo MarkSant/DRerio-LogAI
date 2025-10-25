@@ -699,10 +699,19 @@ class ConfirmationStep(WizardStep):
         if project_path.exists():
             return (False, f"Já existe um projeto com esse nome em: {location}")
 
-        # Validate that we have videos
-        video_count = self.wizard_data.get("video_count", 0)
-        if video_count == 0:
-            return (False, "Nenhum vídeo selecionado. Volte e selecione vídeos.")
+        # Validate sources: prerecorded projects require selected videos; live projects require camera config
+        project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
+
+        if project_type != ProjectType.LIVE.value:
+            video_count = self.wizard_data.get("video_count", 0)
+            if video_count == 0:
+                return (False, "Nenhum vídeo selecionado. Volte e selecione vídeos.")
+        else:
+            if "camera_index" not in self.wizard_data:
+                return (
+                    False,
+                    "Configure a câmera na etapa anterior antes de criar o projeto.",
+                )
 
         return (True, "")
 

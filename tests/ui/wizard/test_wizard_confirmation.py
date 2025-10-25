@@ -309,6 +309,7 @@ class TestConfirmationStep:
         """Validation should fail with no videos."""
         wizard_data = {
             "video_count": 0,
+            "project_type": ProjectType.EXPERIMENTAL.value,
         }
 
         step = ConfirmationStep(self.root, wizard_data)
@@ -321,6 +322,24 @@ class TestConfirmationStep:
 
         assert not is_valid
         assert "nenhum vídeo" in error_message.lower()
+
+    def test_validate_allows_live_without_videos(self):
+        """Live projects without prerecorded videos should still validate."""
+        wizard_data = {
+            "project_type": ProjectType.LIVE.value,
+            "camera_index": 0,
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("Projeto_Ao_Vivo")
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        assert is_valid
+        assert error_message == ""
 
     def test_get_data_returns_project_info(self):
         """get_data should return project name and full path."""
