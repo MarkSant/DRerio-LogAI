@@ -344,7 +344,7 @@ class ProcessingReportsWidget(BaseWidget):
         selection = self.tree.selection() if self.tree else []
         self.emit_event("processing.generate_trajectories", {"selection": selection})
         if self._on_generate_trajectories:
-            self._on_generate_trajectories()
+            self._on_generate_trajectories(selection)
 
     def _on_export_summaries_clicked(self) -> None:
         """Handle Export Summaries button click."""
@@ -445,8 +445,16 @@ class ProcessingReportsWidget(BaseWidget):
             values: Tuple of values for the columns (arena, rois, trajectory, summary, status)
             tags: Tags for styling
         """
-        if self.tree:
-            self.tree.insert(parent, "end", iid=item_id, text=text, values=values, tags=tags)
+        tree = self.tree
+        if not tree:
+            return
+
+        if tree.exists(item_id):
+            tree.item(item_id, text=text, values=values, tags=tags)
+            tree.move(item_id, parent, "end")
+            return
+
+        tree.insert(parent, "end", iid=item_id, text=text, values=values, tags=tags)
 
     def expand_tree_item(self, item_id: str) -> None:
         """Expand a tree item to show its children."""

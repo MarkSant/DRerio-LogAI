@@ -107,9 +107,14 @@ class WizardDialog(Dialog):
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("wizard.geometry.resizable_failed", error=str(exc))
 
+        # Configure master grid so steps stretch while buttons stay anchored
+        master.grid_rowconfigure(0, weight=1)
+        master.grid_columnconfigure(0, weight=1)
+        self._body_frame = master
+
         # Create container for steps
         self.steps_container = Frame(master)
-        self.steps_container.pack(fill="both", expand=True, padx=8, pady=8)
+        self.steps_container.grid(row=0, column=0, sticky="nsew", padx=12, pady=(12, 8))
 
         # Initialize ALL possible steps (not all will be shown)
         self.all_steps = {
@@ -152,8 +157,11 @@ class WizardDialog(Dialog):
         """
         from tkinter import Button
 
-        box = Frame(self)
-        box.pack(side="bottom", fill="x", padx=5, pady=5)
+        body_frame = getattr(self, "_body_frame", self)
+        body_frame.grid_rowconfigure(1, weight=0)
+
+        box = Frame(body_frame)
+        box.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
 
         # Back button (disabled on first step)
         self.back_button = Button(box, text="< Voltar", width=10, command=self._on_back)
@@ -298,10 +306,10 @@ class WizardDialog(Dialog):
         usable_h = screen_h - 220
 
         # FIXED SIZE STRATEGY: Wide window for 3-column horizontal layouts
-        # Target: 1150×600 (wide for 3 columns, tall enough for buttons)
+        # Target: 1150×760 (wide for 3 columns, tall enough for buttons)
 
         target_width = 1150
-        target_height = 680
+        target_height = 760
 
         # But don't exceed available space on smaller screens
         width = min(target_width, usable_w)
@@ -309,11 +317,12 @@ class WizardDialog(Dialog):
 
         # Ensure absolute minimums for usability
         width = max(width, 950)
-        height = max(height, 620)
+        if usable_h >= 660:
+            height = max(height, 660)
 
         # Set resizable bounds (75% to 120% of target)
         min_width = max(int(target_width * 0.75), 900)
-        min_height = max(int(target_height * 0.75), 450)
+        min_height = max(int(target_height * 0.75), 520)
         max_width = int(target_width * 1.2)
         max_height = int(target_height * 1.1)
 

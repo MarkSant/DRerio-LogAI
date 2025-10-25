@@ -71,82 +71,86 @@ class ImportConfigStep(WizardStep):
         self.template_info_label = None
 
     def build_ui(self):
-        """Build import configuration UI with horizontal 2-column layout."""
-        # Title
+        """Build import configuration UI with a wider horizontal layout."""
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(self, text="Configuração de Importação", font=title_font)
-        title.pack(pady=(0, 5))
+        title.grid(row=0, column=0, sticky="w", pady=(0, 5))
 
         subtitle = Label(
             self,
             text="Configure o que importar para cada vídeo.",
             fg="gray",
-            wraplength=900,
+            wraplength=920,
+            justify="left",
         )
-        subtitle.pack(pady=(0, 8))
+        subtitle.grid(row=1, column=0, sticky="w", pady=(0, 6))
 
         self.template_info_label = Label(
             self,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=900,
+            wraplength=920,
             justify="left",
         )
-        self.template_info_label.pack_forget()
+        self.template_info_label.grid(row=2, column=0, sticky="w", pady=(0, 10))
+        self.template_info_label.grid_remove()
 
-        # Main horizontal container: 2 columns
         main_container = ttk.Frame(self)
-        main_container.pack(fill="both", expand=True, pady=(0, 5))
+        main_container.grid(row=3, column=0, sticky="nsew", pady=(0, 5))
+        main_container.grid_columnconfigure(0, weight=3)
+        main_container.grid_columnconfigure(1, weight=2)
+        main_container.grid_rowconfigure(0, weight=1)
 
-        # LEFT COLUMN: Video table (wider)
         left_column = ttk.Frame(main_container)
-        left_column.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        left_column.grid_columnconfigure(0, weight=1)
+        left_column.grid_rowconfigure(1, weight=1)
 
-        table_frame = LabelFrame(left_column, text="Vídeos e Estratégias", padx=8, pady=5)
-        table_frame.pack(fill="both", expand=True)
-
-        # Bulk import buttons row
-        bulk_buttons_frame = ttk.Frame(table_frame)
-        bulk_buttons_frame.pack(fill="x", pady=(0, 5))
+        bulk_buttons_frame = ttk.Frame(left_column)
+        bulk_buttons_frame.grid(row=0, column=0, sticky="w", pady=(0, 6))
 
         ttk.Button(
             bulk_buttons_frame,
             text="Importar Todas Arenas",
             command=self._bulk_import_arenas,
         ).pack(side="left", padx=2)
-
         ttk.Button(
             bulk_buttons_frame,
             text="Importar Todos ROIs",
             command=self._bulk_import_rois,
         ).pack(side="left", padx=2)
-
         ttk.Button(
             bulk_buttons_frame,
             text="Importar Todas Trajetórias",
             command=self._bulk_import_trajectories,
         ).pack(side="left", padx=2)
-
         ttk.Button(
             bulk_buttons_frame,
             text="Importar Tudo",
             command=self._bulk_import_all,
         ).pack(side="left", padx=2)
 
-        # Create Treeview with scrollbar (increased height)
+        table_frame = LabelFrame(left_column, text="Vídeos e Estratégias", padx=8, pady=5)
+        table_frame.grid(row=1, column=0, sticky="nsew")
+        table_frame.grid_columnconfigure(0, weight=1)
+        table_frame.grid_rowconfigure(0, weight=1)
+
         tree_scroll = create_scrollbar(table_frame)
-        tree_scroll.pack(side="right", fill="y")
+        tree_scroll.grid(row=0, column=1, sticky="ns")
 
         self.video_tree = ttk.Treeview(
             table_frame,
             columns=("video", "arena", "rois", "trajectory", "action"),
             show="headings",
             yscrollcommand=tree_scroll.set,
-            height=12,  # Increased from 8 to 12
+            height=11,
         )
+        self.video_tree.grid(row=0, column=0, sticky="nsew")
         tree_scroll.config(command=self.video_tree.yview)
 
-        # Define columns
         self.video_tree.heading("video", text="Vídeo")
         self.video_tree.heading("arena", text="Arena")
         self.video_tree.heading("rois", text="ROIs")
@@ -159,33 +163,21 @@ class ImportConfigStep(WizardStep):
         self.video_tree.column("trajectory", width=80, anchor="center")
         self.video_tree.column("action", width=100, anchor="center")
 
-        self.video_tree.pack(fill="both", expand=True)
-
-        # Bind double-click to toggle checkboxes
         self.video_tree.bind("<Double-1>", self._on_tree_double_click)
 
-        # Help text below table
-        help_text = Label(
-            left_column,
-            text="💡 Clique 2x na linha para alternar opções",
-            fg="gray",
-            font=("TkDefaultFont", 9),
-            justify="left",
-        )
-        help_text.pack(pady=(3, 0), anchor="w")
+        right_panel = ttk.Frame(main_container)
+        right_panel.grid(row=0, column=1, sticky="nsew")
+        right_panel.grid_columnconfigure(0, weight=1)
+        right_panel.grid_columnconfigure(1, weight=1)
+        right_panel.grid_rowconfigure(1, weight=1)
 
-        # RIGHT COLUMN: ROI strategy, Summary, Legend (narrower)
-        right_column = ttk.Frame(main_container)
-        right_column.pack(side="right", fill="both", padx=(0, 0))
-
-        # ROI merge strategy (will be hidden if no parquets detected)
         self.roi_frame = LabelFrame(
-            right_column,
+            right_panel,
             text="Estratégia ROIs",
             padx=8,
             pady=5,
         )
-        self.roi_frame.pack(fill="x", pady=(0, 8))
+        self.roi_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 8))
 
         rb_replace = Radiobutton(
             self.roi_frame,
@@ -194,11 +186,8 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.REPLACE.value,
             font=("TkDefaultFont", 9),
         )
-        rb_replace.pack(anchor="w", pady=1)
-        ToolTip(
-            rb_replace,
-            "ROIs importados substituem completamente as existentes.",
-        )
+        rb_replace.grid(row=0, column=0, sticky="w", pady=1)
+        ToolTip(rb_replace, "ROIs importados substituem completamente as existentes.")
 
         rb_merge = Radiobutton(
             self.roi_frame,
@@ -207,11 +196,8 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.MERGE.value,
             font=("TkDefaultFont", 9),
         )
-        rb_merge.pack(anchor="w", pady=1)
-        ToolTip(
-            rb_merge,
-            "Manter ambos. Conflitos serão renomeados.",
-        )
+        rb_merge.grid(row=1, column=0, sticky="w", pady=1)
+        ToolTip(rb_merge, "Manter ambos. Conflitos serão renomeados.")
 
         rb_manual = Radiobutton(
             self.roi_frame,
@@ -220,27 +206,23 @@ class ImportConfigStep(WizardStep):
             value=ROIMergeStrategy.MANUAL.value,
             font=("TkDefaultFont", 9),
         )
-        rb_manual.pack(anchor="w", pady=1)
-        ToolTip(
-            rb_manual,
-            "Perguntar para cada conflito.",
-        )
+        rb_manual.grid(row=2, column=0, sticky="w", pady=1)
+        ToolTip(rb_manual, "Perguntar para cada conflito.")
 
-        # Summary
-        self.summary_frame = LabelFrame(right_column, text="Resumo", padx=8, pady=5)
-        self.summary_frame.pack(fill="x", pady=(0, 8))
+        self.summary_frame = LabelFrame(right_panel, text="Resumo", padx=8, pady=5)
+        self.summary_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
 
-        Label(
+        summary_label = Label(
             self.summary_frame,
             textvariable=self.summary_var,
             justify="left",
             fg="blue",
             font=("TkDefaultFont", 9),
-        ).pack(anchor="w")
+        )
+        summary_label.grid(row=0, column=0, sticky="w")
 
-        # Legend (compact)
-        legend_frame = LabelFrame(right_column, text="Legenda", padx=8, pady=5)
-        legend_frame.pack(fill="x")
+        legend_frame = LabelFrame(right_panel, text="Legenda", padx=8, pady=5)
+        legend_frame.grid(row=1, column=1, sticky="nsew")
 
         self.legend_label = Label(
             legend_frame,
@@ -251,7 +233,19 @@ class ImportConfigStep(WizardStep):
             font=("TkDefaultFont", 8),
             justify="left",
         )
-        self.legend_label.pack(anchor="w")
+        self.legend_label.grid(row=0, column=0, sticky="w")
+
+        info_box = Label(
+            right_panel,
+            text=(
+                "💡 Dica: ajuste rapidamente clicando 2× na coluna desejada. "
+                "Use os botões de importação em lote para aplicar o mesmo padrão a todos os vídeos."
+            ),
+            fg="#555555",
+            wraplength=340,
+            justify="left",
+        )
+        info_box.grid(row=2, column=0, columnspan=2, sticky="we", pady=(8, 0))
 
         self._update_template_banner()
 
@@ -444,11 +438,11 @@ class ImportConfigStep(WizardStep):
         if banner_text:
             self.template_info_var.set(banner_text)
             if self.template_info_label and not self.template_info_label.winfo_ismapped():
-                self.template_info_label.pack(pady=(0, 10))
+                self.template_info_label.grid()
         else:
             self.template_info_var.set("")
             if self.template_info_label and self.template_info_label.winfo_ismapped():
-                self.template_info_label.pack_forget()
+                self.template_info_label.grid_remove()
 
     def _update_roi_frame_visibility(self):
         """Hide ROI merge strategy frame if no ROIs are being imported."""
@@ -458,10 +452,10 @@ class ImportConfigStep(WizardStep):
         if importing_rois:
             # Show ROI frame if importing ROIs
             if not self.roi_frame.winfo_ismapped():
-                self.roi_frame.pack(fill="x", pady=(0, 8), before=self.summary_frame)
+                self.roi_frame.grid()
         else:
             # Hide ROI frame if not importing any ROIs
-            self.roi_frame.pack_forget()
+            self.roi_frame.grid_remove()
             log.debug("import_config.roi_frame_hidden", reason="No ROIs being imported")
 
     def _bulk_import_arenas(self):

@@ -10,11 +10,13 @@ import re
 from pathlib import Path
 from tkinter import (
     Button,
+    Canvas,
     Entry,
     Frame,
     Label,
     LabelFrame,
     StringVar,
+    Text,
     filedialog,
     messagebox,
     simpledialog,
@@ -28,6 +30,7 @@ import structlog
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
 from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
+from zebtrack.ui.window_utils import create_scrollbar
 
 log = structlog.get_logger()
 
@@ -66,31 +69,76 @@ class ConfirmationStep(WizardStep):
 
     def build_ui(self):
         """Build confirmation step UI."""
+        background_color = self.cget("background")
+
+        self.scroll_canvas = Canvas(
+            self,
+            highlightthickness=0,
+            bg=background_color,
+            borderwidth=0,
+        )
+        self.scrollbar = create_scrollbar(
+            self,
+            orient="vertical",
+            command=self.scroll_canvas.yview,
+        )
+        self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.scroll_canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.content_frame = Frame(self.scroll_canvas, bg=background_color)
+        self.content_frame.bind(
+            "<Configure>",
+            lambda event: self.scroll_canvas.configure(
+                scrollregion=self.scroll_canvas.bbox("all")
+            ),
+        )
+        self._canvas_window = self.scroll_canvas.create_window(
+            (0, 0), window=self.content_frame, anchor="nw"
+        )
+
+        self.scroll_canvas.bind(
+            "<Configure>", lambda event: self.scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
+        )
+        self.scroll_canvas.bind("<Enter>", self._bind_mousewheel)
+        self.scroll_canvas.bind("<Leave>", self._unbind_mousewheel)
+
+        self.content_container = Frame(self.content_frame, bg=background_color)
+        self.content_container.pack(fill="both", expand=True, padx=8, pady=8)
+
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
-        title = Label(self, text="Confirmação e Criação do Projeto", font=title_font)
+        title = Label(
+            self.content_container,
+            text="Confirmação e Criação do Projeto",
+            font=title_font,
+            bg=background_color,
+        )
         title.pack(pady=(0, 10))
 
         subtitle = Label(
-            self,
+            self.content_container,
             text="Revise as configurações e crie seu projeto.",
             fg="gray",
             wraplength=500,
+            bg=background_color,
         )
         subtitle.pack(pady=(0, 20))
 
         self.template_info_label = Label(
-            self,
+            self.content_container,
             textvariable=self.template_info_var,
             fg="#555555",
             wraplength=500,
             justify="left",
+            bg=background_color,
         )
         self.template_info_label.pack_forget()
         self._update_template_banner()
 
         # Project name
-        name_frame = Frame(self)
+        name_frame = Frame(self.content_container, bg=background_color)
         name_frame.pack(fill="x", pady=(0, 10))
 
         Label(
@@ -107,7 +155,7 @@ class ConfirmationStep(WizardStep):
         )
 
         # Project location
-        location_frame = Frame(self)
+        location_frame = Frame(self.content_container, bg=background_color)
         location_frame.pack(fill="x", pady=(0, 15))
 
         Label(
@@ -129,21 +177,33 @@ class ConfirmationStep(WizardStep):
         ).pack(side="left")
 
         # Summary (with controlled height to prevent button occlusion)
-        summary_frame = LabelFrame(self, text="Resumo do Projeto", padx=10, pady=10)
-        summary_frame.pack(fill="x", pady=(0, 10))
-
-        self.summary_label = Label(
-            summary_frame,
-            text="",
-            justify="left",
-            anchor="nw",
-            wraplength=900,
-            height=18,
+        summary_frame = LabelFrame(
+            self.content_container, text="Resumo do Projeto", padx=10, pady=10
         )
-        self.summary_label.pack(fill="x")
+        summary_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        summary_container = Frame(summary_frame)
+        summary_container.pack(fill="both", expand=True)
+
+        self.summary_textbox = Text(
+            summary_container,
+            height=16,
+            wrap="word",
+            state="disabled",
+            relief="flat",
+        )
+        self.summary_textbox.pack(side="left", fill="both", expand=True)
+
+        summary_scrollbar = create_scrollbar(
+            summary_container,
+            orient="vertical",
+            command=self.summary_textbox.yview,
+        )
+        self.summary_textbox.configure(yscrollcommand=summary_scrollbar.set)
+        summary_scrollbar.pack(side="right", fill="y")
 
         # Template button
-        template_btn_frame = Frame(self)
+        template_btn_frame = Frame(self.content_container, bg=background_color)
         template_btn_frame.pack(fill="x", pady=(10, 0))
 
         Button(
@@ -155,7 +215,7 @@ class ConfirmationStep(WizardStep):
 
         # Help text
         help_text = Label(
-            self,
+            self.content_container,
             text=(
                 "💡 Dica: Verifique todas as configurações antes de criar o "
                 "projeto. Você pode salvar como template para reutilizar."
@@ -163,6 +223,7 @@ class ConfirmationStep(WizardStep):
             fg="gray",
             wraplength=500,
             justify="left",
+            bg=background_color,
         )
         help_text.pack(pady=(10, 0))
 
@@ -238,7 +299,26 @@ class ConfirmationStep(WizardStep):
             self._append_roi_strategy(lines)
 
         self.summary_text = "\n".join(lines)
-        self.summary_label.config(text=self.summary_text)
+        if hasattr(self, "summary_textbox") and self.summary_textbox:
+            self.summary_textbox.configure(state="normal")
+            self.summary_textbox.delete("1.0", "end")
+            self.summary_textbox.insert("1.0", self.summary_text)
+            self.summary_textbox.configure(state="disabled")
+            self.summary_textbox.yview_moveto(0.0)
+
+    def _bind_mousewheel(self, _event):
+        self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event):
+        self.scroll_canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event):
+        delta = int(-1 * (event.delta / 120))
+        self.scroll_canvas.yview_scroll(delta, "units")
+
+    def on_hide(self):
+        """Clear scroll bindings when step is hidden."""
+        self._unbind_mousewheel(None)
 
     # ------------------------------------------------------------------
     # Summary helper methods (split from _generate_summary)

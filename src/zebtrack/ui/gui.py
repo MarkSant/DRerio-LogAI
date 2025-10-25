@@ -3,6 +3,7 @@ Este módulo define a interface gráfica principal (GUI) para a aplicação Zebt
 """
 
 import copy
+import hashlib
 import os
 import queue
 import re
@@ -32,7 +33,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Iterable
 
 import cv2
 import numpy as np
@@ -6056,6 +6057,81 @@ class ApplicationGUI:
 
         return final_selection
 
+    def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | None) -> list[str]:
+        """Translate unified tab selections into concrete video paths."""
+        if not selection:
+            return []
+
+        widget = getattr(self, "processing_reports_widget", None)
+        tree = getattr(widget, "tree", None)
+        if not tree:
+            return []
+
+        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
+        final_paths: list[str] = []
+        seen_paths: set[str] = set()
+        resolved_video_nodes: list[str] = []
+        had_hierarchy_nodes = False
+
+        def add_video_path(video_path: str | None, node_id: str | None = None) -> None:
+            if not video_path or video_path in seen_paths:
+                return
+            seen_paths.add(video_path)
+            final_paths.append(video_path)
+            if node_id and node_id not in resolved_video_nodes and tree.exists(node_id):
+                resolved_video_nodes.append(node_id)
+
+        def add_video_node(item_id: str) -> None:
+            metadata = metadata_store.get(item_id)
+            if not metadata:
+                return
+            node_type = metadata.get("type")
+            if node_type == "video":
+                add_video_path(metadata.get("video_path"), item_id)
+            elif node_type == "file":
+                parent_video = metadata.get("parent_video")
+                if parent_video:
+                    add_video_path(parent_video, f"video_{parent_video}")
+
+        def collect_descendants(item_id: str) -> None:
+            if not tree.exists(item_id):
+                return
+            try:
+                tree.item(item_id, open=True)
+            except Exception:
+                pass
+            for child in tree.get_children(item_id):
+                child_type = metadata_store.get(child, {}).get("type")
+                if child_type == "video":
+                    add_video_node(child)
+                elif child_type == "file":
+                    add_video_node(child)
+                else:
+                    collect_descendants(child)
+
+        for item_id in selection:
+            if not item_id:
+                continue
+            if not tree.exists(item_id):
+                continue
+
+            metadata = metadata_store.get(item_id)
+            if metadata and metadata.get("type") == "video":
+                add_video_node(item_id)
+            elif metadata and metadata.get("type") == "file":
+                add_video_node(item_id)
+            else:
+                had_hierarchy_nodes = True
+                collect_descendants(item_id)
+
+        if had_hierarchy_nodes and resolved_video_nodes:
+            try:
+                tree.selection_set(tuple(resolved_video_nodes))
+            except Exception:
+                pass
+
+        return final_paths
+
     def _on_pipeline_selection_changed(self, event=None) -> None:
         del event
         selections = self._get_selected_pipeline_video_paths()
@@ -6092,18 +6168,34 @@ class ApplicationGUI:
                 state="normal" if all_have_trajectory else "disabled"
             )
 
-    def _trigger_batch_trajectory_processing(self) -> None:
-        selections = self._get_selected_pipeline_video_paths()
-        if not selections:
-            if not self.pipeline_video_vars:
+    def _trigger_batch_trajectory_processing(
+        self, selection: Iterable[str] | None = None
+    ) -> None:
+        if selection is None:
+            selections = self._get_selected_pipeline_video_paths()
+            if not selections:
+                pipeline_vars = getattr(self, "pipeline_video_vars", {}) or {}
+                if not pipeline_vars:
+                    self.show_info(
+                        "Processamento",
+                        "Nenhum vídeo elegível foi encontrado com arena válida.",
+                    )
+                    return
+                selections = list(pipeline_vars.keys())
+        else:
+            selections = self._resolve_processing_reports_video_paths(selection)
+            if not selections:
                 self.show_info(
                     "Processamento",
-                    "Nenhum vídeo elegível foi encontrado com arena válida.",
+                    "Selecione vídeos com arena e ROIs definidas para gerar trajetórias.",
                 )
                 return
-            selections = list(self.pipeline_video_vars.keys())
 
-        self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {"video_paths": selections})
+        unique_paths = list(dict.fromkeys(selections))
+        if not unique_paths:
+            return
+
+        self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths})
         self._request_overview_refresh()
         # Switch to analysis tab to show progress of the newly requested batch.
         self._switch_to_analysis_view()
@@ -7200,16 +7292,10 @@ class ApplicationGUI:
             self.video_selector_tree.delete(item)
 
         # Configure readiness color tags
-        self.video_selector_tree.tag_configure(
-            "ready_full", background="#d4edda", foreground="#1e4620"
-        )
-        self.video_selector_tree.tag_configure(
-            "ready_partial", background="#fff3cd", foreground="#5c470b"
-        )
-        self.video_selector_tree.tag_configure(
-            "ready_missing", background="#f8d7da", foreground="#842029"
-        )
-        self.video_selector_tree.tag_configure("ready_optional", foreground="#5f4b00")
+        self.video_selector_tree.tag_configure("ready_full", foreground="#166534")
+        self.video_selector_tree.tag_configure("ready_partial", foreground="#b45309")
+        self.video_selector_tree.tag_configure("ready_missing", foreground="#b91c1c")
+        self.video_selector_tree.tag_configure("ready_optional", foreground="#0369a1")
 
         controller = getattr(self, "controller", None)
         if not controller or not controller.project_manager:
@@ -7385,7 +7471,7 @@ class ApplicationGUI:
 
         _assign(ready_with_trajectory, "ready_full")
         _assign(ready_with_zones, "ready_partial")
-        _assign(arena_only, "ready_partial", "ready_optional")
+        _assign(arena_only, "ready_optional", "ready_partial")
         _assign(without_arena, "ready_missing")
 
         self._pending_readiness_snapshot = mapping
@@ -7589,6 +7675,7 @@ class ApplicationGUI:
         # Create the widget with callbacks
         self.processing_reports_widget = ProcessingReportsWidget(
             self.processing_reports_tab_frame,
+            event_bus=self.event_bus,
             on_generate_trajectories=self._trigger_batch_trajectory_processing,
             on_export_summaries=self._trigger_parquet_summaries,
             on_generate_partial_report=self._on_processing_reports_generate_partial,
@@ -7905,6 +7992,12 @@ class ApplicationGUI:
         else:
             return "status_missing"  # None complete - red
 
+    def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
+        """Create a stable item id for report artifacts while avoiding duplicates."""
+        digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
+        digest = hashlib.sha1(digest_source).hexdigest()[:16]
+        return f"file_{digest}"
+
     def _append_processing_reports_artifacts(
         self, widget, parent_id: str, entry: dict, video_path: str
     ) -> None:
@@ -7948,8 +8041,13 @@ class ApplicationGUI:
         if not artifacts:
             return
 
+        tree = widget.tree
+
         for _kind, artifact_path, label in artifacts:
-            child_id = f"file_{artifact_path}"
+            child_id = self._build_processing_report_artifact_id(parent_id, artifact_path)
+            if tree and tree.exists(child_id):
+                continue
+
             widget.add_tree_item(
                 item_id=child_id,
                 text=label,
@@ -7972,6 +8070,10 @@ class ApplicationGUI:
 
         This method is kept for backward compatibility.
         """
+        if not hasattr(self, "reports_tree") or self.reports_tree is None:
+            log.debug("gui.update_reports.legacy_tree_missing")
+            return
+
         # Clear existing tree
         for item in self.reports_tree.get_children():
             self.reports_tree.delete(item)

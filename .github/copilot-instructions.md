@@ -1,23 +1,26 @@
-# ZebTrack-AI Agent Guide
-- **Product**: Desktop Tkinter app branded DRerio LogAI; Python package stays `zebtrack`.
-- **Architecture**: MVVM; `MainViewModel` orchestrates, `StateManager` holds observable state, UI components in `zebtrack.ui` publish events over `EventBus`.
-- **Pipeline**: `io/video_source.py` → `core/detector.py` (zone state machine + optional Arduino) → `io/recorder.py` (Parquet/MP4) → `analysis/` (`analysis_service.py`, `behavior.py`, `reporter.py`).
-- **Run**: `poetry install`; `poetry run zebtrack` (or `python -m zebtrack`) launches GUI.
-- **Lint**: `poetry run ruff check .` (line length 100); use `--fix` when safe.
-- **Tests**: `poetry run pytest -q` for fast suite; GUI needs `pytest -m gui -n0`; slow via `-m slow`; minimum coverage 70%.
-- **Key Files**: `src/zebtrack/core/main_view_model.py`, `core/state_manager.py`, `core/detector.py`, `analysis/analysis_service.py`, `ui/gui.py`, `ui/wizard/`, `io/recorder.py`, `settings.py`.
-- **Settings**: Always import with `from zebtrack import settings`; hierarchy `config.yaml` → `config.local.yaml`; Pydantic v2 with `extra="forbid"`.
-- **Parquet Schema**: Keep order `timestamp, frame, track_id, x1, y1, x2, y2, confidence` plus optional centers/cm at the end; see `io/recorder.py` and `tests/test_recorder.py`.
-- **Zones**: Calling `Detector.set_zones()` after real video dimensions is mandatory to rescale coordinates (defined against `camera.desired_width/height`).
-- **UI Thread**: All Tk updates must go through `root.after(0, ...)`; heavy work stays in background threads; `StateManager` is thread-safe for cross-thread updates.
-- **Wizard**: 5-step default flow in `ui/wizard/`; adapter `wizard_adapter.py` keeps legacy controller format; keep layout within 1150×550 window.
-- **Hardware Detection**: Startup calls `utils/hardware_detection.get_hardware_summary()` to pick PyTorch vs OpenVINO; warn if OpenVINO weights missing XML; hardware summary shown under "Estado do Modelo de Detecção".
-- **Weights**: Manage via `core/weight_manager.py`; segmentation vs detection defaults tracked separately; OpenVINO cache under `openvino_model_cache/`.
-- **Logging**: Use structlog with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
-- **Project Data**: `ProjectManager` persists ROI templates, interval settings, and plans; results live under `<video>_results/` with files prefixed `1_`, `2_`, `3_`, plus summary/report.
-- **Intervals**: Respect `analysis_interval_frames` and `display_interval_frames` in project data; tests in `tests/test_interval_frames_config.py`.
-- **Events**: UI components emit named events; default queue disabled (`ui_features.enable_event_queue: false`), so wire handlers directly in `MainViewModel`.
-- **Plugins**: Detector plugins implement `plugins/base.py`; register in `plugins/__init__.py`; handle missing `track_id` gracefully.
-- **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
-- **Before Editing**: Skim nearest tests (wizard, overlay, recorder) and docs in `docs/ARCHITECTURE.md` or `TRANSITION_NOTE.md` when changing flows or naming.
-- **When in Doubt**: Prefer extending existing services or adapters rather than bypassing `StateManager`; keep UI thread clean.
+# ZebTrack-AI Agent Playbook
+- **Product**: Desktop Tkinter app branded DRerio LogAI; Python package `zebtrack`.
+- **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
+- **Docs first**: Validate changes against `docs/ARCHITECTURE.md`, `TRANSITION_NOTE.md`, `docs/REFERENCE_GUIDE.md` before rerouting flows.
+- **Config**: Load global settings via `from zebtrack import settings`; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`.
+- **Architecture**: MVVM—`MainViewModel` orchestrates services+UI, `StateManager` tracks observable state, `EventBus` only enabled when `settings.ui_features.enable_event_queue` is true.
+- **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4.
+- **UI**: Tk widgets under `zebtrack.ui` never block main thread; schedule updates with `root.after(0, ...)` or via `core/ui_coordinator.UICoordinator`.
+- **Wizard**: `ui/wizard/` drives the 5-step project setup through `core/project_workflow_service.ProjectWorkflowService`; respect 1150×550 layout and keep SKIP/IMPORT/PARTIAL/FULL semantics.
+- **Project data**: `core/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
+- **Processing modes**: `core/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
+- **Hardware**: Startup runs `utils/hardware_detection.get_hardware_summary()` and `recommend_backend()`; OpenVINO auto-enabled only if `WeightManager` reports converted XML under `openvino_model_cache/`.
+- **Logging**: Use `structlog` with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
+- **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`.
+- **Analysis**: `analysis/analysis_service.py` coordinates ROI metrics (`analysis/behavior.py`) and reporting (`analysis/reporter.py`); aggregated outputs saved under `<video>_results/` prefixed `1_`, `2_`, `3_`.
+- **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `ui/gui.py`’s `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
+- **Plugins**: Implement detectors via `plugins/base.py` and register in `plugins/__init__.py`; handle missing `track_id` gracefully for integrations.
+- **Testing**: `poetry run pytest -q` for fast suite, `poetry run pytest -m gui -n0` for Tk tests, `poetry run pytest -m slow` when needed; minimum 70% coverage tracked in CI.
+- **Scenario coverage**: Consult fixtures in `tests/fixtures/` and flows in `tests/test_wizard_*.py`, `tests/test_interval_frames_config.py`, `test_scenarios/` for realistic data.
+- **Lint & Format**: `poetry run ruff check .` (line length 100); use `--fix` carefully.
+- **Pre-commit**: `poetry run pre-commit install` then `poetry run pre-commit run --all-files` mirrors CI checks.
+- **Scripts**: Tools like `scripts/build_templates.py` and `scripts/compile_translations.py` refresh shared assets; run before release branches.
+- **Thread safety**: `StateManager` is thread-safe for cross-thread updates; still pass updates through it instead of mutating view state directly.
+- **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, or writing new columns mid-Parquet breaks downstream analytics—existing tests catch these.
+- **When extending**: Prefer augmenting services/adapters (e.g., `ProjectWorkflowService`, `DetectorService`) over bypassing them to keep UI/state synchronization intact.
+- **Support**: If unexpected user edits exist, coordinate rather than reverting; log domain events using existing patterns.

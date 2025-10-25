@@ -10,7 +10,11 @@
       "Bash(findstr:*)",
       "Bash(Select-Object -Last 30)",
       "Bash(poetry show:*)",
-      "Bash(poetry run ruff check:*)"
+      "Bash(poetry run ruff check:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
