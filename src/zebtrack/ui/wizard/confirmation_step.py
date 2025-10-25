@@ -66,6 +66,7 @@ class ConfirmationStep(WizardStep):
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
+        self._responsive_labels: list[Label] = []
 
     def build_ui(self):
         """Build confirmation step UI."""
@@ -98,14 +99,12 @@ class ConfirmationStep(WizardStep):
             (0, 0), window=self.content_frame, anchor="nw"
         )
 
-        self.scroll_canvas.bind(
-            "<Configure>", lambda event: self.scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
-        )
+        self.scroll_canvas.bind("<Configure>", self._on_canvas_configure)
         self.scroll_canvas.bind("<Enter>", self._bind_mousewheel)
         self.scroll_canvas.bind("<Leave>", self._unbind_mousewheel)
 
         self.content_container = Frame(self.content_frame, bg=background_color)
-        self.content_container.pack(fill="both", expand=True, padx=8, pady=8)
+        self.content_container.pack(fill="both", expand=True, padx=16, pady=12)
 
         # Title
         title_font = tkfont.Font(size=14, weight="bold")
@@ -121,20 +120,22 @@ class ConfirmationStep(WizardStep):
             self.content_container,
             text="Revise as configurações e crie seu projeto.",
             fg="gray",
-            wraplength=500,
+            wraplength=720,
             bg=background_color,
         )
         subtitle.pack(pady=(0, 20))
+        self._responsive_labels.append(subtitle)
 
         self.template_info_label = Label(
             self.content_container,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=500,
+            wraplength=720,
             justify="left",
             bg=background_color,
         )
         self.template_info_label.pack_forget()
+        self._responsive_labels.append(self.template_info_label)
         self._update_template_banner()
 
         # Project name
@@ -180,18 +181,19 @@ class ConfirmationStep(WizardStep):
         summary_frame = LabelFrame(
             self.content_container, text="Resumo do Projeto", padx=10, pady=10
         )
-        summary_frame.pack(fill="both", expand=True, pady=(0, 10))
+        summary_frame.pack(fill="both", expand=True, pady=(0, 10), padx=4)
 
         summary_container = Frame(summary_frame)
         summary_container.pack(fill="both", expand=True)
 
         self.summary_textbox = Text(
             summary_container,
-            height=16,
+            height=20,
             wrap="word",
             state="disabled",
             relief="flat",
         )
+        self.summary_textbox.configure(width=0)
         self.summary_textbox.pack(side="left", fill="both", expand=True)
 
         summary_scrollbar = create_scrollbar(
@@ -221,17 +223,37 @@ class ConfirmationStep(WizardStep):
                 "projeto. Você pode salvar como template para reutilizar."
             ),
             fg="gray",
-            wraplength=500,
+            wraplength=720,
             justify="left",
             bg=background_color,
         )
         help_text.pack(pady=(10, 0))
+        self._responsive_labels.append(help_text)
+
+        self.after(0, self._initial_wrap_refresh)
 
     def on_show(self):
         """Called when step becomes visible - generate summary."""
         self._generate_default_project_name()
         self._generate_summary()
         self._update_template_banner()
+
+    def _on_canvas_configure(self, event):
+        self.scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
+        self._update_wraplengths(event.width)
+
+    def _initial_wrap_refresh(self) -> None:
+        if not self.winfo_exists():
+            return
+        width = self.scroll_canvas.winfo_width() or self.winfo_width()
+        if width:
+            self._update_wraplengths(width)
+
+    def _update_wraplengths(self, canvas_width: int) -> None:
+        usable = max(canvas_width - 60, 480)
+        for label in self._responsive_labels:
+            if label and label.winfo_exists():
+                label.configure(wraplength=usable)
 
     def _generate_default_project_name(self):
         """Generate default project name based on project type."""
@@ -286,6 +308,8 @@ class ConfirmationStep(WizardStep):
         else:
             # Pre-recorded specifics
             self._append_detected_design(lines)
+            self._append_custom_regex_info(lines)
+            self._append_detection_settings(lines)
             self._append_folder_preview(lines)
 
         # Calibration
@@ -334,6 +358,8 @@ class ConfirmationStep(WizardStep):
             lines.append(f"  • {banner_text.replace('Template carregado: ', '')}")
         if metadata.get("created_at"):
             lines.append(f"  • Criado em: {metadata['created_at']}")
+        if metadata.get("schema_version"):
+            lines.append(f"  • Versão do template: {metadata['schema_version']}")
         lines.append("")
 
     def _append_project_type(self, lines: list[str], project_type: str) -> None:
@@ -446,6 +472,88 @@ class ConfirmationStep(WizardStep):
             lines.append(f"  • Dias: {len(days)}")
 
         lines.append(f"  • Confiança: {confidence:.0%}")
+
+    def _append_custom_regex_info(self, lines: list[str]) -> None:
+        patterns = self.wizard_data.get("custom_regex_patterns") or {}
+        if not any(patterns.values()):
+            return
+
+        label_map = {
+            "group_pattern": "Grupos",
+            "day_pattern": "Dias",
+            "subject_pattern": "Sujeitos",
+        }
+
+        lines.append("")
+        lines.append("🧩 Regex Personalizada:")
+        for key, label in label_map.items():
+            value = patterns.get(key)
+            if value:
+                lines.append(f"  • {label}: {value}")
+            else:
+                lines.append(f"  • {label}: —")
+
+    def _append_detection_settings(self, lines: list[str]) -> None:
+        model_selection = self.wizard_data.get("model_selection") or {}
+        weight_assignments = self.wizard_data.get("weight_assignments") or {}
+        detector_params = self.wizard_data.get("detector_parameters") or {}
+        use_openvino = self.wizard_data.get("use_openvino")
+
+        if not (model_selection or weight_assignments or detector_params or use_openvino is not None):
+            return
+
+        method_labels = {
+            "seg": "Segmentação (seg)",
+            "det": "Detecção (det)",
+        }
+
+        lines.append("")
+        lines.append("🎯 Configurações de Detecção:")
+
+        aquarium_method = model_selection.get("aquarium_method")
+        animal_method = model_selection.get("animal_method")
+        if aquarium_method or animal_method:
+            aquarium_label = method_labels.get(aquarium_method, aquarium_method)
+            animal_label = method_labels.get(animal_method, animal_method)
+            if aquarium_label:
+                lines.append(f"  • Método aquário: {aquarium_label}")
+            if animal_label:
+                lines.append(f"  • Método animais: {animal_label}")
+
+        if weight_assignments:
+            aquarium_weight = weight_assignments.get("aquarium")
+            animal_weight = weight_assignments.get("animal")
+            if aquarium_weight:
+                lines.append(f"  • Peso aquário: {aquarium_weight}")
+            if animal_weight:
+                lines.append(f"  • Peso animais: {animal_weight}")
+
+        if use_openvino is not None:
+            status = "Ativado" if use_openvino else "Desativado"
+            lines.append(f"  • OpenVINO: {status}")
+
+        if detector_params:
+            conf = detector_params.get("confidence_threshold")
+            nms = detector_params.get("nms_threshold")
+            track = detector_params.get("track_threshold")
+            match = detector_params.get("match_threshold")
+            if all(value is not None for value in (conf, nms, track, match)):
+                lines.append(
+                    f"  • Thresholds: conf={conf:.2f}, NMS={nms:.2f}, "
+                    f"track={track:.2f}, match={match:.2f}"
+                )
+            else:
+                threshold_bits = []
+                if conf is not None:
+                    threshold_bits.append(f"conf={conf:.2f}")
+                if nms is not None:
+                    threshold_bits.append(f"NMS={nms:.2f}")
+                if track is not None:
+                    threshold_bits.append(f"track={track:.2f}")
+                if match is not None:
+                    threshold_bits.append(f"match={match:.2f}")
+                if threshold_bits:
+                    lines.append(f"  • Thresholds: {', '.join(threshold_bits)}")
 
     def _append_folder_preview(self, lines: list[str]) -> None:
         video_count = self.wizard_data.get("video_count", 0)

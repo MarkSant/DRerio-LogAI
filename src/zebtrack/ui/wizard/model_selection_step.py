@@ -29,6 +29,8 @@ _METHOD_OPTIONS: dict[str, str] = {
 class ModelSelectionStep(WizardStep):
     """Allow users to review or adjust model strategy, weight usage, and thresholds."""
 
+    _responsive_labels: dict[str, list[Label]]
+
     def __init__(self, parent, wizard_data: dict):
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.MODEL_SELECTION
@@ -52,10 +54,15 @@ class ModelSelectionStep(WizardStep):
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
         self.animal_method_hint_var = StringVar(value="")
+        self._responsive_labels: dict[str, list[Label]] = {"left": [], "right": []}
 
         self._aquarium_weight_combo: ttk.Combobox | None = None
         self._animal_weight_combo: ttk.Combobox | None = None
         self._methods_frame: LabelFrame | None = None
+        self._content_frame: ttk.Frame | None = None
+        self._left_column: ttk.Frame | None = None
+        self._right_column: ttk.Frame | None = None
+        self._columns_stacked = False
 
         # Validation tracking: Entry widgets and error labels
         self._threshold_entries: dict[str, ttk.Entry] = {}
@@ -177,22 +184,41 @@ class ModelSelectionStep(WizardStep):
                 "Se preferir, mantenha os padrões recomendados e avance."
             ),
             fg="gray",
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         subtitle.pack(pady=(0, 15))
+        self._responsive_labels["left"].append(subtitle)
+
+        content_frame = ttk.Frame(self)
+        content_frame.pack(fill="both", expand=True, padx=10)
+        content_frame.columnconfigure(0, weight=3, minsize=420)
+        content_frame.columnconfigure(1, weight=2, minsize=300)
+        content_frame.rowconfigure(0, weight=1)
+        self._content_frame = content_frame
+
+        left_column = ttk.Frame(content_frame)
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        left_column.columnconfigure(0, weight=1)
+        self._left_column = left_column
+
+        right_column = ttk.Frame(content_frame)
+        right_column.grid(row=0, column=1, sticky="nsew")
+        right_column.columnconfigure(0, weight=1)
+        self._right_column = right_column
 
         self.template_info_label = Label(
-            self,
+            left_column,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         self.template_info_label.pack_forget()
+        self._responsive_labels["left"].append(self.template_info_label)
 
         methods_frame = LabelFrame(
-            self,
+            left_column,
             text="Métodos e Pesos por Função",
             padx=15,
             pady=10,
@@ -222,13 +248,14 @@ class ModelSelectionStep(WizardStep):
             methods_frame,
             textvariable=self.animal_method_hint_var,
             fg="#bb6600",
-            wraplength=480,
+            wraplength=520,
             justify="left",
         )
         animal_hint.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        self._responsive_labels["left"].append(animal_hint)
 
         acceleration_frame = LabelFrame(
-            self,
+            left_column,
             text="Aceleração / OpenVINO",
             padx=15,
             pady=10,
@@ -248,7 +275,7 @@ class ModelSelectionStep(WizardStep):
         )
 
         detector_frame = LabelFrame(
-            self,
+            left_column,
             text="Parâmetros do Detector",
             padx=15,
             pady=10,
@@ -339,10 +366,11 @@ class ModelSelectionStep(WizardStep):
                 f"associação {DEFAULT_MATCH_THRESHOLD:.2f}."
             ),
             fg="#555555",
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         defaults_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        self._responsive_labels["left"].append(defaults_label)
 
         # Restore defaults button
         from tkinter import Button
@@ -367,25 +395,26 @@ class ModelSelectionStep(WizardStep):
         )
 
         footer = Label(
-            self,
+            left_column,
             text=(
                 "Dica: mantenha os padrões se ainda estiver configurando os vídeos."
                 " Você pode revisar esses valores depois nas configurações do projeto."
             ),
             fg="#555555",
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         footer.pack(fill="x", pady=(5, 0))
+        self._responsive_labels["left"].append(footer)
 
         # Visual guide section
         guide_frame = LabelFrame(
-            self,
+            right_column,
             text="📊 Guia Rápido: Quando Ajustar os Thresholds",
             padx=15,
             pady=10,
         )
-        guide_frame.pack(fill="x", pady=(15, 0))
+        guide_frame.pack(fill="both", expand=True)
 
         guide_text = Label(
             guide_frame,
@@ -411,9 +440,10 @@ class ModelSelectionStep(WizardStep):
             fg="#333333",
             justify="left",
             font=("TkDefaultFont", 9),
-            wraplength=520,
+            wraplength=360,
         )
-        guide_text.pack(anchor="w")
+        guide_text.pack(anchor="w", fill="both", expand=True)
+        self._responsive_labels["right"].append(guide_text)
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)
@@ -424,6 +454,9 @@ class ModelSelectionStep(WizardStep):
 
         # Setup validation callbacks after UI is built
         self._setup_validation_callbacks()
+        self.bind("<Configure>", self._on_resize)
+        # Trigger an initial layout recalculation once geometry settles.
+        self.after(0, self._refresh_layout_mode)
 
     def _build_method_row(
         self,
@@ -661,10 +694,74 @@ class ModelSelectionStep(WizardStep):
         else:
             self.animal_method_hint_var.set("")
 
+    def _on_resize(self, event) -> None:
+        """Adjust wraplengths to keep text readable when the dialog resizes."""
+
+        if event.widget is not self:
+            return
+
+        total_width = max(event.width, 600)
+        should_stack = total_width < 900
+        if should_stack != self._columns_stacked:
+            self._columns_stacked = should_stack
+            self._apply_column_layout()
+
+        if should_stack:
+            left_width = max(360, total_width - 60)
+            right_width = left_width
+        else:
+            left_width = max(360, int(total_width * 0.6))
+            right_width = max(240, total_width - left_width - 80)
+
+        for label in self._responsive_labels.get("left", []):
+            if label and label.winfo_exists():
+                label.configure(wraplength=max(320, left_width - 40))
+
+        for label in self._responsive_labels.get("right", []):
+            if label and label.winfo_exists():
+                label.configure(wraplength=max(220, right_width - 40))
+
+    def _apply_column_layout(self) -> None:
+        """Reflow primary columns when switching between stacked and side-by-side modes."""
+
+        content = self._content_frame
+        left = self._left_column
+        right = self._right_column
+
+        if not content or not left or not right:
+            return
+
+        if self._columns_stacked:
+            content.columnconfigure(0, weight=1, minsize=0)
+            content.columnconfigure(1, weight=0, minsize=0)
+            content.rowconfigure(0, weight=0)
+            content.rowconfigure(1, weight=1)
+            left.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 0), pady=0)
+            right.grid_configure(row=1, column=0, sticky="nsew", padx=(0, 0), pady=(15, 0))
+        else:
+            content.columnconfigure(0, weight=3, minsize=420)
+            content.columnconfigure(1, weight=2, minsize=300)
+            content.rowconfigure(0, weight=1)
+            content.rowconfigure(1, weight=0)
+            left.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 15), pady=0)
+            right.grid_configure(row=0, column=1, sticky="nsew", padx=0, pady=0)
+
+    def _refresh_layout_mode(self) -> None:
+        """Force a layout recalculation using the current widget width."""
+
+        try:
+            width = self.winfo_width()
+        except Exception:
+            return
+        fake_event = type("_Evt", (), {"widget": self, "width": width})
+        self._on_resize(fake_event)
+
     # ------------------------------------------------------------------
     # Wizard lifecycle overrides
     # ------------------------------------------------------------------
     def on_show(self) -> None:
+        # Refresh UI from shared wizard data so templates/back navigation stay in sync
+        self._prefill_from_wizard_data()
         self._update_template_banner()
         self._refresh_weight_dropdowns()
         self._update_animal_method_hint()

@@ -942,6 +942,9 @@ class MainViewModel:
 
         # Setup detector with the resolved animal method
         if self.setup_detector(temp_animal_method=animal_method):
+            if wizard_metadata:
+                self._apply_wizard_detector_overrides(wizard_metadata)
+
             # Update UI
             self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
             self.ui_event_bus.publish_event(
@@ -960,6 +963,55 @@ class MainViewModel:
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro", "message": "Falha ao configurar o detector."},
             )
+
+    def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
+        """Apply detector parameter overrides captured during the wizard flow."""
+
+        if not wizard_metadata:
+            return
+
+        detector_params = wizard_metadata.get("detector_parameters")
+        if not isinstance(detector_params, dict):
+            log.debug(
+                "controller.wizard.detector_params.skipped",
+                reason="metadata_missing_or_invalid",
+            )
+            return
+
+        normalized_params: dict[str, float] = {}
+        for key in ("confidence_threshold", "nms_threshold", "track_threshold", "match_threshold"):
+            raw_value = detector_params.get(key)
+            if raw_value is None:
+                continue
+            try:
+                normalized_params[key] = float(raw_value)
+            except (TypeError, ValueError):
+                log.warning(
+                    "controller.wizard.detector_params.invalid_value",
+                    key=key,
+                    value=raw_value,
+                )
+
+        if not normalized_params:
+            return
+
+        try:
+            success = self.update_detector_parameters(normalized_params, scope="project")
+        except Exception as exc:  # pragma: no cover - defensive guard
+            log.warning(
+                "controller.wizard.detector_params.apply_failed",
+                error=str(exc),
+                params=normalized_params,
+                exc_info=True,
+            )
+            return
+
+        event_name = (
+            "controller.wizard.detector_params.applied"
+            if success
+            else "controller.wizard.detector_params.no_change"
+        )
+        log.info(event_name, params=normalized_params)
 
     def _show_post_creation_guide(self, wizard_metadata: dict):
         """

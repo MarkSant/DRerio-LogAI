@@ -4,6 +4,7 @@ Wizard Template System
 Allows saving and loading project configuration templates for quick project creation.
 """
 
+from copy import deepcopy
 import json
 from datetime import datetime
 from pathlib import Path
@@ -13,16 +14,23 @@ import structlog
 log = structlog.get_logger()
 
 
+TEMPLATE_SCHEMA_VERSION = 2
+
+
 class TemplateManager:
     """
     Manages wizard configuration templates.
 
     Templates are saved as JSON files in the user's config directory.
-    Each template contains:
-    - Project type (experimental/exploratory)
+    Each template tracks a schema version and contains the key wizard
+    preferences:
+    - Project type (experimental/exploratory/live)
     - Calibration settings (dimensions, animal count)
+    - Analysis interval configuration
     - Design information (groups, days)
-    - Parquet import scope
+    - Parquet import scope and regex patterns
+    - Model selection preferences (methods, weights, OpenVINO)
+    - Detector thresholds (confidence/NMS/ByteTrack)
     """
 
     def __init__(self, templates_dir: Path | None = None):
@@ -71,6 +79,8 @@ class TemplateManager:
 
             # Extract relevant fields for template
             template = {
+                "schema_version": TEMPLATE_SCHEMA_VERSION,
+                "wizard_schema_version": wizard_data.get("wizard_schema_version"),
                 "name": name,
                 "created_at": datetime.now().isoformat(),
                 "project_type": wizard_data.get("project_type"),
@@ -78,9 +88,15 @@ class TemplateManager:
                 "animals_per_aquarium": wizard_data.get("animals_per_aquarium", 1),
                 "aquarium_width_cm": wizard_data.get("aquarium_width_cm", 10.0),
                 "aquarium_height_cm": wizard_data.get("aquarium_height_cm", 10.0),
+                "analysis_interval_frames": wizard_data.get("analysis_interval_frames"),
+                "display_interval_frames": wizard_data.get("display_interval_frames"),
                 "parquet_import_scope": wizard_data.get("parquet_import_scope"),
-                "detected_design": wizard_data.get("detected_design"),
-                "custom_regex_patterns": wizard_data.get("custom_regex_patterns"),
+                "detected_design": deepcopy(wizard_data.get("detected_design")),
+                "custom_regex_patterns": deepcopy(wizard_data.get("custom_regex_patterns")),
+                "model_selection": deepcopy(wizard_data.get("model_selection")),
+                "weight_assignments": deepcopy(wizard_data.get("weight_assignments")),
+                "detector_parameters": deepcopy(wizard_data.get("detector_parameters")),
+                "use_openvino": wizard_data.get("use_openvino"),
             }
 
             # Write template to file

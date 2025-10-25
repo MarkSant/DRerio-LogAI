@@ -223,12 +223,22 @@ class DiagnosticProgressDialog(Toplevel):
 
 
 class CalibrationDialog(simpledialog.Dialog):
-    """Dialog for model calibration and diagnostics."""
+    """Dialog for model calibration, diagnostics, and project preferences."""
+
+    WEIGHT_INHERIT_LABEL = "Herdar (padrão global)"
+    OPENVINO_INHERIT = "inherit"
+    OPENVINO_ON = "on"
+    OPENVINO_OFF = "off"
 
     def __init__(self, parent, controller):
         self.controller = controller
+        self.project_manager = controller.project_manager
 
-        # Local Tkinter variables for this dialog
+        self.calibration_section: ttk.Frame | None = None
+        self.preferences_section: ttk.Frame | None = None
+        self.preferences_separator: ttk.Separator | None = None
+
+        # Local Tkinter variables for calibration tab
         self.active_weight_var = StringVar()
         self.use_openvino_var = BooleanVar()
         self.openvino_status_var = StringVar()
@@ -236,13 +246,13 @@ class CalibrationDialog(simpledialog.Dialog):
         self.scope = self.scope_info.get("scope", "global")
         self.scope_label_var = StringVar(value=self.scope_info["label"])
         self.scope_detail_var = StringVar(value=self.scope_info["detail"])
-        self.scope_action_button = None
+        self.scope_action_button: ttk.Button | None = None
         self.weights_dropdown: ttk.Combobox | None = None
         self.openvino_checkbox: ttk.Checkbutton | None = None
         self.openvino_status_label: ttk.Label | None = None
         self.model_test_dropdown: ttk.Combobox | None = None
 
-        # --- Vars for diagnostic ---
+        # Diagnostic variables
         self.frames_to_analyze_var = StringVar(value="10")
         self.confidence_threshold_var = StringVar(value="0.25")
         self.nms_threshold_var = StringVar(value="0.50")
@@ -252,9 +262,22 @@ class CalibrationDialog(simpledialog.Dialog):
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
 
+        # Preferences tab state
+        self.weight_choice = StringVar(value=self.WEIGHT_INHERIT_LABEL)
+        self.openvino_choice = StringVar(value=self.OPENVINO_INHERIT)
+        self.effective_weight_var = StringVar()
+        self.effective_openvino_var = StringVar()
+        self.preferences_weight_dropdown: ttk.Combobox | None = None
+
         self._prefill_detector_parameters()
 
-        super().__init__(parent, "Calibração e Diagnóstico")
+        dialog_title = (
+            "Calibração e Preferências do Projeto"
+            if self.scope_info.get("scope") == "project"
+            else "Calibração e Diagnóstico"
+        )
+
+        super().__init__(parent, dialog_title)
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
@@ -262,12 +285,44 @@ class CalibrationDialog(simpledialog.Dialog):
         try:
             set_window_icon(self)
         except Exception:
-            # Handle cases where the dialog is destroyed before the icon is set
             log.warning("icon.set.failed", exc_info=True)
 
     def body(self, master):
         schedule_maximize(self)
-        scope_frame = ttk.LabelFrame(master, text="Contexto da Calibração", padding=10)
+
+        container = ttk.Frame(master, padding=0)
+        container.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.calibration_section = ttk.Frame(container)
+        self.calibration_section.pack(fill="both", expand=True)
+
+        self.preferences_separator = ttk.Separator(container, orient="horizontal")
+        self.preferences_separator.pack(fill="x", pady=(12, 0))
+
+        self.preferences_section = ttk.Frame(container)
+        self.preferences_section.pack(fill="both", expand=True, pady=(12, 0))
+
+        self._refresh_scope_context()
+
+        return self.calibration_section
+
+    @staticmethod
+    def _clear_frame(frame: ttk.Frame) -> None:
+        for child in frame.winfo_children():
+            child.destroy()
+
+    def _build_calibration_section(self) -> None:
+        if not self.calibration_section:
+            return
+
+        self._clear_frame(self.calibration_section)
+        self.scope_action_button = None
+
+        scope_frame = ttk.LabelFrame(
+            self.calibration_section,
+            text="Contexto da Calibração",
+            padding=10,
+        )
         scope_frame.pack(fill="x", pady=(5, 0), padx=5)
 
         ttk.Label(
@@ -292,13 +347,236 @@ class CalibrationDialog(simpledialog.Dialog):
             self.scope_action_button.pack(anchor="e", pady=(8, 0))
 
         if self.scope == "global":
-            self._build_global_calibration_ui(master)
+            self._build_global_calibration_ui(self.calibration_section)
         else:
-            self._build_project_calibration_ui(master)
-        return None
+            self._build_project_calibration_ui(self.calibration_section)
+
+    def _build_preferences_section(self) -> None:
+        if not self.preferences_section:
+            return
+
+        self._clear_frame(self.preferences_section)
+        self.preferences_section.columnconfigure(1, weight=1)
+
+        if not self.scope_info.get("project_loaded"):
+            ttk.Label(
+                self.preferences_section,
+                text=(
+                    "Abra um projeto para ajustar pesos e OpenVINO específicos. "
+                    "As preferências aplicadas aqui não afetam o padrão global."
+                ),
+                wraplength=440,
+                justify="left",
+                foreground="#555555",
+            ).grid(row=0, column=0, sticky="w", padx=12, pady=12)
+            return
+
+        defaults = self.controller.get_global_model_defaults()
+        overrides = self._get_current_overrides()
+
+        heading = ttk.Label(
+            self.preferences_section,
+            text="Preferências do Projeto",
+            font=("Segoe UI", 11, "bold"),
+        )
+        heading.grid(row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(8, 4))
+
+        weights = self.controller.get_all_weight_names()
+        display_values = [self.WEIGHT_INHERIT_LABEL, *weights]
+
+        current_weight_override = overrides.get("active_weight")
+        if current_weight_override and current_weight_override not in weights:
+            display_values.append(current_weight_override)
+
+        if current_weight_override:
+            self.weight_choice.set(current_weight_override)
+        else:
+            self.weight_choice.set(self.WEIGHT_INHERIT_LABEL)
+
+        openvino_override = overrides.get("use_openvino")
+        if openvino_override is None:
+            self.openvino_choice.set(self.OPENVINO_INHERIT)
+        elif bool(openvino_override):
+            self.openvino_choice.set(self.OPENVINO_ON)
+        else:
+            self.openvino_choice.set(self.OPENVINO_OFF)
+
+        row = 1
+        ttk.Label(
+            self.preferences_section,
+            text=(
+                "Defina overrides deste projeto. "
+                "Ao herdar, o estado global é reutilizado."
+            ),
+            wraplength=440,
+            justify="left",
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(12, 8))
+        row += 1
+
+        ttk.Label(
+            self.preferences_section,
+            text="Peso específico deste projeto:",
+        ).grid(row=row, column=0, sticky="w", padx=12)
+        self.preferences_weight_dropdown = ttk.Combobox(
+            self.preferences_section,
+            state="readonly",
+            values=display_values,
+            textvariable=self.weight_choice,
+        )
+        self.preferences_weight_dropdown.grid(row=row, column=1, sticky="ew", padx=(0, 12))
+        self.preferences_weight_dropdown.bind(
+            "<<ComboboxSelected>>", lambda *_: self._update_preferences_preview()
+        )
+        row += 1
+
+        openvino_frame = ttk.LabelFrame(self.preferences_section, text="OpenVINO", padding=8)
+        openvino_frame.grid(row=row, column=0, columnspan=2, padx=12, pady=(12, 4), sticky="ew")
+        openvino_frame.columnconfigure(0, weight=1)
+
+        inherit_radio = ttk.Radiobutton(
+            openvino_frame,
+            text="Herdar configuração global",
+            value=self.OPENVINO_INHERIT,
+            variable=self.openvino_choice,
+            command=self._update_preferences_preview,
+        )
+        inherit_radio.grid(row=0, column=0, sticky="w")
+        ToolTip(inherit_radio, "Usa exatamente a configuração global do OpenVINO para este projeto.")
+
+        force_on_radio = ttk.Radiobutton(
+            openvino_frame,
+            text="Forçar ativado",
+            value=self.OPENVINO_ON,
+            variable=self.openvino_choice,
+            command=self._update_preferences_preview,
+        )
+        force_on_radio.grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ToolTip(force_on_radio, "Sempre usa OpenVINO neste projeto, independente do padrão global.")
+
+        force_off_radio = ttk.Radiobutton(
+            openvino_frame,
+            text="Forçar desativado",
+            value=self.OPENVINO_OFF,
+            variable=self.openvino_choice,
+            command=self._update_preferences_preview,
+        )
+        force_off_radio.grid(row=2, column=0, sticky="w", pady=(2, 0))
+        ToolTip(force_off_radio, "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.")
+
+        ttk.Label(
+            openvino_frame,
+            text=(
+                "Escolha como aplicar OpenVINO neste projeto:\n"
+                "• Herdar: segue o estado global atual.\n"
+                "• Forçar ativado: sempre usa OpenVINO aqui.\n"
+                "• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
+            ),
+            justify="left",
+            font=("TkDefaultFont", 9),
+            foreground="#555555",
+        ).grid(row=3, column=0, sticky="w", pady=(6, 0))
+
+        row += 1
+        preview = ttk.LabelFrame(self.preferences_section, text="Resultado Efetivo", padding=8)
+        preview.grid(row=row, column=0, columnspan=2, padx=12, pady=(10, 6), sticky="ew")
+        preview.columnconfigure(1, weight=1)
+
+        ttk.Label(preview, text="Peso utilizado:").grid(row=0, column=0, sticky="w")
+        ttk.Label(preview, textvariable=self.effective_weight_var).grid(row=0, column=1, sticky="w")
+        ttk.Label(preview, text="OpenVINO:").grid(row=1, column=0, sticky="w")
+        ttk.Label(preview, textvariable=self.effective_openvino_var).grid(row=1, column=1, sticky="w")
+
+        row += 1
+        defaults_frame = ttk.LabelFrame(self.preferences_section, text="Padrões Globais", padding=8)
+        defaults_frame.grid(row=row, column=0, columnspan=2, padx=12, pady=(6, 4), sticky="ew")
+        ttk.Label(defaults_frame, text=f"Peso global: {defaults.get('active_weight') or 'Nenhum'}").pack(anchor="w")
+        ttk.Label(
+            defaults_frame,
+            text=("OpenVINO global: " + ("Ativado" if defaults.get("use_openvino") else "Desativado")),
+        ).pack(anchor="w", pady=(4, 0))
+
+        row += 1
+        actions = ttk.Frame(self.preferences_section)
+        actions.grid(row=row, column=0, columnspan=2, sticky="e", padx=12, pady=(10, 12))
+        ttk.Button(actions, text="Salvar Preferências", command=self._save_project_preferences).pack(side="left", padx=(0, 6))
+        ttk.Button(actions, text="Recarregar do Projeto", command=self._restore_project_preferences).pack(side="left")
+
+        self._update_preferences_preview()
+
+    def _get_current_overrides(self) -> dict:
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        return project_data.get("model_overrides", {}) or {}
+
+    def _get_preferences_overrides(self) -> tuple[str | None, bool | None]:
+        weight_selection = self.weight_choice.get()
+        if weight_selection == self.WEIGHT_INHERIT_LABEL:
+            weight_override = None
+        else:
+            weight_override = weight_selection
+
+        openvino_selection = self.openvino_choice.get()
+        if openvino_selection == self.OPENVINO_INHERIT:
+            openvino_override = None
+        elif openvino_selection == self.OPENVINO_ON:
+            openvino_override = True
+        else:
+            openvino_override = False
+
+        return weight_override, openvino_override
+
+    def _update_preferences_preview(self) -> None:
+        if not self.scope_info.get("project_loaded"):
+            return
+
+        weight_override, openvino_override = self._get_preferences_overrides()
+        resolved_weight, resolved_openvino = self.controller.resolve_project_model_settings(
+            {
+                "active_weight": weight_override,
+                "use_openvino": openvino_override,
+            }
+        )
+
+        self.effective_weight_var.set(resolved_weight or "Nenhum peso disponível")
+        self.effective_openvino_var.set("Ativado" if resolved_openvino else "Desativado")
+
+    def _save_project_preferences(self) -> None:
+        if not self.scope_info.get("project_loaded"):
+            return
+
+        weight_override, openvino_override = self._get_preferences_overrides()
+
+        try:
+            self.controller.save_project_model_overrides(weight_override, openvino_override)
+        except ValidationError as exc:  # pragma: no cover - defensive
+            messagebox.showerror("Erro", str(exc))
+            return
+
+        messagebox.showinfo("Preferências atualizadas", "As preferências do projeto foram salvas.")
+        self._refresh_scope_context()
+
+    def _restore_project_preferences(self) -> None:
+        overrides = self._get_current_overrides()
+
+        weight_override = overrides.get("active_weight")
+        if weight_override:
+            self.weight_choice.set(weight_override)
+        else:
+            self.weight_choice.set(self.WEIGHT_INHERIT_LABEL)
+
+        openvino_override = overrides.get("use_openvino")
+        if openvino_override is None:
+            self.openvino_choice.set(self.OPENVINO_INHERIT)
+        elif bool(openvino_override):
+            self.openvino_choice.set(self.OPENVINO_ON)
+        else:
+            self.openvino_choice.set(self.OPENVINO_OFF)
+
+        if self.preferences_weight_dropdown:
+            self.preferences_weight_dropdown.set(self.weight_choice.get())
+
+        self._update_preferences_preview()
 
     def _build_global_calibration_ui(self, master):
-        # --- Frame for model configuration ---
         model_frame = ttk.LabelFrame(master, text="Configuração do Modelo", padding=10)
         model_frame.pack(fill="x", pady=5, padx=5)
         model_frame.columnconfigure(1, weight=1)
@@ -680,88 +958,41 @@ class CalibrationDialog(simpledialog.Dialog):
                     "nms_threshold": nms,
                     "track_threshold": track_thresh,
                     "match_threshold": match_thresh,
-                },
-                scope=scope,
+                    "scope": scope,
+                }
             )
-        except ValueError as exc:
+        except ValidationError as exc:  # pragma: no cover - defensive
             messagebox.showerror("Erro", str(exc))
             return
 
         if updated:
-            self._set_parameter_fields(
-                {
-                    "confidence_threshold": conf,
-                    "nms_threshold": nms,
-                    "track_threshold": track_thresh,
-                    "match_threshold": match_thresh,
-                }
-            )
-            info_message = (
-                "Parâmetros globais do detector atualizados com sucesso."
-                if scope == "global"
-                else "Calibração salva somente para este projeto."
-            )
-            messagebox.showinfo("Parâmetros do Detector", info_message)
-        else:
             messagebox.showinfo(
-                "Parâmetros do Detector",
-                "Nenhuma alteração necessária.",
+                "Parâmetros Atualizados",
+                "As configurações do detector foram aplicadas com sucesso.",
+            )
+        else:
+            messagebox.showwarning(
+                "Sem alterações",
+                "Os parâmetros informados já estavam em uso.",
             )
 
     def _restore_detector_defaults(self, scope_override: str | None = None) -> None:
         scope = scope_override or self.scope
-        if scope == "project":
-            try:
-                success = self.controller.update_detector_parameters(
-                    {},
-                    reset_overrides=True,
-                    scope="project",
-                )
-            except ValueError as exc:
-                messagebox.showerror("Erro", str(exc))
-                return
-
-            if success:
-                self._prefill_detector_parameters()
-                messagebox.showinfo(
-                    "Overrides removidos",
-                    "O projeto voltou a usar os padrões globais do detector.",
-                )
-            else:
-                messagebox.showinfo(
-                    "Overrides",
-                    "Nenhuma alteração necessária.",
-                )
-            return
-
         try:
-            defaults = self.controller.get_factory_detector_parameters()
-        except ValueError as exc:
+            restored = self.controller.restore_detector_defaults(scope=scope)
+        except Exception as exc:  # pragma: no cover - defensive
             messagebox.showerror("Erro", str(exc))
             return
 
-        self.confidence_threshold_var.set(f"{defaults.get('confidence_threshold', 0.25):.2f}")
-        self.nms_threshold_var.set(f"{defaults.get('nms_threshold', 0.5):.2f}")
-        self.track_threshold_var.set(f"{defaults.get('track_threshold', 0.25):.2f}")
-        self.match_threshold_var.set(f"{defaults.get('match_threshold', 0.15):.2f}")
-
-        try:
-            self.controller.update_detector_parameters(
-                defaults,
-                reset_overrides=True,
-                scope="global",
+        if restored:
+            resolved_params, _ = self._collect_prefill_detector_params()
+            self._set_parameter_fields(resolved_params)
+            messagebox.showinfo(
+                "Parâmetros do Detector",
+                "Parâmetros padrão restaurados.",
             )
-        except ValueError as exc:
-            messagebox.showerror("Erro", str(exc))
-            return
-
-        messagebox.showinfo(
-            "Parâmetros do Detector",
-            "Parâmetros padrão restaurados.",
-        )
 
     def _populate_weights_dropdown(self):
-        """(Re)populates the weights dropdown in the dialog."""
         if not self.weights_dropdown:
             return
         weights_list = self.controller.get_all_weight_names()
@@ -771,7 +1002,6 @@ class CalibrationDialog(simpledialog.Dialog):
             self.weights_dropdown.config(state="disabled")
         else:
             self.weights_dropdown.config(state="readonly")
-            # Set to the controller's current weight
             current_weight = self.controller.active_weight_name
             if current_weight in weights_list:
                 self.active_weight_var.set(current_weight)
@@ -779,45 +1009,34 @@ class CalibrationDialog(simpledialog.Dialog):
                 self.active_weight_var.set(weights_list[0])
 
     def _on_weight_selected_local(self, event=None):
-        """Callback when user selects a new weight from the dropdown."""
         selected_weight = self.active_weight_var.get()
         self.controller.ui_event_bus.publish_event(
             Events.MODEL_SET_WEIGHT, {"name": selected_weight, "dialog": self}
         )
 
     def _on_openvino_toggled_local(self):
-        """Callback when user toggles the OpenVINO checkbox."""
         self.controller.ui_event_bus.publish_event(
             Events.MODEL_SET_OPENVINO,
             {"use_openvino": self.use_openvino_var.get(), "dialog": self},
         )
 
     def update_openvino_status_label(self, status: str):
-        """Updates the status label with the given text."""
         self.openvino_status_var.set(status)
         if not self.openvino_status_label:
             return
 
     def _load_new_weight_local(self):
-        """Handles the 'Load New Weight' button click."""
         if not self.weights_dropdown:
             return
-        # This can call the view's method as it's just a file dialog
         self.controller.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE, {})
-        # Repopulate this dialog's dropdown after the controller has the new weight
         self._populate_weights_dropdown()
-        # Status is updated by the controller when the weight is set.
 
     def _manage_weights_local(self):
-        """Opens the weight management dialog and provides a callback to refresh."""
         if not self.weights_dropdown:
             return
 
-        # The callback will be called by the ManageWeightsDialog upon closing
         def refresh_callback():
             self._populate_weights_dropdown()
-            # The controller will handle the status update when a new weight is selected
-            # or the default is changed.
 
         ManageWeightsDialog(self.parent, self.controller, refresh_callback)
 
@@ -831,7 +1050,6 @@ class CalibrationDialog(simpledialog.Dialog):
             self.video_path_label_var.set(os.path.basename(path))
 
     def _run_diagnostic_test(self):
-        # --- Validation ---
         if not self.diagnostic_video_path:
             messagebox.showerror("Erro", "Por favor, selecione um arquivo de vídeo.")
             return
@@ -856,23 +1074,17 @@ class CalibrationDialog(simpledialog.Dialog):
             messagebox.showerror("Erro", "O limiar de confiança deve ser um número válido.")
             return
 
-        # --- Config Build ---
-        model_to_test = self.model_test_var.get()
-
         config = {
             "video_path": self.diagnostic_video_path,
             "frames_to_analyze": int(self.frames_to_analyze_var.get()),
             "confidence_threshold": float(self.confidence_threshold_var.get()),
-            "model_to_test": model_to_test,
-            "parent_dialog": self,  # Pass reference so controller can close it later
+            "model_to_test": self.model_test_var.get(),
+            "parent_dialog": self,
         }
 
-        # Don't destroy the dialog immediately - let controller handle it
-        # The diagnostic will now show a progress dialog
         self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
 
     def buttonbox(self):
-        # Override to have only a close button
         box = ttk.Frame(self)
         w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
         w.pack(side="left", padx=5, pady=5)
@@ -889,8 +1101,28 @@ class CalibrationDialog(simpledialog.Dialog):
 
     def _refresh_scope_context(self) -> None:
         self.scope_info = self.controller.get_calibration_scope_info()
+        self.scope = self.scope_info.get("scope", self.scope)
         self.scope_label_var.set(self.scope_info["label"])
         self.scope_detail_var.set(self.scope_info["detail"])
+
+        if self.calibration_section:
+            self._build_calibration_section()
+
+        if self.preferences_section:
+            project_ready = self.scope == "project" and self.scope_info.get("project_loaded")
+            if project_ready:
+                if self.preferences_separator and not self.preferences_separator.winfo_manager():
+                    self.preferences_separator.pack(fill="x", pady=(12, 0))
+                if not self.preferences_section.winfo_manager():
+                    self.preferences_section.pack(fill="both", expand=True, pady=(12, 0))
+                self._build_preferences_section()
+            else:
+                self._clear_frame(self.preferences_section)
+                if self.preferences_section.winfo_manager():
+                    self.preferences_section.pack_forget()
+                if self.preferences_separator and self.preferences_separator.winfo_manager():
+                    self.preferences_separator.pack_forget()
+
         if self.scope_action_button:
             action_text = self._get_scope_action_text(self.scope_info)
             if action_text:
@@ -905,224 +1137,24 @@ class CalibrationDialog(simpledialog.Dialog):
         project_name = self.scope_info.get("project_name") or "projeto"
         if self.scope_info.get("scope") == "global":
             self.controller.ui_event_bus.publish_event(Events.CALIBRATION_COPY_TO_PROJECT, {})
-            result = True  # Assume success for now
+            result = True
             if result:
                 messagebox.showinfo(
                     "Projeto atualizado",
-                    (f"Os padrões globais foram copiados para o projeto {project_name}."),
+                    f"Os padrões globais foram copiados para o projeto {project_name}.",
                 )
         else:
             self.controller.ui_event_bus.publish_event(Events.CALIBRATION_SAVE_TO_PROJECT, {})
-            result = True  # Assume success for now
+            result = True
             if result:
                 messagebox.showinfo(
                     "Overrides salvos",
-                    (f"A calibração atual foi salva como override para o projeto {project_name}."),
+                    f"A calibração atual foi salva como override para o projeto {project_name}.",
                 )
 
         self._populate_weights_dropdown()
         self.use_openvino_var.set(self.controller.use_openvino)
         self._refresh_scope_context()
-
-
-class ProjectModelOverridesDialog(simpledialog.Dialog):
-    """Dialog for configuring per-project model overrides."""
-
-    WEIGHT_INHERIT_LABEL = "Herdar (padrão global)"
-    OPENVINO_INHERIT = "inherit"
-    OPENVINO_ON = "on"
-    OPENVINO_OFF = "off"
-
-    def __init__(self, parent, controller):
-        self.controller = controller
-        self.project_manager = controller.project_manager
-
-        self.weight_choice = StringVar()
-        self.openvino_choice = StringVar()
-        self.effective_weight_var = StringVar()
-        self.effective_openvino_var = StringVar()
-        self.result = None
-
-        super().__init__(parent, "Preferências do Projeto")
-
-    def body(self, master):
-        schedule_maximize(self)
-        master.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            master,
-            text=(
-                "Ajuste o peso e o uso do OpenVINO apenas para este projeto. "
-                "Ao herdar, as configurações globais serão utilizadas."
-            ),
-            wraplength=420,
-            justify="left",
-        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 8))
-
-        defaults = self.controller.get_global_model_defaults()
-        overrides = (
-            getattr(self.project_manager, "project_data", {}).get("model_overrides", {}) or {}
-        )
-
-        weights = self.controller.get_all_weight_names()
-        display_values = [self.WEIGHT_INHERIT_LABEL, *weights]
-
-        current_weight_override = overrides.get("active_weight")
-        if current_weight_override and current_weight_override not in weights:
-            # Keep legacy override visible even if missing, appending to the list
-            display_values.append(current_weight_override)
-
-        if current_weight_override:
-            self.weight_choice.set(current_weight_override)
-        else:
-            self.weight_choice.set(self.WEIGHT_INHERIT_LABEL)
-
-        ttk.Label(master, text="Peso específico deste projeto:").grid(
-            row=1, column=0, sticky="w", padx=10
-        )
-        self.weight_dropdown = ttk.Combobox(
-            master,
-            state="readonly",
-            values=display_values,
-            textvariable=self.weight_choice,
-        )
-        self.weight_dropdown.grid(row=1, column=1, sticky="ew", padx=(0, 10))
-
-        openvino_override = overrides.get("use_openvino")
-        if openvino_override is None:
-            self.openvino_choice.set(self.OPENVINO_INHERIT)
-        elif bool(openvino_override):
-            self.openvino_choice.set(self.OPENVINO_ON)
-        else:
-            self.openvino_choice.set(self.OPENVINO_OFF)
-
-        openvino_frame = ttk.LabelFrame(master, text="OpenVINO", padding=8)
-        openvino_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=(12, 4), sticky="ew")
-        openvino_frame.columnconfigure(0, weight=1)
-
-        inherit_radio = ttk.Radiobutton(
-            openvino_frame,
-            text="Herdar configuração global",
-            value=self.OPENVINO_INHERIT,
-            variable=self.openvino_choice,
-            command=self._update_preview,
-        )
-        inherit_radio.grid(row=0, column=0, sticky="w")
-        ToolTip(
-            inherit_radio,
-            "Usa exatamente a configuração global do OpenVINO para este projeto.",
-        )
-
-        force_on_radio = ttk.Radiobutton(
-            openvino_frame,
-            text="Forçar ativado",
-            value=self.OPENVINO_ON,
-            variable=self.openvino_choice,
-            command=self._update_preview,
-        )
-        force_on_radio.grid(row=1, column=0, sticky="w", pady=(2, 0))
-        ToolTip(
-            force_on_radio,
-            "Sempre usa OpenVINO neste projeto, independente do padrão global.",
-        )
-
-        force_off_radio = ttk.Radiobutton(
-            openvino_frame,
-            text="Forçar desativado",
-            value=self.OPENVINO_OFF,
-            variable=self.openvino_choice,
-            command=self._update_preview,
-        )
-        force_off_radio.grid(row=2, column=0, sticky="w", pady=(2, 0))
-        ToolTip(
-            force_off_radio,
-            "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.",
-        )
-
-        ttk.Label(
-            openvino_frame,
-            text=(
-                "Escolha como aplicar OpenVINO neste projeto:\n"
-                "• Herdar: segue o estado global atual.\n"
-                "• Forçar ativado: sempre usa OpenVINO aqui.\n"
-                "• Forçar desativado: mantém PyTorch mesmo que o global esteja ativo."
-            ),
-            justify="left",
-            font=("TkDefaultFont", 9),
-            foreground="#555555",
-        ).grid(row=3, column=0, sticky="w", pady=(6, 2))
-
-        preview = ttk.LabelFrame(master, text="Resultado Efetivo", padding=8)
-        preview.grid(row=3, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="ew")
-        preview.columnconfigure(1, weight=1)
-
-        ttk.Label(preview, text="Peso utilizado:").grid(row=0, column=0, sticky="w")
-        ttk.Label(preview, textvariable=self.effective_weight_var).grid(row=0, column=1, sticky="w")
-        ttk.Label(preview, text="OpenVINO:").grid(row=1, column=0, sticky="w")
-        ttk.Label(preview, textvariable=self.effective_openvino_var).grid(
-            row=1, column=1, sticky="w"
-        )
-
-        defaults_frame = ttk.LabelFrame(master, text="Padrões Globais", padding=8)
-        defaults_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=(6, 4), sticky="ew")
-        ttk.Label(
-            defaults_frame,
-            text=f"Peso global: {defaults.get('active_weight') or 'Nenhum'}",
-        ).pack(anchor="w")
-        ttk.Label(
-            defaults_frame,
-            text=(
-                "OpenVINO global: " + ("Ativado" if defaults.get("use_openvino") else "Desativado")
-            ),
-        ).pack(anchor="w", pady=(4, 0))
-
-        self.weight_dropdown.bind("<<ComboboxSelected>>", lambda *_: self._update_preview())
-        self._update_preview()
-
-        return self.weight_dropdown
-
-    def _get_override_values(self) -> tuple[str | None, bool | None]:
-        weight_selection = self.weight_choice.get()
-        if weight_selection == self.WEIGHT_INHERIT_LABEL:
-            weight_override = None
-        else:
-            weight_override = weight_selection
-
-        openvino_selection = self.openvino_choice.get()
-        if openvino_selection == self.OPENVINO_INHERIT:
-            openvino_override = None
-        elif openvino_selection == self.OPENVINO_ON:
-            openvino_override = True
-        else:
-            openvino_override = False
-
-        return weight_override, openvino_override
-
-    def _update_preview(self):
-        weight_override, openvino_override = self._get_override_values()
-        resolved_weight, resolved_openvino = self.controller.resolve_project_model_settings(
-            {
-                "active_weight": weight_override,
-                "use_openvino": openvino_override,
-            }
-        )
-
-        self.effective_weight_var.set(resolved_weight or "Nenhum peso disponível")
-        self.effective_openvino_var.set("Ativado" if resolved_openvino else "Desativado")
-
-    def apply(self):
-        weight_override, openvino_override = self._get_override_values()
-        self.result = self.controller.save_project_model_overrides(
-            weight_override, openvino_override
-        )
-
-    def buttonbox(self):
-        box = ttk.Frame(self)
-        ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
-        ttk.Button(box, text="Salvar", command=self.ok, default="active").pack(side="right", padx=6)
-        self.bind("<Return>", self.ok)
-        self.bind("<Escape>", self.cancel)
-        box.pack(pady=10)
 
 
 class ManageWeightsDialog(simpledialog.Dialog):
@@ -3407,20 +3439,6 @@ class ApplicationGUI:
         self.set_active_weight_in_dropdown(self.controller.active_weight_name)
         self.update_openvino_status_display(self.controller.get_openvino_status())
 
-    def _open_project_model_preferences(self):
-        if not getattr(self.controller.project_manager, "project_path", None):
-            self.show_warning(
-                "Nenhum Projeto",
-                "Abra um projeto antes de ajustar as preferências específicas.",
-            )
-            return
-
-        dialog = ProjectModelOverridesDialog(self.root, self.controller)
-        if dialog.result:
-            self.update_openvino_checkbox(self.controller.use_openvino)
-            self.set_active_weight_in_dropdown(self.controller.active_weight_name)
-            self.update_openvino_status_display(self.controller.get_openvino_status())
-
     def _on_tab_changed(self, event):
         """
         Handle tab change event to ensure analysis overlay is hidden when not on
@@ -4074,14 +4092,9 @@ class ApplicationGUI:
         if getattr(self.controller.project_manager, "project_path", None):
             ttk.Button(
                 button_row,
-                text="Calibração do Projeto...",
+                text="Calibração e Preferências do Projeto...",
                 command=self._open_project_calibration_window,
-            ).pack(side="left", padx=(0, 6))
-        ttk.Button(
-            button_row,
-            text="Preferências deste Projeto...",
-            command=self._open_project_model_preferences,
-        ).pack(side="left")
+            ).pack(side="left")
 
         if project_type == "live":
             self.external_trigger_notice_label = Label(

@@ -355,7 +355,8 @@ class DetectorService:
             return True
 
         try:
-            has_project_context = bool(getattr(self.project_manager, "project_data", None))
+            project_data = getattr(self.project_manager, "project_data", None)
+            has_project_context = project_data is not None
             persist_project = (
                 has_project_context
                 and (scope_normalized == "project" or persist_global)

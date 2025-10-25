@@ -5,6 +5,7 @@ Gathers initial context about project type, folder organization, and
 existing parquet files before scanning any videos.
 """
 
+from copy import deepcopy
 from pathlib import Path
 from tkinter import (
     Button,
@@ -538,6 +539,10 @@ class DiscoveryStep(WizardStep):
             "path": template_path,
             "created_at": template.get("created_at"),
         }
+        if template.get("schema_version") is not None:
+            metadata["schema_version"] = template.get("schema_version")
+        if template.get("wizard_schema_version") is not None:
+            metadata["wizard_schema_version"] = template.get("wizard_schema_version")
         self.wizard_data["template_metadata"] = metadata
 
         mappings = {
@@ -546,14 +551,28 @@ class DiscoveryStep(WizardStep):
             "animals_per_aquarium": template.get("animals_per_aquarium"),
             "aquarium_width_cm": template.get("aquarium_width_cm"),
             "aquarium_height_cm": template.get("aquarium_height_cm"),
+            "analysis_interval_frames": template.get("analysis_interval_frames"),
+            "display_interval_frames": template.get("display_interval_frames"),
             "parquet_import_scope": template.get("parquet_import_scope"),
             "detected_design": template.get("detected_design"),
             "custom_regex_patterns": template.get("custom_regex_patterns"),
+            "model_selection": template.get("model_selection"),
+            "weight_assignments": template.get("weight_assignments"),
+            "detector_parameters": template.get("detector_parameters"),
+            "use_openvino": template.get("use_openvino"),
+            "wizard_schema_version": template.get("wizard_schema_version"),
         }
 
         for key, value in mappings.items():
             if value is not None:
-                self.wizard_data[key] = value
+                if isinstance(value, dict):
+                    self.wizard_data[key] = deepcopy(value)
+                else:
+                    self.wizard_data[key] = value
+
+        model_selection = self.wizard_data.get("model_selection")
+        if isinstance(model_selection, dict) and "use_openvino" in model_selection:
+            self.wizard_data["use_openvino"] = model_selection.get("use_openvino")
 
         # Update local UI state
         parquet_scope = self.wizard_data.get("parquet_import_scope")

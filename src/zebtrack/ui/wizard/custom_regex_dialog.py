@@ -12,7 +12,6 @@ from tkinter import (
     Frame,
     Label,
     StringVar,
-    Text,
     messagebox,
     ttk,
 )
@@ -113,16 +112,31 @@ class CustomRegexDialog(Dialog):
         subtitle = Label(
             master,
             text=(
-                "Defina padrões regex para detectar grupos, dias e sujeitos. "
-                "Use grupos de captura ()."
+                "Defina regex para detectar grupos, dias e sujeitos. "
+                "Use grupos de captura () ou nomeados (?P<nome>) para extrair os valores."
             ),
             fg="gray",
             wraplength=500,
             justify="left",
             font=("TkDefaultFont", 8),
         )
-        subtitle.pack(pady=(0, 5))
+        subtitle.pack(pady=(0, 4))
 
+        tips_frame = ttk.LabelFrame(master, text="Dicas rápidas", padding=6)
+        tips_frame.pack(fill="x", padx=10, pady=(0, 6))
+        Label(
+            tips_frame,
+            text=(
+                "• Campos vazios permanecem inalterados no design.\n"
+                "• \\d captura dígitos (0-9); \\w cobre letras, números e _.\n"
+                "• Âncoras ^ (início) e $ (fim) fixam o padrão na string completa — use com cautela.\n"
+                "• A pré-visualização calcula automaticamente após cada edição."
+            ),
+            justify="left",
+            wraplength=520,
+            fg="#4a4a4a",
+            font=("TkDefaultFont", 8),
+        ).pack(anchor="w")
         # Group pattern
         group_frame = Frame(master)
         group_frame.pack(fill="x", padx=10, pady=3)
@@ -218,9 +232,46 @@ class CustomRegexDialog(Dialog):
             command=self._test_patterns,
         ).pack(side="left")
 
-        # Test results
-        self.test_results_text = Text(test_frame, height=2, width=60, state="disabled")
-        self.test_results_text.pack(fill="both", expand=True, pady=2)
+        # Test results displayed side by side
+        results_container = ttk.Frame(test_frame)
+        results_container.pack(fill="x", pady=(4, 2))
+        results_container.columnconfigure(0, weight=1)
+        results_container.columnconfigure(1, weight=1)
+        results_container.columnconfigure(2, weight=1)
+
+        self._test_result_vars: dict[str, StringVar] = {}
+        for idx, (key, label_text) in enumerate(
+            (("group", "Grupo"), ("day", "Dia"), ("subject", "Sujeito"))
+        ):
+            slot = ttk.Frame(results_container, padding=(6, 4))
+            slot.grid(row=0, column=idx, sticky="nsew")
+            ttk.Label(slot, text=label_text, font=("TkDefaultFont", 8, "bold")).pack(anchor="w")
+            value_var = StringVar(value=f"○ {label_text}: aguardando")
+            Label(
+                slot,
+                textvariable=value_var,
+                justify="left",
+                wraplength=160,
+                fg="#333333",
+                font=("TkDefaultFont", 8),
+            ).pack(anchor="w")
+            self._test_result_vars[key] = value_var
+
+        self._test_summary_var = StringVar(value="")
+        Label(
+            test_frame,
+            textvariable=self._test_summary_var,
+            fg="#666666",
+            font=("TkDefaultFont", 8),
+            justify="left",
+            wraplength=520,
+        ).pack(anchor="w", pady=(0, 2))
+        Label(
+            test_frame,
+            text="Legenda: ✓ correspondeu • ✗ falhou • ○ não definido",
+            fg="gray",
+            font=("TkDefaultFont", 8),
+        ).pack(anchor="w", pady=(0, 2))
 
         # Live preview
         preview_frame = Frame(master)
@@ -228,7 +279,7 @@ class CustomRegexDialog(Dialog):
 
         Label(
             preview_frame,
-            text="Pré-visualização (Primeiros 15 caminhos)",
+            text="Pré-visualização automática (até 15 caminhos)",
             font=("TkDefaultFont", 9, "bold"),
         ).pack(anchor="w")
 
@@ -310,61 +361,7 @@ class CustomRegexDialog(Dialog):
                 parent=self,
             )
             return
-
-        group_pattern = self.group_pattern_entry.get().strip()
-        day_pattern = self.day_pattern_entry.get().strip()
-        subject_pattern = self.subject_pattern_entry.get().strip()
-
-        results = []
-
-        # Test group pattern
-        if group_pattern:
-            try:
-                match = re.search(group_pattern, test_path)
-                if match:
-                    results.append(
-                        f"✓ Grupo: '{match.group(1) if match.groups() else match.group(0)}'"
-                    )
-                else:
-                    results.append("✗ Grupo: Nenhuma correspondência")
-            except re.error as e:
-                results.append(f"✗ Grupo: Regex inválido - {e}")
-        else:
-            results.append("○ Grupo: Padrão não definido")
-
-        # Test day pattern
-        if day_pattern:
-            try:
-                match = re.search(day_pattern, test_path)
-                if match:
-                    results.append(
-                        f"✓ Dia: '{match.group(1) if match.groups() else match.group(0)}'"
-                    )
-                else:
-                    results.append("✗ Dia: Nenhuma correspondência")
-            except re.error as e:
-                results.append(f"✗ Dia: Regex inválido - {e}")
-        else:
-            results.append("○ Dia: Padrão não definido")
-
-        # Test subject pattern
-        if subject_pattern:
-            try:
-                match = re.search(subject_pattern, test_path)
-                if match:
-                    results.append(
-                        f"✓ Sujeito: '{match.group(1) if match.groups() else match.group(0)}'"
-                    )
-                else:
-                    results.append("✗ Sujeito: Nenhuma correspondência")
-            except re.error as e:
-                results.append(f"✗ Sujeito: Regex inválido - {e}")
-        else:
-            results.append("○ Sujeito: Padrão não definido")
-
-        # Display results
-        self._render_test_feedback(results)
-        self._refresh_live_previews()
+        self._schedule_live_update(immediate=True)
 
     def _clear_all(self):
         """Clear all pattern entries."""
@@ -376,10 +373,10 @@ class CustomRegexDialog(Dialog):
             self.sample_paths[0] if self.sample_paths else "/Control/Day01/Subject_S01.mp4"
         )
         self.test_path_entry.insert(0, default_preview_path)
-
-        self.test_results_text.config(state="normal")
-        self.test_results_text.delete("1.0", "end")
-        self.test_results_text.config(state="disabled")
+        for key, var in self._test_result_vars.items():
+            label_name = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}.get(key, key)
+            var.set(f"○ {label_name}: aguardando")
+        self._test_summary_var.set("")
         self._schedule_live_update(immediate=True)
 
     def validate(self):
@@ -448,11 +445,11 @@ class CustomRegexDialog(Dialog):
 
         # Reserve space for taskbar and decorations
         usable_w = screen_w - 80
-        usable_h = screen_h - 220
+        usable_h = screen_h - 160
 
-        # Target size: moderate width, sufficient height for all buttons
+        # Target size: wide enough for columns, taller preview viewport
         target_width = 800
-        target_height = 580
+        target_height = 960
 
         # Don't exceed available space on smaller screens
         width = min(target_width, usable_w)
@@ -460,13 +457,13 @@ class CustomRegexDialog(Dialog):
 
         # Ensure absolute minimums
         width = max(width, 700)
-        height = max(height, 560)
+        height = max(height, 640)
 
         # Set resizable bounds
         min_width = max(int(target_width * 0.85), 650)
-        min_height = max(int(target_height * 0.90), 430)
-        max_width = int(target_width * 1.20)
-        max_height = int(target_height * 1.15)
+        min_height = min(height, max(int(target_height * 0.80), 720))
+        max_width = int(target_width * 1.25)
+        max_height = min(int(target_height * 1.10), max(usable_h, height))
 
         # Center on screen, but shift UP to avoid taskbar
         x = max((screen_w - width) // 2, 0)
@@ -529,52 +526,61 @@ class CustomRegexDialog(Dialog):
 
         return compiled, errors
 
-    def _render_test_feedback(self, preset_results: list[str] | None = None):
+    def _render_test_feedback(self, preset_results: dict[str, str] | None = None):
         if preset_results is None:
             test_path = self.test_path_var.get().strip()
             results = self._evaluate_path(test_path)
         else:
             results = preset_results
 
-        self.test_results_text.config(state="normal")
-        self.test_results_text.delete("1.0", "end")
-        self.test_results_text.insert("1.0", "\n".join(results))
-        self.test_results_text.config(state="disabled")
+        label_map = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}
+        for key, label_name in label_map.items():
+            value = results.get(key) or f"○ {label_name}: aguardando"
+            var = self._test_result_vars.get(key)
+            if var is not None:
+                var.set(value)
 
-    def _evaluate_path(self, path: str) -> list[str]:
-        if not path:
-            return ["✗ Informe um caminho para testar"]
+        summary_text = results.get("summary", "")
+        self._test_summary_var.set(summary_text)
 
-        lines: list[str] = []
+    def _evaluate_path(self, path: str) -> dict[str, str]:
+        label_map = {"group": "Grupo", "day": "Dia", "subject": "Sujeito"}
+        results: dict[str, str] = {}
 
-        for label, key in (
-            ("Grupo", "group"),
-            ("Dia", "day"),
-            ("Sujeito", "subject"),
-        ):
+        summary = "" if path else "✗ Informe um caminho para testar"
+
+        for key, label in label_map.items():
             pattern_str = getattr(self, f"{key}_pattern_var").get().strip()
             if not pattern_str:
-                lines.append(f"○ {label}: Padrão não definido")
+                results[key] = f"○ {label}: Padrão não definido"
                 continue
 
             error = self._pattern_errors.get(key)
             if error:
-                lines.append(f"✗ {label}: Regex inválido - {error}")
+                results[key] = f"✗ {label}: Regex inválido - {error}"
                 continue
 
             pattern = self._compiled_patterns.get(key)
             if not pattern:
-                lines.append(f"✗ {label}: Regex inválido")
+                try:
+                    pattern = re.compile(pattern_str)
+                except re.error as exc:
+                    results[key] = f"✗ {label}: Regex inválido - {exc}"
+                    continue
+
+            if not path:
+                results[key] = f"✗ {label}: Informe um caminho"
                 continue
 
             match = pattern.search(path)
             if match:
                 value = match.group(1) if match.groups() else match.group(0)
-                lines.append(f"✓ {label}: '{value}'")
+                results[key] = f"✓ {label}: '{value}'"
             else:
-                lines.append(f"✗ {label}: Nenhuma correspondência")
+                results[key] = f"✗ {label}: Nenhuma correspondência"
 
-        return lines
+        results["summary"] = summary
+        return results
 
     def _update_live_preview(self):
         for item in self.preview_tree.get_children():

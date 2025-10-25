@@ -29,6 +29,12 @@ from zebtrack.ui.wizard.templates import format_template_banner
 log = structlog.get_logger()
 
 
+_METHOD_LABELS = {
+    "seg": "Segmentação (seg)",
+    "det": "Detecção (det)",
+}
+
+
 class DetectionStep(WizardStep):
     """
     Detection & Validation step - auto-detect design and scan parquets.
@@ -173,7 +179,10 @@ class DetectionStep(WizardStep):
 
     def _run_detection(self):
         """Run file scanning and design detection."""
-        self.status_var.set("Analisando...")
+        if self.custom_regex_patterns:
+            self.status_var.set("Analisando (usando regex personalizada)...")
+        else:
+            self.status_var.set("Analisando...")
 
         # Get video paths from previous step
         video_paths = self.wizard_data.get("video_paths", [])
@@ -660,8 +669,87 @@ class DetectionStep(WizardStep):
             else:
                 text += "ℹ️ Detecção de design desativada (projeto exploratório).\n"
 
+        # Detector configuration snapshot (helps confirm template application)
+        detection_section = self._format_detector_configuration()
+        if detection_section:
+            text += f"\n{detection_section}\n"
+
+        if self.custom_regex_patterns:
+            text += "\n🧩 Regex personalizada em uso:\n"
+            for key, label in (
+                ("group_pattern", "Grupos"),
+                ("day_pattern", "Dias"),
+                ("subject_pattern", "Sujeitos"),
+            ):
+                pattern_value = self.custom_regex_patterns.get(key)
+                if pattern_value:
+                    text += f"  • {label}: {pattern_value}\n"
+                else:
+                    text += f"  • {label}: —\n"
+
         self.results_text.insert("1.0", text)
         self.results_text.config(state="disabled")
+
+    def _format_detector_configuration(self) -> str:
+        """Build textual summary of detector/model selections."""
+
+        model_selection = self.wizard_data.get("model_selection") or {}
+        weight_assignments = self.wizard_data.get("weight_assignments") or {}
+        detector_params = self.wizard_data.get("detector_parameters") or {}
+        use_openvino = self.wizard_data.get("use_openvino")
+
+        if not (model_selection or weight_assignments or detector_params or use_openvino is not None):
+            return ""
+
+        lines = ["⚙️ Configuração Atual do Detector:"]
+
+        aquarium_method = model_selection.get("aquarium_method")
+        animal_method = model_selection.get("animal_method")
+        if aquarium_method or animal_method:
+            aquarium_label = (
+                _METHOD_LABELS.get(aquarium_method, aquarium_method)
+                if isinstance(aquarium_method, str)
+                else None
+            )
+            animal_label = (
+                _METHOD_LABELS.get(animal_method, animal_method)
+                if isinstance(animal_method, str)
+                else None
+            )
+            if aquarium_label:
+                lines.append(f"  • Método aquário: {aquarium_label}")
+            if animal_label:
+                lines.append(f"  • Método animais: {animal_label}")
+
+        aquarium_weight = weight_assignments.get("aquarium")
+        animal_weight = weight_assignments.get("animal")
+        if aquarium_weight or animal_weight:
+            if aquarium_weight:
+                lines.append(f"  • Peso aquário: {aquarium_weight}")
+            if animal_weight:
+                lines.append(f"  • Peso animais: {animal_weight}")
+
+        if use_openvino is not None:
+            status = "Ativado" if use_openvino else "Desativado"
+            lines.append(f"  • OpenVINO: {status}")
+
+        conf = detector_params.get("confidence_threshold")
+        nms = detector_params.get("nms_threshold")
+        track = detector_params.get("track_threshold")
+        match = detector_params.get("match_threshold")
+        threshold_bits = []
+        if conf is not None:
+            threshold_bits.append(f"conf={conf:.2f}")
+        if nms is not None:
+            threshold_bits.append(f"NMS={nms:.2f}")
+        if track is not None:
+            threshold_bits.append(f"track={track:.2f}")
+        if match is not None:
+            threshold_bits.append(f"match={match:.2f}")
+        if threshold_bits:
+            lines.append(f"  • Thresholds: {', '.join(threshold_bits)}")
+
+        return "\n".join(lines)
 
     def _show_error(self, message: str):
         """Display error message."""
