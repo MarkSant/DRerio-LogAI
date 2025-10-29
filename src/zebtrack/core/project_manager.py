@@ -610,7 +610,8 @@ class ProjectManager:
         if target_video:
             normalized = self._normalize_video_path(target_video)
             existing_key, _ = self._resolve_zone_entry(target_video)
-            store_key = normalized or existing_key or target_video
+            # Ensure store_key is always a string (not Path object) for JSON serialization
+            store_key = normalized or existing_key or str(Path(target_video).as_posix())
 
             self.project_data["zones_by_video"][store_key] = serialized
             self._deduplicate_zone_keys(store_key)
@@ -1487,6 +1488,9 @@ class ProjectManager:
                     )
                 )
                 metadata = dict(video_info.get("metadata") or {})
+
+            # Ensure video_path is always a string (not Path object) for JSON serialization
+            video_path = str(Path(video_path).as_posix()) if not isinstance(video_path, str) else video_path
 
             video_hash = calculate_sha256(video_path)
 
