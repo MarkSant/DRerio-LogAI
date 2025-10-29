@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from tkinter import (
     BooleanVar,
@@ -33,7 +33,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any, ClassVar, Iterable
+from typing import Any, ClassVar
 
 import cv2
 import numpy as np
@@ -290,17 +290,31 @@ class CalibrationDialog(simpledialog.Dialog):
     def body(self, master):
         schedule_maximize(self)
 
+        from zebtrack.ui.collapsible_frame import CollapsibleFrame
+
         container = ttk.Frame(master, padding=0)
         container.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.calibration_section = ttk.Frame(container)
-        self.calibration_section.pack(fill="both", expand=True)
+        # Calibration section with collapsible frame
+        calibration_collapsible = CollapsibleFrame(
+            container,
+            title="📐 Calibração e Diagnóstico",
+            start_collapsed=False,
+        )
+        calibration_collapsible.pack(fill="both", expand=False, pady=(0, 5))
+        self.calibration_section = calibration_collapsible.get_content_frame()
 
-        self.preferences_separator = ttk.Separator(container, orient="horizontal")
-        self.preferences_separator.pack(fill="x", pady=(12, 0))
+        # Preferences section with collapsible frame (initially collapsed for better focus)
+        preferences_collapsible = CollapsibleFrame(
+            container,
+            title="⚙️ Preferências do Projeto",
+            start_collapsed=False,
+        )
+        preferences_collapsible.pack(fill="both", expand=False, pady=(0, 5))
+        self.preferences_section = preferences_collapsible.get_content_frame()
 
-        self.preferences_section = ttk.Frame(container)
-        self.preferences_section.pack(fill="both", expand=True, pady=(12, 0))
+        # Note: We no longer need the separator as CollapsibleFrames provide visual separation
+        self.preferences_separator = None
 
         self._refresh_scope_context()
 
@@ -404,10 +418,7 @@ class CalibrationDialog(simpledialog.Dialog):
         row = 1
         ttk.Label(
             self.preferences_section,
-            text=(
-                "Defina overrides deste projeto. "
-                "Ao herdar, o estado global é reutilizado."
-            ),
+            text=("Defina overrides deste projeto. Ao herdar, o estado global é reutilizado."),
             wraplength=440,
             justify="left",
         ).grid(row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(12, 8))
@@ -441,7 +452,9 @@ class CalibrationDialog(simpledialog.Dialog):
             command=self._update_preferences_preview,
         )
         inherit_radio.grid(row=0, column=0, sticky="w")
-        ToolTip(inherit_radio, "Usa exatamente a configuração global do OpenVINO para este projeto.")
+        ToolTip(
+            inherit_radio, "Usa exatamente a configuração global do OpenVINO para este projeto."
+        )
 
         force_on_radio = ttk.Radiobutton(
             openvino_frame,
@@ -461,7 +474,10 @@ class CalibrationDialog(simpledialog.Dialog):
             command=self._update_preferences_preview,
         )
         force_off_radio.grid(row=2, column=0, sticky="w", pady=(2, 0))
-        ToolTip(force_off_radio, "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.")
+        ToolTip(
+            force_off_radio,
+            "Impede o uso do OpenVINO neste projeto, mesmo se estiver ativo globalmente.",
+        )
 
         ttk.Label(
             openvino_frame,
@@ -484,22 +500,32 @@ class CalibrationDialog(simpledialog.Dialog):
         ttk.Label(preview, text="Peso utilizado:").grid(row=0, column=0, sticky="w")
         ttk.Label(preview, textvariable=self.effective_weight_var).grid(row=0, column=1, sticky="w")
         ttk.Label(preview, text="OpenVINO:").grid(row=1, column=0, sticky="w")
-        ttk.Label(preview, textvariable=self.effective_openvino_var).grid(row=1, column=1, sticky="w")
+        ttk.Label(preview, textvariable=self.effective_openvino_var).grid(
+            row=1, column=1, sticky="w"
+        )
 
         row += 1
         defaults_frame = ttk.LabelFrame(self.preferences_section, text="Padrões Globais", padding=8)
         defaults_frame.grid(row=row, column=0, columnspan=2, padx=12, pady=(6, 4), sticky="ew")
-        ttk.Label(defaults_frame, text=f"Peso global: {defaults.get('active_weight') or 'Nenhum'}").pack(anchor="w")
+        ttk.Label(
+            defaults_frame, text=f"Peso global: {defaults.get('active_weight') or 'Nenhum'}"
+        ).pack(anchor="w")
         ttk.Label(
             defaults_frame,
-            text=("OpenVINO global: " + ("Ativado" if defaults.get("use_openvino") else "Desativado")),
+            text=(
+                "OpenVINO global: " + ("Ativado" if defaults.get("use_openvino") else "Desativado")
+            ),
         ).pack(anchor="w", pady=(4, 0))
 
         row += 1
         actions = ttk.Frame(self.preferences_section)
         actions.grid(row=row, column=0, columnspan=2, sticky="e", padx=12, pady=(10, 12))
-        ttk.Button(actions, text="Salvar Preferências", command=self._save_project_preferences).pack(side="left", padx=(0, 6))
-        ttk.Button(actions, text="Recarregar do Projeto", command=self._restore_project_preferences).pack(side="left")
+        ttk.Button(
+            actions, text="Salvar Preferências", command=self._save_project_preferences
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            actions, text="Recarregar do Projeto", command=self._restore_project_preferences
+        ).pack(side="left")
 
         self._update_preferences_preview()
 
@@ -839,8 +865,10 @@ class CalibrationDialog(simpledialog.Dialog):
 
         if project_params and self.scope_info.get("scope") == "project":
             project_name = self.scope_info.get("project_name")
-            label = f"Escopo: Projeto ({project_name}) - Overrides Locais" if project_name else (
-                "Escopo: Projeto - Overrides Locais"
+            label = (
+                f"Escopo: Projeto ({project_name}) - Overrides Locais"
+                if project_name
+                else ("Escopo: Projeto - Overrides Locais")
             )
             self.scope_label_var.set(label)
             self.scope_detail_var.set(
@@ -1111,17 +1139,10 @@ class CalibrationDialog(simpledialog.Dialog):
         if self.preferences_section:
             project_ready = self.scope == "project" and self.scope_info.get("project_loaded")
             if project_ready:
-                if self.preferences_separator and not self.preferences_separator.winfo_manager():
-                    self.preferences_separator.pack(fill="x", pady=(12, 0))
-                if not self.preferences_section.winfo_manager():
-                    self.preferences_section.pack(fill="both", expand=True, pady=(12, 0))
+                # Preferences section is managed by CollapsibleFrame, just rebuild content
                 self._build_preferences_section()
             else:
                 self._clear_frame(self.preferences_section)
-                if self.preferences_section.winfo_manager():
-                    self.preferences_section.pack_forget()
-                if self.preferences_separator and self.preferences_separator.winfo_manager():
-                    self.preferences_separator.pack_forget()
 
         if self.scope_action_button:
             action_text = self._get_scope_action_text(self.scope_info)
@@ -4150,9 +4171,7 @@ class ApplicationGUI:
             self._project_status_containers[key] = container
 
         # Add separator
-        ttk.Separator(self.project_overview_frame, orient="horizontal").pack(
-            fill="x", pady=(8, 8)
-        )
+        ttk.Separator(self.project_overview_frame, orient="horizontal").pack(fill="x", pady=(8, 8))
 
         # Add help text and button to access full details
         info_frame = ttk.Frame(self.project_overview_frame)
@@ -4352,11 +4371,7 @@ class ApplicationGUI:
             for video in videos
             if video.get("has_summary")
             or video.get("has_complete_data")
-            or (
-                video.get("has_arena")
-                and video.get("has_rois")
-                and video.get("has_trajectory")
-            )
+            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
         )
 
         summary_values["arena"] = arena_ready
@@ -4877,9 +4892,16 @@ class ApplicationGUI:
 
         controls_row = ttk.Frame(self.arduino_dashboard_frame)
         controls_row.pack(fill="x", pady=(6, 0))
+
         ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
-            side="right"
+            side="right", padx=(5, 0)
         )
+
+        ttk.Button(
+            controls_row,
+            text="🔄 Reverificar Portas",
+            command=self._recheck_arduino_ports,
+        ).pack(side="right")
 
         # Reset dashboard state
         self._clear_arduino_log()
@@ -4892,6 +4914,108 @@ class ApplicationGUI:
         self.arduino_log_text.configure(state="normal")
         self.arduino_log_text.delete("1.0", "end")
         self.arduino_log_text.configure(state="disabled")
+
+    def _recheck_arduino_ports(self):
+        """
+        Recheck available Arduino ports and update project configuration.
+
+        Scans for available serial ports and allows updating the Arduino port
+        configuration for live projects.
+        """
+        from tkinter import messagebox
+
+        try:
+            import serial.tools.list_ports
+
+            # Scan for available ports
+            ports = list(serial.tools.list_ports.comports())
+
+            if not ports:
+                messagebox.showwarning(
+                    "Nenhuma Porta Detectada",
+                    "Nenhuma porta serial foi detectada.\n\n"
+                    "Verifique se:\n"
+                    "• O Arduino está conectado via USB\n"
+                    "• Os drivers estão instalados corretamente\n"
+                    "• A porta não está sendo usada por outro programa",
+                )
+                self.append_arduino_log("✗ Reverificação: Nenhuma porta detectada")
+                return
+
+            # Build display strings with descriptions
+            port_options = []
+            for port in ports:
+                description = port.description or "Dispositivo Serial"
+                port_options.append(f"{port.device} - {description}")
+
+            # Show selection dialog
+            from tkinter import simpledialog
+
+            selection = simpledialog.askstring(
+                "Selecionar Porta Arduino",
+                f"Detectadas {len(ports)} porta(s) serial.\n\n"
+                f"Portas disponíveis:\n" + "\n".join(f"• {opt}" for opt in port_options) + "\n\n"
+                "Digite o nome da porta (ex: COM3):",
+                initialvalue=ports[0].device if ports else "",
+            )
+
+            if selection:
+                # Extract device name (strip description if pasted)
+                selected_device = selection.split(" - ")[0].strip()
+
+                # Validate selection
+                valid_devices = [p.device for p in ports]
+                if selected_device not in valid_devices:
+                    messagebox.showerror(
+                        "Porta Inválida",
+                        f"A porta '{selected_device}' não está entre as portas detectadas.\n\n"
+                        f"Portas válidas: {', '.join(valid_devices)}",
+                    )
+                    return
+
+                # Update project configuration
+                if self.controller.project_manager.project_data:
+                    old_port = self.controller.project_manager.project_data.get("arduino_port")
+                    self.controller.project_manager.project_data["arduino_port"] = selected_device
+                    self.controller.project_manager.save_project()
+
+                    messagebox.showinfo(
+                        "Porta Atualizada",
+                        f"Porta Arduino atualizada:\n\n"
+                        f"Porta anterior: {old_port or 'Nenhuma'}\n"
+                        f"Nova porta: {selected_device}\n\n"
+                        "A nova porta será usada na próxima gravação.",
+                    )
+
+                    self.append_arduino_log(
+                        f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
+                    )
+
+                    log.info(
+                        "arduino.port_updated",
+                        old_port=old_port,
+                        new_port=selected_device,
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Projeto Não Carregado",
+                        "Nenhum projeto está carregado no momento.",
+                    )
+
+        except ImportError:
+            messagebox.showerror(
+                "Erro",
+                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
+            )
+            self.append_arduino_log("✗ pyserial não disponível")
+
+        except Exception as e:
+            messagebox.showerror(
+                "Erro",
+                f"Ocorreu um erro ao reverificar portas:\n\n{e!s}",
+            )
+            self.append_arduino_log(f"✗ Erro na reverificação: {e!s}")
+            log.error("arduino.recheck_ports_failed", error=str(e))
 
     def append_arduino_log(self, message: str):
         if not self.arduino_log_text:
@@ -6181,9 +6305,7 @@ class ApplicationGUI:
                 state="normal" if all_have_trajectory else "disabled"
             )
 
-    def _trigger_batch_trajectory_processing(
-        self, selection: Iterable[str] | None = None
-    ) -> None:
+    def _trigger_batch_trajectory_processing(self, selection: Iterable[str] | None = None) -> None:
         if selection is None:
             selections = self._get_selected_pipeline_video_paths()
             if not selections:
@@ -7938,11 +8060,7 @@ class ApplicationGUI:
                     video_tag = (
                         "status_complete"
                         if video_complete
-                        else (
-                            "status_partial"
-                            if entry["has_trajectory"]
-                            else "status_missing"
-                        )
+                        else ("status_partial" if entry["has_trajectory"] else "status_missing")
                     )
 
                     video_node_id = f"video_{video_path}"
@@ -11363,10 +11481,14 @@ class ApplicationGUI:
 
     def hide_progress_bar(self):
         """Hides the progress bar and cancel button, and resets its value."""
-        if self.progress_frame and self.progress_frame.winfo_viewable():
+        if (
+            self.progress_frame
+            and self.progress_frame.winfo_exists()
+            and self.progress_frame.winfo_viewable()
+        ):
             self.progress_frame.pack_forget()
             self.progress_bar["value"] = 0
-        if self.cancel_proc_btn:
+        if self.cancel_proc_btn and self.cancel_proc_btn.winfo_exists():
             self.cancel_proc_btn.config(state="disabled")
 
     def _draw_zones_on_frame(self, frame):

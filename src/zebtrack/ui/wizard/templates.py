@@ -4,8 +4,8 @@ Wizard Template System
 Allows saving and loading project configuration templates for quick project creation.
 """
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -97,6 +97,11 @@ class TemplateManager:
                 "weight_assignments": deepcopy(wizard_data.get("weight_assignments")),
                 "detector_parameters": deepcopy(wizard_data.get("detector_parameters")),
                 "use_openvino": wizard_data.get("use_openvino"),
+                # Live project experimental design fields
+                "experiment_days": wizard_data.get("experiment_days"),
+                "num_groups": wizard_data.get("num_groups"),
+                "subjects_per_group": wizard_data.get("subjects_per_group"),
+                "group_names": deepcopy(wizard_data.get("group_names")),
             }
 
             # Write template to file

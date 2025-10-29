@@ -10,7 +10,7 @@ Collects experimental structure for live recording projects:
 
 from __future__ import annotations
 
-from tkinter import Entry, Frame, IntVar, Label, LabelFrame, Scale, StringVar
+from tkinter import Button, Entry, Frame, IntVar, Label, LabelFrame, StringVar
 
 import structlog
 
@@ -19,6 +19,103 @@ from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
+
+
+class NumberInput(Frame):
+    """
+    Entry field with +/- buttons for numeric input.
+
+    Provides an intuitive way to input numbers with both direct typing
+    and increment/decrement buttons.
+    """
+
+    def __init__(
+        self,
+        parent,
+        variable: IntVar,
+        min_val: int = 1,
+        max_val: int = 100,
+        width: int = 5,
+        **kwargs,
+    ):
+        """
+        Initialize NumberInput widget.
+
+        Args:
+            parent: Parent widget
+            variable: IntVar to bind to
+            min_val: Minimum allowed value
+            max_val: Maximum allowed value
+            width: Width of entry field in characters
+            **kwargs: Additional Frame options
+        """
+        super().__init__(parent, **kwargs)
+        self.variable = variable
+        self.min_val = min_val
+        self.max_val = max_val
+
+        # Decrease button
+        self.btn_decrease = Button(
+            self,
+            text="−",
+            width=2,
+            command=self._decrease,
+        )
+        self.btn_decrease.pack(side="left", padx=(0, 2))
+
+        # Entry field
+        self.entry = Entry(
+            self,
+            textvariable=self.variable,
+            width=width,
+            justify="center",
+        )
+        self.entry.pack(side="left", padx=2)
+
+        # Increase button
+        self.btn_increase = Button(
+            self,
+            text="+",
+            width=2,
+            command=self._increase,
+        )
+        self.btn_increase.pack(side="left", padx=(2, 0))
+
+        # Validation
+        self.variable.trace_add("write", self._validate)
+
+        # Initial validation
+        self._validate()
+
+    def _decrease(self):
+        """Decrease value by 1."""
+        current = self.variable.get()
+        if current > self.min_val:
+            self.variable.set(current - 1)
+
+    def _increase(self):
+        """Increase value by 1."""
+        current = self.variable.get()
+        if current < self.max_val:
+            self.variable.set(current + 1)
+
+    def _validate(self, *args):
+        """Validate and clamp value to allowed range."""
+        try:
+            value = self.variable.get()
+            # Clamp to valid range
+            if value < self.min_val:
+                self.variable.set(self.min_val)
+            elif value > self.max_val:
+                self.variable.set(self.max_val)
+
+            # Update button states
+            self.btn_decrease.config(state="normal" if value > self.min_val else "disabled")
+            self.btn_increase.config(state="normal" if value < self.max_val else "disabled")
+
+        except Exception:
+            # If conversion fails, reset to min value
+            self.variable.set(self.min_val)
 
 
 class ExperimentalDesignStep(WizardStep):
@@ -88,23 +185,16 @@ class ExperimentalDesignStep(WizardStep):
         days_frame = Frame(left_col)
         days_frame.pack(fill="x", pady=(0, 15))
 
-        days_scale = Scale(
+        days_input = NumberInput(
             days_frame,
-            from_=1,
-            to=30,
             variable=self.num_days_var,
-            orient="horizontal",
-            length=250,
+            min_val=1,
+            max_val=30,
+            width=5,
         )
-        days_scale.pack(side="left")
+        days_input.pack(side="left")
 
-        days_value_label = Label(
-            days_frame,
-            textvariable=self.num_days_var,
-            width=3,
-            font=("TkDefaultFont", 10, "bold"),
-        )
-        days_value_label.pack(side="left", padx=5)
+        Label(days_frame, text="dias", fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             days_frame,
@@ -115,6 +205,7 @@ class ExperimentalDesignStep(WizardStep):
                 "• 1 dia: Teste agudo\n"
                 "• 7 dias: Tratamento de 1 semana\n"
                 "• 21 dias: Tratamento crônico\n\n"
+                "Você pode digitar diretamente ou usar os botões +/-.\n"
                 "Isso afeta a organização dos arquivos de saída."
             ),
         )
@@ -129,23 +220,16 @@ class ExperimentalDesignStep(WizardStep):
         subjects_frame = Frame(left_col)
         subjects_frame.pack(fill="x", pady=(0, 15))
 
-        subjects_scale = Scale(
+        subjects_input = NumberInput(
             subjects_frame,
-            from_=1,
-            to=20,
             variable=self.subjects_per_group_var,
-            orient="horizontal",
-            length=250,
+            min_val=1,
+            max_val=20,
+            width=5,
         )
-        subjects_scale.pack(side="left")
+        subjects_input.pack(side="left")
 
-        subjects_value_label = Label(
-            subjects_frame,
-            textvariable=self.subjects_per_group_var,
-            width=3,
-            font=("TkDefaultFont", 10, "bold"),
-        )
-        subjects_value_label.pack(side="left", padx=5)
+        Label(subjects_frame, text="animais/grupo", fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             subjects_frame,
@@ -155,7 +239,8 @@ class ExperimentalDesignStep(WizardStep):
                 "Exemplo: 5 animais/grupo\n"
                 "• Grupo Controle: 5 animais\n"
                 "• Grupo Tratamento: 5 animais\n"
-                "Total: 10 animais"
+                "Total: 10 animais\n\n"
+                "Você pode digitar diretamente ou usar os botões +/-."
             ),
         )
 
@@ -169,24 +254,19 @@ class ExperimentalDesignStep(WizardStep):
         groups_frame = Frame(left_col)
         groups_frame.pack(fill="x", pady=(0, 15))
 
-        groups_scale = Scale(
+        groups_input = NumberInput(
             groups_frame,
-            from_=1,
-            to=6,
             variable=self.num_groups_var,
-            orient="horizontal",
-            length=250,
-            command=self._on_num_groups_change,
+            min_val=1,
+            max_val=6,
+            width=5,
         )
-        groups_scale.pack(side="left")
+        groups_input.pack(side="left")
 
-        groups_value_label = Label(
-            groups_frame,
-            textvariable=self.num_groups_var,
-            width=3,
-            font=("TkDefaultFont", 10, "bold"),
-        )
-        groups_value_label.pack(side="left", padx=5)
+        # Register callback for groups change
+        self.num_groups_var.trace_add("write", lambda *args: self._on_num_groups_change())
+
+        Label(groups_frame, text="grupos", fg="gray").pack(side="left", padx=5)
 
         ToolTip(
             groups_frame,
@@ -196,7 +276,8 @@ class ExperimentalDesignStep(WizardStep):
                 "Exemplos:\n"
                 "• 1 grupo: Apenas um tratamento\n"
                 "• 2 grupos: Controle vs. Tratamento\n"
-                "• 3+ grupos: Múltiplos tratamentos ou doses"
+                "• 3+ grupos: Múltiplos tratamentos ou doses\n\n"
+                "Você pode digitar diretamente ou usar os botões +/-."
             ),
         )
 
@@ -298,7 +379,7 @@ class ExperimentalDesignStep(WizardStep):
 
             Label(
                 frame,
-                text=f"Grupo {i+1}:",
+                text=f"Grupo {i + 1}:",
                 width=10,
                 anchor="w",
             ).pack(side="left")
@@ -310,7 +391,7 @@ class ExperimentalDesignStep(WizardStep):
             elif i < len(default_names):
                 default_value = default_names[i]
             else:
-                default_value = f"Grupo {i+1}"
+                default_value = f"Grupo {i + 1}"
 
             var = StringVar(value=default_value)
             self.group_name_vars.append(var)
@@ -340,7 +421,7 @@ class ExperimentalDesignStep(WizardStep):
         for i, var in enumerate(self.group_name_vars[:num_groups]):
             name = var.get().strip()
             if not name:
-                return (False, f"O nome do Grupo {i+1} não pode ficar vazio")
+                return (False, f"O nome do Grupo {i + 1} não pode ficar vazio")
 
             # Update var with trimmed value
             var.set(name)
@@ -360,9 +441,7 @@ class ExperimentalDesignStep(WizardStep):
             "experiment_days": self.num_days_var.get(),
             "num_groups": num_groups,
             "subjects_per_group": self.subjects_per_group_var.get(),
-            "group_names": [
-                var.get().strip() for var in self.group_name_vars[:num_groups]
-            ],
+            "group_names": [var.get().strip() for var in self.group_name_vars[:num_groups]],
         }
 
     def set_data(self, data: dict):

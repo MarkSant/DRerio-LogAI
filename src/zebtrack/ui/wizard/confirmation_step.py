@@ -10,7 +10,6 @@ import re
 from pathlib import Path
 from tkinter import (
     Button,
-    Canvas,
     Entry,
     Frame,
     Label,
@@ -27,10 +26,10 @@ from tkinter import (
 
 import structlog
 
+from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
 from zebtrack.ui.wizard.templates import TemplateManager, format_template_banner
-from zebtrack.ui.window_utils import create_scrollbar
 
 log = structlog.get_logger()
 
@@ -69,41 +68,11 @@ class ConfirmationStep(WizardStep):
         self._responsive_labels: list[Label] = []
 
     def build_ui(self):
-        """Build confirmation step UI."""
+        """Build confirmation step UI with scrollable summary text."""
         background_color = self.cget("background")
 
-        self.scroll_canvas = Canvas(
-            self,
-            highlightthickness=0,
-            bg=background_color,
-            borderwidth=0,
-        )
-        self.scrollbar = create_scrollbar(
-            self,
-            orient="vertical",
-            command=self.scroll_canvas.yview,
-        )
-        self.scroll_canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self.scroll_canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-
-        self.content_frame = Frame(self.scroll_canvas, bg=background_color)
-        self.content_frame.bind(
-            "<Configure>",
-            lambda event: self.scroll_canvas.configure(
-                scrollregion=self.scroll_canvas.bbox("all")
-            ),
-        )
-        self._canvas_window = self.scroll_canvas.create_window(
-            (0, 0), window=self.content_frame, anchor="nw"
-        )
-
-        self.scroll_canvas.bind("<Configure>", self._on_canvas_configure)
-        self.scroll_canvas.bind("<Enter>", self._bind_mousewheel)
-        self.scroll_canvas.bind("<Leave>", self._unbind_mousewheel)
-
-        self.content_container = Frame(self.content_frame, bg=background_color)
+        # Main container (fixed header + scrollable summary + fixed buttons)
+        self.content_container = Frame(self, bg=background_color)
         self.content_container.pack(fill="both", expand=True, padx=16, pady=12)
 
         # Title
@@ -238,14 +207,11 @@ class ConfirmationStep(WizardStep):
         self._generate_summary()
         self._update_template_banner()
 
-    def _on_canvas_configure(self, event):
-        self.scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
-        self._update_wraplengths(event.width)
-
     def _initial_wrap_refresh(self) -> None:
+        """Refresh wraplengths based on current widget width."""
         if not self.winfo_exists():
             return
-        width = self.scroll_canvas.winfo_width() or self.winfo_width()
+        width = self.winfo_width()
         if width:
             self._update_wraplengths(width)
 
@@ -330,19 +296,9 @@ class ConfirmationStep(WizardStep):
             self.summary_textbox.configure(state="disabled")
             self.summary_textbox.yview_moveto(0.0)
 
-    def _bind_mousewheel(self, _event):
-        self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-
-    def _unbind_mousewheel(self, _event):
-        self.scroll_canvas.unbind_all("<MouseWheel>")
-
-    def _on_mousewheel(self, event):
-        delta = int(-1 * (event.delta / 120))
-        self.scroll_canvas.yview_scroll(delta, "units")
-
     def on_hide(self):
-        """Clear scroll bindings when step is hidden."""
-        self._unbind_mousewheel(None)
+        """Called when step is hidden (no special cleanup needed now)."""
+        pass
 
     # ------------------------------------------------------------------
     # Summary helper methods (split from _generate_summary)
@@ -388,9 +344,7 @@ class ConfirmationStep(WizardStep):
                     f"  • {num_groups} grupos × {experiment_days} dias × "
                     f"{subjects_per_group} animais/grupo"
                 )
-                lines.append(
-                    f"  • Total: {total_sessions} gravações ({total_animals} animais)"
-                )
+                lines.append(f"  • Total: {total_sessions} gravações ({total_animals} animais)")
             if group_names:
                 group_list = ", ".join(group_names)
                 lines.append(f"  • Grupos: {group_list}")
@@ -499,7 +453,9 @@ class ConfirmationStep(WizardStep):
         detector_params = self.wizard_data.get("detector_parameters") or {}
         use_openvino = self.wizard_data.get("use_openvino")
 
-        if not (model_selection or weight_assignments or detector_params or use_openvino is not None):
+        if not (
+            model_selection or weight_assignments or detector_params or use_openvino is not None
+        ):
             return
 
         method_labels = {
@@ -807,7 +763,8 @@ class ConfirmationStep(WizardStep):
         if project_path.exists():
             return (False, f"Já existe um projeto com esse nome em: {location}")
 
-        # Validate sources: prerecorded projects require selected videos; live projects require camera config
+        # Validate sources: prerecorded projects require selected videos;
+        # live projects require camera config
         project_type = self.wizard_data.get("project_type", ProjectType.EXPERIMENTAL.value)
 
         if project_type != ProjectType.LIVE.value:

@@ -140,7 +140,7 @@ class ZoneControlsWidget(BaseWidget):
         title_label = ttk.Label(
             stabilization_frame,
             text="Janela de Suavização (frames):",
-            font=("TkDefaultFont", 9, "bold")
+            font=("TkDefaultFont", 9, "bold"),
         )
         title_label.pack(side="left", padx=(0, 5))
 
@@ -155,7 +155,7 @@ class ZoneControlsWidget(BaseWidget):
             actions_frame,
             text="↳ Média móvel de N frames para reduzir ruído na trajetória",
             font=("TkDefaultFont", 8),
-            foreground="gray"
+            foreground="gray",
         )
         explanation_label.pack(fill="x", pady=(0, 5), padx=(10, 0), anchor="w")
 
@@ -338,6 +338,15 @@ class ZoneControlsWidget(BaseWidget):
         self.video_selector_tree.configure(yscrollcommand=scrollbar.set)
         self.video_selector_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+        # Configure tag styles (harmonized with PendingVideosDialog)
+        TAG_STYLES = {
+            "ready_full": {"background": "#d4edda", "foreground": "#1e4620"},
+            "ready_partial": {"background": "#fff3cd", "foreground": "#5c470b"},
+            "ready_missing": {"background": "#f8d7da", "foreground": "#842029"},
+        }
+        for tag, style in TAG_STYLES.items():
+            self.video_selector_tree.tag_configure(tag, **style)
 
         # Bind events
         self.video_selector_tree.bind("<Double-Button-1>", self._on_video_tree_double_click)

@@ -129,7 +129,8 @@ class CustomRegexDialog(Dialog):
             text=(
                 "• Campos vazios permanecem inalterados no design.\n"
                 "• \\d captura dígitos (0-9); \\w cobre letras, números e _.\n"
-                "• Âncoras ^ (início) e $ (fim) fixam o padrão na string completa — use com cautela.\n"
+                "• Âncoras ^ (início) e $ (fim) fixam o padrão na string "
+                "completa — use com cautela.\n"
                 "• A pré-visualização calcula automaticamente após cada edição."
             ),
             justify="left",
@@ -137,6 +138,84 @@ class CustomRegexDialog(Dialog):
             fg="#4a4a4a",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w")
+
+        # Examples section
+        examples_frame = ttk.LabelFrame(master, text="📚 Exemplos Comuns", padding=6)
+        examples_frame.pack(fill="x", padx=10, pady=(0, 6))
+
+        # Define common examples
+        examples = [
+            {
+                "desc": "Grupo no nome do arquivo",
+                "pattern": r"(Control|Treatment)",
+                "example": "Video_Control_Day1.mp4",
+                "field": "group",
+            },
+            {
+                "desc": "Dia com número",
+                "pattern": r"Day(\d+)",
+                "example": "Day01_Subject_S1.mp4",
+                "field": "day",
+            },
+            {
+                "desc": "Sujeito com prefixo S",
+                "pattern": r"S(\d+)",
+                "example": "Group1_Day2_S03.mp4",
+                "field": "subject",
+            },
+            {
+                "desc": "Grupo em pasta (qualquer palavra)",
+                "pattern": r"(\w+)",
+                "example": "/Control/Day1/Video.mp4",
+                "field": "group",
+            },
+        ]
+
+        for i, ex in enumerate(examples):
+            row = Frame(examples_frame)
+            row.pack(fill="x", pady=2)
+
+            # Description
+            desc_label = Label(
+                row,
+                text=f"{ex['desc']}:",
+                width=25,
+                anchor="w",
+                font=("TkDefaultFont", 8),
+            )
+            desc_label.pack(side="left", padx=(0, 5))
+
+            # Pattern display
+            pattern_label = Label(
+                row,
+                text=ex["pattern"],
+                fg="#0066cc",
+                font=("Courier", 8),
+                anchor="w",
+                width=20,
+            )
+            pattern_label.pack(side="left", padx=(0, 5))
+
+            # Use button
+            use_btn = Button(
+                row,
+                text="Usar",
+                command=lambda p=ex["pattern"], f=ex["field"]: self._apply_example_pattern(f, p),
+                width=6,
+                font=("TkDefaultFont", 8),
+            )
+            use_btn.pack(side="left", padx=(0, 5))
+
+            # Example filename
+            ex_label = Label(
+                row,
+                text=f"Ex: {ex['example']}",
+                fg="gray",
+                font=("TkDefaultFont", 8),
+                anchor="w",
+            )
+            ex_label.pack(side="left")
+
         # Group pattern
         group_frame = Frame(master)
         group_frame.pack(fill="x", padx=10, pady=3)
@@ -321,6 +400,33 @@ class CustomRegexDialog(Dialog):
         self.after_idle(self._initialize_geometry)
 
         return self.group_pattern_entry  # Initial focus
+
+    def _apply_example_pattern(self, field: str, pattern: str):
+        """
+        Apply an example pattern to the corresponding field.
+
+        Args:
+            field: Field name ('group', 'day', or 'subject')
+            pattern: Regex pattern to apply
+        """
+        if field == "group":
+            self.group_pattern_var.set(pattern)
+            self.group_pattern_entry.focus_set()
+        elif field == "day":
+            self.day_pattern_var.set(pattern)
+            self.day_pattern_entry.focus_set()
+        elif field == "subject":
+            self.subject_pattern_var.set(pattern)
+            self.subject_pattern_entry.focus_set()
+
+        # Trigger live update
+        self._schedule_live_update()
+
+        log.info(
+            "custom_regex.example_applied",
+            field=field,
+            pattern=pattern,
+        )
 
     def buttonbox(self):
         """Override to add OK and Cancel buttons."""

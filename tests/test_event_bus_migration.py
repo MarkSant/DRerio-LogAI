@@ -49,8 +49,8 @@ class TestEventBusMigration(unittest.TestCase):
         # A more comprehensive test would check every button, but we'll sample a few
         widget.auto_detect_button.invoke()
         self.mock_event_bus.publish_event.assert_called_with(
-            Events.ZONE_AUTO_DETECT,
-            {"stabilization_frames": int(widget.stabilization_frames_var.get())},
+            event_name="zone.auto_detect_clicked",
+            data={"stabilization_frames": str(widget.stabilization_frames_var.get())},
         )
 
         widget.draw_arena_button.invoke()

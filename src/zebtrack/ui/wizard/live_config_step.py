@@ -16,6 +16,8 @@ from tkinter import (
     LabelFrame,
     Spinbox,
     StringVar,
+    messagebox,
+    ttk,
 )
 from tkinter import (
     font as tkfont,
@@ -168,21 +170,36 @@ class LiveConfigStep(WizardStep):
             width=25,
             anchor="w",
         ).pack(side="left")
-        self.arduino_port_entry = Entry(
+
+        # Combobox for Arduino port selection with descriptions
+        self.arduino_port_combo = ttk.Combobox(
             self.arduino_port_frame,
             textvariable=self.arduino_port_var,
-            width=20,
+            width=35,
             state="disabled",
         )
-        self.arduino_port_entry.pack(side="left", padx=(5, 5))
+        self.arduino_port_combo.pack(side="left", padx=(5, 5))
+
+        # Store mapping of display text to actual port device
+        self.arduino_port_map = {}
 
         self.detect_arduino_btn = Button(
             self.arduino_port_frame,
-            text="🔍 Detectar Portas",
+            text="🔍 Detectar",
             command=self._detect_arduino_ports,
             state="disabled",
+            width=10,
         )
-        self.detect_arduino_btn.pack(side="left", padx=5)
+        self.detect_arduino_btn.pack(side="left", padx=2)
+
+        self.test_arduino_btn = Button(
+            self.arduino_port_frame,
+            text="🔌 Testar",
+            command=self._test_arduino_connection,
+            state="disabled",
+            width=10,
+        )
+        self.test_arduino_btn.pack(side="left", padx=2)
 
         self.arduino_status_label = Label(self.arduino_port_frame, text="", fg="gray")
         self.arduino_status_label.pack(side="left", padx=5)
@@ -426,12 +443,14 @@ class LiveConfigStep(WizardStep):
     def _on_arduino_toggle(self):
         """Enable/disable Arduino controls based on checkbox."""
         if self.use_arduino_var.get():
-            self.arduino_port_entry.config(state="normal")
+            self.arduino_port_combo.config(state="readonly")
             self.detect_arduino_btn.config(state="normal")
+            self.test_arduino_btn.config(state="normal")
             self.external_trigger_cb.config(state="normal")
         else:
-            self.arduino_port_entry.config(state="disabled")
+            self.arduino_port_combo.config(state="disabled")
             self.detect_arduino_btn.config(state="disabled")
+            self.test_arduino_btn.config(state="disabled")
             self.external_trigger_cb.config(state="disabled")
             self.arduino_port_var.set("")
             self.external_trigger_mode_var.set(False)
@@ -459,18 +478,73 @@ class LiveConfigStep(WizardStep):
                     widget.config(state="disabled")
 
     def _detect_cameras(self):
-        """Detect available cameras."""
+        """Detect available cameras with verbose suppression."""
+        import os
+        import sys
+        from contextlib import contextmanager
+
         import cv2
+
+        @contextmanager
+        def suppress_opencv_logs():
+            """Suppress OpenCV verbose output during camera detection."""
+            # Save current stderr
+            old_stderr_fd = None
+            old_stderr = sys.stderr
+
+            try:
+                # Redirect stderr to devnull
+                old_stderr_fd = os.dup(2)
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, 2)
+                os.close(devnull)
+                sys.stderr = open(os.devnull, "w")
+
+                # Also set OpenCV log level to ERROR
+                cv2.setLogLevel(0)  # LOG_LEVEL_SILENT
+
+                yield
+
+            finally:
+                # Restore stderr
+                if old_stderr_fd is not None:
+                    os.dup2(old_stderr_fd, 2)
+                    os.close(old_stderr_fd)
+                sys.stderr.close()
+                sys.stderr = old_stderr
+                # Restore OpenCV log level
+                cv2.setLogLevel(3)  # LOG_LEVEL_ERROR
 
         self.camera_status_label.config(text="Detectando...", fg="blue")
         self.update_idletasks()
 
         available = []
-        for i in range(10):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                available.append(i)
-                cap.release()
+        consecutive_failures = 0
+        max_consecutive_failures = 3
+
+        with suppress_opencv_logs():
+            for i in range(10):
+                try:
+                    # Use DirectShow backend on Windows for better reliability
+                    if sys.platform == "win32":
+                        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                    else:
+                        cap = cv2.VideoCapture(i)
+
+                    if cap.isOpened():
+                        available.append(i)
+                        cap.release()
+                        consecutive_failures = 0  # Reset failure counter
+                    else:
+                        consecutive_failures += 1
+                        # Stop early if we hit too many consecutive failures
+                        if consecutive_failures >= max_consecutive_failures:
+                            break
+
+                except Exception:
+                    consecutive_failures += 1
+                    if consecutive_failures >= max_consecutive_failures:
+                        break
 
         if available:
             self.camera_status_label.config(
@@ -493,7 +567,7 @@ class LiveConfigStep(WizardStep):
         )
 
     def _detect_arduino_ports(self):
-        """Detect available Arduino ports."""
+        """Detect available Arduino ports with descriptions."""
         try:
             import serial.tools.list_ports
 
@@ -502,21 +576,38 @@ class LiveConfigStep(WizardStep):
 
             ports = list(serial.tools.list_ports.comports())
             if ports:
-                port_list = [p.device for p in ports]
+                # Build display strings with descriptions
+                display_list = []
+                self.arduino_port_map.clear()
+
+                for port in ports:
+                    # Create descriptive display text
+                    description = port.description or "Dispositivo Serial"
+                    display_text = f"{port.device} - {description}"
+                    display_list.append(display_text)
+                    # Map display text to actual device
+                    self.arduino_port_map[display_text] = port.device
+
+                # Update combobox
+                self.arduino_port_combo["values"] = display_list
+
                 self.arduino_status_label.config(
                     text=f"✓ {len(ports)} porta(s) detectada(s)",
                     fg="green",
                 )
-                # Auto-select first port
-                if not self.arduino_port_var.get():
-                    self.arduino_port_var.set(port_list[0])
+
+                # Auto-select first port if none selected
+                if not self.arduino_port_var.get() and display_list:
+                    self.arduino_port_var.set(display_list[0])
 
                 log.info(
                     "live_config.arduino_ports_detected",
                     count=len(ports),
-                    ports=port_list,
+                    ports=[p.device for p in ports],
                 )
             else:
+                self.arduino_port_combo["values"] = []
+                self.arduino_port_map.clear()
                 self.arduino_status_label.config(
                     text="✗ Nenhuma porta detectada",
                     fg="red",
@@ -527,6 +618,68 @@ class LiveConfigStep(WizardStep):
                 fg="red",
             )
             log.warning("live_config.pyserial_not_available")
+
+    def _test_arduino_connection(self):
+        """Test Arduino connection with selected port."""
+        selected_display = self.arduino_port_var.get()
+        if not selected_display:
+            messagebox.showwarning(
+                "Nenhuma Porta Selecionada",
+                "Por favor, detecte e selecione uma porta Arduino primeiro.",
+            )
+            return
+
+        # Get actual device from mapping
+        port_device = self.arduino_port_map.get(selected_display, selected_display)
+
+        try:
+            import serial
+
+            self.arduino_status_label.config(text="Testando...", fg="blue")
+            self.update_idletasks()
+
+            # Try to open serial connection
+            ser = serial.Serial(port_device, 9600, timeout=2)
+            ser.close()
+
+            # Success
+            self.arduino_status_label.config(text="✓ Conexão OK", fg="green")
+            messagebox.showinfo(
+                "Teste de Conexão",
+                f"Conexão com {port_device} estabelecida com sucesso!\n\n"
+                "A porta está acessível e pronta para uso.",
+            )
+
+            log.info("live_config.arduino_test_success", port=port_device)
+
+        except serial.SerialException as e:
+            self.arduino_status_label.config(text="✗ Falha na conexão", fg="red")
+            messagebox.showerror(
+                "Erro de Conexão",
+                f"Não foi possível conectar à porta {port_device}.\n\n"
+                f"Erro: {e!s}\n\n"
+                "Verifique se:\n"
+                "• O Arduino está conectado\n"
+                "• A porta não está em uso por outro programa\n"
+                "• Você tem permissão para acessar a porta",
+            )
+            log.error("live_config.arduino_test_failed", port=port_device, error=str(e))
+
+        except ImportError:
+            self.arduino_status_label.config(text="✗ pyserial não disponível", fg="red")
+            messagebox.showerror(
+                "Erro",
+                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
+            )
+            log.warning("live_config.pyserial_not_available")
+
+        except Exception as e:
+            self.arduino_status_label.config(text="✗ Erro inesperado", fg="red")
+            messagebox.showerror(
+                "Erro Inesperado",
+                f"Ocorreu um erro ao testar a conexão:\n\n{e!s}",
+            )
+            log.error("live_config.arduino_test_error", error=str(e))
 
     def validate(self) -> tuple[bool, str]:
         """
@@ -586,7 +739,12 @@ class LiveConfigStep(WizardStep):
                 - use_countdown (bool)
                 - countdown_duration_s (int)
         """
-        arduino_port = self.arduino_port_var.get().strip() if self.use_arduino_var.get() else None
+        arduino_port = None
+        if self.use_arduino_var.get():
+            selected_display = self.arduino_port_var.get().strip()
+            if selected_display:
+                # Convert display text back to actual device
+                arduino_port = self.arduino_port_map.get(selected_display, selected_display)
 
         return {
             "camera_index": self.camera_index_var.get(),
@@ -615,7 +773,19 @@ class LiveConfigStep(WizardStep):
             self.use_arduino_var.set(data["use_arduino"])
 
         if data.get("arduino_port"):
-            self.arduino_port_var.set(data["arduino_port"])
+            # If we already have detected ports, try to find matching display text
+            port_device = data["arduino_port"]
+            found_display = None
+            for display, device in self.arduino_port_map.items():
+                if device == port_device:
+                    found_display = display
+                    break
+
+            if found_display:
+                self.arduino_port_var.set(found_display)
+            else:
+                # Fallback: set the raw device (may not have description yet)
+                self.arduino_port_var.set(port_device)
 
         if "external_trigger_mode" in data:
             self.external_trigger_mode_var.set(data["external_trigger_mode"])

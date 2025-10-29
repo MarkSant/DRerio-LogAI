@@ -309,7 +309,9 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             }
         }
 
-        with patch.object(self.controller, "update_detector_parameters", return_value=True) as mock_update:
+        with patch.object(
+            self.controller, "update_detector_parameters", return_value=True
+        ) as mock_update:
             self.controller._apply_wizard_detector_overrides(metadata)
 
         mock_update.assert_called_once()

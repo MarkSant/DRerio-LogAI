@@ -698,7 +698,9 @@ class DetectionStep(WizardStep):
         detector_params = self.wizard_data.get("detector_parameters") or {}
         use_openvino = self.wizard_data.get("use_openvino")
 
-        if not (model_selection or weight_assignments or detector_params or use_openvino is not None):
+        if not (
+            model_selection or weight_assignments or detector_params or use_openvino is not None
+        ):
             return ""
 
         lines = ["⚙️ Configuração Atual do Detector:"]

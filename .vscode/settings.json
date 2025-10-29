@@ -2,5 +2,64 @@
     "chat.agent.maxRequests": 100,
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.agent.thinkingTool": true,
-    "github.copilot.chat.generateTests.codeLens": true
+    "github.copilot.chat.generateTests.codeLens": true,
+
+    // ========================================
+    // ZebTrack-AI Quick Access
+    // ========================================
+
+    // File associations
+    "files.associations": {
+        "CLAUDE.md": "markdown",
+        "WIDGETS.md": "markdown",
+        "*.yaml": "yaml"
+    },
+
+    // Quick navigation bookmarks (use File Explorer → right-click → "Reveal in File Explorer")
+    // Key files for development:
+
+    // Core Architecture
+    // - src/zebtrack/core/main_view_model.py (Application orchestrator)
+    // - src/zebtrack/core/state_manager.py (Centralized state)
+    // - src/zebtrack/core/project_service.py (Project I/O)
+    // - src/zebtrack/core/detector.py (AI model abstraction)
+
+    // UI Components
+    // - src/zebtrack/ui/gui.py (Main window)
+    // - src/zebtrack/ui/wizard/wizard_dialog.py (Project creation wizard)
+    // - src/zebtrack/ui/collapsible_frame.py (Reusable collapsible widget)
+
+    // Wizard Steps (LIVE projects)
+    // - src/zebtrack/ui/wizard/discovery_step.py
+    // - src/zebtrack/ui/wizard/experimental_design_step.py (NumberInput widget)
+    // - src/zebtrack/ui/wizard/live_config_step.py (Arduino/Camera detection)
+    // - src/zebtrack/ui/wizard/calibration_step.py
+    // - src/zebtrack/ui/wizard/model_selection_step.py (PanedWindow layout)
+    // - src/zebtrack/ui/wizard/confirmation_step.py (Text widget optimization)
+
+    // Documentation
+    // - CLAUDE.md (Development guide)
+    // - docs/WIDGETS.md (UI widgets catalog)
+    // - docs/WIZARD_LIVE_IMPROVEMENTS.md (Phase 0-4 features)
+    // - README_TESTS.md (Testing guide)
+
+    // Search scopes for common tasks
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/*.code-search": true,
+        "**/openvino_model_cache": true,
+        "**/__pycache__": true,
+        "**/*.pyc": true
+    },
+
+    // Python settings
+    "python.analysis.extraPaths": [
+        "./src"
+    ],
+
+    // Editor hints
+    "editor.rulers": [100],  // Ruff line length
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true
 }

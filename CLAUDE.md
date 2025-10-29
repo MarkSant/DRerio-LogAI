@@ -158,6 +158,50 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - Data flows through `wizard_adapter.adapt_wizard_data_to_controller_format()` for backward compatibility
 - Legacy dialog remains for backward compatibility hooks only
 
+## Recent Major Features (v2.0 - Phase 4, October 2025)
+
+### Wizard Live Improvements
+Complete overhaul of live project wizard with enhanced UX and device management. See `docs/WIZARD_LIVE_IMPROVEMENTS.md` for full documentation.
+
+**Key Components**:
+- **NumberInput widget**: Direct input with +/- buttons
+  - Location: `ui/wizard/experimental_design_step.py:24-118`
+  - Usage: Days (1-30), groups (1-6), animals/group (1-20)
+  - Features: Auto-validation, clamp, visual feedback
+
+- **CollapsibleFrame widget**: Reusable expandable sections
+  - Location: `ui/collapsible_frame.py` (102 lines)
+  - API: `get_content_frame()` returns internal frame
+  - Used in: `CalibrationDialog` (gui.py:298-320)
+  - Features: Click-to-toggle, hover highlight, ▼/▶ indicator
+
+- **Arduino Improvements**:
+  - Port descriptions: "COM3 - Arduino Uno" display
+  - Test button: `🔌 Testar` validates serial connection
+  - Recheck: Dashboard button to update port post-creation
+  - Locations: `ui/wizard/live_config_step.py:175-202,567-628` + `ui/gui.py:4885-5004`
+
+- **Camera Detection**:
+  - OpenCV log suppression via context manager
+  - Early stopping after 3 consecutive failures
+  - DirectShow backend on Windows for reliability
+  - Location: `ui/wizard/live_config_step.py:487-566`
+
+- **Template Persistence**:
+  - Experimental design fields now saved in templates
+  - Fields: `experiment_days`, `num_groups`, `subjects_per_group`, `group_names`
+  - Location: `ui/wizard/templates.py:100-104`
+
+**UI/UX Refinements**:
+- Treeview color harmonization (green/yellow/red consistency)
+- CustomRegexDialog interactive examples (📚 4 common patterns)
+- ConfirmationStep: Canvas → Text widget (-40% code, +30% space)
+- ModelSelectionStep: Grid → PanedWindow (resizable 60/40 split)
+
+**Testing**: 688 tests passing, 0 regressions, backward-compatible
+
+---
+
 ## Common Patterns
 
 ### Logging

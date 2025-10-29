@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tkinter import BooleanVar, Label, LabelFrame, StringVar, ttk
+from tkinter import BooleanVar, Label, LabelFrame, PanedWindow, StringVar, ttk
 from tkinter import font as tkfont
 
 import structlog
@@ -190,22 +190,22 @@ class ModelSelectionStep(WizardStep):
         subtitle.pack(pady=(0, 15))
         self._responsive_labels["left"].append(subtitle)
 
-        content_frame = ttk.Frame(self)
-        content_frame.pack(fill="both", expand=True, padx=10)
-        content_frame.columnconfigure(0, weight=3, minsize=420)
-        content_frame.columnconfigure(1, weight=2, minsize=300)
-        content_frame.rowconfigure(0, weight=1)
-        self._content_frame = content_frame
+        # Use PanedWindow for resizable columns
+        paned_window = PanedWindow(self, orient="horizontal", sashrelief="raised", sashwidth=4)
+        paned_window.pack(fill="both", expand=True, padx=10, pady=5)
+        self._content_frame = paned_window
 
-        left_column = ttk.Frame(content_frame)
-        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        # Left pane: Methods and Weights
+        left_column = ttk.Frame(paned_window)
         left_column.columnconfigure(0, weight=1)
         self._left_column = left_column
+        paned_window.add(left_column, weight=60, minsize=380)
 
-        right_column = ttk.Frame(content_frame)
-        right_column.grid(row=0, column=1, sticky="nsew")
+        # Right pane: Quick Guide
+        right_column = ttk.Frame(paned_window)
         right_column.columnconfigure(0, weight=1)
         self._right_column = right_column
+        paned_window.add(right_column, weight=40, minsize=280)
 
         self.template_info_label = Label(
             left_column,
@@ -545,15 +545,9 @@ class ModelSelectionStep(WizardStep):
         self.confidence_var.trace_add(
             "write", lambda *_: self._validate_threshold_field("confidence")
         )
-        self.nms_var.trace_add(
-            "write", lambda *_: self._validate_threshold_field("nms")
-        )
-        self.track_var.trace_add(
-            "write", lambda *_: self._validate_threshold_field("track")
-        )
-        self.match_var.trace_add(
-            "write", lambda *_: self._validate_threshold_field("match")
-        )
+        self.nms_var.trace_add("write", lambda *_: self._validate_threshold_field("nms"))
+        self.track_var.trace_add("write", lambda *_: self._validate_threshold_field("track"))
+        self.match_var.trace_add("write", lambda *_: self._validate_threshold_field("match"))
 
     def _validate_threshold_field(self, param_key: str) -> bool:
         """
