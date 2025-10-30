@@ -1490,7 +1490,10 @@ class ProjectManager:
                 metadata = dict(video_info.get("metadata") or {})
 
             # Ensure video_path is always a string (not Path object) for JSON serialization
-            video_path = str(Path(video_path).as_posix()) if not isinstance(video_path, str) else video_path
+            if not isinstance(video_path, str):
+                video_path = str(Path(video_path).as_posix())
+            else:
+                video_path = video_path
 
             video_hash = calculate_sha256(video_path)
 

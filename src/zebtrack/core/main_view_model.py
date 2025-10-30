@@ -1458,6 +1458,11 @@ class MainViewModel:
         inheriting_globals = project_loaded and not overrides_active
         scope = "project" if project_loaded and self._using_project_overrides else "global"
 
+        # Check if in single-video analysis mode
+        is_single_video_mode = False
+        if hasattr(self, "gui") and self.gui:
+            is_single_video_mode = bool(getattr(self.gui, "pending_single_video_path", None))
+
         if scope == "project":
             label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
             if overrides_active:
@@ -1486,6 +1491,7 @@ class MainViewModel:
             "project_name": project_name,
             "overrides_active": overrides_active,
             "inheriting_globals": inheriting_globals,
+            "is_single_video_mode": is_single_video_mode,
             "label": label,
             "detail": detail,
         }

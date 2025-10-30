@@ -14,6 +14,7 @@ from tkinter import Button, Entry, Frame, IntVar, Label, LabelFrame, StringVar
 
 import structlog
 
+from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.tooltip import ToolTip
@@ -414,24 +415,19 @@ class ExperimentalDesignStep(WizardStep):
         )
 
     def validate(self) -> tuple[bool, str]:
-        """Validate experimental design configuration."""
+        """Validate experimental design using WizardService."""
         num_groups = self.num_groups_var.get()
 
-        # Check all group names are filled and trimmed
+        # Trim all group names first
         for i, var in enumerate(self.group_name_vars[:num_groups]):
             name = var.get().strip()
-            if not name:
-                return (False, f"O nome do Grupo {i + 1} não pode ficar vazio")
-
-            # Update var with trimmed value
             var.set(name)
 
-        # Check for duplicate names
-        names = [var.get().strip() for var in self.group_name_vars[:num_groups]]
-        if len(names) != len(set(names)):
-            return (False, "Os nomes dos grupos devem ser únicos")
+        # Get data and use WizardService for validation
+        data = self.get_data()
+        is_valid, error_msg = WizardService.validate_experimental_design(data)
 
-        return (True, "")
+        return (is_valid, error_msg)
 
     def get_data(self) -> dict:
         """Extract experimental design data."""

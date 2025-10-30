@@ -18,6 +18,7 @@ from tkinter import (
     font as tkfont,
 )
 
+from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -233,31 +234,18 @@ class CalibrationStep(WizardStep):
 
     def validate(self) -> tuple[bool, str]:
         """
-        Validate calibration inputs.
+        Validate calibration using WizardService.
 
         Returns:
             tuple[bool, str]: (True, "") if all inputs are valid,
                              (False, error_message) otherwise
         """
         try:
-            num_aquariums = self.num_aquariums_var.get()
-            animals_per_aquarium = self.animals_per_aquarium_var.get()
-            width = self.aquarium_width_var.get()
-            height = self.aquarium_height_var.get()
+            # Get current data and use WizardService for validation
+            data = self.get_data()
+            is_valid, error_msg = WizardService.validate_basic_calibration(data)
 
-            if num_aquariums < 1:
-                return (False, "O número de aquários deve ser pelo menos 1.")
-
-            if animals_per_aquarium < 1:
-                return (False, "O número de animais por aquário deve ser pelo menos 1.")
-
-            if width <= 0:
-                return (False, "A largura do aquário deve ser maior que zero.")
-
-            if height <= 0:
-                return (False, "A altura do aquário deve ser maior que zero.")
-
-            return (True, "")
+            return (is_valid, error_msg)
 
         except Exception as e:
             return (False, f"Erro ao validar dados: {e!s}")

@@ -25,6 +25,7 @@ from tkinter import (
 
 import structlog
 
+from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -478,133 +479,57 @@ class LiveConfigStep(WizardStep):
                     widget.config(state="disabled")
 
     def _detect_cameras(self):
-        """Detect available cameras with verbose suppression."""
-        import os
-        import sys
-        from contextlib import contextmanager
-
-        import cv2
-
-        @contextmanager
-        def suppress_opencv_logs():
-            """Suppress OpenCV verbose output during camera detection."""
-            # Save current stderr
-            old_stderr_fd = None
-            old_stderr = sys.stderr
-
-            try:
-                # Redirect stderr to devnull
-                old_stderr_fd = os.dup(2)
-                devnull = os.open(os.devnull, os.O_WRONLY)
-                os.dup2(devnull, 2)
-                os.close(devnull)
-                sys.stderr = open(os.devnull, "w")
-
-                # Also set OpenCV log level to ERROR
-                cv2.setLogLevel(0)  # LOG_LEVEL_SILENT
-
-                yield
-
-            finally:
-                # Restore stderr
-                if old_stderr_fd is not None:
-                    os.dup2(old_stderr_fd, 2)
-                    os.close(old_stderr_fd)
-                sys.stderr.close()
-                sys.stderr = old_stderr
-                # Restore OpenCV log level
-                cv2.setLogLevel(3)  # LOG_LEVEL_ERROR
-
+        """Detect available cameras using WizardService."""
         self.camera_status_label.config(text="Detectando...", fg="blue")
         self.update_idletasks()
 
-        available = []
-        consecutive_failures = 0
-        max_consecutive_failures = 3
+        # Use WizardService for camera detection
+        cameras = WizardService.detect_available_cameras()
+        available_indices = [cam["index"] for cam in cameras]
 
-        with suppress_opencv_logs():
-            for i in range(10):
-                try:
-                    # Use DirectShow backend on Windows for better reliability
-                    if sys.platform == "win32":
-                        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                    else:
-                        cap = cv2.VideoCapture(i)
-
-                    if cap.isOpened():
-                        available.append(i)
-                        cap.release()
-                        consecutive_failures = 0  # Reset failure counter
-                    else:
-                        consecutive_failures += 1
-                        # Stop early if we hit too many consecutive failures
-                        if consecutive_failures >= max_consecutive_failures:
-                            break
-
-                except Exception:
-                    consecutive_failures += 1
-                    if consecutive_failures >= max_consecutive_failures:
-                        break
-
-        if available:
+        if available_indices:
             self.camera_status_label.config(
-                text=f"✓ {len(available)} câmera(s) detectada(s): {available}",
+                text=f"✓ {len(available_indices)} câmera(s) detectada(s): {available_indices}",
                 fg="green",
             )
             # Auto-select first camera
-            if self.camera_index_var.get() not in available:
-                self.camera_index_var.set(available[0])
+            if self.camera_index_var.get() not in available_indices:
+                self.camera_index_var.set(available_indices[0])
         else:
             self.camera_status_label.config(
                 text="✗ Nenhuma câmera detectada",
                 fg="red",
             )
 
-        log.info(
-            "live_config.cameras_detected",
-            count=len(available),
-            indices=available,
-        )
-
     def _detect_arduino_ports(self):
-        """Detect available Arduino ports with descriptions."""
+        """Detect available Arduino ports using WizardService."""
         try:
-            import serial.tools.list_ports
-
             self.arduino_status_label.config(text="Detectando...", fg="blue")
             self.update_idletasks()
 
-            ports = list(serial.tools.list_ports.comports())
-            if ports:
-                # Build display strings with descriptions
-                display_list = []
+            # Use WizardService for Arduino port detection
+            ports_info = WizardService.detect_arduino_ports()
+
+            if ports_info:
+                # Build display strings using display_name from service
+                display_list = [port["display_name"] for port in ports_info]
                 self.arduino_port_map.clear()
 
-                for port in ports:
-                    # Create descriptive display text
-                    description = port.description or "Dispositivo Serial"
-                    display_text = f"{port.device} - {description}"
-                    display_list.append(display_text)
+                for port_info in ports_info:
                     # Map display text to actual device
-                    self.arduino_port_map[display_text] = port.device
+                    self.arduino_port_map[port_info["display_name"]] = port_info["device"]
 
                 # Update combobox
                 self.arduino_port_combo["values"] = display_list
 
                 self.arduino_status_label.config(
-                    text=f"✓ {len(ports)} porta(s) detectada(s)",
+                    text=f"✓ {len(ports_info)} porta(s) detectada(s)",
                     fg="green",
                 )
 
                 # Auto-select first port if none selected
                 if not self.arduino_port_var.get() and display_list:
                     self.arduino_port_var.set(display_list[0])
-
-                log.info(
-                    "live_config.arduino_ports_detected",
-                    count=len(ports),
-                    ports=[p.device for p in ports],
-                )
             else:
                 self.arduino_port_combo["values"] = []
                 self.arduino_port_map.clear()
@@ -683,43 +608,20 @@ class LiveConfigStep(WizardStep):
 
     def validate(self) -> tuple[bool, str]:
         """
-        Validate live configuration.
+        Validate live configuration using WizardService.
 
         Returns:
             tuple[bool, str]: (True, "") if all inputs are valid,
                              (False, error_message) otherwise
         """
         try:
-            camera_index = self.camera_index_var.get()
+            # Get current data
+            data = self.get_data()
 
-            if camera_index < 0:
-                return (False, "O índice da câmera deve ser >= 0.")
+            # Use WizardService for validation
+            is_valid, error_msg = WizardService.validate_live_config(data)
 
-            if self.use_arduino_var.get():
-                arduino_port = self.arduino_port_var.get().strip()
-                if not arduino_port:
-                    return (
-                        False,
-                        (
-                            "Por favor, especifique a porta do Arduino ou "
-                            "desmarque a opção 'Usar Arduino'."
-                        ),
-                    )
-
-            if self.use_timed_recording_var.get():
-                duration = self.recording_duration_var.get()
-                if duration <= 0:
-                    return (False, "A duração da gravação deve ser maior que zero.")
-
-            if self.use_countdown_var.get():
-                countdown = self.countdown_duration_var.get()
-                if countdown < 1:
-                    return (
-                        False,
-                        "A duração da contagem deve ser pelo menos 1 segundo.",
-                    )
-
-            return (True, "")
+            return (is_valid, error_msg)
 
         except Exception as e:
             return (False, f"Erro ao validar dados: {e!s}")
