@@ -22,10 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reusable validation functions
   - Calculation utilities (experiment metrics, interval suggestions)
   - Fully testable independent of UI
+  - **Hardware Detection Caching**: 30-second TTL cache for camera/Arduino detection (~5x faster on repeated calls)
 - **Pydantic Data Models**: Type-safe validation for wizard data
   - `LiveConfigData`, `ExperimentalDesignData`, `CalibrationData`
   - Cross-field validations (e.g., external trigger requires Arduino)
   - Auto-generated error messages
+- **Dialog Modularization**: Extracted 13 dialog classes from `gui.py` to `zebtrack.ui.dialogs/`
+  - Reduced `gui.py` from 13,473 to 10,759 lines (~20% reduction)
+  - Improved modularity, testability, and maintainability
+  - Dialogs: CalibrationDialog, ManageWeightsDialog, ColorSelectionDialog, etc.
+  - Resolved circular dependencies with `ui/format_utils.py`
 - **Single-Video Mode Enhancement**: CalibrationDialog now hides "Project Preferences" section when in single-video analysis mode (no project context)
 
 **Wizard Improvements** (from previous phases):
@@ -52,12 +58,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Improvements
 
+- **Performance**: Hardware detection caching reduces wizard navigation lag
+  - Camera detection: ~5x faster on repeated calls (cached for 30 seconds)
+  - Arduino port scanning: Instant results when navigating back/forward in wizard
+  - Manual cache clearing available via `WizardService.clear_hardware_cache()`
 - Model selection now available for live projects
 - Configurable analysis/display intervals per project
 - Automatic camera/Arduino detection with status feedback
 - Intelligent suggestions (e.g., analysis interval based on FPS)
 - Validation moved from UI to service layer (better testability)
 - Removed legacy `LiveConfigDialog` (replaced by wizard `LiveConfigStep`)
+- Code organization: Major cleanup with dialog extraction reducing `gui.py` complexity
 
 ### 📝 Documentation
 
@@ -72,10 +83,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧪 Testing
 
-- All 688 tests passing (0 regressions)
+- **712 tests passing** (24 new tests, 0 regressions)
+  - 16 E2E tests for WizardService integration (`tests/ui/wizard/test_wizard_live_e2e.py`)
+  - 8 hardware caching tests (`tests/test_wizard_service_caching.py`)
 - Service layer fully unit tested
 - Wizard steps validated with integration tests
 - Code coverage maintained at 70%+
+- Removed 1 redundant skipped test (architectural rule already enforced by other tests)
 
 ### 🐛 Bug Fixes
 
@@ -85,10 +99,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactoring
 
+- **Dialog Extraction**: Moved 13 dialog classes from `gui.py` to `zebtrack.ui.dialogs/`
+  - Created AST-based extraction scripts for reliable code extraction
+  - Fixed all missing imports and circular dependencies
+  - Updated tests to reference new dialog locations
 - Extracted wizard validation logic to `WizardService`
-- Moved hardware detection to service layer
+- Moved hardware detection to service layer with caching
 - Created Pydantic models for type safety
 - Simplified wizard step `validate()` methods (delegate to service)
+- Created `ui/format_utils.py` to resolve circular dependencies
 
 ### 📦 Dependencies
 

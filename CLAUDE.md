@@ -158,47 +158,65 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - Data flows through `wizard_adapter.adapt_wizard_data_to_controller_format()` for backward compatibility
 - Legacy dialog remains for backward compatibility hooks only
 
-## Recent Major Features (v2.0 - Phase 4, October 2025)
+## Recent Major Features (v2.0 - Phases 4 & 5, October 2025)
 
-### Wizard Live Improvements
-Complete overhaul of live project wizard with enhanced UX and device management. See `docs/WIZARD_LIVE_IMPROVEMENTS.md` for full documentation.
+### Phase 4: Wizard Live Improvements & Service Layer
+Complete overhaul of live project wizard with enhanced UX, service layer separation, and dialog modularization. See `docs/DEVELOPER_GUIDE_WIZARD.md` for full documentation.
 
-**Key Components**:
-- **NumberInput widget**: Direct input with +/- buttons
-  - Location: `ui/wizard/experimental_design_step.py:24-118`
-  - Usage: Days (1-30), groups (1-6), animals/group (1-20)
-  - Features: Auto-validation, clamp, visual feedback
+**Service Layer Architecture**:
+- **WizardService** (`core/wizard_service.py`): Business logic separated from UI
+  - Hardware detection (cameras, Arduino ports)
+  - Validation methods for all wizard steps
+  - Cross-field validation logic
+  - Helper calculation methods
+  - **Performance**: Hardware detection caching (30s TTL) for 5x faster repeated calls
+- **Pydantic Models** (`ui/wizard/models.py`): Type-safe data validation
+  - `LiveConfigData`, `ExperimentalDesignData`, `CalibrationData`
+  - Cross-field validators (e.g., external trigger requires Arduino)
+  - Strict boundaries (days: 1-365, groups: 1-6, subjects: 1-20)
 
-- **CollapsibleFrame widget**: Reusable expandable sections
-  - Location: `ui/collapsible_frame.py` (102 lines)
-  - API: `get_content_frame()` returns internal frame
-  - Used in: `CalibrationDialog` (gui.py:298-320)
-  - Features: Click-to-toggle, hover highlight, ▼/▶ indicator
+**UI Modularization**:
+- **Dialog Extraction**: 13 dialog classes moved from `gui.py` to `ui/dialogs/`
+  - `gui.py` reduced: 13473 → 10759 lines (~20% reduction)
+  - Dialogs: CalibrationDialog, ManageWeightsDialog, ColorSelectionDialog, etc.
+  - Circular dependency resolved with `ui/format_utils.py`
+- **Component-Based Widgets**:
+  - NumberInput widget with +/- buttons (`ui/wizard/experimental_design_step.py`)
+  - CollapsibleFrame for expandable sections (`ui/collapsible_frame.py`)
 
-- **Arduino Improvements**:
-  - Port descriptions: "COM3 - Arduino Uno" display
-  - Test button: `🔌 Testar` validates serial connection
-  - Recheck: Dashboard button to update port post-creation
-  - Locations: `ui/wizard/live_config_step.py:175-202,567-628` + `ui/gui.py:4885-5004`
-
+**Hardware Detection Improvements**:
 - **Camera Detection**:
   - OpenCV log suppression via context manager
   - Early stopping after 3 consecutive failures
   - DirectShow backend on Windows for reliability
-  - Location: `ui/wizard/live_config_step.py:487-566`
+  - **Caching**: Results cached for 30 seconds to avoid re-probing
+- **Arduino Detection**:
+  - Port descriptions: "COM3 - Arduino Uno" display
+  - Test button: `🔌 Testar` validates serial connection
+  - Recheck: Dashboard button to update port post-creation
+  - **Caching**: Serial port scanning cached to reduce latency
 
-- **Template Persistence**:
-  - Experimental design fields now saved in templates
-  - Fields: `experiment_days`, `num_groups`, `subjects_per_group`, `group_names`
-  - Location: `ui/wizard/templates.py:100-104`
-
-**UI/UX Refinements**:
+**Template & UI/UX**:
+- Experimental design fields now saved in templates
 - Treeview color harmonization (green/yellow/red consistency)
 - CustomRegexDialog interactive examples (📚 4 common patterns)
 - ConfirmationStep: Canvas → Text widget (-40% code, +30% space)
-- ModelSelectionStep: Grid → PanedWindow (resizable 60/40 split)
 
-**Testing**: 688 tests passing, 0 regressions, backward-compatible
+### Phase 5: Testing & Performance
+**E2E Tests** (`tests/ui/wizard/test_wizard_live_e2e.py`):
+- 16 comprehensive integration tests for WizardService
+- Validates Pydantic models, cross-field validation, service methods
+- Tests all wizard data flows (LiveConfig, ExperimentalDesign, Calibration)
+
+**Performance Optimizations**:
+- Hardware detection caching (~5x faster on repeated calls)
+- Independent caches for cameras and Arduino
+- Configurable TTL (30 seconds default)
+- Manual cache clearing via `WizardService.clear_hardware_cache()`
+
+**Test Coverage** (`tests/test_wizard_service_caching.py`):
+- 8 tests for caching behavior (cache hit/miss, TTL expiration, force refresh)
+- Total: **712 tests passing**, 1 skipped, 0 regressions
 
 ---
 
@@ -240,14 +258,17 @@ Key entry points and modules:
 - `src/zebtrack/core/main_view_model.py`: Application orchestrator
 - `src/zebtrack/core/state_manager.py`: Centralized state (v1.8+)
 - `src/zebtrack/core/project_service.py`: Project I/O service layer
+- `src/zebtrack/core/wizard_service.py`: Wizard business logic with hardware detection caching (v2.0+)
 - `src/zebtrack/core/detector.py`: AI model abstraction + zone logic
 - `src/zebtrack/io/recorder.py`: Parquet/MP4 writers
 - `src/zebtrack/analysis/analysis_service.py`: Analysis orchestration
 - `src/zebtrack/analysis/behavior.py`: Behavioral metrics
 - `src/zebtrack/analysis/roi.py`: ROI analysis logic
 - `src/zebtrack/analysis/reporter.py`: Multi-format report generation
-- `src/zebtrack/ui/gui.py`: Main application window
+- `src/zebtrack/ui/gui.py`: Main application window (10759 lines after dialog extraction)
+- `src/zebtrack/ui/dialogs/`: Dialog classes (extracted from gui.py in v2.0)
 - `src/zebtrack/ui/wizard/`: Project creation wizard
+- `src/zebtrack/ui/wizard/models.py`: Pydantic models for wizard data validation (v2.0+)
 - `src/zebtrack/plugins/`: Detector implementations (YOLO, OpenVINO)
 - `src/zebtrack/settings.py`: Pydantic configuration models
 
@@ -265,24 +286,27 @@ Output structure per video:
 
 - All public API changes require test coverage
 - UI workflows covered by: `test_overlay_integration.py`, `test_interval_frames_config.py`, `test_wizard*.py`
+- Wizard service layer: `test_wizard_live_e2e.py` (16 E2E tests), `test_wizard_service_caching.py` (8 caching tests)
 - Minimum coverage: 70% (enforced by pytest)
 - Use fixtures from `tests/conftest.py`
 - Mock Tkinter components when testing controllers/services
 - Edge cases documented in `test_scenarios/`
+- **Current status**: 712 tests passing, 1 skipped (Tkinter environment issue)
 
 Pre-merge checklist:
 1. Read relevant test files before modifying modules
 2. Run `poetry run pytest -q` (all tests pass)
 3. Run `poetry run ruff check .` (no linting errors)
 4. Update docs if changing user-facing workflows (README, ARCHITECTURE.md, wiki)
+5. Verify no regressions in wizard flows after WizardService changes
 
-## Recent Major Features
+## Major Features by Version
 
-- **StateManager (v1.8+)**: Observable pattern, thread-safe, centralized state. See `docs/STATE_MANAGER_GUIDE.md`
-- **Enhanced Settings (v1.7+)**: Pydantic v2 with strict validation, in-app config editor
-- **ROI Template System**: Reusable zone definitions across projects
-- **Track-Specific Overlays**: Per-track display with social proximity metrics
-- **Wizard Flow (v1.6+)**: 5-step guided project creation with auto-detection of experimental design
+- **v2.0 (Oct 2025)**: WizardService layer, dialog extraction, Pydantic models, hardware caching, E2E tests (see Phases 4 & 5 above)
+- **v1.8+**: StateManager - Observable pattern, thread-safe, centralized state. See `docs/STATE_MANAGER_GUIDE.md`
+- **v1.7+**: Enhanced Settings - Pydantic v2 with strict validation, in-app config editor
+- **v1.6+**: Wizard Flow - 5-step guided project creation with auto-detection of experimental design
+- **v1.x**: ROI Template System, Track-Specific Overlays, social proximity metrics
 
 ## Hardware Integration
 
