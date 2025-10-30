@@ -8,8 +8,6 @@ performance and reduce unnecessary hardware probing.
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from zebtrack.core.wizard_service import WizardService
 
 
@@ -201,25 +199,25 @@ class TestWizardServiceCaching:
         mock_comports.return_value = []
 
         # Detect cameras (populates camera cache)
-        cameras1 = WizardService.detect_available_cameras()
+        WizardService.detect_available_cameras()
         camera_calls1 = mock_video_capture.call_count
 
         # Detect Arduino (populates Arduino cache)
-        ports1 = WizardService.detect_arduino_ports()
+        WizardService.detect_arduino_ports()
         arduino_calls1 = mock_scan.call_count
 
         # Detect cameras again (should use cache)
-        cameras2 = WizardService.detect_available_cameras()
+        WizardService.detect_available_cameras()
         assert mock_video_capture.call_count == camera_calls1  # Cache used
 
         # Detect Arduino again (should use cache)
-        ports2 = WizardService.detect_arduino_ports()
+        WizardService.detect_arduino_ports()
         assert mock_scan.call_count == arduino_calls1  # Cache used
 
         # Force refresh cameras only
-        cameras3 = WizardService.detect_available_cameras(use_cache=False)
+        WizardService.detect_available_cameras(use_cache=False)
         assert mock_video_capture.call_count > camera_calls1  # Fresh detection
 
         # Arduino cache should still be valid
-        ports3 = WizardService.detect_arduino_ports()
+        WizardService.detect_arduino_ports()
         assert mock_scan.call_count == arduino_calls1  # Cache still used

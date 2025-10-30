@@ -9,7 +9,6 @@ from pathlib import Path
 def find_class_positions(source_code: str, class_names: list[str]) -> dict[str, tuple[int, int]]:
     """Find start and end positions of classes in source code."""
     tree = ast.parse(source_code)
-    lines = source_code.split("\n")
 
     positions = {}
 

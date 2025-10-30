@@ -172,7 +172,8 @@ class WizardService:
             ]
         """
         # Check cache first
-        if use_cache and cls._camera_cache is not None and cls._is_cache_valid(cls._camera_cache_time):
+        cache_is_valid = cls._is_cache_valid(cls._camera_cache_time)
+        if use_cache and cls._camera_cache is not None and cache_is_valid:
             log.debug("wizard_service.detect_cameras.cache_hit")
             return cls._camera_cache
 
@@ -254,7 +255,8 @@ class WizardService:
             ]
         """
         # Check cache first
-        if use_cache and cls._arduino_cache is not None and cls._is_cache_valid(cls._arduino_cache_time):
+        cache_is_valid = cls._is_cache_valid(cls._arduino_cache_time)
+        if use_cache and cls._arduino_cache is not None and cache_is_valid:
             log.debug("wizard_service.detect_arduino.cache_hit")
             return cls._arduino_cache
 

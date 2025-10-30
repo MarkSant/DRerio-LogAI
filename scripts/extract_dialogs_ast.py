@@ -102,7 +102,7 @@ def create_dialog_module(class_name: str, class_source: str, source_code: str, o
     try:
         class_node = ast.parse(class_source).body[0]
         imports = extract_imports_for_class(class_node, class_source)
-    except:
+    except (SyntaxError, IndexError, ValueError):
         # Fallback: basic imports
         imports = ["from tkinter import simpledialog, ttk, Frame, Label, Button"]
 
