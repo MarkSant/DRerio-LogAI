@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -52,6 +53,7 @@ class ProjectWorkflowService:
         model_service: ModelService,
         state_manager: StateManager,
         ui_coordinator: UICoordinator | None = None,
+        settings_obj: Settings | None = None,
     ):
         """
         Initialize ProjectWorkflowService.
@@ -61,11 +63,13 @@ class ProjectWorkflowService:
             model_service: ModelService instance for model configuration
             state_manager: StateManager instance for state updates
             ui_coordinator: Optional UICoordinator for UI updates
+            settings_obj: Settings instance (injected, optional for backward compatibility)
         """
         self.project_manager = project_manager
         self.model_service = model_service
         self.state_manager = state_manager
         self.ui_coordinator = ui_coordinator
+        self.settings = settings_obj
 
         # Tracking state
         self._using_project_overrides = False
@@ -375,10 +379,12 @@ class ProjectWorkflowService:
         """
         from pathlib import Path
 
-        from zebtrack.settings import settings
-
         # Prepare parameters
-        animal_method = kwargs.get("animal_method", settings.model_selection.animal_method)
+        # Use settings default if available, otherwise fall back to 'det'
+        default_animal_method = "det"
+        if self.settings and hasattr(self.settings, "model_selection"):
+            default_animal_method = self.settings.model_selection.animal_method
+        animal_method = kwargs.get("animal_method", default_animal_method)
         animals_per_aquarium = kwargs.get("animals_per_aquarium", 1)
 
         # Add animal_method to kwargs if not present (needed for validation)

@@ -790,10 +790,47 @@ def export_schema(
 
 
 # =============================================================================
+# Module-Level Settings Initialization (TEMPORARY - MIGRATION IN PROGRESS)
+# =============================================================================
+
+# TODO: Complete DI migration for remaining files
+# Files still using singleton (to be migrated):
+# - src/zebtrack/analysis/analysis_service.py (17 usages)
+# - src/zebtrack/io/camera.py (9 usages)
+# - src/zebtrack/plugins/openvino_detector.py (2 usages)
+# - src/zebtrack/plugins/ultralytics_detector.py (2 usages)
+# - src/zebtrack/io/arduino.py (1 usage)
+# - src/zebtrack/io/recorder.py (1 usage)
+# - src/zebtrack/ui/gui.py
+# - src/zebtrack/ui/wizard/wizard_adapter.py
+# - src/zebtrack/ui/wizard/model_selection_step.py
+# - src/zebtrack/ui/dialogs/single_video_config_dialog.py
+# - src/zebtrack/logging_config.py
+# - src/zebtrack/analysis/reporter.py (import only)
+
+try:
+    settings = load_settings()
+    log.info(
+        "settings.module.initialized_temporary",
+        camera_index=settings.camera.index,
+        message="Singleton active for backward compatibility during DI migration",
+    )
+except (FileNotFoundError, ValueError) as e:
+    log.warning(
+        "settings.module.failed",
+        error=str(e),
+        message="Failed to load settings singleton. Files using singleton will fail.",
+    )
+    settings = None  # type: ignore[assignment]
+
+
+# =============================================================================
 # Public API
 # =============================================================================
 __all__ = sorted(
     [
+        # Main settings object (TEMPORARY - Will be removed after full DI migration)
+        "settings",
         # Settings model classes (for type hints and validation)
         "Settings",
         "CameraSettings",

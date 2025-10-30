@@ -16,7 +16,7 @@ import serial.tools.list_ports
 import structlog
 
 from zebtrack.io.arduino import Arduino
-from zebtrack.settings import settings
+from zebtrack.settings import settings  # TODO: Migrate to DI (see TODO_DI_MIGRATION.md)
 
 log = structlog.get_logger()
 

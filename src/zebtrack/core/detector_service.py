@@ -173,6 +173,7 @@ class DetectorService:
                 plugin=plugin_instance,
                 base_width=self.settings.camera.desired_width,
                 base_height=self.settings.camera.desired_height,
+                settings_obj=self.settings,
             )
 
             # Update detector state in StateManager

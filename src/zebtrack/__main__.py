@@ -210,6 +210,7 @@ def main():
             model_service=model_service,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
+            settings_obj=settings_obj,
         )
 
         # Detector service
