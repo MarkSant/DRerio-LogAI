@@ -15,7 +15,6 @@ except ImportError:
     YOLO = None
     ULTRALYTICS_AVAILABLE = False
 
-from zebtrack.settings import settings
 from zebtrack.utils import calculate_sha256
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
@@ -30,7 +29,14 @@ OPENVINO_STATUS_FAILED = "failed"
 
 
 class WeightManager:
-    def __init__(self, config_dir="."):
+    def __init__(self, settings_obj=None, config_dir="."):
+        """Initialize WeightManager with settings dependency injection.
+
+        Args:
+            settings_obj: Settings instance (injected, required for non-test usage)
+            config_dir: Directory for weights configuration file
+        """
+        self.settings = settings_obj
         self.config_dir = config_dir
         self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
         self.weights = {}
@@ -136,6 +142,13 @@ class WeightManager:
 
     def _initialize_default_weight(self):
         """Initializes the config with the default weight from settings."""
+        if self.settings is None:
+            log.warning(
+                "weight_manager.init.no_settings",
+                message="Settings not injected, skipping initialization",
+            )
+            return
+
         log.info("weights.config.initializing_default")
         self.weights = {}
 
@@ -145,13 +158,13 @@ class WeightManager:
         # Add weights from the new settings - register them even if files don't
         # exist yet. This allows the weight management system to be configured
         # before files are available.
-        if settings.weights.seg_filename:
-            potential_weights.append(("seg", settings.weights.seg_filename))
-        if settings.weights.det_filename:
-            potential_weights.append(("det", settings.weights.det_filename))
+        if self.settings.weights.seg_filename:
+            potential_weights.append(("seg", self.settings.weights.seg_filename))
+        if self.settings.weights.det_filename:
+            potential_weights.append(("det", self.settings.weights.det_filename))
 
         # Check the legacy yolo_model.path for backward compatibility
-        legacy_path = settings.yolo_model.path
+        legacy_path = self.settings.yolo_model.path
         if legacy_path:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
@@ -200,8 +213,8 @@ class WeightManager:
         else:
             log.warning(
                 "weights.config.no_weights_found",
-                seg_filename=settings.weights.seg_filename,
-                det_filename=settings.weights.det_filename,
+                seg_filename=self.settings.weights.seg_filename,
+                det_filename=self.settings.weights.det_filename,
                 legacy_path=legacy_path,
             )
 

@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal
 import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
-from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError
 
 if TYPE_CHECKING:
@@ -24,6 +23,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.plugins.base import DetectorPlugin
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -53,6 +53,7 @@ class DetectorService:
         project_manager: ProjectManager,
         weight_manager: WeightManager,
         model_service: ModelService,
+        settings_obj: Settings,
     ):
         """
         Initialize DetectorService.
@@ -62,11 +63,13 @@ class DetectorService:
             project_manager: ProjectManager for zone data and config persistence
             weight_manager: WeightManager for model path resolution
             model_service: ModelService for weight details and OpenVINO paths
+            settings_obj: Settings instance (injected dependency)
         """
         self.state_manager = state_manager
         self.project_manager = project_manager
         self.weight_manager = weight_manager
         self.model_service = model_service
+        self.settings = settings_obj
 
         # Detector instance (managed by this service)
         self.detector: Detector | None = None
@@ -95,7 +98,7 @@ class DetectorService:
             tuple: (success: bool, error_message: str | None)
         """
         # Use temporary override if provided, otherwise use global settings
-        animal_method = animal_method or settings.model_selection.animal_method
+        animal_method = animal_method or self.settings.model_selection.animal_method
         log.info(
             "detector_service.initialize.start",
             animal_method=animal_method,
@@ -168,8 +171,8 @@ class DetectorService:
             # Create detector instance
             self.detector = Detector(
                 plugin=plugin_instance,
-                base_width=settings.camera.desired_width,
-                base_height=settings.camera.desired_height,
+                base_width=self.settings.camera.desired_width,
+                base_height=self.settings.camera.desired_height,
             )
 
             # Update detector state in StateManager
@@ -186,9 +189,9 @@ class DetectorService:
             # Configure single-subject tracker preference
             tracker_pref = self._resolve_single_subject_tracker_preference(None)
             if tracker_pref is None:
-                tracker_pref = settings.tracking.use_single_subject_tracker
+                tracker_pref = self.settings.tracking.use_single_subject_tracker
             else:
-                settings.tracking.use_single_subject_tracker = tracker_pref
+                self.settings.tracking.use_single_subject_tracker = tracker_pref
             self.set_single_subject_mode(tracker_pref)
             log.info(
                 "detector_service.single_subject_tracker.configured",
@@ -242,9 +245,9 @@ class DetectorService:
 
         # Use camera settings if dimensions not provided
         if width is None:
-            width = settings.camera.desired_width
+            width = self.settings.camera.desired_width
         if height is None:
-            height = settings.camera.desired_height
+            height = self.settings.camera.desired_height
 
         # Set zones on detector
         self.detector.set_zones(zone_data, width, height)
@@ -484,10 +487,10 @@ class DetectorService:
         if plugin:
             params = {
                 "conf_threshold": getattr(
-                    plugin, "conf_threshold", settings.yolo_model.confidence_threshold
+                    plugin, "conf_threshold", self.settings.yolo_model.confidence_threshold
                 ),
                 "nms_threshold": getattr(
-                    plugin, "nms_threshold", settings.yolo_model.nms_threshold
+                    plugin, "nms_threshold", self.settings.yolo_model.nms_threshold
                 ),
                 "track_threshold": getattr(plugin, "track_threshold", DEFAULT_TRACK_THRESHOLD),
                 "match_threshold": getattr(plugin, "match_threshold", DEFAULT_MATCH_THRESHOLD),
@@ -499,17 +502,17 @@ class DetectorService:
         match_default = DEFAULT_MATCH_THRESHOLD
 
         params = {
-            "conf_threshold": settings.yolo_model.confidence_threshold,
-            "nms_threshold": settings.yolo_model.nms_threshold,
+            "conf_threshold": self.settings.yolo_model.confidence_threshold,
+            "nms_threshold": self.settings.yolo_model.nms_threshold,
             "track_threshold": track_default,
             "match_threshold": match_default,
         }
 
         # Try to get ByteTrack defaults from settings
         try:
-            if hasattr(settings, "bytetrack"):
-                bt_track = getattr(settings.bytetrack, "track_threshold", None)
-                bt_match = getattr(settings.bytetrack, "match_threshold", None)
+            if hasattr(self.settings, "bytetrack"):
+                bt_track = getattr(self.settings.bytetrack, "track_threshold", None)
+                bt_match = getattr(self.settings.bytetrack, "match_threshold", None)
                 if bt_track is not None:
                     params["track_threshold"] = float(bt_track)
                 if bt_match is not None:
@@ -543,8 +546,8 @@ class DetectorService:
             dict: Factory default parameters
         """
         try:
-            conf_default = float(settings.yolo_model.confidence_threshold)
-            nms_default = float(settings.yolo_model.nms_threshold)
+            conf_default = float(self.settings.yolo_model.confidence_threshold)
+            nms_default = float(self.settings.yolo_model.nms_threshold)
         except Exception:
             log.warning("detector_service.factory_params.fallback", exc_info=True)
             conf_default = 0.25
@@ -554,9 +557,9 @@ class DetectorService:
         match_default = DEFAULT_MATCH_THRESHOLD
 
         try:
-            if hasattr(settings, "bytetrack"):
-                bt_track = getattr(settings.bytetrack, "track_threshold", None)
-                bt_match = getattr(settings.bytetrack, "match_threshold", None)
+            if hasattr(self.settings, "bytetrack"):
+                bt_track = getattr(self.settings.bytetrack, "track_threshold", None)
+                bt_match = getattr(self.settings.bytetrack, "match_threshold", None)
                 if bt_track is not None:
                     track_default = float(bt_track)
                 if bt_match is not None:
@@ -687,11 +690,11 @@ class DetectorService:
         if reset:
             # Reset to factory defaults
             factory = self.get_factory_detector_parameters()
-            settings.yolo_model.confidence_threshold = factory["conf_threshold"]
-            settings.yolo_model.nms_threshold = factory["nms_threshold"]
-            if hasattr(settings, "bytetrack"):
-                settings.bytetrack.track_threshold = factory["track_threshold"]
-                settings.bytetrack.match_threshold = factory["match_threshold"]
+            self.settings.yolo_model.confidence_threshold = factory["conf_threshold"]
+            self.settings.yolo_model.nms_threshold = factory["nms_threshold"]
+            if hasattr(self.settings, "bytetrack"):
+                self.settings.bytetrack.track_threshold = factory["track_threshold"]
+                self.settings.bytetrack.match_threshold = factory["match_threshold"]
             log.info("detector_service.persist.reset_to_factory")
         else:
             # Apply overrides
@@ -701,15 +704,15 @@ class DetectorService:
             match_val = detector_config.get("match_threshold")
 
             if conf_val is not None:
-                settings.yolo_model.confidence_threshold = float(conf_val)
+                self.settings.yolo_model.confidence_threshold = float(conf_val)
             if nms_val is not None:
-                settings.yolo_model.nms_threshold = float(nms_val)
+                self.settings.yolo_model.nms_threshold = float(nms_val)
 
-            if hasattr(settings, "bytetrack"):
+            if hasattr(self.settings, "bytetrack"):
                 if track_val is not None:
-                    settings.bytetrack.track_threshold = float(track_val)
+                    self.settings.bytetrack.track_threshold = float(track_val)
                 if match_val is not None:
-                    settings.bytetrack.match_threshold = float(match_val)
+                    self.settings.bytetrack.match_threshold = float(match_val)
 
             log.info("detector_service.persist.overrides_applied", config=detector_config)
 
@@ -731,13 +734,13 @@ class DetectorService:
     def _get_current_global_thresholds(self) -> dict[str, float]:
         """Return the thresholds currently configured in global settings."""
         try:
-            conf = float(getattr(settings.yolo_model, "confidence_threshold", 0.25))
+            conf = float(getattr(self.settings.yolo_model, "confidence_threshold", 0.25))
         except Exception:
             log.debug("detector_service.global_thresholds.conf_fallback", exc_info=True)
             conf = 0.25
 
         try:
-            nms = float(getattr(settings.yolo_model, "nms_threshold", 0.45))
+            nms = float(getattr(self.settings.yolo_model, "nms_threshold", 0.45))
         except Exception:
             log.debug("detector_service.global_thresholds.nms_fallback", exc_info=True)
             nms = 0.45
@@ -745,9 +748,9 @@ class DetectorService:
         track = DEFAULT_TRACK_THRESHOLD
         match = DEFAULT_MATCH_THRESHOLD
         try:
-            if hasattr(settings, "bytetrack"):
-                track = float(getattr(settings.bytetrack, "track_threshold", track))
-                match = float(getattr(settings.bytetrack, "match_threshold", match))
+            if hasattr(self.settings, "bytetrack"):
+                track = float(getattr(self.settings.bytetrack, "track_threshold", track))
+                match = float(getattr(self.settings.bytetrack, "match_threshold", match))
         except Exception:
             log.debug("detector_service.global_thresholds.bytetrack_fallback", exc_info=True)
 

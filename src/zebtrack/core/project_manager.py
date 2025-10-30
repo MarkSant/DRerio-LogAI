@@ -20,7 +20,6 @@ from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.roi_template_manager import ROITemplateManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 CONFIG_FILE_NAME = "project_config.json"
@@ -62,12 +61,21 @@ class ProjectManager:
         "experiment_id": ("experiment_id", "video_name"),
     }
 
-    def __init__(self, state_manager: StateManager | None = None):
+    def __init__(self, state_manager: StateManager | None = None, settings_obj=None):
+        """Initialize ProjectManager with dependency injection.
+
+        Args:
+            state_manager: StateManager for state propagation
+            settings_obj: Settings instance (injected dependency, optional for tests)
+        """
         # Phase 1, Step 3: Delegate file I/O to ProjectService
         self.project_service = ProjectService()
 
         # Phase 2, Step 4: Optional StateManager reference for state propagation
         self.state_manager = state_manager
+
+        # Settings dependency (injected)
+        self.settings = settings_obj
 
         # In-memory project state
         self.project_path = None
@@ -1309,12 +1317,18 @@ class ProjectManager:
             # Use model_dump with proper serialization to ensure YAML compatibility
             import json
 
-            # Check if settings is a real settings object (not a mock)
-            if not hasattr(settings, "model_dump_json") or not callable(settings.model_dump_json):
+            # Check if settings is available and is a real settings object (not a mock)
+            if self.settings is None:
+                log.debug("settings.snapshot.skipped", reason="settings not injected")
+                return True  # Return True to not block project creation in tests
+
+            if not hasattr(self.settings, "model_dump_json") or not callable(
+                self.settings.model_dump_json
+            ):
                 log.debug("settings.snapshot.skipped", reason="settings not available or mocked")
                 return True  # Return True to not block project creation in tests
 
-            json_str = settings.model_dump_json()
+            json_str = self.settings.model_dump_json()
             # Verify it's actually a string (not a mock)
             if not isinstance(json_str, str):
                 log.debug("settings.snapshot.skipped", reason="model_dump_json returned non-string")
@@ -1399,9 +1413,11 @@ class ProjectManager:
         safe_arduino_port = arduino_port or ""
         safe_external_trigger = bool(external_trigger_mode) and safe_use_arduino
         if use_single_subject_tracker is None:
-            tracker_pref = animals_per_aquarium == 1 or bool(
-                settings.tracking.use_single_subject_tracker
-            )
+            # Use settings if available, otherwise default to False
+            default_tracker = False
+            if self.settings and hasattr(self.settings, "tracking"):
+                default_tracker = bool(self.settings.tracking.use_single_subject_tracker)
+            tracker_pref = animals_per_aquarium == 1 or default_tracker
         else:
             tracker_pref = bool(use_single_subject_tracker)
 
@@ -1607,7 +1623,10 @@ class ProjectManager:
                 migration_applied = True
                 migrated_fields.append("analysis_profiles")
 
-            tracker_flag = settings.tracking.use_single_subject_tracker
+            # Use settings if available, otherwise default to False
+            tracker_flag = False
+            if self.settings and hasattr(self.settings, "tracking"):
+                tracker_flag = self.settings.tracking.use_single_subject_tracker
             tracking_defaults = {"use_single_subject_tracker": tracker_flag}
             if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
                 loaded_data["tracking"] = dict(tracking_defaults)

@@ -790,40 +790,10 @@ def export_schema(
 
 
 # =============================================================================
-# Module-Level Settings Initialization
-# =============================================================================
-
-# Load settings once on module import to be used across the application.
-# This is the primary way to access configuration throughout the codebase.
-# If loading fails, the application cannot function properly, so we raise
-# an exception rather than silently continuing with None.
-try:
-    settings = load_settings()
-    log.info(
-        "settings.module.initialized",
-        camera_index=settings.camera.index,
-        yolo_path=settings.yolo_model.path,
-    )
-except (FileNotFoundError, ValueError) as e:
-    log.critical(
-        "settings.module.failed",
-        error=str(e),
-        message="Failed to load configuration. Application cannot start.",
-    )
-    # Re-raise the exception so the application fails fast with a clear error
-    # rather than continuing with invalid/missing configuration
-    raise RuntimeError(
-        "Failed to initialize settings module. Please check your config.yaml file."
-    ) from e
-
-
-# =============================================================================
 # Public API
 # =============================================================================
 __all__ = sorted(
     [
-        # Main settings object (use this in most cases)
-        "settings",
         # Settings model classes (for type hints and validation)
         "Settings",
         "CameraSettings",

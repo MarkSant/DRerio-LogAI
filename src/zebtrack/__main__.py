@@ -2,18 +2,12 @@ import argparse
 import logging
 import logging.handlers
 import sys
+import threading
 import tkinter as tk
 import warnings
 from tkinter import messagebox
-from typing import Any
 
 import structlog
-
-# Module-level references used by tests; populated during runtime in main()
-_MAIN_VIEW_MODEL_SENTINEL = object()
-_SETTINGS_SENTINEL = object()
-MainViewModel: Any = _MAIN_VIEW_MODEL_SENTINEL  # type: ignore[assignment]
-settings: Any = _SETTINGS_SENTINEL  # type: ignore[assignment]
 
 # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
 warnings.filterwarnings(
@@ -142,68 +136,150 @@ def main():
 
     log = structlog.get_logger()
 
-    # Import zebtrack modules after logging is configured to use compact format
+    # ========================================================================
+    # COMPOSITION ROOT: Dependency Injection Setup
+    # ========================================================================
+    # This is where all dependencies are created and wired together.
+    # The application follows Inversion of Control (IoC) pattern.
+
+    # Import zebtrack modules after logging is configured
+    from zebtrack.settings import load_settings
     from zebtrack.ui.window_utils import maximize_window
     from zebtrack.utils import set_seed
 
-    global MainViewModel, settings
-    if MainViewModel is _MAIN_VIEW_MODEL_SENTINEL:
-        from zebtrack.core.main_view_model import MainViewModel as _MainViewModel
-
-        MainViewModel = _MainViewModel
-    if settings is _SETTINGS_SENTINEL:
-        from zebtrack.settings import settings as _settings
-
-        settings = _settings
-
-    # --- Critical Check for Settings ---
-    # If settings failed to load, the `settings` object will be None.
-    # We must handle this case gracefully before attempting to start the GUI.
-    if settings is None:
-        log.critical("settings.load.fatal")
-        # Hide the blank root window that can sometimes appear
+    # Load settings (Composition Root responsibility)
+    try:
+        settings_obj = load_settings()
+        log.info(
+            "settings.loaded",
+            camera_index=settings_obj.camera.index,
+            yolo_path=settings_obj.yolo_model.path,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        log.critical("settings.load.fatal", error=str(e))
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(
             "Fatal Configuration Error",
             "Could not load or validate 'config.yaml'. The application cannot start.\n"
-            "\nPlease ensure the file exists and is correctly formatted.",
+            f"\nError: {e}",
         )
         sys.exit(1)
 
-    # Set seed for reproducibility before anything else
-    if settings.reproducibility and settings.reproducibility.seed:
-        set_seed(settings.reproducibility.seed)
-        log.info("reproducibility.seed.set", seed=settings.reproducibility.seed)
+    # Set seed for reproducibility
+    if settings_obj.reproducibility and settings_obj.reproducibility.seed:
+        set_seed(settings_obj.reproducibility.seed)
+        log.info("reproducibility.seed.set", seed=settings_obj.reproducibility.seed)
 
     log.info("application.starting", component="main")
 
     try:
+        # Create Tkinter root
         root = tk.Tk()
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
-
         set_window_icon(root)
-
         maximize_window(root)
 
-        # Create the EventBus instance
+        # ===== DEPENDENCY INJECTION: Create all services =====
+
+        # Core infrastructure
+        from zebtrack.core.state_manager import StateManager
+        from zebtrack.core.ui_coordinator import UICoordinator
         from zebtrack.ui.event_bus import EventBus
 
         event_bus = EventBus()
+        state_manager = StateManager(enable_history=True, max_history_size=100)
+        ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
 
-        controller = MainViewModel(root, event_bus=event_bus)
-        controller.bind_events()  # Bind events after full initialization
+        # Model and weight management
+        from zebtrack.core.model_service import ModelService
+        from zebtrack.core.weight_manager import WeightManager
+
+        weight_manager = WeightManager(settings_obj=settings_obj)
+        model_service = ModelService(weight_manager)
+
+        # Project management
+        from zebtrack.core.project_manager import ProjectManager
+        from zebtrack.core.project_workflow_service import ProjectWorkflowService
+
+        project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
+        project_workflow_service = ProjectWorkflowService(
+            project_manager=project_manager,
+            model_service=model_service,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+        )
+
+        # Detector service
+        from zebtrack.core.detector_service import DetectorService
+
+        detector_service = DetectorService(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            weight_manager=weight_manager,
+            model_service=model_service,
+            settings_obj=settings_obj,
+        )
+
+        # Video processing service
+        from zebtrack.core.video_processing_service import VideoProcessingService
+        from zebtrack.io.recorder import Recorder
+
+        recorder = Recorder()
+        cancel_event = threading.Event()
+
+        # Note: video_processing_service needs view, which is created by MainViewModel
+        # We'll create a placeholder and set the view later
+        video_processing_service = VideoProcessingService(
+            detector=None,  # Will be set by MainViewModel/detector_service
+            recorder=recorder,
+            project_manager=project_manager,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+            root=root,
+            view=None,  # Will be set after ApplicationGUI is created
+            cancel_event=cancel_event,
+        )
+
+        # Analysis service
+        from zebtrack.analysis.analysis_service import AnalysisService
+
+        analysis_service = AnalysisService()
+
+        # Create MainViewModel with all injected dependencies
+        from zebtrack.core.main_view_model import MainViewModel
+
+        controller = MainViewModel(
+            root=root,
+            event_bus=event_bus,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+            settings_obj=settings_obj,
+            project_manager=project_manager,
+            project_workflow_service=project_workflow_service,
+            weight_manager=weight_manager,
+            model_service=model_service,
+            detector_service=detector_service,
+            video_processing_service=video_processing_service,
+            analysis_service=analysis_service,
+            recording_service=None,  # Will be created by MainViewModel for now
+        )
+
+        # Set view reference in video_processing_service after view is created
+        video_processing_service.view = controller.view
+
+        # Bind events and run
+        controller.bind_events()
         controller.run()
+
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
-        # Optionally, show a message to the user
-        # import tkinter.messagebox as messagebox
-        # messagebox.showerror(
-        #     "Fatal Error",
-        #     "A fatal error occurred. See analysis.log for details."
-        # )
+        messagebox.showerror(
+            "Fatal Error",
+            "A fatal error occurred. See analysis.log for details."
+        )
     finally:
         log.info("application.finished", component="main")
 
