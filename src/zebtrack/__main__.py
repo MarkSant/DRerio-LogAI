@@ -116,7 +116,9 @@ def main():
     configure_logging()
     from zebtrack.logging_config import configure_logging_levels
 
-    # Note: configure_logging_levels will be called again after settings load
+    # Called twice by design:
+    # 1. Here: Initial call with None (does nothing, but import must happen before settings load)
+    # 2. After settings load: Applies logging levels from config.yaml
     configure_logging_levels()
 
     # Apply CLI overrides after initial configuration
@@ -158,14 +160,25 @@ def main():
         )
         # Apply logging levels from loaded settings
         configure_logging_levels(settings_obj)
-    except (FileNotFoundError, ValueError) as e:
-        log.critical("settings.load.fatal", error=str(e))
+    except FileNotFoundError as e:
+        log.critical("settings.load.file_not_found", error=str(e))
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(
-            "Fatal Configuration Error",
-            "Could not load or validate 'config.yaml'. The application cannot start.\n"
-            f"\nError: {e}",
+            "Configuration File Not Found",
+            f"Could not find configuration file: {e}\n\n"
+            "The application requires 'config.yaml' to start.",
+        )
+        sys.exit(1)
+    except ValueError as e:
+        # ValueError is raised by load_settings() for YAML parse errors and validation errors
+        log.critical("settings.load.validation_error", error=str(e))
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(
+            "Configuration Validation Error",
+            f"Configuration file contains invalid values:\n\n{e}\n\n"
+            "Please check your config.yaml file.",
         )
         sys.exit(1)
 
@@ -231,19 +244,22 @@ def main():
         from zebtrack.core.video_processing_service import VideoProcessingService
         from zebtrack.io.recorder import Recorder
 
-        recorder = Recorder()
+        # Initialize recorder with settings
+        recorder = Recorder(settings_obj=settings_obj)
         cancel_event = threading.Event()
 
-        # Note: video_processing_service needs view, which is created by MainViewModel
-        # We'll create a placeholder and set the view later
+        # VideoProcessingService is created before detector exists
+        # The detector is lazy-initialized later via detector_service.initialize_detector()
+        # when a project is created/loaded. This is by design to support different
+        # detection methods (seg/det) and backends (YOLO/OpenVINO) per project.
         video_processing_service = VideoProcessingService(
-            detector=None,  # Will be set by MainViewModel/detector_service
+            detector=None,  # Lazy-initialized by detector_service.initialize_detector()
             recorder=recorder,
             project_manager=project_manager,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
             root=root,
-            view=None,  # Will be set after ApplicationGUI is created
+            view=None,  # Set after ApplicationGUI is created
             cancel_event=cancel_event,
         )
 
