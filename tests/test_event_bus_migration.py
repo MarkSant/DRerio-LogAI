@@ -2,8 +2,6 @@ import tkinter as tk
 import unittest
 from unittest.mock import MagicMock
 
-import pytest
-
 from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.event_bus import EventBus
@@ -64,14 +62,6 @@ class TestEventBusMigration(unittest.TestCase):
         # Ensure no direct controller/view_model calls exist
         with self.assertRaises(AttributeError):
             widget.controller.some_method()
-
-    @pytest.mark.skip(reason="Conceptual test - enforced by other widget tests")
-    def test_no_direct_controller_references(self):
-        """Check that UI components do not hold direct references to a controller."""
-        # This test is more conceptual and is partially enforced by the other tests.
-        # A full check might involve inspecting the __init__ of all widgets,
-        # but for now, we'll rely on the individual widget tests.
-        pass
 
 
 if __name__ == "__main__":
