@@ -40,7 +40,6 @@ except ImportError:
         ) from e
 
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings  # TODO: Remove after full DI migration
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
@@ -75,10 +74,14 @@ class OpenVINOPlugin(DetectorPlugin):
             raise ImportError("PyTorch is required for OpenVINO detection post-processing.")
         assert ov is not None
 
-        # Use injected settings or fall back to global singleton
-        _settings = settings_obj if settings_obj is not None else settings
-        self.conf_threshold = _settings.yolo_model.confidence_threshold
-        self.nms_threshold = _settings.yolo_model.nms_threshold
+        # Use injected settings or sensible defaults
+        if settings_obj is not None:
+            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            self.nms_threshold = settings_obj.yolo_model.nms_threshold
+        else:
+            # Fallback defaults when settings not injected
+            self.conf_threshold = 0.25
+            self.nms_threshold = 0.45
 
         # Context control for class filtering
         self._context: str = "tracking"  # 'tracking' or 'diagnostic'

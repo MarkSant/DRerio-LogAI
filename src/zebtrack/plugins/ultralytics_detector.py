@@ -12,7 +12,6 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings  # TODO: Remove after full DI migration
 
 
 class UltralyticsDetectorPlugin(DetectorPlugin):
@@ -32,10 +31,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         assert YOLO is not None
         self.model = YOLO(model_path)
 
-        # Use injected settings or fall back to global singleton
-        _settings = settings_obj if settings_obj is not None else settings
-        self.conf_threshold = _settings.yolo_model.confidence_threshold
-        self.nms_threshold = _settings.yolo_model.nms_threshold
+        # Use injected settings or sensible defaults
+        if settings_obj is not None:
+            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            self.nms_threshold = settings_obj.yolo_model.nms_threshold
+        else:
+            # Fallback defaults when settings not injected
+            self.conf_threshold = 0.25
+            self.nms_threshold = 0.45
 
         # ByteTrack threshold hints consumed by core.detector.Detector
         self.track_threshold = 0.25
