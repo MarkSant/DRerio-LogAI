@@ -12,10 +12,12 @@ from tkinter import (
     simpledialog,
     ttk,
 )
+from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.settings import settings
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -23,8 +25,9 @@ log = structlog.get_logger()
 class SingleVideoConfigDialog(simpledialog.Dialog):
     """A simplified dialog to get configuration for a single video analysis."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, settings_obj: "Settings | None" = None):
         self.result = None
+        self.settings = settings_obj
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
 
     def body(self, master):
@@ -35,28 +38,40 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.aquarium_width_var = StringVar(value="10.0")
         self.aquarium_height_var = StringVar(value="10.0")
 
-        # Pre-fill with defaults from settings
-        self.sharp_turn_var = StringVar(
-            value=str(settings.video_processing.sharp_turn_threshold_deg_s)
-        )
-        self.freeze_thresh_var = StringVar(
-            value=str(settings.video_processing.freezing_velocity_threshold)
-        )
-        self.freeze_dur_var = StringVar(
-            value=str(settings.video_processing.freezing_min_duration_s)
-        )
-        self.smoothing_window_var = StringVar(
-            value=str(settings.trajectory_smoothing.window_length)
-        )
-        self.smoothing_polyorder_var = StringVar(value=str(settings.trajectory_smoothing.polyorder))
+        # Pre-fill with defaults from settings or use hardcoded defaults
+        sharp_turn_default = "180.0"
+        freeze_thresh_default = "0.5"
+        freeze_dur_default = "1.0"
+        smoothing_window_default = "5"
+        smoothing_polyorder_default = "2"
+        aquarium_method_default = "seg"
+        animal_method_default = "seg"
+
+        if self.settings:
+            if hasattr(self.settings, "video_processing"):
+                sharp_turn_default = str(self.settings.video_processing.sharp_turn_threshold_deg_s)
+                freeze_thresh_default = str(self.settings.video_processing.freezing_velocity_threshold)
+                freeze_dur_default = str(self.settings.video_processing.freezing_min_duration_s)
+            if hasattr(self.settings, "trajectory_smoothing"):
+                smoothing_window_default = str(self.settings.trajectory_smoothing.window_length)
+                smoothing_polyorder_default = str(self.settings.trajectory_smoothing.polyorder)
+            if hasattr(self.settings, "model_selection"):
+                aquarium_method_default = self.settings.model_selection.aquarium_method
+                animal_method_default = self.settings.model_selection.animal_method
+
+        self.sharp_turn_var = StringVar(value=sharp_turn_default)
+        self.freeze_thresh_var = StringVar(value=freeze_thresh_default)
+        self.freeze_dur_var = StringVar(value=freeze_dur_default)
+        self.smoothing_window_var = StringVar(value=smoothing_window_default)
+        self.smoothing_polyorder_var = StringVar(value=smoothing_polyorder_default)
 
         # Frame interval configuration variables
         self.analysis_interval_var = StringVar(value="10")
         self.display_interval_var = StringVar(value="10")
 
         # Detection method configuration variables
-        self.aquarium_method_var = StringVar(value=settings.model_selection.aquarium_method)
-        self.animal_method_var = StringVar(value=settings.model_selection.animal_method)
+        self.aquarium_method_var = StringVar(value=aquarium_method_default)
+        self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
         # --- Layout ---

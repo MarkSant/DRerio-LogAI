@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import copy
 import re
+from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.settings import settings
 from zebtrack.ui.wizard.enums import ProjectType
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -291,7 +294,9 @@ def _extract_subject(
     return subject_value
 
 
-def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
+def adapt_wizard_data_to_controller_format(
+    wizard_data: dict, settings_obj: "Settings | None" = None
+) -> dict:
     """
     Transform wizard output to CreateProjectDialog format expected by controller.
 
@@ -301,6 +306,7 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
 
     Args:
         wizard_data: Output from WizardDialog.result
+        settings_obj: Settings instance (optional, used for defaults)
 
     Returns:
         dict: Data in CreateProjectDialog format with keys:
@@ -371,10 +377,11 @@ def adapt_wizard_data_to_controller_format(wizard_data: dict) -> dict:
         controller_data["use_openvino"] = bool(wizard_data.get("use_openvino"))
     else:
         use_openvino_default = False
-        try:
-            use_openvino_default = bool(settings.model_selection.use_openvino)
-        except AttributeError:
-            use_openvino_default = False
+        if settings_obj:
+            try:
+                use_openvino_default = bool(settings_obj.model_selection.use_openvino)
+            except AttributeError:
+                use_openvino_default = False
         controller_data["use_openvino"] = use_openvino_default
 
     # Extract active_weight from model selection if available

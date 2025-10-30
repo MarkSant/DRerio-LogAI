@@ -790,39 +790,19 @@ def export_schema(
 
 
 # =============================================================================
-# Module-Level Settings Initialization (TEMPORARY - MIGRATION IN PROGRESS)
+# Dependency Injection Pattern
 # =============================================================================
-
-# TODO: Complete DI migration for remaining files
-# Phase 1 & 2 COMPLETED - Core services, Analysis, IO, Plugins migrated
 #
-# Phase 3 - Files still using singleton (LOW PRIORITY):
-# - src/zebtrack/core/wizard_service.py (2 usages - static methods)
-# - src/zebtrack/io/arduino.py (1 usage - static method)
-# - src/zebtrack/io/recorder.py (1 usage - could use fps parameter)
-# - src/zebtrack/analysis/reporter.py (import only, doesn't use)
-# - src/zebtrack/ui/gui.py (UI layer - complex)
-# - src/zebtrack/ui/wizard/wizard_adapter.py (UI layer)
-# - src/zebtrack/ui/wizard/model_selection_step.py (UI layer)
-# - src/zebtrack/ui/dialogs/single_video_config_dialog.py (UI layer)
-# - src/zebtrack/logging_config.py (startup code)
+# This module no longer exports a global `settings` singleton. Instead, all
+# components receive settings via constructor injection through the Composition
+# Root in __main__.py.
 #
-# See TODO_DI_MIGRATION.md for details
-
-try:
-    settings = load_settings()
-    log.info(
-        "settings.module.initialized_temporary",
-        camera_index=settings.camera.index,
-        message="Singleton active for backward compatibility during DI migration",
-    )
-except (FileNotFoundError, ValueError) as e:
-    log.warning(
-        "settings.module.failed",
-        error=str(e),
-        message="Failed to load settings singleton. Files using singleton will fail.",
-    )
-    settings = None  # type: ignore[assignment]
+# Migration completed:
+# ✅ Phase 1: Core services (WeightManager, DetectorService, ProjectManager, etc.)
+# ✅ Phase 2: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)
+# ✅ Phase 3: UI layer (ApplicationGUI, WizardDialog, dialogs)
+#
+# All settings are now injected via the Composition Root pattern.
 
 
 # =============================================================================
@@ -830,8 +810,6 @@ except (FileNotFoundError, ValueError) as e:
 # =============================================================================
 __all__ = sorted(
     [
-        # Main settings object (TEMPORARY - Will be removed after full DI migration)
-        "settings",
         # Settings model classes (for type hints and validation)
         "Settings",
         "CameraSettings",

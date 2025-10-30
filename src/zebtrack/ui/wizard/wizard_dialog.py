@@ -7,10 +7,14 @@ Manages 5-step wizard flow, navigation, and data accumulation.
 from datetime import datetime, timezone
 from tkinter import Frame, messagebox
 from tkinter.simpledialog import Dialog
+from typing import TYPE_CHECKING
 
 import structlog
 
 from zebtrack.ui.wizard.cache import WizardCache
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 from zebtrack.ui.wizard.calibration_step import CalibrationStep
 from zebtrack.ui.wizard.confirmation_step import ConfirmationStep
 from zebtrack.ui.wizard.detection_step import DetectionStep
@@ -64,12 +68,13 @@ class WizardDialog(Dialog):
         result (dict | None): Final wizard output or None if cancelled
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent, settings_obj: "Settings | None" = None):
         """
         Initialize wizard dialog.
 
         Args:
             parent: Parent Tkinter widget (usually root window)
+            settings_obj: Settings instance (optional)
         """
         self.all_steps = {}  # All possible steps indexed by WizardStepID
         self.active_steps = []  # Steps for current project type (updated dynamically)
@@ -81,6 +86,7 @@ class WizardDialog(Dialog):
         self.cache = WizardCache()
         self.result = None  # Will be set on successful completion
         self._geometry_initialized = False
+        self.settings = settings_obj  # Store settings for steps
 
         log.info("wizard.opened")
 
@@ -129,7 +135,7 @@ class WizardDialog(Dialog):
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.MODEL_SELECTION: ModelSelectionStep(
-                self.steps_container, self.wizard_data
+                self.steps_container, self.wizard_data, settings_obj=self.settings
             ),
             WizardStepID.IMPORT_CONFIG: ImportConfigStep(self.steps_container, self.wizard_data),
             WizardStepID.CONFIRMATION: ConfirmationStep(self.steps_container, self.wizard_data),

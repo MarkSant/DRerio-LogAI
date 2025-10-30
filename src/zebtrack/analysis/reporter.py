@@ -32,7 +32,6 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.roi import ROI
-from zebtrack.settings import settings
 
 log = structlog.get_logger(__name__)
 

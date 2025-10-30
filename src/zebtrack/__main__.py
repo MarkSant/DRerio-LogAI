@@ -116,6 +116,7 @@ def main():
     configure_logging()
     from zebtrack.logging_config import configure_logging_levels
 
+    # Note: configure_logging_levels will be called again after settings load
     configure_logging_levels()
 
     # Apply CLI overrides after initial configuration
@@ -155,6 +156,8 @@ def main():
             camera_index=settings_obj.camera.index,
             yolo_path=settings_obj.yolo_model.path,
         )
+        # Apply logging levels from loaded settings
+        configure_logging_levels(settings_obj)
     except (FileNotFoundError, ValueError) as e:
         log.critical("settings.load.fatal", error=str(e))
         root = tk.Tk()

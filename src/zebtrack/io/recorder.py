@@ -1,7 +1,7 @@
 import os
 import time
 from pathlib import Path
-from typing import Any, FrozenSet  # noqa: UP035
+from typing import TYPE_CHECKING, Any, FrozenSet  # noqa: UP035
 
 import cv2
 import numpy as np
@@ -11,8 +11,10 @@ import structlog
 from pyarrow import parquet as pq
 
 from zebtrack.core.detector import ZoneData
-from zebtrack.settings import settings
 from zebtrack.utils.validation import validate_calibration
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -22,8 +24,12 @@ class Recorder:
     Manages the recording of analysis data, including video and Parquet files.
     """
 
-    def __init__(self):
-        """Initializes the recorder with its default state."""
+    def __init__(self, settings_obj: "Settings | None" = None):
+        """Initializes the recorder with its default state.
+
+        Args:
+            settings_obj: Settings instance (optional, uses defaults if None).
+        """
         self.is_recording = False
         self.video_writer = None
         self.base_name = ""
@@ -41,18 +47,34 @@ class Recorder:
         self._parquet_filename: str = ""
         self._last_flush_time: float = 0.0
 
-        recorder_settings = getattr(settings, "recorder", None)
-        performance_settings = getattr(settings, "performance", None)
+        # Extract settings with defaults
+        self._fps = 30.0  # Default fps
+        if settings_obj:
+            recorder_settings = getattr(settings_obj, "recorder", None)
+            performance_settings = getattr(settings_obj, "performance", None)
 
-        self._flush_interval_seconds: float = float(
-            getattr(recorder_settings, "flush_interval_seconds", 5.0)
-        )
-        self._flush_row_threshold: int = int(getattr(recorder_settings, "flush_row_threshold", 500))
+            self._flush_interval_seconds: float = float(
+                getattr(recorder_settings, "flush_interval_seconds", 5.0) if recorder_settings else 5.0
+            )
+            self._flush_row_threshold: int = int(
+                getattr(recorder_settings, "flush_row_threshold", 500) if recorder_settings else 500
+            )
 
-        # Phase 8: Performance settings for compression
-        self._parquet_compression: str = str(
-            getattr(performance_settings, "parquet_compression", "snappy")
-        )
+            # Phase 8: Performance settings for compression
+            self._parquet_compression: str = str(
+                getattr(performance_settings, "parquet_compression", "snappy")
+                if performance_settings
+                else "snappy"
+            )
+
+            # Store fps from settings
+            if hasattr(settings_obj, "video_processing"):
+                self._fps = float(getattr(settings_obj.video_processing, "fps", 30.0))
+        else:
+            # Use defaults if no settings provided
+            self._flush_interval_seconds = 5.0
+            self._flush_row_threshold = 500
+            self._parquet_compression = "snappy"
 
     def start_recording(
         self,
@@ -111,7 +133,7 @@ class Recorder:
             self.video_writer = cv2.VideoWriter(
                 video_filename,
                 fourcc,
-                settings.video_processing.fps,
+                self._fps,
                 (frame_width, frame_height),
             )
             if not self.video_writer.isOpened():
