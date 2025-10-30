@@ -8,6 +8,7 @@ logic should live here instead of in the UI layer.
 
 import os
 import sys
+import time
 from contextlib import contextmanager
 
 import cv2
@@ -21,7 +22,20 @@ log = structlog.get_logger()
 
 
 class WizardService:
-    """Business logic for wizard operations."""
+    """
+    Business logic for wizard operations.
+
+    Features performance optimizations:
+    - Hardware detection caching with configurable TTL
+    - Lazy loading of heavy operations
+    """
+
+    # Class-level cache for hardware detection results
+    _camera_cache: dict | None = None
+    _camera_cache_time: float = 0.0
+    _arduino_cache: dict | None = None
+    _arduino_cache_time: float = 0.0
+    _cache_ttl_seconds: float = 30.0  # Cache results for 30 seconds
 
     @staticmethod
     def validate_live_config(data: dict) -> tuple[bool, str]:
@@ -114,13 +128,35 @@ class WizardService:
             # Restore OpenCV log level
             cv2.setLogLevel(3)  # LOG_LEVEL_ERROR
 
-    @staticmethod
-    def detect_available_cameras() -> list[dict]:
+    @classmethod
+    def clear_hardware_cache(cls):
+        """Clear all hardware detection caches. Useful for testing or manual refresh."""
+        cls._camera_cache = None
+        cls._camera_cache_time = 0.0
+        cls._arduino_cache = None
+        cls._arduino_cache_time = 0.0
+        log.debug("wizard_service.cache_cleared")
+
+    @classmethod
+    def _is_cache_valid(cls, cache_time: float) -> bool:
+        """Check if cache is still valid based on TTL."""
+        if cache_time == 0.0:
+            return False
+        elapsed = time.time() - cache_time
+        return elapsed < cls._cache_ttl_seconds
+
+    @classmethod
+    def detect_available_cameras(cls, use_cache: bool = True) -> list[dict]:
         """
-        Detect available cameras with early stopping optimization.
+        Detect available cameras with early stopping optimization and caching.
 
         Uses DirectShow backend on Windows for better reliability.
         Stops detection after 3 consecutive failures to improve performance.
+        Caches results for 30 seconds to avoid repeated detection calls.
+
+        Args:
+            use_cache: If True, return cached results if available and valid.
+                      If False, force fresh detection.
 
         Returns:
             List of dictionaries with camera information:
@@ -130,16 +166,22 @@ class WizardService:
                     "width": int,
                     "height": int,
                     "fps": float,
+                    "description": str,
                 },
                 ...
             ]
         """
+        # Check cache first
+        if use_cache and cls._camera_cache is not None and cls._is_cache_valid(cls._camera_cache_time):
+            log.debug("wizard_service.detect_cameras.cache_hit")
+            return cls._camera_cache
+
         log.info("wizard_service.detect_cameras.start")
         cameras = []
         consecutive_failures = 0
         max_consecutive_failures = 3
 
-        with WizardService.suppress_opencv_logs():
+        with cls.suppress_opencv_logs():
             for i in range(10):
                 try:
                     # Use DirectShow backend on Windows for better reliability
@@ -180,14 +222,24 @@ class WizardService:
             count=len(cameras),
             indices=[c["index"] for c in cameras],
         )
+
+        # Update cache
+        cls._camera_cache = cameras
+        cls._camera_cache_time = time.time()
+
         return cameras
 
-    @staticmethod
-    def detect_arduino_ports() -> list[dict]:
+    @classmethod
+    def detect_arduino_ports(cls, use_cache: bool = True) -> list[dict]:
         """
-        Detect available Arduino serial ports with descriptions.
+        Detect available Arduino serial ports with descriptions and caching.
 
         Uses Arduino.scan_available_ports to identify ports with handshake.
+        Caches results for 30 seconds to avoid repeated detection calls.
+
+        Args:
+            use_cache: If True, return cached results if available and valid.
+                      If False, force fresh detection.
 
         Returns:
             List of dictionaries with port information:
@@ -201,6 +253,11 @@ class WizardService:
                 ...
             ]
         """
+        # Check cache first
+        if use_cache and cls._arduino_cache is not None and cls._is_cache_valid(cls._arduino_cache_time):
+            log.debug("wizard_service.detect_arduino.cache_hit")
+            return cls._arduino_cache
+
         log.info("wizard_service.detect_arduino.start")
         ports_info = []
 
@@ -272,6 +329,10 @@ class WizardService:
 
         except Exception as e:
             log.warning("wizard_service.detect_arduino.error", error=str(e))
+
+        # Update cache
+        cls._arduino_cache = ports_info
+        cls._arduino_cache_time = time.time()
 
         return ports_info
 
