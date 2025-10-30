@@ -13,14 +13,16 @@ Now handles batch processing, single video processing, and all coordination logi
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import structlog
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.settings import settings
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -39,9 +41,14 @@ class AnalysisService:
     - Coordinating BehavioralAnalyzer and ROIAnalyzer
     """
 
-    def __init__(self):
-        """Initialize the AnalysisService."""
+    def __init__(self, settings_obj: "Settings | None" = None):
+        """Initialize the AnalysisService.
+
+        Args:
+            settings_obj: Settings instance (injected, optional for backward compatibility).
+        """
         self.log = structlog.get_logger(__name__)
+        self.settings = settings_obj
 
     def run_full_analysis(
         self,
@@ -81,10 +88,10 @@ class AnalysisService:
             - The instance of ConcreteBehavioralAnalyzer used.
             - The instance of ROIAnalyzer used, or ``None`` when no ROIs were provided.
         """
-        if settings is None:
-            raise RuntimeError("Application settings failed to load.")
+        if self.settings is None:
+            raise RuntimeError("AnalysisService: Settings not injected.")
 
-        smoothing_cfg = settings.trajectory_smoothing
+        smoothing_cfg = self.settings.trajectory_smoothing
         window_length = (
             smoothing_window_length
             if smoothing_window_length is not None
@@ -95,7 +102,7 @@ class AnalysisService:
         )
 
         # 1. Initialize the core behavioral analyzer
-        angular_settings = settings.angular_velocity
+        angular_settings = self.settings.angular_velocity
         b_analyzer = ConcreteBehavioralAnalyzer(
             trajectory_df=trajectory_df.copy(),  # Use a copy to prevent side effects
             pixelcm_x=pixelcm_x,
@@ -136,9 +143,9 @@ class AnalysisService:
             behavior_analyzer=b_analyzer,
             rois=rois,
             flutter_n_frames=1,  # Reduced to detect brief entries/exits
-            inclusion_rule=settings.roi_inclusion_rule,
-            buffer_radius_value=settings.roi_buffer_radius_value,
-            min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio,
+            inclusion_rule=self.settings.roi_inclusion_rule,
+            buffer_radius_value=self.settings.roi_buffer_radius_value,
+            min_bbox_overlap_ratio=self.settings.roi_min_bbox_overlap_ratio,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
@@ -211,10 +218,10 @@ class AnalysisService:
         """
         # Start with settings defaults
         params = {
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
+            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
+            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
         }
 
         # Override with project-specific values if available
@@ -383,17 +390,17 @@ class AnalysisService:
 
     def _default_analysis_profile(self) -> dict:
         """
-        Return default analysis profile from settings.
+        Return default analysis profile from self.settings.
 
         Returns:
             dict: Default analysis profile
         """
         return {
             "name": "default",
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
+            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
+            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
         }
 
     # -------------------------------------------------------------------------

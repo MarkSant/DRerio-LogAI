@@ -161,12 +161,14 @@ class DetectorService:
                 method=animal_method,
             )
 
-            # Instantiate plugin
+            # Instantiate plugin with settings
             if use_openvino:
                 expected_hash = weight_details.get("openvino_hash")
-                plugin_instance = plugin_class(model_path=model_path, expected_hash=expected_hash)
+                plugin_instance = plugin_class(
+                    model_path=model_path, expected_hash=expected_hash, settings_obj=self.settings
+                )
             else:
-                plugin_instance = plugin_class(model_path=model_path)
+                plugin_instance = plugin_class(model_path=model_path, settings_obj=self.settings)
 
             # Create detector instance
             self.detector = Detector(

@@ -247,7 +247,7 @@ def main():
         # Analysis service
         from zebtrack.analysis.analysis_service import AnalysisService
 
-        analysis_service = AnalysisService()
+        analysis_service = AnalysisService(settings_obj=settings_obj)
 
         # Create MainViewModel with all injected dependencies
         from zebtrack.core.main_view_model import MainViewModel

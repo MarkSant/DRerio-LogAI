@@ -5,44 +5,53 @@
 The following core services have been successfully migrated to use Dependency Injection:
 
 - ✅ `src/zebtrack/core/weight_manager.py` - Accepts `settings_obj` parameter
-- ✅ `src/zebtrack/core/detector_service.py` - Accepts `settings_obj` parameter
+- ✅ `src/zebtrack/core/detector_service.py` - Accepts `settings_obj` parameter + passes to plugins
 - ✅ `src/zebtrack/core/project_manager.py` - Accepts `settings_obj` parameter
 - ✅ `src/zebtrack/core/main_view_model.py` - Accepts 11 injected dependencies
 - ✅ `src/zebtrack/core/detector.py` - Accepts `settings_obj` parameter
 - ✅ `src/zebtrack/core/project_service.py` - Removed settings usage (delegated to ProjectManager)
-- ⚠️ `src/zebtrack/core/wizard_service.py` - **2 usages** (needs migration - marked with TODO)
+- ⚠️ `src/zebtrack/core/wizard_service.py` - **2 usages** (uses singleton - marked with TODO)
 - ✅ `src/zebtrack/core/project_workflow_service.py` - Accepts `settings_obj` parameter
 - ✅ `src/zebtrack/__main__.py` - Transformed into Composition Root with full DI
 
-## ⚠️ Phase 2: Remaining Files (TODO - Next PR)
+## ✅ Phase 2: Analysis & IO Layer (COMPLETED)
 
-The following files **still use the singleton `settings`** and need to be migrated:
+The following files have been migrated to use Dependency Injection:
 
-### Analysis Layer (19 total usages)
-- ❌ `src/zebtrack/analysis/analysis_service.py` - **17 usages** (HIGH PRIORITY - Core service)
-  - Needs constructor to accept `settings_obj`
-  - Created by MainViewModel - easy to inject
-- ❌ `src/zebtrack/analysis/reporter.py` - **0 usages** (import only - LOW PRIORITY)
-  - Just remove the unused import
+### Analysis Layer
+- ✅ `src/zebtrack/analysis/analysis_service.py` - **17 usages** migrated
+  - Accepts `settings_obj` parameter
+  - Injected via `__main__.py` and `MainViewModel`
+  - All `settings.` → `self.settings.`
+- ⚠️ `src/zebtrack/analysis/reporter.py` - **1 import** (uses singleton - low priority)
+  - Imports settings but doesn't use it directly
+  - Can remove import when singleton is removed
 
-### IO Layer (11 total usages)
-- ❌ `src/zebtrack/io/camera.py` - **9 usages** (HIGH PRIORITY - Core infrastructure)
-  - Needs constructor to accept `settings_obj`
-  - Used by MainViewModel and wizard
-- ❌ `src/zebtrack/io/arduino.py` - **1 usage** (MEDIUM PRIORITY)
-  - Needs constructor to accept `settings_obj`
-  - Used by MainViewModel
-- ❌ `src/zebtrack/io/recorder.py` - **1 usage** (MEDIUM PRIORITY)
-  - Needs constructor to accept `settings_obj`
-  - Created in Composition Root
+### IO Layer
+- ✅ `src/zebtrack/io/camera.py` - **9 usages** migrated
+  - Accepts `settings_obj` parameter with RuntimeError if None
+  - All `settings.` → `self.settings.`
+- ⚠️ `src/zebtrack/io/arduino.py` - **1 usage** (uses singleton in static method)
+  - Static method `scan_available_ports` uses singleton
+  - Low priority - can be migrated later
+- ⚠️ `src/zebtrack/io/recorder.py` - **1 usage** (uses singleton)
+  - Single usage in `start_recording` method
+  - Could receive fps as parameter instead
+  - Low priority
 
-### Plugins Layer (4 total usages)
-- ❌ `src/zebtrack/plugins/openvino_detector.py` - **2 usages** (MEDIUM PRIORITY)
-  - Needs constructor to accept `settings_obj`
-  - Created by DetectorService (already has settings)
-- ❌ `src/zebtrack/plugins/ultralytics_detector.py` - **2 usages** (MEDIUM PRIORITY)
-  - Needs constructor to accept `settings_obj`
-  - Created by DetectorService (already has settings)
+### Plugins Layer
+- ✅ `src/zebtrack/plugins/openvino_detector.py` - **2 usages** migrated
+  - Accepts optional `settings_obj` parameter
+  - Falls back to singleton if None (backward compat)
+  - DetectorService passes settings when creating
+- ✅ `src/zebtrack/plugins/ultralytics_detector.py` - **2 usages** migrated
+  - Accepts optional `settings_obj` parameter
+  - Falls back to singleton if None (backward compat)
+  - DetectorService passes settings when creating
+
+## ⚠️ Phase 3: Remaining Files (TODO - Future PR)
+
+The following files **still use the singleton `settings`**:
 
 ### UI Layer (Unknown usages - needs analysis)
 - ❌ `src/zebtrack/ui/gui.py` (LARGE FILE - Complex migration)

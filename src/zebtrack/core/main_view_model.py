@@ -170,7 +170,11 @@ class MainViewModel:
 
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
-        self.analysis_service = analysis_service if analysis_service is not None else AnalysisService()
+        self.analysis_service = (
+            analysis_service
+            if analysis_service is not None
+            else AnalysisService(settings_obj=self.settings)
+        )
 
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()

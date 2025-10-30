@@ -794,19 +794,20 @@ def export_schema(
 # =============================================================================
 
 # TODO: Complete DI migration for remaining files
-# Files still using singleton (to be migrated):
-# - src/zebtrack/analysis/analysis_service.py (17 usages)
-# - src/zebtrack/io/camera.py (9 usages)
-# - src/zebtrack/plugins/openvino_detector.py (2 usages)
-# - src/zebtrack/plugins/ultralytics_detector.py (2 usages)
-# - src/zebtrack/io/arduino.py (1 usage)
-# - src/zebtrack/io/recorder.py (1 usage)
-# - src/zebtrack/ui/gui.py
-# - src/zebtrack/ui/wizard/wizard_adapter.py
-# - src/zebtrack/ui/wizard/model_selection_step.py
-# - src/zebtrack/ui/dialogs/single_video_config_dialog.py
-# - src/zebtrack/logging_config.py
-# - src/zebtrack/analysis/reporter.py (import only)
+# Phase 1 & 2 COMPLETED - Core services, Analysis, IO, Plugins migrated
+#
+# Phase 3 - Files still using singleton (LOW PRIORITY):
+# - src/zebtrack/core/wizard_service.py (2 usages - static methods)
+# - src/zebtrack/io/arduino.py (1 usage - static method)
+# - src/zebtrack/io/recorder.py (1 usage - could use fps parameter)
+# - src/zebtrack/analysis/reporter.py (import only, doesn't use)
+# - src/zebtrack/ui/gui.py (UI layer - complex)
+# - src/zebtrack/ui/wizard/wizard_adapter.py (UI layer)
+# - src/zebtrack/ui/wizard/model_selection_step.py (UI layer)
+# - src/zebtrack/ui/dialogs/single_video_config_dialog.py (UI layer)
+# - src/zebtrack/logging_config.py (startup code)
+#
+# See TODO_DI_MIGRATION.md for details
 
 try:
     settings = load_settings()
