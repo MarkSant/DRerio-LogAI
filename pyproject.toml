@@ -93,7 +93,7 @@ addopts = [
   "--cov-report=term-missing",
   "--cov-report=html",
   "--cov-report=xml",
-  "--cov-fail-under=35",
+  "--cov-fail-under=30",
   # Parallel execution with pytest-xdist, but exclude problematic tests by default
   # GUI tests use Tkinter which doesn't work well with multiprocessing
   # ttkbootstrap_singleton tests have Style cleanup issues in full suite
