@@ -808,6 +808,7 @@ class VideoProcessingService:
         Note: This requires access to detector_service._publish_processing_mode
         which we don't have in the service. This will need special handling.
         """
+
         def progress_callback(
             progress_fraction,
             status_message,

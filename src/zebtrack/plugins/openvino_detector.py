@@ -129,7 +129,7 @@ class OpenVINOPlugin(DetectorPlugin):
                         self.class_names = {int(k): v for k, v in metadata["class_names"].items()}
                     log.info("openvino.metadata.loaded", classes=self.class_names)
             except Exception as e:
-                    log.warning("openvino.metadata.load_failed", error=str(e))
+                log.warning("openvino.metadata.load_failed", error=str(e))
 
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""

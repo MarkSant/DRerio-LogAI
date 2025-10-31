@@ -22,7 +22,12 @@ class TestOverlayIntegration(unittest.TestCase):
         """
         # Check VideoProcessingService where the implementation now lives
         service_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "video_processing_service.py"
+            os.path.dirname(__file__),
+            "..",
+            "src",
+            "zebtrack",
+            "core",
+            "video_processing_service.py",
         )
 
         with open(service_file, encoding="utf-8") as f:
@@ -105,7 +110,12 @@ class TestOverlayIntegration(unittest.TestCase):
         """
         # Check VideoProcessingService where the implementation now lives
         service_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "video_processing_service.py"
+            os.path.dirname(__file__),
+            "..",
+            "src",
+            "zebtrack",
+            "core",
+            "video_processing_service.py",
         )
 
         with open(service_file, encoding="utf-8") as f:

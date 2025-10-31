@@ -18,13 +18,10 @@ from tkinter import (
     BooleanVar,
     Button,
     Canvas,
-    Checkbutton,
     Frame,
     Label,
     Menu,
-    OptionMenu,
     StringVar,
-    Text,
     Toplevel,
     filedialog,
     messagebox,
@@ -36,7 +33,6 @@ from typing import Any
 
 import cv2
 import numpy as np
-import serial.tools.list_ports
 import structlog
 import yaml
 from PIL import Image, ImageTk
@@ -51,9 +47,13 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 import zebtrack.settings as settings_module
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
-from zebtrack.ui.components import VideoDisplayWidget, ZoneControlsWidget
+from zebtrack.ui.components import (
+    AnalysisDisplayWidget,
+    ArduinoDashboardWidget,
+    VideoDisplayWidget,
+    ZoneControlsWidget,
+)
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -170,156 +170,6 @@ class _VideoPathResolverContext:
                 self.tree.selection_set(tuple(self.resolved_video_nodes))
             except Exception:
                 pass
-
-
-class LiveConfigDialog(simpledialog.Dialog):
-    """A dialog to configure live analysis settings (camera and Arduino)."""
-
-    def __init__(self, parent):
-        self.result = None
-        self.available_cameras = {}
-        self.available_ports = {}
-        super().__init__(parent, "Configuração da Análise ao Vivo")
-
-    def body(self, master):
-        # --- Detect devices first ---
-        self._detect_devices()
-
-        # --- Tkinter Variables ---
-        self.camera_var = StringVar()
-        self.use_arduino_var = BooleanVar(value=True)
-        self.arduino_port_var = StringVar()
-
-        # --- Camera Selection ---
-        Label(master, text="Selecionar Câmera:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        camera_names = list(self.available_cameras.keys())
-        if not camera_names:
-            camera_names = ["Nenhuma câmera encontrada"]
-        self.camera_menu = OptionMenu(master, self.camera_var, *camera_names)
-        self.camera_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-
-        if self.available_cameras:
-            self.camera_var.set(next(iter(self.available_cameras.keys())))
-        else:
-            self.camera_menu.config(state="disabled")
-
-        # --- Arduino Selection ---
-        self.arduino_check = Checkbutton(
-            master,
-            text="Usar Arduino",
-            variable=self.use_arduino_var,
-            command=self._toggle_arduino_menu,
-        )
-        self.arduino_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-
-        Label(master, text="Porta Arduino:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        port_names = list(self.available_ports.keys())
-        if not port_names:
-            port_names = ["Nenhuma porta encontrada"]
-        self.arduino_menu = OptionMenu(master, self.arduino_port_var, *port_names)
-        self.arduino_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
-
-        if self.available_ports:
-            self.arduino_port_var.set(next(iter(self.available_ports.keys())))
-
-        self._toggle_arduino_menu()  # Set initial state
-        return self.camera_menu  # Initial focus
-
-    def _detect_devices(self):
-        """Detects available cameras and serial ports."""
-        # Detect cameras
-        log.info("device_detection.camera.start")
-        for i in range(10):  # Check up to 10 indices
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                self.available_cameras[f"Câmera {i}"] = i
-                cap.release()
-        log.info("device_detection.camera.found", cameras=self.available_cameras)
-
-        # Detect serial ports
-        try:
-            log.info("device_detection.ports.start")
-            baud_rate = (
-                getattr(getattr(self.settings, "arduino", None), "baud_rate", 9600)
-                if self.settings
-                else 9600
-            )
-            handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
-
-            def _add_port(info, *, handshake: bool) -> None:
-                device_id = getattr(info, "device", None)
-                if not device_id:
-                    return
-                description = getattr(info, "description", device_id)
-                suffix = " [Arduino]" if handshake else ""
-                if handshake_ports and not handshake:
-                    suffix = " [sem handshake]"
-                label = f"{description} ({device_id}){suffix}"
-                self.available_ports[label] = device_id
-
-            for port in handshake_ports:
-                _add_port(port, handshake=True)
-
-            if handshake_ports:
-                for port in fallback_ports:
-                    _add_port(port, handshake=False)
-            else:
-                if not handshake_ports and not fallback_ports:
-                    fallback_ports = []
-                if not fallback_ports:
-                    # Ensure we still list raw ports if probe yielded nothing
-                    try:
-                        fallback_ports = list(serial.tools.list_ports.comports())
-                    except Exception:  # pragma: no cover - already logged above
-                        fallback_ports = []
-                for port in fallback_ports:
-                    _add_port(port, handshake=False)
-
-            log.info(
-                "device_detection.ports.found",
-                ports=self.available_ports,
-                recognized=len(handshake_ports),
-            )
-        except Exception as e:
-            log.warning("device_detection.ports.error", error=str(e))
-            self.available_ports = {}
-
-    def _toggle_arduino_menu(self):
-        """Enable or disable the Arduino port dropdown based on the checkbox."""
-        if self.use_arduino_var.get() and self.available_ports:
-            self.arduino_menu.config(state="normal")
-        else:
-            self.arduino_menu.config(state="disabled")
-            if not self.available_ports:
-                self.use_arduino_var.set(False)
-
-    def validate(self):
-        """Validate the inputs before closing the dialog."""
-        if not self.available_cameras:
-            messagebox.showerror(
-                "Erro",
-                "Nenhuma câmera detectada. Não é possível iniciar uma sessão ao vivo.",
-            )
-            return 0
-        if self.use_arduino_var.get() and not self.available_ports:
-            messagebox.showerror(
-                "Erro",
-                "O Arduino está ativado, mas nenhuma porta serial foi "
-                "encontrada. Por favor, verifique a conexão ou desative a "
-                "opção 'Usar Arduino'.",
-            )
-            return 0
-        return 1
-
-    def apply(self):
-        """Process the data and set the result."""
-        use_arduino = self.use_arduino_var.get()
-        selected_port_key = self.arduino_port_var.get()
-        self.result = {
-            "camera_index": self.available_cameras.get(self.camera_var.get()),
-            "use_arduino": use_arduino,
-            "arduino_port": self.available_ports.get(selected_port_key) if use_arduino else None,
-        }
 
 
 class ApplicationGUI:
@@ -475,33 +325,14 @@ class ApplicationGUI:
         )
         self._config_roi_rule_widgets: list[ttk.Combobox] = []
 
-        # Progress + stats (created later)
-        self.progress_frame: Frame | None = None
-        self.progress_bar = None
-        self.cancel_proc_btn: Button | None = None
-        self.progress_labels: dict[str, StringVar] = {}
-        self.video_label: Label | None = None
-        self.analysis_tab_frame: ttk.Frame | None = None
-        self.analysis_video_label: Label | None = None
-        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.analysis_status_label: ttk.Label | None = None
-        (
-            default_group,
-            default_day,
-            default_subject,
-        ) = self._analysis_metadata_defaults()
-        self.analysis_metadata_var = StringVar(value=self._default_analysis_metadata_text())
-        self.analysis_group_var = StringVar(value=f"Grupo: {default_group}")
-        self.analysis_day_var = StringVar(value=f"Dia: {default_day}")
-        self.analysis_subject_var = StringVar(value=f"Indivíduo: {default_subject}")
-        self.analysis_task_var = StringVar(value=self._default_analysis_task_text())
-        self.analysis_metadata_label: ttk.Label | None = None
-        self.analysis_task_label: ttk.Label | None = None
+        # Analysis display widget (created later in notebook)
+        self.analysis_display_widget: AnalysisDisplayWidget | None = None
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.tracking_mode_label: ttk.Label | None = None
-        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
-        self.analysis_profile_label: ttk.Label | None = None
+
+        # Maintain backward compatibility aliases (will be removed later)
+        self.video_label: Label | None = None
+        self.progress_bar = None
+        self.progress_labels: dict[str, StringVar] = {}
         self.track_selector_var = StringVar(value="Todos")
         self.track_selector_widget: ttk.Combobox | None = None
         self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
@@ -563,12 +394,8 @@ class ApplicationGUI:
         self._overview_context_menu: Menu | None = None
         self._overview_menu_font: tkfont.Font | None = None
 
-        # Arduino dashboard state (live projects)
-        self.arduino_dashboard_frame = None
-        self.arduino_status_var = StringVar(value="Desconectado")
-        self.arduino_status_indicator = None
-        self.arduino_last_command_var = StringVar(value="-")
-        self.arduino_log_text = None
+        # Arduino dashboard widget (live projects)
+        self.arduino_dashboard_widget: ArduinoDashboardWidget | None = None
         self.external_trigger_notice_var = StringVar(value="")
         self.external_trigger_notice_label = None
         self._external_notice_default_bg = None
@@ -784,10 +611,12 @@ class ApplicationGUI:
         )
 
     def _handle_update_arduino_status(self, data: dict) -> None:
-        self.update_arduino_status_indicator(data.get("connected"), data.get("port"))
+        if self.arduino_dashboard_widget:
+            self.arduino_dashboard_widget.update_status(data.get("connected"), data.get("port"))
 
     def _handle_append_arduino_log(self, data: dict) -> None:
-        self.append_arduino_log(data.get("message", ""))
+        if self.arduino_dashboard_widget:
+            self.arduino_dashboard_widget.append_log(data.get("message", ""))
 
     def _handle_update_openvino_status(self, data: dict) -> None:
         self.update_openvino_status_display(data.get("status", ""))
@@ -900,26 +729,14 @@ class ApplicationGUI:
 
     def _update_arduino_ui(self, arduino_connected: bool) -> None:
         """Update UI elements based on Arduino connection state."""
-        if arduino_connected:
-            log.debug("gui.arduino_state.connected")
-            # Update Arduino status indicator if it exists
-            if hasattr(self, "arduino_status_var"):
-                self.arduino_status_var.set("Conectado")
-            if hasattr(self, "arduino_status_indicator"):
-                try:
-                    self.arduino_status_indicator.config(style="success.TLabel")
-                except Exception:
-                    pass  # Ignore if widget doesn't exist yet
-        else:
-            log.debug("gui.arduino_state.disconnected")
-            # Update Arduino status indicator if it exists
-            if hasattr(self, "arduino_status_var"):
-                self.arduino_status_var.set("Desconectado")
-            if hasattr(self, "arduino_status_indicator"):
-                try:
-                    self.arduino_status_indicator.config(style="danger.TLabel")
-                except Exception:
-                    pass  # Ignore if widget doesn't exist yet
+        if self.arduino_dashboard_widget:
+            port = None  # Port info not available in this context
+            self.arduino_dashboard_widget.update_status(arduino_connected, port)
+
+            if arduino_connected:
+                log.debug("gui.arduino_state.connected")
+            else:
+                log.debug("gui.arduino_state.disconnected")
 
     def _update_project_ui(self, project_path) -> None:
         """Update UI elements based on project state."""
@@ -1375,17 +1192,10 @@ class ApplicationGUI:
         if self.main_controls_frame:
             self.main_controls_frame.destroy()
             self.main_controls_frame = None
-            self.arduino_dashboard_frame = None
-            self.arduino_log_text = None
-            self.arduino_status_indicator = None
+            self.arduino_dashboard_widget = None
             self.external_trigger_notice_label = None
             try:
                 self.external_trigger_notice_var.set("")
-            except Exception:
-                pass
-            try:
-                self.arduino_status_var.set("Desconectado")
-                self.arduino_last_command_var.set("-")
             except Exception:
                 pass
             if self._overview_refresh_job is not None:
@@ -1668,7 +1478,7 @@ class ApplicationGUI:
             self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
         self._create_processing_reports_tab()  # New unified tab
-        self._create_analysis_tab()
+        self._create_analysis_tab_widget()
         self._create_configuration_tab()
 
         # Status frame below the notebook
@@ -2300,7 +2110,13 @@ class ApplicationGUI:
             self._external_notice_default_bg = self.external_trigger_notice_label.cget("background")
             self._external_notice_default_fg = self.external_trigger_notice_label.cget("foreground")
 
-            self._build_arduino_dashboard(self.main_controls_frame)
+            # Create Arduino dashboard widget
+            self.arduino_dashboard_widget = ArduinoDashboardWidget(
+                self.main_controls_frame,
+                event_bus=self.event_bus,
+                project_manager=self.controller.project_manager,
+            )
+            self.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
             self.clear_external_trigger_notice()
 
         self._request_overview_refresh()
@@ -3002,237 +2818,6 @@ class ApplicationGUI:
             append_summary=True,
             immediate=True,
         )
-
-    def _build_arduino_dashboard(self, parent: Frame):
-        """Creates the Arduino monitoring dashboard."""
-        if self.arduino_dashboard_frame and self.arduino_dashboard_frame.winfo_exists():
-            try:
-                self.arduino_dashboard_frame.destroy()
-            except Exception:
-                pass
-
-        self.arduino_dashboard_frame = ttk.LabelFrame(parent, text="Dashboard Arduino", padding=10)
-        self.arduino_dashboard_frame.pack(fill="both", expand=False, pady=(0, 10))
-
-        status_row = ttk.Frame(self.arduino_dashboard_frame)
-        status_row.pack(fill="x", pady=2)
-
-        self.arduino_status_indicator = Label(
-            status_row,
-            text="●",
-            font=("Segoe UI", 12, "bold"),
-        )
-        self.arduino_status_indicator.pack(side="left")
-
-        ttk.Label(
-            status_row,
-            textvariable=self.arduino_status_var,
-        ).pack(side="left", padx=(6, 12))
-
-        ttk.Label(status_row, text="Último comando:").pack(side="left")
-        ttk.Label(
-            status_row,
-            textvariable=self.arduino_last_command_var,
-        ).pack(side="left", padx=(6, 0))
-
-        ttk.Separator(self.arduino_dashboard_frame, orient="horizontal").pack(fill="x", pady=(8, 6))
-
-        ttk.Label(
-            self.arduino_dashboard_frame,
-            text="Eventos recentes:",
-        ).pack(anchor="w")
-
-        log_frame = ttk.Frame(self.arduino_dashboard_frame)
-        log_frame.pack(fill="both", expand=True, pady=(4, 0))
-
-        self.arduino_log_text = Text(
-            log_frame,
-            height=6,
-            wrap="word",
-            state="disabled",
-            background="#1f2933",
-            foreground="#f0f4f8",
-        )
-        self.arduino_log_text.pack(side="left", fill="both", expand=True)
-
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.arduino_log_text.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.arduino_log_text.configure(yscrollcommand=scrollbar.set)
-
-        controls_row = ttk.Frame(self.arduino_dashboard_frame)
-        controls_row.pack(fill="x", pady=(6, 0))
-
-        ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
-            side="right", padx=(5, 0)
-        )
-
-        ttk.Button(
-            controls_row,
-            text="🔄 Reverificar Portas",
-            command=self._recheck_arduino_ports,
-        ).pack(side="right")
-
-        # Reset dashboard state
-        self._clear_arduino_log()
-        self.update_arduino_status_indicator(False, None)
-        self.set_arduino_last_command("-")
-
-    def _clear_arduino_log(self):
-        if not self.arduino_log_text:
-            return
-        self.arduino_log_text.configure(state="normal")
-        self.arduino_log_text.delete("1.0", "end")
-        self.arduino_log_text.configure(state="disabled")
-
-    def _recheck_arduino_ports(self):
-        """
-        Recheck available Arduino ports and update project configuration.
-
-        Scans for available serial ports and allows updating the Arduino port
-        configuration for live projects.
-        """
-        from tkinter import messagebox
-
-        try:
-            import serial.tools.list_ports
-
-            # Scan for available ports
-            ports = list(serial.tools.list_ports.comports())
-
-            if not ports:
-                messagebox.showwarning(
-                    "Nenhuma Porta Detectada",
-                    "Nenhuma porta serial foi detectada.\n\n"
-                    "Verifique se:\n"
-                    "• O Arduino está conectado via USB\n"
-                    "• Os drivers estão instalados corretamente\n"
-                    "• A porta não está sendo usada por outro programa",
-                )
-                self.append_arduino_log("✗ Reverificação: Nenhuma porta detectada")
-                return
-
-            # Build display strings with descriptions
-            port_options = []
-            for port in ports:
-                description = port.description or "Dispositivo Serial"
-                port_options.append(f"{port.device} - {description}")
-
-            # Show selection dialog
-            from tkinter import simpledialog
-
-            selection = simpledialog.askstring(
-                "Selecionar Porta Arduino",
-                f"Detectadas {len(ports)} porta(s) serial.\n\n"
-                f"Portas disponíveis:\n" + "\n".join(f"• {opt}" for opt in port_options) + "\n\n"
-                "Digite o nome da porta (ex: COM3):",
-                initialvalue=ports[0].device if ports else "",
-            )
-
-            if selection:
-                # Extract device name (strip description if pasted)
-                selected_device = selection.split(" - ")[0].strip()
-
-                # Validate selection
-                valid_devices = [p.device for p in ports]
-                if selected_device not in valid_devices:
-                    messagebox.showerror(
-                        "Porta Inválida",
-                        f"A porta '{selected_device}' não está entre as portas detectadas.\n\n"
-                        f"Portas válidas: {', '.join(valid_devices)}",
-                    )
-                    return
-
-                # Update project configuration
-                if self.controller.project_manager.project_data:
-                    old_port = self.controller.project_manager.project_data.get("arduino_port")
-                    self.controller.project_manager.project_data["arduino_port"] = selected_device
-                    self.controller.project_manager.save_project()
-
-                    messagebox.showinfo(
-                        "Porta Atualizada",
-                        f"Porta Arduino atualizada:\n\n"
-                        f"Porta anterior: {old_port or 'Nenhuma'}\n"
-                        f"Nova porta: {selected_device}\n\n"
-                        "A nova porta será usada na próxima gravação.",
-                    )
-
-                    self.append_arduino_log(
-                        f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
-                    )
-
-                    log.info(
-                        "arduino.port_updated",
-                        old_port=old_port,
-                        new_port=selected_device,
-                    )
-                else:
-                    messagebox.showwarning(
-                        "Projeto Não Carregado",
-                        "Nenhum projeto está carregado no momento.",
-                    )
-
-        except ImportError:
-            messagebox.showerror(
-                "Erro",
-                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
-            )
-            self.append_arduino_log("✗ pyserial não disponível")
-
-        except Exception as e:
-            messagebox.showerror(
-                "Erro",
-                f"Ocorreu um erro ao reverificar portas:\n\n{e!s}",
-            )
-            self.append_arduino_log(f"✗ Erro na reverificação: {e!s}")
-            log.error("arduino.recheck_ports_failed", error=str(e))
-
-    def append_arduino_log(self, message: str):
-        if not self.arduino_log_text:
-            return
-
-        timestamp = time.strftime("%H:%M:%S")
-        entry = f"[{timestamp}] {message}\n"
-
-        self.arduino_log_text.configure(state="normal")
-        self.arduino_log_text.insert("end", entry)
-
-        try:
-            current_line = int(float(self.arduino_log_text.index("end-1c").split(".")[0]))
-            max_lines = 300
-            if current_line > max_lines:
-                start_line = current_line - max_lines
-                self.arduino_log_text.delete("1.0", f"{start_line}.0")
-        except Exception:
-            # If parsing fails, ignore trimming and keep log growing temporarily
-            pass
-
-        self.arduino_log_text.see("end")
-        self.arduino_log_text.configure(state="disabled")
-
-    def update_arduino_status_indicator(self, connected: bool, port: str | None):
-        status_text = "Desconectado"
-        if connected and port:
-            status_text = f"Conectado ({port})"
-        elif connected:
-            status_text = "Conectado"
-
-        try:
-            self.arduino_status_var.set(status_text)
-        except Exception:
-            pass
-
-        if self.arduino_status_indicator:
-            color = "#16a34a" if connected else "#b91c1c"
-            try:
-                self.arduino_status_indicator.config(foreground=color)
-            except Exception:
-                pass
-
-    def set_arduino_last_command(self, label_text: str):
-        try:
-            self.arduino_last_command_var.set(label_text or "-")
-        except Exception:
-            pass
 
     def show_external_trigger_notice(self, session_label: str, **details):
         if not self.external_trigger_notice_label:
@@ -4470,170 +4055,37 @@ class ApplicationGUI:
         self._update_zone_summary_cards(videos)
         self._refresh_pipeline_video_table(videos)
 
-    def _create_analysis_tab(self):
-        """Creates the dedicated tab for video playback and progress stats."""
+    def _create_analysis_tab_widget(self):
+        """Creates the analysis tab using the AnalysisDisplayWidget."""
         if not self.notebook:
             return
 
-        if self.analysis_tab_frame and self.analysis_tab_frame.winfo_exists():
-            self.analysis_tab_frame.destroy()
-
-        self.analysis_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.analysis_tab_frame, text="Análise de Vídeo")
-
-        # Status text (packed first - at the top)
-        self.analysis_status_var.set("Nenhuma análise em andamento.")
-        self.analysis_status_label = ttk.Label(
-            self.analysis_tab_frame,
-            textvariable=self.analysis_status_var,
-            padding=(0, 6),
-        )
-        self.analysis_status_label.pack(fill="x")
-
-        self.analysis_task_var.set(self._default_analysis_task_text())
-        self._set_analysis_metadata_defaults()
-
-        info_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 2))
-        info_frame.pack(fill="x")
-        info_frame.columnconfigure(0, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(1, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(2, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(3, weight=1, uniform="analysis_info")
-
-        self.analysis_task_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_task_var,
-            padding=(0, 2),
-        )
-        self.analysis_task_label.grid(
-            row=0,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            pady=(0, 2),
+        # Create the widget
+        self.analysis_display_widget = AnalysisDisplayWidget(
+            self.notebook,
+            event_bus=self.event_bus,
+            available_track_options=list(self._available_track_options),
         )
 
-        self.analysis_group_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_group_var,
-        )
-        self.analysis_group_label.grid(row=1, column=0, sticky="w", padx=(0, 12))
+        # Add to notebook
+        self.notebook.add(self.analysis_display_widget, text="Análise de Vídeo")
 
-        self.analysis_day_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_day_var,
-        )
-        self.analysis_day_label.grid(row=1, column=1, sticky="w", padx=(0, 12))
+        # Connect widget events to GUI handlers
+        if self.event_bus:
+            self._event_bus_handlers["analysis.track_selected"] = (
+                lambda data: self._on_track_selection_changed()
+            )
+            self._event_bus_handlers["analysis.cancel_requested"] = lambda data: self.publish_event(
+                Events.VIDEO_CANCEL_ANALYSIS, {}
+            )
 
-        self.analysis_subject_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_subject_var,
-        )
-        self.analysis_subject_label.grid(row=1, column=2, sticky="w", padx=(0, 12))
-
-        self.analysis_profile_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_profile_var,
-        )
-        self.analysis_profile_label.grid(row=1, column=3, sticky="w")
-
-        self.tracking_mode_label = ttk.Label(
-            info_frame,
-            textvariable=self.tracking_mode_var,
-        )
-        self.tracking_mode_label.grid(
-            row=2,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            pady=(2, 2),
-        )
-
-        controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
-        controls_frame.pack(fill="x", pady=(4, 0))
-
-        ttk.Label(controls_frame, text="Track ID ativo:").grid(row=0, column=0, sticky="w")
-
-        self.track_selector_widget = ttk.Combobox(
-            controls_frame,
-            textvariable=self.track_selector_var,
-            state="readonly",
-            values=list(self._available_track_options),
-            width=14,
-        )
-        self.track_selector_widget.grid(row=0, column=1, padx=(6, 12), sticky="w")
-        self.track_selector_widget.bind("<<ComboboxSelected>>", self._on_track_selection_changed)
-
-        ttk.Label(
-            controls_frame,
-            textvariable=self.social_summary_var,
-            wraplength=360,
-            justify="left",
-        ).grid(row=0, column=2, sticky="w")
-        controls_frame.columnconfigure(2, weight=1)
-
-        # Progress components (packed BEFORE video to stay visible above it)
-        self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
-        self.progress_frame.columnconfigure(0, weight=1)
-        self.progress_frame.columnconfigure(1, weight=0)
-
-        self.progress_bar = ttk.Progressbar(
-            self.progress_frame,
-            orient="horizontal",
-            mode="determinate",
-        )
-        self.progress_bar.grid(
-            row=0,
-            column=0,
-            columnspan=2,
-            sticky="ew",
-            pady=(0, 3),
-        )
-
-        stats_container = ttk.Frame(self.progress_frame)
-        stats_container.grid(row=1, column=0, sticky="ew")
-        stats_container.columnconfigure((0, 1, 2), weight=1, uniform="analysis_stats")
-
-        self.progress_labels = {}
-        stats_items = [
-            ("total", "Total de Frames:"),
-            ("processed", "Processados:"),
-            ("detected", "Frames Detectados:"),
-            ("percent", "Concluído:"),
-            ("elapsed", "Tempo Decorrido:"),
-            ("eta", "Tempo Estimado:"),
-        ]
-
-        for idx, (key, label_text) in enumerate(stats_items):
-            row = idx // 3
-            col = idx % 3
-            cell = ttk.Frame(stats_container, padding=(0, 2))
-            pad_x = (0, 12) if col < 2 else (0, 0)
-            cell.grid(row=row, column=col, padx=pad_x, sticky="w")
-            ttk.Label(cell, text=label_text).pack(anchor="w")
-            var = StringVar(value="-")
-            ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
-            self.progress_labels[key] = var
-
-        self.cancel_proc_btn = ttk.Button(
-            self.progress_frame,
-            text="Cancelar Análise",
-            command=lambda: self.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {}),
-            state="disabled",
-        )
-        self.cancel_proc_btn.grid(row=1, column=1, sticky="ne", padx=(12, 0))
-
-        # Hide progress frame until analysis starts
-        self.progress_frame.pack_forget()
-
-        # Video display area (packed LAST so it fills remaining space)
-        self.video_container = ttk.Frame(self.analysis_tab_frame)
-        self.video_container.pack(expand=True, fill="both")
-
-        self.analysis_video_label = Label(self.video_container, bg="black")
-        self.analysis_video_label.pack(expand=True, fill="both")
-        # Maintain backward compatibility with code using video_label
-        self.video_label = self.analysis_video_label
+        # Set up backward compatibility aliases
+        self.video_label = self.analysis_display_widget.video_label
+        self.progress_bar = self.analysis_display_widget.progress_bar
+        self.progress_labels = self.analysis_display_widget.progress_labels
+        self.track_selector_var = self.analysis_display_widget.track_selector_var
+        self.track_selector_widget = self.analysis_display_widget.track_selector_widget
+        self.social_summary_var = self.analysis_display_widget.social_summary_var
 
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame for the zone controls."""

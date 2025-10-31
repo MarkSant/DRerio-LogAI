@@ -622,7 +622,7 @@ class StateManager:
                 detector=self.get_detector_state(),
                 recording=self.get_recording_state(),
                 processing=self.get_processing_state(),
-                ui=self.get_ui_state()
+                ui=self.get_ui_state(),
             )
 
     def get_project_state(self) -> ProjectState:
