@@ -35,8 +35,13 @@ def test_ttktbootstrap_style_master_fallback(monkeypatch, caplog):
         return DummyStyle()
 
     # Prepare ApplicationGUI instance with minimal attributes used in the method
+    from tests.helpers import create_mock_settings
+    
     app = ApplicationGUI.__new__(ApplicationGUI)
     app.root = fake_root
+    mock_settings = create_mock_settings()
+    mock_settings.ui_theme_name = "cosmo"  # Set expected theme
+    app.settings = mock_settings
     app._ttkbootstrap_style = None
     app._ttkbootstrap_theme = None
 

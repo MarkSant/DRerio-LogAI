@@ -58,18 +58,16 @@ def single_video_test_setup(tmp_path: Path):
     Sets up a complete environment for testing the single video workflow.
     This includes a mock controller, a mock video, and mock configuration.
     """
+    from tests.helpers import create_test_controller
+    
     # 1. Create a temporary video file
     video_path = tmp_path / "test_video.mp4"
     generate_mock_video(str(video_path))
 
-    # 2. Mock the controller and its UI
-    with patch("zebtrack.core.main_view_model.ApplicationGUI") as mock_gui:
-        mock_root = MagicMock()
-        controller = AppController(root=mock_root)
-        controller.ui_event_bus = MagicMock()
-        # The real controller creates its own view, so we just use the one it created
-        # which is now a MagicMock thanks to the patch.
-        controller.view = mock_gui.return_value
+    # 2. Create controller with factory
+    mock_root = MagicMock()
+    controller = create_test_controller(root=mock_root)
+    controller.ui_event_bus = MagicMock()
 
     # 3. Setup a mock detector on the controller
     mock_plugin_instance = MockPlugin(model_path="dummy")

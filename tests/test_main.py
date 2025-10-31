@@ -7,7 +7,7 @@ from zebtrack.__main__ import main
 
 
 @patch("zebtrack.__main__.settings", None)
-@patch("zebtrack.__main__.MainViewModel")
+@patch("zebtrack.core.main_view_model.MainViewModel")
 @patch("zebtrack.__main__.messagebox")
 @patch("zebtrack.__main__.tk")
 @patch("sys.exit")
