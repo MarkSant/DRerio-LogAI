@@ -18,13 +18,10 @@ from tkinter import (
     BooleanVar,
     Button,
     Canvas,
-    Checkbutton,
     Frame,
     Label,
     Menu,
-    OptionMenu,
     StringVar,
-    Text,
     Toplevel,
     filedialog,
     messagebox,
@@ -36,7 +33,6 @@ from typing import Any
 
 import cv2
 import numpy as np
-import serial.tools.list_ports
 import structlog
 import yaml
 from PIL import Image, ImageTk
@@ -51,14 +47,12 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 import zebtrack.settings as settings_module
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
-from zebtrack.ui.components import VideoDisplayWidget, ZoneControlsWidget
+from zebtrack.ui.components import ArduinoDashboardWidget, VideoDisplayWidget, ZoneControlsWidget
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
     ColorSelectionDialog,
-    LiveConfigDialog,
     ManageWeightsDialog,
     MissingMetadataDialog,
     PendingVideosDialog,
@@ -414,12 +408,8 @@ class ApplicationGUI:
         self._overview_context_menu: Menu | None = None
         self._overview_menu_font: tkfont.Font | None = None
 
-        # Arduino dashboard state (live projects)
-        self.arduino_dashboard_frame = None
-        self.arduino_status_var = StringVar(value="Desconectado")
-        self.arduino_status_indicator = None
-        self.arduino_last_command_var = StringVar(value="-")
-        self.arduino_log_text = None
+        # Arduino dashboard widget (live projects)
+        self.arduino_dashboard_widget: ArduinoDashboardWidget | None = None
         self.external_trigger_notice_var = StringVar(value="")
         self.external_trigger_notice_label = None
         self._external_notice_default_bg = None
@@ -635,10 +625,12 @@ class ApplicationGUI:
         )
 
     def _handle_update_arduino_status(self, data: dict) -> None:
-        self.update_arduino_status_indicator(data.get("connected"), data.get("port"))
+        if self.arduino_dashboard_widget:
+            self.arduino_dashboard_widget.update_status(data.get("connected"), data.get("port"))
 
     def _handle_append_arduino_log(self, data: dict) -> None:
-        self.append_arduino_log(data.get("message", ""))
+        if self.arduino_dashboard_widget:
+            self.arduino_dashboard_widget.append_log(data.get("message", ""))
 
     def _handle_update_openvino_status(self, data: dict) -> None:
         self.update_openvino_status_display(data.get("status", ""))
@@ -751,26 +743,14 @@ class ApplicationGUI:
 
     def _update_arduino_ui(self, arduino_connected: bool) -> None:
         """Update UI elements based on Arduino connection state."""
-        if arduino_connected:
-            log.debug("gui.arduino_state.connected")
-            # Update Arduino status indicator if it exists
-            if hasattr(self, "arduino_status_var"):
-                self.arduino_status_var.set("Conectado")
-            if hasattr(self, "arduino_status_indicator"):
-                try:
-                    self.arduino_status_indicator.config(style="success.TLabel")
-                except Exception:
-                    pass  # Ignore if widget doesn't exist yet
-        else:
-            log.debug("gui.arduino_state.disconnected")
-            # Update Arduino status indicator if it exists
-            if hasattr(self, "arduino_status_var"):
-                self.arduino_status_var.set("Desconectado")
-            if hasattr(self, "arduino_status_indicator"):
-                try:
-                    self.arduino_status_indicator.config(style="danger.TLabel")
-                except Exception:
-                    pass  # Ignore if widget doesn't exist yet
+        if self.arduino_dashboard_widget:
+            port = None  # Port info not available in this context
+            self.arduino_dashboard_widget.update_status(arduino_connected, port)
+
+            if arduino_connected:
+                log.debug("gui.arduino_state.connected")
+            else:
+                log.debug("gui.arduino_state.disconnected")
 
     def _update_project_ui(self, project_path) -> None:
         """Update UI elements based on project state."""
@@ -1226,17 +1206,10 @@ class ApplicationGUI:
         if self.main_controls_frame:
             self.main_controls_frame.destroy()
             self.main_controls_frame = None
-            self.arduino_dashboard_frame = None
-            self.arduino_log_text = None
-            self.arduino_status_indicator = None
+            self.arduino_dashboard_widget = None
             self.external_trigger_notice_label = None
             try:
                 self.external_trigger_notice_var.set("")
-            except Exception:
-                pass
-            try:
-                self.arduino_status_var.set("Desconectado")
-                self.arduino_last_command_var.set("-")
             except Exception:
                 pass
             if self._overview_refresh_job is not None:
@@ -2151,7 +2124,13 @@ class ApplicationGUI:
             self._external_notice_default_bg = self.external_trigger_notice_label.cget("background")
             self._external_notice_default_fg = self.external_trigger_notice_label.cget("foreground")
 
-            self._build_arduino_dashboard(self.main_controls_frame)
+            # Create Arduino dashboard widget
+            self.arduino_dashboard_widget = ArduinoDashboardWidget(
+                self.main_controls_frame,
+                event_bus=self.event_bus,
+                project_manager=self.controller.project_manager,
+            )
+            self.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
             self.clear_external_trigger_notice()
 
         self._request_overview_refresh()
@@ -2854,236 +2833,6 @@ class ApplicationGUI:
             immediate=True,
         )
 
-    def _build_arduino_dashboard(self, parent: Frame):
-        """Creates the Arduino monitoring dashboard."""
-        if self.arduino_dashboard_frame and self.arduino_dashboard_frame.winfo_exists():
-            try:
-                self.arduino_dashboard_frame.destroy()
-            except Exception:
-                pass
-
-        self.arduino_dashboard_frame = ttk.LabelFrame(parent, text="Dashboard Arduino", padding=10)
-        self.arduino_dashboard_frame.pack(fill="both", expand=False, pady=(0, 10))
-
-        status_row = ttk.Frame(self.arduino_dashboard_frame)
-        status_row.pack(fill="x", pady=2)
-
-        self.arduino_status_indicator = Label(
-            status_row,
-            text="●",
-            font=("Segoe UI", 12, "bold"),
-        )
-        self.arduino_status_indicator.pack(side="left")
-
-        ttk.Label(
-            status_row,
-            textvariable=self.arduino_status_var,
-        ).pack(side="left", padx=(6, 12))
-
-        ttk.Label(status_row, text="Último comando:").pack(side="left")
-        ttk.Label(
-            status_row,
-            textvariable=self.arduino_last_command_var,
-        ).pack(side="left", padx=(6, 0))
-
-        ttk.Separator(self.arduino_dashboard_frame, orient="horizontal").pack(fill="x", pady=(8, 6))
-
-        ttk.Label(
-            self.arduino_dashboard_frame,
-            text="Eventos recentes:",
-        ).pack(anchor="w")
-
-        log_frame = ttk.Frame(self.arduino_dashboard_frame)
-        log_frame.pack(fill="both", expand=True, pady=(4, 0))
-
-        self.arduino_log_text = Text(
-            log_frame,
-            height=6,
-            wrap="word",
-            state="disabled",
-            background="#1f2933",
-            foreground="#f0f4f8",
-        )
-        self.arduino_log_text.pack(side="left", fill="both", expand=True)
-
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.arduino_log_text.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.arduino_log_text.configure(yscrollcommand=scrollbar.set)
-
-        controls_row = ttk.Frame(self.arduino_dashboard_frame)
-        controls_row.pack(fill="x", pady=(6, 0))
-
-        ttk.Button(controls_row, text="Limpar Log", command=self._clear_arduino_log).pack(
-            side="right", padx=(5, 0)
-        )
-
-        ttk.Button(
-            controls_row,
-            text="🔄 Reverificar Portas",
-            command=self._recheck_arduino_ports,
-        ).pack(side="right")
-
-        # Reset dashboard state
-        self._clear_arduino_log()
-        self.update_arduino_status_indicator(False, None)
-        self.set_arduino_last_command("-")
-
-    def _clear_arduino_log(self):
-        if not self.arduino_log_text:
-            return
-        self.arduino_log_text.configure(state="normal")
-        self.arduino_log_text.delete("1.0", "end")
-        self.arduino_log_text.configure(state="disabled")
-
-    def _recheck_arduino_ports(self):
-        """
-        Recheck available Arduino ports and update project configuration.
-
-        Scans for available serial ports and allows updating the Arduino port
-        configuration for live projects.
-        """
-        from tkinter import messagebox
-
-        try:
-            import serial.tools.list_ports
-
-            # Scan for available ports
-            ports = list(serial.tools.list_ports.comports())
-
-            if not ports:
-                messagebox.showwarning(
-                    "Nenhuma Porta Detectada",
-                    "Nenhuma porta serial foi detectada.\n\n"
-                    "Verifique se:\n"
-                    "• O Arduino está conectado via USB\n"
-                    "• Os drivers estão instalados corretamente\n"
-                    "• A porta não está sendo usada por outro programa",
-                )
-                self.append_arduino_log("✗ Reverificação: Nenhuma porta detectada")
-                return
-
-            # Build display strings with descriptions
-            port_options = []
-            for port in ports:
-                description = port.description or "Dispositivo Serial"
-                port_options.append(f"{port.device} - {description}")
-
-            # Show selection dialog
-            from tkinter import simpledialog
-
-            selection = simpledialog.askstring(
-                "Selecionar Porta Arduino",
-                f"Detectadas {len(ports)} porta(s) serial.\n\n"
-                f"Portas disponíveis:\n" + "\n".join(f"• {opt}" for opt in port_options) + "\n\n"
-                "Digite o nome da porta (ex: COM3):",
-                initialvalue=ports[0].device if ports else "",
-            )
-
-            if selection:
-                # Extract device name (strip description if pasted)
-                selected_device = selection.split(" - ")[0].strip()
-
-                # Validate selection
-                valid_devices = [p.device for p in ports]
-                if selected_device not in valid_devices:
-                    messagebox.showerror(
-                        "Porta Inválida",
-                        f"A porta '{selected_device}' não está entre as portas detectadas.\n\n"
-                        f"Portas válidas: {', '.join(valid_devices)}",
-                    )
-                    return
-
-                # Update project configuration
-                if self.controller.project_manager.project_data:
-                    old_port = self.controller.project_manager.project_data.get("arduino_port")
-                    self.controller.project_manager.project_data["arduino_port"] = selected_device
-                    self.controller.project_manager.save_project()
-
-                    messagebox.showinfo(
-                        "Porta Atualizada",
-                        f"Porta Arduino atualizada:\n\n"
-                        f"Porta anterior: {old_port or 'Nenhuma'}\n"
-                        f"Nova porta: {selected_device}\n\n"
-                        "A nova porta será usada na próxima gravação.",
-                    )
-
-                    self.append_arduino_log(
-                        f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
-                    )
-
-                    log.info(
-                        "arduino.port_updated",
-                        old_port=old_port,
-                        new_port=selected_device,
-                    )
-                else:
-                    messagebox.showwarning(
-                        "Projeto Não Carregado",
-                        "Nenhum projeto está carregado no momento.",
-                    )
-
-        except ImportError:
-            messagebox.showerror(
-                "Erro",
-                "A biblioteca pyserial não está instalada.\n\nExecute: pip install pyserial",
-            )
-            self.append_arduino_log("✗ pyserial não disponível")
-
-        except Exception as e:
-            messagebox.showerror(
-                "Erro",
-                f"Ocorreu um erro ao reverificar portas:\n\n{e!s}",
-            )
-            self.append_arduino_log(f"✗ Erro na reverificação: {e!s}")
-            log.error("arduino.recheck_ports_failed", error=str(e))
-
-    def append_arduino_log(self, message: str):
-        if not self.arduino_log_text:
-            return
-
-        timestamp = time.strftime("%H:%M:%S")
-        entry = f"[{timestamp}] {message}\n"
-
-        self.arduino_log_text.configure(state="normal")
-        self.arduino_log_text.insert("end", entry)
-
-        try:
-            current_line = int(float(self.arduino_log_text.index("end-1c").split(".")[0]))
-            max_lines = 300
-            if current_line > max_lines:
-                start_line = current_line - max_lines
-                self.arduino_log_text.delete("1.0", f"{start_line}.0")
-        except Exception:
-            # If parsing fails, ignore trimming and keep log growing temporarily
-            pass
-
-        self.arduino_log_text.see("end")
-        self.arduino_log_text.configure(state="disabled")
-
-    def update_arduino_status_indicator(self, connected: bool, port: str | None):
-        status_text = "Desconectado"
-        if connected and port:
-            status_text = f"Conectado ({port})"
-        elif connected:
-            status_text = "Conectado"
-
-        try:
-            self.arduino_status_var.set(status_text)
-        except Exception:
-            pass
-
-        if self.arduino_status_indicator:
-            color = "#16a34a" if connected else "#b91c1c"
-            try:
-                self.arduino_status_indicator.config(foreground=color)
-            except Exception:
-                pass
-
-    def set_arduino_last_command(self, label_text: str):
-        try:
-            self.arduino_last_command_var.set(label_text or "-")
-        except Exception:
-            pass
 
     def show_external_trigger_notice(self, session_label: str, **details):
         if not self.external_trigger_notice_label:
