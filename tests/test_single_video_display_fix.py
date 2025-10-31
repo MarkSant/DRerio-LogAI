@@ -24,14 +24,14 @@ def test_single_video_appears_in_project_overview():
     even without a project file.
     """
     from zebtrack.core.project_manager import ProjectManager
-    
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
     # Create REAL ProjectManager for this test (needs actual functionality)
     real_pm = ProjectManager()
-    
+
     # Create controller using factory with real ProjectManager
     controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
@@ -114,14 +114,14 @@ def test_single_video_does_not_create_project_file():
     Test that single video workflow does not create a project file on disk.
     """
     from zebtrack.core.project_manager import ProjectManager
-    
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    
+
     # Create controller using factory with real ProjectManager
     controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
@@ -159,14 +159,14 @@ def test_register_outputs_auto_adds_missing_video():
     register_processing_outputs will add it automatically.
     """
     from zebtrack.core.project_manager import ProjectManager
-    
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    
+
     # Create controller using factory with real ProjectManager
     controller = create_test_controller(root=mock_root, project_manager=real_pm)
 

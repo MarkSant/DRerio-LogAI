@@ -5,8 +5,8 @@
 ## 🐛 Bug Encontrado
 
 ### Localização
-**Arquivo**: `src/zebtrack/analysis/analysis_service.py`  
-**Linhas**: 245-310 (removidas)  
+**Arquivo**: `src/zebtrack/analysis/analysis_service.py`
+**Linhas**: 245-310 (removidas)
 **Método**: `generate_reports()`
 
 ### Descrição do Problema
@@ -55,7 +55,7 @@ def export_summary_data(self, output_path: Path | str, format: str = "excel"):
 
 ### Impacto
 
-**Severidade**: 🟢 **Baixa**  
+**Severidade**: 🟢 **Baixa**
 **Razão**: O método não é usado em nenhum lugar, portanto não afeta funcionalidades existentes.
 
 Se o método fosse chamado, causaria:
@@ -142,7 +142,7 @@ poetry run ruff check src/zebtrack/analysis/analysis_service.py
 
 ## ✨ Status Final
 
-✅ **Bug corrigido através de remoção de código morto**  
-✅ **Nenhuma funcionalidade afetada**  
-✅ **Testes continuam passando**  
+✅ **Bug corrigido através de remoção de código morto**
+✅ **Nenhuma funcionalidade afetada**
+✅ **Testes continuam passando**
 ✅ **Código mais limpo e mantível**

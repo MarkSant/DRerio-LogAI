@@ -117,7 +117,7 @@ def test_controller_workflow_roundtrip_persists_intervals(
     tmp_path,
 ) -> None:
     from tests.helpers import create_test_controller
-    
+
     root = MagicMock()
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()

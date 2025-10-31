@@ -28,14 +28,14 @@ PROJECT_WORKFLOW_SERVICE_PATH = "zebtrack.core.main_view_model.ProjectWorkflowSe
 def patched_vm_setup():
     """Mocks all dependencies except for the EventBus."""
     from tests.helpers import create_mock_settings, create_test_controller
-    
+
     # Create real event bus to test event flow
     real_event_bus = EventBus()
-    
+
     # Create mock settings with event queue enabled
     mock_settings = create_mock_settings()
     mock_settings.ui_features.enable_event_queue = True
-    
+
     # Create mock project workflow service
     mock_project_workflow_service = MagicMock()
     mock_project_workflow_service.create_project.return_value = {
@@ -43,11 +43,11 @@ def patched_vm_setup():
         "animal_method": "seg",
         "wizard_metadata": {},
     }
-    
+
     # Create mock weight manager
     mock_weight_manager = MagicMock()
     mock_weight_manager.get_default_weight.return_value = ("default.pt", {})
-    
+
     # Create controller using factory with mocked services
     mock_root = MagicMock()
     view_model = create_test_controller(
@@ -57,9 +57,9 @@ def patched_vm_setup():
         weight_manager=mock_weight_manager,
         project_workflow_service=mock_project_workflow_service,
     )
-    
+
     view_model.bind_events()
-    
+
     yield {
         "view_model": view_model,
         "event_bus": real_event_bus,

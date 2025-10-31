@@ -60,7 +60,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         from zebtrack.core.detector_service import DetectorService
         from zebtrack.core.model_service import ModelService
         from zebtrack.core.state_manager import StateManager
-        
+
         self.root = MagicMock()
         self.root.after = MagicMock()
         self.root.after_cancel = MagicMock()
@@ -106,7 +106,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             model_service=model_service,
             detector_service=detector_service,
         )
-        
+
         self.mock_view = self.controller.view
 
         # Mock detector plugins

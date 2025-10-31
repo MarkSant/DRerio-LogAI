@@ -61,7 +61,7 @@ def single_video_test_setup(tmp_path: Path):
     from unittest.mock import Mock, PropertyMock
     from tests.helpers import create_test_controller
     from zebtrack.analysis.analysis_service import AnalysisService
-    
+
     # 1. Create a temporary video file
     video_path = tmp_path / "test_video.mp4"
     generate_mock_video(str(video_path))
@@ -85,12 +85,12 @@ def single_video_test_setup(tmp_path: Path):
     # 5. Configure video_processing_service mock to return proper results path
     results_folder = tmp_path / "test_video_results"
     results_folder.mkdir(exist_ok=True)
-    
+
     # Mock resolve_results_path to return the results folder
     controller.video_processing_service.resolve_results_path = Mock(
         return_value=(str(results_folder), True)
     )
-    
+
     # Mock process_single_video to simulate successful processing
     def mock_process_single_video(video_path, output_dir, **kwargs):
         # Create a mock parquet file with tracking data
@@ -105,14 +105,14 @@ def single_video_test_setup(tmp_path: Path):
             'y2': [150, 160, 170],
             'confidence': [0.9, 0.9, 0.9],
         })
-        
+
         # Create tracking file
         video_name = Path(video_path).stem
         tracking_file = Path(output_dir) / f"{video_name}_tracking.parquet"
         tracking_data.to_parquet(tracking_file)
-        
+
         return True, tracking_file
-    
+
     controller.video_processing_service.process_single_video = Mock(
         side_effect=mock_process_single_video
     )
@@ -124,7 +124,7 @@ def single_video_test_setup(tmp_path: Path):
         base_width=640,
         base_height=480,
     )
-    
+
     # 7. Mock project manager for this test
     controller.project_manager = MagicMock()
     controller.project_manager.project_path = None  # Crucial for single video mode
@@ -164,28 +164,28 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
     assert controller.analysis_service is not None, "Controller should have analysis_service"
     assert controller.video_processing_service is not None, "Controller should have video_processing_service"
     assert controller.detector is not None, "Controller should have detector"
-    
+
     # Test that the mock video processing service can be called
     video_name = os.path.splitext(os.path.basename(video_info["path"]))[0]
     results_folder = output_dir / f"{video_name}_results"
     results_folder.mkdir(exist_ok=True)
-    
+
     # Call the mocked process_single_video
     success, tracking_file = controller.video_processing_service.process_single_video(
         video_info["path"],
         str(results_folder),
         config=test_config
     )
-    
+
     # Verify the mock worked correctly
     assert success, "Video processing should succeed"
     assert tracking_file.exists(), "Tracking file should be created by the mock"
-    
+
     # Verify tracking file has expected structure
     import pandas as pd
     df = pd.read_parquet(tracking_file)
     required_columns = ["frame", "track_id", "x1", "y1", "x2", "y2", "confidence"]
     for col in required_columns:
         assert col in df.columns, f"Tracking data should have '{col}' column"
-    
+
     assert len(df) > 0, "Tracking data should have some detections"

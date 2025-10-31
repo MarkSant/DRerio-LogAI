@@ -14,21 +14,21 @@ def test_detection_mode_with_multiple_animals_blocked():
         # Create mock settings with detection mode
         mock_settings = create_mock_settings()
         mock_settings.model_selection.animal_method = "det"
-        
+
         # Configure project manager mock BEFORE creating controller
         mock_pm = MagicMock()
         mock_pm.create_new_project.return_value = True
-        
+
         # Create mock root
         mock_root = MagicMock()
-        
+
         # Create controller using factory with project_manager override
         controller = create_test_controller(
             root=mock_root,
             settings_obj=mock_settings,
             project_manager=mock_pm
         )
-        
+
         # Try to create project with multiple animals per aquarium
         project_kwargs = {
             "project_path": "/tmp/test_project",
@@ -66,21 +66,21 @@ def test_detection_mode_with_single_animal_allowed():
         # Create mock settings with detection mode
         mock_settings = create_mock_settings()
         mock_settings.model_selection.animal_method = "det"
-        
+
         # Configure project manager mock BEFORE creating controller
         mock_pm = MagicMock()
         mock_pm.create_new_project.return_value = True
-        
+
         # Create mock root
         mock_root = MagicMock()
-        
+
         # Create controller using factory with project_manager override
         controller = create_test_controller(
             root=mock_root,
             settings_obj=mock_settings,
             project_manager=mock_pm
         )
-        
+
         # Mock setup_detector to succeed
         with patch.object(controller, "setup_detector", return_value=True):
             # Try to create project with single animal per aquarium
@@ -110,21 +110,21 @@ def test_segmentation_mode_with_multiple_animals_allowed():
         # Create mock settings with segmentation mode (default)
         mock_settings = create_mock_settings()
         mock_settings.model_selection.animal_method = "seg"
-        
+
         # Configure project manager mock BEFORE creating controller
         mock_pm = MagicMock()
         mock_pm.create_new_project.return_value = True
-        
+
         # Create mock root
         mock_root = MagicMock()
-        
+
         # Create controller using factory with project_manager override
         controller = create_test_controller(
             root=mock_root,
             settings_obj=mock_settings,
             project_manager=mock_pm
         )
-        
+
         # Mock setup_detector to succeed
         with patch.object(controller, "setup_detector", return_value=True):
             # Try to create project with multiple animals per aquarium
@@ -155,13 +155,13 @@ def test_single_video_detection_mode_enforcement():
         # Create mock settings with detection mode
         mock_settings = create_mock_settings()
         mock_settings.model_selection.animal_method = "det"
-        
+
         # Create mock root
         mock_root = MagicMock()
-        
+
         # Create controller using factory
         controller = create_test_controller(root=mock_root, settings_obj=mock_settings)
-        
+
         # Mock detector
         controller.detector = MagicMock()
 

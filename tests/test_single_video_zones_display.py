@@ -32,7 +32,7 @@ def test_single_video_with_zones_shows_all_flags():
 
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    
+
     # Create controller using factory with real ProjectManager
     controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
@@ -179,7 +179,7 @@ def test_zone_flags_updated_during_output_registration():
 
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    
+
     # Create controller using factory with real ProjectManager
     controller = create_test_controller(root=mock_root, project_manager=real_pm)
 

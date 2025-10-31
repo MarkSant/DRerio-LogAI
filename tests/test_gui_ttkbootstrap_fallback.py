@@ -36,7 +36,7 @@ def test_ttktbootstrap_style_master_fallback(monkeypatch, caplog):
 
     # Prepare ApplicationGUI instance with minimal attributes used in the method
     from tests.helpers import create_mock_settings
-    
+
     app = ApplicationGUI.__new__(ApplicationGUI)
     app.root = fake_root
     mock_settings = create_mock_settings()
