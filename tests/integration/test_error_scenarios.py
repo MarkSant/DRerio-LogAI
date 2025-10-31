@@ -135,74 +135,74 @@ def test_camera_reconnect_and_recovery():
     """
     import time as real_time
 
+    # Configure camera settings to allow reconnection (DI pattern)
+    mock_settings = MagicMock()
+    mock_settings.camera.max_reconnect_attempts = 10
+    mock_settings.camera.reconnect_timeout_seconds = 30
+    mock_settings.camera.index = 1
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+    mock_settings.camera.max_frame_lag_ms = 200
+    mock_settings.video_processing.fps = 30.0
+    
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
-            with patch("zebtrack.io.camera.settings") as mock_settings:
-                # Configure camera settings to allow reconnection
-                mock_settings.camera.max_reconnect_attempts = 10
-                mock_settings.camera.reconnect_timeout_seconds = 30
-                mock_settings.camera.index = 1
-                mock_settings.camera.desired_width = 1280
-                mock_settings.camera.desired_height = 720
-                mock_settings.camera.max_frame_lag_ms = 200
-                mock_settings.video_processing.fps = 30.0
+            # Setup mock
+            mock_vc = MagicMock()
 
-                # Setup mock
-                mock_vc = MagicMock()
+            # Initial dimensions
+            initial_get_values = [1280, 720, 30.0]
 
-                # Initial dimensions
-                initial_get_values = [1280, 720, 30.0]
+            # Simulate reconnection
+            is_opened_sequence = [True, True, False, False, True]
+            test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+            read_sequence = [
+                (True, test_frame),
+                (False, None),  # Failure
+                (True, test_frame),  # Recovery
+            ]
 
-                # Simulate reconnection
-                is_opened_sequence = [True, True, False, False, True]
-                test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-                read_sequence = [
-                    (True, test_frame),
-                    (False, None),  # Failure
-                    (True, test_frame),  # Recovery
-                ]
+            reconnect_get_values = [1280, 720, 30.0]
 
-                reconnect_get_values = [1280, 720, 30.0]
+            mock_vc.isOpened.side_effect = itertools.chain(
+                is_opened_sequence, itertools.repeat(True)
+            )
+            mock_vc.read.side_effect = itertools.chain(
+                read_sequence, itertools.repeat((True, test_frame))
+            )
+            mock_vc.get.side_effect = itertools.chain(
+                initial_get_values, reconnect_get_values, itertools.repeat(30.0)
+            )
 
-                mock_vc.isOpened.side_effect = itertools.chain(
-                    is_opened_sequence, itertools.repeat(True)
-                )
-                mock_vc.read.side_effect = itertools.chain(
-                    read_sequence, itertools.repeat((True, test_frame))
-                )
-                mock_vc.get.side_effect = itertools.chain(
-                    initial_get_values, reconnect_get_values, itertools.repeat(30.0)
-                )
+            mock_cv2_vc.return_value = mock_vc
 
-                mock_cv2_vc.return_value = mock_vc
+            # Create camera with DI
+            camera = Camera(settings_obj=mock_settings)
 
-                # Create camera
-                camera = Camera()
+            # Give camera time to start and reconnect (use real sleep)
+            # Thread needs time to process reconnection sequence
+            real_time.sleep(1.0)
 
-                # Give camera time to start and reconnect (use real sleep)
-                # Thread needs time to process reconnection sequence
-                real_time.sleep(1.0)
+            # Verify camera thread is still alive
+            assert camera._thread.is_alive()
 
-                # Verify camera thread is still alive
-                assert camera._thread.is_alive()
+            # Verify reconnection happened (check via cv2 mock return_value)
+            # Note: Due to timing in threaded code, we verify the thread is functional
+            # The mock may not always be called due to race conditions in test environment
+            if mock_cv2_vc.return_value.open.call_count == 0:
+                # If open wasn't called, at least verify thread is processing frames
+                real_time.sleep(0.5)
 
-                # Verify reconnection happened (check via cv2 mock return_value)
-                # Note: Due to timing in threaded code, we verify the thread is functional
-                # The mock may not always be called due to race conditions in test environment
-                if mock_cv2_vc.return_value.open.call_count == 0:
-                    # If open wasn't called, at least verify thread is processing frames
-                    real_time.sleep(0.5)
+            # Skip the reconnection count check - it's timing-sensitive and flaky
+            # assert mock_cv2_vc.return_value.open.call_count >= 1
 
-                # Skip the reconnection count check - it's timing-sensitive and flaky
-                # assert mock_cv2_vc.return_value.open.call_count >= 1
+            # Verify we can get frames after reconnection
+            # Note: Skipping frame retrieval test due to timing sensitivity
+            # The key validation is that the camera initializes and thread stays alive
+            # which proves the reconnection mechanism is functional
 
-                # Verify we can get frames after reconnection
-                # Note: Skipping frame retrieval test due to timing sensitivity
-                # The key validation is that the camera initializes and thread stays alive
-                # which proves the reconnection mechanism is functional
-
-                # Cleanup
-                camera.release()
+            # Cleanup
+            camera.release()
 
 
 @pytest.mark.integration
