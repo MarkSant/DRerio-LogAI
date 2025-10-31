@@ -3375,14 +3375,36 @@ class MainViewModel:
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
     ) -> tuple[bool, list | None]:
+        """Delegate to VideoProcessingService.run_tracking_if_needed.
+
+        Phase 3: Refactored to delegate to service layer.
+        Injects current detector state before delegating.
         """
-        Checks if a trajectory file exists. If not, runs the tracking process
-        to generate it. This is a blocking operation.
-        Returns:
-            A tuple containing:
-            - bool: True if tracking was successful or already existed, False otherwise.
-            - list | None: The arena polygon used for tracking, or None if tracking
-              failed.
+        # Inject current detector state into service
+        self.video_processing_service.detector = self.detector
+        return self.video_processing_service.run_tracking_if_needed(
+            video_path=video_path,
+            results_dir=results_dir,
+            experiment_id=experiment_id,
+            progress_callback=progress_callback,
+            calibration_data=calibration_data,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+        )
+
+    def _run_tracking_if_needed_ORIGINAL_MOVED_TO_SERVICE(
+        self,
+        video_path: Path | str,
+        results_dir: str,
+        experiment_id: str,
+        progress_callback=None,
+        calibration_data: dict | None = None,
+        analysis_interval_frames: int = 10,
+        display_interval_frames: int = 10,
+    ) -> tuple[bool, list | None]:
+        """ORIGINAL IMPLEMENTATION - MOVED TO VideoProcessingService.
+        
+        Kept for reference during transition.
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("controller.tracking.check_or_run", video=experiment_id)
@@ -4680,6 +4702,50 @@ class MainViewModel:
         progress_callback,
         analysis_profile: dict | None,
     ) -> bool:
+        """Delegate to VideoProcessingService._run_analysis_pipeline.
+
+        Phase 3: Refactored to delegate to service layer.
+        Injects current detector state before delegating.
+        """
+        # Inject current detector state into service
+        self.video_processing_service.detector = self.detector
+        
+        success = self.video_processing_service._run_analysis_pipeline(
+            experiment_id=experiment_id,
+            video_path=video_path,
+            results_dir=results_dir,
+            arena_polygon_px=arena_polygon_px,
+            metadata_context=metadata_context,
+            single_video_config=single_video_config,
+            progress_callback=progress_callback,
+            analysis_profile=analysis_profile,
+        )
+        
+        # After analysis, refresh project views which service can't do
+        if success:
+            self.refresh_project_views(
+                reason="processing_progress",
+                append_summary=True,
+            )
+        
+        return success
+
+    def _run_analysis_pipeline_ORIGINAL_MOVED_TO_SERVICE(
+        self,
+        *,
+        experiment_id: str,
+        video_path: str,
+        results_dir: str,
+        arena_polygon_px: list | None,
+        metadata_context: dict | None,
+        single_video_config: dict | None,
+        progress_callback,
+        analysis_profile: dict | None,
+    ) -> bool:
+        """ORIGINAL IMPLEMENTATION - MOVED TO VideoProcessingService.
+        
+        Kept for reference during transition.
+        """
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         trajectory_df = self.video_processing_service.load_trajectory_dataframe(
             trajectory_path, experiment_id
@@ -4909,9 +4975,19 @@ class MainViewModel:
         metadata_context: dict | None,
         analysis_profile: dict | None,
     ) -> tuple[bool, str | None]:
+        """Delegate to VideoProcessingService.process_single_video.
+
+        Phase 3: Refactored to delegate to service layer.
+        Injects current detector/recorder state before delegating.
+        """
+        # Inject current state into service
+        self.video_processing_service.detector = self.detector
+        self.video_processing_service.recorder = self.recorder
+        self.video_processing_service.cancel_event = self.cancel_event
+
         # Apply temporary single-animal mode if configured
         with self._temporary_single_animal_mode(single_video_config):
-            return self._process_single_video_impl(
+            success, results_dir = self.video_processing_service.process_single_video(
                 index=index,
                 total_videos=total_videos,
                 video_info=video_info,
@@ -4923,8 +4999,17 @@ class MainViewModel:
                 metadata_context=metadata_context,
                 analysis_profile=analysis_profile,
             )
+            
+            # After processing, call refresh_project_views which service can't do
+            if success:
+                self.refresh_project_views(
+                    reason="processing_progress",
+                    append_summary=True,
+                )
+            
+            return success, results_dir
 
-    def _process_single_video_impl(
+    def _process_single_video_impl_ORIGINAL_MOVED_TO_SERVICE(
         self,
         *,
         index: int,
@@ -4938,6 +5023,10 @@ class MainViewModel:
         metadata_context: dict | None,
         analysis_profile: dict | None,
     ) -> tuple[bool, str | None]:
+        """ORIGINAL IMPLEMENTATION - MOVED TO VideoProcessingService.process_single_video.
+        
+        Kept for reference during transition.
+        """
         try:
             video_path = video_info.get("path")
             if not video_path:
