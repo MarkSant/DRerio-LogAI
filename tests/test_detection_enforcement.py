@@ -5,55 +5,52 @@ Tests for dual-weight detection mode enforcement logic.
 import tempfile
 from unittest.mock import MagicMock, patch
 
+from tests.helpers import create_mock_settings, create_test_controller
+
 
 def test_detection_mode_with_multiple_animals_blocked():
     """Test that detection mode with multiple animals is blocked with clear error."""
     with tempfile.TemporaryDirectory():
-        # Mock settings to use detection mode for animals
-        with patch("zebtrack.settings.settings") as mock_settings:
-            mock_settings.model_selection.animal_method = "det"
-            mock_settings.camera.desired_width = 640
-            mock_settings.camera.desired_height = 480
+        # Create mock settings with detection mode
+        mock_settings = create_mock_settings()
+        mock_settings.model_selection.animal_method = "det"
+        
+        # Create mock root
+        mock_root = MagicMock()
+        
+        # Create controller using factory
+        controller = create_test_controller(root=mock_root, settings_obj=mock_settings)
+        
+        # Configure project manager mock
+        mock_pm = MagicMock()
+        controller.project_manager = mock_pm
+        controller.project_workflow_service.project_manager = mock_pm
+        
+        # Try to create project with multiple animals per aquarium
+        project_kwargs = {
+            "project_path": "/tmp/test_project",
+            "project_type": "pre-recorded",
+            "animals_per_aquarium": 3,  # Multiple animals - should be blocked
+            "num_aquariums": 1,
+            "aquarium_width_cm": 10.0,
+            "aquarium_height_cm": 10.0,
+            "video_files": ["/tmp/test.mp4"],
+        }
 
-            # Also patch settings import in the controller module
-            with patch("zebtrack.core.main_view_model.settings", mock_settings):
-                with patch("zebtrack.core.main_view_model.ApplicationGUI"):
-                    from zebtrack.core.main_view_model import AppController
+        # This should show an error and return early without creating project
+        with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
+            controller.create_project_workflow(**project_kwargs)
 
-                    # Create controller with mocked view and components
-                    mock_root = MagicMock()
-                    controller = AppController(mock_root)
+            # Verify error was shown and project creation was not called
+            mock_event_bus.publish_event.assert_called_once()
+            event_name, payload = mock_event_bus.publish_event.call_args[0]
+            assert event_name == "ui:show_error"
+            assert "Configuração Inválida" in payload["title"]
+            assert "modo de detecção (det)" in payload["message"]
+            assert "3 animais por aquário" in payload["message"]
 
-                    # Mock the project manager and weight manager
-                controller.project_manager = MagicMock()
-                controller.weight_manager = MagicMock()
-                controller.active_weight_name = "test_weight"
-
-                # Try to create project with multiple animals per aquarium
-                project_kwargs = {
-                    "project_path": "/tmp/test_project",
-                    "project_type": "pre-recorded",
-                    "animals_per_aquarium": 3,  # Multiple animals - should be blocked
-                    "num_aquariums": 1,
-                    "aquarium_width_cm": 10.0,
-                    "aquarium_height_cm": 10.0,
-                    "video_files": ["/tmp/test.mp4"],
-                }
-
-                # This should show an error and return early without creating project
-                with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
-                    controller.create_project_workflow(**project_kwargs)
-
-                    # Verify error was shown and project creation was not called
-                    mock_event_bus.publish_event.assert_called_once()
-                    event_name, payload = mock_event_bus.publish_event.call_args[0]
-                    assert event_name == "ui:show_error"
-                    assert "Configuração Inválida" in payload["title"]
-                    assert "modo de detecção (det)" in payload["message"]
-                    assert "3 animais por aquário" in payload["message"]
-
-                # Project manager should not have been called
-                controller.project_manager.create_new_project.assert_not_called()
+        # Project manager should not have been called
+        mock_pm.create_new_project.assert_not_called()
 
 
 def test_detection_mode_with_single_animal_allowed():

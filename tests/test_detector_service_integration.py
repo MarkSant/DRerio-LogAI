@@ -14,8 +14,8 @@ These tests verify:
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tests.helpers import create_mock_settings, create_test_controller
 from zebtrack.core.detector import ZoneData
-from zebtrack.core.main_view_model import AppController
 
 
 class MockDetectorPlugin:
@@ -54,21 +54,18 @@ class MockDetectorPlugin:
 class TestDetectorServiceIntegration(unittest.TestCase):
     """Integration tests for DetectorService and Controller."""
 
-    @patch("zebtrack.core.main_view_model.WeightManager")
-    @patch("zebtrack.core.main_view_model.ProjectManager")
-    @patch("zebtrack.core.main_view_model.ApplicationGUI")
-    def setUp(self, mock_gui, mock_pm, mock_wm):
-        """Set up test environment."""
+    def setUp(self):
+        """Set up test environment with DI pattern."""
         self.root = MagicMock()
         self.root.after = MagicMock()
         self.root.after_cancel = MagicMock()
 
-        # Configure mocks
-        self.mock_view = mock_gui.return_value
-        self.mock_pm = mock_pm.return_value
-        self.mock_wm = mock_wm.return_value
+        # Create mock settings with event queue disabled
+        self.mock_settings = create_mock_settings()
+        self.mock_settings.ui_features.enable_event_queue = False
 
-        # Configure WeightManager
+        # Configure WeightManager mock
+        self.mock_wm = MagicMock()
         self.mock_wm.get_default_weight.return_value = ("best_seg.pt", "/fake/path/best_seg.pt")
         self.mock_wm.get_all_weights.return_value = ["best_seg.pt"]
         self.mock_wm.get_weight_path_by_method.return_value = "/fake/path/best_seg.pt"
@@ -77,17 +74,21 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             "type": "seg",
         }
 
-        # Configure ProjectManager
+        # Configure ProjectManager mock
+        self.mock_pm = MagicMock()
         self.mock_pm.project_path = None
         self.mock_pm.project_data = {}
         self.mock_pm.save_detector_state.return_value = True
 
-        # Create controller
-        with patch("zebtrack.settings.settings.ui_features.enable_event_queue", True):
-            self.controller = AppController(self.root)
-        self.controller.project_manager = self.mock_pm
-        self.controller.view = self.mock_view
-        self.controller.weight_manager = self.mock_wm
+        # Create controller using factory
+        self.controller = create_test_controller(
+            self.root,
+            settings_obj=self.mock_settings,
+            weight_manager=self.mock_wm,
+            project_manager=self.mock_pm,
+        )
+        
+        self.mock_view = self.controller.view
 
         # Mock detector plugins
         self.mock_detector_plugins = {
