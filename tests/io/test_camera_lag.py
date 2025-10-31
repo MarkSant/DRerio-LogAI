@@ -20,7 +20,17 @@ from zebtrack.io.camera import Camera
 
 @pytest.fixture
 def mock_cv2_capture():
-    """Create a mock OpenCV VideoCapture object."""
+    """Create a mock OpenCV VideoCapture object and settings."""
+    # Mock settings for Camera
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+    mock_settings.camera.max_reconnect_attempts = 10
+    mock_settings.camera.reconnect_timeout_seconds = 30.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30.0
+    
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
     mock_cap.get.side_effect = lambda prop: {
@@ -28,12 +38,14 @@ def mock_cv2_capture():
         4: 720,  # CAP_PROP_FRAME_HEIGHT
         5: 30.0,  # CAP_PROP_FPS
     }.get(prop, 0)
-    return mock_cap
+    return mock_cap, mock_settings
 
 
 @pytest.mark.unit
 def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
     """Test that buffer only keeps 2 most recent frames."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
+    
     # Create test frames
     frame1 = np.zeros((720, 1280, 3), dtype=np.uint8)
     frame1[0, 0] = [1, 1, 1]  # Mark frame 1
@@ -55,7 +67,7 @@ def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
     )
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Wait for frames to be captured
         time.sleep(0.3)
@@ -79,44 +91,45 @@ def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
 @pytest.mark.unit
 def test_lag_warning_when_threshold_exceeded(mock_cv2_capture):
     """Test that warning is logged when frame lag exceeds threshold."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
     test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     # Mock camera to return one frame and then keep returning it
     mock_cv2_capture.read.side_effect = itertools.repeat((True, test_frame))
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        # Temporarily reduce lag threshold for faster test
-        with patch("zebtrack.settings.settings.camera.max_frame_lag_ms", 100.0):
-            # Mock the logger to capture warnings
-            with patch("zebtrack.io.camera.log") as mock_log:
-                camera = Camera()
+        # Mock the logger to capture warnings
+        with patch("zebtrack.io.camera.log") as mock_log:
+            camera = Camera(settings_obj=mock_settings)
 
-                # Wait for frame to be captured
-                time.sleep(0.1)
+            # Wait for frame to be captured
+            time.sleep(0.1)
 
-                # Manually set old timestamp to simulate lag
-                with camera._lock:
-                    if camera._frame_timestamps:
-                        # Set timestamp to 200ms in the past (exceeds 100ms threshold)
-                        camera._frame_timestamps[-1] = time.time() - 0.2
+            # Manually set old timestamp to simulate lag
+            with camera._lock:
+                if camera._frame_timestamps:
+                    # Set timestamp to 200ms in the past (exceeds 100ms threshold)
+                    camera._frame_timestamps[-1] = time.time() - 0.2
 
-                # Get frame - should trigger warning
-                ret, frame = camera.get_frame()
+            # Get frame - should trigger warning
+            ret, frame = camera.get_frame()
 
-                assert ret is True
-                assert frame is not None
+            assert ret is True
+            assert frame is not None
 
-                # Verify warning was logged
-                mock_log.warning.assert_called_once()
-                call_args = mock_log.warning.call_args
-                assert call_args[0][0] == "camera.lag.threshold_exceeded"
+            # Verify warning was logged
+            mock_log.warning.assert_called_once()
+            call_args = mock_log.warning.call_args
+            assert call_args[0][0] == "camera.lag.threshold_exceeded"
 
-                camera.release()
+            camera.release()
 
 
 @pytest.mark.unit
 def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
     """Test that get_frame always returns the most recent frame."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
+    
     # Create distinguishable frames
     frames = []
     for i in range(5):
@@ -131,7 +144,7 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
     )
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Wait for all frames to be captured
         time.sleep(0.5)
@@ -150,11 +163,13 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
 @pytest.mark.unit
 def test_get_frame_returns_false_when_no_frames_available(mock_cv2_capture):
     """Test that get_frame returns (False, None) when no frames captured yet."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
+    
     # Mock camera that fails immediately and keeps failing
     mock_cv2_capture.read.side_effect = itertools.repeat((False, None))
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Immediately try to get frame before any successful read
         ret, frame = camera.get_frame()
@@ -168,6 +183,8 @@ def test_get_frame_returns_false_when_no_frames_available(mock_cv2_capture):
 @pytest.mark.unit
 def test_buffer_clears_on_read_failure(mock_cv2_capture):
     """Test that buffer is cleared when camera read fails."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
+    
     test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     # Control the mock behavior with time-based switching
@@ -189,7 +206,7 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
     mock_cv2_capture.read.side_effect = mock_read
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Wait for success frames to be captured
         time.sleep(0.2)
@@ -219,12 +236,14 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
 @pytest.mark.unit
 def test_frame_timestamps_match_buffer_length(mock_cv2_capture):
     """Test that timestamps deque always has same length as frame buffer."""
+    mock_cv2_capture, mock_settings = mock_cv2_capture
+    
     frames = [(True, np.zeros((720, 1280, 3), dtype=np.uint8)) for _ in range(10)]
 
     mock_cv2_capture.read.side_effect = itertools.chain(frames, itertools.repeat((False, None)))
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Wait for frames to be captured
         time.sleep(0.5)
