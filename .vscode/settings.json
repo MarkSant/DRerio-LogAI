@@ -59,6 +59,16 @@
     ],
     "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
 
+    // Testing configuration
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "-v",
+        "--override-ini=addopts=",  // Clear pytest.ini addopts to avoid -n=auto conflict
+        "--no-cov",  // Disable coverage in Test Explorer for faster discovery
+        "-m", "not (gui or slow)"  // Match pytest.ini defaults (exclude GUI and slow tests)
+    ],
+
     // Editor hints
     "editor.rulers": [100],  // Ruff line length
     "files.trimTrailingWhitespace": true,
