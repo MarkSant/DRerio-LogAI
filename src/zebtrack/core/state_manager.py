@@ -609,36 +609,79 @@ class StateManager:
         """
         Get an immutable snapshot of the entire application state.
 
+        Phase 4: Uses individual getters that apply selective deep copy
+        for optimal performance while maintaining immutability guarantees.
+
         Returns:
             A deep copy of the current application state
         """
         with self._lock:
-            return copy.deepcopy(self._state)
+            # Use individual getters that apply selective deep copy
+            return ApplicationState(
+                project=self.get_project_state(),
+                detector=self.get_detector_state(),
+                recording=self.get_recording_state(),
+                processing=self.get_processing_state(),
+                ui=self.get_ui_state()
+            )
 
     def get_project_state(self) -> ProjectState:
-        """Get an immutable snapshot of project state."""
+        """Get an immutable snapshot of project state.
+        
+        Phase 4: Uses selective deep copy - dataclasses.replace for speed,
+        but deep copies mutable fields (project_data dict, metadata DataFrame).
+        """
         with self._lock:
-            return copy.deepcopy(self._state.project)
+            # Fast shallow copy for immutable fields
+            snapshot = dataclasses.replace(self._state.project)
+            # Deep copy mutable fields to ensure true immutability
+            snapshot.project_data = copy.deepcopy(self._state.project.project_data)
+            if self._state.project.metadata is not None:
+                # DataFrames have their own .copy() method
+                snapshot.metadata = self._state.project.metadata.copy()
+            return snapshot
 
     def get_detector_state(self) -> DetectorState:
-        """Get an immutable snapshot of detector state."""
+        """Get an immutable snapshot of detector state.
+        
+        Phase 4: Uses selective deep copy - dataclasses.replace for speed,
+        but deep copies mutable zone_data field.
+        """
         with self._lock:
-            return copy.deepcopy(self._state.detector)
+            snapshot = dataclasses.replace(self._state.detector)
+            # Deep copy zone_data if it exists (it's a dict/object)
+            snapshot.zone_data = copy.deepcopy(self._state.detector.zone_data)
+            return snapshot
 
     def get_recording_state(self) -> RecordingState:
-        """Get an immutable snapshot of recording state."""
+        """Get an immutable snapshot of recording state.
+        
+        Phase 4: Simple shallow copy sufficient - all fields are immutable types
+        (bool, Path, datetime, str).
+        """
         with self._lock:
-            return copy.deepcopy(self._state.recording)
+            return dataclasses.replace(self._state.recording)
 
     def get_processing_state(self) -> ProcessingState:
-        """Get an immutable snapshot of processing state."""
+        """Get an immutable snapshot of processing state.
+        
+        Phase 4: Simple shallow copy sufficient - all fields are immutable types
+        (bool, str, int, datetime).
+        """
         with self._lock:
-            return copy.deepcopy(self._state.processing)
+            return dataclasses.replace(self._state.processing)
 
     def get_ui_state(self) -> UIState:
-        """Get an immutable snapshot of UI state."""
+        """Get an immutable snapshot of UI state.
+        
+        Phase 4: Uses selective deep copy - dataclasses.replace for speed,
+        but deep copies mutable selected_videos list.
+        """
         with self._lock:
-            return copy.deepcopy(self._state.ui)
+            snapshot = dataclasses.replace(self._state.ui)
+            # Deep copy the selected_videos list to ensure immutability
+            snapshot.selected_videos = copy.deepcopy(self._state.ui.selected_videos)
+            return snapshot
 
     def get_state_snapshot(self) -> dict:
         """Returns frozen snapshot for debugging. DO NOT MODIFY."""

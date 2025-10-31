@@ -721,10 +721,12 @@ class ApplicationGUI:
         self.update_openvino_checkbox(data.get("is_checked", False))
 
     def _handle_redraw_zones(self, data: dict) -> None:
-        self.redraw_zones_from_project_data()
+        # Phase 4: Pass zone_data from event instead of pulling from controller
+        self.redraw_zones_from_project_data(data.get("zone_data"))
 
     def _handle_update_zone_list(self, data: dict) -> None:
-        self.update_zone_listbox()
+        # Phase 4: Pass zone_data from event instead of pulling from controller
+        self.update_zone_listbox(data.get("zone_data"))
 
     def _handle_display_frame(self, data: dict) -> None:
         frame = data.get("frame")
@@ -8413,8 +8415,12 @@ class ApplicationGUI:
         for item in self.zone_listbox.get_children():
             self.zone_listbox.delete(item)
 
+        # Phase 4: Stop if zone_data is None (don't pull from controller)
         if zone_data is None:
             zone_data = self._get_zone_data_for_active_context()
+            if zone_data is None:
+                log.warning("gui.update_zone_listbox.no_zone_data")
+                return
 
         # Arena principal com emoji e cor
         if zone_data.polygon:
@@ -8491,6 +8497,13 @@ class ApplicationGUI:
             log.warning("gui.redraw_zones.no_canvas")
             return
 
+        # Phase 4: Stop if zone_data is None (don't pull from controller)
+        if zone_data is None:
+            zone_data = self._get_zone_data_for_active_context()
+            if zone_data is None:
+                log.warning("gui.redraw_zones.no_zone_data")
+                return
+
         # Apaga apenas elementos de zona, preserva background
         for tag in [
             "main_polygon",
@@ -8530,9 +8543,6 @@ class ApplicationGUI:
             log.warning("gui.redraw_zones.no_background_image")
             # Tenta carregar um frame se não há imagem de fundo
             self.load_video_frame_to_canvas()
-
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
         log.info(
             "gui.redraw_zones.zone_data_loaded",
             has_main_polygon=bool(zone_data.polygon),

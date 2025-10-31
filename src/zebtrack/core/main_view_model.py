@@ -321,6 +321,15 @@ class MainViewModel:
             # Service was injected, just setup UI callbacks
             self._setup_recording_service_callbacks()
 
+        # Phase 4: Subscribe to StateManager changes for MVVM flow
+        self.state_manager.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
+        self.state_manager.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
+        self.state_manager.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
+        self.state_manager.subscribe(StateCategory.PROCESSING, self._on_processing_state_changed)
+
+        # NOTE: bind_events() foi movido para __main__.py na FASE 1
+        # NÃO chamar self.bind_events() aqui para evitar dupla inscrição
+
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
@@ -421,6 +430,47 @@ class MainViewModel:
                 category=category.name,
                 key=key,
             )
+
+    # Phase 4: MVVM State Observer Callbacks
+    def _on_project_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+        """Publica eventos de UI em resposta a mudanças no estado do Projeto."""
+        if not self.ui_event_bus:
+            return
+        if key == "active_zone_video" or key == "project_data":
+            zone_data = self.project_manager.get_zone_data()
+            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {"zone_data": zone_data})
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
+
+    def _on_detector_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+        """Publica eventos de UI em resposta a mudanças no estado do Detector."""
+        if not self.ui_event_bus:
+            return
+        if key == "active_weight_name":
+            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_value})
+        elif key == "use_openvino":
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new_value})
+            self.update_openvino_status()
+
+    def _on_recording_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+        """Publica eventos de UI em resposta a mudanças no estado de Gravação."""
+        if not self.ui_event_bus:
+            return
+        if key == "is_recording":
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "disabled" if new_value else "normal"})
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "normal" if new_value else "disabled"})
+        elif key == "arduino_connected":
+            port = self.state_manager.get_recording_state().arduino_port
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_ARDUINO_STATUS, {"connected": new_value, "port": port})
+
+    def _on_processing_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+        """Publica eventos de UI em resposta a mudanças no estado de Processamento."""
+        if key == "is_processing":
+            if new_value:  # Processamento iniciou
+                self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
+            else:  # Processamento terminou
+                self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        elif key == "cancel_requested" and new_value:
+            self._show_cancel_feedback()  # Mostrar feedback de cancelamento imediatamente
 
     def get_openvino_status(self) -> str:
         """
