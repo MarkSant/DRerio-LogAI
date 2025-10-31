@@ -15,6 +15,8 @@ This service provides:
 
 from __future__ import annotations
 
+import copy
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -398,6 +400,93 @@ class ProjectWorkflowService:
             kwargs["use_single_subject_tracker"] = animals_per_aquarium == 1
         else:
             kwargs["use_single_subject_tracker"] = bool(kwargs["use_single_subject_tracker"])
+
+        # Process wizard data directly: transform wizard output to controller format
+        # This logic was moved from wizard_adapter.py (Phase 7)
+        from zebtrack.ui.wizard.enums import ProjectType
+
+        project_type_value = kwargs.get("project_type", ProjectType.EXPERIMENTAL.value)
+        is_live = project_type_value == ProjectType.LIVE.value
+        is_exploratory = project_type_value == ProjectType.EXPLORATORY.value
+
+        # Normalize project_type to "live" or "pre-recorded"
+        if "project_type" in kwargs:
+            kwargs["project_type"] = "live" if is_live else "pre-recorded"
+
+        # Process scanned videos and enrich with design metadata
+        scanned_videos = kwargs.get("scanned_videos", [])
+        detected_design = kwargs.get("detected_design")
+        custom_patterns = kwargs.get("custom_regex_patterns")
+        enriched_scanned_videos = copy.deepcopy(scanned_videos)
+
+        if scanned_videos and detected_design and not is_live:
+            group_display_names = detected_design.get("group_display_names")
+            enriched_scanned_videos = self._enrich_videos_with_design_metadata(
+                scanned_videos,
+                detected_design,
+                custom_patterns,
+                group_display_names,
+            )
+            # Update kwargs with enriched videos
+            kwargs["scanned_videos"] = enriched_scanned_videos
+
+            # Convert scanned videos to video_files format
+            video_files = []
+            for video_info in enriched_scanned_videos:
+                converted = copy.deepcopy(video_info)
+                converted["has_data"] = bool(
+                    video_info.get("has_data", video_info.get("has_complete_data", False))
+                )
+                video_files.append(converted)
+            kwargs["video_files"] = video_files
+
+        # Extract experimental design if detected and not exploratory
+        if not is_exploratory and detected_design:
+            groups = detected_design.get("groups", [])
+            days = detected_design.get("days", [])
+            subjects_dict = detected_design.get("subjects_per_group", {})
+
+            if groups and "num_groups" not in kwargs:
+                kwargs["num_groups"] = len(groups)
+                kwargs["group_names"] = groups
+
+            if days and "experiment_days" not in kwargs:
+                kwargs["experiment_days"] = len(days)
+
+            # Calculate subjects_per_group from detected subjects dict
+            if subjects_dict and isinstance(subjects_dict, dict) and "subjects_per_group" not in kwargs:
+                subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
+                if subject_counts:
+                    kwargs["subjects_per_group"] = max(subject_counts)
+
+        # Extract active_weight from model selection if available
+        weight_assignments = kwargs.get("weight_assignments")
+        if weight_assignments and isinstance(weight_assignments, dict) and "active_weight" not in kwargs:
+            animal_weight = weight_assignments.get("animal")
+            if animal_weight:
+                kwargs["active_weight"] = animal_weight
+
+        # Store wizard metadata for future use
+        wizard_metadata = {
+            "wizard_schema_version": kwargs.get("wizard_schema_version"),
+            "created_at": kwargs.get("created_at"),
+            "has_folder_structure": kwargs.get("has_folder_structure"),
+            "folder_meaning": kwargs.get("folder_meaning"),
+            "has_parquets": kwargs.get("has_parquets"),
+            "parquet_import_scope": kwargs.get("parquet_import_scope"),
+            "detected_design": detected_design,
+            "scanned_videos": enriched_scanned_videos if not is_live else scanned_videos,
+            "import_config": kwargs.get("import_config"),
+            "roi_merge_strategy": kwargs.get("roi_merge_strategy"),
+            "parquet_summary": kwargs.get("parquet_summary"),
+            "video_count": kwargs.get("video_count"),
+            "folder_preview": kwargs.get("folder_preview"),
+            "weight_assignments": weight_assignments,
+            "detector_parameters": kwargs.get("detector_parameters"),
+            "model_selection": kwargs.get("model_selection"),
+            "use_openvino": kwargs.get("use_openvino"),
+        }
+        kwargs["_wizard_metadata"] = wizard_metadata
 
         # Validate parameters
         is_valid, error_msg = self.validate_project_parameters(**kwargs)
@@ -815,3 +904,294 @@ class ProjectWorkflowService:
         )
 
         return {"title": "Bem-vindo ao Projeto!", "message": message}
+
+    # === Wizard Data Enrichment (Moved from wizard_adapter.py) ===
+
+    def _normalise_subject_id(self, raw_subject: str | None) -> str | None:
+        """Normalize subject identifiers to the ``SXX`` format when possible.
+
+        Accepts None and returns None when input is absent to match callers
+        that may pass missing values.
+        """
+        if raw_subject is None:
+            return None
+
+        value = raw_subject.strip()
+        if not value:
+            return None
+
+        # Remove common prefixes for digits-only normalization
+        # Examples: "Subject01", "S01", "s1" → "S01"
+        match = re.match(r"(?i)(?:subject|subj|s)?\s*([0-9]{1,3})", value)
+        if match:
+            return f"S{int(match.group(1)):02d}"
+
+        return raw_subject
+
+    def _normalise_day_label(self, day_value) -> str | None:
+        if day_value in (None, ""):
+            return None
+        if isinstance(day_value, (int, float)) and not isinstance(day_value, bool):
+            try:
+                return f"{int(day_value):02d}"
+            except (TypeError, ValueError):
+                return str(day_value)
+
+        value_str = str(day_value).strip()
+        if not value_str:
+            return None
+
+        lower_value = value_str.lower()
+        if lower_value == "sem dia":
+            return "Sem Dia"
+
+        match = re.search(r"(\d+)", value_str)
+        if match:
+            try:
+                return f"{int(match.group(1)):02d}"
+            except ValueError:
+                return value_str
+
+        return value_str
+
+    def _build_design_lookups(
+        self,
+        groups: list,
+        days: list,
+        subjects_per_group: dict,
+    ) -> tuple[dict, dict, dict]:
+        """Build lookup dictionaries for groups, days, and subjects."""
+        import re
+
+        group_lookup = {str(g).lower(): g for g in groups if isinstance(g, str)}
+        day_lookup = {str(d).lower(): d for d in days if isinstance(d, str)}
+        for canonical_day in list(day_lookup.values()):
+            if isinstance(canonical_day, str):
+                digit_match = re.search(r"(\d+)", canonical_day)
+                if digit_match:
+                    day_lookup[digit_match.group(1)] = canonical_day
+
+        subject_lookup: dict = {}
+        for group_id, subjects in subjects_per_group.items():
+            if not isinstance(subjects, (list, tuple, set)):
+                continue
+            subject_lookup[group_id] = {
+                str(subject).lower(): subject for subject in subjects if subject is not None
+            }
+
+        return group_lookup, day_lookup, subject_lookup
+
+    def _build_pattern(
+        self,
+        explicit: str | None,
+        values: list[str],
+    ) -> str | None:
+        """Build regex pattern from explicit pattern or list of values."""
+        import re
+
+        if explicit:
+            return explicit
+
+        valid_values = [v for v in values if isinstance(v, str) and v]
+        if not valid_values:
+            return None
+
+        escaped = [re.escape(v) for v in valid_values]
+        return f"({'|'.join(escaped)})"
+
+    def _extract_group(
+        self,
+        metadata: dict,
+        enriched: dict,
+        path_str: str,
+        group_pattern: str | None,
+        group_lookup: dict,
+        group_display_names: dict | None = None,
+    ) -> str | None:
+        """Extract group metadata from path string."""
+        import re
+
+        group_id = metadata.get("group") or enriched.get("group")
+        if not group_id and group_pattern:
+            match = re.search(group_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_group = match.group(1) if match.groups() else match.group(0)
+                lookup_key = matched_group.lower()
+                group_id = group_lookup.get(lookup_key, matched_group)
+
+        if isinstance(group_id, str):
+            metadata["group"] = group_id
+            enriched["group"] = group_id
+            # Prefer an explicit display-name mapping when provided by the detected design
+            display_name = None
+            if group_display_names:
+                # Try exact key first, then lowercase key
+                if group_id in group_display_names:
+                    display_name = group_display_names.get(group_id)
+                elif group_id.lower() in group_display_names:
+                    display_name = group_display_names.get(group_id.lower())
+
+            if display_name is None:
+                display_name = group_lookup.get(group_id.lower(), group_id)
+
+            metadata.setdefault("group_display_name", display_name)
+            enriched["group_display_name"] = metadata.get("group_display_name")
+
+        return group_id
+
+    def _extract_day(
+        self,
+        metadata: dict,
+        enriched: dict,
+        path_str: str,
+        day_pattern: str | None,
+        day_lookup: dict,
+    ) -> str | None:
+        """Extract day metadata from path string."""
+        import re
+
+        day_value = metadata.get("day") or enriched.get("day")
+        if not day_value and day_pattern:
+            match = re.search(day_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_day = match.group(1) if match.groups() else match.group(0)
+                if isinstance(matched_day, str) and matched_day.isdigit():
+                    matched_day = f"Day{int(matched_day):02d}"
+                lookup_key = matched_day.lower()
+                day_value = day_lookup.get(lookup_key, matched_day)
+
+        if day_value is not None:
+            metadata["day"] = day_value
+            enriched["day"] = day_value
+            day_label = self._normalise_day_label(day_value)
+            if day_label:
+                metadata.setdefault("day_label", day_label)
+                enriched["day_label"] = day_label
+
+        return day_value
+
+    def _extract_subject(
+        self,
+        metadata: dict,
+        enriched: dict,
+        path_str: str,
+        subject_pattern: str | None,
+        subject_lookup: dict,
+        group_id: str | None,
+    ) -> str | None:
+        """Extract subject metadata from path string."""
+        import re
+
+        subject_value = metadata.get("subject") or enriched.get("subject")
+        if not subject_value and subject_pattern:
+            match = re.search(subject_pattern, path_str, re.IGNORECASE)
+            if match:
+                matched_subject = match.group(1) if match.groups() else match.group(0)
+                normalised = self._normalise_subject_id(matched_subject)
+                subject_value = normalised
+
+        if subject_value is None and group_id:
+            candidates = subject_lookup.get(group_id, {})
+            for candidate_lower, candidate_value in candidates.items():
+                if candidate_lower in path_str.lower():
+                    subject_value = candidate_value
+                    break
+
+        if subject_value is not None:
+            metadata["subject"] = subject_value
+            enriched["subject"] = subject_value
+
+        return subject_value
+
+    def _enrich_videos_with_design_metadata(
+        self,
+        scanned_videos: list[dict],
+        detected_design: dict | None,
+        custom_patterns: dict | None = None,
+        group_display_names: dict[str, str] | None = None,
+    ) -> list[dict]:
+        """Enrich scanned videos with experimental metadata derived from the design.
+
+        Args:
+            scanned_videos: Video descriptors produced by ``scan_input_paths``.
+            detected_design: Detected experimental design information.
+            custom_patterns: Optional regex patterns configured by the user.
+            group_display_names: Optional mapping from group IDs to friendly names.
+
+        Returns:
+            A **new** list of video descriptors with metadata persisted both at the
+            root level (``group``, ``day`` ...) and inside a dedicated ``metadata``
+            dictionary suitable for persistence in ``project.json``.
+        """
+        import copy
+        import re
+
+        if not scanned_videos:
+            return []
+
+        if not detected_design:
+            return [copy.deepcopy(video) for video in scanned_videos]
+
+        group_display_names = group_display_names or {}
+        custom_patterns = custom_patterns or {}
+
+        groups = detected_design.get("groups") or []
+        days = detected_design.get("days") or []
+        subjects_per_group = detected_design.get("subjects_per_group") or {}
+
+        group_lookup, day_lookup, subject_lookup = self._build_design_lookups(
+            groups, days, subjects_per_group
+        )
+
+        group_pattern = self._build_pattern(custom_patterns.get("group_pattern"), groups)
+        day_pattern = self._build_pattern(custom_patterns.get("day_pattern"), days)
+
+        all_subject_values = [
+            subject
+            for values in subject_lookup.values()
+            for subject in values.values()
+            if subject is not None
+        ]
+        subject_pattern = self._build_pattern(
+            custom_patterns.get("subject_pattern"), all_subject_values
+        )
+
+        enriched_videos: list[dict] = []
+
+        for original_video in scanned_videos:
+            enriched = copy.deepcopy(original_video)
+            path_str = str(enriched.get("path", ""))
+            metadata: dict = copy.deepcopy(enriched.get("metadata") or {})
+
+            group_id = self._extract_group(
+                metadata,
+                enriched,
+                path_str,
+                group_pattern,
+                group_lookup,
+                group_display_names,
+            )
+            self._extract_day(metadata, enriched, path_str, day_pattern, day_lookup)
+            self._extract_subject(
+                metadata,
+                enriched,
+                path_str,
+                subject_pattern,
+                subject_lookup,
+                group_id,
+            )
+
+            if metadata:
+                enriched["metadata"] = metadata
+
+            enriched_videos.append(enriched)
+
+        log.info(
+            "wizard.videos_enriched",
+            total=len(enriched_videos),
+            with_group=sum(1 for v in enriched_videos if v.get("group")),
+            with_day=sum(1 for v in enriched_videos if v.get("day")),
+            with_subject=sum(1 for v in enriched_videos if v.get("subject")),
+        )
+
+        return enriched_videos

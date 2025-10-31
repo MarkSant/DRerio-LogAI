@@ -323,7 +323,11 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert "Falha ao criar" in result["error_message"]
 
     def test_create_project_with_wizard_metadata(self):
-        """Test project creation with wizard import."""
+        """Test project creation with wizard import.
+
+        Phase 7: Updated to pass wizard data directly (no adapter).
+        The service now constructs _wizard_metadata internally from kwargs.
+        """
         self.mock_settings.model_selection.animal_method = "seg"
         self.mock_project_manager.create_new_project.return_value = True
         self.mock_project_manager.project_path = "/path/to/project"
@@ -331,17 +335,14 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         self.mock_project_manager.get_active_zone_video.return_value = None
         self.mock_project_manager.import_parquets_from_wizard.return_value = True
 
-        wizard_metadata = {
-            "import_config": [{"video": "/path/to/video.mp4", "import_arena": True}],
-            "roi_merge_strategy": "replace",
-            "scanned_videos": [],
-        }
-
+        # Pass wizard data as kwargs (simulating direct wizard output)
         result = self.service.create_project(
             setup_detector_callback=Mock(),
             project_path="/path/to/project",
             animals_per_aquarium=2,
-            _wizard_metadata=wizard_metadata,
+            import_config=[{"video": "/path/to/video.mp4", "import_arena": True}],
+            roi_merge_strategy="replace",
+            scanned_videos=[],
         )
 
         assert result["success"] is True

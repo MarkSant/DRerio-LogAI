@@ -2030,7 +2030,7 @@ class ApplicationGUI:
             Dictionary with 'groups' list containing formatted hierarchy
         """
         hierarchy = self._build_video_hierarchy_data(all_videos, "")
-        
+
         groups_list = []
 
         for group_id, group_data in sorted(
@@ -8379,28 +8379,29 @@ class ApplicationGUI:
         """
         Handles the UI part of creating a new project by opening a comprehensive dialog,
         then calls the controller with the collected data.
+
+        Phase 7: Direct wizard data delegation to ProjectWorkflowService.
+        No adapter layer needed - service processes wizard output directly.
         """
-        # Always use the wizard (v1.6+, wizard is now permanent)
-        from zebtrack.ui.wizard.wizard_adapter import (
-            adapt_wizard_data_to_controller_format,
-        )
         from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
         wizard = WizardDialog(self.root, settings_obj=self.controller.settings)
         if not wizard.result:
             return  # User cancelled
 
-        # Adapt wizard output to controller format
-        try:
-            controller_data = adapt_wizard_data_to_controller_format(
-                wizard.result, settings_obj=self.controller.settings
+        # Validate required fields
+        required_fields = ["project_path", "project_name", "project_type"]
+        missing = [f for f in required_fields if f not in wizard.result]
+        if missing:
+            self.show_error(
+                "Erro no Wizard",
+                f"Campos obrigatórios ausentes: {', '.join(missing)}"
             )
-        except ValueError as e:
-            self.show_error("Erro no Wizard", f"Erro ao processar dados do wizard: {e}")
             return
 
-        # Call controller with adapted data via event
-        self.publish_event(Events.WIZARD_CREATE_PROJECT, controller_data)
+        # Pass wizard data directly to controller (via ProjectWorkflowService)
+        # The service now handles data enrichment and processing internally
+        self.publish_event(Events.WIZARD_CREATE_PROJECT, wizard.result)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
