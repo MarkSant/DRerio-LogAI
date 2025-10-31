@@ -15,12 +15,17 @@ class TestOverlayIntegration(unittest.TestCase):
     """
 
     def test_detector_draw_overlay_called_in_controller(self):
-        """Test that detector.draw_overlay is called in _run_tracking_if_needed."""
-        controller_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
+        """Test that detector.draw_overlay is called in run_tracking_if_needed.
+        
+        Phase 3: Updated to check VideoProcessingService after refactoring.
+        The implementation was moved from MainViewModel to VideoProcessingService.
+        """
+        # Check VideoProcessingService where the implementation now lives
+        service_file = os.path.join(
+            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "video_processing_service.py"
         )
 
-        with open(controller_file, encoding="utf-8") as f:
+        with open(service_file, encoding="utf-8") as f:
             content = f.read()
 
         # Verify that draw_overlay is called in the tracking method
@@ -28,14 +33,26 @@ class TestOverlayIntegration(unittest.TestCase):
             "detector.draw_overlay should be called with frame and detections"
         )
 
-        # Verify it's called within the progress callback conditional
-        if "def _run_tracking_if_needed(" in content:
-            tracking_section = content.split("def _run_tracking_if_needed(")[1]
+        # Verify it's called within the run_tracking_if_needed method
+        if "def run_tracking_if_needed(" in content:
+            tracking_section = content.split("def run_tracking_if_needed(")[1]
             if "\n    def " in tracking_section:
                 tracking_section = tracking_section.split("\n    def ")[0]
             assert "draw_overlay" in tracking_section, (
-                "draw_overlay should be called in _run_tracking_if_needed method"
+                "draw_overlay should be called in run_tracking_if_needed method"
             )
+        
+        # Also verify that MainViewModel delegates to the service
+        controller_file = os.path.join(
+            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
+        )
+        
+        with open(controller_file, encoding="utf-8") as f:
+            controller_content = f.read()
+        
+        assert "self.video_processing_service.run_tracking_if_needed" in controller_content, (
+            "MainViewModel should delegate to video_processing_service.run_tracking_if_needed"
+        )
 
     def test_display_analysis_frame_preserves_overlays(self):
         """Test that display_analysis_frame doesn't redraw overlays."""
@@ -81,16 +98,21 @@ class TestOverlayIntegration(unittest.TestCase):
         )
 
     def test_frame_flow_with_real_overlays(self):
-        """Test that frame processing flow is correct in controller."""
-        controller_file = os.path.join(
-            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
+        """Test that frame processing flow is correct in VideoProcessingService.
+        
+        Phase 3: Updated to check VideoProcessingService after refactoring.
+        The implementation was moved from MainViewModel to VideoProcessingService.
+        """
+        # Check VideoProcessingService where the implementation now lives
+        service_file = os.path.join(
+            os.path.dirname(__file__), "..", "src", "zebtrack", "core", "video_processing_service.py"
         )
 
-        with open(controller_file, encoding="utf-8") as f:
+        with open(service_file, encoding="utf-8") as f:
             content = f.read()
 
-        if "def _run_tracking_if_needed(" in content:
-            tracking_section = content.split("def _run_tracking_if_needed(")[1]
+        if "def run_tracking_if_needed(" in content:
+            tracking_section = content.split("def run_tracking_if_needed(")[1]
             if "\n    def " in tracking_section:
                 tracking_section = tracking_section.split("\n    def ")[0]
 
