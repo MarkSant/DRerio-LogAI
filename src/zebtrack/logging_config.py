@@ -37,6 +37,9 @@ def configure_logging_levels(settings_obj: "Settings | None" = None):
         >>> settings_obj = load_settings()
         >>> configure_logging_levels(settings_obj)  # Apply levels from config.yaml
     """
+    # Configure warning capture after root logger handlers are set up
+    logging.captureWarnings(True)
+
     if settings_obj is None:
         return
 

@@ -3,7 +3,6 @@ import os
 import shutil
 import time
 from pathlib import Path
-from tkinter import messagebox
 
 import structlog
 
@@ -26,6 +25,20 @@ OPENVINO_STATUS_NOT_CONVERTED = "not_converted"
 OPENVINO_STATUS_CONVERTING = "converting"
 OPENVINO_STATUS_READY = "ready"
 OPENVINO_STATUS_FAILED = "failed"
+
+
+class OpenVINOExportError(Exception):
+    """Exception raised when OpenVINO export or conversion fails.
+
+    Raised when:
+    - Model export to OpenVINO format fails
+    - Required .xml file is missing after conversion
+    - Model conversion process encounters an error
+    - Ultralytics package is not available
+
+    This exception replaces GUI messagebox calls for thread-safe error handling.
+    """
+    pass
 
 
 class WeightManager:
@@ -226,9 +239,7 @@ class WeightManager:
             log.info("weights.config.saved", path=self.config_path)
         except OSError as e:
             log.error("weights.config.save_error", error=str(e))
-            messagebox.showerror(
-                "Erro", "Não foi possível salvar o arquivo de configuração de pesos."
-            )
+            raise OSError(f"Não foi possível salvar o arquivo de configuração de pesos: {e}") from e
 
     def get_all_weights(self) -> list[str]:
         """Returns a list of names of all available weights."""
@@ -306,16 +317,36 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default_by_type.set", name=name_to_set, type=weight_type)
 
-    def set_default_weight(self, name_to_set: str):
-        """Sets a new default weight."""
-        if name_to_set not in self.weights:
-            log.error("weights.default.not_found", name=name_to_set)
-            return
+    def set_default_weight(self, name: str):
+        """Sets a new default weight with proper type handling."""
+        target_weight = self.get_weight_details(name)
+        if not target_weight:
+            log.warning("set_default.not_found", name=name)
+            return False
 
-        for name, details in self.weights.items():
-            details["is_default"] = name == name_to_set
+        weight_type = target_weight.get("type", "unknown")
+        if weight_type not in ("seg", "det"):
+            log.error("set_default.unknown_type", name=name, type=weight_type)
+            return False
+
+        # Resetar todos os defaults
+        for weight in self.weights.values():
+            weight["is_default"] = False
+            if weight.get("type") == "seg":
+                weight["is_default_seg"] = False
+            if weight.get("type") == "det":
+                weight["is_default_det"] = False
+
+        # Definir o novo default
+        target_weight["is_default"] = True
+        if weight_type == "seg":
+            target_weight["is_default_seg"] = True
+        elif weight_type == "det":
+            target_weight["is_default_det"] = True
+
+        log.info("set_default.success", name=name, type=weight_type)
         self.save_weights()
-        log.info("weights.default.set", name=name_to_set)
+        return True
 
     def add_weight(
         self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None
@@ -339,40 +370,44 @@ class WeightManager:
             model_path = new_path.resolve(strict=True)
 
             # Check if the model path is inside the project directory.
-            # This is the primary defense against path traversal.
+            # If not, copy it to the project directory.
             if not model_path.is_relative_to(project_dir):
-                log.error(
-                    "weights.add.path_traversal_attempt",
-                    model_path=str(model_path),
-                    project_dir=str(project_dir),
-                )
-                messagebox.showerror(
-                    "Caminho do Modelo Inválido",
-                    "O arquivo de modelo selecionado deve estar localizado dentro da "
-                    "pasta do projeto.",
-                )
-                return
+                log.info("weights.add.external_file.copying", source=str(model_path))
+                try:
+                    target_path = project_dir / model_path.name
+                    if target_path.exists():
+                        # Check if it's the same file or a different one
+                        if target_path.resolve() == model_path.resolve():
+                            # Same file via symlink or other path - use the existing one
+                            model_path = target_path
+                            log.info("weights.add.external_file.same_file", path=str(target_path))
+                        else:
+                            raise ValueError(
+                                f"Um arquivo de peso com o nome '{model_path.name}' já existe "
+                                f"no diretório de configuração.\n\n"
+                                f"Arquivo existente: {target_path}\n"
+                                f"Arquivo sendo adicionado: {model_path}\n\n"
+                                f"Por favor, renomeie um dos arquivos antes de adicionar."
+                            )
+                    else:
+                        shutil.copy2(model_path, target_path)
+                        model_path = target_path  # Use the new copied path
+                        log.info("weights.add.external_file.copied", target=str(target_path))
+                except Exception as e:
+                    log.error("weights.add.external_file.copy_failed", error=str(e))
+                    raise ValueError(f"Falha ao copiar o arquivo de peso externo: {e}") from e
         except FileNotFoundError:
             log.error("weights.add.not_found", path=new_path)
-            messagebox.showerror(
-                "Arquivo não Encontrado",
-                f"O arquivo de modelo não foi encontrado:\n{new_path}",
-            )
-            return
+            raise FileNotFoundError(f"O arquivo de modelo não foi encontrado: {new_path}") from None
         except Exception as e:
             # This can catch issues like invalid path formats or permissions
             log.error("weights.add.invalid_path", path=new_path, error=str(e))
-            messagebox.showerror(
-                "Caminho Inválido",
-                f"O caminho do modelo é inválido ou inacessível:\n{e}",
-            )
-            return
+            raise ValueError(f"O caminho do modelo é inválido ou inacessível: {e}") from e
         # --- End Security Check ---
 
-        new_name = os.path.basename(new_path)
+        new_name = os.path.basename(model_path)
         if new_name in self.weights:
-            messagebox.showinfo("Já Existe", f"Um peso com o nome '{new_name}' já existe.")
-            return
+            raise ValueError(f"Um peso com o nome '{new_name}' já existe.")
 
         # Determine weight type
         if weight_type is None:
@@ -391,9 +426,9 @@ class WeightManager:
             if current_default:
                 current_default["is_default"] = False
 
-        # Store the original, user-provided path for display, but know it's safe.
+        # Store the safe, resolved path
         self.weights[new_name] = {
-            "path": str(new_path),
+            "path": str(model_path),
             "is_default": set_as_default,
             "type": weight_type,
             "is_default_seg": weight_type == "seg" and set_as_default,
@@ -404,20 +439,17 @@ class WeightManager:
             "last_conversion_error": None,
         }
         self.save_weights()
-        log.info("weights.add.success", name=new_name, path=new_path, type=weight_type)
+        log.info("weights.add.success", name=new_name, path=str(model_path), type=weight_type)
 
     def delete_weight(self, name_to_delete: str):
         """Deletes a weight from the configuration."""
         if name_to_delete not in self.weights:
             log.warning("weights.delete.not_found", name=name_to_delete)
-            return
+            raise ValueError(f"Peso '{name_to_delete}' não encontrado.")
 
         if len(self.weights) <= 1:
-            messagebox.showerror(
-                "Não é Possível Excluir",
-                "Você não pode excluir o último peso disponível.",
-            )
-            return
+            log.error("weights.delete.last_weight", name=name_to_delete)
+            raise ValueError("Você não pode excluir o último peso disponível.")
 
         details = self.weights[name_to_delete]
         was_default = details.get("is_default")
@@ -549,13 +581,16 @@ class WeightManager:
             xml_files = list(Path(cached_model_dir).glob("*.xml"))
             if not xml_files:
                 log.error("openvino.export.xml_not_found", path=cached_model_dir)
-                messagebox.showerror(
-                    "Erro na Exportação",
-                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão.",
-                )
                 # Clean up the corrupted cache dir
                 shutil.rmtree(cached_model_dir, ignore_errors=True)
-                return None
+                details["openvino_status"] = OPENVINO_STATUS_FAILED
+                details["last_conversion_error"] = (
+                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
+                )
+                self.save_weights()
+                raise OpenVINOExportError(
+                    "Arquivo .xml do modelo OpenVINO não encontrado após a conversão."
+                )
 
             xml_path = xml_files[0]
             model_hash = calculate_sha256(str(xml_path))
@@ -583,11 +618,9 @@ class WeightManager:
             details["openvino_status"] = OPENVINO_STATUS_FAILED
             details["last_conversion_error"] = str(e)
             self.save_weights()
-            messagebox.showerror(
-                "Erro na Exportação OpenVINO",
-                f"Falha ao converter '{name}' para o formato OpenVINO.\n\nErro: {e}",
-            )
-            return None
+            raise OpenVINOExportError(
+                f"Falha ao converter '{name}' para o formato OpenVINO: {e}"
+            ) from e
         finally:
             # Clean up the temporary export directory if the move failed
             if temp_export_path and os.path.exists(temp_export_path):

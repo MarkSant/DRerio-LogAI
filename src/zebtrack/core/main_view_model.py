@@ -50,7 +50,7 @@ from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.weight_manager import OpenVINOExportError, WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
@@ -875,8 +875,10 @@ class MainViewModel:
         # Restore global defaults before clearing project state
         self._restore_global_model_defaults()
 
-        # Reset project manager (pass StateManager reference)
-        self.project_manager = ProjectManager(state_manager=self.state_manager)
+        # Reset project manager (pass StateManager reference and settings)
+        self.project_manager = ProjectManager(
+            state_manager=self.state_manager, settings_obj=self.settings
+        )
 
         # Update StateManager: project closed
         self.state_manager.update_project_state(
@@ -1265,24 +1267,40 @@ class MainViewModel:
     ):
         """Add a new weight with type classification."""
         path = Path(path) if isinstance(path, str) else path
-        self.weight_manager.add_weight(path, set_as_default, weight_type)
-        new_name = path.name
-        # Refresh UI
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
-        )
-        self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
-        self.set_active_weight(new_name)  # This will also trigger conversion check
+        try:
+            self.weight_manager.add_weight(path, set_as_default, weight_type)
+            new_name = path.name
+            # Refresh UI on success
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
+            )
+            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
+            self.set_active_weight(new_name)  # This will also trigger conversion check
+        except (ValueError, FileNotFoundError) as e:
+            log.error("controller.add_weight.failed", error=str(e), path=str(path))
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro ao Adicionar Peso", "message": str(e)},
+            )
 
     def delete_weight(self, name: str):
-        self.weight_manager.delete_weight(name)
-        # Refresh UI
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
-        )
-        name, _ = self._safe_get_default_weight()
-        self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": name})
-        self.set_active_weight(name, None)
+        try:
+            self.weight_manager.delete_weight(name)
+            # Refresh UI on success
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
+            )
+            default_name, _ = self._safe_get_default_weight()
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
+            )
+            self.set_active_weight(default_name, None)
+        except ValueError as e:
+            log.error("controller.delete_weight.failed", error=str(e), name=name)
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro ao Excluir Peso", "message": str(e)},
+            )
 
     def set_active_weight(self, name: str | None, dialog=None):
         candidate = name or ""
@@ -1378,15 +1396,31 @@ class MainViewModel:
                 {"message": f"Convertendo {self.active_weight_name} para OpenVINO..."},
             )
 
-        # Delegate conversion to ModelService
-        self.model_service.convert_to_openvino(self.active_weight_name)
-
-        self.update_openvino_status(dialog)
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": "Verificação de conversão concluída. Pronto."},
+        try:
+            # Delegate conversion to ModelService
+            self.model_service.convert_to_openvino(self.active_weight_name)
+            self.update_openvino_status(dialog)
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SET_STATUS,
+                    {"message": "Verificação de conversão concluída. Pronto."},
+                )
+        except OpenVINOExportError as e:
+            log.error(
+                "controller.convert_openvino.failed",
+                error=str(e),
+                weight_name=self.active_weight_name,
             )
+            self.update_openvino_status(dialog)
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro na Conversão OpenVINO", "message": str(e)},
+                )
+                self.ui_event_bus.publish_event(
+                    Events.UI_SET_STATUS,
+                    {"message": "Erro na conversão OpenVINO."},
+                )
 
     def update_openvino_status(self, dialog=None):
         """Updates the status label in the GUI based on the current state."""

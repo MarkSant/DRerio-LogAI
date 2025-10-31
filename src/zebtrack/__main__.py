@@ -92,12 +92,6 @@ def configure_logging():
     root_logger.addHandler(console_handler)
     root_logger.setLevel(logging.INFO)
 
-    # Redirect Python warnings to logging system (will be formatted by structlog)
-    logging.captureWarnings(True)
-    warnings_logger = logging.getLogger("py.warnings")
-    warnings_logger.addHandler(console_handler)
-    warnings_logger.addHandler(file_handler)
-
 
 def main():
     """
