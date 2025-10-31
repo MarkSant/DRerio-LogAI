@@ -102,69 +102,61 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         """
         conf = conf_threshold if conf_threshold is not None else self.conf_threshold
 
-        # Force diagnostic context
-        old_context = self._context
-        self._context = "diagnostic"
+        results = self.model.predict(frame, conf=conf, verbose=False)
+        formatted_results = []
 
-        try:
-            results = self.model.predict(frame, conf=conf, verbose=False)
-            formatted_results = []
+        if results and results[0]:
+            result = results[0]
 
-            if results and results[0]:
-                result = results[0]
+            # Process boxes and masks together
+            if result.boxes is not None:
+                for i, box in enumerate(result.boxes):  # type: ignore[arg-type]
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    class_id = int(box.cls)
+                    confidence = float(box.conf)
 
-                # Process boxes and masks together
-                if result.boxes is not None:
-                    for i, box in enumerate(result.boxes):  # type: ignore[arg-type]
-                        x1, y1, x2, y2 = box.xyxy[0].tolist()
-                        class_id = int(box.cls)
-                        confidence = float(box.conf)
+                    # Check if corresponding mask exists
+                    has_mask = (
+                        result.masks is not None
+                        and result.masks.xy is not None  # type: ignore[union-attr]
+                        and i < len(result.masks.xy)  # type: ignore[union-attr]
+                    )
 
-                        # Check if corresponding mask exists
-                        has_mask = (
-                            result.masks is not None
-                            and result.masks.xy is not None  # type: ignore[union-attr]
-                            and i < len(result.masks.xy)  # type: ignore[union-attr]
-                        )
+                    formatted_results.append(
+                        {
+                            "box": [int(x1), int(y1), int(x2), int(y2)],
+                            "confidence": confidence,
+                            "class_id": class_id,
+                            "class_name": result.names.get(class_id, f"class_{class_id}"),
+                            "has_mask": has_mask,
+                            "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
+                            if has_mask
+                            else 0,
+                        }
+                    )
 
-                        formatted_results.append(
-                            {
-                                "box": [int(x1), int(y1), int(x2), int(y2)],
-                                "confidence": confidence,
-                                "class_id": class_id,
-                                "class_name": result.names.get(class_id, f"class_{class_id}"),
-                                "has_mask": has_mask,
-                                "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
-                                if has_mask
-                                else 0,
-                            }
-                        )
+            # Process orphan masks (without boxes)
+            if result.masks is not None and result.masks.xy is not None:  # type: ignore[union-attr]
+                num_boxes = len(result.boxes) if result.boxes else 0
+                for i in range(num_boxes, len(result.masks.xy)):  # type: ignore[union-attr]
+                    mask_xy = result.masks.xy[i]  # type: ignore[union-attr]
+                    x_min = int(mask_xy[:, 0].min())
+                    y_min = int(mask_xy[:, 1].min())
+                    x_max = int(mask_xy[:, 0].max())
+                    y_max = int(mask_xy[:, 1].max())
 
-                # Process orphan masks (without boxes)
-                if result.masks is not None and result.masks.xy is not None:  # type: ignore[union-attr]
-                    num_boxes = len(result.boxes) if result.boxes else 0
-                    for i in range(num_boxes, len(result.masks.xy)):  # type: ignore[union-attr]
-                        mask_xy = result.masks.xy[i]  # type: ignore[union-attr]
-                        x_min = int(mask_xy[:, 0].min())
-                        y_min = int(mask_xy[:, 1].min())
-                        x_max = int(mask_xy[:, 0].max())
-                        y_max = int(mask_xy[:, 1].max())
+                    formatted_results.append(
+                        {
+                            "box": [x_min, y_min, x_max, y_max],
+                            "confidence": 0.99,
+                            "class_id": 0,  # Assume aquarium for orphan masks
+                            "class_name": "aquarium",
+                            "has_mask": True,
+                            "mask_points": len(mask_xy),
+                        }
+                    )
 
-                        formatted_results.append(
-                            {
-                                "box": [x_min, y_min, x_max, y_max],
-                                "confidence": 0.99,
-                                "class_id": 0,  # Assume aquarium for orphan masks
-                                "class_name": "aquarium",
-                                "has_mask": True,
-                                "mask_points": len(mask_xy),
-                            }
-                        )
-
-            return formatted_results
-
-        finally:
-            self._context = old_context
+        return formatted_results
 
     @staticmethod
     def get_name() -> str:
