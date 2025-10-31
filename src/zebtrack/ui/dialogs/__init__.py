@@ -10,6 +10,7 @@ from zebtrack.ui.dialogs.center_periphery_dialog import CenterPeripheryDialog
 from zebtrack.ui.dialogs.color_selection_dialog import ColorSelectionDialog
 from zebtrack.ui.dialogs.create_project_dialog import CreateProjectDialog
 from zebtrack.ui.dialogs.diagnostic_progress_dialog import DiagnosticProgressDialog
+from zebtrack.ui.dialogs.live_config_dialog import LiveConfigDialog
 from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
 from zebtrack.ui.dialogs.missing_metadata_dialog import MissingMetadataDialog
 from zebtrack.ui.dialogs.pending_videos_dialog import PendingVideosDialog
@@ -25,6 +26,7 @@ __all__ = [
     "ColorSelectionDialog",
     "CreateProjectDialog",
     "DiagnosticProgressDialog",
+    "LiveConfigDialog",
     "ManageWeightsDialog",
     "MissingMetadataDialog",
     "PendingVideosDialog",
