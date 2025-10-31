@@ -75,7 +75,7 @@ zebtrack/io/recorder.py:Recorder._write_detection()
 # ❌ WRONG: Blocking main thread
 def on_analyze():
     results = heavy_analysis()
-    
+
 # ✅ RIGHT: Schedule async
 def on_analyze():
     self.root.after(0, self._run_analysis_async)
@@ -232,7 +232,7 @@ class MyDetector(BaseDetector):
     def detect(self, frame, zones):
         # Return list of detections
         return [{"x1": ..., "y1": ..., ...}]
-    
+
     def set_zones(self, zones, width, height):
         # Rescale zones
         self.zones = rescale_zones(zones, width, height)

@@ -72,7 +72,7 @@ zebtrack/utils/geometry.py:rescale_zones()
 
 ### 2. Detection Not Working
 **Breakpoint**: `DetectorService.detect()`
-**Inspect**: 
+**Inspect**:
 - `frame` shape and dtype
 - `zones` coordinates after scaling
 - `plugin` initialization
@@ -184,7 +184,7 @@ detector.set_zones(zones, video_width, video_height)
 # WRONG: Heavy computation in UI callback
 def on_analyze():
     results = heavy_analysis()  # Blocks UI
-    
+
 # RIGHT: Use after() or background worker
 def on_analyze():
     self.root.after(0, self._run_analysis_async)
