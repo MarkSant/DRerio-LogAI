@@ -21,9 +21,10 @@ from zebtrack.core.detector import ZoneData
 class MockDetectorPlugin:
     """Mock detector plugin for integration testing."""
 
-    def __init__(self, model_path: str, expected_hash: str | None = None):
+    def __init__(self, model_path: str, expected_hash: str | None = None, settings_obj=None):
         self.model_path = model_path
         self.expected_hash = expected_hash
+        self.settings_obj = settings_obj
         self.conf_threshold = 0.25
         self.nms_threshold = 0.45
         self.track_threshold = 0.25
@@ -56,6 +57,10 @@ class TestDetectorServiceIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment with DI pattern."""
+        from zebtrack.core.detector_service import DetectorService
+        from zebtrack.core.model_service import ModelService
+        from zebtrack.core.state_manager import StateManager
+        
         self.root = MagicMock()
         self.root.after = MagicMock()
         self.root.after_cancel = MagicMock()
@@ -80,12 +85,26 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.mock_pm.project_data = {}
         self.mock_pm.save_detector_state.return_value = True
 
-        # Create controller using factory
+        # Create REAL DetectorService for integration testing
+        state_manager = StateManager()
+        model_service = ModelService(self.mock_wm)
+        detector_service = DetectorService(
+            state_manager=state_manager,
+            project_manager=self.mock_pm,
+            weight_manager=self.mock_wm,
+            model_service=model_service,
+            settings_obj=self.mock_settings,
+        )
+
+        # Create controller using factory with REAL detector_service
         self.controller = create_test_controller(
             self.root,
             settings_obj=self.mock_settings,
             weight_manager=self.mock_wm,
             project_manager=self.mock_pm,
+            state_manager=state_manager,
+            model_service=model_service,
+            detector_service=detector_service,
         )
         
         self.mock_view = self.controller.view
