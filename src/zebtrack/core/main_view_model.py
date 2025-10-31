@@ -31,7 +31,7 @@ except ImportError:
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
-from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.roi import ROI
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
@@ -432,7 +432,9 @@ class MainViewModel:
             )
 
     # Phase 4: MVVM State Observer Callbacks
-    def _on_project_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+    def _on_project_state_changed(
+        self, category: StateCategory, key: str, old_value: Any, new_value: Any
+    ):
         """Publica eventos de UI em resposta a mudanças no estado do Projeto."""
         if not self.ui_event_bus:
             return
@@ -441,28 +443,44 @@ class MainViewModel:
             self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {"zone_data": zone_data})
             self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
 
-    def _on_detector_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+    def _on_detector_state_changed(
+        self, category: StateCategory, key: str, old_value: Any, new_value: Any
+    ):
         """Publica eventos de UI em resposta a mudanças no estado do Detector."""
         if not self.ui_event_bus:
             return
         if key == "active_weight_name":
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_value})
         elif key == "use_openvino":
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new_value})
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new_value}
+            )
             self.update_openvino_status()
 
-    def _on_recording_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+    def _on_recording_state_changed(
+        self, category: StateCategory, key: str, old_value: Any, new_value: Any
+    ):
         """Publica eventos de UI em resposta a mudanças no estado de Gravação."""
         if not self.ui_event_bus:
             return
         if key == "is_recording":
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "disabled" if new_value else "normal"})
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "normal" if new_value else "disabled"})
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_BUTTON_STATE,
+                {"button_name": "start_rec", "state": "disabled" if new_value else "normal"},
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_BUTTON_STATE,
+                {"button_name": "stop_rec", "state": "normal" if new_value else "disabled"},
+            )
         elif key == "arduino_connected":
             port = self.state_manager.get_recording_state().arduino_port
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ARDUINO_STATUS, {"connected": new_value, "port": port})
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_ARDUINO_STATUS, {"connected": new_value, "port": port}
+            )
 
-    def _on_processing_state_changed(self, category: StateCategory, key: str, old_value: Any, new_value: Any):
+    def _on_processing_state_changed(
+        self, category: StateCategory, key: str, old_value: Any, new_value: Any
+    ):
         """Publica eventos de UI em resposta a mudanças no estado de Processamento."""
         if key == "is_processing":
             if new_value:  # Processamento iniciou

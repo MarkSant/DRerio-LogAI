@@ -53,52 +53,77 @@ def test_settings():
     return load_settings()
 
 
-@pytest.fixture
-def tkinter_root():
+@pytest.fixture(scope="session")
+def tkinter_session_root():
     """
-    Fixture for creating a tkinter root window.
-    Platform-aware: uses virtual display on Linux, native window on Windows.
+    Session-scoped fixture for a shared tkinter root window.
 
-    This fixture is necessary for any UI components that are tested.
+    This avoids the Tkinter bug on Windows where multiple Tk() instances
+    can corrupt the Tcl/Tk library paths.
     """
     display = None
 
     # Only use virtual display on Linux/Unix systems
-    # Windows and macOS can run Tkinter natively during tests
     if platform.system() == "Linux":
         try:
             from pyvirtualdisplay import Display
 
-            display = Display(visible=0, size=(800, 600))
+            display = Display(visible=False, size=(800, 600))
             display.start()
         except ImportError:
-            # pyvirtualdisplay not available, try to run without it
-            # This will fail in headless environments but works in CI with X11
             pass
         except Exception as e:
-            # Failed to start display, continue without it
             warnings.warn(f"Could not start virtual display: {e}", stacklevel=2)
 
-    # Create the tkinter root window
+    # Create the tkinter root window (once per session)
     root = tk.Tk()
-    root.withdraw()  # Hide the main window
-
-    # Process pending events to ensure window is fully initialized
+    root.withdraw()
     root.update_idletasks()
 
     yield root
 
-    # Clean up the tkinter window
+    # Clean up at end of session
     try:
+        root.quit()
         root.destroy()
-    except tk.TclError:
-        # Window already destroyed, ignore
+    except Exception:
         pass
 
-    # Clean up the virtual display (if it was created)
     if display is not None:
         try:
             display.stop()
         except Exception:
-            # Ignore errors during cleanup
             pass
+
+
+@pytest.fixture
+def tkinter_root(tkinter_session_root):
+    """
+    Function-scoped fixture that reuses the session root.
+
+    Creates a Toplevel window for each test to ensure isolation,
+    avoiding the Tkinter multi-instance bug on Windows.
+    """
+    # Create a Toplevel window for this test (not a new Tk instance)
+    test_window = tk.Toplevel(tkinter_session_root)
+    test_window.withdraw()
+    test_window.update_idletasks()
+
+    yield test_window
+
+    # Clean up only this test's window
+    try:
+        # Destroy all child widgets
+        for widget in test_window.winfo_children():
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+
+        # Destroy the test window
+        test_window.update_idletasks()
+        test_window.destroy()
+    except tk.TclError:
+        pass
+    except Exception:
+        pass

@@ -216,17 +216,11 @@ class ArduinoDashboardWidget(BaseWidget):
                     self.project_manager.project_data["arduino_port"] = selected_device
                     self.project_manager.save_project()
 
-                    messagebox.showinfo(
-                        "Porta Atualizada",
-                        f"Porta Arduino atualizada:\n\n"
-                        f"Porta anterior: {old_port or 'Nenhuma'}\n"
-                        f"Nova porta: {selected_device}\n\n"
-                        "A nova porta será usada na próxima gravação.",
-                    )
-
+                    # Log update (no blocking dialog)
                     self.append_log(
                         f"✓ Porta atualizada: {old_port or 'Nenhuma'} → {selected_device}"
                     )
+                    self.append_log("  Nova porta será usada na próxima gravação.")
 
                     log.info(
                         "arduino.port_updated",
@@ -266,6 +260,9 @@ class ArduinoDashboardWidget(BaseWidget):
         """
         Append a timestamped message to the event log.
 
+        Thread-safe: Schedules UI updates via root.after() to ensure all
+        Text widget modifications happen on the main thread, as required by CLAUDE.md.
+
         Args:
             message: Log message to append
         """
@@ -275,21 +272,40 @@ class ArduinoDashboardWidget(BaseWidget):
         timestamp = time.strftime("%H:%M:%S")
         entry = f"[{timestamp}] {message}\n"
 
-        self.log_text.configure(state="normal")
-        self.log_text.insert("end", entry)
+        def _update_log():
+            """Internal method to update log text widget on main thread."""
+            if not self.log_text:
+                return
 
+            self.log_text.configure(state="normal")
+            self.log_text.insert("end", entry)
+
+            try:
+                # Trim log to max lines defined by MAX_LOG_LINES
+                current_line = int(float(self.log_text.index("end-1c").split(".")[0]))
+                if current_line > self.MAX_LOG_LINES:
+                    start_line = current_line - self.MAX_LOG_LINES
+                    self.log_text.delete("1.0", f"{start_line}.0")
+            except Exception:
+                # If parsing fails, ignore trimming and keep log growing temporarily
+                pass
+
+            self.log_text.see("end")
+            self.log_text.configure(state="disabled")
+
+        # Schedule UI update on main thread
+        # Try multiple approaches for maximum compatibility
         try:
-            # Trim log to max lines defined by MAX_LOG_LINES
-            current_line = int(float(self.log_text.index("end-1c").split(".")[0]))
-            if current_line > self.MAX_LOG_LINES:
-                start_line = current_line - self.MAX_LOG_LINES
-                self.log_text.delete("1.0", f"{start_line}.0")
-        except Exception:
-            # If parsing fails, ignore trimming and keep log growing temporarily
-            pass
-
-        self.log_text.see("end")
-        self.log_text.configure(state="disabled")
+            # First try: use winfo_toplevel() which usually works
+            top = self.winfo_toplevel()
+            top.after(0, _update_log)
+        except (RuntimeError, AttributeError):
+            # Second try: direct widget .after() call
+            try:
+                self.after(0, _update_log)
+            except Exception:
+                # Widget not ready or mainloop not running - silently skip
+                pass
 
     def update_status(self, connected: bool, port: str | None) -> None:
         """

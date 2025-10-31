@@ -476,8 +476,14 @@ class Detector:
 
                 # Calculate IoU between track bbox and detection bbox
                 iou = self._calculate_iou(
-                    track_bbox[0], track_bbox[1], track_bbox[2], track_bbox[3],
-                    det_x1, det_y1, det_x2, det_y2
+                    track_bbox[0],
+                    track_bbox[1],
+                    track_bbox[2],
+                    track_bbox[3],
+                    det_x1,
+                    det_y1,
+                    det_x2,
+                    det_y2,
                 )
 
                 if iou > best_iou:
@@ -501,8 +507,15 @@ class Detector:
         return results
 
     def _calculate_iou(
-        self, x1_a: float, y1_a: float, x2_a: float, y2_a: float,
-        x1_b: float, y1_b: float, x2_b: float, y2_b: float
+        self,
+        x1_a: float,
+        y1_a: float,
+        x2_a: float,
+        y2_a: float,
+        x1_b: float,
+        y1_b: float,
+        x2_b: float,
+        y2_b: float,
     ) -> float:
         """Calculate Intersection over Union (IoU) between two bounding boxes."""
         # Calculate intersection

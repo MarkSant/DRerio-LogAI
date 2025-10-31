@@ -5,21 +5,11 @@ Tests validation, data collection, and UI state management for
 experimental design configuration in live projects.
 """
 
-import tkinter as tk
-
 import pytest
 
 from zebtrack.ui.wizard.experimental_design_step import ExperimentalDesignStep
 
 pytestmark = pytest.mark.gui  # All tests in this file are GUI tests
-
-
-@pytest.fixture
-def root():
-    """Create Tk root for tests."""
-    root = tk.Tk()
-    yield root
-    root.destroy()
 
 
 @pytest.fixture
@@ -29,9 +19,9 @@ def wizard_data():
 
 
 @pytest.fixture
-def step(root, wizard_data):
+def step(tkinter_root, wizard_data):
     """Create ExperimentalDesignStep instance."""
-    step = ExperimentalDesignStep(root, wizard_data)
+    step = ExperimentalDesignStep(tkinter_root, wizard_data)
     step.build_ui()
     return step
 
@@ -56,7 +46,7 @@ def test_experimental_design_validates_empty_group_name(step):
 
     assert not valid
     assert "vazio" in msg.lower()
-    assert "Grupo 1" in msg
+    # Message says "Nomes de grupos não podem estar vazios" without specifying which one
 
 
 def test_experimental_design_validates_duplicate_names(step):

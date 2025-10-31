@@ -89,9 +89,7 @@ class AnalysisDisplayWidget(BaseWidget):
     def _build_ui(self) -> None:
         """Build the analysis display widget UI."""
         # Status label at top
-        self.status_label = ttk.Label(
-            self, textvariable=self.status_var, padding=(0, 6)
-        )
+        self.status_label = ttk.Label(self, textvariable=self.status_var, padding=(0, 6))
         self.status_label.pack(fill="x")
 
         # Metadata info grid
@@ -116,9 +114,7 @@ class AnalysisDisplayWidget(BaseWidget):
         info_frame.columnconfigure(3, weight=1, uniform="analysis_info")
 
         # Task label (full width)
-        self.task_label = ttk.Label(
-            info_frame, textvariable=self.task_var, padding=(0, 2)
-        )
+        self.task_label = ttk.Label(info_frame, textvariable=self.task_var, padding=(0, 2))
         self.task_label.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 2))
 
         # Group, day, subject, profile (second row)

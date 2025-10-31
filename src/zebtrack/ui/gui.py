@@ -2819,7 +2819,6 @@ class ApplicationGUI:
             immediate=True,
         )
 
-
     def show_external_trigger_notice(self, session_label: str, **details):
         if not self.external_trigger_notice_label:
             return
@@ -4076,8 +4075,8 @@ class ApplicationGUI:
             self._event_bus_handlers["analysis.track_selected"] = (
                 lambda data: self._on_track_selection_changed()
             )
-            self._event_bus_handlers["analysis.cancel_requested"] = (
-                lambda data: self.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
+            self._event_bus_handlers["analysis.cancel_requested"] = lambda data: self.publish_event(
+                Events.VIDEO_CANCEL_ANALYSIS, {}
             )
 
         # Set up backward compatibility aliases

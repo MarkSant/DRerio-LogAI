@@ -14,7 +14,7 @@ import serial.tools.list_ports
 import structlog
 
 # Local imports
-import zebtrack.settings as settings_module
+from zebtrack import settings
 from zebtrack.io.arduino import Arduino
 
 log = structlog.get_logger()
@@ -75,23 +75,42 @@ class LiveConfigDialog(simpledialog.Dialog):
 
     def _detect_devices(self):
         """Detects available cameras and serial ports."""
-        # Detect cameras
+        # Detect cameras with early stopping optimization
         log.info("device_detection.camera.start")
+        consecutive_failures = 0
+        max_consecutive_failures = 3  # Stop after 3 consecutive failures
+
         for i in range(10):  # Check up to 10 indices
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                self.available_cameras[f"Câmera {i}"] = i
-                cap.release()
+            try:
+                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                if cap.isOpened():
+                    self.available_cameras[f"Câmera {i}"] = i
+                    cap.release()
+                    consecutive_failures = 0  # Reset counter on success
+                else:
+                    consecutive_failures += 1
+                    if consecutive_failures >= max_consecutive_failures and self.available_cameras:
+                        # Stop early if we found at least one camera and hit N consecutive failures
+                        log.info(
+                            "device_detection.camera.early_stop",
+                            last_index=i,
+                            reason=f"{consecutive_failures} consecutive failures",
+                        )
+                        break
+            except Exception as e:
+                log.warning("device_detection.camera.error", index=i, error=str(e))
+                consecutive_failures += 1
+                if consecutive_failures >= max_consecutive_failures and self.available_cameras:
+                    break
         log.info("device_detection.camera.found", cameras=self.available_cameras)
 
         # Detect serial ports
         try:
             log.info("device_detection.ports.start")
             # Get baud_rate from global settings
-            current_settings = settings_module.settings
             baud_rate = 9600  # default
-            if current_settings and hasattr(current_settings, "arduino"):
-                baud_rate = getattr(current_settings.arduino, "baud_rate", 9600)
+            if settings and hasattr(settings, "arduino"):
+                baud_rate = getattr(settings.arduino, "baud_rate", 9600)
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
             def _add_port(info, *, handshake: bool) -> None:

@@ -19,15 +19,20 @@ def test_gui_zone_config_structure():
     assert "self.viz_frame = ttk.Frame(" in gui_code, "viz_frame should be stored as self.viz_frame"
 
     # Test that analysis tab factory exists and is separate from ROI tab
-    assert "def _create_analysis_tab(self):" in gui_code, "_create_analysis_tab should exist"
-    analysis_tab_section = gui_code.split("def _create_analysis_tab(self):")[1]
+    assert "def _create_analysis_tab_widget(self):" in gui_code, (
+        "_create_analysis_tab_widget should exist"
+    )
+    analysis_tab_section = gui_code.split("def _create_analysis_tab_widget(self):")[1]
     analysis_tab_section = analysis_tab_section.split(
         "def _create_scrollable_controls_frame(self, parent):"
     )[0]
-    assert "self.analysis_tab_frame = ttk.Frame(" in analysis_tab_section, (
-        "Analysis tab should create a ttk.Frame"
+    # The new implementation uses AnalysisDisplayWidget instead of creating ttk.Frame directly
+    assert "AnalysisDisplayWidget(" in analysis_tab_section, (
+        "Analysis tab should create an AnalysisDisplayWidget"
     )
-    assert "ttk.Progressbar(" in analysis_tab_section, "Analysis tab should include a progress bar"
+    assert (
+        "self.progress_bar = self.analysis_display_widget.progress_bar" in analysis_tab_section
+    ), "Analysis tab should set up backward compatibility aliases including progress_bar"
 
     # Ensure ROI tab no longer inlines analysis overlay widgets
     create_roi_section = gui_code.split("def _create_roi_analysis_tab(self):")[1]
