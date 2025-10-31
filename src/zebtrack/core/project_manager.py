@@ -23,7 +23,17 @@ from zebtrack.utils import IntegrityError, calculate_sha256
 
 
 class ProjectInvalidError(ValueError):
-    """Exception raised when project structure or data is invalid."""
+    """Exception raised when project structure or data is invalid.
+
+    Raised when:
+    - Project directory cannot be created
+    - Project configuration file is missing or not found
+    - Project configuration is corrupted or contains invalid JSON
+    - Project file save operation fails due to permissions or disk errors
+
+    This exception replaces GUI messagebox calls for thread-safe error handling
+    and allows calling code to handle project validation errors appropriately.
+    """
     pass
 
 CONFIG_FILE_NAME = "project_config.json"
@@ -1562,6 +1572,120 @@ class ProjectManager:
         if save_project:
             self.save_project()
 
+    def _apply_project_migrations(self, loaded_data: dict, log_context) -> tuple[dict, bool, list[str]]:
+        """Apply backward compatibility migrations to loaded project data.
+
+        Returns:
+            Tuple of (migrated_data, migration_applied, migrated_fields)
+        """
+        migration_applied = False
+        migrated_fields: list[str] = []
+
+        if (
+            "calibration" in loaded_data
+            and "animals_per_aquarium" not in loaded_data["calibration"]
+        ):
+            loaded_data["calibration"]["animals_per_aquarium"] = 1
+            migration_applied = True
+            migrated_fields.append("calibration.animals_per_aquarium")
+            log_context.info(
+                "project.load.backward_compatibility",
+                message=("Added missing animals_per_aquarium field with default value 1"),
+            )
+
+        # Add defaults for legacy projects missing interval/camera/arduino fields
+        if "analysis_interval_frames" not in loaded_data:
+            loaded_data["analysis_interval_frames"] = 10
+            migration_applied = True
+            migrated_fields.append("analysis_interval_frames")
+
+        if "display_interval_frames" not in loaded_data:
+            loaded_data["display_interval_frames"] = 10
+            migration_applied = True
+            migrated_fields.append("display_interval_frames")
+
+        if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
+            loaded_data["analysis_profiles"] = [self._default_analysis_profile()]
+            migration_applied = True
+            migrated_fields.append("analysis_profiles")
+
+        # Use settings if available, otherwise default to False
+        tracker_flag = False
+        if self.settings and hasattr(self.settings, "tracking"):
+            tracker_flag = self.settings.tracking.use_single_subject_tracker
+        tracking_defaults = {"use_single_subject_tracker": tracker_flag}
+        if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
+            loaded_data["tracking"] = dict(tracking_defaults)
+            migration_applied = True
+            migrated_fields.append("tracking")
+        else:
+            existing_tracking = loaded_data["tracking"]
+            if (
+                "use_single_subject_tracker" not in existing_tracking
+                or existing_tracking["use_single_subject_tracker"] is None
+            ):
+                existing_tracking["use_single_subject_tracker"] = tracking_defaults[
+                    "use_single_subject_tracker"
+                ]
+                migration_applied = True
+                migrated_fields.append("tracking.use_single_subject_tracker")
+
+        if "roi_templates" not in loaded_data or not isinstance(
+            loaded_data.get("roi_templates"), list
+        ):
+            loaded_data["roi_templates"] = []
+            migration_applied = True
+            migrated_fields.append("roi_templates")
+
+        if "camera_index" not in loaded_data or loaded_data["camera_index"] is None:
+            loaded_data["camera_index"] = 0
+            migration_applied = True
+            migrated_fields.append("camera_index")
+
+        if "use_arduino" not in loaded_data or loaded_data["use_arduino"] is None:
+            loaded_data["use_arduino"] = False
+            migration_applied = True
+            migrated_fields.append("use_arduino")
+
+        if "arduino_port" not in loaded_data or loaded_data["arduino_port"] is None:
+            loaded_data["arduino_port"] = ""
+            migration_applied = True
+            migrated_fields.append("arduino_port")
+
+        if (
+            "external_trigger_mode" not in loaded_data
+            or loaded_data["external_trigger_mode"] is None
+        ):
+            loaded_data["external_trigger_mode"] = False
+            migration_applied = True
+            migrated_fields.append("external_trigger_mode")
+
+        overrides = loaded_data.get("model_overrides")
+        overrides_updated = False
+        if not isinstance(overrides, dict):
+            overrides = {"active_weight": None, "use_openvino": None}
+            overrides_updated = True
+        else:
+            if "active_weight" not in overrides:
+                overrides["active_weight"] = None
+                overrides_updated = True
+            if "use_openvino" not in overrides:
+                overrides["use_openvino"] = None
+                overrides_updated = True
+
+        if overrides_updated:
+            loaded_data["model_overrides"] = overrides
+            migration_applied = True
+            migrated_fields.append("model_overrides")
+
+        # Add file_hash for legacy projects that don't have it
+        if "file_hash" not in loaded_data:
+            loaded_data["file_hash"] = {}
+            migration_applied = True
+            migrated_fields.append("file_hash")
+
+        return loaded_data, migration_applied, migrated_fields
+
     def load_project(self, project_path: Path | str):
         """
         Loads project data from a config file in the given directory.
@@ -1585,113 +1709,10 @@ class ProjectManager:
             # Phase 1, Step 3: Delegate to ProjectService for file I/O
             loaded_data = self.project_service.load_project_config(project_path)
 
-            # --- Backward Compatibility ---
-            migration_applied = False
-            migrated_fields: list[str] = []
-
-            if (
-                "calibration" in loaded_data
-                and "animals_per_aquarium" not in loaded_data["calibration"]
-            ):
-                loaded_data["calibration"]["animals_per_aquarium"] = 1
-                migration_applied = True
-                migrated_fields.append("calibration.animals_per_aquarium")
-                log_context.info(
-                    "project.load.backward_compatibility",
-                    message=("Added missing animals_per_aquarium field with default value 1"),
-                )
-
-            # Add defaults for legacy projects missing interval/camera/arduino fields
-            if "analysis_interval_frames" not in loaded_data:
-                loaded_data["analysis_interval_frames"] = 10
-                migration_applied = True
-                migrated_fields.append("analysis_interval_frames")
-
-            if "display_interval_frames" not in loaded_data:
-                loaded_data["display_interval_frames"] = 10
-                migration_applied = True
-                migrated_fields.append("display_interval_frames")
-
-            if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
-                loaded_data["analysis_profiles"] = [self._default_analysis_profile()]
-                migration_applied = True
-                migrated_fields.append("analysis_profiles")
-
-            # Use settings if available, otherwise default to False
-            tracker_flag = False
-            if self.settings and hasattr(self.settings, "tracking"):
-                tracker_flag = self.settings.tracking.use_single_subject_tracker
-            tracking_defaults = {"use_single_subject_tracker": tracker_flag}
-            if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
-                loaded_data["tracking"] = dict(tracking_defaults)
-                migration_applied = True
-                migrated_fields.append("tracking")
-            else:
-                existing_tracking = loaded_data["tracking"]
-                if (
-                    "use_single_subject_tracker" not in existing_tracking
-                    or existing_tracking["use_single_subject_tracker"] is None
-                ):
-                    existing_tracking["use_single_subject_tracker"] = tracking_defaults[
-                        "use_single_subject_tracker"
-                    ]
-                    migration_applied = True
-                    migrated_fields.append("tracking.use_single_subject_tracker")
-
-            if "roi_templates" not in loaded_data or not isinstance(
-                loaded_data.get("roi_templates"), list
-            ):
-                loaded_data["roi_templates"] = []
-                migration_applied = True
-                migrated_fields.append("roi_templates")
-
-            if "camera_index" not in loaded_data or loaded_data["camera_index"] is None:
-                loaded_data["camera_index"] = 0
-                migration_applied = True
-                migrated_fields.append("camera_index")
-
-            if "use_arduino" not in loaded_data or loaded_data["use_arduino"] is None:
-                loaded_data["use_arduino"] = False
-                migration_applied = True
-                migrated_fields.append("use_arduino")
-
-            if "arduino_port" not in loaded_data or loaded_data["arduino_port"] is None:
-                loaded_data["arduino_port"] = ""
-                migration_applied = True
-                migrated_fields.append("arduino_port")
-
-            if (
-                "external_trigger_mode" not in loaded_data
-                or loaded_data["external_trigger_mode"] is None
-            ):
-                loaded_data["external_trigger_mode"] = False
-                migration_applied = True
-                migrated_fields.append("external_trigger_mode")
-
-            overrides = loaded_data.get("model_overrides")
-            overrides_updated = False
-            if not isinstance(overrides, dict):
-                overrides = {"active_weight": None, "use_openvino": None}
-                overrides_updated = True
-            else:
-                if "active_weight" not in overrides:
-                    overrides["active_weight"] = None
-                    overrides_updated = True
-                if "use_openvino" not in overrides:
-                    overrides["use_openvino"] = None
-                    overrides_updated = True
-
-            if overrides_updated:
-                loaded_data["model_overrides"] = overrides
-                migration_applied = True
-                migrated_fields.append("model_overrides")
-
-            # Add file_hash for legacy projects that don't have it
-            if "file_hash" not in loaded_data:
-                loaded_data["file_hash"] = {}
-                migration_applied = True
-                migrated_fields.append("file_hash")
-            # --- End Backward Compatibility ---
+            # Apply backward compatibility migrations
+            loaded_data, migration_applied, migrated_fields = self._apply_project_migrations(
+                loaded_data, log_context
+            )
 
             self.project_path = project_path
             self.project_data = loaded_data

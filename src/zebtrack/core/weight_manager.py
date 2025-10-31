@@ -28,7 +28,16 @@ OPENVINO_STATUS_FAILED = "failed"
 
 
 class OpenVINOExportError(Exception):
-    """Exception raised when OpenVINO export fails."""
+    """Exception raised when OpenVINO export or conversion fails.
+
+    Raised when:
+    - Model export to OpenVINO format fails
+    - Required .xml file is missing after conversion
+    - Model conversion process encounters an error
+    - Ultralytics package is not available
+
+    This exception replaces GUI messagebox calls for thread-safe error handling.
+    """
     pass
 
 
@@ -367,13 +376,23 @@ class WeightManager:
                 try:
                     target_path = project_dir / model_path.name
                     if target_path.exists():
-                        raise ValueError(
-                            f"Arquivo de peso '{model_path.name}' já existe no "
-                            f"diretório de configuração."
-                        )
-                    shutil.copy2(model_path, target_path)
-                    model_path = target_path  # Use the new copied path
-                    log.info("weights.add.external_file.copied", target=str(target_path))
+                        # Check if it's the same file or a different one
+                        if target_path.resolve() == model_path.resolve():
+                            # Same file via symlink or other path - use the existing one
+                            model_path = target_path
+                            log.info("weights.add.external_file.same_file", path=str(target_path))
+                        else:
+                            raise ValueError(
+                                f"Um arquivo de peso com o nome '{model_path.name}' já existe "
+                                f"no diretório de configuração.\n\n"
+                                f"Arquivo existente: {target_path}\n"
+                                f"Arquivo sendo adicionado: {model_path}\n\n"
+                                f"Por favor, renomeie um dos arquivos antes de adicionar."
+                            )
+                    else:
+                        shutil.copy2(model_path, target_path)
+                        model_path = target_path  # Use the new copied path
+                        log.info("weights.add.external_file.copied", target=str(target_path))
                 except Exception as e:
                     log.error("weights.add.external_file.copy_failed", error=str(e))
                     raise ValueError(f"Falha ao copiar o arquivo de peso externo: {e}") from e
