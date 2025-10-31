@@ -253,9 +253,11 @@ def main():
             project_manager=project_manager,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
+            ui_event_bus=event_bus,
             root=root,
             view=None,  # Set after ApplicationGUI is created
             cancel_event=cancel_event,
+            settings_obj=settings_obj,
         )
 
         # Analysis service
