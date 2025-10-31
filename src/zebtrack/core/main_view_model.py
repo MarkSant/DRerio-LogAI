@@ -875,8 +875,10 @@ class MainViewModel:
         # Restore global defaults before clearing project state
         self._restore_global_model_defaults()
 
-        # Reset project manager (pass StateManager reference)
-        self.project_manager = ProjectManager(state_manager=self.state_manager)
+        # Reset project manager (pass StateManager reference and settings)
+        self.project_manager = ProjectManager(
+            state_manager=self.state_manager, settings_obj=self.settings
+        )
 
         # Update StateManager: project closed
         self.state_manager.update_project_state(
