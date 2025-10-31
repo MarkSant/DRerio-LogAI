@@ -119,6 +119,13 @@ def create_test_controller(root, **overrides):
     # Mock ApplicationGUI to avoid Tkinter initialization issues in tests
     with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockGUI:
         mock_view = MockGUI.return_value
-        controller = MainViewModel(root, **defaults)
+        
+        # Support test_sync_event if provided (for integration tests)
+        test_sync_event = overrides.get('test_sync_event', None)
+        if test_sync_event is not None:
+            controller = MainViewModel(root, test_sync_event=test_sync_event, **defaults)
+        else:
+            controller = MainViewModel(root, **defaults)
+        
         controller.view = mock_view  # Ensure view is the mock
         return controller
