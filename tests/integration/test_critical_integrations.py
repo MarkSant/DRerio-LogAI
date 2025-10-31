@@ -52,6 +52,16 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
     - Frame buffer prevents lag
     - Data is persisted to Parquet
     """
+    # Create mock settings for Camera DI
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+    mock_settings.camera.max_reconnect_attempts = 3
+    mock_settings.camera.reconnect_timeout_seconds = 5.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30
+    
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
             # Setup mock camera
@@ -66,8 +76,8 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
             mock_vc.read.side_effect = itertools.repeat((True, generate_frame()))
             mock_cv2_vc.return_value = mock_vc
 
-            # Start camera
-            camera = Camera()
+            # Start camera with settings
+            camera = Camera(settings_obj=mock_settings)
 
             # Wait for camera to start capturing
             time.sleep(0.2)
@@ -301,6 +311,16 @@ def test_end_to_end_simulated_workflow(temp_results_dir, sample_zones):
 
     Validates the entire pipeline works together.
     """
+    # Create mock settings for Camera DI
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+    mock_settings.camera.max_reconnect_attempts = 3
+    mock_settings.camera.reconnect_timeout_seconds = 5.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30
+    
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
             # Setup mock camera
@@ -312,8 +332,8 @@ def test_end_to_end_simulated_workflow(temp_results_dir, sample_zones):
             mock_vc.read.side_effect = itertools.repeat((True, test_frame))
             mock_cv2_vc.return_value = mock_vc
 
-            # Initialize components
-            camera = Camera()
+            # Initialize components with settings
+            camera = Camera(settings_obj=mock_settings)
             recorder = Recorder()
             state_manager = StateManager()
 
@@ -384,6 +404,16 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
     - Lag detection works correctly
     - Processing always uses fresh frames
     """
+    # Create mock settings for Camera DI
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+    mock_settings.camera.max_reconnect_attempts = 3
+    mock_settings.camera.reconnect_timeout_seconds = 5.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30
+    
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         # NOTE: We do NOT patch time.sleep here - the camera thread needs real sleep
         # to allow the background thread to run and capture frames
@@ -406,7 +436,7 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
         mock_vc.read.side_effect = lambda: (True, create_unique_frame())
         mock_cv2_vc.return_value = mock_vc
 
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
 
         # Wait for camera to capture some frames
         time.sleep(0.3)
