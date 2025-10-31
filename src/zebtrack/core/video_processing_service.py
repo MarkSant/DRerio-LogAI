@@ -233,7 +233,7 @@ class VideoProcessingService:
     ) -> Callable:
         """Create progress callback for video processing.
 
-        Phase 7.2: Extracted from controller to centralize progress handling.
+        Phase 3: Moved from MainViewModel._make_progress_callback
 
         Args:
             index: Current video index (1-based)
@@ -243,8 +243,67 @@ class VideoProcessingService:
         Returns:
             Callable that accepts progress stats dict
         """
-        # TODO: Implement in next sub-step (7.2c)
-        raise NotImplementedError("Será implementado na sub-etapa 7.2c")
+
+        def progress_callback(
+            progress_fraction,
+            status_message,
+            frame=None,
+            stats=None,
+            detections=None,
+        ):
+            if self.cancel_event.is_set():
+                return
+
+            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
+            step_status = f"Etapa: {status_message}"
+
+            # Use UICoordinator for UI updates
+            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
+            self.ui_coordinator.update_progress(self.view, progress_fraction)
+            self.ui_coordinator.update_view(
+                self.view, "update_analysis_progress", progress_fraction, step_status
+            )
+
+            # Publish task status event
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                {
+                    "payload": {
+                        "index": index,
+                        "total": total_videos,
+                        "experiment_id": experiment_id,
+                        "step": status_message,
+                    }
+                },
+            )
+
+            # Publish stats if available
+            if stats:
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
+                    )
+
+            # Note: processing_report requires access to processing_mode which is in MainViewModel
+            # This will be handled by MainViewModel after service returns
+
+            # Publish detections if available
+            if detections is not None:
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_UPDATE_DETECTION_OVERLAY,
+                        {"detections": detections, "report": None},
+                    )
+
+            # Publish frame for display
+            if frame is not None:
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_FRAME,
+                        {"frame": frame},
+                    )
+
+        return progress_callback
 
     def run_tracking_if_needed(
         self,
@@ -644,6 +703,34 @@ class VideoProcessingService:
                 exc_info=True,
             )
 
+    def _prepare_results_directory(self, results_dir: str) -> None:
+        """Keep per-video results folders clean and archive older runs.
+
+        Phase 3: Moved from MainViewModel._prepare_results_directory
+        """
+        path = Path(results_dir)
+        path.mkdir(parents=True, exist_ok=True)
+
+        existing_items = [item for item in path.iterdir() if item.name != "history"]
+        if not existing_items:
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        history_root = path / "history"
+        archive_dir = history_root / timestamp
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        for item in existing_items:
+            target = archive_dir / item.name
+            shutil.move(str(item), str(target))
+
+        log.info(
+            "controller.results.archive_previous_run",
+            results_dir=str(path),
+            archive_dir=str(archive_dir),
+            item_count=len(existing_items),
+        )
+
     def _compose_analysis_view_metadata(
         self,
         *,
@@ -718,7 +805,7 @@ class VideoProcessingService:
         """Create progress callback for video processing.
 
         Phase 3: Moved from MainViewModel._make_progress_callback
-        
+
         Note: This requires access to detector_service._publish_processing_mode
         which we don't have in the service. This will need special handling.
         """
@@ -976,7 +1063,7 @@ class VideoProcessingService:
         """Register processing outputs with project manager.
 
         Phase 3: Moved from MainViewModel._register_project_outputs
-        
+
         Note: This method calls self.refresh_project_views which is a MainViewModel method.
         This will need to be handled via callback or event.
         """
@@ -1294,6 +1381,10 @@ class VideoProcessingService:
                 output_base_dir=output_base_dir,
             )
             results_dir = str(results_path)
+
+            # Prepare results directory (archive previous runs if needed)
+            self._prepare_results_directory(results_dir)
+
             baseline_items = self._snapshot_results_dir(results_path)
 
             tracking_success, arena_polygon_px = self.run_tracking_if_needed(

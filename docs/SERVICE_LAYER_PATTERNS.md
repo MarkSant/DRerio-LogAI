@@ -39,23 +39,23 @@ A refatoração FASE 3 estabeleceu um padrão claro de **Service Layer** para se
 ```python
 def metodo_coordenador(self, parametros):
     """Coordena a operação delegando ao service.
-    
+
     MainViewModel: Prepara contexto → Delega → Pós-processa
     """
     # 1. PREPARAÇÃO: Injetar estado atual
     self.service.detector = self.detector
     self.service.recorder = self.recorder
     self.service.cancel_event = self.cancel_event
-    
+
     # 2. CONTEXTO TEMPORÁRIO (se necessário)
     with self._temporary_single_animal_mode(config):
         # 3. DELEGAÇÃO: Chamar service
         result = self.service.processar_operacao(parametros)
-    
+
     # 4. PÓS-PROCESSAMENTO: Atualizar UI/views
     if result:
         self.refresh_project_views(reason="operacao_completa")
-    
+
     return result
 ```
 
@@ -73,13 +73,13 @@ def _run_tracking_if_needed(
     display_interval_frames: int = 10,
 ) -> tuple[bool, list | None]:
     """Delegate to VideoProcessingService.run_tracking_if_needed.
-    
+
     Phase 3: Refactored to delegate to service layer.
     Injects current detector state before delegating.
     """
     # PREPARAÇÃO: Injetar estado
     self.video_processing_service.detector = self.detector
-    
+
     # DELEGAÇÃO: Processar vídeo
     return self.video_processing_service.run_tracking_if_needed(
         video_path=video_path,
@@ -110,7 +110,7 @@ def _process_single_video(
     analysis_profile: dict | None,
 ) -> tuple[bool, str | None]:
     """Delegate to VideoProcessingService.process_single_video.
-    
+
     Phase 3: Refactored to delegate to service layer.
     Injects current detector/recorder state before delegating.
     """
@@ -133,14 +133,14 @@ def _process_single_video(
             metadata_context=metadata_context,
             analysis_profile=analysis_profile,
         )
-        
+
         # PÓS-PROCESSAMENTO: Atualizar views após sucesso
         if success:
             self.refresh_project_views(
                 reason="processing_progress",
                 append_summary=True,
             )
-        
+
         return success, results_dir
 ```
 
@@ -170,13 +170,13 @@ def _process_single_video(
 # video_processing_service.py
 def nova_funcionalidade(self, parametros):
     """Executa nova operação de processamento.
-    
+
     Args:
         parametros: Dados necessários
-        
+
     Returns:
         Resultado da operação
-        
+
     Note:
         NÃO atualiza UI diretamente. Use progress_callback para feedback.
     """
@@ -184,7 +184,7 @@ def nova_funcionalidade(self, parametros):
     if not self._validar_entrada(parametros):
         log.error("service.nova_funcionalidade.validacao_falhou")
         return None
-    
+
     # Processar
     try:
         resultado = self._executar_processamento(parametros)
@@ -201,20 +201,20 @@ def nova_funcionalidade(self, parametros):
 # main_view_model.py
 def nova_funcionalidade(self, parametros):
     """Coordena nova funcionalidade delegando ao service.
-    
+
     Phase X: Implementado seguindo padrão FASE 3.
     """
     # Preparar: Injetar estado
     self.video_processing_service.detector = self.detector
-    
+
     # Delegar
     resultado = self.video_processing_service.nova_funcionalidade(parametros)
-    
+
     # Pós-processar: Atualizar UI
     if resultado:
         self.ui_coordinator.set_status(self.view, "Operação concluída")
         self.refresh_project_views(reason="nova_funcionalidade")
-    
+
     return resultado
 ```
 
@@ -233,10 +233,10 @@ def test_nova_funcionalidade_delegacao():
     """Testa delegação e pós-processamento."""
     vm = MainViewModel(...)
     resultado = vm.nova_funcionalidade(parametros_teste)
-    
+
     # Verificar delegação
     assert vm.video_processing_service.nova_funcionalidade.called
-    
+
     # Verificar pós-processamento
     assert vm.refresh_project_views.called
 ```
@@ -402,6 +402,6 @@ Ao adicionar nova funcionalidade:
 
 ---
 
-**Atualizado**: Passo 4 - FASE 3 Complete  
-**Commit**: b531581 (Remoção de métodos temporários)  
+**Atualizado**: Passo 4 - FASE 3 Complete
+**Commit**: b531581 (Remoção de métodos temporários)
 **Status**: ✅ Service Layer Pattern estabelecido e documentado

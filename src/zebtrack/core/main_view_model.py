@@ -4204,17 +4204,20 @@ class MainViewModel:
             self.project_manager.set_active_zone_video(None)
 
     def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_METADATA, {"metadata": metadata}
-            )
+        """Delegate to VideoProcessingService._schedule_analysis_metadata_update.
+
+        Phase 3: Refactored to delegate to service layer.
+        """
+        self.video_processing_service._schedule_analysis_metadata_update(metadata)
 
     def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {"payload": {"index": index, "total": total, "experiment_id": experiment_id}},
-            )
+        """Delegate to VideoProcessingService._notify_task_status_start.
+
+        Phase 3: Refactored to delegate to service layer.
+        """
+        self.video_processing_service._notify_task_status_start(
+            index=index, total=total, experiment_id=experiment_id
+        )
 
     def _make_progress_callback(
         self,
@@ -4293,61 +4296,23 @@ class MainViewModel:
     # - _load_trajectory_dataframe
 
     def _collect_params_from_single_video(self, config: dict, experiment_id: str):
-        """Extract parameters from single video config (Phase 7.3)."""
-        metadata = dict(config)
-        metadata.setdefault("experiment_id", experiment_id)
-        metadata.setdefault("video_name", experiment_id)
-        if not metadata.get("group_id"):
-            metadata["group_id"] = "single_video"
+        """Delegate to VideoProcessingService._collect_params_from_single_video.
 
-        return (
-            metadata,
-            config.get("aquarium_width_cm"),
-            config.get("aquarium_height_cm"),
-            config.get(
-                "sharp_turn_threshold_deg_s",
-                self.settings.video_processing.sharp_turn_threshold_deg_s,
-            ),
-            config.get(
-                "freezing_velocity_threshold",
-                self.settings.video_processing.freezing_velocity_threshold,
-            ),
-            config.get(
-                "freezing_min_duration_s", self.settings.video_processing.freezing_min_duration_s
-            ),
-            config.get("smoothing_window_length", self.settings.trajectory_smoothing.window_length),
-            config.get("smoothing_polyorder", self.settings.trajectory_smoothing.polyorder),
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._collect_params_from_single_video(
+            config, experiment_id
         )
 
     def _collect_params_from_project(
         self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
     ):
-        """Extract parameters from project data (Phase 7.3)."""
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        calibration = project_data.get("calibration", {})
+        """Delegate to VideoProcessingService._collect_params_from_project.
 
-        metadata = dict(metadata_context or {})
-        csv_metadata = self.project_manager.get_metadata_for_experiment(experiment_id)
-        if csv_metadata:
-            metadata.update(csv_metadata)
-        if not metadata:
-            metadata = self.project_manager.derive_processing_metadata(experiment_id, video_path)
-            log.info(
-                "controller.processing.metadata_fallback",
-                experiment_id=experiment_id,
-                fields=list(metadata.keys()),
-            )
-
-        return (
-            metadata,
-            calibration.get("aquarium_width_cm"),
-            calibration.get("aquarium_height_cm"),
-            self.settings.video_processing.sharp_turn_threshold_deg_s,
-            self.settings.video_processing.freezing_velocity_threshold,
-            self.settings.video_processing.freezing_min_duration_s,
-            self.settings.trajectory_smoothing.window_length,
-            self.settings.trajectory_smoothing.polyorder,
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._collect_params_from_project(
+            metadata_context, experiment_id, video_path
         )
 
     def _collect_analysis_parameters(
@@ -4358,11 +4323,16 @@ class MainViewModel:
         experiment_id: str,
         video_path: str,
     ) -> tuple[dict, float | None, float | None, float, float, float, int, int]:
-        """Phase 7.3: Simplified via extraction of collection logic to submethods."""
-        if single_video_config:
-            return self._collect_params_from_single_video(single_video_config, experiment_id)
-        else:
-            return self._collect_params_from_project(metadata_context, experiment_id, video_path)
+        """Delegate to VideoProcessingService._collect_analysis_parameters.
+
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._collect_analysis_parameters(
+            single_video_config=single_video_config,
+            metadata_context=metadata_context,
+            experiment_id=experiment_id,
+            video_path=video_path,
+        )
 
     def _prepare_calibration_context(
         self,
@@ -4379,37 +4349,16 @@ class MainViewModel:
         float | None,
         float | None,
     ]:
-        if not all([width_cm, height_cm, arena_polygon_px]):
-            return None, None, [], {}, None, None
+        """Delegate to VideoProcessingService._prepare_analysis_calibration_context.
 
-        assert width_cm is not None
-        assert height_cm is not None
-
-        cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-        video_width_px, video_height_px = cal.target_dims_px
-        pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-
-        warped_points = cal.transform_points(arena_polygon_px)
-        arena_polygon_warped = [(float(point[0]), float(point[1])) for point in warped_points]
-        rois: list[ROI] = []
-        for i, polygon in enumerate(zone_data.roi_polygons):
-            warped_points = cal.transform_points(polygon)
-            roi_points_px = [(float(x), float(y)) for x, y in warped_points]
-            roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"
-            rois.append(
-                ROI(
-                    name=roi_name,
-                    geometry=Polygon(roi_points_px),
-                    coordinate_space="px",
-                )
-            )
-
-        roi_colors = {
-            (zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"): color
-            for i, color in enumerate(zone_data.roi_colors)
-        }
-
-        return cal, arena_polygon_warped, rois, roi_colors, pixelcm_x, pixelcm_y
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._prepare_analysis_calibration_context(
+            arena_polygon_px=arena_polygon_px,
+            width_cm=width_cm,
+            height_cm=height_cm,
+            zone_data=zone_data,
+        )
 
     def _generate_reports_for_video(
         self,
@@ -4420,45 +4369,17 @@ class MainViewModel:
         progress_callback,
         cancel_event: threading.Event | None = None,
     ) -> tuple[str, str, str] | None:
-        if cancel_event and cancel_event.is_set():
-            log.info(
-                "controller.analysis.reports.skipped",
-                video=experiment_id,
-                reason="cancelled",
-            )
-            return None
+        """Delegate to VideoProcessingService._generate_reports_for_video.
 
-        summary_parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-        summary_excel_path = os.path.join(results_dir, f"{experiment_id}_summary.xlsx")
-        report_docx_path = os.path.join(results_dir, f"{experiment_id}_report.docx")
-
-        if cancel_event and cancel_event.is_set():
-            log.info(
-                "controller.analysis.reports.skipped",
-                video=experiment_id,
-                reason="cancelled_before_write",
-            )
-            return None
-
-        reporter.export_summary_data(summary_parquet_path, format="parquet")
-        if cancel_event and cancel_event.is_set():
-            log.info(
-                "controller.analysis.reports.partial_skip",
-                video=experiment_id,
-                reason="cancelled_after_parquet",
-            )
-            return None
-        reporter.export_summary_data(summary_excel_path, format="excel")
-        if cancel_event and cancel_event.is_set():
-            log.info(
-                "controller.analysis.reports.partial_skip",
-                video=experiment_id,
-                reason="cancelled_after_excel",
-            )
-            return None
-        reporter.export_individual_report_step_by_step(report_docx_path, progress_callback)
-
-        return summary_parquet_path, summary_excel_path, report_docx_path
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._generate_reports_for_video(
+            reporter=reporter,
+            experiment_id=experiment_id,
+            results_dir=results_dir,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+        )
 
     def _register_project_outputs(
         self,
@@ -4470,8 +4391,13 @@ class MainViewModel:
         summary_excel: str,
         report_path: str,
     ) -> None:
-        self.project_manager.register_processing_outputs(
-            video_path,
+        """Delegate to VideoProcessingService._register_project_outputs, then refresh views.
+
+        Phase 3: Refactored to delegate to service layer.
+        The refresh_project_views call remains here as it's a MainViewModel responsibility.
+        """
+        self.video_processing_service._register_project_outputs(
+            video_path=video_path,
             results_dir=results_dir,
             trajectory_path=trajectory_path,
             summary_parquet=summary_parquet,
@@ -4502,7 +4428,7 @@ class MainViewModel:
         """
         # Inject current detector state into service
         self.video_processing_service.detector = self.detector
-        
+
         success = self.video_processing_service._run_analysis_pipeline(
             experiment_id=experiment_id,
             video_path=video_path,
@@ -4513,14 +4439,14 @@ class MainViewModel:
             progress_callback=progress_callback,
             analysis_profile=analysis_profile,
         )
-        
+
         # After analysis, refresh project views which service can't do
         if success:
             self.refresh_project_views(
                 reason="processing_progress",
                 append_summary=True,
             )
-        
+
         return success
 
     def _process_single_video(
@@ -4561,14 +4487,14 @@ class MainViewModel:
                 metadata_context=metadata_context,
                 analysis_profile=analysis_profile,
             )
-            
+
             # After processing, call refresh_project_views which service can't do
             if success:
                 self.refresh_project_views(
                     reason="processing_progress",
                     append_summary=True,
                 )
-            
+
             return success, results_dir
 
     def apply_project_settings_to_batch(self, videos: list):
@@ -4659,78 +4585,25 @@ class MainViewModel:
         return settings_applied == len(videos)
 
     def _prepare_results_directory(self, results_dir: str) -> None:
-        """Keep per-video results folders clean and archive older runs."""
-        path = Path(results_dir)
-        path.mkdir(parents=True, exist_ok=True)
+        """Delegate to VideoProcessingService._prepare_results_directory.
 
-        existing_items = [item for item in path.iterdir() if item.name != "history"]
-        if not existing_items:
-            return
-
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        history_root = path / "history"
-        archive_dir = history_root / timestamp
-        archive_dir.mkdir(parents=True, exist_ok=True)
-
-        for item in existing_items:
-            target = archive_dir / item.name
-            shutil.move(str(item), str(target))
-
-        log.info(
-            "controller.results.archive_previous_run",
-            results_dir=str(path),
-            archive_dir=str(archive_dir),
-            item_count=len(existing_items),
-        )
+        Phase 3: Refactored to delegate to service layer.
+        """
+        self.video_processing_service._prepare_results_directory(results_dir)
 
     def _snapshot_results_dir(self, results_path: Path) -> set[str]:
-        """Capture the initial state of a results directory for later cleanup."""
-        if not results_path.exists():
-            return set()
-        try:
-            return {item.name for item in results_path.iterdir()}
-        except Exception:  # pragma: no cover - best effort snapshot
-            log.warning(
-                "controller.results.snapshot_failed",
-                results_dir=str(results_path),
-                exc_info=True,
-            )
-            return set()
+        """Delegate to VideoProcessingService._snapshot_results_dir.
+
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._snapshot_results_dir(results_path)
 
     def _cleanup_cancelled_results(self, results_dir: str, baseline_items: set[str]) -> None:
-        """Remove artifacts created during a cancelled analysis run."""
-        results_path = Path(results_dir)
-        if not results_path.exists():
-            return
+        """Delegate to VideoProcessingService._cleanup_cancelled_results.
 
-        try:
-            for item in list(results_path.iterdir()):
-                if item.name in baseline_items:
-                    continue
-                try:
-                    if item.is_dir():
-                        shutil.rmtree(item, ignore_errors=True)
-                    else:
-                        item.unlink(missing_ok=True)
-                except FileNotFoundError:
-                    continue
-                except Exception:
-                    log.warning(
-                        "controller.results.cleanup_failed",
-                        path=str(item),
-                        exc_info=True,
-                    )
-
-            remaining = {child.name for child in results_path.iterdir()}
-            if not baseline_items and not remaining:
-                results_path.rmdir()
-                log.info("controller.results.cleanup_removed_directory", path=str(results_path))
-        except Exception:  # pragma: no cover - defensive cleanup
-            log.warning(
-                "controller.results.cleanup_unexpected_error",
-                results_dir=str(results_dir),
-                exc_info=True,
-            )
+        Phase 3: Refactored to delegate to service layer.
+        """
+        self.video_processing_service._cleanup_cancelled_results(results_dir, baseline_items)
 
     def _compose_analysis_view_metadata(
         self,
@@ -4741,56 +4614,17 @@ class MainViewModel:
         single_video_config: dict | None,
         analysis_profile: dict | None,
     ) -> dict:
-        combined: dict = {}
+        """Delegate to VideoProcessingService._compose_analysis_view_metadata.
 
-        entry = self.project_manager.find_video_entry(
-            path=video_path,
+        Phase 3: Refactored to delegate to service layer.
+        """
+        return self.video_processing_service._compose_analysis_view_metadata(
             experiment_id=experiment_id,
+            video_path=video_path,
+            metadata_context=metadata_context,
+            single_video_config=single_video_config,
+            analysis_profile=analysis_profile,
         )
-        if entry:
-            combined.update(dict(entry.get("metadata") or {}))
-            for key in ("group", "group_display_name", "day", "subject"):
-                value = entry.get(key)
-                if value not in (None, "") and key not in combined:
-                    combined[key] = value
-
-        if metadata_context:
-            for key, value in metadata_context.items():
-                if value in (None, ""):
-                    continue
-                combined[key] = value
-
-        if single_video_config:
-            mapping = {
-                "group_display_name": "group_display_name",
-                "group_label": "group_display_name",
-                "group_name": "group_display_name",
-                "group_id": "group",
-                "group": "group",
-                "day": "day",
-                "day_id": "day",
-                "subject": "subject",
-                "subject_id": "subject",
-                "animal": "subject",
-                "cobaia": "subject",
-            }
-            for source_key, target_key in mapping.items():
-                value = single_video_config.get(source_key)
-                if value in (None, ""):
-                    continue
-                combined.setdefault(target_key, value)
-
-        combined.setdefault("experiment_id", experiment_id)
-
-        if analysis_profile and isinstance(analysis_profile, dict):
-            profile_name = analysis_profile.get("name")
-            if profile_name:
-                combined["analysis_profile"] = profile_name
-            track_ids = analysis_profile.get("track_ids")
-            if track_ids:
-                combined["analysis_profile_tracks"] = list(track_ids)
-
-        return combined
 
     def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """

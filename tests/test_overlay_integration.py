@@ -16,7 +16,7 @@ class TestOverlayIntegration(unittest.TestCase):
 
     def test_detector_draw_overlay_called_in_controller(self):
         """Test that detector.draw_overlay is called in run_tracking_if_needed.
-        
+
         Phase 3: Updated to check VideoProcessingService after refactoring.
         The implementation was moved from MainViewModel to VideoProcessingService.
         """
@@ -41,15 +41,15 @@ class TestOverlayIntegration(unittest.TestCase):
             assert "draw_overlay" in tracking_section, (
                 "draw_overlay should be called in run_tracking_if_needed method"
             )
-        
+
         # Also verify that MainViewModel delegates to the service
         controller_file = os.path.join(
             os.path.dirname(__file__), "..", "src", "zebtrack", "core", "main_view_model.py"
         )
-        
+
         with open(controller_file, encoding="utf-8") as f:
             controller_content = f.read()
-        
+
         assert "self.video_processing_service.run_tracking_if_needed" in controller_content, (
             "MainViewModel should delegate to video_processing_service.run_tracking_if_needed"
         )
@@ -99,7 +99,7 @@ class TestOverlayIntegration(unittest.TestCase):
 
     def test_frame_flow_with_real_overlays(self):
         """Test that frame processing flow is correct in VideoProcessingService.
-        
+
         Phase 3: Updated to check VideoProcessingService after refactoring.
         The implementation was moved from MainViewModel to VideoProcessingService.
         """
