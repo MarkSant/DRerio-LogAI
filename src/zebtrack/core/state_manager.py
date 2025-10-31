@@ -627,7 +627,7 @@ class StateManager:
 
     def get_project_state(self) -> ProjectState:
         """Get an immutable snapshot of project state.
-        
+
         Phase 4: Uses selective deep copy - dataclasses.replace for speed,
         but deep copies mutable fields (project_data dict, metadata DataFrame).
         """
@@ -643,7 +643,7 @@ class StateManager:
 
     def get_detector_state(self) -> DetectorState:
         """Get an immutable snapshot of detector state.
-        
+
         Phase 4: Uses selective deep copy - dataclasses.replace for speed,
         but deep copies mutable zone_data field.
         """
@@ -655,7 +655,7 @@ class StateManager:
 
     def get_recording_state(self) -> RecordingState:
         """Get an immutable snapshot of recording state.
-        
+
         Phase 4: Simple shallow copy sufficient - all fields are immutable types
         (bool, Path, datetime, str).
         """
@@ -664,7 +664,7 @@ class StateManager:
 
     def get_processing_state(self) -> ProcessingState:
         """Get an immutable snapshot of processing state.
-        
+
         Phase 4: Simple shallow copy sufficient - all fields are immutable types
         (bool, str, int, datetime).
         """
@@ -673,7 +673,7 @@ class StateManager:
 
     def get_ui_state(self) -> UIState:
         """Get an immutable snapshot of UI state.
-        
+
         Phase 4: Uses selective deep copy - dataclasses.replace for speed,
         but deep copies mutable selected_videos list.
         """
