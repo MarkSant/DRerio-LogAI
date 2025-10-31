@@ -94,7 +94,6 @@ class CalibrationDialog(simpledialog.Dialog):
     def body(self, master):
         schedule_maximize(self)
 
-
         container = ttk.Frame(master, padding=0)
         container.pack(fill="both", expand=True, padx=5, pady=5)
 

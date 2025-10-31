@@ -10,7 +10,7 @@ in observer-based tests.
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -36,12 +36,11 @@ class TestStateManagerControllerIntegration:
     @pytest.fixture
     def controller(self, mock_root, test_event):
         """Create a MainViewModel with mocked dependencies and test synchronization."""
-        with patch("zebtrack.core.main_view_model.ApplicationGUI"):
-            with patch("zebtrack.core.main_view_model.settings"):
-                from zebtrack.core.main_view_model import MainViewModel
+        from tests.helpers import create_test_controller
 
-                controller = MainViewModel(mock_root, test_sync_event=test_event)
-                return controller
+        # Pass test_sync_event to factory for proper test synchronization
+        controller = create_test_controller(root=mock_root, test_sync_event=test_event)
+        return controller
 
     def test_state_manager_initialized(self, controller):
         """StateManager should be initialized on controller creation."""

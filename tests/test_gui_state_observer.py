@@ -68,14 +68,10 @@ class TestGUIStateObserver:
     @pytest.fixture
     def controller(self, mock_root):
         """Create a MainViewModel with mocked dependencies."""
-        from unittest.mock import patch
+        from tests.helpers import create_test_controller
 
-        with patch("zebtrack.core.main_view_model.ApplicationGUI"):
-            with patch("zebtrack.core.main_view_model.settings"):
-                from zebtrack.core.main_view_model import MainViewModel
-
-                controller = MainViewModel(mock_root)
-                return controller
+        controller = create_test_controller(root=mock_root)
+        return controller
 
     @pytest.fixture
     def mock_gui(self, mock_root, controller):

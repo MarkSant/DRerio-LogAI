@@ -4,22 +4,25 @@ from __future__ import annotations
 
 from tkinter import BooleanVar, Label, LabelFrame, PanedWindow, StringVar, ttk
 from tkinter import font as tkfont
+from typing import TYPE_CHECKING
 
 import structlog
 
 from zebtrack.core.weight_manager import WeightManager
-from zebtrack.settings import settings
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.utils.hardware_detection import recommend_backend
 
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
+
 log = structlog.get_logger()
 
-_bytetrack_defaults = getattr(settings, "bytetrack", None)
-DEFAULT_TRACK_THRESHOLD = float(getattr(_bytetrack_defaults, "track_threshold", 0.25))
-DEFAULT_MATCH_THRESHOLD = float(getattr(_bytetrack_defaults, "match_threshold", 0.15))
+# Defaults for ByteTrack (will be overridden if settings provided)
+DEFAULT_TRACK_THRESHOLD = 0.25
+DEFAULT_MATCH_THRESHOLD = 0.15
 _METHOD_OPTIONS: dict[str, str] = {
     "seg": "Segmentação (seg)",
     "det": "Detecção (det)",
@@ -31,11 +34,12 @@ class ModelSelectionStep(WizardStep):
 
     _responsive_labels: dict[str, list[Label]]
 
-    def __init__(self, parent, wizard_data: dict):
+    def __init__(self, parent, wizard_data: dict, settings_obj: Settings | None = None):
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.MODEL_SELECTION
+        self.settings = settings_obj
 
-        self.weight_manager = WeightManager()
+        self.weight_manager = WeightManager(settings_obj=settings_obj)
         self.seg_weight_names: list[str] = []
         self.det_weight_names: list[str] = []
 
@@ -111,7 +115,17 @@ class ModelSelectionStep(WizardStep):
 
         selection = dict(self.wizard_data.get("model_selection", {}) or {})
         weight_assignments = dict(self.wizard_data.get("weight_assignments", {}) or {})
-        defaults = settings.model_selection
+
+        # Get defaults from settings or use hardcoded defaults
+        if self.settings and hasattr(self.settings, "model_selection"):
+            defaults = self.settings.model_selection
+        else:
+            # Fallback defaults when settings not available
+            class _Defaults:
+                aquarium_method = "seg"
+                animal_method = "seg"
+
+            defaults = _Defaults()
 
         aquarium_method = selection.get("aquarium_method", defaults.aquarium_method)
         animal_method = selection.get("animal_method", defaults.animal_method)
@@ -144,14 +158,20 @@ class ModelSelectionStep(WizardStep):
             self.animal_weight_var.set(self._default_weight_for_method(animal_method))
 
         detector_params = dict(self.wizard_data.get("detector_parameters", {}) or {})
+
+        # Get default thresholds from settings or use hardcoded defaults
+        default_confidence = 0.25
+        default_nms = 0.45
+        if self.settings and hasattr(self.settings, "yolo_model"):
+            default_confidence = self.settings.yolo_model.confidence_threshold
+            default_nms = self.settings.yolo_model.nms_threshold
+
         confidence_threshold = float(
-            detector_params.get("confidence_threshold", settings.yolo_model.confidence_threshold)
+            detector_params.get("confidence_threshold", default_confidence)
         )
         self.confidence_var.set(f"{confidence_threshold:.3f}")
 
-        nms_threshold = float(
-            detector_params.get("nms_threshold", settings.yolo_model.nms_threshold)
-        )
+        nms_threshold = float(detector_params.get("nms_threshold", default_nms))
         self.nms_var.set(f"{nms_threshold:.3f}")
 
         track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))
@@ -357,11 +377,18 @@ class ModelSelectionStep(WizardStep):
             param_key="match",
         )
 
+        # Get current defaults for display
+        display_confidence = 0.25
+        display_nms = 0.45
+        if self.settings and hasattr(self.settings, "yolo_model"):
+            display_confidence = self.settings.yolo_model.confidence_threshold
+            display_nms = self.settings.yolo_model.nms_threshold
+
         defaults_label = Label(
             detector_frame,
             text=(
-                f"Padrões atuais: confiança {settings.yolo_model.confidence_threshold:.2f}, "
-                f"NMS {settings.yolo_model.nms_threshold:.2f}, "
+                f"Padrões atuais: confiança {display_confidence:.2f}, "
+                f"NMS {display_nms:.2f}, "
                 f"track {DEFAULT_TRACK_THRESHOLD:.2f}, "
                 f"associação {DEFAULT_MATCH_THRESHOLD:.2f}."
             ),
@@ -804,16 +831,23 @@ class ModelSelectionStep(WizardStep):
         # Clear any validation errors first
         self._clear_all_threshold_errors()
 
+        # Get default values from settings or use hardcoded defaults
+        default_confidence = 0.25
+        default_nms = 0.45
+        if self.settings and hasattr(self.settings, "yolo_model"):
+            default_confidence = self.settings.yolo_model.confidence_threshold
+            default_nms = self.settings.yolo_model.nms_threshold
+
         # Set default values
-        self.confidence_var.set(f"{settings.yolo_model.confidence_threshold:.3f}")
-        self.nms_var.set(f"{settings.yolo_model.nms_threshold:.3f}")
+        self.confidence_var.set(f"{default_confidence:.3f}")
+        self.nms_var.set(f"{default_nms:.3f}")
         self.track_var.set(f"{DEFAULT_TRACK_THRESHOLD:.3f}")
         self.match_var.set(f"{DEFAULT_MATCH_THRESHOLD:.3f}")
 
         log.info(
             "wizard.model_selection.thresholds_restored",
-            confidence=settings.yolo_model.confidence_threshold,
-            nms=settings.yolo_model.nms_threshold,
+            confidence=default_confidence,
+            nms=default_nms,
             track=DEFAULT_TRACK_THRESHOLD,
             match=DEFAULT_MATCH_THRESHOLD,
         )

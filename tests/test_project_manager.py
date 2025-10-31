@@ -13,13 +13,15 @@ import pytest
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
-from zebtrack.settings import settings
+from zebtrack.settings import load_settings
 
 
 class TestProjectManager(unittest.TestCase):
     def setUp(self):
         """Set up a temporary directory for testing."""
         self.test_dir = tempfile.mkdtemp(prefix="test_project_manager_")
+        # Load settings for tests
+        self.settings_obj = load_settings()
         # Suppress messagebox popups during tests
         self.original_showerror = sys.modules["tkinter.messagebox"].showerror
         sys.modules["tkinter.messagebox"].showerror = (  # type: ignore[attr-defined]
@@ -65,7 +67,7 @@ class TestProjectManager(unittest.TestCase):
     ) -> tuple[ProjectManager, str, dict[str, str | None]]:
         project_root = os.path.join(self.test_dir, name)
         os.makedirs(project_root, exist_ok=True)
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_path = project_root  # type: ignore[assignment]
 
         video_path = os.path.join(project_root, "sample.mp4")
@@ -138,7 +140,7 @@ class TestProjectManager(unittest.TestCase):
         )
 
     def test_copy_zone_parquet_files_replicates_artifacts(self):
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_path = self.test_dir  # type: ignore[assignment]
 
         source_video = os.path.join(self.test_dir, "source.mp4")
@@ -223,7 +225,7 @@ class TestProjectManager(unittest.TestCase):
         )
 
     def test_zone_data_lookup_normalizes_video_paths(self):
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_path = self.test_dir  # type: ignore[assignment]
         pm.project_data = {"batches": []}
 
@@ -313,7 +315,7 @@ class TestProjectManager(unittest.TestCase):
             os.environ,
             {"HOME": str(fake_home), "USERPROFILE": str(fake_home)},
         ):
-            pm = ProjectManager()
+            pm = ProjectManager(settings_obj=self.settings_obj)
 
             source_dir = Path(self.test_dir) / "single_video_import"
             source_dir.mkdir(parents=True, exist_ok=True)
@@ -465,7 +467,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_new_live_project(self):
         """Test the creation of a new 'live' project."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "live_project")
         success = pm.create_new_project(project_path, "live")
 
@@ -480,7 +482,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_new_prerecorded_project(self):
         """Test the creation of a new 'pre-recorded' project."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "prerecorded_project")
         # Mock the structure that scan_input_paths would create
         video_files = [
@@ -504,7 +506,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_new_project_initial_model_overrides(self):
         """Project creation should initialize model overrides as inherited defaults."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "overrides_project")
         success = pm.create_new_project(project_path, "live")
 
@@ -522,7 +524,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_add_video_batch_persists_metadata(self):
         """Video batches should persist experimental metadata and flags."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_path = self.test_dir  # type: ignore[assignment]
         pm.project_data = {"batches": []}
 
@@ -557,7 +559,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_project_with_animals_per_aquarium(self):
         """Test creating a project with animals_per_aquarium field."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "animals_test_project")
         video_files = [{"path": "video1.mp4", "has_data": False}]
 
@@ -587,7 +589,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_project_default_animals_per_aquarium(self):
         """Test creating a project with default animals_per_aquarium value."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "default_animals_project")
 
         success = pm.create_new_project(
@@ -611,7 +613,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_create_project_persists_camera_and_arduino_settings(self):
         """Projects should persist camera index and Arduino configuration."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "io_settings_project")
 
         success = pm.create_new_project(
@@ -633,7 +635,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_load_project_backward_compatibility(self):
         """Test loading a project without animals_per_aquarium field."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "backward_compat_project")
         os.makedirs(project_path, exist_ok=True)
 
@@ -673,12 +675,12 @@ class TestProjectManager(unittest.TestCase):
         self.assertIn("use_single_subject_tracker", pm.project_data["tracking"])
         self.assertEqual(
             pm.project_data["tracking"]["use_single_subject_tracker"],
-            settings.tracking.use_single_subject_tracker,
+            self.settings_obj.tracking.use_single_subject_tracker,
         )
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):
         """Legacy projects missing interval/camera fields should gain safe defaults."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "legacy_project")
         os.makedirs(project_path, exist_ok=True)
 
@@ -731,12 +733,12 @@ class TestProjectManager(unittest.TestCase):
 
     def test_load_project(self):
         """Test loading an existing project configuration."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "load_test_project")
         video_files = [{"path": "vid1.mp4", "has_data": False}]
         pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
-        loader_pm = ProjectManager()
+        loader_pm = ProjectManager(settings_obj=self.settings_obj)
         success = loader_pm.load_project(project_path)
 
         self.assertTrue(success)
@@ -823,7 +825,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_load_nonexistent_project(self):
         """Test loading from a directory with no config file."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "nonexistent_project")
         os.makedirs(project_path, exist_ok=True)  # Create dir but no config
 
@@ -832,7 +834,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_update_video_status_and_get_next(self):
         """Test updating video status and getting the next pending video."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "status_project")
         video_files = [
             {"path": "video1.mp4", "has_data": False},
@@ -853,7 +855,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(next_video, "video2.mp4")
 
         # Verify that the change was saved by loading it into a new instance
-        loader_pm = ProjectManager()
+        loader_pm = ProjectManager(settings_obj=self.settings_obj)
         loader_pm.load_project(project_path)
         all_videos = loader_pm.get_all_videos()
         self.assertEqual(all_videos[0]["status"], "complete")
@@ -876,7 +878,7 @@ class TestProjectManager(unittest.TestCase):
         if not os.path.exists(test_dir):
             os.makedirs(test_dir)
 
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
 
         # 1. Test creating a new pre-recorded project
         # Using a platform-independent path for testing
@@ -888,7 +890,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(success)
 
         # 2. Test loading an existing project
-        pm_loader = ProjectManager()
+        pm_loader = ProjectManager(settings_obj=self.settings_obj)
         success = pm_loader.load_project(test_dir)
         self.assertTrue(success)
 
@@ -903,7 +905,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertNotEqual(next_vid, next_vid_after_update)
 
     def test_register_processing_outputs_updates_flags(self):
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_path = self.test_dir  # type: ignore[assignment]
         video_path = os.path.join(self.test_dir, "metadata_sample.mp4")
         pm.project_data = {
@@ -954,7 +956,7 @@ class TestProjectManager(unittest.TestCase):
         pm.save_project.assert_called_once()
 
     def test_derive_processing_metadata_falls_back_to_project_entry(self):
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         video_path = os.path.join(self.test_dir, "GroupA_subject4.mp4")
         pm.project_data = {
             "batches": [
@@ -984,7 +986,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(metadata["group_id"], "GroupA")
 
     def test_derive_processing_metadata_defaults_when_missing(self):
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         pm.project_data = {"batches": []}
 
         metadata = pm.derive_processing_metadata("CECT_4", None)
@@ -995,7 +997,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_detector_state_persistence(self):
         """Test detector state save and retrieve functionality."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "detector_state_project")
 
         # Create a new project first
@@ -1023,7 +1025,7 @@ class TestProjectManager(unittest.TestCase):
         self.assertIn("last_updated", retrieved_config)
 
         # Test loading project and verifying detector state persists
-        loader_pm = ProjectManager()
+        loader_pm = ProjectManager(settings_obj=self.settings_obj)
         load_success = loader_pm.load_project(project_path)
         self.assertTrue(load_success)
 
@@ -1034,7 +1036,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_detector_state_empty_project(self):
         """Test detector state retrieval from empty project returns empty dict."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "empty_detector_project")
 
         # Create a new project without detector config
@@ -1047,7 +1049,7 @@ class TestProjectManager(unittest.TestCase):
 
     def test_detector_state_save_without_project(self):
         """Test detector state saving fails without project data."""
-        pm = ProjectManager()
+        pm = ProjectManager(settings_obj=self.settings_obj)
 
         detector_config = {"plugin_name": "OpenVINO", "confidence_threshold": 0.6}
 

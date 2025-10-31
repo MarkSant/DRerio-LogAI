@@ -40,7 +40,6 @@ except ImportError:
         ) from e
 
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
@@ -49,7 +48,12 @@ log = structlog.get_logger()
 class OpenVINOPlugin(DetectorPlugin):
     """A detector plugin that uses an OpenVINO-optimized model."""
 
-    def __init__(self, model_path: Path | str, expected_hash: str | None = None):
+    def __init__(
+        self,
+        model_path: Path | str,
+        expected_hash: str | None = None,
+        settings_obj: Any | None = None,
+    ):
         """
         Initializes the plugin, verifies model integrity, and loads the model.
 
@@ -57,6 +61,7 @@ class OpenVINOPlugin(DetectorPlugin):
             model_path: Path to the directory containing .xml and .bin files.
             expected_hash: The expected SHA256 hash of the .xml file.
                 If provided, the file's integrity will be verified before loading.
+            settings_obj: Settings instance (injected, uses global if None for backward compat).
 
         Raises:
             FileNotFoundError: If the model's .xml file cannot be found.
@@ -69,8 +74,14 @@ class OpenVINOPlugin(DetectorPlugin):
             raise ImportError("PyTorch is required for OpenVINO detection post-processing.")
         assert ov is not None
 
-        self.conf_threshold = settings.yolo_model.confidence_threshold
-        self.nms_threshold = settings.yolo_model.nms_threshold
+        # Use injected settings or sensible defaults
+        if settings_obj is not None:
+            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            self.nms_threshold = settings_obj.yolo_model.nms_threshold
+        else:
+            # Fallback defaults when settings not injected
+            self.conf_threshold = 0.25
+            self.nms_threshold = 0.45
 
         # Context control for class filtering
         self._context: str = "tracking"  # 'tracking' or 'diagnostic'

@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -8,8 +9,10 @@ import structlog
 
 from zebtrack.core.single_subject_tracker import SingleSubjectTracker
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 from zebtrack.tracker.byte_tracker import BYTETracker
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -43,6 +46,7 @@ class Detector:
         plugin: DetectorPlugin,
         base_width: int = 1280,
         base_height: int = 720,
+        settings_obj: "Settings | None" = None,
     ):
         """
         Initializes the detector with a specific plugin.
@@ -51,12 +55,14 @@ class Detector:
             plugin (DetectorPlugin): An instantiated detector plugin.
             base_width (int): The reference width the zones were defined on.
             base_height (int): The reference height the zones were defined on.
+            settings_obj: Settings instance (injected, optional for backward compatibility).
         """
         self.plugin = plugin
         if not self.plugin:
             log.error("detector.init.no_plugin")
             raise ValueError("Detector must be initialized with a valid plugin.")
 
+        self.settings = settings_obj
         self.base_width = base_width
         self.base_height = base_height
         log.info("detector.init.success", plugin=self.plugin.get_name())
@@ -412,7 +418,11 @@ class Detector:
                 track_buffer=track_buffer,
                 mot20=False,
             )
-            frame_rate = getattr(settings.video_processing, "fps", 30) or 30
+            # Get FPS from settings or use default
+            if self.settings and hasattr(self.settings, "video_processing"):
+                frame_rate = getattr(self.settings.video_processing, "fps", 30) or 30
+            else:
+                frame_rate = 30
             self._byte_tracker = BYTETracker(args=args, frame_rate=frame_rate)
             self._byte_tracker_params = params
         except Exception:  # pragma: no cover - defensive
@@ -425,13 +435,17 @@ class Detector:
     def _get_track_threshold(self) -> float:
         value = getattr(self.plugin, "track_threshold", None)
         if value is None:
-            return float(getattr(settings.bytetrack, "track_threshold", 0.25))
+            if self.settings and hasattr(self.settings, "bytetrack"):
+                return float(getattr(self.settings.bytetrack, "track_threshold", 0.25))
+            return 0.25
         return float(value)
 
     def _get_match_threshold(self) -> float:
         value = getattr(self.plugin, "match_threshold", None)
         if value is None:
-            return float(getattr(settings.bytetrack, "match_threshold", 0.15))
+            if self.settings and hasattr(self.settings, "bytetrack"):
+                return float(getattr(self.settings.bytetrack, "match_threshold", 0.15))
+            return 0.15
         return float(value)
 
     def _get_track_buffer(self) -> int:

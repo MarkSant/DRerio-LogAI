@@ -8,7 +8,6 @@ import cv2
 import numpy as np
 import pytest
 
-from zebtrack.core.main_view_model import AppController
 from zebtrack.core.project_manager import ProjectManager
 
 CONFIG_FILENAME = "project_config.json"
@@ -113,15 +112,16 @@ def test_project_manager_persists_interval_settings(
     assert saved_data["batches"][0]["videos"][0]["path"] == str(video_path)
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
 def test_controller_workflow_roundtrip_persists_intervals(
-    mock_gui,
     tmp_path,
 ) -> None:
+    from tests.helpers import create_test_controller
+
     root = MagicMock()
-    controller = AppController(root=root)
+    # Create REAL ProjectManager for this test
+    real_pm = ProjectManager()
+    controller = create_test_controller(root=root, project_manager=real_pm)
     controller.ui_event_bus = MagicMock()
-    controller.view = mock_gui.return_value
 
     project_dir = tmp_path / "controller_project"
     video_path = tmp_path / "inputs" / "controller_sample.mp4"

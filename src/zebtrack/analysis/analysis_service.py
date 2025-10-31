@@ -13,14 +13,16 @@ Now handles batch processing, single video processing, and all coordination logi
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import structlog
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.settings import settings
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -39,9 +41,14 @@ class AnalysisService:
     - Coordinating BehavioralAnalyzer and ROIAnalyzer
     """
 
-    def __init__(self):
-        """Initialize the AnalysisService."""
+    def __init__(self, settings_obj: "Settings | None" = None):
+        """Initialize the AnalysisService.
+
+        Args:
+            settings_obj: Settings instance (injected, optional for backward compatibility).
+        """
         self.log = structlog.get_logger(__name__)
+        self.settings = settings_obj
 
     def run_full_analysis(
         self,
@@ -81,10 +88,15 @@ class AnalysisService:
             - The instance of ConcreteBehavioralAnalyzer used.
             - The instance of ROIAnalyzer used, or ``None`` when no ROIs were provided.
         """
-        if settings is None:
-            raise RuntimeError("Application settings failed to load.")
+        if self.settings is None:
+            raise RuntimeError(
+                "AnalysisService: Settings not injected. "
+                "AnalysisService requires settings_obj parameter in constructor. "
+                "Use: AnalysisService(settings_obj=load_settings()) or "
+                "AnalysisService(settings_obj=create_mock_settings())"
+            )
 
-        smoothing_cfg = settings.trajectory_smoothing
+        smoothing_cfg = self.settings.trajectory_smoothing
         window_length = (
             smoothing_window_length
             if smoothing_window_length is not None
@@ -95,7 +107,7 @@ class AnalysisService:
         )
 
         # 1. Initialize the core behavioral analyzer
-        angular_settings = settings.angular_velocity
+        angular_settings = self.settings.angular_velocity
         b_analyzer = ConcreteBehavioralAnalyzer(
             trajectory_df=trajectory_df.copy(),  # Use a copy to prevent side effects
             pixelcm_x=pixelcm_x,
@@ -136,9 +148,9 @@ class AnalysisService:
             behavior_analyzer=b_analyzer,
             rois=rois,
             flutter_n_frames=1,  # Reduced to detect brief entries/exits
-            inclusion_rule=settings.roi_inclusion_rule,
-            buffer_radius_value=settings.roi_buffer_radius_value,
-            min_bbox_overlap_ratio=settings.roi_min_bbox_overlap_ratio,
+            inclusion_rule=self.settings.roi_inclusion_rule,
+            buffer_radius_value=self.settings.roi_buffer_radius_value,
+            min_bbox_overlap_ratio=self.settings.roi_min_bbox_overlap_ratio,
         )
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
@@ -211,10 +223,10 @@ class AnalysisService:
         """
         # Start with settings defaults
         params = {
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
+            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
+            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
         }
 
         # Override with project-specific values if available
@@ -234,71 +246,6 @@ class AnalysisService:
             params=params,
         )
         return params
-
-    def generate_reports(
-        self,
-        report_data: dict,
-        output_directory: str | Path,
-        video_name: str,
-        metadata: dict | None = None,
-    ) -> dict[str, Path]:
-        """
-        Generate analysis reports using Reporter.
-
-        Args:
-            report_data: Analysis report dictionary
-            output_directory: Directory to save reports
-            video_name: Name of the video being analyzed
-            metadata: Optional metadata for report enrichment
-
-        Returns:
-            dict[str, Path]: Dictionary mapping report type to file path
-        """
-        # Lazy import to avoid circular dependency
-        from zebtrack.analysis.reporter import Reporter
-
-        output_dir = Path(output_directory)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        reporter = Reporter()
-        generated_files = {}
-
-        try:
-            # Export summary data (Excel/CSV)
-            summary_path = reporter.export_summary_data(
-                report_data=report_data,
-                output_dir=output_dir,
-                video_name=video_name,
-                metadata=metadata,
-            )
-            if summary_path:
-                generated_files["summary"] = summary_path
-
-            # Export individual report (Word document)
-            report_path = reporter.export_individual_report_step_by_step(
-                report_data=report_data,
-                output_dir=output_dir,
-                video_name=video_name,
-                metadata=metadata,
-            )
-            if report_path:
-                generated_files["report"] = report_path
-
-            self.log.info(
-                "analysis_service.generate_reports.success",
-                output_dir=str(output_dir),
-                files_generated=len(generated_files),
-            )
-
-        except Exception as e:
-            self.log.error(
-                "analysis_service.generate_reports.failed",
-                output_dir=str(output_dir),
-                error=str(e),
-            )
-            raise
-
-        return generated_files
 
     def validate_trajectory_schema(self, df: pd.DataFrame) -> bool:
         """
@@ -383,17 +330,17 @@ class AnalysisService:
 
     def _default_analysis_profile(self) -> dict:
         """
-        Return default analysis profile from settings.
+        Return default analysis profile from self.settings.
 
         Returns:
             dict: Default analysis profile
         """
         return {
             "name": "default",
-            "freezing_vel_threshold": settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": settings.trajectory_smoothing.polyorder,
+            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
+            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
         }
 
     # -------------------------------------------------------------------------

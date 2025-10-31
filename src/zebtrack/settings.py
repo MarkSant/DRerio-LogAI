@@ -7,12 +7,19 @@ The settings system uses a hierarchical configuration approach:
 2. Optional overrides from config.local.yaml (git-ignored for local customization)
 3. Pydantic v2 validation ensures type safety and business rule compliance
 
-Usage:
-    from zebtrack.settings import settings
+Usage (Dependency Injection):
+    from zebtrack.settings import load_settings, Settings
 
-    # Access configuration values
-    camera_index = settings.camera.index
-    confidence = settings.yolo_model.confidence_threshold
+    # Load settings once in main composition root
+    settings_obj = load_settings()
+
+    # Inject into classes that need configuration
+    manager = WeightManager(settings_obj=settings_obj)
+    service = AnalysisService(settings_obj=settings_obj)
+
+    # Access configuration values from injected instance
+    camera_index = settings_obj.camera.index
+    confidence = settings_obj.yolo_model.confidence_threshold
 
     # Reload settings at runtime (useful for config editor)
     from zebtrack.settings import reload_settings
@@ -790,31 +797,19 @@ def export_schema(
 
 
 # =============================================================================
-# Module-Level Settings Initialization
+# Dependency Injection Pattern
 # =============================================================================
-
-# Load settings once on module import to be used across the application.
-# This is the primary way to access configuration throughout the codebase.
-# If loading fails, the application cannot function properly, so we raise
-# an exception rather than silently continuing with None.
-try:
-    settings = load_settings()
-    log.info(
-        "settings.module.initialized",
-        camera_index=settings.camera.index,
-        yolo_path=settings.yolo_model.path,
-    )
-except (FileNotFoundError, ValueError) as e:
-    log.critical(
-        "settings.module.failed",
-        error=str(e),
-        message="Failed to load configuration. Application cannot start.",
-    )
-    # Re-raise the exception so the application fails fast with a clear error
-    # rather than continuing with invalid/missing configuration
-    raise RuntimeError(
-        "Failed to initialize settings module. Please check your config.yaml file."
-    ) from e
+#
+# This module no longer exports a global `settings` singleton. Instead, all
+# components receive settings via constructor injection through the Composition
+# Root in __main__.py.
+#
+# Migration completed:
+# ✅ Phase 1: Core services (WeightManager, DetectorService, ProjectManager, etc.)
+# ✅ Phase 2: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)
+# ✅ Phase 3: UI layer (ApplicationGUI, WizardDialog, dialogs)
+#
+# All settings are now injected via the Composition Root pattern.
 
 
 # =============================================================================
@@ -822,8 +817,6 @@ except (FileNotFoundError, ValueError) as e:
 # =============================================================================
 __all__ = sorted(
     [
-        # Main settings object (use this in most cases)
-        "settings",
         # Settings model classes (for type hints and validation)
         "Settings",
         "CameraSettings",

@@ -1,6 +1,6 @@
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from zebtrack.core.weight_manager import WeightManager
 
@@ -23,34 +23,33 @@ def test_initialize_both_seg_and_det_weights():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file  # Legacy path
 
-        with patch("zebtrack.core.weight_manager.settings", mock_settings):
-            wm = WeightManager(config_dir=temp_dir)
+        wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
 
-            # Both weights should be initialized
-            assert len(wm.weights) == 2
-            assert "best_seg.pt" in wm.weights
-            assert "best_oi.pt" in wm.weights
+        # Both weights should be initialized
+        assert len(wm.weights) == 2
+        assert "best_seg.pt" in wm.weights
+        assert "best_oi.pt" in wm.weights
 
-            # Check segmentation weight
-            seg_details = wm.weights["best_seg.pt"]
-            assert seg_details["type"] == "seg"
-            assert seg_details["is_default_seg"] is True
-            assert seg_details["is_default_det"] is False
-            assert seg_details["path"] == seg_file
+        # Check segmentation weight
+        seg_details = wm.weights["best_seg.pt"]
+        assert seg_details["type"] == "seg"
+        assert seg_details["is_default_seg"] is True
+        assert seg_details["is_default_det"] is False
+        assert seg_details["path"] == seg_file
 
-            # Check detection weight
-            det_details = wm.weights["best_oi.pt"]
-            assert det_details["type"] == "det"
-            assert det_details["is_default_seg"] is False
-            assert det_details["is_default_det"] is True
-            assert det_details["path"] == det_file
+        # Check detection weight
+        det_details = wm.weights["best_oi.pt"]
+        assert det_details["type"] == "det"
+        assert det_details["is_default_seg"] is False
+        assert det_details["is_default_det"] is True
+        assert det_details["path"] == det_file
 
-            # Test get_weight_path_by_method for both types
-            seg_path = wm.get_weight_path_by_method("seg", "animal")
-            assert seg_path == seg_file
+        # Test get_weight_path_by_method for both types
+        seg_path = wm.get_weight_path_by_method("seg", "animal")
+        assert seg_path == seg_file
 
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path == det_file
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path == det_file
 
 
 def test_initialize_only_seg_weight():
@@ -69,26 +68,25 @@ def test_initialize_only_seg_weight():
         mock_settings.weights.det_filename = det_file  # Points to non-existent file
         mock_settings.yolo_model.path = seg_file
 
-        with patch("zebtrack.core.weight_manager.settings", mock_settings):
-            wm = WeightManager(config_dir=temp_dir)
+        wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
 
-            # Only seg weight should be initialized
-            assert len(wm.weights) == 1
-            assert "best_seg.pt" in wm.weights
-            assert "best_oi.pt" not in wm.weights
+        # Only seg weight should be initialized
+        assert len(wm.weights) == 1
+        assert "best_seg.pt" in wm.weights
+        assert "best_oi.pt" not in wm.weights
 
-            # Check segmentation weight
-            seg_details = wm.weights["best_seg.pt"]
-            assert seg_details["type"] == "seg"
-            assert seg_details["is_default_seg"] is True
-            assert seg_details["is_default_det"] is False
+        # Check segmentation weight
+        seg_details = wm.weights["best_seg.pt"]
+        assert seg_details["type"] == "seg"
+        assert seg_details["is_default_seg"] is True
+        assert seg_details["is_default_det"] is False
 
-            # Test get_weight_path_by_method
-            seg_path = wm.get_weight_path_by_method("seg", "animal")
-            assert seg_path == seg_file
+        # Test get_weight_path_by_method
+        seg_path = wm.get_weight_path_by_method("seg", "animal")
+        assert seg_path == seg_file
 
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path is None  # Should return None since no det weight available
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path is None  # Should return None since no det weight available
 
 
 def test_initialize_only_det_weight():
@@ -107,26 +105,25 @@ def test_initialize_only_det_weight():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = det_file
 
-        with patch("zebtrack.core.weight_manager.settings", mock_settings):
-            wm = WeightManager(config_dir=temp_dir)
+        wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
 
-            # Only det weight should be initialized
-            assert len(wm.weights) == 1
-            assert "best_oi.pt" in wm.weights
-            assert "best_seg.pt" not in wm.weights
+        # Only det weight should be initialized
+        assert len(wm.weights) == 1
+        assert "best_oi.pt" in wm.weights
+        assert "best_seg.pt" not in wm.weights
 
-            # Check detection weight
-            det_details = wm.weights["best_oi.pt"]
-            assert det_details["type"] == "det"
-            assert det_details["is_default_seg"] is False
-            assert det_details["is_default_det"] is True
+        # Check detection weight
+        det_details = wm.weights["best_oi.pt"]
+        assert det_details["type"] == "det"
+        assert det_details["is_default_seg"] is False
+        assert det_details["is_default_det"] is True
 
-            # Test get_weight_path_by_method
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path == det_file
+        # Test get_weight_path_by_method
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path == det_file
 
-            seg_path = wm.get_weight_path_by_method("seg", "animal")
-            assert seg_path is None  # Should return None since no seg weight available
+        seg_path = wm.get_weight_path_by_method("seg", "animal")
+        assert seg_path is None  # Should return None since no seg weight available
 
 
 def test_initialize_no_weights():
@@ -142,15 +139,14 @@ def test_initialize_no_weights():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file
 
-        with patch("zebtrack.core.weight_manager.settings", mock_settings):
-            wm = WeightManager(config_dir=temp_dir)
+        wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
 
-            # No weights should be initialized
-            assert len(wm.weights) == 0
+        # No weights should be initialized
+        assert len(wm.weights) == 0
 
-            # Both methods should return None
-            seg_path = wm.get_weight_path_by_method("seg", "animal")
-            assert seg_path is None
+        # Both methods should return None
+        seg_path = wm.get_weight_path_by_method("seg", "animal")
+        assert seg_path is None
 
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path is None
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path is None

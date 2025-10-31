@@ -253,11 +253,14 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
         self.mock_state_manager = Mock()
+        self.mock_settings = Mock()
+        self.mock_settings.model_selection.animal_method = "det"
 
         self.service = ProjectWorkflowService(
             project_manager=self.mock_project_manager,
             model_service=self.mock_model_service,
             state_manager=self.mock_state_manager,
+            settings_obj=self.mock_settings,
         )
 
         self.service.set_global_model_defaults(
@@ -265,10 +268,8 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
             use_openvino=False,
         )
 
-    @patch("zebtrack.settings.settings")
-    def test_create_project_success(self, mock_settings):
+    def test_create_project_success(self):
         """Test successful project creation."""
-        mock_settings.model_selection.animal_method = "det"
         self.mock_project_manager.create_new_project.return_value = True
         self.mock_project_manager.project_path = "/path/to/project"
         self.mock_project_manager.project_data = {"num_aquariums": 2}
@@ -291,11 +292,8 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         self.mock_project_manager.create_new_project.assert_called_once()
         self.mock_state_manager.update_project_state.assert_called_once()
 
-    @patch("zebtrack.settings.settings")
-    def test_create_project_validation_failure(self, mock_settings):
+    def test_create_project_validation_failure(self):
         """Test project creation fails validation."""
-        mock_settings.model_selection.animal_method = "det"
-
         result = self.service.create_project(
             setup_detector_callback=Mock(),
             animal_method="det",  # Explicitly pass animal_method
@@ -306,10 +304,8 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert "modo de detecção" in result["error_message"]
         self.mock_project_manager.create_new_project.assert_not_called()
 
-    @patch("zebtrack.settings.settings")
-    def test_create_project_creation_failure(self, mock_settings):
+    def test_create_project_creation_failure(self):
         """Test project creation fails at ProjectManager level."""
-        mock_settings.model_selection.animal_method = "det"
         self.mock_project_manager.create_new_project.return_value = False
 
         result = self.service.create_project(
@@ -321,10 +317,9 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert result["success"] is False
         assert "Falha ao criar" in result["error_message"]
 
-    @patch("zebtrack.settings.settings")
-    def test_create_project_with_wizard_metadata(self, mock_settings):
+    def test_create_project_with_wizard_metadata(self):
         """Test project creation with wizard import."""
-        mock_settings.model_selection.animal_method = "seg"
+        self.mock_settings.model_selection.animal_method = "seg"
         self.mock_project_manager.create_new_project.return_value = True
         self.mock_project_manager.project_path = "/path/to/project"
         self.mock_project_manager.project_data = {}

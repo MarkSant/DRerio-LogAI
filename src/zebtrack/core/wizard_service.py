@@ -10,13 +10,16 @@ import os
 import sys
 import time
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 import cv2
 import serial.tools.list_ports
 import structlog
 
 from zebtrack.io.arduino import Arduino
-from zebtrack.settings import settings
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -231,7 +234,9 @@ class WizardService:
         return cameras
 
     @classmethod
-    def detect_arduino_ports(cls, use_cache: bool = True) -> list[dict]:
+    def detect_arduino_ports(
+        cls, use_cache: bool = True, settings_obj: "Settings | None" = None
+    ) -> list[dict]:
         """
         Detect available Arduino serial ports with descriptions and caching.
 
@@ -241,6 +246,7 @@ class WizardService:
         Args:
             use_cache: If True, return cached results if available and valid.
                       If False, force fresh detection.
+            settings_obj: Settings instance for baud rate (uses 9600 if None).
 
         Returns:
             List of dictionaries with port information:
@@ -264,9 +270,10 @@ class WizardService:
         ports_info = []
 
         try:
-            baud_rate = (
-                getattr(getattr(settings, "arduino", None), "baud_rate", 9600) if settings else 9600
-            )
+            # Get baud rate from settings or use default
+            baud_rate = 9600
+            if settings_obj and hasattr(settings_obj, "arduino"):
+                baud_rate = getattr(settings_obj.arduino, "baud_rate", 9600)
 
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 

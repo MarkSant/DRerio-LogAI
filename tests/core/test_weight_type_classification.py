@@ -112,30 +112,32 @@ def test_get_weight_path_by_method():
         with open(det_file, "w") as f:
             f.write("mock det model")
 
-        # Mock settings to avoid initializing with default weights
-        with patch("zebtrack.core.weight_manager.settings") as mock_settings:
-            mock_settings.weights.seg_filename = None
-            mock_settings.weights.det_filename = None
-            mock_settings.yolo_model.path = None
+        # Create a mock settings object with minimal attributes
+        from unittest.mock import Mock
 
-            wm = WeightManager(config_dir=temp_dir)
+        mock_settings = Mock()
+        mock_settings.yolo_model.path = None
+        mock_settings.weights.seg_filename = None
+        mock_settings.weights.det_filename = None
 
-            with patch("zebtrack.core.weight_manager.messagebox"):
-                # Add both weights and set as defaults for their types
-                wm.add_weight(seg_file, set_as_default=True)
-                wm.add_weight(det_file, set_as_default=False)
-                wm.set_default_weight_by_type("best_oi.pt", "det")
+        wm = WeightManager(settings_obj=mock_settings, config_dir=temp_dir)
 
-                # Test getting paths by method
-                seg_path = wm.get_weight_path_by_method("seg", "aquarium")
-                assert seg_path == seg_file
+        with patch("zebtrack.core.weight_manager.messagebox"):
+            # Add both weights and set as defaults for their types
+            wm.add_weight(seg_file, set_as_default=True)
+            wm.add_weight(det_file, set_as_default=False)
+            wm.set_default_weight_by_type("best_oi.pt", "det")
 
-                det_path = wm.get_weight_path_by_method("det", "animal")
-                assert det_path == det_file
+            # Test getting paths by method
+            seg_path = wm.get_weight_path_by_method("seg", "aquarium")
+            assert seg_path == seg_file
 
-                # Test invalid method
-                invalid_path = wm.get_weight_path_by_method("invalid", "task")
-                assert invalid_path is None
+            det_path = wm.get_weight_path_by_method("det", "animal")
+            assert det_path == det_file
+
+            # Test invalid method
+            invalid_path = wm.get_weight_path_by_method("invalid", "task")
+            assert invalid_path is None
 
 
 def test_backward_compatibility_migration():

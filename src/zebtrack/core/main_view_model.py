@@ -10,7 +10,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 import cv2
 import numpy as np
@@ -52,7 +55,6 @@ from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins import DETECTOR_PLUGINS
-from zebtrack.settings import settings
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
@@ -60,12 +62,9 @@ from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_ba
 
 log = structlog.get_logger()
 
-try:
-    DEFAULT_TRACK_THRESHOLD = float(settings.bytetrack.track_threshold)
-    DEFAULT_MATCH_THRESHOLD = float(settings.bytetrack.match_threshold)
-except AttributeError:  # pragma: no cover - legacy settings fallback
-    DEFAULT_TRACK_THRESHOLD = 0.25
-    DEFAULT_MATCH_THRESHOLD = 0.15
+# Default thresholds (will be overridden by settings when injected)
+DEFAULT_TRACK_THRESHOLD = 0.25
+DEFAULT_MATCH_THRESHOLD = 0.15
 
 
 def _is_valid_openvino_directory(path: str | None) -> bool:
@@ -117,17 +116,53 @@ class MainViewModel:
     def __init__(
         self,
         root,
+        event_bus: EventBus | None,
+        state_manager: StateManager,
+        ui_coordinator: UICoordinator,
+        settings_obj: Settings,
+        project_manager: ProjectManager,
+        project_workflow_service: ProjectWorkflowService,
+        weight_manager: WeightManager,
+        model_service: ModelService,
+        detector_service: DetectorService,
+        video_processing_service: VideoProcessingService,
+        analysis_service: AnalysisService | None = None,
+        recording_service: RecordingService | None = None,
         test_sync_event: threading.Event | None = None,
-        event_bus: EventBus | None = None,
-        project_workflow_service: ProjectWorkflowService = None,
     ):
+        """Initialize MainViewModel with dependency injection.
+
+        Args:
+            root: Tkinter root window
+            event_bus: Event bus for UI events
+            state_manager: Centralized state manager
+            ui_coordinator: UI coordinator for scheduling
+            settings_obj: Settings instance (injected)
+            project_manager: Project manager
+            project_workflow_service: Project workflow service
+            weight_manager: Weight manager
+            model_service: Model service
+            detector_service: Detector service
+            video_processing_service: Video processing service
+            analysis_service: Analysis service (optional, will be created if None)
+            recording_service: Recording service (optional, will be created later)
+            test_sync_event: Test synchronization event (for tests only)
+        """
         self.root = root
+        self.settings = settings_obj
 
         # Test synchronization support (Phase 1.1)
         self._test_sync_event = test_sync_event
 
-        # Phase 2, Step 4: Centralized state management
-        self.state_manager = StateManager(enable_history=True, max_history_size=100)
+        # Phase 2, Step 4: Injected dependencies
+        self.state_manager = state_manager
+        self.project_manager = project_manager
+        self.weight_manager = weight_manager
+        self.model_service = model_service
+        self.detector_service = detector_service
+        self.video_processing_service = video_processing_service
+        self.project_workflow_service = project_workflow_service
+        self.ui_coordinator = ui_coordinator
 
         # Register test observer if sync event provided
         if self._test_sync_event is not None:
@@ -135,21 +170,10 @@ class MainViewModel:
 
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
-        self.analysis_service = AnalysisService()
-
-        # State managers (pass StateManager reference to ProjectManager)
-        self.project_manager = ProjectManager(state_manager=self.state_manager)
-        self.weight_manager = WeightManager()
-
-        # Model management service (Phase 2, Step 1)
-        self.model_service = ModelService(self.weight_manager)
-
-        # Detector management service (Phase 6)
-        self.detector_service = DetectorService(
-            state_manager=self.state_manager,
-            project_manager=self.project_manager,
-            weight_manager=self.weight_manager,
-            model_service=self.model_service,
+        self.analysis_service = (
+            analysis_service
+            if analysis_service is not None
+            else AnalysisService(settings_obj=self.settings)
         )
 
         # New state variables for model management (must exist before view)
@@ -218,7 +242,7 @@ class MainViewModel:
         # Core runtime attributes
         # Note: detector is now managed by detector_service (Phase 6)
         # Access via self.detector property which delegates to service
-        self.recorder = Recorder()
+        self.recorder = Recorder(settings_obj=self.settings)
         self.arduino: Arduino | None = None
         self.arduino_manager: ArduinoManager | None = None
         self._arduino_manager_cls = ArduinoManager
@@ -227,7 +251,7 @@ class MainViewModel:
         self.timed_recording_job = None
 
         # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
-        self.recording_service: RecordingService | None = None
+        self.recording_service: RecordingService | None = recording_service
 
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
@@ -235,15 +259,15 @@ class MainViewModel:
             is_recording=False,
         )
 
+        # Event bus configuration
+        self.ui_event_bus = event_bus
         if event_bus:
-            self.ui_event_bus = event_bus
             self._use_event_bus = True
         else:
-            ui_features = getattr(settings, "ui_features", None)
+            ui_features = getattr(self.settings, "ui_features", None)
             self._use_event_bus = bool(
                 ui_features and getattr(ui_features, "enable_event_queue", False)
             )
-            self.ui_event_bus: EventBus | None = EventBus() if self._use_event_bus else None
 
         if self._use_event_bus:
             log.info("controller.event_bus.enabled")
@@ -254,20 +278,7 @@ class MainViewModel:
                 message="EventBus is disabled. Using legacy direct callbacks. This is deprecated.",
             )
 
-        # Phase 4: UI Coordinator for consolidated UI scheduling
-        self.ui_coordinator = UICoordinator(
-            root=self.root,
-            event_bus=self.ui_event_bus,
-        )
-
-        # Phase 5: Project Workflow Service for project creation/opening orchestration
-        self.project_workflow_service = project_workflow_service or ProjectWorkflowService(
-            project_manager=self.project_manager,
-            model_service=self.model_service,
-            state_manager=self.state_manager,
-            ui_coordinator=self.ui_coordinator,
-        )
-        # Set global model defaults
+        # Set global model defaults on project workflow service
         self.project_workflow_service.set_global_model_defaults(
             active_weight=self.active_weight_name or None,
             use_openvino=self.use_openvino,
@@ -302,10 +313,13 @@ class MainViewModel:
         self._cancel_feedback_displayed = False
 
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
-        # Note: video_processing_service needs cancel_event, so init it after threading setup
-        self._init_recording_service()
-        self._init_analysis_service()
-        self._init_video_processing_service()
+        # Recording service initialization (setup callbacks if service was injected)
+        if self.recording_service is None:
+            # Create recording service if not injected (for backward compatibility)
+            self._init_recording_service()
+        else:
+            # Service was injected, just setup UI callbacks
+            self._setup_recording_service_callbacks()
 
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
@@ -410,7 +424,7 @@ class MainViewModel:
 
     def get_openvino_status(self) -> str:
         """
-        Gets the current OpenVINO status text based on the model and settings.
+        Gets the current OpenVINO status text based on the model and self.settings.
 
         Delegates to ModelService for business logic (Phase 2.1).
         """
@@ -474,6 +488,27 @@ class MainViewModel:
         """
         self.ui_coordinator.schedule(func, *args, **kwargs)
 
+    def _setup_recording_service_callbacks(self) -> None:
+        """Setup UI callbacks for RecordingService."""
+        if self.recording_service is None:
+            return
+
+        # Inject UI callbacks for view updates
+        self.recording_service.set_ui_callbacks(
+            {
+                "show_error": lambda title, msg: self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR, {"title": title, "message": msg}
+                ),
+                "update_button_state": lambda btn, state: self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": btn, "state": state}
+                ),
+                "set_status": lambda msg: self.ui_event_bus.publish_event(
+                    Events.UI_SET_STATUS, {"message": msg}
+                ),
+                "stop_recording_callback": self.stop_recording,
+            }
+        )
+
     def _init_recording_service(self) -> None:
         """
         Initialize RecordingService with dependencies and UI callbacks.
@@ -493,61 +528,8 @@ class MainViewModel:
             root=self.root,
         )
 
-        # Inject UI callbacks for view updates
-        self.recording_service.set_ui_callbacks(
-            {
-                "show_error": lambda title, msg: self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR, {"title": title, "message": msg}
-                ),
-                "update_button_state": lambda btn, state: self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": btn, "state": state}
-                ),
-                "set_status": lambda msg: self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS, {"message": msg}
-                ),
-                "stop_recording_callback": self.stop_recording,
-            }
-        )
-
-    def _init_analysis_service(self) -> None:
-        """
-        Initialize AnalysisService for processing orchestration.
-
-        Phase 3: Extracts video processing orchestration logic from MainViewModel.
-        AnalysisService now handles batch processing and coordinates with existing
-        _process_single_video methods.
-        """
-        from zebtrack.analysis.analysis_service import AnalysisService
-
-        self.analysis_service = AnalysisService()
-
-        log.info(
-            "controller.init_analysis_service.complete",
-            service=type(self.analysis_service).__name__,
-        )
-
-    def _init_video_processing_service(self) -> None:
-        """
-        Initialize VideoProcessingService for video processing orchestration.
-
-        Phase 7.2: Extracts video processing logic (tracking, single video workflow)
-        from MainViewModel into dedicated service layer.
-        """
-        self.video_processing_service = VideoProcessingService(
-            detector=self.detector,
-            recorder=self.recorder,
-            project_manager=self.project_manager,
-            state_manager=self.state_manager,
-            ui_coordinator=self.ui_coordinator,
-            root=self.root,
-            view=self.view,
-            cancel_event=self.cancel_event,
-        )
-
-        log.info(
-            "controller.init_video_processing_service.complete",
-            service=type(self.video_processing_service).__name__,
-        )
+        # Setup UI callbacks
+        self._setup_recording_service_callbacks()
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
     _EVENT_METHOD_MAPPING: ClassVar[dict] = {
@@ -755,7 +737,7 @@ class MainViewModel:
                 )
 
         try:
-            use_single = bool(settings.tracking.use_single_subject_tracker)
+            use_single = bool(self.settings.tracking.use_single_subject_tracker)
             log.info(
                 "controller.determine_processing_mode",
                 use_single_subject_tracker=use_single,
@@ -1140,7 +1122,7 @@ class MainViewModel:
 
         Args:
             temp_animal_method: Temporary override for animal detection method
-                ('det' or 'seg'). If None, uses global settings.
+                ('det' or 'seg'). If None, uses global self.settings.
         """
         success, error = self.detector_service.initialize_detector(
             animal_method=temp_animal_method,
@@ -1193,7 +1175,7 @@ class MainViewModel:
             self.arduino = manager.arduino
             return True
 
-        baud_rate = settings.arduino.baud_rate
+        baud_rate = self.settings.arduino.baud_rate
         if manager.connect(port, baud_rate):
             self.arduino = manager.arduino
             # Update StateManager: Arduino connected
@@ -1785,7 +1767,7 @@ class MainViewModel:
             video_path: Path to video file, if None uses next project video
             stabilization_frames: Number of frames to analyze for stabilization
             temp_aquarium_method: Temporary override for aquarium detection method
-                ('det' or 'seg'). If None, uses global settings.
+                ('det' or 'seg'). If None, uses global self.settings.
         """
         if video_path is not None:
             video_path = Path(video_path) if isinstance(video_path, str) else video_path
@@ -1823,7 +1805,7 @@ class MainViewModel:
 
             # Use selected aquarium method and get appropriate weight
             # Use temporary override if provided, otherwise use global settings
-            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
+            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
             model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
 
             if not model_path:
@@ -2238,7 +2220,7 @@ class MainViewModel:
 
         Args:
             temp_aquarium_method: Temporary override for aquarium detection method
-                ('det' or 'seg'). If None, uses global settings.
+                ('det' or 'seg'). If None, uses global self.settings.
         """
         log.info("controller.live_calibration.start")
         if not self.view.camera or not self.view.camera.is_opened():
@@ -2262,7 +2244,7 @@ class MainViewModel:
 
             # 2. Record a short clip
             w, h = self.view.camera.actual_width, self.view.camera.actual_height
-            fps = settings.video_processing.fps
+            fps = self.settings.video_processing.fps
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
 
@@ -2285,7 +2267,7 @@ class MainViewModel:
 
             # 3. Run detection on the clip using selected aquarium method
             # Use temporary override if provided, otherwise use global settings
-            aquarium_method = temp_aquarium_method or settings.model_selection.aquarium_method
+            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
             model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
 
             if not model_path:
@@ -2662,11 +2644,11 @@ class MainViewModel:
 
         # Use detection methods from config if provided, otherwise fall back to
         # global settings
-        animal_method = config.get("animal_method", settings.model_selection.animal_method)
+        animal_method = config.get("animal_method", self.settings.model_selection.animal_method)
         animals_per_aquarium = config.get("animals_per_aquarium", 1)
 
         # Apply OpenVINO setting from config
-        use_openvino = config.get("use_openvino", settings.model_selection.use_openvino)
+        use_openvino = config.get("use_openvino", self.settings.model_selection.use_openvino)
         self.use_openvino = use_openvino
         log.info("controller.single_video.openvino_set", use_openvino=use_openvino)
 
@@ -3340,7 +3322,7 @@ class MainViewModel:
             )
             return
 
-        settings_obj = settings
+        settings_obj = self.settings
         # Offload the heavy per-video processing to a dedicated worker method.
         self.processing_thread = threading.Thread(
             target=self._generate_parquet_summaries_worker,
@@ -3767,16 +3749,16 @@ class MainViewModel:
             config_keys=list(single_video_config.keys()) if single_video_config else [],
         )
 
-        previous_mode = settings.video_processing.single_animal_per_aquarium
+        previous_mode = self.settings.video_processing.single_animal_per_aquarium
         resolved_mode = self._resolve_single_animal_mode(single_video_config)
 
-        previous_tracker_pref = settings.tracking.use_single_subject_tracker
+        previous_tracker_pref = self.settings.tracking.use_single_subject_tracker
         resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
         if resolved_tracker_pref is None:
             resolved_tracker_pref = previous_tracker_pref
 
         if resolved_mode is not None and resolved_mode != previous_mode:
-            settings.video_processing.single_animal_per_aquarium = resolved_mode
+            self.settings.video_processing.single_animal_per_aquarium = resolved_mode
             log.info(
                 "controller.processing.single_animal_mode",
                 enabled=resolved_mode,
@@ -3786,7 +3768,7 @@ class MainViewModel:
 
         tracker_changed = resolved_tracker_pref != previous_tracker_pref
         if tracker_changed:
-            settings.tracking.use_single_subject_tracker = resolved_tracker_pref
+            self.settings.tracking.use_single_subject_tracker = resolved_tracker_pref
             log.info(
                 "controller.processing.single_subject_tracker",
                 enabled=resolved_tracker_pref,
@@ -3794,30 +3776,32 @@ class MainViewModel:
                 scope="single_video" if single_video_config else "project",
             )
 
-        self._configure_single_subject_tracker(settings.tracking.use_single_subject_tracker)
+        self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
         self._publish_processing_mode(
             source="processing.temporary_mode.enter",
             force=True,
         )
 
         try:
-            yield settings.video_processing.single_animal_per_aquarium
+            yield self.settings.video_processing.single_animal_per_aquarium
         finally:
-            if settings.video_processing.single_animal_per_aquarium != previous_mode:
-                settings.video_processing.single_animal_per_aquarium = previous_mode
+            if self.settings.video_processing.single_animal_per_aquarium != previous_mode:
+                self.settings.video_processing.single_animal_per_aquarium = previous_mode
                 log.info(
                     "controller.processing.single_animal_mode_restored",
                     restored=previous_mode,
                 )
 
             if tracker_changed:
-                settings.tracking.use_single_subject_tracker = previous_tracker_pref
+                self.settings.tracking.use_single_subject_tracker = previous_tracker_pref
                 log.info(
                     "controller.processing.single_subject_tracker_restored",
                     restored=previous_tracker_pref,
                 )
 
-            self._configure_single_subject_tracker(settings.tracking.use_single_subject_tracker)
+            self._configure_single_subject_tracker(
+                self.settings.tracking.use_single_subject_tracker
+            )
             self._publish_processing_mode(
                 source="processing.temporary_mode.exit",
                 force=True,
@@ -4472,16 +4456,18 @@ class MainViewModel:
             config.get("aquarium_width_cm"),
             config.get("aquarium_height_cm"),
             config.get(
-                "sharp_turn_threshold_deg_s", settings.video_processing.sharp_turn_threshold_deg_s
+                "sharp_turn_threshold_deg_s",
+                self.settings.video_processing.sharp_turn_threshold_deg_s,
             ),
             config.get(
-                "freezing_velocity_threshold", settings.video_processing.freezing_velocity_threshold
+                "freezing_velocity_threshold",
+                self.settings.video_processing.freezing_velocity_threshold,
             ),
             config.get(
-                "freezing_min_duration_s", settings.video_processing.freezing_min_duration_s
+                "freezing_min_duration_s", self.settings.video_processing.freezing_min_duration_s
             ),
-            config.get("smoothing_window_length", settings.trajectory_smoothing.window_length),
-            config.get("smoothing_polyorder", settings.trajectory_smoothing.polyorder),
+            config.get("smoothing_window_length", self.settings.trajectory_smoothing.window_length),
+            config.get("smoothing_polyorder", self.settings.trajectory_smoothing.polyorder),
         )
 
     def _collect_params_from_project(
@@ -4508,11 +4494,11 @@ class MainViewModel:
             metadata,
             calibration.get("aquarium_width_cm"),
             calibration.get("aquarium_height_cm"),
-            settings.video_processing.sharp_turn_threshold_deg_s,
-            settings.video_processing.freezing_velocity_threshold,
-            settings.video_processing.freezing_min_duration_s,
-            settings.trajectory_smoothing.window_length,
-            settings.trajectory_smoothing.polyorder,
+            self.settings.video_processing.sharp_turn_threshold_deg_s,
+            self.settings.video_processing.freezing_velocity_threshold,
+            self.settings.video_processing.freezing_min_duration_s,
+            self.settings.trajectory_smoothing.window_length,
+            self.settings.trajectory_smoothing.polyorder,
         )
 
     def _collect_analysis_parameters(
@@ -4790,7 +4776,7 @@ class MainViewModel:
             video_height_px=calibration.target_dims_px[1],
             arena_polygon_px=arena_polygon_warped,
             rois=rois,
-            fps=settings.video_processing.fps,
+            fps=self.settings.video_processing.fps,
             roi_colors=roi_colors,
             video_path=video_path,
             calibration=calibration,
@@ -5380,7 +5366,7 @@ class MainViewModel:
             process_single_video_func=self._process_single_video,
             apply_project_settings_func=self.apply_project_settings_to_batch,
             determine_intervals_func=self._determine_processing_intervals,
-            retry_strategy=settings.video_processing.batch_retry_strategy,
+            retry_strategy=self.settings.video_processing.batch_retry_strategy,
         )
 
     def _process_videos(

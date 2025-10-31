@@ -9,31 +9,31 @@ or reports in the Reports tab.
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import structlog
 
-from zebtrack.core.main_view_model import AppController
+from tests.helpers import create_test_controller
 
 log = structlog.get_logger()
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
-@patch("zebtrack.core.main_view_model.WeightManager")
-def test_single_video_appears_in_project_overview(mock_wm, mock_gui):
+def test_single_video_appears_in_project_overview():
     """
     Test that a processed single video appears in the project overview
     even without a project file.
     """
+    from zebtrack.core.project_manager import ProjectManager
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
-    # Configure mock weight manager
-    mock_wm_instance = mock_wm.return_value
-    mock_wm_instance.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    # Create REAL ProjectManager for this test (needs actual functionality)
+    real_pm = ProjectManager()
 
-    controller = AppController(mock_root)
+    # Create controller using factory with real ProjectManager
+    controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
     # Create a temporary video file
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -109,21 +109,21 @@ def test_single_video_appears_in_project_overview(mock_wm, mock_gui):
         )
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
-@patch("zebtrack.core.main_view_model.WeightManager")
-def test_single_video_does_not_create_project_file(mock_wm, mock_gui):
+def test_single_video_does_not_create_project_file():
     """
     Test that single video workflow does not create a project file on disk.
     """
+    from zebtrack.core.project_manager import ProjectManager
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
-    # Configure mock weight manager
-    mock_wm_instance = mock_wm.return_value
-    mock_wm_instance.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    # Create REAL ProjectManager for this test
+    real_pm = ProjectManager()
 
-    controller = AppController(mock_root)
+    # Create controller using factory with real ProjectManager
+    controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         video_path = os.path.join(tmpdir, "test_video.mp4")
@@ -151,24 +151,24 @@ def test_single_video_does_not_create_project_file(mock_wm, mock_gui):
         log.info("test.single_video_no_project_file.success")
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
-@patch("zebtrack.core.main_view_model.WeightManager")
-def test_register_outputs_auto_adds_missing_video(mock_wm, mock_gui):
+def test_register_outputs_auto_adds_missing_video():
     """
     Test that register_processing_outputs auto-adds missing videos.
 
     This is part of the fix: if a video isn't registered yet,
     register_processing_outputs will add it automatically.
     """
+    from zebtrack.core.project_manager import ProjectManager
+
     # Create mock tkinter root
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
-    # Configure mock weight manager
-    mock_wm_instance = mock_wm.return_value
-    mock_wm_instance.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    # Create REAL ProjectManager for this test
+    real_pm = ProjectManager()
 
-    controller = AppController(mock_root)
+    # Create controller using factory with real ProjectManager
+    controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         video_path = os.path.join(tmpdir, "test_video.mp4")

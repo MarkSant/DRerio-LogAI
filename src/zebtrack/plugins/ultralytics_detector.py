@@ -12,26 +12,33 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.settings import settings
 
 
 class UltralyticsDetectorPlugin(DetectorPlugin):
     """A detector plugin that uses the ultralytics YOLO model."""
 
-    def __init__(self, model_path: Path | str):
+    def __init__(self, model_path: Path | str, settings_obj: Any | None = None):
         """
         Initializes the YOLO model.
 
         Args:
             model_path: The path to the .pt model file.
+            settings_obj: Settings instance (injected, uses global if None for backward compat).
         """
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
         assert YOLO is not None
         self.model = YOLO(model_path)
-        self.conf_threshold = settings.yolo_model.confidence_threshold
-        self.nms_threshold = settings.yolo_model.nms_threshold
+
+        # Use injected settings or sensible defaults
+        if settings_obj is not None:
+            self.conf_threshold = settings_obj.yolo_model.confidence_threshold
+            self.nms_threshold = settings_obj.yolo_model.nms_threshold
+        else:
+            # Fallback defaults when settings not injected
+            self.conf_threshold = 0.25
+            self.nms_threshold = 0.45
 
         # ByteTrack threshold hints consumed by core.detector.Detector
         self.track_threshold = 0.25

@@ -11,19 +11,18 @@ Tests the complete flow:
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import structlog
 
+from tests.helpers import create_test_controller
 from zebtrack.core.detector import ZoneData
-from zebtrack.core.main_view_model import AppController
+from zebtrack.core.project_manager import ProjectManager
 
 log = structlog.get_logger()
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
-@patch("zebtrack.core.main_view_model.WeightManager")
-def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
+def test_single_video_with_zones_shows_all_flags():
     """
     Test that a single video with zone data shows all flags correctly.
     """
@@ -31,11 +30,11 @@ def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
-    # Configure mock weight manager
-    mock_wm_instance = mock_wm.return_value
-    mock_wm_instance.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    # Create REAL ProjectManager for this test
+    real_pm = ProjectManager()
 
-    controller = AppController(mock_root)
+    # Create controller using factory with real ProjectManager
+    controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         video_path = os.path.join(tmpdir, "test_video.mp4")
@@ -170,9 +169,7 @@ def test_single_video_with_zones_shows_all_flags(mock_wm, mock_gui):
         )
 
 
-@patch("zebtrack.core.main_view_model.ApplicationGUI")
-@patch("zebtrack.core.main_view_model.WeightManager")
-def test_zone_flags_updated_during_output_registration(mock_wm, mock_gui):
+def test_zone_flags_updated_during_output_registration():
     """
     Test that zone flags are updated if missing during output registration.
     """
@@ -180,11 +177,11 @@ def test_zone_flags_updated_during_output_registration(mock_wm, mock_gui):
     mock_root = MagicMock()
     mock_root.after = MagicMock()
 
-    # Configure mock weight manager
-    mock_wm_instance = mock_wm.return_value
-    mock_wm_instance.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    # Create REAL ProjectManager for this test
+    real_pm = ProjectManager()
 
-    controller = AppController(mock_root)
+    # Create controller using factory with real ProjectManager
+    controller = create_test_controller(root=mock_root, project_manager=real_pm)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         video_path = os.path.join(tmpdir, "test_video.mp4")

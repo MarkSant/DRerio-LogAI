@@ -53,7 +53,6 @@ from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.camera import Camera
-from zebtrack.settings import settings
 from zebtrack.ui.components import VideoDisplayWidget, ZoneControlsWidget
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
@@ -173,16 +172,6 @@ class _VideoPathResolverContext:
                 pass
 
 
-
-
-
-
-
-
-
-
-
-
 class LiveConfigDialog(simpledialog.Dialog):
     """A dialog to configure live analysis settings (camera and Arduino)."""
 
@@ -251,7 +240,9 @@ class LiveConfigDialog(simpledialog.Dialog):
         try:
             log.info("device_detection.ports.start")
             baud_rate = (
-                getattr(getattr(settings, "arduino", None), "baud_rate", 9600) if settings else 9600
+                getattr(getattr(self.settings, "arduino", None), "baud_rate", 9600)
+                if self.settings
+                else 9600
             )
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
@@ -398,13 +389,25 @@ class ApplicationGUI:
 
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
-            value=settings.roi_inclusion_rule if settings else "bbox_intersects"
+            value=(
+                self.controller.settings.roi_inclusion_rule
+                if self.controller.settings
+                else "bbox_intersects"
+            )
         )
         self.roi_buffer_radius_var = StringVar(
-            value=str(settings.roi_buffer_radius_value if settings else 0.5)
+            value=str(
+                self.controller.settings.roi_buffer_radius_value
+                if self.controller.settings
+                else 0.5
+            )
         )
         self.roi_overlap_ratio_var = StringVar(
-            value=str(settings.roi_min_bbox_overlap_ratio if settings else 0.10)
+            value=str(
+                self.controller.settings.roi_min_bbox_overlap_ratio
+                if self.controller.settings
+                else 0.10
+            )
         )
         self.roi_template_var = StringVar(value="")
         # Add trace to log all changes to template var
@@ -414,12 +417,12 @@ class ApplicationGUI:
 
         self.config_tab_frame: ttk.Frame | None = None
         self.config_fps_var = StringVar(
-            value=str(self._extract_setting(settings, ("video_processing", "fps"), 30))
+            value=str(self._extract_setting(self.settings, ("video_processing", "fps"), 30))
         )
         self.config_processing_interval_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("video_processing", "processing_interval"),
                     10,
                 )
@@ -428,7 +431,7 @@ class ApplicationGUI:
         self.config_processing_offset_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("video_processing", "processing_offset"),
                     0,
                 )
@@ -437,7 +440,7 @@ class ApplicationGUI:
         self.config_flush_interval_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("recorder", "flush_interval_seconds"),
                     5.0,
                 )
@@ -446,7 +449,7 @@ class ApplicationGUI:
         self.config_flush_rows_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("recorder", "flush_row_threshold"),
                     500,
                 )
@@ -455,7 +458,7 @@ class ApplicationGUI:
         self.config_window_length_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("trajectory_smoothing", "window_length"),
                     7,
                 )
@@ -464,7 +467,7 @@ class ApplicationGUI:
         self.config_polyorder_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("trajectory_smoothing", "polyorder"),
                     3,
                 )
@@ -509,7 +512,11 @@ class ApplicationGUI:
 
         # User options
         self.processing_interval_var = StringVar(
-            value=str(settings.video_processing.processing_interval)
+            value=str(
+                self.controller.settings.video_processing.processing_interval
+                if self.controller.settings
+                else 10
+            )
         )
         self.show_preview_var = BooleanVar(value=True)
 
@@ -1441,8 +1448,8 @@ class ApplicationGUI:
             log.debug("ui.theme.bootstrap_missing")
             return
 
-        preferred_theme = getattr(settings, "ui_theme_name", None) or getattr(
-            settings, "ui_theme", None
+        preferred_theme = getattr(self.settings, "ui_theme_name", None) or getattr(
+            self.settings, "ui_theme", None
         )
         theme_name = preferred_theme or "cosmo"
 
@@ -4767,8 +4774,6 @@ class ApplicationGUI:
 
     def _on_apply_roi_settings(self):
         """Apply ROI inclusion rule settings to the global settings."""
-        from zebtrack import settings
-
         try:
             # Validate and convert parameters
             buffer_radius = float(self.roi_buffer_radius_var.get())
@@ -4781,10 +4786,10 @@ class ApplicationGUI:
                 raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
 
             # Update settings if available
-            if settings:
-                settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-                settings.roi_buffer_radius_value = buffer_radius
-                settings.roi_min_bbox_overlap_ratio = overlap_ratio
+            if self.controller.settings:
+                self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
+                self.controller.settings.roi_buffer_radius_value = buffer_radius
+                self.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
 
                 # Save to project if available
                 if self.controller.project_manager.project_path:
@@ -4793,9 +4798,9 @@ class ApplicationGUI:
                 self.show_info(
                     "Sucesso",
                     f"Configurações de ROI aplicadas:\n"
-                    f"Regra: {settings.roi_inclusion_rule}\n"
-                    f"Raio buffer: {settings.roi_buffer_radius_value}\n"
-                    f"Sobreposição mínima: {settings.roi_min_bbox_overlap_ratio}",
+                    f"Regra: {self.controller.settings.roi_inclusion_rule}\n"
+                    f"Raio buffer: {self.controller.settings.roi_buffer_radius_value}\n"
+                    f"Sobreposição mínima: {self.controller.settings.roi_min_bbox_overlap_ratio}",
                 )
             else:
                 self.show_warning(
@@ -8871,12 +8876,12 @@ class ApplicationGUI:
             self.root.after(100, self._render_progress_grid)
 
             # Only attempt to connect if a port is configured from the dialog
-            if settings.arduino.port:
+            if self.controller.settings and self.controller.settings.arduino.port:
                 if not self.controller.arduino.connect():
                     self.show_warning(
                         "Aviso do Arduino",
                         f"Não foi possível conectar ao Arduino na porta "
-                        f"{settings.arduino.port}. Executando em modo offline.",
+                        f"{self.controller.settings.arduino.port}. Executando em modo offline.",
                     )
             try:
                 self.controller.camera = Camera()
@@ -9075,7 +9080,10 @@ class ApplicationGUI:
             if self.controller.is_capturing_for_video and not self.controller.video_queue.full():
                 self.controller.video_queue.put(frame.copy())
 
-            time.sleep(1 / (settings.video_processing.fps * 1.5))
+            fps = (
+                self.controller.settings.video_processing.fps if self.controller.settings else 30.0
+            )
+            time.sleep(1 / (fps * 1.5))
 
     def _live_processing_loop(self):
         """
@@ -9255,13 +9263,15 @@ class ApplicationGUI:
         )
         from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
-        wizard = WizardDialog(self.root)
+        wizard = WizardDialog(self.root, settings_obj=self.controller.settings)
         if not wizard.result:
             return  # User cancelled
 
         # Adapt wizard output to controller format
         try:
-            controller_data = adapt_wizard_data_to_controller_format(wizard.result)
+            controller_data = adapt_wizard_data_to_controller_format(
+                wizard.result, settings_obj=self.controller.settings
+            )
         except ValueError as e:
             self.show_error("Erro no Wizard", f"Erro ao processar dados do wizard: {e}")
             return
@@ -9279,7 +9289,7 @@ class ApplicationGUI:
 
     def _on_analyze_single_video_clicked(self):
         """Handles the UI part of the single video workflow."""
-        dialog = SingleVideoConfigDialog(self.root)
+        dialog = SingleVideoConfigDialog(self.root, settings_obj=self.controller.settings)
         if not dialog.result:
             return  # User cancelled
 
@@ -10638,20 +10648,6 @@ class ApplicationGUI:
         return dialog.result
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ==============================================================================
 # Backward Compatibility Properties for Component Migration
 # ==============================================================================
@@ -10739,8 +10735,6 @@ def _add_compatibility_properties_to_application_gui():
 
 # Apply compatibility properties
 _add_compatibility_properties_to_application_gui()
-
-
 
 
 if __name__ == "__main__":

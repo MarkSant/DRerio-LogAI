@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,55 +27,46 @@ PROJECT_WORKFLOW_SERVICE_PATH = "zebtrack.core.main_view_model.ProjectWorkflowSe
 @pytest.fixture(scope="function")
 def patched_vm_setup():
     """Mocks all dependencies except for the EventBus."""
-    with (
-        patch(STATE_MANAGER_PATH, MagicMock()),
-        patch(PROJECT_SERVICE_PATH, MagicMock()),
-        patch(ANALYSIS_SERVICE_PATH, MagicMock()),
-        patch(PROJECT_MANAGER_PATH, MagicMock()),
-        patch(WEIGHT_MANAGER_PATH, MagicMock()) as MockWeightManager,
-        patch(MODEL_SERVICE_PATH, MagicMock()),
-        patch(DETECTOR_SERVICE_PATH, MagicMock()),
-        patch(PROJECT_WORKFLOW_SERVICE_PATH, MagicMock()) as MockProjectWorkflowService,
-        patch(RECORDER_PATH, MagicMock()),
-        patch(ARDUINO_MANAGER_PATH, MagicMock()),
-        patch(RECORDING_SERVICE_PATH, MagicMock()),
-        patch(UI_COORDINATOR_PATH, MagicMock()),
-        patch(GUI_PATH, MagicMock()),
-        patch(VIDEO_PROCESSING_SERVICE_PATH, MagicMock()),
-        patch(SETTINGS_PATH, MagicMock()) as MockSettings,
-    ):
-        # Correctly configure the nested attributes for the settings mock
-        MockSettings.ui_features = MagicMock()
-        MockSettings.ui_features.enable_event_queue = True
-        MockWeightManager.return_value.get_default_weight.return_value = ("default.pt", {})
-        MockProjectWorkflowService.return_value.create_project.return_value = {
-            "success": True,
-            "animal_method": "seg",
-            "wizard_metadata": {},
-        }
+    from tests.helpers import create_mock_settings, create_test_controller
 
-        real_event_bus = EventBus()
+    # Create real event bus to test event flow
+    real_event_bus = EventBus()
 
-        from zebtrack.core.main_view_model import MainViewModel
+    # Create mock settings with event queue enabled
+    mock_settings = create_mock_settings()
+    mock_settings.ui_features.enable_event_queue = True
 
-        mock_root = MagicMock()
+    # Create mock project workflow service
+    mock_project_workflow_service = MagicMock()
+    mock_project_workflow_service.create_project.return_value = {
+        "success": True,
+        "animal_method": "seg",
+        "wizard_metadata": {},
+    }
 
-        # Pass the event bus and mocked service directly to the constructor
-        view_model = MainViewModel(
-            mock_root,
-            event_bus=real_event_bus,
-            project_workflow_service=MockProjectWorkflowService.return_value,
-        )
+    # Create mock weight manager
+    mock_weight_manager = MagicMock()
+    mock_weight_manager.get_default_weight.return_value = ("default.pt", {})
 
-        view_model.bind_events()
+    # Create controller using factory with mocked services
+    mock_root = MagicMock()
+    view_model = create_test_controller(
+        mock_root,
+        event_bus=real_event_bus,
+        settings_obj=mock_settings,
+        weight_manager=mock_weight_manager,
+        project_workflow_service=mock_project_workflow_service,
+    )
 
-        yield {
-            "view_model": view_model,
-            "event_bus": real_event_bus,
-            "mocks": {
-                "project_workflow_service": MockProjectWorkflowService.return_value,
-            },
-        }
+    view_model.bind_events()
+
+    yield {
+        "view_model": view_model,
+        "event_bus": real_event_bus,
+        "mocks": {
+            "project_workflow_service": mock_project_workflow_service,
+        },
+    }
 
 
 class TestWorkflowOrchestration:

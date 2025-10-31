@@ -5,8 +5,6 @@ from typing import Any
 import serial
 import structlog
 
-from zebtrack.settings import settings
-
 log = structlog.get_logger()
 
 
@@ -198,8 +196,13 @@ def main():
     # This is a test function, using print is fine here.
     print("Testing Arduino communication...")
 
-    if not settings:
-        print("Settings could not be loaded. Aborting test.")
+    # Load settings locally for test
+    try:
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+    except Exception as e:
+        print(f"Settings could not be loaded: {e}. Aborting test.")
         return
 
     try:

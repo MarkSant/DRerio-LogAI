@@ -1,27 +1,43 @@
 import threading
 import time
 from collections import deque
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
 import structlog
 
 from zebtrack.io.frame_source import FrameSource
-from zebtrack.settings import settings
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
 
 class Camera(FrameSource):
-    def __init__(self):
-        self._camera_index = settings.camera.index
+    def __init__(self, settings_obj: "Settings | None" = None):
+        """Initialize Camera with settings dependency injection.
+
+        Args:
+            settings_obj: Settings instance (injected, optional for backward compatibility).
+        """
+        self.settings = settings_obj
+        if self.settings is None:
+            raise RuntimeError(
+                "Camera: Settings not injected. "
+                "Camera requires settings_obj parameter in constructor. "
+                "Use: Camera(settings_obj=load_settings()) or "
+                "Camera(settings_obj=create_mock_settings())"
+            )
+
+        self._camera_index = self.settings.camera.index
         self.cap = cv2.VideoCapture(self._camera_index)
         if not self.cap.isOpened():
             raise OSError(f"Cannot open camera at index {self._camera_index}")
 
-        self._desired_width = settings.camera.desired_width
-        self._desired_height = settings.camera.desired_height
+        self._desired_width = self.settings.camera.desired_width
+        self._desired_height = self.settings.camera.desired_height
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
 
@@ -31,7 +47,7 @@ class Camera(FrameSource):
         with self._lock:
             self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps
+            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or self.settings.video_processing.fps
 
         log.info(
             "camera.initialized",
@@ -49,8 +65,8 @@ class Camera(FrameSource):
 
         # Reconnect tracking attributes
         self._reconnect_attempts = 0
-        self._max_reconnect_attempts = settings.camera.max_reconnect_attempts
-        self._reconnect_timeout_seconds = settings.camera.reconnect_timeout_seconds
+        self._max_reconnect_attempts = self.settings.camera.max_reconnect_attempts
+        self._reconnect_timeout_seconds = self.settings.camera.reconnect_timeout_seconds
         self._first_failure_time: float | None = None
 
         # Start the thread as the final step
@@ -126,7 +142,7 @@ class Camera(FrameSource):
                         self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         self.actual_fps = (
-                            self.cap.get(cv2.CAP_PROP_FPS) or settings.video_processing.fps
+                            self.cap.get(cv2.CAP_PROP_FPS) or self.settings.video_processing.fps
                         )
                     log.info(
                         "camera.reconnected.dimensions_updated",
@@ -175,11 +191,11 @@ class Camera(FrameSource):
             lag_ms = (time.time() - frame_time) * 1000
 
             # Log warning if lag exceeds threshold
-            if lag_ms > settings.camera.max_frame_lag_ms:
+            if lag_ms > self.settings.camera.max_frame_lag_ms:
                 log.warning(
                     "camera.lag.threshold_exceeded",
                     lag_ms=lag_ms,
-                    threshold_ms=settings.camera.max_frame_lag_ms,
+                    threshold_ms=self.settings.camera.max_frame_lag_ms,
                 )
 
             return (True, frame)

@@ -23,9 +23,7 @@ from typing import Literal
 
 import pandas as pd
 import structlog
-import yaml
 
-from zebtrack.settings import settings
 from zebtrack.utils import IntegrityError
 
 log = structlog.get_logger()
@@ -120,8 +118,9 @@ class ProjectService:
         # Write initial project configuration
         self.save_project_config(project_path, project_data)
 
-        # Save settings snapshot
-        self._save_settings_snapshot(project_path)
+        # Note: Settings snapshot is now handled by ProjectManager
+        # which has access to injected settings via DI
+        # self._save_settings_snapshot(project_path) - DEPRECATED
 
         return project_data
 
@@ -223,35 +222,6 @@ class ProjectService:
         json_str = json.dumps(project_data, sort_keys=True, ensure_ascii=False)
         # Use hashlib directly for in-memory data hashing
         return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
-
-    def _save_settings_snapshot(self, project_path: Path | str) -> None:
-        """
-        Save a snapshot of current application settings to project.
-
-        Args:
-            project_path: Path to project directory
-        """
-        project_path = Path(project_path) if isinstance(project_path, str) else project_path
-        snapshot_file = project_path / SETTINGS_SNAPSHOT_FILE_NAME
-
-        try:
-            # Convert settings to dict for serialization
-            settings_dict = settings.model_dump() if hasattr(settings, "model_dump") else {}
-
-            with open(snapshot_file, "w", encoding="utf-8") as f:
-                yaml.dump(settings_dict, f, default_flow_style=False)
-
-            self.log.info(
-                "project_service.save_settings_snapshot.success",
-                path=str(snapshot_file),
-            )
-        except Exception as e:
-            # Non-critical error - log but don't fail
-            self.log.warning(
-                "project_service.save_settings_snapshot.failed",
-                path=str(snapshot_file),
-                error=str(e),
-            )
 
     # -------------------------------------------------------------------------
     # Asset Management
