@@ -52,6 +52,7 @@ from zebtrack.ui.components import (
     AnalysisDisplayWidget,
     ArduinoDashboardWidget,
     ConfigEditorWidget,
+    ProjectOverviewWidget,
     VideoDisplayWidget,
     ZoneControlsWidget,
 )
@@ -327,8 +328,8 @@ class ApplicationGUI:
 
         # Project overview widgets/state
         self.project_overview_frame = None
-        self.project_overview_tree = None
-        self.project_status_vars = {}
+        self.project_overview_widget: ProjectOverviewWidget | None = None
+        # Backward compatibility - delegate to widget
         self._project_status_containers = {}
         self._overview_refresh_job = None
         self._pending_overview_status = None
@@ -575,6 +576,24 @@ class ApplicationGUI:
 
     def _handle_update_processing_mode(self, data: dict) -> None:
         self.update_processing_mode(data.get("report"))
+
+    def _handle_project_refresh_requested(self, data: dict) -> None:
+        """Handle refresh request from ProjectOverviewWidget."""
+        self._request_overview_refresh(immediate=True)
+
+    def _handle_project_video_double_click(self, data: dict) -> None:
+        """Handle video double-click from ProjectOverviewWidget."""
+        item_id = data.get("item_id")
+        if item_id:
+            self._on_project_overview_tree_double_click_impl(item_id)
+
+    def _handle_project_video_right_click(self, data: dict) -> None:
+        """Handle video right-click from ProjectOverviewWidget."""
+        item_id = data.get("item_id")
+        x = data.get("x")
+        y = data.get("y")
+        if item_id and x is not None and y is not None:
+            self._show_project_overview_context_menu(item_id, x, y)
 
     def _subscribe_to_state_changes(self) -> None:
         """Subscribe to StateManager events for reactive UI updates."""
@@ -1744,6 +1763,7 @@ class ApplicationGUI:
         self._request_overview_refresh()
 
     def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
+        """Create the project overview panel using ProjectOverviewWidget."""
         if not parent:
             return
 
@@ -1756,26 +1776,18 @@ class ApplicationGUI:
         self.project_overview_frame = ttk.LabelFrame(parent, text="Resumo do Projeto", padding=10)
         self.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
 
-        summary_frame = ttk.Frame(self.project_overview_frame)
-        summary_frame.pack(fill="x", pady=(0, 8))
+        # Create the ProjectOverviewWidget
+        self.project_overview_widget = ProjectOverviewWidget(
+            self.project_overview_frame,
+            event_bus=self.event_bus
+        )
+        self.project_overview_widget.pack(fill="both", expand=True)
 
-        self._project_status_containers.clear()
-
-        for key in PROJECT_STATUS_WIDGET_ORDER:
-            icon, label = self._get_status_meta(key)
-            container = ttk.Frame(summary_frame)
-            container.pack(side="left", padx=(0, 12))
-            ttk.Label(container, text=f"{icon} {label}:", anchor="w").pack(side="left")
-            var = self.project_status_vars.get(key)
-            if not var:
-                var = StringVar(value="0")
-                self.project_status_vars[key] = var
-            ttk.Label(
-                container,
-                textvariable=var,
-                font=("Segoe UI", 10, "bold"),
-            ).pack(side="left", padx=(4, 0))
-            self._project_status_containers[key] = container
+        # Subscribe to widget events
+        if self.event_bus:
+            self.event_bus.subscribe("project.refresh_requested", self._handle_project_refresh_requested)
+            self.event_bus.subscribe("project.video_double_click", self._handle_project_video_double_click)
+            self.event_bus.subscribe("project.video_right_click", self._handle_project_video_right_click)
 
         # Add separator
         ttk.Separator(self.project_overview_frame, orient="horizontal").pack(fill="x", pady=(8, 8))
@@ -1961,7 +1973,8 @@ class ApplicationGUI:
         total: int,
         videos: list[dict] | None,
     ) -> None:
-        if not self.project_overview_frame or not self.project_overview_frame.winfo_exists():
+        """Update project overview summary (delegates to widget)."""
+        if not self.project_overview_widget:
             return
 
         videos = videos or []
@@ -1986,34 +1999,39 @@ class ApplicationGUI:
         summary_values["trajectory"] = trajectory_ready
         summary_values["summary"] = summary_ready
 
-        for key in PROJECT_STATUS_WIDGET_ORDER:
-            value = summary_values.get(key, 0)
-
-            var = self.project_status_vars.setdefault(key, StringVar(value="0"))
-            var.set(str(value))
-
-            container = self._project_status_containers.get(key)
-            if not container:
-                continue
-
-            # Preserve the full legend regardless of counts so users always see
-            # which statuses are tracked in the project overview.
-            if not container.winfo_ismapped():
-                container.pack(side="left", padx=(0, 12))
+        # Update widget with new counts
+        self.project_overview_widget.update_status_counts(summary_values)
 
     def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
-        if not self.project_overview_tree or not self.project_overview_tree.winfo_exists():
+        """Update the project overview tree (delegates to widget)."""
+        if not self.project_overview_widget or not self.project_overview_widget.project_overview_tree:
             return
-
-        for item in self.project_overview_tree.get_children():
-            self.project_overview_tree.delete(item)
 
         self._overview_video_index = {}
 
         if not all_videos:
+            self.project_overview_widget.clear_tree()
             return
 
+        # Build hierarchy data structure
+        hierarchy_data = self._prepare_overview_hierarchy_for_widget(all_videos)
+
+        # Populate widget tree
+        self.project_overview_widget.populate_tree_with_hierarchy(
+            hierarchy_data,
+            self._overview_video_index
+        )
+
+    def _prepare_overview_hierarchy_for_widget(self, all_videos: list[dict]) -> dict:
+        """
+        Prepare hierarchy data in the format expected by ProjectOverviewWidget.
+
+        Returns:
+            Dictionary with 'groups' list containing formatted hierarchy
+        """
         hierarchy = self._build_video_hierarchy_data(all_videos, "")
+        
+        groups_list = []
 
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
@@ -2023,20 +2041,15 @@ class ApplicationGUI:
             if not group_entries:
                 continue
 
+            # Calculate group-level summaries
             group_counts: Counter = Counter(
                 (str(entry.get("status") or "pending")).strip().lower() for entry in group_entries
             )
             status_summary = self._format_status_summary(group_counts)
             data_summary = self._summarize_batch_data(group_entries)
 
-            group_node = self.project_overview_tree.insert(
-                "",
-                "end",
-                text=f"🏷️ {group_data['display']}",
-                values=(status_summary, data_summary),
-                open=True,
-            )
-
+            # Prepare days list for this group
+            days_list = []
             for day_id, entries in sorted(
                 days_dict.items(), key=lambda item: self._video_sort_key(item[0])
             ):
@@ -2044,6 +2057,7 @@ class ApplicationGUI:
                 if not entries:
                     continue
 
+                # Calculate day-level summaries
                 day_counts: Counter = Counter(
                     (str(entry.get("status") or "pending")).strip().lower() for entry in entries
                 )
@@ -2052,14 +2066,8 @@ class ApplicationGUI:
                 sample_metadata = entries[0].get("metadata") if entries else None
                 day_title = self._build_day_title(day_id, sample_metadata)
 
-                day_node = self.project_overview_tree.insert(
-                    group_node,
-                    "end",
-                    text=f"📅 {day_title}",
-                    values=(day_status, day_data),
-                    open=False,
-                )
-
+                # Prepare videos list for this day
+                videos_list = []
                 for entry in sorted(
                     entries,
                     key=lambda item: self._video_sort_key(item.get("subject")),
@@ -2082,18 +2090,40 @@ class ApplicationGUI:
                     status_display = self._format_status_label(status_key)
                     data_badges = self._format_data_badges(entry)
 
-                    tags = tuple(tag for tag in (path, f"status_{status_key}") if tag)
+                    # Generate unique video ID
+                    video_id = f"video_{path}" if path else f"video_{group_id}_{day_id}_{len(self._overview_video_index)}"
 
-                    self.project_overview_tree.insert(
-                        day_node,
-                        "end",
-                        text=display_name,
-                        values=(status_display, data_badges),
-                        tags=tags,
-                    )
+                    videos_list.append({
+                        'id': video_id,
+                        'display_name': display_name,
+                        'status': status_display,
+                        'data_badges': data_badges,
+                        'path': path
+                    })
 
+                    # Store in video index for lookups
                     if path:
                         self._overview_video_index[path] = dict(entry)
+
+                # Add day to list
+                days_list.append({
+                    'id': day_id,
+                    'title': day_title,
+                    'status': day_status,
+                    'data': day_data,
+                    'videos': videos_list
+                })
+
+            # Add group to list
+            groups_list.append({
+                'id': group_id,
+                'display': group_data['display'],
+                'status_summary': status_summary,
+                'data_summary': data_summary,
+                'days': days_list
+            })
+
+        return {'groups': groups_list}
 
     def _format_status_label(self, status_key: str) -> str:
         icon, label = self._get_status_meta(status_key)
@@ -2181,15 +2211,19 @@ class ApplicationGUI:
         return " ".join(parts)
 
     def _on_project_overview_tree_double_click(self, event) -> None:
-        """Handle double-click events on the overview tree."""
-
+        """Handle double-click events on the overview tree (legacy handler)."""
         del event
 
         if not self.project_overview_tree:
             return
 
         item_id = self.project_overview_tree.focus()
-        if not item_id:
+        if item_id:
+            self._on_project_overview_tree_double_click_impl(item_id)
+
+    def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
+        """Implementation of double-click logic (reusable)."""
+        if not self.project_overview_tree:
             return
 
         tags = self.project_overview_tree.item(item_id, "tags") or ()
@@ -2221,14 +2255,19 @@ class ApplicationGUI:
             )
 
     def _on_project_overview_right_click(self, event) -> None:
+        """Handle right-click events on the overview tree (legacy handler)."""
         tree = self.project_overview_tree
         if not tree or not tree.winfo_exists():
             return
 
         item_id = tree.identify_row(event.y)
-        column_id = tree.identify_column(event.x)
+        if item_id:
+            self._show_project_overview_context_menu(item_id, event.x_root, event.y_root)
 
-        if not item_id or not column_id:
+    def _show_project_overview_context_menu(self, item_id: str, x: int, y: int) -> None:
+        """Show context menu for project overview item (reusable implementation)."""
+        tree = self.project_overview_tree
+        if not tree or not tree.winfo_exists():
             return
 
         tree.selection_set(item_id)
@@ -2243,16 +2282,16 @@ class ApplicationGUI:
         if not video_path:
             return
 
-        asset = None
-        if column_id == "#0":
-            asset = "video"
-        elif column_id == "#2":
-            asset = self._resolve_overview_asset_from_click(item_id, event.x)
+        # For now, show a simple context menu - can be expanded later
+        if self._overview_context_menu:
+            self._overview_context_menu.destroy()
 
-        if not asset:
-            return
-
-        self._show_overview_context_menu(event, video_path, asset)
+        self._overview_context_menu = Menu(self.root, tearoff=0)
+        self._overview_context_menu.add_command(
+            label="Carregar vídeo",
+            command=lambda: self._on_project_overview_tree_double_click_impl(item_id)
+        )
+        self._overview_context_menu.post(x, y)
 
     def _get_overview_badge_font(self) -> tkfont.Font:
         if self._overview_menu_font is None:
@@ -9807,6 +9846,20 @@ def _add_compatibility_properties_to_application_gui():
             return self.zone_controls.interactive_buttons_frame
         return None
 
+    @property
+    def project_overview_tree(self):
+        """Backward compatibility: map project_overview_tree to widget."""
+        if hasattr(self, "project_overview_widget") and self.project_overview_widget:
+            return self.project_overview_widget.project_overview_tree
+        return None
+
+    @property
+    def project_status_vars(self):
+        """Backward compatibility: map project_status_vars to widget."""
+        if hasattr(self, "project_overview_widget") and self.project_overview_widget:
+            return self.project_overview_widget.project_status_vars
+        return {}
+
     # Add properties to ApplicationGUI class
     ApplicationGUI.roi_canvas = roi_canvas
     ApplicationGUI.zone_listbox = zone_listbox
@@ -9815,6 +9868,8 @@ def _add_compatibility_properties_to_application_gui():
     ApplicationGUI.roi_template_combobox = roi_template_combobox
     ApplicationGUI.video_selector_tree = video_selector_tree
     ApplicationGUI.interactive_buttons_frame = interactive_buttons_frame
+    ApplicationGUI.project_overview_tree = project_overview_tree
+    ApplicationGUI.project_status_vars = project_status_vars
 
 
 # Apply compatibility properties

@@ -2,23 +2,10 @@
 Tests for ConfigEditorWidget component.
 """
 
-import tkinter as tk
-
 import pytest
 
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.event_bus import EventBus
-
-
-@pytest.fixture
-def root():
-    """Create a temporary Tk root for testing."""
-    root = tk.Tk()
-    yield root
-    try:
-        root.destroy()
-    except tk.TclError:
-        pass
 
 
 @pytest.fixture
@@ -28,11 +15,11 @@ def event_bus():
 
 
 @pytest.fixture
-def config_widget(root, event_bus):
+def config_widget(tkinter_root, event_bus):
     """Create a ConfigEditorWidget instance for testing."""
-    widget = ConfigEditorWidget(root, event_bus=event_bus)
+    widget = ConfigEditorWidget(tkinter_root, event_bus=event_bus)
     widget.pack()
-    root.update()
+    tkinter_root.update()
     return widget
 
 
@@ -170,11 +157,11 @@ def test_partial_set_values(config_widget):
     assert config_widget.window_length_var.get() == "7"
 
 
-def test_widget_without_event_bus(root):
+def test_widget_without_event_bus(tkinter_root):
     """Test that widget works without event bus."""
-    widget = ConfigEditorWidget(root, event_bus=None)
+    widget = ConfigEditorWidget(tkinter_root, event_bus=None)
     widget.pack()
-    root.update()
+    tkinter_root.update()
 
     # Should not crash
     widget._on_save_clicked()

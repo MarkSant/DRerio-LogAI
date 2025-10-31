@@ -213,3 +213,78 @@ class ProjectOverviewWidget(BaseWidget):
         """Collapse a tree item to hide its children."""
         if self.project_overview_tree:
             self.project_overview_tree.item(item_id, open=False)
+
+    def populate_tree_with_hierarchy(self, hierarchy_data: dict, video_index: dict) -> None:
+        """
+        Populate the tree with pre-formatted hierarchy data.
+
+        Args:
+            hierarchy_data: Dictionary with structure:
+                {
+                    'groups': [
+                        {
+                            'id': str,
+                            'display': str,
+                            'status_summary': str,
+                            'data_summary': str,
+                            'days': [
+                                {
+                                    'id': str,
+                                    'title': str,
+                                    'status': str,
+                                    'data': str,
+                                    'videos': [
+                                        {
+                                            'id': str,
+                                            'display_name': str,
+                                            'status': str,
+                                            'data_badges': str,
+                                            'path': str (optional)
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            video_index: Dictionary mapping video paths to video metadata
+        """
+        # Clear existing tree
+        self.clear_tree()
+
+        # Store video index reference (for context menus, etc.)
+        self._video_index = video_index
+
+        # Build tree from hierarchy data
+        for group in hierarchy_data.get('groups', []):
+            group_id = f"group_{group['id']}"
+
+            # Add group node
+            self.add_tree_item(
+                item_id=group_id,
+                text=f"🏷️ {group['display']}",
+                values=(group['status_summary'], group['data_summary'])
+            )
+            self.expand_tree_item(group_id)
+
+            # Add days
+            for day in group.get('days', []):
+                day_id = f"day_{group['id']}_{day['id']}"
+
+                self.add_tree_item(
+                    item_id=day_id,
+                    parent=group_id,
+                    text=f"📅 {day['title']}",
+                    values=(day['status'], day['data'])
+                )
+
+                # Add videos
+                for video in day.get('videos', []):
+                    video_id = video['id']
+
+                    self.add_tree_item(
+                        item_id=video_id,
+                        parent=day_id,
+                        text=video['display_name'],
+                        values=(video['status'], video['data_badges'])
+                    )
