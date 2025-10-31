@@ -54,7 +54,9 @@ class Recorder:
             performance_settings = getattr(settings_obj, "performance", None)
 
             self._flush_interval_seconds: float = float(
-                getattr(recorder_settings, "flush_interval_seconds", 5.0) if recorder_settings else 5.0
+                getattr(recorder_settings, "flush_interval_seconds", 5.0)
+                if recorder_settings
+                else 5.0
             )
             self._flush_row_threshold: int = int(
                 getattr(recorder_settings, "flush_row_threshold", 500) if recorder_settings else 500

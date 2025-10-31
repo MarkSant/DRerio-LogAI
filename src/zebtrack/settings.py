@@ -7,12 +7,19 @@ The settings system uses a hierarchical configuration approach:
 2. Optional overrides from config.local.yaml (git-ignored for local customization)
 3. Pydantic v2 validation ensures type safety and business rule compliance
 
-Usage:
-    from zebtrack.settings import settings
+Usage (Dependency Injection):
+    from zebtrack.settings import load_settings, Settings
 
-    # Access configuration values
-    camera_index = settings.camera.index
-    confidence = settings.yolo_model.confidence_threshold
+    # Load settings once in main composition root
+    settings_obj = load_settings()
+
+    # Inject into classes that need configuration
+    manager = WeightManager(settings_obj=settings_obj)
+    service = AnalysisService(settings_obj=settings_obj)
+
+    # Access configuration values from injected instance
+    camera_index = settings_obj.camera.index
+    confidence = settings_obj.yolo_model.confidence_threshold
 
     # Reload settings at runtime (useful for config editor)
     from zebtrack.settings import reload_settings

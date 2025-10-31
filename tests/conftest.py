@@ -35,6 +35,24 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture(scope="session")
+def test_settings():
+    """
+    Fixture for loading settings in tests.
+
+    This fixture loads the configuration from config.yaml once per test session
+    and provides a Settings instance for dependency injection in tests.
+
+    Usage:
+        def test_something(test_settings):
+            manager = WeightManager(settings_obj=test_settings)
+            assert manager is not None
+    """
+    from zebtrack.settings import load_settings
+
+    return load_settings()
+
+
 @pytest.fixture
 def tkinter_root():
     """

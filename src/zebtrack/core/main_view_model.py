@@ -242,7 +242,7 @@ class MainViewModel:
         # Core runtime attributes
         # Note: detector is now managed by detector_service (Phase 6)
         # Access via self.detector property which delegates to service
-        self.recorder = Recorder()
+        self.recorder = Recorder(settings_obj=self.settings)
         self.arduino: Arduino | None = None
         self.arduino_manager: ArduinoManager | None = None
         self._arduino_manager_cls = ArduinoManager
@@ -530,7 +530,6 @@ class MainViewModel:
 
         # Setup UI callbacks
         self._setup_recording_service_callbacks()
-
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
     _EVENT_METHOD_MAPPING: ClassVar[dict] = {
@@ -3323,7 +3322,7 @@ class MainViewModel:
             )
             return
 
-        settings_obj = settings
+        settings_obj = self.settings
         # Offload the heavy per-video processing to a dedicated worker method.
         self.processing_thread = threading.Thread(
             target=self._generate_parquet_summaries_worker,
@@ -3800,7 +3799,9 @@ class MainViewModel:
                     restored=previous_tracker_pref,
                 )
 
-            self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
+            self._configure_single_subject_tracker(
+                self.settings.tracking.use_single_subject_tracker
+            )
             self._publish_processing_mode(
                 source="processing.temporary_mode.exit",
                 force=True,
@@ -4455,10 +4456,12 @@ class MainViewModel:
             config.get("aquarium_width_cm"),
             config.get("aquarium_height_cm"),
             config.get(
-                "sharp_turn_threshold_deg_s", self.settings.video_processing.sharp_turn_threshold_deg_s
+                "sharp_turn_threshold_deg_s",
+                self.settings.video_processing.sharp_turn_threshold_deg_s,
             ),
             config.get(
-                "freezing_velocity_threshold", self.settings.video_processing.freezing_velocity_threshold
+                "freezing_velocity_threshold",
+                self.settings.video_processing.freezing_velocity_threshold,
             ),
             config.get(
                 "freezing_min_duration_s", self.settings.video_processing.freezing_min_duration_s

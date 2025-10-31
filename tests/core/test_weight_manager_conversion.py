@@ -12,12 +12,15 @@ from zebtrack.core.weight_manager import (
 )
 
 
-def _bootstrap_manager(temp_dir: str) -> WeightManager:
-    with patch("zebtrack.core.weight_manager.settings") as mock_settings:
-        mock_settings.weights.seg_filename = ""
-        mock_settings.weights.det_filename = ""
-        mock_settings.yolo_model.path = ""
-        manager = WeightManager(config_dir=temp_dir)
+def _bootstrap_manager(temp_dir: str, test_settings=None) -> WeightManager:
+    # Create a mock settings object with minimal attributes
+    from unittest.mock import Mock
+
+    mock_settings = Mock()
+    mock_settings.yolo_model.path = ""
+    mock_settings.weights.seg_filename = None
+    mock_settings.weights.det_filename = None
+    manager = WeightManager(settings_obj=mock_settings, config_dir=temp_dir)
     return manager
 
 

@@ -44,6 +44,7 @@ class TestWizardServiceCaching:
     @patch("cv2.VideoCapture")
     def test_camera_detection_force_refresh(self, mock_video_capture):
         """Test that use_cache=False forces fresh detection."""
+
         # Setup mock to return consistent values
         def create_mock_cap(*args, **kwargs):
             mock_cap = MagicMock()
@@ -106,6 +107,7 @@ class TestWizardServiceCaching:
     @patch("cv2.VideoCapture")
     def test_cache_expiration_after_ttl(self, mock_video_capture):
         """Test that cache expires after TTL."""
+
         # Setup mock to return consistent values
         def create_mock_cap(*args, **kwargs):
             mock_cap = MagicMock()

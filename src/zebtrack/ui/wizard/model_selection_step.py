@@ -34,7 +34,7 @@ class ModelSelectionStep(WizardStep):
 
     _responsive_labels: dict[str, list[Label]]
 
-    def __init__(self, parent, wizard_data: dict, settings_obj: "Settings | None" = None):
+    def __init__(self, parent, wizard_data: dict, settings_obj: Settings | None = None):
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.MODEL_SELECTION
         self.settings = settings_obj
@@ -124,6 +124,7 @@ class ModelSelectionStep(WizardStep):
             class _Defaults:
                 aquarium_method = "seg"
                 animal_method = "seg"
+
             defaults = _Defaults()
 
         aquarium_method = selection.get("aquarium_method", defaults.aquarium_method)
@@ -170,9 +171,7 @@ class ModelSelectionStep(WizardStep):
         )
         self.confidence_var.set(f"{confidence_threshold:.3f}")
 
-        nms_threshold = float(
-            detector_params.get("nms_threshold", default_nms)
-        )
+        nms_threshold = float(detector_params.get("nms_threshold", default_nms))
         self.nms_var.set(f"{nms_threshold:.3f}")
 
         track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))

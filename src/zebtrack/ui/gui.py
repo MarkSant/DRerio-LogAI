@@ -172,16 +172,6 @@ class _VideoPathResolverContext:
                 pass
 
 
-
-
-
-
-
-
-
-
-
-
 class LiveConfigDialog(simpledialog.Dialog):
     """A dialog to configure live analysis settings (camera and Arduino)."""
 
@@ -250,7 +240,9 @@ class LiveConfigDialog(simpledialog.Dialog):
         try:
             log.info("device_detection.ports.start")
             baud_rate = (
-                getattr(getattr(settings, "arduino", None), "baud_rate", 9600) if settings else 9600
+                getattr(getattr(self.settings, "arduino", None), "baud_rate", 9600)
+                if self.settings
+                else 9600
             )
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
@@ -425,12 +417,12 @@ class ApplicationGUI:
 
         self.config_tab_frame: ttk.Frame | None = None
         self.config_fps_var = StringVar(
-            value=str(self._extract_setting(settings, ("video_processing", "fps"), 30))
+            value=str(self._extract_setting(self.settings, ("video_processing", "fps"), 30))
         )
         self.config_processing_interval_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("video_processing", "processing_interval"),
                     10,
                 )
@@ -439,7 +431,7 @@ class ApplicationGUI:
         self.config_processing_offset_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("video_processing", "processing_offset"),
                     0,
                 )
@@ -448,7 +440,7 @@ class ApplicationGUI:
         self.config_flush_interval_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("recorder", "flush_interval_seconds"),
                     5.0,
                 )
@@ -457,7 +449,7 @@ class ApplicationGUI:
         self.config_flush_rows_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("recorder", "flush_row_threshold"),
                     500,
                 )
@@ -466,7 +458,7 @@ class ApplicationGUI:
         self.config_window_length_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("trajectory_smoothing", "window_length"),
                     7,
                 )
@@ -475,7 +467,7 @@ class ApplicationGUI:
         self.config_polyorder_var = StringVar(
             value=str(
                 self._extract_setting(
-                    settings,
+                    self.settings,
                     ("trajectory_smoothing", "polyorder"),
                     3,
                 )
@@ -1456,8 +1448,8 @@ class ApplicationGUI:
             log.debug("ui.theme.bootstrap_missing")
             return
 
-        preferred_theme = getattr(settings, "ui_theme_name", None) or getattr(
-            settings, "ui_theme", None
+        preferred_theme = getattr(self.settings, "ui_theme_name", None) or getattr(
+            self.settings, "ui_theme", None
         )
         theme_name = preferred_theme or "cosmo"
 
@@ -9089,9 +9081,7 @@ class ApplicationGUI:
                 self.controller.video_queue.put(frame.copy())
 
             fps = (
-                self.controller.settings.video_processing.fps
-                if self.controller.settings
-                else 30.0
+                self.controller.settings.video_processing.fps if self.controller.settings else 30.0
             )
             time.sleep(1 / (fps * 1.5))
 
@@ -10658,20 +10648,6 @@ class ApplicationGUI:
         return dialog.result
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ==============================================================================
 # Backward Compatibility Properties for Component Migration
 # ==============================================================================
@@ -10759,8 +10735,6 @@ def _add_compatibility_properties_to_application_gui():
 
 # Apply compatibility properties
 _add_compatibility_properties_to_application_gui()
-
-
 
 
 if __name__ == "__main__":

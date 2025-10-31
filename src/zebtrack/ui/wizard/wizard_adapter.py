@@ -295,7 +295,7 @@ def _extract_subject(
 
 
 def adapt_wizard_data_to_controller_format(
-    wizard_data: dict, settings_obj: "Settings | None" = None
+    wizard_data: dict, settings_obj: Settings | None = None
 ) -> dict:
     """
     Transform wizard output to CreateProjectDialog format expected by controller.

@@ -23,34 +23,33 @@ def test_initialize_both_seg_and_det_weights():
         mock_settings.weights.det_filename = det_file
         mock_settings.yolo_model.path = seg_file  # Legacy path
 
-        with patch("zebtrack.core.weight_manager.settings", mock_settings):
-            wm = WeightManager(config_dir=temp_dir)
+        wm = WeightManager(config_dir=temp_dir, settings_obj=mock_settings)
 
-            # Both weights should be initialized
-            assert len(wm.weights) == 2
-            assert "best_seg.pt" in wm.weights
-            assert "best_oi.pt" in wm.weights
+        # Both weights should be initialized
+        assert len(wm.weights) == 2
+        assert "best_seg.pt" in wm.weights
+        assert "best_oi.pt" in wm.weights
 
-            # Check segmentation weight
-            seg_details = wm.weights["best_seg.pt"]
-            assert seg_details["type"] == "seg"
-            assert seg_details["is_default_seg"] is True
-            assert seg_details["is_default_det"] is False
-            assert seg_details["path"] == seg_file
+        # Check segmentation weight
+        seg_details = wm.weights["best_seg.pt"]
+        assert seg_details["type"] == "seg"
+        assert seg_details["is_default_seg"] is True
+        assert seg_details["is_default_det"] is False
+        assert seg_details["path"] == seg_file
 
-            # Check detection weight
-            det_details = wm.weights["best_oi.pt"]
-            assert det_details["type"] == "det"
-            assert det_details["is_default_seg"] is False
-            assert det_details["is_default_det"] is True
-            assert det_details["path"] == det_file
+        # Check detection weight
+        det_details = wm.weights["best_oi.pt"]
+        assert det_details["type"] == "det"
+        assert det_details["is_default_seg"] is False
+        assert det_details["is_default_det"] is True
+        assert det_details["path"] == det_file
 
-            # Test get_weight_path_by_method for both types
-            seg_path = wm.get_weight_path_by_method("seg", "animal")
-            assert seg_path == seg_file
+        # Test get_weight_path_by_method for both types
+        seg_path = wm.get_weight_path_by_method("seg", "animal")
+        assert seg_path == seg_file
 
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path == det_file
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path == det_file
 
 
 def test_initialize_only_seg_weight():

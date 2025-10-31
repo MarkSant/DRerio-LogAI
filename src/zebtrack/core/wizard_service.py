@@ -10,8 +10,7 @@ import os
 import sys
 import time
 from contextlib import contextmanager
-
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import cv2
 import serial.tools.list_ports

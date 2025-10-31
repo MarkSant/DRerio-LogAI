@@ -15,9 +15,12 @@ from zebtrack.plugins.base import DetectorPlugin
 class MockDetectorPlugin(DetectorPlugin):
     """Mock detector plugin for testing."""
 
-    def __init__(self, model_path: str, expected_hash: str | None = None):
+    def __init__(
+        self, model_path: str, expected_hash: str | None = None, settings_obj=None
+    ):
         self.model_path = model_path
         self.expected_hash = expected_hash
+        self.settings = settings_obj
         self.conf_threshold = 0.25
         self.nms_threshold = 0.45
         self.track_threshold = 0.25
@@ -65,6 +68,7 @@ class TestDetectorService(unittest.TestCase):
         self.project_manager = MagicMock()
         self.weight_manager = MagicMock()
         self.model_service = MagicMock()
+        self.settings = MagicMock()
 
         # Create service
         self.service = DetectorService(
@@ -72,6 +76,7 @@ class TestDetectorService(unittest.TestCase):
             project_manager=self.project_manager,
             weight_manager=self.weight_manager,
             model_service=self.model_service,
+            settings_obj=self.settings,
         )
 
         # Setup mock detector plugins with correct names
@@ -88,15 +93,15 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(self.service.state_manager, self.state_manager)
         self.assertEqual(self.service.project_manager, self.project_manager)
 
-    @patch("zebtrack.core.detector_service.settings")
+
     @patch("zebtrack.core.detector_service.Detector")
-    def test_initialize_detector_success(self, mock_detector_class, mock_settings):
+    def test_initialize_detector_success(self, mock_detector_class):
         """Test successful detector initialization."""
         # Setup mocks
-        mock_settings.model_selection.animal_method = "det"
-        mock_settings.camera.desired_width = 1280
-        mock_settings.camera.desired_height = 720
-        mock_settings.tracking.use_single_subject_tracker = False
+        self.settings.model_selection.animal_method = "det"
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+        self.settings.tracking.use_single_subject_tracker = False
 
         self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
         self.model_service.find_weight_by_path.return_value = (
@@ -123,10 +128,10 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(self.service.detector)
         self.state_manager.update_detector_state.assert_called_once()
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_initialize_detector_no_model_path(self, mock_settings):
+
+    def test_initialize_detector_no_model_path(self):
         """Test detector initialization fails when no model path found."""
-        mock_settings.model_selection.animal_method = "det"
+        self.settings.model_selection.animal_method = "det"
         self.weight_manager.get_weight_path_by_method.return_value = None
 
         # Execute
@@ -141,10 +146,10 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(error)
         self.assertIn("Nenhum modelo", error)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_initialize_detector_weight_not_found(self, mock_settings):
+
+    def test_initialize_detector_weight_not_found(self):
         """Test detector initialization fails when weight not found."""
-        mock_settings.model_selection.animal_method = "det"
+        self.settings.model_selection.animal_method = "det"
         self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
         self.model_service.find_weight_by_path.return_value = (None, None)
 
@@ -160,15 +165,15 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(error)
         self.assertIn("peso correspondente", error)
 
-    @patch("zebtrack.core.detector_service.settings")
+
     @patch("zebtrack.core.detector_service.Detector")
-    def test_initialize_detector_with_openvino(self, mock_detector_class, mock_settings):
+    def test_initialize_detector_with_openvino(self, mock_detector_class):
         """Test detector initialization with OpenVINO."""
         # Setup mocks
-        mock_settings.model_selection.animal_method = "det"
-        mock_settings.camera.desired_width = 1280
-        mock_settings.camera.desired_height = 720
-        mock_settings.tracking.use_single_subject_tracker = False
+        self.settings.model_selection.animal_method = "det"
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+        self.settings.tracking.use_single_subject_tracker = False
 
         self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
         self.model_service.find_weight_by_path.return_value = (
@@ -199,11 +204,11 @@ class TestDetectorService(unittest.TestCase):
         self.assertTrue(success)
         self.assertIsNone(error)
 
-    @patch("zebtrack.core.detector_service.settings")
+
     @patch("zebtrack.core.detector_service.Detector")
-    def test_initialize_detector_openvino_path_not_found(self, mock_detector_class, mock_settings):
+    def test_initialize_detector_openvino_path_not_found(self, mock_detector_class):
         """Test detector initialization fails when OpenVINO path not found."""
-        mock_settings.model_selection.animal_method = "det"
+        self.settings.model_selection.animal_method = "det"
         self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
         self.model_service.find_weight_by_path.return_value = (
             "test_weight",
@@ -222,8 +227,8 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_configure_zones_no_detector(self, mock_settings):
+
+    def test_configure_zones_no_detector(self):
         """Test configure zones fails when no detector."""
         zone_data = ZoneData(polygon=[[0, 0], [100, 100]])
 
@@ -233,12 +238,12 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertFalse(result)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_configure_zones_with_detector(self, mock_settings):
+
+    def test_configure_zones_with_detector(self):
         """Test configure zones with detector."""
         # Setup
-        mock_settings.camera.desired_width = 1280
-        mock_settings.camera.desired_height = 720
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
 
         mock_detector = MagicMock()
         mock_plugin = MagicMock()
@@ -256,11 +261,11 @@ class TestDetectorService(unittest.TestCase):
         mock_detector.set_zones.assert_called_once_with(zone_data, 1280, 720)
         mock_plugin.set_aquarium_region_defined.assert_called_once_with(True)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_configure_zones_loads_from_project(self, mock_settings):
+
+    def test_configure_zones_loads_from_project(self):
         """Test configure zones loads from project when not provided."""
-        mock_settings.camera.desired_width = 1280
-        mock_settings.camera.desired_height = 720
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
 
         mock_detector = MagicMock()
         self.service.detector = mock_detector
@@ -354,15 +359,15 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         mock_detector.set_single_subject_mode.assert_called_once_with(True)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_get_detector_parameters_defaults(self, mock_settings):
+
+    def test_get_detector_parameters_defaults(self):
         """Test get detector parameters returns defaults."""
-        mock_settings.yolo_model.confidence_threshold = 0.25
-        mock_settings.yolo_model.nms_threshold = 0.45
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
         mock_bytetrack = MagicMock()
         mock_bytetrack.track_threshold = 0.25
         mock_bytetrack.match_threshold = 0.15
-        mock_settings.bytetrack = mock_bytetrack
+        self.settings.bytetrack = mock_bytetrack
 
         self.project_manager.project_data = {}
 
@@ -375,11 +380,11 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["track_threshold"], 0.25)
         self.assertEqual(params["match_threshold"], 0.15)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_get_detector_parameters_with_overrides(self, mock_settings):
+
+    def test_get_detector_parameters_with_overrides(self):
         """Test get detector parameters with project overrides."""
-        mock_settings.yolo_model.confidence_threshold = 0.25
-        mock_settings.yolo_model.nms_threshold = 0.45
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
 
         self.project_manager.project_data = {
             "detector_state": {
@@ -395,15 +400,15 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["conf_threshold"], 0.5)
         self.assertEqual(params["track_threshold"], 0.3)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_get_factory_detector_parameters(self, mock_settings):
+
+    def test_get_factory_detector_parameters(self):
         """Test get factory detector parameters."""
-        mock_settings.yolo_model.confidence_threshold = 0.25
-        mock_settings.yolo_model.nms_threshold = 0.45
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
         mock_bytetrack = MagicMock()
         mock_bytetrack.track_threshold = 0.25
         mock_bytetrack.match_threshold = 0.15
-        mock_settings.bytetrack = mock_bytetrack
+        self.settings.bytetrack = mock_bytetrack
 
         # Execute
         params = self.service.get_factory_detector_parameters()
@@ -472,12 +477,12 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertEqual(config["plugin_name"], "OpenVINO")
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_persist_global_detector_defaults(self, mock_settings):
+
+    def test_persist_global_detector_defaults(self):
         """Test persist global detector defaults."""
-        mock_settings.yolo_model = MagicMock()
+        self.settings.yolo_model = MagicMock()
         mock_bytetrack = MagicMock()
-        mock_settings.bytetrack = mock_bytetrack
+        self.settings.bytetrack = mock_bytetrack
 
         config = {
             "conf_threshold": 0.5,
@@ -490,21 +495,21 @@ class TestDetectorService(unittest.TestCase):
         self.service._persist_global_detector_defaults(config, reset=False)
 
         # Verify
-        self.assertEqual(mock_settings.yolo_model.confidence_threshold, 0.5)
-        self.assertEqual(mock_settings.yolo_model.nms_threshold, 0.6)
+        self.assertEqual(self.settings.yolo_model.confidence_threshold, 0.5)
+        self.assertEqual(self.settings.yolo_model.nms_threshold, 0.6)
         self.assertEqual(mock_bytetrack.track_threshold, 0.3)
         self.assertEqual(mock_bytetrack.match_threshold, 0.2)
 
-    @patch("zebtrack.core.detector_service.settings")
-    def test_persist_global_detector_defaults_reset(self, mock_settings):
+
+    def test_persist_global_detector_defaults_reset(self):
         """Test persist global detector defaults with reset."""
-        mock_settings.yolo_model = MagicMock()
-        mock_settings.yolo_model.confidence_threshold = 0.25
-        mock_settings.yolo_model.nms_threshold = 0.45
+        self.settings.yolo_model = MagicMock()
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
         mock_bytetrack = MagicMock()
         mock_bytetrack.track_threshold = 0.25
         mock_bytetrack.match_threshold = 0.15
-        mock_settings.bytetrack = mock_bytetrack
+        self.settings.bytetrack = mock_bytetrack
 
         # Execute
         self.service._persist_global_detector_defaults({}, reset=True)

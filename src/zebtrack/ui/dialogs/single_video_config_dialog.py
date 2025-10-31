@@ -50,7 +50,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         if self.settings:
             if hasattr(self.settings, "video_processing"):
                 sharp_turn_default = str(self.settings.video_processing.sharp_turn_threshold_deg_s)
-                freeze_thresh_default = str(self.settings.video_processing.freezing_velocity_threshold)
+                freeze_thresh_default = str(
+                    self.settings.video_processing.freezing_velocity_threshold
+                )
                 freeze_dur_default = str(self.settings.video_processing.freezing_min_duration_s)
             if hasattr(self.settings, "trajectory_smoothing"):
                 smoothing_window_default = str(self.settings.trajectory_smoothing.window_length)

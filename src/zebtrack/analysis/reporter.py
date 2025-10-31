@@ -233,7 +233,9 @@ class Reporter:
         freezing_duration: float = 1.0,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
+        settings_obj=None,
     ):
+        self.settings = settings_obj
         self.metadata = metadata
         self.roi_colors = roi_colors if roi_colors else {}
         self.video_path = video_path
@@ -964,8 +966,12 @@ class Reporter:
         Returns:
             list: List of (BytesIO buffer, name) tuples in original order
         """
-        # Get configured max parallel plots from settings
-        max_workers = getattr(getattr(settings, "performance", None), "max_parallel_plots", 3)
+        # Get configured max parallel plots from settings (use injected or default)
+        max_workers = 3  # Default
+        if self.settings is not None:
+            max_workers = getattr(
+                getattr(self.settings, "performance", None), "max_parallel_plots", 3
+            )
 
         # Store results with their original indices to maintain order
         indexed_results: dict[int, tuple[io.BytesIO, str]] = {}

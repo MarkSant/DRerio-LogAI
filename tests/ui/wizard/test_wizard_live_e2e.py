@@ -336,9 +336,7 @@ class TestWizardServiceIntegration:
         assert interval > 0
 
         # Test calculate_experiment_structure
-        structure = WizardService.calculate_experiment_structure(
-            groups=2, days=7, subjects=5
-        )
+        structure = WizardService.calculate_experiment_structure(groups=2, days=7, subjects=5)
         # Check for actual returned fields
         assert "total_sessions" in structure
         assert "total_animals" in structure

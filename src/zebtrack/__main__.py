@@ -195,6 +195,7 @@ def main():
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
+
         set_window_icon(root)
         maximize_window(root)
 
@@ -296,10 +297,7 @@ def main():
 
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
-        messagebox.showerror(
-            "Fatal Error",
-            "A fatal error occurred. See analysis.log for details."
-        )
+        messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
     finally:
         log.info("application.finished", component="main")
 

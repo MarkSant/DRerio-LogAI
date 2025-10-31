@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -20,18 +20,16 @@ def wm_setup(tmp_path):
     default_weight_path = config_dir / "default_weight.pt"
     default_weight_path.touch()
 
-    # Patch the global settings to point to this dummy file for initialization
-    with (
-        patch("zebtrack.core.weight_manager.settings") as mock_settings,
-        patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox,
-    ):
-        mock_settings.yolo_model.path = str(default_weight_path)
-        # Mock the new weights settings to be empty - we only want the legacy path
-        mock_settings.weights.seg_filename = None
-        mock_settings.weights.det_filename = None
+    # Create a mock settings object with minimal attributes
+    mock_settings = Mock()
+    mock_settings.yolo_model.path = str(default_weight_path)
+    mock_settings.weights.seg_filename = None
+    mock_settings.weights.det_filename = None
 
-        # Instantiate the manager pointing to the temp config dir
-        manager = WeightManager(config_dir=str(config_dir))
+    # Patch only messagebox (settings now injected via DI)
+    with patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox:
+        # Instantiate the manager with mock settings and temp config dir
+        manager = WeightManager(settings_obj=mock_settings, config_dir=str(config_dir))
         yield manager, config_dir, tmp_path, mock_messagebox
 
 

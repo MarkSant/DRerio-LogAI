@@ -56,9 +56,7 @@ def test_collect_analysis_parameters_defaults(settings_obj: Settings):
         params["freezing_vel_threshold"]
         == settings_obj.video_processing.freezing_velocity_threshold
     )
-    assert (
-        params["freezing_min_duration"] == settings_obj.video_processing.freezing_min_duration_s
-    )
+    assert params["freezing_min_duration"] == settings_obj.video_processing.freezing_min_duration_s
     assert params["smoothing_window_length"] == settings_obj.trajectory_smoothing.window_length
     assert params["smoothing_polyorder"] == settings_obj.trajectory_smoothing.polyorder
 
@@ -76,9 +74,7 @@ def test_collect_analysis_parameters_with_overrides(settings_obj: Settings):
     assert params["freezing_vel_threshold"] == 0.5
     assert params["smoothing_window_length"] == 11
     # Ensure other params fall back to defaults
-    assert (
-        params["freezing_min_duration"] == settings_obj.video_processing.freezing_min_duration_s
-    )
+    assert params["freezing_min_duration"] == settings_obj.video_processing.freezing_min_duration_s
 
 
 def test_validate_trajectory_schema_success(settings_obj: Settings):
