@@ -466,24 +466,24 @@ class Detector:
         results: list[tuple] = []
         for track in tracks:
             track_bbox = track.tlbr  # (x1, y1, x2, y2)
-            
+
             # Find the detection with highest IoU overlap with this track
             best_iou = 0.0
             best_class_id = 0  # Default class
-            
+
             for det in detections:
                 det_x1, det_y1, det_x2, det_y2, _, _, det_class_id = det
-                
+
                 # Calculate IoU between track bbox and detection bbox
                 iou = self._calculate_iou(
                     track_bbox[0], track_bbox[1], track_bbox[2], track_bbox[3],
                     det_x1, det_y1, det_x2, det_y2
                 )
-                
+
                 if iou > best_iou:
                     best_iou = iou
                     best_class_id = det_class_id
-            
+
             # Use the class_id from the best matching detection
             x1, y1, x2, y2 = track_bbox
             results.append(
@@ -499,7 +499,7 @@ class Detector:
             )
 
         return results
-    
+
     def _calculate_iou(
         self, x1_a: float, y1_a: float, x2_a: float, y2_a: float,
         x1_b: float, y1_b: float, x2_b: float, y2_b: float
@@ -510,20 +510,20 @@ class Detector:
         inter_y1 = max(y1_a, y1_b)
         inter_x2 = min(x2_a, x2_b)
         inter_y2 = min(y2_a, y2_b)
-        
+
         if inter_x2 <= inter_x1 or inter_y2 <= inter_y1:
             return 0.0
-        
+
         inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-        
+
         # Calculate union
         area_a = (x2_a - x1_a) * (y2_a - y1_a)
         area_b = (x2_b - x1_b) * (y2_b - y1_b)
         union_area = area_a + area_b - inter_area
-        
+
         if union_area <= 0:
             return 0.0
-        
+
         return inter_area / union_area
 
     def _ensure_byte_tracker(self) -> BYTETracker | None:
