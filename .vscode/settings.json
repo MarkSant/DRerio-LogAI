@@ -57,6 +57,7 @@
     "python.analysis.extraPaths": [
         "./src"
     ],
+    "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
 
     // Editor hints
     "editor.rulers": [100],  // Ruff line length

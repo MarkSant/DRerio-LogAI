@@ -19,6 +19,15 @@ def camera_and_mock():
     ):  # No need to capture mock_sleep
         from zebtrack.io.camera import Camera
 
+        # Create mock settings
+        mock_settings = MagicMock()
+        mock_settings.camera.index = 0
+        mock_settings.camera.desired_width = 1280
+        mock_settings.camera.desired_height = 720
+        mock_settings.camera.max_reconnect_attempts = 10
+        mock_settings.camera.reconnect_timeout_seconds = 30.0
+        mock_settings.video_processing.fps = 30.0
+
         mock_vc = MagicMock()
         mock_vc.isOpened.return_value = True
         # Initial dimensions returned during Camera.__init__
@@ -27,7 +36,7 @@ def camera_and_mock():
         mock_vc.read.side_effect = itertools.repeat((True, np.zeros((720, 1280, 3), np.uint8)))
         mock_cv2_vc.return_value = mock_vc
 
-        camera = Camera()
+        camera = Camera(settings_obj=mock_settings)
         yield camera, mock_vc
         camera.release()
 

@@ -119,7 +119,23 @@ def test_create_source_file_wrong_kwarg_type():
 
 @pytest.fixture
 def mock_video_capture(monkeypatch):
-    """A pytest fixture to mock cv2.VideoCapture."""
+    """A pytest fixture to mock cv2.VideoCapture and settings."""
+    # Mock settings for Camera
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 640
+    mock_settings.camera.desired_height = 480
+    mock_settings.camera.max_reconnect_attempts = 10
+    mock_settings.camera.reconnect_timeout_seconds = 30.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30.0
+    
+    # Patch Camera.__init__ to inject mock settings
+    original_init = Camera.__init__
+    def patched_init(self, settings_obj=None):
+        return original_init(self, settings_obj=mock_settings)
+    monkeypatch.setattr(Camera, "__init__", patched_init)
+    
     mock_cap_instance = MagicMock()
     # Mock isOpened() as a method that returns True
     mock_cap_instance.isOpened.return_value = True
@@ -142,6 +158,16 @@ def test_camera_init_success(mock_video_capture):
 
 def test_camera_init_failure(monkeypatch):
     """Tests that the Camera class raises IOError if the device fails to open."""
+    # Mock settings for Camera
+    mock_settings = MagicMock()
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 640
+    mock_settings.camera.desired_height = 480
+    mock_settings.camera.max_reconnect_attempts = 10
+    mock_settings.camera.reconnect_timeout_seconds = 30.0
+    mock_settings.camera.max_frame_lag_ms = 100.0
+    mock_settings.video_processing.fps = 30.0
+    
     mock_cap_instance = MagicMock()
     # Mock isOpened() as a method that returns False
     mock_cap_instance.isOpened.return_value = False
@@ -149,7 +175,7 @@ def test_camera_init_failure(monkeypatch):
     monkeypatch.setattr(cv2, "VideoCapture", mock_cap_class)
 
     with pytest.raises(IOError):
-        Camera()
+        Camera(settings_obj=mock_settings)
 
 
 def test_camera_get_frame_non_blocking(mock_video_capture):

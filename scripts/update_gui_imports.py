@@ -57,7 +57,7 @@ def main():
 
     # Remove classes from bottom to top (so line numbers don't shift)
     for class_name, (start, end) in sorted_positions:
-        print(f"Removing {class_name} (lines {start+1}-{end})")
+        print(f"Removing {class_name} (lines {start + 1}-{end})")
         # Remove the lines
         del lines[start:end]
 
@@ -89,7 +89,7 @@ def main():
         if "log = structlog.get_logger()" in line:
             # Insert after this line
             lines = lines[: i + 1] + import_lines + lines[i + 1 :]
-            print(f"[OK] Added imports after line {i+1}")
+            print(f"[OK] Added imports after line {i + 1}")
             break
 
     # Write back
