@@ -51,6 +51,7 @@ from zebtrack.io.camera import Camera
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
     ArduinoDashboardWidget,
+    ConfigEditorWidget,
     VideoDisplayWidget,
     ZoneControlsWidget,
 )
@@ -265,65 +266,8 @@ class ApplicationGUI:
         self._roi_templates_cache: list[dict[str, Any]] = []
         self.delete_template_btn: ttk.Button | None = None
 
-        self.config_tab_frame: ttk.Frame | None = None
-        self.config_fps_var = StringVar(
-            value=str(self._extract_setting(self.settings, ("video_processing", "fps"), 30))
-        )
-        self.config_processing_interval_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("video_processing", "processing_interval"),
-                    10,
-                )
-            )
-        )
-        self.config_processing_offset_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("video_processing", "processing_offset"),
-                    0,
-                )
-            )
-        )
-        self.config_flush_interval_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("recorder", "flush_interval_seconds"),
-                    5.0,
-                )
-            )
-        )
-        self.config_flush_rows_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("recorder", "flush_row_threshold"),
-                    500,
-                )
-            )
-        )
-        self.config_window_length_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("trajectory_smoothing", "window_length"),
-                    7,
-                )
-            )
-        )
-        self.config_polyorder_var = StringVar(
-            value=str(
-                self._extract_setting(
-                    self.settings,
-                    ("trajectory_smoothing", "polyorder"),
-                    3,
-                )
-            )
-        )
-        self._config_roi_rule_widgets: list[ttk.Combobox] = []
+        # Configuration editor widget (created in notebook)
+        self.config_editor_widget: ConfigEditorWidget | None = None
 
         # Analysis display widget (created later in notebook)
         self.analysis_display_widget: AnalysisDisplayWidget | None = None
@@ -1479,7 +1423,7 @@ class ApplicationGUI:
         self._create_roi_analysis_tab()
         self._create_processing_reports_tab()  # New unified tab
         self._create_analysis_tab_widget()
-        self._create_configuration_tab()
+        self._create_configuration_tab_widget()
 
         # Status frame below the notebook
         project_type_str = self.controller.project_manager.get_project_type()
@@ -1502,281 +1446,37 @@ class ApplicationGUI:
         # Ensure analysis UI starts hidden
         self.hide_progress_bar()
 
-    def _create_configuration_tab(self) -> None:
-        """Create the advanced configuration editor tab."""
+    def _create_configuration_tab_widget(self) -> None:
+        """Creates the configuration tab using ConfigEditorWidget."""
         if not self.notebook:
             return
 
-        self.config_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.config_tab_frame, text="Config. Avançadas")
-        self._config_roi_rule_widgets = []
+        # Create widget
+        self.config_editor_widget = ConfigEditorWidget(
+            self.notebook,
+            event_bus=self.event_bus,
+        )
 
-        intro = (
-            "Edite parâmetros avançados do config.yaml sem sair do aplicativo. "
-            "As alterações são persistidas em config.local.yaml e recarregadas "
-            "automaticamente por settings.load_settings()."
-        )
-        ttk.Label(
-            self.config_tab_frame,
-            text=intro,
-            wraplength=560,
-            justify="left",
-        ).pack(fill="x", pady=(0, 12))
+        # Add to notebook
+        self.notebook.add(self.config_editor_widget, text="Config. Avançadas")
 
-        config_path_hint = ttk.Label(
-            self.config_tab_frame,
-            text=(
-                f"Arquivos monitorados: {Path('config.yaml').absolute()} → "
-                f"{Path('config.local.yaml').absolute()}"
-            ),
-            wraplength=560,
-            justify="left",
-            font=("TkDefaultFont", 8),
-        )
-        config_path_hint.pack(fill="x", pady=(0, 12))
+        # Connect events
+        if self.event_bus:
+            self._event_bus_handlers["config.save_requested"] = (
+                lambda data: self._on_save_global_config_from_widget(data["values"])
+            )
+            self._event_bus_handlers["config.reset_requested"] = (
+                lambda data: self._on_reset_global_config_form_widget()
+            )
+            self._event_bus_handlers["config.roi_rule_changed"] = (
+                lambda data: self._on_roi_rule_change_widget(data["rule"])
+            )
 
-        # Video processing settings
-        video_frame = ttk.LabelFrame(
-            self.config_tab_frame,
-            text="Processamento de Vídeo",
-            padding=10,
-        )
-        video_frame.pack(fill="x", pady=6)
-        video_frame.columnconfigure(1, weight=0)
-        video_frame.columnconfigure(2, weight=1)
+        # Load current values
+        self._reload_config_editor_values_widget()
 
-        ttk.Label(video_frame, text="FPS de saída (MP4):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(video_frame, textvariable=self.config_fps_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
-            video_frame,
-            text="Define a taxa de quadros do vídeo salvo em disco.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
-
-        ttk.Label(video_frame, text="Intervalo de processamento (N):").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(video_frame, textvariable=self.config_processing_interval_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
-            video_frame,
-            text="Processa 1 frame a cada N frames originais.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
-
-        ttk.Label(video_frame, text="Offset inicial (frames):").grid(
-            row=2, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(video_frame, textvariable=self.config_processing_offset_var, width=8).grid(
-            row=2, column=1, sticky="w"
-        )
-        ttk.Label(
-            video_frame,
-            text=(
-                "Offset inicial: Número de frames iniciais ignorados antes de começar "
-                "a análise, útil para desconsiderar período de estabilização."
-            ),
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=2, column=2, sticky="w")
-
-        # Trajectory smoothing settings
-        smoothing_frame = ttk.LabelFrame(
-            self.config_tab_frame,
-            text="Suavização de Trajetória (Remove Tremidos/Ruído)",
-            padding=10,
-        )
-        smoothing_frame.pack(fill="x", pady=6)
-        smoothing_frame.columnconfigure(2, weight=1)
-
-        # Window Length
-        ttk.Label(smoothing_frame, text="Janela de Suavização (frames):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(smoothing_frame, textvariable=self.config_window_length_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
-            smoothing_frame,
-            text=(
-                "Janela de suavização: Número de frames usados para calcular a média "
-                "móvel das posições, reduzindo ruído na trajetória."
-            ),
-            font=("TkDefaultFont", 8),
-            foreground="#555",
-            wraplength=380,
-        ).grid(row=0, column=2, sticky="w")
-
-        # Polynomial Order
-        ttk.Label(smoothing_frame, text="Ordem do Polinômio:").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(smoothing_frame, textvariable=self.config_polyorder_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
-            smoothing_frame,
-            text=(
-                "Tipo de curva: 1=reta, 2=curva suave, 3=curva com dobra. "
-                "Maior = curvas mais sinuosas (bom para viradas bruscas)."
-            ),
-            font=("TkDefaultFont", 8),
-            foreground="#555",
-            wraplength=380,
-        ).grid(row=1, column=2, sticky="w")
-
-        # Overall explanation
-        ttk.Label(
-            smoothing_frame,
-            text=(
-                "ℹ️ Remove tremidos da câmera sem apagar movimentos reais. "
-                "Ajusta uma curva suave aos pontos detectados. "
-                "Restrição: janela ímpar (3, 5, 7...) e ordem < janela. "
-                "Padrão: janela=7, ordem=3."
-            ),
-            font=("TkDefaultFont", 8),
-            foreground="#2563eb",
-            justify="left",
-            wraplength=550,
-        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=(0, 6), pady=(8, 0))
-
-        # Recorder settings
-        recorder_frame = ttk.LabelFrame(
-            self.config_tab_frame,
-            text="Recorder (Parquet/MP4)",
-            padding=10,
-        )
-        recorder_frame.pack(fill="x", pady=6)
-        recorder_frame.columnconfigure(2, weight=1)
-
-        ttk.Label(recorder_frame, text="Flush automático (s):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(recorder_frame, textvariable=self.config_flush_interval_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
-            recorder_frame,
-            text="Define intervalo para descarregar buffers no Parquet.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
-
-        ttk.Label(recorder_frame, text="Limite de linhas por flush:").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(recorder_frame, textvariable=self.config_flush_rows_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
-            recorder_frame,
-            text="Quando atingir este limite, os dados são gravados imediatamente.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
-
-        # ROI defaults
-        roi_frame = ttk.LabelFrame(
-            self.config_tab_frame,
-            text="Parâmetros padrão de ROI",
-            padding=10,
-        )
-        roi_frame.pack(fill="x", pady=6)
-        roi_frame.columnconfigure(2, weight=1)
-
-        ttk.Label(roi_frame, text="Regra de inclusão:").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        config_roi_combo = ttk.Combobox(
-            roi_frame,
-            textvariable=self.roi_inclusion_rule_var,
-            values=[
-                "centroid_in",
-                "centroid_in_on_buffered_roi",
-                "bbox_intersects",
-                "seg_overlap",
-            ],
-            state="readonly",
-            width=28,
-        )
-        config_roi_combo.grid(row=0, column=1, sticky="w")
-        config_roi_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_change)
-        self._config_roi_rule_widgets.append(config_roi_combo)
-        ttk.Label(
-            roi_frame,
-            text="Selecione a lógica padrão aplicada ao carregar projetos.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
-
-        ttk.Label(roi_frame, text="Raio de buffer (r):").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(roi_frame, textvariable=self.roi_buffer_radius_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
-            roi_frame,
-            text="Obrigatório (>0) para a opção de centróide com buffer.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
-
-        ttk.Label(roi_frame, text="Sobreposição mínima (0–1):").grid(
-            row=2, column=0, sticky="w", padx=(0, 6), pady=2
-        )
-        ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
-            row=2, column=1, sticky="w"
-        )
-        ttk.Label(
-            roi_frame,
-            text="É aplicado às regras bbox_intersects/seg_overlap.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=2, column=2, sticky="w")
-
-        ttk.Label(
-            roi_frame,
-            text="Dica: use o painel de Zonas para testar combinações em tempo real.",
-            font=("TkDefaultFont", 8),
-            foreground="#555555",
-        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
-
-        actions_frame = ttk.Frame(self.config_tab_frame)
-        actions_frame.pack(fill="x", pady=(12, 0))
-        ttk.Button(
-            actions_frame,
-            text="Recarregar valores atuais",
-            command=self._on_reset_global_config_form,
-        ).pack(side="left")
-        ttk.Button(
-            actions_frame,
-            text="Salvar em config.local.yaml",
-            command=self._on_save_global_config,
-        ).pack(side="right")
-
-        ttk.Label(
-            self.config_tab_frame,
-            text=(
-                "As validações avançadas (offset < intervalo, polyorder < janela, "
-                "etc.) são aplicadas automaticamente ao salvar."
-            ),
-            wraplength=560,
-            justify="left",
-            font=("TkDefaultFont", 8),
-        ).pack(fill="x", pady=(6, 0))
-
-        self._reload_config_editor_values()
-
-    def _reload_config_editor_values(self) -> None:
-        """Refresh the configuration form with the latest loaded settings."""
+    def _reload_config_editor_values_widget(self) -> None:
+        """Load current settings into ConfigEditorWidget."""
         current = settings_module.settings
         if current is None:
             try:
@@ -1786,132 +1486,67 @@ class ApplicationGUI:
                 self.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
                 return
 
-        self.config_fps_var.set(
-            str(self._extract_setting(current, ("video_processing", "fps"), 30))
-        )
-        self.config_processing_interval_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("video_processing", "processing_interval"),
-                    10,
-                )
-            )
-        )
-        self.config_processing_offset_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("video_processing", "processing_offset"),
-                    0,
-                )
-            )
-        )
-        self.config_flush_interval_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("recorder", "flush_interval_seconds"),
-                    5.0,
-                )
-            )
-        )
-        self.config_flush_rows_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("recorder", "flush_row_threshold"),
-                    500,
-                )
-            )
-        )
-        self.config_window_length_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("trajectory_smoothing", "window_length"),
-                    7,
-                )
-            )
-        )
-        self.config_polyorder_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("trajectory_smoothing", "polyorder"),
-                    3,
-                )
-            )
-        )
+        values = {
+            "video_processing": {
+                "fps": self._extract_setting(current, ("video_processing", "fps"), 30),
+                "processing_interval": self._extract_setting(
+                    current, ("video_processing", "processing_interval"), 10
+                ),
+                "processing_offset": self._extract_setting(
+                    current, ("video_processing", "processing_offset"), 0
+                ),
+            },
+            "trajectory_smoothing": {
+                "window_length": self._extract_setting(
+                    current, ("trajectory_smoothing", "window_length"), 7
+                ),
+                "polyorder": self._extract_setting(
+                    current, ("trajectory_smoothing", "polyorder"), 3
+                ),
+            },
+            "recorder": {
+                "flush_interval_seconds": self._extract_setting(
+                    current, ("recorder", "flush_interval_seconds"), 5.0
+                ),
+                "flush_row_threshold": self._extract_setting(
+                    current, ("recorder", "flush_row_threshold"), 500
+                ),
+            },
+            "roi_inclusion_rule": self._extract_setting(
+                current, ("roi_inclusion_rule",), "centroid_in"
+            ),
+            "roi_buffer_radius_value": self._extract_setting(
+                current, ("roi_buffer_radius_value",), 0.0
+            ),
+            "roi_min_bbox_overlap_ratio": self._extract_setting(
+                current, ("roi_min_bbox_overlap_ratio",), 0.5
+            ),
+        }
 
-        self.roi_inclusion_rule_var.set(
-            self._extract_setting(
-                current,
-                ("roi_inclusion_rule",),
-                self.roi_inclusion_rule_var.get(),
-            )
-        )
-        self.roi_buffer_radius_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("roi_buffer_radius_value",),
-                    float(self.roi_buffer_radius_var.get() or 0.5),
-                )
-            )
-        )
-        self.roi_overlap_ratio_var.set(
-            str(
-                self._extract_setting(
-                    current,
-                    ("roi_min_bbox_overlap_ratio",),
-                    float(self.roi_overlap_ratio_var.get() or 0.1),
-                )
-            )
-        )
+        if self.config_editor_widget:
+            self.config_editor_widget.set_values(values)
 
-        if getattr(self, "roi_rule_combo", None):
-            try:
-                self.roi_rule_combo.set(self.roi_inclusion_rule_var.get())
-            except Exception:
-                pass
-
-        for combo in self._config_roi_rule_widgets:
-            try:
-                combo.set(self.roi_inclusion_rule_var.get())
-            except Exception:
-                pass
-
-        self._on_roi_rule_change()
-
-    def _on_reset_global_config_form(self) -> None:
-        """Reset form fields to reflect current settings object."""
-        self._reload_config_editor_values()
+    def _on_reset_global_config_form_widget(self) -> None:
+        """Reset ConfigEditorWidget form fields to reflect current settings object."""
+        self._reload_config_editor_values_widget()
         self.show_info(
-            "Valores recarregados",
-            "Campos atualizados com os valores atuais do config.",
+            "Formulário recarregado",
+            "Valores restaurados para refletir as configurações atuais.",
         )
 
-    def _on_save_global_config(self) -> None:
-        """Persist configuration overrides and reload global settings."""
+    def _on_save_global_config_from_widget(self, values: dict) -> None:
+        """Validate and save config from ConfigEditorWidget values."""
         try:
-            fps = int(self.config_fps_var.get().strip())
-            processing_interval = int(self.config_processing_interval_var.get().strip())
-            processing_offset = int(self.config_processing_offset_var.get().strip())
-            flush_interval = float(self.config_flush_interval_var.get().strip())
-            flush_rows = int(self.config_flush_rows_var.get().strip())
-            window_length = int(self.config_window_length_var.get().strip())
-            polyorder = int(self.config_polyorder_var.get().strip())
-            buffer_radius = float(self.roi_buffer_radius_var.get().strip())
-            overlap_ratio = float(self.roi_overlap_ratio_var.get().strip())
-        except ValueError:
-            self.show_error(
-                "Erro de Validação",
-                "Use apenas números válidos nos campos de configuração.",
-            )
-            return
+            # Extract values (already parsed by widget)
+            fps = values["video_processing"]["fps"]
+            processing_interval = values["video_processing"]["processing_interval"]
+            processing_offset = values["video_processing"]["processing_offset"]
+            flush_interval = values["recorder"]["flush_interval_seconds"]
+            flush_rows = values["recorder"]["flush_row_threshold"]
+            window_length = values["trajectory_smoothing"]["window_length"]
+            polyorder = values["trajectory_smoothing"]["polyorder"]
 
-        try:
+            # Validate
             if fps <= 0:
                 raise ValueError("FPS deve ser maior que 0.")
             if processing_interval <= 0:
@@ -1926,28 +1561,12 @@ class ApplicationGUI:
                 raise ValueError("Window length deve ser ímpar e pelo menos 3.")
             if polyorder < 1:
                 raise ValueError("Polyorder deve ser pelo menos 1.")
+
         except ValueError as exc:
             self.show_error("Erro de Validação", str(exc))
             return
 
-        update_payload: dict[str, Any] = {
-            "video_processing": {
-                "fps": fps,
-                "processing_interval": processing_interval,
-                "processing_offset": processing_offset,
-            },
-            "recorder": {
-                "flush_interval_seconds": flush_interval,
-                "flush_row_threshold": flush_rows,
-            },
-            "trajectory_smoothing": {
-                "window_length": window_length,
-                "polyorder": polyorder,
-            },
-            "roi_inclusion_rule": self.roi_inclusion_rule_var.get(),
-            "roi_buffer_radius_value": buffer_radius,
-            "roi_min_bbox_overlap_ratio": overlap_ratio,
-        }
+        update_payload: dict[str, Any] = values
 
         active_settings = settings_module.settings
         if active_settings is None:
@@ -1974,10 +1593,7 @@ class ApplicationGUI:
             else:
                 override_content = {}
 
-            merged_override = self._deep_merge_dicts(
-                override_content,
-                update_payload,
-            )
+            merged_override = self._deep_merge_dicts(override_content, update_payload)
             with open(override_path, "w", encoding="utf-8") as handle:
                 yaml.safe_dump(
                     merged_override,
@@ -1999,11 +1615,17 @@ class ApplicationGUI:
                     getattr(validated, field_name),
                 )
 
-        self._reload_config_editor_values()
+        self._reload_config_editor_values_widget()
         self.show_info(
             "Configurações salvas",
             "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
         )
+
+    def _on_roi_rule_change_widget(self, rule: str) -> None:
+        """Handle ROI rule change from ConfigEditorWidget."""
+        # This widget doesn't need conditional UI updates (unlike the zones tab)
+        # But we keep this handler for future extensions
+        pass
 
     def _create_main_controls_tab(self):
         """Creates the tab with the main project controls."""
