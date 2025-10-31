@@ -1,10 +1,10 @@
 # ZebTrack-AI Agent Playbook
 - **Product**: Desktop Tkinter app branded DRerio LogAI; Python package `zebtrack`.
 - **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
-- **Docs first**: Validate changes against `docs/ARCHITECTURE.md`, `TRANSITION_NOTE.md`, `docs/REFERENCE_GUIDE.md` before rerouting flows.
-- **Config**: Load global settings via `from zebtrack import settings`; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`.
-- **Architecture**: MVVM—`MainViewModel` orchestrates services+UI, `StateManager` tracks observable state, `EventBus` only enabled when `settings.ui_features.enable_event_queue` is true.
-- **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4.
+- **Docs first**: Validate changes against `docs/ARCHITECTURE.md`, `TRANSITION_NOTE.md`, `docs/REFERENCE_GUIDE.md`, `docs/DEPENDENCY_INJECTION_GUIDE.md` before rerouting flows.
+- **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
+- **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
+- **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor.
 - **UI**: Tk widgets under `zebtrack.ui` never block main thread; schedule updates with `root.after(0, ...)` or via `core/ui_coordinator.UICoordinator`.
 - **Wizard**: `ui/wizard/` drives the 5-step project setup through `core/project_workflow_service.ProjectWorkflowService`; respect 1150×550 layout and keep SKIP/IMPORT/PARTIAL/FULL semantics.
 - **Project data**: `core/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
@@ -21,6 +21,7 @@
 - **Pre-commit**: `poetry run pre-commit install` then `poetry run pre-commit run --all-files` mirrors CI checks.
 - **Scripts**: Tools like `scripts/build_templates.py` and `scripts/compile_translations.py` refresh shared assets; run before release branches.
 - **Thread safety**: `StateManager` is thread-safe for cross-thread updates; still pass updates through it instead of mutating view state directly.
-- **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, or writing new columns mid-Parquet breaks downstream analytics—existing tests catch these.
-- **When extending**: Prefer augmenting services/adapters (e.g., `ProjectWorkflowService`, `DetectorService`) over bypassing them to keep UI/state synchronization intact.
+- **Dependency Injection**: All services use constructor injection. Add `settings_obj: Settings` parameter to new services; pass it from `__main__.py` Composition Root (lines 140-280). See `docs/DEPENDENCY_INJECTION_GUIDE.md` for patterns (RuntimeError vs graceful fallback).
+- **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, writing new columns mid-Parquet, or importing singleton `from zebtrack import settings`—existing tests catch these.
+- **When extending**: Prefer augmenting services/adapters (e.g., `ProjectWorkflowService`, `DetectorService`) over bypassing them to keep UI/state synchronization intact. Inject settings via constructor, never use singleton.
 - **Support**: If unexpected user edits exist, coordinate rather than reverting; log domain events using existing patterns.

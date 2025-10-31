@@ -144,11 +144,35 @@ python -m py_compile src/zebtrack/ui/gui.py
 - **Test Migration**: `TEST_MIGRATION_TODO.md`
 - **Architecture**: `ARCHITECTURE.md` (existing)
 
+## Documentation Status
+
+✅ **All Documentation Updated** (October 31, 2025):
+
+| Document | Status | Notes |
+|----------|--------|-------|
+| `.github/copilot-instructions.md` | ✅ Updated | Reflects DI patterns, 11-parameter MainViewModel, Composition Root |
+| `docs/ARCHITECTURE.md` | ✅ Current | MVVM diagram includes DI flow |
+| `docs/DEPENDENCY_INJECTION_GUIDE.md` | ✅ Current | RuntimeError vs graceful fallback patterns |
+| `docs/REFERENCE_GUIDE.md` | ✅ Current | Hardware detection and settings injection |
+| `DI_MIGRATION_STATUS.md` | ✅ Current | Complete migration tracking |
+| `TRANSITION_NOTE.md` | ✅ Current | Product naming (unrelated to DI) |
+
+### Key Documentation Updates
+
+**`.github/copilot-instructions.md`** (Copilot Agent Playbook):
+
+- ❌ **Removed**: `from zebtrack import settings` singleton reference
+- ✅ **Added**: Constructor injection requirement for `settings_obj`
+- ✅ **Added**: Reference to Composition Root in `__main__.py` lines 140-280
+- ✅ **Added**: RuntimeError vs graceful fallback strategy documentation
+- ✅ **Added**: Warning against singleton usage in "Common pitfalls"
+
 ## Post-Migration TODO
 
 ⚠️ **Tests require environment with tkinter** - Cannot run in current environment
 
 1. Run full test suite in proper environment:
+
    ```bash
    poetry run pytest --no-cov -v
    ```
@@ -156,6 +180,7 @@ python -m py_compile src/zebtrack/ui/gui.py
 2. Fix any failing tests following `TEST_MIGRATION_TODO.md`
 
 3. Expected failures:
+
    - Tests that mock `zebtrack.*.settings` (mocks now fail)
    - Tests that instantiate services without `settings_obj`
    - See TEST_MIGRATION_TODO.md for complete list
@@ -175,6 +200,7 @@ python -m py_compile src/zebtrack/ui/gui.py
 **BREAKING CHANGE**: Global `settings` singleton completely removed.
 
 **Impact**:
+
 - External code importing `from zebtrack.settings import settings` will break
 - Solution: Use `from zebtrack.settings import load_settings` and inject
 
@@ -182,11 +208,11 @@ python -m py_compile src/zebtrack/ui/gui.py
 
 ## Success Metrics
 
-✅ **Zero singleton imports** in source code
-✅ **100% of services** use constructor injection
-✅ **Complete documentation** of pattern and strategy
-✅ **Composition Root** centralized in __main__.py
-✅ **Test migration guide** provided
+- ✅ **Zero singleton imports** in source code
+- ✅ **100% of services** use constructor injection
+- ✅ **Complete documentation** of pattern and strategy
+- ✅ **Composition Root** centralized in `**main**.py`
+- ✅ **Test migration guide** provided
 
 ## Status: READY FOR MERGE ✅
 

@@ -7,6 +7,10 @@ hardware for live tracking sessions.
 
 # Standard library imports
 from tkinter import BooleanVar, Checkbutton, Label, OptionMenu, StringVar, messagebox, simpledialog
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 # Third-party imports
 import cv2
@@ -14,7 +18,6 @@ import serial.tools.list_ports
 import structlog
 
 # Local imports
-from zebtrack import settings
 from zebtrack.io.arduino import Arduino
 
 log = structlog.get_logger()
@@ -23,10 +26,11 @@ log = structlog.get_logger()
 class LiveConfigDialog(simpledialog.Dialog):
     """A dialog to configure live analysis settings (camera and Arduino)."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, settings_obj: "Settings | None" = None):
         self.result = None
         self.available_cameras = {}
         self.available_ports = {}
+        self.settings_obj = settings_obj
         super().__init__(parent, "Configuração da Análise ao Vivo")
 
     def body(self, master):
@@ -107,10 +111,10 @@ class LiveConfigDialog(simpledialog.Dialog):
         # Detect serial ports
         try:
             log.info("device_detection.ports.start")
-            # Get baud_rate from global settings
+            # Get baud_rate from injected settings
             baud_rate = 9600  # default
-            if settings and hasattr(settings, "arduino"):
-                baud_rate = getattr(settings.arduino, "baud_rate", 9600)
+            if self.settings_obj and hasattr(self.settings_obj, "arduino"):
+                baud_rate = getattr(self.settings_obj.arduino, "baud_rate", 9600)
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
             def _add_port(info, *, handshake: bool) -> None:
