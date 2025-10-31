@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import cv2
 import numpy as np
@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 
 from zebtrack.core.detector import Detector
-from zebtrack.core.main_view_model import AppController
 from zebtrack.plugins.base import DetectorPlugin
 
 # --- Test Helpers (adapted from test_integration.py) ---
@@ -58,7 +57,8 @@ def single_video_test_setup(tmp_path: Path):
     Sets up a complete environment for testing the single video workflow.
     This includes a mock controller, a mock video, and mock configuration.
     """
-    from unittest.mock import Mock, PropertyMock
+    from unittest.mock import Mock
+
     from tests.helpers import create_test_controller
     from zebtrack.analysis.analysis_service import AnalysisService
 
@@ -94,7 +94,6 @@ def single_video_test_setup(tmp_path: Path):
     # Mock process_single_video to simulate successful processing
     def mock_process_single_video(video_path, output_dir, **kwargs):
         # Create a mock parquet file with tracking data
-        import pandas as pd
         tracking_data = pd.DataFrame({
             'timestamp': [0.0, 0.1, 0.2],
             'frame': [0, 1, 2],
@@ -162,7 +161,9 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
 
     # Test that controller has the required services wired together
     assert controller.analysis_service is not None, "Controller should have analysis_service"
-    assert controller.video_processing_service is not None, "Controller should have video_processing_service"
+    assert (
+        controller.video_processing_service is not None
+    ), "Controller should have video_processing_service"
     assert controller.detector is not None, "Controller should have detector"
 
     # Test that the mock video processing service can be called
@@ -182,7 +183,6 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
     assert tracking_file.exists(), "Tracking file should be created by the mock"
 
     # Verify tracking file has expected structure
-    import pandas as pd
     df = pd.read_parquet(tracking_file)
     required_columns = ["frame", "track_id", "x1", "y1", "x2", "y2", "confidence"]
     for col in required_columns:

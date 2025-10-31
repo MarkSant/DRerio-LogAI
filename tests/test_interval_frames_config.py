@@ -8,7 +8,6 @@ import cv2
 import numpy as np
 import pytest
 
-from zebtrack.core.main_view_model import AppController
 from zebtrack.core.project_manager import ProjectManager
 
 CONFIG_FILENAME = "project_config.json"

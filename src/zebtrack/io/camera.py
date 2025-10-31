@@ -24,7 +24,12 @@ class Camera(FrameSource):
         """
         self.settings = settings_obj
         if self.settings is None:
-            raise RuntimeError("Camera: Settings not injected.")
+            raise RuntimeError(
+                "Camera: Settings not injected. "
+                "Camera requires settings_obj parameter in constructor. "
+                "Use: Camera(settings_obj=load_settings()) or "
+                "Camera(settings_obj=create_mock_settings())"
+            )
 
         self._camera_index = self.settings.camera.index
         self.cap = cv2.VideoCapture(self._camera_index)

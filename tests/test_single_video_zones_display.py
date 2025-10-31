@@ -15,9 +15,9 @@ from unittest.mock import MagicMock
 
 import structlog
 
+from tests.helpers import create_test_controller
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_manager import ProjectManager
-from tests.helpers import create_test_controller
 
 log = structlog.get_logger()
 

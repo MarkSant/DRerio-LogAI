@@ -89,7 +89,12 @@ class AnalysisService:
             - The instance of ROIAnalyzer used, or ``None`` when no ROIs were provided.
         """
         if self.settings is None:
-            raise RuntimeError("AnalysisService: Settings not injected.")
+            raise RuntimeError(
+                "AnalysisService: Settings not injected. "
+                "AnalysisService requires settings_obj parameter in constructor. "
+                "Use: AnalysisService(settings_obj=load_settings()) or "
+                "AnalysisService(settings_obj=create_mock_settings())"
+            )
 
         smoothing_cfg = self.settings.trajectory_smoothing
         window_length = (
