@@ -61,7 +61,7 @@ import pytest
 def tkinter_session_root():
     """
     Session-scoped fixture for a shared tkinter root window.
-    
+
     This avoids the Tkinter bug on Windows where multiple Tk() instances
     can corrupt the Tcl/Tk library paths.
     """
@@ -103,7 +103,7 @@ def tkinter_session_root():
 def tkinter_root(tkinter_session_root):
     """
     Function-scoped fixture that reuses the session root.
-    
+
     Creates a Toplevel window for each test to ensure isolation,
     avoiding the Tkinter multi-instance bug on Windows.
     """
@@ -122,7 +122,7 @@ def tkinter_root(tkinter_session_root):
                 widget.destroy()
             except Exception:
                 pass
-        
+
         # Destroy the test window
         test_window.update_idletasks()
         test_window.destroy()
@@ -141,10 +141,10 @@ def tkinter_root(tkinter_session_root):
 
 ## Benefits
 
-✅ **No more Tcl/Tk path errors**  
-✅ **Tests can run as a suite**  
-✅ **Maintains test isolation**  
-✅ **Works on all platforms (Windows, Linux, macOS)**  
+✅ **No more Tcl/Tk path errors**
+✅ **Tests can run as a suite**
+✅ **Maintains test isolation**
+✅ **Works on all platforms (Windows, Linux, macOS)**
 ✅ **Faster test execution** (no repeated Tk initialization)
 
 ## Testing the Solution
