@@ -5,10 +5,13 @@ Provides the analysis tab interface including status display, metadata labels,
 track selection, progress tracking, and video display area.
 """
 
+# Standard library imports
 from tkinter import Label, StringVar, ttk
 
+# Third-party imports
 import structlog
 
+# Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus import EventBus
 

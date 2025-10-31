@@ -5,12 +5,15 @@ Provides real-time monitoring of Arduino hardware connection, event logging,
 and port configuration management for live tracking sessions.
 """
 
+# Standard library imports
 import time
 from tkinter import Label, StringVar, Text, messagebox, simpledialog, ttk
 
+# Third-party imports
 import serial.tools.list_ports
 import structlog
 
+# Local imports
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus import EventBus
 
@@ -31,6 +34,8 @@ class ArduinoDashboardWidget(BaseWidget):
     Events emitted:
     - arduino.port_update_requested: User selected a new port (payload: {"port": str})
     """
+
+    MAX_LOG_LINES = 300  # Maximum number of lines to keep in the event log
 
     def __init__(
         self,
@@ -274,11 +279,10 @@ class ArduinoDashboardWidget(BaseWidget):
         self.log_text.insert("end", entry)
 
         try:
-            # Trim log to max 300 lines
+            # Trim log to max lines defined by MAX_LOG_LINES
             current_line = int(float(self.log_text.index("end-1c").split(".")[0]))
-            max_lines = 300
-            if current_line > max_lines:
-                start_line = current_line - max_lines
+            if current_line > self.MAX_LOG_LINES:
+                start_line = current_line - self.MAX_LOG_LINES
                 self.log_text.delete("1.0", f"{start_line}.0")
         except Exception:
             # If parsing fails, ignore trimming and keep log growing temporarily

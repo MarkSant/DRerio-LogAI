@@ -5,12 +5,16 @@ This dialog allows users to select a camera and optionally configure Arduino
 hardware for live tracking sessions.
 """
 
+# Standard library imports
 from tkinter import BooleanVar, Checkbutton, Label, OptionMenu, StringVar, messagebox, simpledialog
 
+# Third-party imports
 import cv2
 import serial.tools.list_ports
 import structlog
 
+# Local imports
+import zebtrack.settings as settings_module
 from zebtrack.io.arduino import Arduino
 
 log = structlog.get_logger()
@@ -83,11 +87,11 @@ class LiveConfigDialog(simpledialog.Dialog):
         # Detect serial ports
         try:
             log.info("device_detection.ports.start")
-            baud_rate = (
-                getattr(getattr(self.settings, "arduino", None), "baud_rate", 9600)
-                if self.settings
-                else 9600
-            )
+            # Get baud_rate from global settings
+            current_settings = settings_module.settings
+            baud_rate = 9600  # default
+            if current_settings and hasattr(current_settings, "arduino"):
+                baud_rate = getattr(current_settings.arduino, "baud_rate", 9600)
             handshake_ports, fallback_ports = Arduino.scan_available_ports(baud_rate=baud_rate)
 
             def _add_port(info, *, handshake: bool) -> None:
@@ -108,8 +112,6 @@ class LiveConfigDialog(simpledialog.Dialog):
                 for port in fallback_ports:
                     _add_port(port, handshake=False)
             else:
-                if not handshake_ports and not fallback_ports:
-                    fallback_ports = []
                 if not fallback_ports:
                     # Ensure we still list raw ports if probe yielded nothing
                     try:
