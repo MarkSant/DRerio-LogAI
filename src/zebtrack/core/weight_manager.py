@@ -37,8 +37,36 @@ class OpenVINOExportError(Exception):
     - Ultralytics package is not available
 
     This exception replaces GUI messagebox calls for thread-safe error handling.
+
+    Attributes:
+        message: Human-readable error description
+        weight_name: Optional name of the weight being converted
+        model_path: Optional path to the model file
+        cause: Optional underlying exception that caused this error
     """
-    pass
+
+    def __init__(
+        self,
+        message: str,
+        weight_name: str | None = None,
+        model_path: Path | str | None = None,
+        cause: Exception | None = None,
+    ):
+        """
+        Initialize OpenVINOExportError with structured error information.
+
+        Args:
+            message: Human-readable error description
+            weight_name: Optional name of the weight being converted
+            model_path: Optional path to the model file
+            cause: Optional underlying exception that caused this error
+        """
+        self.weight_name = weight_name
+        self.model_path = (
+            Path(model_path) if model_path and not isinstance(model_path, Path) else model_path
+        )
+        self.cause = cause
+        super().__init__(message)
 
 
 class WeightManager:

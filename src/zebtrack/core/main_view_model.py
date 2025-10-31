@@ -1276,7 +1276,7 @@ class MainViewModel:
             )
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
             self.set_active_weight(new_name)  # This will also trigger conversion check
-        except (ValueError, FileNotFoundError) as e:
+        except (ValueError, FileNotFoundError, OSError) as e:
             log.error("controller.add_weight.failed", error=str(e), path=str(path))
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
@@ -1295,7 +1295,7 @@ class MainViewModel:
                 Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
             )
             self.set_active_weight(default_name, None)
-        except ValueError as e:
+        except (ValueError, OSError) as e:
             log.error("controller.delete_weight.failed", error=str(e), name=name)
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,

@@ -29,15 +29,17 @@ def configure_logging_levels(settings_obj: "Settings | None" = None):
     - CLI overrides (--log-level) can be applied after settings
 
     Args:
-        settings_obj: Settings instance (optional). If None, function returns immediately.
+        settings_obj: Settings instance (optional). If None, warnings are still captured
+                     but no per-module log levels are applied.
 
     Example:
         >>> # In __main__.py
-        >>> configure_logging_levels()  # No-op, import only
+        >>> configure_logging_levels()  # Capture warnings, no module levels
         >>> settings_obj = load_settings()
         >>> configure_logging_levels(settings_obj)  # Apply levels from config.yaml
     """
-    # Configure warning capture after root logger handlers are set up
+    # Configure warning capture - this should always happen to redirect Python warnings
+    # to the logging system, regardless of whether settings are available
     logging.captureWarnings(True)
 
     if settings_obj is None:

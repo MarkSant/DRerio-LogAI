@@ -47,25 +47,24 @@ def test_add_weight_with_type_classification():
 
         wm = WeightManager(config_dir=temp_dir)
 
-        with patch("zebtrack.core.weight_manager.messagebox"):
-            # Test adding seg weight
-            wm.add_weight(seg_file, set_as_default=True)
-            assert "test_seg.pt" in wm.weights
-            assert wm.weights["test_seg.pt"]["type"] == "seg"
-            assert wm.weights["test_seg.pt"]["is_default_seg"] is True
-            assert wm.weights["test_seg.pt"]["is_default_det"] is False
+        # Test adding seg weight
+        wm.add_weight(seg_file, set_as_default=True)
+        assert "test_seg.pt" in wm.weights
+        assert wm.weights["test_seg.pt"]["type"] == "seg"
+        assert wm.weights["test_seg.pt"]["is_default_seg"] is True
+        assert wm.weights["test_seg.pt"]["is_default_det"] is False
 
-            # Test adding det weight
-            wm.add_weight(det_file, set_as_default=True)
-            assert "test_oi.pt" in wm.weights
-            assert wm.weights["test_oi.pt"]["type"] == "det"
-            assert wm.weights["test_oi.pt"]["is_default_seg"] is False
-            assert wm.weights["test_oi.pt"]["is_default_det"] is True
+        # Test adding det weight
+        wm.add_weight(det_file, set_as_default=True)
+        assert "test_oi.pt" in wm.weights
+        assert wm.weights["test_oi.pt"]["type"] == "det"
+        assert wm.weights["test_oi.pt"]["is_default_seg"] is False
+        assert wm.weights["test_oi.pt"]["is_default_det"] is True
 
-            # Test adding unclassified weight (should default to seg)
-            wm.add_weight(unknown_file, set_as_default=False, weight_type="det")
-            assert "test.pt" in wm.weights
-            assert wm.weights["test.pt"]["type"] == "det"
+        # Test adding unclassified weight (should default to seg)
+        wm.add_weight(unknown_file, set_as_default=False, weight_type="det")
+        assert "test.pt" in wm.weights
+        assert wm.weights["test.pt"]["type"] == "det"
 
 
 def test_get_default_by_type():
@@ -82,22 +81,21 @@ def test_get_default_by_type():
 
         wm = WeightManager(config_dir=temp_dir)
 
-        with patch("zebtrack.core.weight_manager.messagebox"):
-            # Add both weights
-            wm.add_weight(seg_file, set_as_default=True)
-            wm.add_weight(det_file, set_as_default=False)
+        # Add both weights
+        wm.add_weight(seg_file, set_as_default=True)
+        wm.add_weight(det_file, set_as_default=False)
 
-            # Set det as default for det type
-            wm.set_default_weight_by_type("best_oi.pt", "det")
+        # Set det as default for det type
+        wm.set_default_weight_by_type("best_oi.pt", "det")
 
-            # Test getting defaults by type
-            seg_name, seg_details = wm.get_default_seg_weight()
-            assert seg_name == "best_seg.pt"
-            assert seg_details["type"] == "seg"
+        # Test getting defaults by type
+        seg_name, seg_details = wm.get_default_seg_weight()
+        assert seg_name == "best_seg.pt"
+        assert seg_details["type"] == "seg"
 
-            det_name, det_details = wm.get_default_det_weight()
-            assert det_name == "best_oi.pt"
-            assert det_details["type"] == "det"
+        det_name, det_details = wm.get_default_det_weight()
+        assert det_name == "best_oi.pt"
+        assert det_details["type"] == "det"
 
 
 def test_get_weight_path_by_method():
@@ -122,22 +120,21 @@ def test_get_weight_path_by_method():
 
         wm = WeightManager(settings_obj=mock_settings, config_dir=temp_dir)
 
-        with patch("zebtrack.core.weight_manager.messagebox"):
-            # Add both weights and set as defaults for their types
-            wm.add_weight(seg_file, set_as_default=True)
-            wm.add_weight(det_file, set_as_default=False)
-            wm.set_default_weight_by_type("best_oi.pt", "det")
+        # Add both weights and set as defaults for their types
+        wm.add_weight(seg_file, set_as_default=True)
+        wm.add_weight(det_file, set_as_default=False)
+        wm.set_default_weight_by_type("best_oi.pt", "det")
 
-            # Test getting paths by method
-            seg_path = wm.get_weight_path_by_method("seg", "aquarium")
-            assert seg_path == seg_file
+        # Test getting paths by method
+        seg_path = wm.get_weight_path_by_method("seg", "aquarium")
+        assert seg_path == seg_file
 
-            det_path = wm.get_weight_path_by_method("det", "animal")
-            assert det_path == det_file
+        det_path = wm.get_weight_path_by_method("det", "animal")
+        assert det_path == det_file
 
-            # Test invalid method
-            invalid_path = wm.get_weight_path_by_method("invalid", "task")
-            assert invalid_path is None
+        # Test invalid method
+        invalid_path = wm.get_weight_path_by_method("invalid", "task")
+        assert invalid_path is None
 
 
 def test_backward_compatibility_migration():

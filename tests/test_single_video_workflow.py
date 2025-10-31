@@ -68,6 +68,7 @@ def single_video_test_setup(tmp_path: Path):
 
     # 2. Create mock settings
     from tests.helpers import create_mock_settings
+
     mock_settings = create_mock_settings()
 
     # 3. Create REAL AnalysisService for proper file generation
@@ -76,9 +77,7 @@ def single_video_test_setup(tmp_path: Path):
     # 4. Create controller with factory and real analysis service
     mock_root = MagicMock()
     controller = create_test_controller(
-        root=mock_root,
-        settings_obj=mock_settings,
-        analysis_service=analysis_service
+        root=mock_root, settings_obj=mock_settings, analysis_service=analysis_service
     )
     controller.ui_event_bus = MagicMock()
 
@@ -94,16 +93,18 @@ def single_video_test_setup(tmp_path: Path):
     # Mock process_single_video to simulate successful processing
     def mock_process_single_video(video_path, output_dir, **kwargs):
         # Create a mock parquet file with tracking data
-        tracking_data = pd.DataFrame({
-            'timestamp': [0.0, 0.1, 0.2],
-            'frame': [0, 1, 2],
-            'track_id': [1, 1, 1],
-            'x1': [100, 110, 120],
-            'y1': [100, 110, 120],
-            'x2': [150, 160, 170],
-            'y2': [150, 160, 170],
-            'confidence': [0.9, 0.9, 0.9],
-        })
+        tracking_data = pd.DataFrame(
+            {
+                "timestamp": [0.0, 0.1, 0.2],
+                "frame": [0, 1, 2],
+                "track_id": [1, 1, 1],
+                "x1": [100, 110, 120],
+                "y1": [100, 110, 120],
+                "x2": [150, 160, 170],
+                "y2": [150, 160, 170],
+                "confidence": [0.9, 0.9, 0.9],
+            }
+        )
 
         # Create tracking file
         video_name = Path(video_path).stem
@@ -161,9 +162,9 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
 
     # Test that controller has the required services wired together
     assert controller.analysis_service is not None, "Controller should have analysis_service"
-    assert (
-        controller.video_processing_service is not None
-    ), "Controller should have video_processing_service"
+    assert controller.video_processing_service is not None, (
+        "Controller should have video_processing_service"
+    )
     assert controller.detector is not None, "Controller should have detector"
 
     # Test that the mock video processing service can be called
@@ -173,9 +174,7 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
 
     # Call the mocked process_single_video
     success, tracking_file = controller.video_processing_service.process_single_video(
-        video_info["path"],
-        str(results_folder),
-        config=test_config
+        video_info["path"], str(results_folder), config=test_config
     )
 
     # Verify the mock worked correctly

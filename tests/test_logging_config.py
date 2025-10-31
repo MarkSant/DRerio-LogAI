@@ -74,6 +74,3 @@ def test_validate_invalid_log_level(mock_config_file):
     with pytest.raises(ValueError) as excinfo:
         load_settings(config_path)
     assert "Invalid log level 'INVALID_LEVEL'" in str(excinfo.value)
-
-
-

@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import stat
-import sys
 import tempfile
 import time
 import unittest
@@ -12,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from zebtrack.core.detector import ZoneData
-from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectManager
+from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectInvalidError, ProjectManager
 from zebtrack.settings import load_settings
 
 
@@ -22,18 +21,12 @@ class TestProjectManager(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp(prefix="test_project_manager_")
         # Load settings for tests
         self.settings_obj = load_settings()
-        # Suppress messagebox popups during tests
-        self.original_showerror = sys.modules["tkinter.messagebox"].showerror
-        sys.modules["tkinter.messagebox"].showerror = (  # type: ignore[attr-defined]
-            lambda title, message: None
-        )
 
     def tearDown(self):
         """Clean up the temporary directory after tests."""
         if os.path.exists(self.test_dir):
             self._cleanup_test_directory(Path(self.test_dir))
         ProjectManager.clear_scan_cache()
-        sys.modules["tkinter.messagebox"].showerror = self.original_showerror  # type: ignore[attr-defined]
 
     @staticmethod
     def _cleanup_test_directory(path: Path, retries: int = 5, delay: float = 0.15) -> None:
@@ -469,9 +462,8 @@ class TestProjectManager(unittest.TestCase):
         """Test the creation of a new 'live' project."""
         pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "live_project")
-        success = pm.create_new_project(project_path, "live")
+        pm.create_new_project(project_path, "live")
 
-        self.assertTrue(success)
         self.assertTrue(os.path.exists(os.path.join(project_path, CONFIG_FILE_NAME)))
 
         with open(os.path.join(project_path, CONFIG_FILE_NAME)) as f:
@@ -489,9 +481,8 @@ class TestProjectManager(unittest.TestCase):
             {"path": "/path/to/video1.mp4", "has_data": False},
             {"path": "/path/to/video2.mp4", "has_data": True},
         ]
-        success = pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
+        pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
-        self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
@@ -508,9 +499,8 @@ class TestProjectManager(unittest.TestCase):
         """Project creation should initialize model overrides as inherited defaults."""
         pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "overrides_project")
-        success = pm.create_new_project(project_path, "live")
+        pm.create_new_project(project_path, "live")
 
-        self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         with open(config_path) as f:
             data = json.load(f)
@@ -563,7 +553,7 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "animals_test_project")
         video_files = [{"path": "video1.mp4", "has_data": False}]
 
-        success = pm.create_new_project(
+        pm.create_new_project(
             project_path,
             "pre-recorded",
             video_files=video_files,
@@ -573,7 +563,6 @@ class TestProjectManager(unittest.TestCase):
             aquarium_height_cm=20.0,
         )
 
-        self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
@@ -592,12 +581,11 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "default_animals_project")
 
-        success = pm.create_new_project(
+        pm.create_new_project(
             project_path,
             "live",
         )
 
-        self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         self.assertTrue(os.path.exists(config_path))
 
@@ -616,7 +604,7 @@ class TestProjectManager(unittest.TestCase):
         pm = ProjectManager(settings_obj=self.settings_obj)
         project_path = os.path.join(self.test_dir, "io_settings_project")
 
-        success = pm.create_new_project(
+        pm.create_new_project(
             project_path,
             "live",
             camera_index=3,
@@ -624,7 +612,6 @@ class TestProjectManager(unittest.TestCase):
             arduino_port="COM7",
         )
 
-        self.assertTrue(success)
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
         with open(config_path) as f:
             data = json.load(f)
@@ -660,9 +647,8 @@ class TestProjectManager(unittest.TestCase):
             json.dump(old_project_data, f, indent=2)
 
         # Load the project - should add default animals_per_aquarium value
-        success = pm.load_project(project_path)
+        pm.load_project(project_path)
 
-        self.assertTrue(success)
         self.assertEqual(pm.project_data["calibration"]["num_aquariums"], 2)
         self.assertEqual(
             pm.project_data["calibration"]["animals_per_aquarium"], 1
@@ -701,9 +687,8 @@ class TestProjectManager(unittest.TestCase):
         with open(config_path, "w") as f:
             json.dump(legacy_data, f, indent=2)
 
-        success = pm.load_project(project_path)
+        pm.load_project(project_path)
 
-        self.assertTrue(success)
         self.assertEqual(pm.project_data["analysis_interval_frames"], 10)
         self.assertEqual(pm.project_data["display_interval_frames"], 10)
         self.assertEqual(pm.project_data["camera_index"], 0)
@@ -739,9 +724,8 @@ class TestProjectManager(unittest.TestCase):
         pm.create_new_project(project_path, "pre-recorded", video_files=video_files)
 
         loader_pm = ProjectManager(settings_obj=self.settings_obj)
-        success = loader_pm.load_project(project_path)
+        loader_pm.load_project(project_path)
 
-        self.assertTrue(success)
         self.assertEqual(loader_pm.get_project_name(), "load_test_project")
         self.assertEqual(loader_pm.get_project_type(), "pre-recorded")
         self.assertEqual(len(loader_pm.get_all_videos()), 1)
@@ -829,8 +813,8 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "nonexistent_project")
         os.makedirs(project_path, exist_ok=True)  # Create dir but no config
 
-        success = pm.load_project(project_path)
-        self.assertFalse(success)
+        with pytest.raises(ProjectInvalidError, match="não encontrado"):
+            pm.load_project(project_path)
 
     def test_update_video_status_and_get_next(self):
         """Test updating video status and getting the next pending video."""
@@ -886,13 +870,11 @@ class TestProjectManager(unittest.TestCase):
             {"path": os.path.join("C:", "videos", "vid1.mp4"), "has_data": False},
             {"path": os.path.join("C:", "videos", "vid2.mp4"), "has_data": False},
         ]
-        success = pm.create_new_project(test_dir, "pre-recorded", video_files=video_files)
-        self.assertTrue(success)
+        pm.create_new_project(test_dir, "pre-recorded", video_files=video_files)
 
         # 2. Test loading an existing project
         pm_loader = ProjectManager(settings_obj=self.settings_obj)
-        success = pm_loader.load_project(test_dir)
-        self.assertTrue(success)
+        pm_loader.load_project(test_dir)
 
         # 3. Test updating and getting next video
         next_vid = pm_loader.get_next_video()
@@ -1001,8 +983,7 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "detector_state_project")
 
         # Create a new project first
-        success = pm.create_new_project(project_path, "live")
-        self.assertTrue(success)
+        pm.create_new_project(project_path, "live")
 
         # Test saving detector state
         detector_config = {
@@ -1026,8 +1007,7 @@ class TestProjectManager(unittest.TestCase):
 
         # Test loading project and verifying detector state persists
         loader_pm = ProjectManager(settings_obj=self.settings_obj)
-        load_success = loader_pm.load_project(project_path)
-        self.assertTrue(load_success)
+        loader_pm.load_project(project_path)
 
         loaded_config = loader_pm.get_detector_state()
         self.assertEqual(loaded_config["plugin_name"], "YOLO (Ultralytics)")
@@ -1040,8 +1020,7 @@ class TestProjectManager(unittest.TestCase):
         project_path = os.path.join(self.test_dir, "empty_detector_project")
 
         # Create a new project without detector config
-        success = pm.create_new_project(project_path, "live")
-        self.assertTrue(success)
+        pm.create_new_project(project_path, "live")
 
         # Should return empty dict when no detector config exists
         config = pm.get_detector_state()

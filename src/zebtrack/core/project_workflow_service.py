@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.project_manager import ProjectInvalidError
+
 if TYPE_CHECKING:
     from zebtrack.core.model_service import ModelService
     from zebtrack.core.project_manager import ProjectManager
@@ -436,13 +438,13 @@ class ProjectWorkflowService:
         filtered_kwargs = self.prepare_controller_parameters(**kwargs)
 
         # Create the project
-        success = self.project_manager.create_new_project(**filtered_kwargs)
-
-        if not success:
-            log.error("project_workflow_service.create_project.failed")
+        try:
+            self.project_manager.create_new_project(**filtered_kwargs)
+        except ProjectInvalidError as e:
+            log.error("project_workflow_service.create_project.failed", error=str(e))
             return {
                 "success": False,
-                "error_message": "Falha ao criar o novo projeto.",
+                "error_message": str(e),
                 "wizard_metadata": None,
                 "animal_method": None,
                 "project_path": None,
@@ -559,13 +561,13 @@ class ProjectWorkflowService:
         log.info("project_workflow_service.open_project.start", path=project_path)
 
         # Load the project
-        success = self.project_manager.load_project(project_path)
-
-        if not success:
-            log.error("project_workflow_service.open_project.failed")
+        try:
+            self.project_manager.load_project(project_path)
+        except ProjectInvalidError as e:
+            log.error("project_workflow_service.open_project.failed", error=str(e))
             return {
                 "success": False,
-                "error_message": "Não foi possível carregar o projeto",
+                "error_message": str(e),
                 "project_info": None,
                 "zone_data": None,
                 "resolved_weight": None,

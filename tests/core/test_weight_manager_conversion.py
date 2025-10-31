@@ -4,10 +4,13 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from zebtrack.core.weight_manager import (
     OPENVINO_STATUS_FAILED,
     OPENVINO_STATUS_NOT_CONVERTED,
     OPENVINO_STATUS_READY,
+    OpenVINOExportError,
     WeightManager,
 )
 
@@ -51,17 +54,16 @@ def test_convert_to_openvino_failure_records_status(tmp_path):
     with (
         patch("zebtrack.core.weight_manager.ULTRALYTICS_AVAILABLE", True),
         patch("zebtrack.core.weight_manager.YOLO") as mock_yolo,
-        patch("zebtrack.core.weight_manager.messagebox.showerror") as mock_message,
     ):
         mock_instance = MagicMock()
         mock_instance.export.side_effect = RuntimeError("boom")
         mock_yolo.return_value = mock_instance
 
-        result = manager.convert_to_openvino(weight_file.name)
+        # convert_to_openvino now raises OpenVINOExportError instead of returning None
+        with pytest.raises(OpenVINOExportError, match="boom"):
+            manager.convert_to_openvino(weight_file.name)
 
-    assert result is None
     assert not cached_dir.exists()
-    mock_message.assert_called_once()
 
     details = manager.get_weight_details(weight_file.name)
     assert details["openvino_status"] == OPENVINO_STATUS_FAILED
@@ -84,9 +86,7 @@ def test_convert_to_openvino_success_updates_status(tmp_path):
     with (
         patch("zebtrack.core.weight_manager.ULTRALYTICS_AVAILABLE", True),
         patch("zebtrack.core.weight_manager.YOLO") as mock_yolo,
-        patch("zebtrack.core.weight_manager.messagebox.showerror") as mock_message,
     ):
-        mock_message.side_effect = AssertionError("messagebox should not be called")
         mock_instance = MagicMock()
         mock_instance.export.return_value = str(export_dir)
         mock_yolo.return_value = mock_instance

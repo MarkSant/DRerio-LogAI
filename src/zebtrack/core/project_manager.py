@@ -33,8 +33,31 @@ class ProjectInvalidError(ValueError):
 
     This exception replaces GUI messagebox calls for thread-safe error handling
     and allows calling code to handle project validation errors appropriately.
+
+    Attributes:
+        message: Human-readable error description
+        path: Optional Path to the project directory or file involved
+        cause: Optional underlying exception that caused this error
     """
-    pass
+
+    def __init__(
+        self,
+        message: str,
+        path: Path | str | None = None,
+        cause: Exception | None = None,
+    ):
+        """
+        Initialize ProjectInvalidError with structured error information.
+
+        Args:
+            message: Human-readable error description
+            path: Optional path to the project directory or file involved
+            cause: Optional underlying exception that caused this error
+        """
+        self.path = Path(path) if path and not isinstance(path, Path) else path
+        self.cause = cause
+        super().__init__(message)
+
 
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
@@ -1411,8 +1434,10 @@ class ProjectManager:
         except OSError as e:
             log.error("project.create.dir_error", error=str(e))
             raise ProjectInvalidError(
-                f"Não foi possível criar o diretório do projeto: {e}\n\n"
-                "Por favor, verifique as permissões da pasta e se o caminho é válido."
+                message=f"Não foi possível criar o diretório do projeto: {e}\n\n"
+                "Por favor, verifique as permissões da pasta e se o caminho é válido.",
+                path=self.project_path,
+                cause=e,
             ) from e
 
         self._save_settings_snapshot()
@@ -1479,7 +1504,8 @@ class ProjectManager:
             # The initial set of videos becomes the first batch
             self.add_video_batch(video_files, save_project=False)
 
-        return self.save_project()
+        self.save_project()
+        log_context.info("project.create.success")
 
     def add_video_batch(self, video_files: list[dict], save_project: bool = True):
         """
@@ -1572,7 +1598,9 @@ class ProjectManager:
         if save_project:
             self.save_project()
 
-    def _apply_project_migrations(self, loaded_data: dict, log_context) -> tuple[dict, bool, list[str]]:
+    def _apply_project_migrations(
+        self, loaded_data: dict, log_context
+    ) -> tuple[dict, bool, list[str]]:
         """Apply backward compatibility migrations to loaded project data.
 
         Returns:
@@ -1700,9 +1728,10 @@ class ProjectManager:
         if not os.path.exists(config_path):
             log_context.error("project.load.not_found")
             raise ProjectInvalidError(
-                f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
+                message=f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
                 f"encontrado no diretório selecionado: {project_path}\n\n"
-                "Por favor, garanta que você selecionou uma pasta de projeto válida."
+                "Por favor, garanta que você selecionou uma pasta de projeto válida.",
+                path=project_path,
             )
 
         try:
@@ -1728,36 +1757,44 @@ class ProjectManager:
                 "project.load.success",
                 project_name=self.project_data.get("project_name"),
             )
-            return True
         except (OSError, json.JSONDecodeError, IntegrityError) as e:
             log_context.error("project.load.error", exc_info=e)
             raise ProjectInvalidError(
-                f"Falha ao carregar ou analisar o arquivo de configuração do projeto: "
-                f"{config_path}\n\nO arquivo pode estar corrompido ou ilegível.\n\nErro: {e}"
+                message=f"Falha ao carregar ou analisar o arquivo de configuração do projeto: "
+                f"{config_path}\n\nO arquivo pode estar corrompido ou ilegível.\n\nErro: {e}",
+                path=project_path,
+                cause=e,
             ) from e
 
-    def save_project(self):
+    def save_project(self) -> None:
         """
         Saves the current project data to the config file with an integrity hash.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
+
+        Raises:
+            ProjectInvalidError: If project path is not set or save operation fails.
         """
         # Critical Fix #5: Add validation before saving
         if not self.project_path:
             log.debug("project.save.no_path", reason="project not yet created")
-            return False
+            raise ProjectInvalidError(
+                message="Não é possível salvar o projeto: caminho do projeto não definido.\n\n"
+                "O projeto deve ser criado antes de ser salvo.",
+            )
 
         try:
             # Delegate to ProjectService for file I/O
             self.project_service.save_project_config(self.project_path, self.project_data)
 
             log.info("project.save.success", path=self.project_path)
-            return True
         except Exception as e:
             log.error("project.save.error", path=self.project_path, exc_info=e)
             raise ProjectInvalidError(
-                f"Falha ao salvar o arquivo de configuração do projeto: "
-                f"{self.project_path}\n\nPor favor, verifique as permissões da pasta.\n\nErro: {e}"
+                message=f"Falha ao salvar o arquivo de configuração do projeto: "
+                f"{self.project_path}\n\nPor favor, verifique as permissões da pasta.\n\nErro: {e}",
+                path=self.project_path,
+                cause=e,
             ) from e
 
     def _default_analysis_profile(self) -> dict:
@@ -1831,9 +1868,12 @@ class ProjectManager:
 
         return True
 
-    def update_video_status(self, video_path: Path | str, new_status):
+    def update_video_status(self, video_path: Path | str, new_status) -> bool:
         """
         Updates the status of a specific video across all batches and saves the project.
+
+        Returns:
+            bool: True if video was found and updated, False otherwise.
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         video_path_str = str(video_path)
@@ -1846,7 +1886,8 @@ class ProjectManager:
                         video_path=video_path,
                         status=new_status,
                     )
-                    return self.save_project()
+                    self.save_project()
+                    return True
         return False
 
     def reset_all_video_statuses(self, to_status: str = "pending"):
@@ -2620,7 +2661,10 @@ class ProjectManager:
                            optional match_threshold, context, last_updated
 
         Returns:
-            bool: True if saved successfully, False otherwise
+            bool: True if saved successfully, False if no project/data available.
+
+        Raises:
+            ProjectInvalidError: If save operation fails.
         """
         if not self.project_data:
             log.debug("project.detector_state.save.no_project_data")
@@ -2633,40 +2677,29 @@ class ProjectManager:
 
         log.info("project.detector_state.save.start", config=detector_config)
 
-        try:
-            # Add timestamp if not provided
-            if "last_updated" not in detector_config:
-                detector_config["last_updated"] = datetime.now().isoformat()
+        # Add timestamp if not provided
+        if "last_updated" not in detector_config:
+            detector_config["last_updated"] = datetime.now().isoformat()
 
-            self.project_data["detector_config"] = detector_config
+        self.project_data["detector_config"] = detector_config
 
-            overrides = self.project_data.setdefault("model_overrides", {})
-            normalized_thresholds = self._normalize_detector_thresholds(detector_config)
-            if normalized_thresholds:
-                merged = dict(overrides.get("detector_parameters") or {})
-                merged.update(normalized_thresholds)
-                overrides["detector_parameters"] = merged
-            elif not detector_config:
-                overrides.pop("detector_parameters", None)
+        overrides = self.project_data.setdefault("model_overrides", {})
+        normalized_thresholds = self._normalize_detector_thresholds(detector_config)
+        if normalized_thresholds:
+            merged = dict(overrides.get("detector_parameters") or {})
+            merged.update(normalized_thresholds)
+            overrides["detector_parameters"] = merged
+        elif not detector_config:
+            overrides.pop("detector_parameters", None)
 
-            result = self.save_project()
+        self.save_project()  # Raises ProjectInvalidError on failure
 
-            if result:
-                log.info(
-                    "project.detector_state.save.success",
-                    plugin=detector_config.get("plugin_name"),
-                )
-            else:
-                log.debug(
-                    "project.detector_state.save.skipped",
-                    reason="project not yet persisted",
-                )
+        log.info(
+            "project.detector_state.save.success",
+            plugin=detector_config.get("plugin_name"),
+        )
 
-            return result
-
-        except Exception as e:
-            log.error("project.detector_state.save.error", error=str(e), exc_info=True)
-            return False
+        return True
 
     def get_detector_state(self) -> dict:
         """

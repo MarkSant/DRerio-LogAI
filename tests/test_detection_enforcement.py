@@ -24,9 +24,7 @@ def test_detection_mode_with_multiple_animals_blocked():
 
         # Create controller using factory with project_manager override
         controller = create_test_controller(
-            root=mock_root,
-            settings_obj=mock_settings,
-            project_manager=mock_pm
+            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
         )
 
         # Try to create project with multiple animals per aquarium
@@ -46,7 +44,8 @@ def test_detection_mode_with_multiple_animals_blocked():
 
             # Verify error was shown (ui_event_bus has multiple calls from controller init)
             error_calls = [
-                call for call in mock_event_bus.publish_event.call_args_list
+                call
+                for call in mock_event_bus.publish_event.call_args_list
                 if len(call[0]) > 0 and call[0][0] == "ui:show_error"
             ]
             assert len(error_calls) == 1
@@ -76,9 +75,7 @@ def test_detection_mode_with_single_animal_allowed():
 
         # Create controller using factory with project_manager override
         controller = create_test_controller(
-            root=mock_root,
-            settings_obj=mock_settings,
-            project_manager=mock_pm
+            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
         )
 
         # Mock setup_detector to succeed
@@ -120,9 +117,7 @@ def test_segmentation_mode_with_multiple_animals_allowed():
 
         # Create controller using factory with project_manager override
         controller = create_test_controller(
-            root=mock_root,
-            settings_obj=mock_settings,
-            project_manager=mock_pm
+            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
         )
 
         # Mock setup_detector to succeed

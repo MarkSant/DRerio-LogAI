@@ -88,18 +88,17 @@ def test_project_manager_persists_interval_settings(
 
     pm = ProjectManager()
 
-    with patch("zebtrack.core.project_manager.messagebox"):
-        assert pm.create_new_project(
-            project_path=str(project_dir),
-            project_type="pre-recorded",
-            video_files=video_entries,
-            num_aquariums=2,
-            animals_per_aquarium=3,
-            aquarium_width_cm=25.0,
-            aquarium_height_cm=18.5,
-            analysis_interval_frames=analysis_interval,
-            display_interval_frames=display_interval,
-        )
+    pm.create_new_project(
+        project_path=str(project_dir),
+        project_type="pre-recorded",
+        video_files=video_entries,
+        num_aquariums=2,
+        animals_per_aquarium=3,
+        aquarium_width_cm=25.0,
+        aquarium_height_cm=18.5,
+        analysis_interval_frames=analysis_interval,
+        display_interval_frames=display_interval,
+    )
 
     assert pm.project_data["analysis_interval_frames"] == analysis_interval
     assert pm.project_data["display_interval_frames"] == display_interval
@@ -129,10 +128,7 @@ def test_controller_workflow_roundtrip_persists_intervals(
     video_entries = controller.project_manager.scan_input_paths([str(video_path)])
     assert video_entries
 
-    with (
-        patch.object(controller, "setup_detector", return_value=True),
-        patch("zebtrack.core.project_manager.messagebox"),
-    ):
+    with patch.object(controller, "setup_detector", return_value=True):
         controller.create_project_workflow(
             project_path=str(project_dir),
             project_type="pre-recorded",
@@ -153,8 +149,7 @@ def test_controller_workflow_roundtrip_persists_intervals(
     assert saved_data["display_interval_frames"] == 9
 
     reloaded = ProjectManager()
-    with patch("zebtrack.core.project_manager.messagebox"):
-        assert reloaded.load_project(str(project_dir))
+    reloaded.load_project(str(project_dir))
 
     assert reloaded.project_data["analysis_interval_frames"] == 6
     assert reloaded.project_data["display_interval_frames"] == 9

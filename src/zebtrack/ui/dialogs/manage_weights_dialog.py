@@ -129,11 +129,16 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
             return
 
-        self.controller.weight_manager.set_default_weight_by_type(name, "seg")
-        self.populate_list()
-        messagebox.showinfo(
-            "Padrão Atualizado", f"'{name}' agora é o peso padrão para Segmentação (zebrafish)."
-        )
+        try:
+            self.controller.weight_manager.set_default_weight_by_type(name, "seg")
+            self.populate_list()
+            messagebox.showinfo(
+                "Padrão Atualizado", f"'{name}' agora é o peso padrão para Segmentação (zebrafish)."
+            )
+        except OSError as e:
+            messagebox.showerror(
+                "Erro ao Definir Padrão", f"Não foi possível definir '{name}' como padrão: {e}"
+            )
 
     def set_default_det(self):
         """Define o peso selecionado como padrão para Detecção."""
@@ -154,18 +159,28 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
             return
 
-        self.controller.weight_manager.set_default_weight_by_type(name, "det")
-        self.populate_list()
-        messagebox.showinfo(
-            "Padrão Atualizado", f"'{name}' agora é o peso padrão para Detecção (aquário)."
-        )
+        try:
+            self.controller.weight_manager.set_default_weight_by_type(name, "det")
+            self.populate_list()
+            messagebox.showinfo(
+                "Padrão Atualizado", f"'{name}' agora é o peso padrão para Detecção (aquário)."
+            )
+        except OSError as e:
+            messagebox.showerror(
+                "Erro ao Definir Padrão", f"Não foi possível definir '{name}' como padrão: {e}"
+            )
 
     def set_default(self):
         """Método legado mantido para compatibilidade."""
         name = self.get_selected_item_name()
         if name:
-            self.controller.weight_manager.set_default_weight(name)
-            self.populate_list()
+            try:
+                self.controller.weight_manager.set_default_weight(name)
+                self.populate_list()
+            except OSError as e:
+                messagebox.showerror(
+                    "Erro ao Definir Padrão", f"Não foi possível definir '{name}' como padrão: {e}"
+                )
 
     def delete(self):
         name = self.get_selected_item_name()

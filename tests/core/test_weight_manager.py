@@ -10,8 +10,7 @@ from zebtrack.core.weight_manager import OPENVINO_CACHE_DIR, WeightManager
 def wm_setup(tmp_path):
     """
     Provides a WeightManager instance in a temporary directory.
-    It patches tkinter.messagebox to avoid GUI popups during tests.
-    It also creates a dummy .pt file to be used as a default weight.
+    It creates a dummy .pt file to be used as a default weight.
     """
     config_dir = tmp_path / "config"
     config_dir.mkdir()
@@ -26,11 +25,9 @@ def wm_setup(tmp_path):
     mock_settings.weights.seg_filename = None
     mock_settings.weights.det_filename = None
 
-    # Patch only messagebox (settings now injected via DI)
-    with patch("zebtrack.core.weight_manager.messagebox") as mock_messagebox:
-        # Instantiate the manager with mock settings and temp config dir
-        manager = WeightManager(settings_obj=mock_settings, config_dir=str(config_dir))
-        yield manager, config_dir, tmp_path, mock_messagebox
+    # Instantiate the manager with mock settings and temp config dir
+    manager = WeightManager(settings_obj=mock_settings, config_dir=str(config_dir))
+    yield manager, config_dir, tmp_path, None
 
 
 def test_wm_initialization_creates_default(wm_setup):
@@ -122,15 +119,17 @@ def test_wm_delete_default_weight(wm_setup):
 
 def test_wm_cannot_delete_last_weight(wm_setup):
     """Tests that the last remaining weight cannot be deleted."""
-    manager, _, _, mock_messagebox = wm_setup
+    manager, _, _, _ = wm_setup
     assert len(manager.get_all_weights()) == 1
 
-    # Attempt to delete the last weight
-    manager.delete_weight("default_weight.pt")
+    # Attempt to delete the last weight - should raise ValueError
+    import pytest
 
-    # Check that it was not deleted and the messagebox was called
+    with pytest.raises(ValueError, match="não pode excluir o último peso"):
+        manager.delete_weight("default_weight.pt")
+
+    # Check that it was not deleted
     assert len(manager.get_all_weights()) == 1
-    mock_messagebox.showerror.assert_called_once()
 
 
 @patch("zebtrack.core.weight_manager.YOLO")

@@ -306,7 +306,12 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
 
     def test_create_project_creation_failure(self):
         """Test project creation fails at ProjectManager level."""
-        self.mock_project_manager.create_new_project.return_value = False
+        from zebtrack.core.project_manager import ProjectInvalidError
+
+        # Make create_new_project raise an exception
+        self.mock_project_manager.create_new_project.side_effect = ProjectInvalidError(
+            message="Falha ao criar o projeto"
+        )
 
         result = self.service.create_project(
             setup_detector_callback=Mock(),
@@ -394,7 +399,14 @@ class TestProjectWorkflowServiceProjectOpening(unittest.TestCase):
 
     def test_open_project_failure(self):
         """Test project opening fails."""
-        self.mock_project_manager.load_project.return_value = False
+        from zebtrack.core.project_manager import ProjectInvalidError
+
+        # Make load_project raise an exception instead of returning False
+        self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
+            message="Não foi possível carregar o projeto"
+        )
+        # Add mock for get_all_weight_names to prevent TypeError
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
 
         result = self.service.open_project(
             project_path="/path/to/project",

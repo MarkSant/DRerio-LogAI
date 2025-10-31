@@ -11,7 +11,7 @@ Tests the complete flow:
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import structlog
 
@@ -82,8 +82,9 @@ def test_single_video_with_zones_shows_all_flags():
 
         controller.project_manager.add_video_batch([video_data], save_project=False)
 
-        # Save zone data
-        controller.project_manager.save_zone_data(zone_data, video_path)
+        # Save zone data - mock save_project since we don't have a real project
+        with patch.object(controller.project_manager, "save_project"):
+            controller.project_manager.save_zone_data(zone_data, video_path)
 
         # Create output files
         trajectory_path = os.path.join(
@@ -202,14 +203,15 @@ def test_zone_flags_updated_during_output_registration():
         assert not video_entry.get("has_arena")
         assert not video_entry.get("has_rois")
 
-        # Create and save zone data
+        # Create and save zone data - mock save_project since we don't have a real project
         zone_data = ZoneData(
             polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
             roi_polygons=[[[10, 10], [30, 10], [30, 30], [10, 30]]],
             roi_names=["ROI_1"],
             roi_colors=[(255, 0, 0)],
         )
-        controller.project_manager.save_zone_data(zone_data, video_path)
+        with patch.object(controller.project_manager, "save_project"):
+            controller.project_manager.save_zone_data(zone_data, video_path)
 
         # Create dummy output
         trajectory_path = os.path.join(
