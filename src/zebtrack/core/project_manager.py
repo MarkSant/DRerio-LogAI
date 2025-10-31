@@ -9,7 +9,6 @@ import unicodedata
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox
 from typing import Any, ClassVar, Literal
 
 import pandas as pd
@@ -21,6 +20,11 @@ from zebtrack.core.project_service import ProjectService
 from zebtrack.core.roi_template_manager import ROITemplateManager
 from zebtrack.core.state_manager import StateManager
 from zebtrack.utils import IntegrityError, calculate_sha256
+
+
+class ProjectInvalidError(ValueError):
+    """Exception raised when project structure or data is invalid."""
+    pass
 
 CONFIG_FILE_NAME = "project_config.json"
 SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
@@ -1396,15 +1400,10 @@ class ProjectManager:
             os.makedirs(self.project_path, exist_ok=True)
         except OSError as e:
             log.error("project.create.dir_error", error=str(e))
-            messagebox.showerror(
-                "Erro na Criação",
-                (
-                    f"Não foi possível criar o diretório do projeto:\n{e}\n\n"
-                    "Por favor, verifique as permissões da pasta e se o "
-                    "caminho é válido."
-                ),
-            )
-            return False
+            raise ProjectInvalidError(
+                f"Não foi possível criar o diretório do projeto: {e}\n\n"
+                "Por favor, verifique as permissões da pasta e se o caminho é válido."
+            ) from e
 
         self._save_settings_snapshot()
 
@@ -1576,16 +1575,11 @@ class ProjectManager:
 
         if not os.path.exists(config_path):
             log_context.error("project.load.not_found")
-            messagebox.showerror(
-                "Erro ao Carregar",
-                (
-                    f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
-                    f"encontrado no diretório selecionado:\n{project_path}\n\n"
-                    "Por favor, garanta que você selecionou uma pasta de "
-                    "projeto válida."
-                ),
+            raise ProjectInvalidError(
+                f"Arquivo de configuração do projeto '{CONFIG_FILE_NAME}' não "
+                f"encontrado no diretório selecionado: {project_path}\n\n"
+                "Por favor, garanta que você selecionou uma pasta de projeto válida."
             )
-            return False
 
         try:
             # Phase 1, Step 3: Delegate to ProjectService for file I/O
@@ -1716,13 +1710,10 @@ class ProjectManager:
             return True
         except (OSError, json.JSONDecodeError, IntegrityError) as e:
             log_context.error("project.load.error", exc_info=e)
-            messagebox.showerror(
-                "Erro ao Carregar",
-                f"Falha ao carregar ou analisar o arquivo de configuração do "
-                f"projeto:\n{config_path}\n\nO arquivo pode estar corrompido ou "
-                f"ilegível.\n\nErro: {e}",
-            )
-            return False
+            raise ProjectInvalidError(
+                f"Falha ao carregar ou analisar o arquivo de configuração do projeto: "
+                f"{config_path}\n\nO arquivo pode estar corrompido ou ilegível.\n\nErro: {e}"
+            ) from e
 
     def save_project(self):
         """
@@ -1743,13 +1734,10 @@ class ProjectManager:
             return True
         except Exception as e:
             log.error("project.save.error", path=self.project_path, exc_info=e)
-            messagebox.showerror(
-                "Erro ao Salvar",
-                f"Falha ao salvar o arquivo de configuração do projeto:\n"
-                f"{self.project_path}\n\nPor favor, verifique as permissões da "
-                f"pasta.\n\nErro: {e}",
-            )
-            return False
+            raise ProjectInvalidError(
+                f"Falha ao salvar o arquivo de configuração do projeto: "
+                f"{self.project_path}\n\nPor favor, verifique as permissões da pasta.\n\nErro: {e}"
+            ) from e
 
     def _default_analysis_profile(self) -> dict:
         return {
@@ -2552,10 +2540,6 @@ class ProjectManager:
                     "project.metadata.load_error",
                     path=metadata_path,
                     error=str(e),
-                )
-                messagebox.showwarning(
-                    "Aviso de Metadados",
-                    f"Não foi possível carregar ou analisar 'metadata.csv'.\n\nErro: {e}",
                 )
         else:
             self.metadata = None
