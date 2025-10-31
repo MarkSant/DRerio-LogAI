@@ -48,7 +48,12 @@ import zebtrack.settings as settings_module
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.camera import Camera
-from zebtrack.ui.components import ArduinoDashboardWidget, VideoDisplayWidget, ZoneControlsWidget
+from zebtrack.ui.components import (
+    AnalysisDisplayWidget,
+    ArduinoDashboardWidget,
+    VideoDisplayWidget,
+    ZoneControlsWidget,
+)
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -320,33 +325,14 @@ class ApplicationGUI:
         )
         self._config_roi_rule_widgets: list[ttk.Combobox] = []
 
-        # Progress + stats (created later)
-        self.progress_frame: Frame | None = None
-        self.progress_bar = None
-        self.cancel_proc_btn: Button | None = None
-        self.progress_labels: dict[str, StringVar] = {}
-        self.video_label: Label | None = None
-        self.analysis_tab_frame: ttk.Frame | None = None
-        self.analysis_video_label: Label | None = None
-        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
-        self.analysis_status_label: ttk.Label | None = None
-        (
-            default_group,
-            default_day,
-            default_subject,
-        ) = self._analysis_metadata_defaults()
-        self.analysis_metadata_var = StringVar(value=self._default_analysis_metadata_text())
-        self.analysis_group_var = StringVar(value=f"Grupo: {default_group}")
-        self.analysis_day_var = StringVar(value=f"Dia: {default_day}")
-        self.analysis_subject_var = StringVar(value=f"Indivíduo: {default_subject}")
-        self.analysis_task_var = StringVar(value=self._default_analysis_task_text())
-        self.analysis_metadata_label: ttk.Label | None = None
-        self.analysis_task_label: ttk.Label | None = None
+        # Analysis display widget (created later in notebook)
+        self.analysis_display_widget: AnalysisDisplayWidget | None = None
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.tracking_mode_label: ttk.Label | None = None
-        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
-        self.analysis_profile_label: ttk.Label | None = None
+
+        # Maintain backward compatibility aliases (will be removed later)
+        self.video_label: Label | None = None
+        self.progress_bar = None
+        self.progress_labels: dict[str, StringVar] = {}
         self.track_selector_var = StringVar(value="Todos")
         self.track_selector_widget: ttk.Combobox | None = None
         self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
@@ -1492,7 +1478,7 @@ class ApplicationGUI:
             self._create_progress_grid_tab()
         self._create_roi_analysis_tab()
         self._create_processing_reports_tab()  # New unified tab
-        self._create_analysis_tab()
+        self._create_analysis_tab_widget()
         self._create_configuration_tab()
 
         # Status frame below the notebook
@@ -4070,170 +4056,37 @@ class ApplicationGUI:
         self._update_zone_summary_cards(videos)
         self._refresh_pipeline_video_table(videos)
 
-    def _create_analysis_tab(self):
-        """Creates the dedicated tab for video playback and progress stats."""
+    def _create_analysis_tab_widget(self):
+        """Creates the analysis tab using the AnalysisDisplayWidget."""
         if not self.notebook:
             return
 
-        if self.analysis_tab_frame and self.analysis_tab_frame.winfo_exists():
-            self.analysis_tab_frame.destroy()
-
-        self.analysis_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.analysis_tab_frame, text="Análise de Vídeo")
-
-        # Status text (packed first - at the top)
-        self.analysis_status_var.set("Nenhuma análise em andamento.")
-        self.analysis_status_label = ttk.Label(
-            self.analysis_tab_frame,
-            textvariable=self.analysis_status_var,
-            padding=(0, 6),
-        )
-        self.analysis_status_label.pack(fill="x")
-
-        self.analysis_task_var.set(self._default_analysis_task_text())
-        self._set_analysis_metadata_defaults()
-
-        info_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 2))
-        info_frame.pack(fill="x")
-        info_frame.columnconfigure(0, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(1, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(2, weight=1, uniform="analysis_info")
-        info_frame.columnconfigure(3, weight=1, uniform="analysis_info")
-
-        self.analysis_task_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_task_var,
-            padding=(0, 2),
-        )
-        self.analysis_task_label.grid(
-            row=0,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            pady=(0, 2),
+        # Create the widget
+        self.analysis_display_widget = AnalysisDisplayWidget(
+            self.notebook,
+            event_bus=self.event_bus,
+            available_track_options=list(self._available_track_options),
         )
 
-        self.analysis_group_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_group_var,
-        )
-        self.analysis_group_label.grid(row=1, column=0, sticky="w", padx=(0, 12))
+        # Add to notebook
+        self.notebook.add(self.analysis_display_widget, text="Análise de Vídeo")
 
-        self.analysis_day_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_day_var,
-        )
-        self.analysis_day_label.grid(row=1, column=1, sticky="w", padx=(0, 12))
+        # Connect widget events to GUI handlers
+        if self.event_bus:
+            self._event_bus_handlers["analysis.track_selected"] = (
+                lambda data: self._on_track_selection_changed()
+            )
+            self._event_bus_handlers["analysis.cancel_requested"] = (
+                lambda data: self.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
+            )
 
-        self.analysis_subject_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_subject_var,
-        )
-        self.analysis_subject_label.grid(row=1, column=2, sticky="w", padx=(0, 12))
-
-        self.analysis_profile_label = ttk.Label(
-            info_frame,
-            textvariable=self.analysis_profile_var,
-        )
-        self.analysis_profile_label.grid(row=1, column=3, sticky="w")
-
-        self.tracking_mode_label = ttk.Label(
-            info_frame,
-            textvariable=self.tracking_mode_var,
-        )
-        self.tracking_mode_label.grid(
-            row=2,
-            column=0,
-            columnspan=4,
-            sticky="w",
-            pady=(2, 2),
-        )
-
-        controls_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 4))
-        controls_frame.pack(fill="x", pady=(4, 0))
-
-        ttk.Label(controls_frame, text="Track ID ativo:").grid(row=0, column=0, sticky="w")
-
-        self.track_selector_widget = ttk.Combobox(
-            controls_frame,
-            textvariable=self.track_selector_var,
-            state="readonly",
-            values=list(self._available_track_options),
-            width=14,
-        )
-        self.track_selector_widget.grid(row=0, column=1, padx=(6, 12), sticky="w")
-        self.track_selector_widget.bind("<<ComboboxSelected>>", self._on_track_selection_changed)
-
-        ttk.Label(
-            controls_frame,
-            textvariable=self.social_summary_var,
-            wraplength=360,
-            justify="left",
-        ).grid(row=0, column=2, sticky="w")
-        controls_frame.columnconfigure(2, weight=1)
-
-        # Progress components (packed BEFORE video to stay visible above it)
-        self.progress_frame = ttk.Frame(self.analysis_tab_frame, padding=(0, 6))
-        self.progress_frame.columnconfigure(0, weight=1)
-        self.progress_frame.columnconfigure(1, weight=0)
-
-        self.progress_bar = ttk.Progressbar(
-            self.progress_frame,
-            orient="horizontal",
-            mode="determinate",
-        )
-        self.progress_bar.grid(
-            row=0,
-            column=0,
-            columnspan=2,
-            sticky="ew",
-            pady=(0, 3),
-        )
-
-        stats_container = ttk.Frame(self.progress_frame)
-        stats_container.grid(row=1, column=0, sticky="ew")
-        stats_container.columnconfigure((0, 1, 2), weight=1, uniform="analysis_stats")
-
-        self.progress_labels = {}
-        stats_items = [
-            ("total", "Total de Frames:"),
-            ("processed", "Processados:"),
-            ("detected", "Frames Detectados:"),
-            ("percent", "Concluído:"),
-            ("elapsed", "Tempo Decorrido:"),
-            ("eta", "Tempo Estimado:"),
-        ]
-
-        for idx, (key, label_text) in enumerate(stats_items):
-            row = idx // 3
-            col = idx % 3
-            cell = ttk.Frame(stats_container, padding=(0, 2))
-            pad_x = (0, 12) if col < 2 else (0, 0)
-            cell.grid(row=row, column=col, padx=pad_x, sticky="w")
-            ttk.Label(cell, text=label_text).pack(anchor="w")
-            var = StringVar(value="-")
-            ttk.Label(cell, textvariable=var, font=("Arial", 9, "bold")).pack(anchor="w")
-            self.progress_labels[key] = var
-
-        self.cancel_proc_btn = ttk.Button(
-            self.progress_frame,
-            text="Cancelar Análise",
-            command=lambda: self.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {}),
-            state="disabled",
-        )
-        self.cancel_proc_btn.grid(row=1, column=1, sticky="ne", padx=(12, 0))
-
-        # Hide progress frame until analysis starts
-        self.progress_frame.pack_forget()
-
-        # Video display area (packed LAST so it fills remaining space)
-        self.video_container = ttk.Frame(self.analysis_tab_frame)
-        self.video_container.pack(expand=True, fill="both")
-
-        self.analysis_video_label = Label(self.video_container, bg="black")
-        self.analysis_video_label.pack(expand=True, fill="both")
-        # Maintain backward compatibility with code using video_label
-        self.video_label = self.analysis_video_label
+        # Set up backward compatibility aliases
+        self.video_label = self.analysis_display_widget.video_label
+        self.progress_bar = self.analysis_display_widget.progress_bar
+        self.progress_labels = self.analysis_display_widget.progress_labels
+        self.track_selector_var = self.analysis_display_widget.track_selector_var
+        self.track_selector_widget = self.analysis_display_widget.track_selector_widget
+        self.social_summary_var = self.analysis_display_widget.social_summary_var
 
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame for the zone controls."""

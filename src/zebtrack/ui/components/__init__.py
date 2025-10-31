@@ -10,6 +10,7 @@ ApplicationGUI class. Each component is a ttk.Frame subclass that:
 """
 
 from zebtrack.ui.components.analysis_controls import AnalysisControlsWidget
+from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
@@ -19,6 +20,7 @@ from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 
 __all__ = [
     "AnalysisControlsWidget",
+    "AnalysisDisplayWidget",
     "ArduinoDashboardWidget",
     "BaseWidget",
     "ControlPanelWidget",
