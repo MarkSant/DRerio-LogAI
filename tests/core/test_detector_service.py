@@ -15,9 +15,7 @@ from zebtrack.plugins.base import DetectorPlugin
 class MockDetectorPlugin(DetectorPlugin):
     """Mock detector plugin for testing."""
 
-    def __init__(
-        self, model_path: str, expected_hash: str | None = None, settings_obj=None
-    ):
+    def __init__(self, model_path: str, expected_hash: str | None = None, settings_obj=None):
         self.model_path = model_path
         self.expected_hash = expected_hash
         self.settings = settings_obj
@@ -93,7 +91,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(self.service.state_manager, self.state_manager)
         self.assertEqual(self.service.project_manager, self.project_manager)
 
-
     @patch("zebtrack.core.detector_service.Detector")
     def test_initialize_detector_success(self, mock_detector_class):
         """Test successful detector initialization."""
@@ -128,7 +125,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(self.service.detector)
         self.state_manager.update_detector_state.assert_called_once()
 
-
     def test_initialize_detector_no_model_path(self):
         """Test detector initialization fails when no model path found."""
         self.settings.model_selection.animal_method = "det"
@@ -145,7 +141,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
         self.assertIn("Nenhum modelo", error)
-
 
     def test_initialize_detector_weight_not_found(self):
         """Test detector initialization fails when weight not found."""
@@ -164,7 +159,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
         self.assertIn("peso correspondente", error)
-
 
     @patch("zebtrack.core.detector_service.Detector")
     def test_initialize_detector_with_openvino(self, mock_detector_class):
@@ -204,7 +198,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertTrue(success)
         self.assertIsNone(error)
 
-
     @patch("zebtrack.core.detector_service.Detector")
     def test_initialize_detector_openvino_path_not_found(self, mock_detector_class):
         """Test detector initialization fails when OpenVINO path not found."""
@@ -227,7 +220,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(error)
 
-
     def test_configure_zones_no_detector(self):
         """Test configure zones fails when no detector."""
         zone_data = ZoneData(polygon=[[0, 0], [100, 100]])
@@ -237,7 +229,6 @@ class TestDetectorService(unittest.TestCase):
 
         # Verify
         self.assertFalse(result)
-
 
     def test_configure_zones_with_detector(self):
         """Test configure zones with detector."""
@@ -260,7 +251,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertTrue(result)
         mock_detector.set_zones.assert_called_once_with(zone_data, 1280, 720)
         mock_plugin.set_aquarium_region_defined.assert_called_once_with(True)
-
 
     def test_configure_zones_loads_from_project(self):
         """Test configure zones loads from project when not provided."""
@@ -359,7 +349,6 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         mock_detector.set_single_subject_mode.assert_called_once_with(True)
 
-
     def test_get_detector_parameters_defaults(self):
         """Test get detector parameters returns defaults."""
         self.settings.yolo_model.confidence_threshold = 0.25
@@ -380,7 +369,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["track_threshold"], 0.25)
         self.assertEqual(params["match_threshold"], 0.15)
 
-
     def test_get_detector_parameters_with_overrides(self):
         """Test get detector parameters with project overrides."""
         self.settings.yolo_model.confidence_threshold = 0.25
@@ -399,7 +387,6 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertEqual(params["conf_threshold"], 0.5)
         self.assertEqual(params["track_threshold"], 0.3)
-
 
     def test_get_factory_detector_parameters(self):
         """Test get factory detector parameters."""
@@ -477,7 +464,6 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertEqual(config["plugin_name"], "OpenVINO")
 
-
     def test_persist_global_detector_defaults(self):
         """Test persist global detector defaults."""
         self.settings.yolo_model = MagicMock()
@@ -499,7 +485,6 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(self.settings.yolo_model.nms_threshold, 0.6)
         self.assertEqual(mock_bytetrack.track_threshold, 0.3)
         self.assertEqual(mock_bytetrack.match_threshold, 0.2)
-
 
     def test_persist_global_detector_defaults_reset(self):
         """Test persist global detector defaults with reset."""

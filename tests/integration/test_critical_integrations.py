@@ -61,7 +61,7 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
     mock_settings.camera.reconnect_timeout_seconds = 5.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30
-    
+
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
             # Setup mock camera
@@ -320,7 +320,7 @@ def test_end_to_end_simulated_workflow(temp_results_dir, sample_zones):
     mock_settings.camera.reconnect_timeout_seconds = 5.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30
-    
+
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
             # Setup mock camera
@@ -413,7 +413,7 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
     mock_settings.camera.reconnect_timeout_seconds = 5.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30
-    
+
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         # NOTE: We do NOT patch time.sleep here - the camera thread needs real sleep
         # to allow the background thread to run and capture frames

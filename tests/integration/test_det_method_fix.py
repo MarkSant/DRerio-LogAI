@@ -6,7 +6,7 @@ works correctly.
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from zebtrack.core.weight_manager import WeightManager
 

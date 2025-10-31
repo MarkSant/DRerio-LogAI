@@ -144,7 +144,7 @@ def test_camera_reconnect_and_recovery():
     mock_settings.camera.desired_height = 720
     mock_settings.camera.max_frame_lag_ms = 200
     mock_settings.video_processing.fps = 30.0
-    
+
     with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         with patch("zebtrack.io.camera.time.sleep"):
             # Setup mock

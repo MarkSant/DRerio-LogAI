@@ -30,7 +30,7 @@ def mock_cv2_capture():
     mock_settings.camera.reconnect_timeout_seconds = 30.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30.0
-    
+
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
     mock_cap.get.side_effect = lambda prop: {
@@ -45,7 +45,7 @@ def mock_cv2_capture():
 def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
     """Test that buffer only keeps 2 most recent frames."""
     mock_cv2_capture, mock_settings = mock_cv2_capture
-    
+
     # Create test frames
     frame1 = np.zeros((720, 1280, 3), dtype=np.uint8)
     frame1[0, 0] = [1, 1, 1]  # Mark frame 1
@@ -129,7 +129,7 @@ def test_lag_warning_when_threshold_exceeded(mock_cv2_capture):
 def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
     """Test that get_frame always returns the most recent frame."""
     mock_cv2_capture, mock_settings = mock_cv2_capture
-    
+
     # Create distinguishable frames
     frames = []
     for i in range(5):
@@ -164,7 +164,7 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
 def test_get_frame_returns_false_when_no_frames_available(mock_cv2_capture):
     """Test that get_frame returns (False, None) when no frames captured yet."""
     mock_cv2_capture, mock_settings = mock_cv2_capture
-    
+
     # Mock camera that fails immediately and keeps failing
     mock_cv2_capture.read.side_effect = itertools.repeat((False, None))
 
@@ -184,7 +184,7 @@ def test_get_frame_returns_false_when_no_frames_available(mock_cv2_capture):
 def test_buffer_clears_on_read_failure(mock_cv2_capture):
     """Test that buffer is cleared when camera read fails."""
     mock_cv2_capture, mock_settings = mock_cv2_capture
-    
+
     test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     # Control the mock behavior with time-based switching
@@ -237,7 +237,7 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
 def test_frame_timestamps_match_buffer_length(mock_cv2_capture):
     """Test that timestamps deque always has same length as frame buffer."""
     mock_cv2_capture, mock_settings = mock_cv2_capture
-    
+
     frames = [(True, np.zeros((720, 1280, 3), dtype=np.uint8)) for _ in range(10)]
 
     mock_cv2_capture.read.side_effect = itertools.chain(frames, itertools.repeat((False, None)))

@@ -129,13 +129,15 @@ def mock_video_capture(monkeypatch):
     mock_settings.camera.reconnect_timeout_seconds = 30.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30.0
-    
+
     # Patch Camera.__init__ to inject mock settings
     original_init = Camera.__init__
+
     def patched_init(self, settings_obj=None):
         return original_init(self, settings_obj=mock_settings)
+
     monkeypatch.setattr(Camera, "__init__", patched_init)
-    
+
     mock_cap_instance = MagicMock()
     # Mock isOpened() as a method that returns True
     mock_cap_instance.isOpened.return_value = True
@@ -167,7 +169,7 @@ def test_camera_init_failure(monkeypatch):
     mock_settings.camera.reconnect_timeout_seconds = 30.0
     mock_settings.camera.max_frame_lag_ms = 100.0
     mock_settings.video_processing.fps = 30.0
-    
+
     mock_cap_instance = MagicMock()
     # Mock isOpened() as a method that returns False
     mock_cap_instance.isOpened.return_value = False
