@@ -45,39 +45,34 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self.match_threshold = 0.15
         self.track_buffer = 60
 
-        # Context control for instance segmentation
-        self._context = "tracking"  # 'tracking' or 'diagnostic'
-        self._aquarium_region_defined = False
-        self._use_single_subject_mode = False
-
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """
         Run the Ultralytics model and return raw detection boxes.
 
         Returns:
             A list of tuples, where each tuple contains:
-            (x1, y1, x2, y2, confidence, track_id).
+            (x1, y1, x2, y2, confidence, track_id, class_id).
             track_id remains ``None`` so Detector can run BYTETracker centrally.
         """
-        classes_param = self._resolve_detection_classes()
-
         results = self.model.predict(
             frame,
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
-            classes=classes_param,
+            classes=None,
         )
 
-        predictions: list[tuple[int, int, int, int, float, int | None]] = []
+        predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
             xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
             confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
+            classes = boxes.cls.cpu().numpy()  # type: ignore[attr-defined]
 
             for i in range(len(xyxys)):
                 x1, y1, x2, y2 = xyxys[i]
                 confidence = confs[i]
+                class_id = int(classes[i])
                 predictions.append(
                     (
                         int(x1),
@@ -86,35 +81,11 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         int(y2),
                         float(confidence),
                         None,
+                        class_id,
                     )
                 )
 
         return predictions
-
-    def set_context(self, context: str):
-        """
-        Set the detection context.
-
-        Args:
-            context (str): 'tracking' or 'diagnostic'
-        """
-        if context in ("tracking", "diagnostic"):
-            self._context = context
-
-    def set_aquarium_region_defined(self, defined: bool = True):
-        """
-        Set whether aquarium region has been defined.
-
-        Args:
-            defined (bool): True if aquarium region is defined
-        """
-        self._aquarium_region_defined = bool(defined)
-
-    def set_use_single_subject_mode(self, enabled: bool) -> None:
-        """Switch between single-subject heuristics and default tracking."""
-
-        self._use_single_subject_mode = bool(enabled)
-        self.reset_tracking_state()
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None
@@ -224,16 +195,3 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # Ultralytics YOLO keeps minimal state across predict() calls, so no-op.
         pass
-
-    def _resolve_detection_classes(self) -> list[int] | None:
-        if self._context == "diagnostic":
-            return None
-        if self._context == "tracking" and not self._aquarium_region_defined:
-            return None
-
-        zebrafish_classes: list[int] = []
-        for class_id, class_name in self.model.names.items():
-            if "zebrafish" in class_name.lower():
-                zebrafish_classes.append(class_id)
-
-        return zebrafish_classes if zebrafish_classes else [0]

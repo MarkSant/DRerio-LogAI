@@ -256,16 +256,13 @@ class DetectorService:
         self.detector.set_zones(zone_data, width, height)
         log.info("detector_service.zones.configured", count=len(zone_data.roi_polygons))
 
-        # Inform plugin about aquarium region status
-        plugin = getattr(self.detector, "plugin", None)
-        if plugin and hasattr(plugin, "set_aquarium_region_defined"):
-            has_aquarium = bool(zone_data and zone_data.polygon)
-            plugin.set_aquarium_region_defined(has_aquarium)
-            log.info(
-                "detector_service.aquarium_status.updated",
-                defined=has_aquarium,
-                plugin=plugin.get_name() if hasattr(plugin, "get_name") else "unknown",
-            )
+        # Inform detector about aquarium region status
+        has_aquarium = bool(zone_data and zone_data.polygon)
+        self.detector.set_aquarium_region_defined(has_aquarium)
+        log.info(
+            "detector_service.aquarium_status.updated",
+            defined=has_aquarium,
+        )
 
         return True
 

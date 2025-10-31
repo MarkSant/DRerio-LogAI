@@ -80,6 +80,8 @@ class Detector:
         self._zones_configured = False
         self._last_width: int | None = None
         self._last_height: int | None = None
+        self._context: str = "tracking"
+        self._aquarium_region_defined: bool = False
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
@@ -105,6 +107,27 @@ class Detector:
         self._last_width = actual_width
         self._last_height = actual_height
         self._single_subject_tracker.reset()
+
+    def set_context(self, context: str):
+        """
+        Set the detection context.
+
+        Args:
+            context (str): 'tracking' or 'diagnostic'
+        """
+        if context in ("tracking", "diagnostic"):
+            self._context = context
+            log.info("detector.context.set", context=context)
+
+    def set_aquarium_region_defined(self, defined: bool = True):
+        """
+        Set whether aquarium region has been defined.
+
+        Args:
+            defined (bool): True if aquarium region is defined
+        """
+        self._aquarium_region_defined = bool(defined)
+        log.info("detector.aquarium_region_defined.set", defined=defined)
 
     def _update_scaling(self, actual_width: int, actual_height: int):
         """
@@ -236,12 +259,20 @@ class Detector:
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
             predictions = []
             for det in self.plugin.detect(cropped_frame):
-                x1_crop, y1_crop, x2_crop, y2_crop, conf, track_id = self._ensure_track_tuple(det)
+                (
+                    x1_crop,
+                    y1_crop,
+                    x2_crop,
+                    y2_crop,
+                    conf,
+                    track_id,
+                    class_id,
+                ) = self._ensure_track_tuple(det)
                 x1 = x1_crop + x
                 y1 = y1_crop + y
                 x2 = x2_crop + x
                 y2 = y2_crop + y
-                predictions.append((x1, y1, x2, y2, conf, track_id))
+                predictions.append((x1, y1, x2, y2, conf, track_id, class_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined
             predictions = [self._ensure_track_tuple(det) for det in self.plugin.detect(frame)]
@@ -251,23 +282,62 @@ class Detector:
         detections_in_polygon = []
         if len(predictions) > 0:
             for det in predictions:
-                x1, y1, x2, y2, confidence, track_id = det
+                x1, y1, x2, y2, confidence, track_id, class_id = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                 confidence = float(confidence)
 
                 if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
-                    detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id))
+                    detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id, class_id))
                 else:
                     log.debug(
                         "detector.filtered_outside_polygon",
                         bbox=(x1, y1, x2, y2),
                         track_id=track_id,
+                        class_id=class_id,
                     )
 
-        if self._single_subject_mode:
-            detections_in_polygon = self._single_subject_tracker.assign(detections_in_polygon)
+        # Centralized filtering logic based on context
+        filtered_detections = []
+        if self._context == "diagnostic":
+            # Diagnostic mode shows everything
+            filtered_detections = detections_in_polygon
         else:
-            detections_in_polygon = self._apply_byte_tracking(detections_in_polygon, frame.shape)
+            # Tracking mode
+            aquarium_class_id = 0
+            zebrafish_class_id = 1
+
+            if not self._aquarium_region_defined:
+                # Before arena is defined, show only aquarium detections (class_id 0)
+                for det in detections_in_polygon:
+                    # det format: (x1, y1, x2, y2, confidence, track_id, class_id)
+                    class_id = det[6]
+                    if class_id == aquarium_class_id:
+                        filtered_detections.append(det)
+                    else:
+                        log.debug(
+                            "detector.filtered_by_class",
+                            bbox=(det[0], det[1], det[2], det[3]),
+                            class_id=class_id,
+                            reason="aquarium_not_defined",
+                        )
+            else:
+                # After arena is defined, show only zebrafish detections (class_id 1)
+                for det in detections_in_polygon:
+                    class_id = det[6]
+                    if class_id == zebrafish_class_id:
+                        filtered_detections.append(det)
+                    else:
+                        log.debug(
+                            "detector.filtered_by_class",
+                            bbox=(det[0], det[1], det[2], det[3]),
+                            class_id=class_id,
+                            reason="arena_defined",
+                        )
+
+        if self._single_subject_mode:
+            filtered_detections = self._single_subject_tracker.assign(filtered_detections)
+        else:
+            filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
 
         end_time = time.perf_counter()
         log.debug(
@@ -278,7 +348,7 @@ class Detector:
 
         # The command logic has been removed as it was tied to the old square ROIs
         command_to_send = None
-        return detections_in_polygon, command_to_send
+        return filtered_detections, command_to_send
 
     def set_single_subject_mode(self, enabled: bool) -> None:
         """Toggle lightweight single-subject tracking."""
@@ -340,9 +410,13 @@ class Detector:
         if len(detection) == 5:
             x1, y1, x2, y2, confidence = detection
             track_id = None
+            class_id = 0  # Default class if not provided
+        elif len(detection) == 6:
+            x1, y1, x2, y2, confidence, track_id = detection
+            class_id = 0  # Default class if not provided
         else:
-            x1, y1, x2, y2, confidence, track_id = detection[:6]
-        return x1, y1, x2, y2, float(confidence), track_id
+            x1, y1, x2, y2, confidence, track_id, class_id = detection[:7]
+        return x1, y1, x2, y2, float(confidence), track_id, int(class_id)
 
     def _apply_byte_tracking(
         self, detections: list[tuple], frame_shape: tuple[int, int, int]
@@ -368,14 +442,15 @@ class Detector:
                     int(y2),
                     float(confidence),
                     None,
+                    int(class_id),
                 )
-                for x1, y1, x2, y2, confidence, _ in detections
+                for x1, y1, x2, y2, confidence, _, class_id in detections
             ]
 
         det_array = np.array(
             [
                 [float(x1), float(y1), float(x2), float(y2), float(confidence)]
-                for x1, y1, x2, y2, confidence, _ in detections
+                for x1, y1, x2, y2, confidence, _, _ in detections
             ],
             dtype=np.float32,
         )
@@ -386,9 +461,31 @@ class Detector:
             self._resolve_model_input_shape(),
         )
 
+        # Create a proper mapping of tracks to class_ids based on IoU with original detections
+        # Build a mapping: track bbox -> best matching detection's class_id
         results: list[tuple] = []
         for track in tracks:
-            x1, y1, x2, y2 = track.tlbr
+            track_bbox = track.tlbr  # (x1, y1, x2, y2)
+            
+            # Find the detection with highest IoU overlap with this track
+            best_iou = 0.0
+            best_class_id = 0  # Default class
+            
+            for det in detections:
+                det_x1, det_y1, det_x2, det_y2, _, _, det_class_id = det
+                
+                # Calculate IoU between track bbox and detection bbox
+                iou = self._calculate_iou(
+                    track_bbox[0], track_bbox[1], track_bbox[2], track_bbox[3],
+                    det_x1, det_y1, det_x2, det_y2
+                )
+                
+                if iou > best_iou:
+                    best_iou = iou
+                    best_class_id = det_class_id
+            
+            # Use the class_id from the best matching detection
+            x1, y1, x2, y2 = track_bbox
             results.append(
                 (
                     int(x1),
@@ -397,10 +494,37 @@ class Detector:
                     int(y2),
                     float(track.score),
                     int(track.track_id),
+                    int(best_class_id),
                 )
             )
 
         return results
+    
+    def _calculate_iou(
+        self, x1_a: float, y1_a: float, x2_a: float, y2_a: float,
+        x1_b: float, y1_b: float, x2_b: float, y2_b: float
+    ) -> float:
+        """Calculate Intersection over Union (IoU) between two bounding boxes."""
+        # Calculate intersection
+        inter_x1 = max(x1_a, x1_b)
+        inter_y1 = max(y1_a, y1_b)
+        inter_x2 = min(x2_a, x2_b)
+        inter_y2 = min(y2_a, y2_b)
+        
+        if inter_x2 <= inter_x1 or inter_y2 <= inter_y1:
+            return 0.0
+        
+        inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+        
+        # Calculate union
+        area_a = (x2_a - x1_a) * (y2_a - y1_a)
+        area_b = (x2_b - x1_b) * (y2_b - y1_b)
+        union_area = area_a + area_b - inter_area
+        
+        if union_area <= 0:
+            return 0.0
+        
+        return inter_area / union_area
 
     def _ensure_byte_tracker(self) -> BYTETracker | None:
         track_thresh = self._get_track_threshold()
@@ -487,7 +611,12 @@ class Detector:
             )
 
         # Draw the bounding boxes for detections
-        for x1, y1, x2, y2, confidence, track_id in detections:
+        for detection in detections:
+            # Handle both 6-element (old) and 7-element (new) tuples
+            if len(detection) == 6:
+                x1, y1, x2, y2, confidence, track_id = detection
+            else:
+                x1, y1, x2, y2, confidence, track_id, class_id = detection
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
             label = f"ID: {track_id} ({int(confidence * 100)}%)"
             cv2.putText(

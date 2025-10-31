@@ -191,9 +191,8 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         # Verify success
         self.assertTrue(success)
 
-        # Verify plugin was notified about aquarium region
-        plugin = self.controller.detector.plugin
-        self.assertTrue(plugin._aquarium_region_defined)
+        # Verify detector was notified about aquarium region
+        self.assertTrue(self.controller.detector._aquarium_region_defined)
 
     def test_parameter_update_coordination(self):
         """Test parameter updates coordinate between controller and service."""

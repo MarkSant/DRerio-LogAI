@@ -250,7 +250,7 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertTrue(result)
         mock_detector.set_zones.assert_called_once_with(zone_data, 1280, 720)
-        mock_plugin.set_aquarium_region_defined.assert_called_once_with(True)
+        mock_detector.set_aquarium_region_defined.assert_called_once_with(True)
 
     def test_configure_zones_loads_from_project(self):
         """Test configure zones loads from project when not provided."""

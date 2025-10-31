@@ -129,7 +129,8 @@ class TestDetector(unittest.TestCase):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         self.assertEqual(len(detections), 1)
-        x1, y1, x2, y2, confidence, track_id = detections[0]
+        # Unpack 7 elements (x1, y1, x2, y2, confidence, track_id, class_id)
+        x1, y1, x2, y2, confidence, track_id, class_id = detections[0]
         self.assertIsInstance(track_id, int)
         self.assertGreaterEqual(confidence, 0.0)
         self.assertLessEqual(confidence, 1.0)
@@ -552,21 +553,23 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.assertEqual(len(detections), 1)
 
     def test_ensure_track_tuple_with_5_elements(self):
-        """Test _ensure_track_tuple handles 5-element tuples (no track_id)."""
+        """Test _ensure_track_tuple handles 5-element tuples (no track_id, no class_id)."""
         detection_5 = (100, 150, 200, 250, 0.95)
         result = self.detector._ensure_track_tuple(detection_5)
 
-        self.assertEqual(len(result), 6)
+        self.assertEqual(len(result), 7)
         self.assertEqual(result[:5], (100, 150, 200, 250, 0.95))
-        self.assertIsNone(result[5])
+        self.assertIsNone(result[5])  # track_id
+        self.assertEqual(result[6], 0)  # class_id default
 
     def test_ensure_track_tuple_with_6_elements(self):
-        """Test _ensure_track_tuple handles 6-element tuples (with track_id)."""
+        """Test _ensure_track_tuple handles 6-element tuples (with track_id, no class_id)."""
         detection_6 = (100, 150, 200, 250, 0.92, 42)
         result = self.detector._ensure_track_tuple(detection_6)
 
-        self.assertEqual(len(result), 6)
-        self.assertEqual(result, (100, 150, 200, 250, 0.92, 42))
+        self.assertEqual(len(result), 7)
+        self.assertEqual(result[:6], (100, 150, 200, 250, 0.92, 42))
+        self.assertEqual(result[6], 0)  # class_id default
 
     def test_get_track_threshold_from_plugin(self):
         """Test _get_track_threshold retrieves from plugin if available."""

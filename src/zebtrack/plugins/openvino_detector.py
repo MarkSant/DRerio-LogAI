@@ -83,10 +83,6 @@ class OpenVINOPlugin(DetectorPlugin):
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
 
-        # Context control for class filtering
-        self._context: str = "tracking"  # 'tracking' or 'diagnostic'
-        self._aquarium_region_defined: bool = False
-
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
             raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_path}")
@@ -133,28 +129,11 @@ class OpenVINOPlugin(DetectorPlugin):
                         self.class_names = {int(k): v for k, v in metadata["class_names"].items()}
                     log.info("openvino.metadata.loaded", classes=self.class_names)
             except Exception as e:
-                log.warning("openvino.metadata.load_failed", error=str(e))
-
-    def set_context(self, context: str):
-        """
-        Define o contexto de uso do plugin.
-        'diagnostic' => não filtra classes (mostra todas)
-        'tracking'   => aplica filtragem condicional (apenas classe 1 depois do
-                        aquário definido)
-        """
-        if context not in ("tracking", "diagnostic"):
-            return
-        self._context = context
-
-    def set_aquarium_region_defined(self, defined: bool = True):
-        """Informar que a região do aquário já está válida"""
-        self._aquarium_region_defined = bool(defined)
+                    log.warning("openvino.metadata.load_failed", error=str(e))
 
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
         return {
-            "context": self._context,
-            "aquarium_region_defined": self._aquarium_region_defined,
             "conf_threshold": self.conf_threshold,
             "nms_threshold": self.nms_threshold,
             "track_threshold": self.track_threshold,
@@ -174,7 +153,7 @@ class OpenVINOPlugin(DetectorPlugin):
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
 
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None]]:
+    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """Run inference using the OpenVINO model and return raw detections."""
 
         input_tensor = self._preprocess(frame)
@@ -182,9 +161,9 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         detections = self._postprocess(results, frame.shape)
 
-        predictions: list[tuple[int, int, int, int, float, int | None]] = []
+        predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         for det in detections:
-            x1, y1, x2, y2, score = det[:5]
+            x1, y1, x2, y2, score, class_id = det[:6]
             predictions.append(
                 (
                     int(x1),
@@ -193,6 +172,7 @@ class OpenVINOPlugin(DetectorPlugin):
                     int(y2),
                     float(score),
                     None,
+                    int(class_id),
                 )
             )
 
@@ -207,15 +187,11 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         # Store original values
         old_conf = None
-        old_context = self._context
 
         if conf_threshold is not None:
             # Temporarily override confidence threshold for this prediction
             old_conf = self.conf_threshold
             self.conf_threshold = conf_threshold
-
-        # Ensure diagnostic context for this prediction (shows all classes)
-        self.set_context("diagnostic")
 
         try:
             # 1. Preprocess and get detections from OpenVINO
@@ -246,8 +222,6 @@ class OpenVINOPlugin(DetectorPlugin):
             # Restore original values
             if old_conf is not None:
                 self.conf_threshold = old_conf
-            # Restore original context
-            self._context = old_context
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
         """Prepares a frame for OpenVINO inference using letterboxing."""
@@ -278,7 +252,6 @@ class OpenVINOPlugin(DetectorPlugin):
         ).round()
 
         final_detections = []
-        filtered_count = 0
         for *xyxy, conf, cls in detections:
             class_id = int(cls)
 
@@ -291,45 +264,17 @@ class OpenVINOPlugin(DetectorPlugin):
                     confidence=float(conf),
                 )
 
-            # LÓGICA DE FILTRO ATUALIZADA:
-            if self._context == "diagnostic":
-                # Em modo diagnóstico NUNCA filtra: inclui todas as classes retornadas
-                final_detections.append(
-                    (
-                        int(xyxy[0]),
-                        int(xyxy[1]),
-                        int(xyxy[2]),
-                        int(xyxy[3]),
-                        float(conf),
-                        class_id,
-                    )
+            # Return all detections without filtering
+            final_detections.append(
+                (
+                    int(xyxy[0]),
+                    int(xyxy[1]),
+                    int(xyxy[2]),
+                    int(xyxy[3]),
+                    float(conf),
+                    class_id,
                 )
-            else:
-                # Modo tracking:
-                # Antes do aquário estar definido: não filtra (permite aparecer
-                # classe 0 ou outras)
-                # Após definição do aquário: filtra para somente peixe
-                # IMPORTANTE: Aceita tanto classe 0 quanto classe 1 como zebrafish,
-                # pois modelos diferentes podem usar índices diferentes
-                if self._aquarium_region_defined:
-                    # Check if this is a zebrafish class
-                    class_name = self.class_names.get(class_id, "")
-                    is_zebrafish = "zebrafish" in class_name.lower() or class_id == 0
-
-                    if not is_zebrafish:
-                        filtered_count += 1
-                        continue
-
-                final_detections.append(
-                    (
-                        int(xyxy[0]),
-                        int(xyxy[1]),
-                        int(xyxy[2]),
-                        int(xyxy[3]),
-                        float(conf),
-                        class_id,
-                    )
-                )
+            )
         return final_detections
 
     @staticmethod

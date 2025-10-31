@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-Detection = tuple[int, int, int, int, float, int | None]
-TrackedDetection = tuple[int, int, int, int, float, int]
+Detection = tuple[int, int, int, int, float, int | None, int]
+TrackedDetection = tuple[int, int, int, int, float, int, int]
 
 
 class SingleSubjectTracker:
@@ -47,13 +47,19 @@ class SingleSubjectTracker:
 
         bbox = selected[:4]
         confidence = selected[4]
+        class_id = selected[6]
         self._last_bbox = bbox
         x1, y1, x2, y2 = bbox
-        return [(x1, y1, x2, y2, confidence, self.track_id)]
+        return [(x1, y1, x2, y2, confidence, self.track_id, class_id)]
 
     def _normalise_detection(self, detection: Detection) -> Detection:
-        x1, y1, x2, y2, confidence, track_id = detection
-        return (int(x1), int(y1), int(x2), int(y2), float(confidence), track_id)
+        # Support both 6-element (old) and 7-element (new) tuples
+        if len(detection) == 6:
+            x1, y1, x2, y2, confidence, track_id = detection
+            class_id = 0  # Default class
+        else:
+            x1, y1, x2, y2, confidence, track_id, class_id = detection
+        return (int(x1), int(y1), int(x2), int(y2), float(confidence), track_id, int(class_id))
 
     def _compute_iou(self, bbox: Iterable[int]) -> float:
         if self._last_bbox is None:

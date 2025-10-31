@@ -2851,15 +2851,14 @@ class MainViewModel:
             count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
         )
 
-        # Inform plugin that aquarium region is defined
-        if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
+        # Inform detector that aquarium region is defined
+        if self.detector:
             has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            self.detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.single_video.aquarium_status",
                 defined=has_aquarium,
                 plugin=self.detector.plugin.get_name(),
-                context=getattr(self.detector.plugin, "_context", "unknown"),
             )
 
         # 2. Prepare the environment for _process_videos
@@ -3462,14 +3461,13 @@ class MainViewModel:
 
         self.detector.set_zones(zone_data, frame_width, frame_height)
 
-        if self.detector and hasattr(self.detector.plugin, "set_aquarium_region_defined"):
+        if self.detector:
             has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.plugin.set_aquarium_region_defined(has_aquarium)
+            self.detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.tracking.aquarium_status",
                 defined=has_aquarium,
                 plugin=self.detector.plugin.get_name(),
-                context=getattr(self.detector.plugin, "_context", "unknown"),
             )
 
         return zone_data, arena_polygon

@@ -191,7 +191,12 @@ class Recorder:
         if not self.is_recording:
             return
 
-        for x1, y1, x2, y2, confidence, track_id in detections:
+        for detection in detections:
+            # Support both 6-element (old) and 7-element (new) tuples
+            if len(detection) == 6:
+                x1, y1, x2, y2, confidence, track_id = detection
+            else:
+                x1, y1, x2, y2, confidence, track_id, _class_id = detection
             normalised_track = self._normalise_track_id(track_id)
             # Transform coordinates from original video space to warped space
             # This aligns with COORDINATE_SYSTEMS.md: Original → Warped → CM
