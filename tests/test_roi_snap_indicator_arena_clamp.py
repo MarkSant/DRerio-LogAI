@@ -30,7 +30,8 @@ def test_roi_snap_indicator_arena_clamp_implementation():
     # Verify arena clamping logic is present when drawing ROI
     assert 'if self.current_drawing_type == "roi":' in motion_section, "Should check if drawing ROI"
 
-    arena_lookup = "main_arena_poly = self.controller.project_manager.get_zone_data().polygon"
+    # Phase 4: Updated to use _get_zone_data_for_active_context() instead of direct access
+    arena_lookup = "main_arena_poly = self._get_zone_data_for_active_context().polygon"
     assert arena_lookup in motion_section, "Should get arena polygon when drawing ROI"
 
     assert "cv2.pointPolygonTest" in motion_section, (

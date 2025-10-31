@@ -4873,7 +4873,7 @@ class ApplicationGUI:
                 isinstance(self.current_editing_zone, tuple)
                 and self.current_editing_zone[0] == "roi"
             ):
-                zone_data = self.controller.project_manager.get_zone_data()
+                zone_data = self._get_zone_data_for_active_context()
                 main_arena_poly = zone_data.polygon if zone_data else None
                 if main_arena_poly:
                     canvas_arena_poly = []
@@ -4958,7 +4958,7 @@ class ApplicationGUI:
 
         # If editing an ROI, clamp the point within the main arena
         if isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
@@ -5045,7 +5045,7 @@ class ApplicationGUI:
         elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
             # Save ROI
             _, roi_index, roi_name = self.current_editing_zone
-            zone_data = self.controller.project_manager.get_zone_data()
+            zone_data = self._get_zone_data_for_active_context()
 
             # Update the ROI polygon
             zone_data.roi_polygons[roi_index] = self.edited_polygon_points
@@ -6799,7 +6799,7 @@ class ApplicationGUI:
             )
             return
 
-        main_arena = self.controller.project_manager.get_zone_data().polygon
+        main_arena = self._get_zone_data_for_active_context().polygon
         if not main_arena:
             self.show_error(
                 "Erro",
@@ -7015,7 +7015,7 @@ class ApplicationGUI:
 
         # If drawing ROI, clamp position to arena
         if self.current_drawing_type == "roi":
-            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
@@ -8075,7 +8075,7 @@ class ApplicationGUI:
 
         # If drawing an ROI, clamp the point inside the main arena
         if self.current_drawing_type == "roi":
-            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
@@ -8180,7 +8180,7 @@ class ApplicationGUI:
 
         # When drawing ROI, clamp the display indicator within the arena
         if self.current_drawing_type == "roi":
-            main_arena_poly = self.controller.project_manager.get_zone_data().polygon
+            main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 # Convert arena to canvas coordinates
                 canvas_arena_poly = []
@@ -8222,7 +8222,7 @@ class ApplicationGUI:
             or self._vertex_hover_index is not None
             or (
                 self.current_drawing_type == "roi"
-                and self.controller.project_manager.get_zone_data().polygon
+                and self._get_zone_data_for_active_context().polygon
             )
         )
 
@@ -8273,7 +8273,7 @@ class ApplicationGUI:
         # Fix: Auto-detect drawing type if not set (for single video workflow)
         if self.current_drawing_type is None and self.drawing_mode == "polygon":
             # If no main arena exists, assume we're drawing it
-            zone_data = self.controller.project_manager.get_zone_data()
+            zone_data = self._get_zone_data_for_active_context()
             if not zone_data.polygon:
                 self.current_drawing_type = "arena"
             else:
@@ -8946,7 +8946,7 @@ class ApplicationGUI:
         if self.controller.project_manager.get_project_type() != "live":
             return
 
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
         if not zone_data or not zone_data.polygon:
             log.info("ui.live_calibration.auto_prompt")
 
@@ -9518,7 +9518,7 @@ class ApplicationGUI:
                 self._clear_interactive_polygon()
 
         # 1. Get the zone data that the user drew
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
         if not zone_data.polygon:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
@@ -9619,7 +9619,7 @@ class ApplicationGUI:
 
     def _draw_zones_on_frame(self, frame):
         """Desenha a arena e as ROIs salvas no frame de vídeo."""
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
         if zone_data.polygon:
             pts = np.array(zone_data.polygon, np.int32)
             pts = pts.reshape((-1, 1, 2))
@@ -10469,7 +10469,7 @@ class ApplicationGUI:
             )
             return
 
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
 
         if "Arena Principal" in zone_name:
             # Edit main arena
@@ -10517,7 +10517,7 @@ class ApplicationGUI:
 
         if new_name and new_name != old_name:
             # Atualiza no projeto
-            zone_data = self.controller.project_manager.get_zone_data()
+            zone_data = self._get_zone_data_for_active_context()
             try:
                 idx = zone_data.roi_names.index(old_name)
                 zone_data.roi_names[idx] = new_name
@@ -10554,7 +10554,7 @@ class ApplicationGUI:
         color_name = selected_color["name"]
 
         # Atualiza no projeto
-        zone_data = self.controller.project_manager.get_zone_data()
+        zone_data = self._get_zone_data_for_active_context()
         try:
             idx = zone_data.roi_names.index(old_name)
             zone_data.roi_colors[idx] = new_color
@@ -10595,7 +10595,7 @@ class ApplicationGUI:
 
         if confirm:
             # Remove do projeto
-            zone_data = self.controller.project_manager.get_zone_data()
+            zone_data = self._get_zone_data_for_active_context()
             try:
                 idx = zone_data.roi_names.index(roi_name)
 
