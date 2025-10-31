@@ -4,7 +4,6 @@ Tests for new weight type classification and per-type default features.
 
 import os
 import tempfile
-from unittest.mock import patch
 
 from zebtrack.core.weight_manager import WeightManager
 

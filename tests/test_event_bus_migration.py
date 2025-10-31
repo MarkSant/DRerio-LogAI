@@ -1,6 +1,7 @@
 import tkinter as tk
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
@@ -14,6 +15,7 @@ def mock_event_bus():
     return MagicMock(spec=EventBus)
 
 
+@pytest.mark.gui
 def test_control_panel_publishes_events(tkinter_root, mock_event_bus):
     """Verify that ControlPanelWidget publishes events instead of using direct calls."""
     widget = ControlPanelWidget(tkinter_root, event_bus=mock_event_bus)
@@ -32,6 +34,7 @@ def test_control_panel_publishes_events(tkinter_root, mock_event_bus):
     mock_event_bus.publish_event.assert_called_with(Events.RECORDING_STOP, {})
 
 
+@pytest.mark.gui
 def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
     """Verify that ZoneControlsWidget publishes events for all its actions."""
     widget = ZoneControlsWidget(tkinter_root, event_bus=mock_event_bus)
