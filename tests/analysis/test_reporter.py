@@ -490,27 +490,25 @@ class TestEdgeCases:
     """Test suite for edge cases."""
 
     def test_empty_trajectory_dataframe(self, mock_settings):
-        """Test Reporter with empty trajectory DataFrame."""
+        """Test Reporter with empty trajectory DataFrame raises ValueError."""
         import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         empty_df = pd.DataFrame(columns=["timestamp", "frame", "track_id"])
 
-        reporter = Reporter(
-            trajectory_df=empty_df,
-            metadata={},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=480,
-            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-            rois=[],
-            fps=30.0,
-            settings_obj=mock_settings,
-        )
-
-        # Should not crash on export
-        with patch('zebtrack.analysis.reporter.pd.DataFrame.to_parquet'):
-            reporter.export_summary_data("/fake/output.parquet", format="parquet")
+        # Empty DataFrames should raise ValueError during behavioral analysis
+        with pytest.raises(ValueError, match="Input DataFrame is empty"):
+            Reporter(
+                trajectory_df=empty_df,
+                metadata={},
+                pixelcm_x=10.0,
+                pixelcm_y=10.0,
+                video_height_px=480,
+                arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+                rois=[],
+                fps=30.0,
+                settings_obj=mock_settings,
+            )
 
     def test_unicode_metadata(self, sample_trajectory_df, mock_settings):
         """Test Reporter with Unicode characters in metadata."""
