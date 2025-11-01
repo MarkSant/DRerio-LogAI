@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**DRerio LogAI** (internally packaged as `zebtrack`) is a desktop Tkinter application for multi-animal behavioral tracking and analysis in *Danio rerio* (zebrafish) research. It automates video tracking (live/recorded), behavioral analysis, and scientific report generation using YOLO/OpenVINO models. The codebase follows an MVVM-like architecture with a component-based UI system.
+**DRerio LogAI** (internally packaged as `zebtrack`) is a desktop Tkinter application for multi-animal behavioral tracking and analysis in *Danio rerio* (zebrafish) research. It automates video tracking (live/recorded), behavioral analysis, and scientific report generation using YOLO/OpenVINO models. The codebase follows an **MVVM-S architecture with Dependency Injection (DI)**, where `__main__.py` acts as the Composition Root.
 
-**Note on Naming**: The product name is "DRerio LogAI", but the internal Python package remains `zebtrack` for compatibility. See `TRANSITION_NOTE.md` for full context.
+**Note on Naming**: The product name is "DRerio LogAI", but the internal Python package remains `zebtrack` for compatibility.
 
 ## Essential Commands
 
@@ -82,16 +82,22 @@ poetry run python scripts/compile_translations.py
 
 ## Architecture
 
-### MVVM Pattern with Component-Based UI
+### MVVM-S Architecture with Dependency Injection
 
-The application uses a **Model-View-ViewModel (MVVM)** architecture with reactive state management:
+The application uses **MVVM-S** (Model-View-ViewModel-Service) with **Dependency Injection (DI)**:
+
+- **Composition Root** (`src/zebtrack/__main__.py`):
+  - All dependencies are instantiated and wired here (lines 140-280)
+  - `Settings` loaded via `load_settings()` (never use global `from zebtrack.settings import settings`)
+  - Services receive `settings_obj` parameter via constructor injection
 
 - **Model Layer** (`zebtrack.core`, `zebtrack.analysis`):
   - `StateManager`: Centralized, thread-safe state with observable pattern (single source of truth)
-  - `ProjectService`: Project file I/O (create, load, save, templates)
-  - `AnalysisService`: Orchestrates behavioral analysis and reporting
-  - `ProjectManager`: In-memory project state (videos, zones, intervals)
-  - `Detector`: AI model abstraction with zone state machine
+  - `ProjectManager`: In-memory project state (videos, zones, intervals) - receives `settings_obj` via DI
+  - `DetectorService`: Wraps plugin detectors with zone scaling - receives `settings_obj` via DI
+  - `VideoProcessingService`: Background analysis - receives `settings_obj` via DI
+  - `WeightManager`: Manages YOLO/OpenVINO weights - receives `settings_obj` via DI
+  - `AnalysisService`: Orchestrates behavioral analysis - receives `settings_obj` via DI
   - `Recorder`: Parquet/MP4 persistence with immutable schema
 
 - **View Layer** (`zebtrack.ui`):
@@ -100,7 +106,8 @@ The application uses a **Model-View-ViewModel (MVVM)** architecture with reactiv
   - `WizardDialog`: 5-step project creation wizard (default since v1.6)
 
 - **ViewModel Layer** (`zebtrack.core.main_view_model`):
-  - `MainViewModel`: Orchestrates application flow, subscribes to `EventBus` events, updates `StateManager`
+  - `MainViewModel`: Orchestrates application flow with 11+ injected dependencies
+  - Subscribes to `EventBus` events, updates `StateManager`
   - Backward-compatible alias as `AppController`
 
 ### Key Data Flow

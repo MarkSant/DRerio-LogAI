@@ -14,18 +14,21 @@ Este documento descreve a arquitetura técnica do **DRerio LogAI** (pacote inter
 4.  **Análises comportamentais e ROI** orientadas a métricas científicas.
 5.  **Geração de relatórios** (Excel/Word/CSV) para uso laboratorial.
 
-### Arquitetura Geral: MVVM-like com Componentes de UI
+### Arquitetura Geral: MVVM-S com Injeção de Dependência
 
-ZebTrack-AI segue um padrão arquitetural **MVVM-like** (Model-View-ViewModel) adaptado para Tkinter, com uma **arquitetura de UI baseada em componentes** e comunicação desacoplada via **EventBus** e **StateManager**.
+A aplicação agora segue um padrão **MVVM-S** (Model-View-ViewModel-Service) com **Injeção de Dependência (DI)** completa. O `__main__.py` atua como o **Composition Root**, instanciando todos os serviços (`StateManager`, `DetectorService`, `VideoProcessingService`, `ProjectManager`, `Settings`, etc.) e injetando-os no `MainViewModel`. 
 
--   **Model**: Camada de dados e serviços. Inclui o `StateManager` (fonte única de verdade para o estado), `ProjectManager` (dados de projeto em memória), e serviços de domínio como `ProjectService` (I/O) e `AnalysisService`.
--   **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos. A `ApplicationGUI` atua como um contêiner para esses componentes.
+A `ApplicationGUI` (View) é desacoplada e se comunica com o `MainViewModel` exclusivamente via `EventBus`, seguindo um **fluxo de dados unidirecional**. O `StateManager` é a **fonte única da verdade** para o estado do núcleo da aplicação.
+
+-   **Model**: Camada de dados gerenciada pelo `StateManager` (imutável) e `ProjectManager` (persistência e carregamento de projetos).
+-   **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos via `EventBus`. A `ApplicationGUI` atua como um contêiner para esses componentes.
 -   **ViewModel**: O `MainViewModel` (controller) que orquestra as operações. Ele se inscreve em eventos do `EventBus` para responder a interações da UI e atualiza o `StateManager` para acionar atualizações reativas na View.
+-   **Service Layer**: Serviços injetados via construtor (`DetectorService`, `VideoProcessingService`, `ProjectWorkflowService`, `WeightManager`, etc.) encapsulam lógica de domínio complexa e dependências externas.
 
 Este padrão promove:
 
--   **Separação de responsabilidades**: UI desacoplada da lógica de negócio.
--   **Testabilidade**: ViewModels, serviços e componentes de UI são testáveis de forma isolada.
+-   **Inversão de Controle (IoC)**: Todas as dependências são fornecidas externamente pelo Composition Root, eliminando o acoplamento a singletons globais.
+-   **Testabilidade**: ViewModels, serviços e componentes de UI são testáveis isoladamente com mocks/stubs.
 -   **Reatividade**: `StateManager` notifica a UI sobre mudanças de estado, e o `EventBus` notifica o ViewModel sobre ações do usuário.
 -   **Manutenibilidade**: Componentes coesos e de baixo acoplamento facilitam a manutenção e extensão.
 
