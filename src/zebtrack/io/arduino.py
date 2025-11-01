@@ -8,14 +8,16 @@ import structlog
 log = structlog.get_logger()
 
 # Whitelist de comandos permitidos
-ALLOWED_ARDUINO_COMMANDS = frozenset({
-    "START",
-    "STOP",
-    "STATUS",
-    "TRIGGER",
-    "RESET",
-    "PING",
-})
+ALLOWED_ARDUINO_COMMANDS = frozenset(
+    {
+        "START",
+        "STOP",
+        "STATUS",
+        "TRIGGER",
+        "RESET",
+        "PING",
+    }
+)
 
 
 class ArduinoCommandError(ValueError):

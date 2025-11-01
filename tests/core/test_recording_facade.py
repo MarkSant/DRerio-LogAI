@@ -4,6 +4,7 @@ Unit tests for RecordingFacade.
 Tests the facade pattern for recording operations, ensuring proper
 coordination between Recorder, StateManager, and EventBus.
 """
+
 from unittest.mock import Mock
 
 import pytest
@@ -107,9 +108,7 @@ class TestRecordingFacadeStartRecording:
 
         assert result is False
 
-    def test_start_recording_updates_state(
-        self, recording_facade, mock_state_manager, tmp_path
-    ):
+    def test_start_recording_updates_state(self, recording_facade, mock_state_manager, tmp_path):
         """Test that start_recording updates StateManager."""
         video_path = tmp_path / "test_video.mp4"
         video_path.touch()

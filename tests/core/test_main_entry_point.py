@@ -170,17 +170,27 @@ class TestMainFunction:
                         with patch("zebtrack.core.weight_manager.WeightManager"):
                             with patch("zebtrack.core.model_service.ModelService"):
                                 with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
-                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                    with patch(
+                                        "zebtrack.core.project_workflow_service."
+                                        "ProjectWorkflowService"
+                                    ):
+                                        with patch(
+                                            "zebtrack.core.detector_service.DetectorService"
+                                        ):
                                             with patch("zebtrack.io.recorder.Recorder"):
                                                 with patch(
-                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                    "zebtrack.core."
+                                                    "video_processing_service."
+                                                    "VideoProcessingService"
                                                 ):
                                                     with patch(
-                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                        "zebtrack.analysis."
+                                                        "analysis_service."
+                                                        "AnalysisService"
                                                     ):
                                                         main()
-                                                        # Test verifies initialization completes and run is called
+                                                        # Test verifies init
+                                                        # completes and run called
                                                         mock_controller_instance.run.assert_called_once()
 
     @patch("zebtrack.__main__.configure_logging")
@@ -401,14 +411,23 @@ class TestMainFunction:
                         with patch("zebtrack.core.weight_manager.WeightManager"):
                             with patch("zebtrack.core.model_service.ModelService"):
                                 with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
-                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                    with patch(
+                                        "zebtrack.core.project_workflow_service."
+                                        "ProjectWorkflowService"
+                                    ):
+                                        with patch(
+                                            "zebtrack.core.detector_service.DetectorService"
+                                        ):
                                             with patch("zebtrack.io.recorder.Recorder"):
                                                 with patch(
-                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                    "zebtrack.core."
+                                                    "video_processing_service."
+                                                    "VideoProcessingService"
                                                 ):
                                                     with patch(
-                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                        "zebtrack.analysis."
+                                                        "analysis_service."
+                                                        "AnalysisService"
                                                     ):
                                                         try:
                                                             main()
@@ -443,14 +462,23 @@ class TestMainFunction:
                         with patch("zebtrack.core.weight_manager.WeightManager"):
                             with patch("zebtrack.core.model_service.ModelService"):
                                 with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
-                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                    with patch(
+                                        "zebtrack.core.project_workflow_service."
+                                        "ProjectWorkflowService"
+                                    ):
+                                        with patch(
+                                            "zebtrack.core.detector_service.DetectorService"
+                                        ):
                                             with patch("zebtrack.io.recorder.Recorder"):
                                                 with patch(
-                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                    "zebtrack.core."
+                                                    "video_processing_service."
+                                                    "VideoProcessingService"
                                                 ):
                                                     with patch(
-                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                        "zebtrack.analysis."
+                                                        "analysis_service."
+                                                        "AnalysisService"
                                                     ):
                                                         try:
                                                             main()

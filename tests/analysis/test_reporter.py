@@ -78,44 +78,44 @@ def reporter(sample_trajectory_df, sample_rois, mock_settings):
         "ignore", category=DeprecationWarning, module="zebtrack.analysis.reporter"
     )
 
-# OLD:     return Reporter(
-# OLD:         trajectory_df=sample_trajectory_df,
-# OLD:         metadata={"experiment_id": "test_001", "group_id": "G1"},
-# OLD:         pixelcm_x=10.0,
-# OLD:         pixelcm_y=10.0,
-# OLD:         video_height_px=480,
-# OLD:         arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:         rois=sample_rois,
-# OLD:         fps=30.0,
-# OLD:         roi_colors={"ROI1": (255, 0, 0), "ROI2": (0, 255, 0)},
-# OLD:         video_path="/fake/video.mp4",
-# OLD:         calibration=None,
-# OLD:         sharp_turn_threshold=45.0,
-# OLD:         freezing_threshold=1.0,
-# OLD:         freezing_duration=2.0,
-# OLD:         smoothing_window_length=5,
-# OLD:         smoothing_polyorder=2,
-# OLD:         settings_obj=mock_settings,
-# OLD:     )
-# MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+    # OLD:     return Reporter(
+    # OLD:         trajectory_df=sample_trajectory_df,
+    # OLD:         metadata={"experiment_id": "test_001", "group_id": "G1"},
+    # OLD:         pixelcm_x=10.0,
+    # OLD:         pixelcm_y=10.0,
+    # OLD:         video_height_px=480,
+    # OLD:         arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+    # OLD:         rois=sample_rois,
+    # OLD:         fps=30.0,
+    # OLD:         roi_colors={"ROI1": (255, 0, 0), "ROI2": (0, 255, 0)},
+    # OLD:         video_path="/fake/video.mp4",
+    # OLD:         calibration=None,
+    # OLD:         sharp_turn_threshold=45.0,
+    # OLD:         freezing_threshold=1.0,
+    # OLD:         freezing_duration=2.0,
+    # OLD:         smoothing_window_length=5,
+    # OLD:         smoothing_polyorder=2,
+    # OLD:         settings_obj=mock_settings,
+    # OLD:     )
+    # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
     service = AnalysisService(settings_obj=mock_settings)
     analysis = service.run_full_analysis_as_dto(
-    arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-    calibration=None,
-    fps=30.0,
-    freezing_min_duration=2.0,
-    freezing_vel_threshold=1.0,
-    metadata={'experiment_id': 'test_001', 'group_id': 'G1'},
-    pixelcm_x=10.0,
-    pixelcm_y=10.0,
-    roi_colors={'ROI1': (255, 0, 0), 'ROI2': (0, 255, 0)},
-    rois=sample_rois,
-    sharp_turn_threshold=45.0,
-    smoothing_polyorder=2,
-    smoothing_window_length=5,
-    trajectory_df=sample_trajectory_df,
-    video_height_px=480,
-    video_path='/fake/video.mp4',
+        arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        calibration=None,
+        fps=30.0,
+        freezing_min_duration=2.0,
+        freezing_vel_threshold=1.0,
+        metadata={"experiment_id": "test_001", "group_id": "G1"},
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        roi_colors={"ROI1": (255, 0, 0), "ROI2": (0, 255, 0)},
+        rois=sample_rois,
+        sharp_turn_threshold=45.0,
+        smoothing_polyorder=2,
+        smoothing_window_length=5,
+        trajectory_df=sample_trajectory_df,
+        video_height_px=480,
+        video_path="/fake/video.mp4",
     )
     reporter = Reporter.from_analysis(analysis)
     return reporter
@@ -152,32 +152,32 @@ class TestReporterInitialization:
         )
 
         # Should not raise error
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=minimal_df,
-# OLD:             metadata={},
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=sample_rois,
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=minimal_df,
+        # OLD:             metadata={},
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=sample_rois,
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=sample_rois,
-                       roi_colors={},
-                       trajectory_df=minimal_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=sample_rois,
+            roi_colors={},
+            trajectory_df=minimal_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         assert reporter is not None
@@ -188,32 +188,32 @@ class TestReporterInitialization:
 
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=sample_trajectory_df,
-# OLD:             metadata={},
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=[],
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=sample_trajectory_df,
+        # OLD:             metadata={},
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=[],
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=[],
-                       roi_colors={},
-                       trajectory_df=sample_trajectory_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=[],
+            roi_colors={},
+            trajectory_df=sample_trajectory_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         assert reporter.r_analyzer is None  # No ROIs, so no ROI analyzer
@@ -390,32 +390,32 @@ class TestGenerateROIReferencePlot:
 
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=sample_trajectory_df,
-# OLD:             metadata={},
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=[],  # No ROIs
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=sample_trajectory_df,
+        # OLD:             metadata={},
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=[],  # No ROIs
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=[],
-                       roi_colors={},
-                       trajectory_df=sample_trajectory_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=[],
+            roi_colors={},
+            trajectory_df=sample_trajectory_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         with patch("zebtrack.analysis.reporter.plt.figure"):
@@ -584,32 +584,32 @@ class TestDataValidation:
         # Remove optional column
         minimal_df = sample_trajectory_df.drop(columns=["confidence"])
 
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=minimal_df,
-# OLD:             metadata={},
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=[],
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=minimal_df,
+        # OLD:             metadata={},
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=[],
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=[],
-                       roi_colors={},
-                       trajectory_df=minimal_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=[],
+            roi_colors={},
+            trajectory_df=minimal_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         # Should initialize without error
@@ -630,17 +630,17 @@ class TestEdgeCases:
 
         # Empty DataFrames should raise ValueError during behavioral analysis
         with pytest.raises(ValueError, match="Input DataFrame is empty"):
-# OLD:             Reporter(
-# OLD:                 trajectory_df=empty_df,
-# OLD:                 metadata={},
-# OLD:                 pixelcm_x=10.0,
-# OLD:                 pixelcm_y=10.0,
-# OLD:                 video_height_px=480,
-# OLD:                 arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:                 rois=[],
-# OLD:                 fps=30.0,
-# OLD:                 settings_obj=mock_settings,
-# OLD:             )
+            # OLD:             Reporter(
+            # OLD:                 trajectory_df=empty_df,
+            # OLD:                 metadata={},
+            # OLD:                 pixelcm_x=10.0,
+            # OLD:                 pixelcm_y=10.0,
+            # OLD:                 video_height_px=480,
+            # OLD:                 arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            # OLD:                 rois=[],
+            # OLD:                 fps=30.0,
+            # OLD:                 settings_obj=mock_settings,
+            # OLD:             )
             # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
             service = AnalysisService(settings_obj=mock_settings)
             analysis = service.run_full_analysis_as_dto(
@@ -656,7 +656,7 @@ class TestEdgeCases:
                 freezing_vel_threshold=1.0,
                 freezing_min_duration=2.0,
             )
-            reporter = Reporter.from_analysis(analysis)
+            Reporter.from_analysis(analysis)
 
     def test_unicode_metadata(self, sample_trajectory_df, mock_settings):
         """Test Reporter with Unicode characters in metadata."""
@@ -664,35 +664,38 @@ class TestEdgeCases:
 
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=sample_trajectory_df,
-# OLD:             metadata={
-# OLD:                 "experiment_id": "experimento_ção_123",
-# OLD:                 "group_name": "Grupo Café",
-# OLD:             },
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=[],
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=sample_trajectory_df,
+        # OLD:             metadata={
+        # OLD:                 "experiment_id": "experimento_ção_123",
+        # OLD:                 "group_name": "Grupo Café",
+        # OLD:             },
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=[],
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={'experiment_id': 'experimento_ção_123', 'group_name': 'Grupo Café'},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=[],
-                       roi_colors={},
-                       trajectory_df=sample_trajectory_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={
+                "experiment_id": "experimento_ção_123",
+                "group_name": "Grupo Café",
+            },
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=[],
+            roi_colors={},
+            trajectory_df=sample_trajectory_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         # Should handle Unicode gracefully
@@ -717,32 +720,32 @@ class TestEdgeCases:
             }
         )
 
-# OLD:         reporter = Reporter(
-# OLD:             trajectory_df=large_df,
-# OLD:             metadata={},
-# OLD:             pixelcm_x=10.0,
-# OLD:             pixelcm_y=10.0,
-# OLD:             video_height_px=480,
-# OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-# OLD:             rois=[],
-# OLD:             fps=30.0,
-# OLD:             settings_obj=mock_settings,
-# OLD:         )
-                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        # OLD:         reporter = Reporter(
+        # OLD:             trajectory_df=large_df,
+        # OLD:             metadata={},
+        # OLD:             pixelcm_x=10.0,
+        # OLD:             pixelcm_y=10.0,
+        # OLD:             video_height_px=480,
+        # OLD:             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+        # OLD:             rois=[],
+        # OLD:             fps=30.0,
+        # OLD:             settings_obj=mock_settings,
+        # OLD:         )
+        # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
         service = AnalysisService(settings_obj=mock_settings)
         analysis = service.run_full_analysis_as_dto(
-                       arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
-                       fps=30.0,
-                       metadata={},
-                       pixelcm_x=10.0,
-                       pixelcm_y=10.0,
-                       rois=[],
-                       roi_colors={},
-                       trajectory_df=large_df,
-                       video_height_px=480,
-                       freezing_vel_threshold=1.0,
-                       freezing_min_duration=2.0,
-                   )
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=[],
+            roi_colors={},
+            trajectory_df=large_df,
+            video_height_px=480,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
         reporter = Reporter.from_analysis(analysis)
 
         # Should initialize without memory issues

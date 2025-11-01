@@ -7,6 +7,7 @@ Responsabilidades:
 - Validação de coordenadas
 - Escalonamento para diferentes resoluções
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -121,9 +122,7 @@ class ZoneManagementFacade:
             Template data dict
         """
         try:
-            template_data = self.project_manager.roi_template_manager.load_template(
-                template_name
-            )
+            template_data = self.project_manager.roi_template_manager.load_template(template_name)
 
             log.info("zone_facade.template.loaded", name=template_name)
             return template_data

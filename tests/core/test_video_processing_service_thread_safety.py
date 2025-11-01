@@ -8,6 +8,7 @@ Addresses PR Review Issue #2 - Incomplete Test Coverage Analysis.
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -52,7 +53,7 @@ def mock_recorder_class():
     """Create mock recorder class for testing instance creation."""
 
     class MockRecorderClass:
-        instances_created: list = []
+        instances_created: ClassVar[list] = []
 
         def __init__(self, settings_obj):
             self.settings = settings_obj

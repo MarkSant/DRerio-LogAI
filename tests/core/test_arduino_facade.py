@@ -4,6 +4,7 @@ Unit tests for ArduinoFacade.
 Tests the facade pattern for Arduino operations, ensuring proper
 coordination with ArduinoManager and StateManager.
 """
+
 from unittest.mock import Mock
 
 import pytest

@@ -2,6 +2,7 @@
 Tests for batch video processing in AnalysisService.
 Focus: Batch coordination, progress tracking, error handling.
 """
+
 import threading
 from unittest.mock import MagicMock
 
@@ -41,11 +42,7 @@ def mock_video_paths(tmp_path):
         parquet_path = tmp_path / f"video_{i}_trajectory.parquet"
         parquet_path.touch()
 
-        paths.append({
-            'video': video_path,
-            'parquet': parquet_path,
-            'path': str(video_path)
-        })
+        paths.append({"video": video_path, "parquet": parquet_path, "path": str(video_path)})
     return paths
 
 
@@ -56,7 +53,7 @@ class TestBatchProcessing:
         self, analysis_service, mock_video_paths, tmp_path
     ):
         """Test batch processing initialization."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths]
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths]
 
         # Mock all required components
         mock_controller = MagicMock()
@@ -73,7 +70,7 @@ class TestBatchProcessing:
         mock_project_manager = MagicMock()
         mock_project_manager.project_data = {}
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -86,7 +83,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         assert not was_cancelled
@@ -97,8 +94,8 @@ class TestBatchProcessing:
         self, analysis_service, mock_video_paths, tmp_path
     ):
         """Test batch processing with single video configuration."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths[:1]]
-        single_video_config = {'analysis_interval_frames': 5}
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths[:1]]
+        single_video_config = {"analysis_interval_frames": 5}
 
         mock_controller = MagicMock()
         mock_controller._process_single_video.return_value = (True, str(tmp_path))
@@ -112,7 +109,7 @@ class TestBatchProcessing:
 
         mock_project_manager = MagicMock()
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -124,7 +121,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         assert not was_cancelled
@@ -133,7 +130,7 @@ class TestBatchProcessing:
 
     def test_process_videos_batch_cancellation(self, analysis_service, mock_video_paths, tmp_path):
         """Test batch processing can be cancelled."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths]
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths]
 
         mock_controller = MagicMock()
         mock_controller._process_single_video.return_value = (False, None)
@@ -148,7 +145,7 @@ class TestBatchProcessing:
         mock_project_manager = MagicMock()
         mock_project_manager.project_data = {}
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -161,7 +158,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         assert was_cancelled
@@ -172,7 +169,7 @@ class TestBatchProcessing:
         self, analysis_service, mock_video_paths, tmp_path
     ):
         """Test batch processing with partial success."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths[:3]]
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths[:3]]
 
         mock_controller = MagicMock()
         mock_controller.apply_project_settings_to_batch.return_value = True
@@ -188,7 +185,7 @@ class TestBatchProcessing:
         mock_project_manager = MagicMock()
         mock_project_manager.project_data = {}
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -214,7 +211,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         # Could be cancelled or not depending on timing
@@ -225,7 +222,7 @@ class TestBatchProcessing:
     ):
         """Test batch processing with metadata derivation."""
         videos_to_process = [
-            {'path': str(v['video']), 'metadata': {'group': 'control'}}
+            {"path": str(v["video"]), "metadata": {"group": "control"}}
             for v in mock_video_paths[:2]
         ]
 
@@ -243,8 +240,8 @@ class TestBatchProcessing:
         mock_project_manager = MagicMock()
         mock_project_manager.project_data = {}
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
-        mock_project_manager.derive_processing_metadata.return_value = {'subject': 'fish_1'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
+        mock_project_manager.derive_processing_metadata.return_value = {"subject": "fish_1"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -256,7 +253,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         assert not was_cancelled
@@ -267,7 +264,7 @@ class TestBatchProcessing:
         self, analysis_service, mock_video_paths, tmp_path
     ):
         """Test batch processing handles exceptions gracefully."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths[:1]]
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths[:1]]
 
         mock_controller = MagicMock()
         mock_controller.apply_project_settings_to_batch.return_value = True
@@ -283,7 +280,7 @@ class TestBatchProcessing:
         mock_project_manager = MagicMock()
         mock_project_manager.project_data = {}
         mock_project_manager.set_active_zone_video = MagicMock()
-        mock_project_manager.resolve_analysis_profile.return_value = {'name': 'default'}
+        mock_project_manager.resolve_analysis_profile.return_value = {"name": "default"}
 
         mock_root = MagicMock()
         cancel_event = threading.Event()
@@ -296,7 +293,7 @@ class TestBatchProcessing:
             controller=mock_controller,
             cancel_event=cancel_event,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         # Verify error handling occurred (show_error may be called via after())
@@ -305,7 +302,7 @@ class TestBatchProcessing:
 
     def test_finalize_batch_processing_success(self, analysis_service, mock_video_paths, tmp_path):
         """Test finalize batch processing for successful completion."""
-        videos_to_process = [{'path': str(v['video'])} for v in mock_video_paths[:2]]
+        videos_to_process = [{"path": str(v["video"])} for v in mock_video_paths[:2]]
 
         mock_controller = MagicMock()
         mock_controller.view.stop_analysis_view_mode = MagicMock()
@@ -326,7 +323,7 @@ class TestBatchProcessing:
             final_output_dir=str(tmp_path),
             controller=mock_controller,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         # Verify UI callbacks were made
@@ -354,7 +351,7 @@ class TestBatchProcessing:
             final_output_dir=str(tmp_path),
             controller=mock_controller,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         # Verify UI callbacks were made
@@ -382,7 +379,7 @@ class TestBatchProcessing:
             final_output_dir=str(tmp_path),
             controller=mock_controller,
             project_manager=mock_project_manager,
-            root_tk=mock_root
+            root_tk=mock_root,
         )
 
         # Verify UI callbacks were made
@@ -390,14 +387,8 @@ class TestBatchProcessing:
 
     def test_determine_intervals_precedence(self, analysis_service):
         """Test that single video config takes precedence over project data."""
-        single_video_config = {
-            'analysis_interval_frames': 7,
-            'display_interval_frames': 14
-        }
-        project_data = {
-            'analysis_interval_frames': 20,
-            'display_interval_frames': 30
-        }
+        single_video_config = {"analysis_interval_frames": 7, "display_interval_frames": 14}
+        project_data = {"analysis_interval_frames": 20, "display_interval_frames": 30}
 
         analysis_interval, display_interval = analysis_service.determine_processing_intervals(
             single_video_config, project_data

@@ -19,7 +19,7 @@ Correções (v3.0.1):
 import argparse
 import ast
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 
 class ReporterMigrator(ast.NodeVisitor):
@@ -47,7 +47,7 @@ class ReporterMigrator(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def _extract_parameters(self, node) -> Dict[str, str]:
+    def _extract_parameters(self, node) -> dict[str, str]:
         """Extrai parâmetros do construtor Reporter."""
         params = {}
         for kw in node.keywords:
@@ -56,15 +56,11 @@ class ReporterMigrator(ast.NodeVisitor):
         return params
 
 
-def generate_migrated_code(
-    params: Dict[str, str], indent_str: str, file_path: Path
-) -> str:
+def generate_migrated_code(params: dict[str, str], indent_str: str, file_path: Path) -> str:
     """Gera o novo bloco de código v3.0."""
 
     # FIX 2: Heurística para nome do objeto de settings
-    settings_var_name = (
-        "mock_settings" if "test" in file_path.name else "settings_obj"
-    )
+    settings_var_name = "mock_settings" if "test" in file_path.name else "settings_obj"
 
     # FIX 3: Mapeamento de parâmetros obsoletos para nomes da v3.0 DTO
     param_map = {
@@ -160,10 +156,10 @@ def migrate_file(file_path: Path, dry_run: bool = True) -> Optional[str]:
         # Mostra as mudanças (apenas as linhas alteradas para clareza)
         old_lines_set = set(lines)
         new_lines_set = set(new_lines)
-        
+
         diff_added = new_lines_set - old_lines_set
         diff_removed = old_lines_set - new_lines_set
-        
+
         print("\n--- DIFF (Resumo) ---")
         for line in diff_removed:
             if not line.strip().startswith("# OLD:"):
@@ -179,15 +175,9 @@ def migrate_file(file_path: Path, dry_run: bool = True) -> Optional[str]:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Migrar Reporter para v3.0 (Corrigido)")
-    parser.add_argument(
-        "files", nargs="*", help="Arquivos a migrar (default: todos em tests/)"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Mostrar mudanças sem aplicar"
-    )
-    parser.add_argument(
-        "--apply", action="store_true", help="Aplicar mudanças"
-    )
+    parser.add_argument("files", nargs="*", help="Arquivos a migrar (default: todos em tests/)")
+    parser.add_argument("--dry-run", action="store_true", help="Mostrar mudanças sem aplicar")
+    parser.add_argument("--apply", action="store_true", help="Aplicar mudanças")
 
     args = parser.parse_args()
 
@@ -215,8 +205,9 @@ def main():
         elif not file_path.exists():
             print(f"❌ Arquivo não encontrado: {file_path}")
 
-    print(f"\n{'📝 Preview' if dry_run else '✅ Aplicado'}: {migrated_count} arquivo(s) alterado(s).")
-    
+    mode_msg = "📝 Preview" if dry_run else "✅ Aplicado"
+    print(f"\n{mode_msg}: {migrated_count} arquivo(s) alterado(s).")
+
     if dry_run and migrated_count > 0:
         print("\nPara aplicar mudanças, execute com --apply")
         print("  poetry run python scripts/migrate_reporter_v3.py --apply")

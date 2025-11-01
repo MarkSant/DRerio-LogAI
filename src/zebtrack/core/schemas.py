@@ -18,9 +18,7 @@ class ROITemplateSchema(BaseModel):
         """Valida que a versão é suportada."""
         CURRENT_VERSION = 1
         if v > CURRENT_VERSION:
-            raise ValueError(
-                f"Template version {v} não suportado. Versão atual: {CURRENT_VERSION}"
-            )
+            raise ValueError(f"Template version {v} não suportado. Versão atual: {CURRENT_VERSION}")
         return v
 
     @field_validator("data")
@@ -30,13 +28,13 @@ class ROITemplateSchema(BaseModel):
         # Template deve ter pelo menos arena (polygon) OU ROIs (roi_polygons, roi_names, roi_colors)
         has_polygon = "polygon" in v
         has_rois = all(k in v for k in ("roi_polygons", "roi_names", "roi_colors"))
-        
+
         if not has_polygon and not has_rois:
             raise ValueError(
                 "Template deve conter pelo menos arena (polygon) ou ROIs "
                 "(roi_polygons, roi_names, roi_colors)"
             )
-        
+
         # Se tem ROIs, valida que as três chaves estão juntas
         roi_keys = {"roi_polygons", "roi_names", "roi_colors"}
         present_roi_keys = roi_keys & set(v.keys())
@@ -45,7 +43,7 @@ class ROITemplateSchema(BaseModel):
             raise ValueError(
                 f"Se incluir ROIs, todas as chaves devem estar presentes. Faltam: {missing}"
             )
-        
+
         return v
 
 

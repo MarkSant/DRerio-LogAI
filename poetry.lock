@@ -1974,7 +1974,7 @@ version = "9.0.0"
 description = "Get CPU info with pure Python"
 optional = false
 python-versions = "*"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "py-cpuinfo-9.0.0.tar.gz", hash = "sha256:3cdbbf3fac90dc6f118bfd64384f309edeadd902d7c8fb17f02ffa1fc3f49690"},
     {file = "py_cpuinfo-9.0.0-py3-none-any.whl", hash = "sha256:859625bc251f64e21f077d099d4162689c762b5d6a4c3c97553d56241c9674d5"},
@@ -2236,6 +2236,27 @@ pygments = ">=2.7.2"
 
 [package.extras]
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
+
+[[package]]
+name = "pytest-benchmark"
+version = "5.2.0"
+description = "A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer."
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pytest_benchmark-5.2.0-py3-none-any.whl", hash = "sha256:0631cdf19f6032fc46d6bf9e8d15931d78473228b579a3fd84ca5e2f0e8ee06c"},
+    {file = "pytest_benchmark-5.2.0.tar.gz", hash = "sha256:75731991edf6c807d0699130afbb4ba77d8ce8e3b8314662c340ee8e1db19f43"},
+]
+
+[package.dependencies]
+py-cpuinfo = "*"
+pytest = ">=8.1"
+
+[package.extras]
+aspect = ["aspectlib"]
+elasticsearch = ["elasticsearch"]
+histogram = ["pygal", "pygaljs", "setuptools"]
 
 [[package]]
 name = "pytest-cov"
@@ -3236,4 +3257,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "a690f65383075b231503384a7075ca94dd857faa23572059101cdf2901a632d4"
+content-hash = "7a33bd957a539833cfea4c53949e1f8ba6ab6a52999e7093915b629056586d50"

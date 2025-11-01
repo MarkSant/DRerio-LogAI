@@ -7,6 +7,7 @@ Responsabilidades:
 - Envio de comandos
 - Monitoramento de status
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

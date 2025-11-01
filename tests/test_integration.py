@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import cv2
 import numpy as np
@@ -183,13 +183,13 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     mock_settings.roi_inclusion_rule = "centroid_in"
     mock_settings.roi_buffer_radius_value = 0.0
     mock_settings.roi_min_bbox_overlap_ratio = 0.5
-    
+
     # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
     service = AnalysisService(settings_obj=mock_settings)
     analysis = service.run_full_analysis_as_dto(
         arena_polygon_px=arena_polygon,
         fps=fps,
-        metadata={'experiment_id': 'integration_test'},
+        metadata={"experiment_id": "integration_test"},
         pixelcm_x=10.0,
         pixelcm_y=10.0,
         rois=[],

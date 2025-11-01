@@ -45,16 +45,18 @@ class TestROITemplateValidation:
         """Template com versão futura deve falhar."""
         future_file = tmp_path / "future.json"
         future_file.write_text(
-            json.dumps({
-                "version": 999,
-                "name": "Future Template",
-                "data": {
-                    "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
-                    "roi_polygons": [],
-                    "roi_names": [],
-                    "roi_colors": [],
-                },
-            }),
+            json.dumps(
+                {
+                    "version": 999,
+                    "name": "Future Template",
+                    "data": {
+                        "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                        "roi_polygons": [],
+                        "roi_names": [],
+                        "roi_colors": [],
+                    },
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -66,11 +68,13 @@ class TestROITemplateValidation:
         # Caso 1: Template sem arena NEM ROIs
         empty_template = tmp_path / "empty_structure.json"
         empty_template.write_text(
-            json.dumps({
-                "version": 1,
-                "name": "Empty Template",
-                "data": {},  # Não tem arena nem ROIs
-            }),
+            json.dumps(
+                {
+                    "version": 1,
+                    "name": "Empty Template",
+                    "data": {},  # Não tem arena nem ROIs
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -80,14 +84,16 @@ class TestROITemplateValidation:
         # Caso 2: Template com ROIs incompletas (faltam roi_names e roi_colors)
         incomplete_rois = tmp_path / "incomplete_rois.json"
         incomplete_rois.write_text(
-            json.dumps({
-                "version": 1,
-                "name": "Incomplete ROIs",
-                "data": {
-                    "roi_polygons": [[[10, 10], [20, 10], [20, 20]]],
-                    # Faltam: roi_names, roi_colors
-                },
-            }),
+            json.dumps(
+                {
+                    "version": 1,
+                    "name": "Incomplete ROIs",
+                    "data": {
+                        "roi_polygons": [[[10, 10], [20, 10], [20, 20]]],
+                        # Faltam: roi_names, roi_colors
+                    },
+                }
+            ),
             encoding="utf-8",
         )
 

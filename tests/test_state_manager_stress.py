@@ -6,6 +6,7 @@ and threading improvements.
 
 Run with: pytest tests/test_state_manager_stress.py -v
 """
+
 import threading
 import time
 from unittest.mock import MagicMock
@@ -22,14 +23,10 @@ def test_1000_concurrent_updates_no_deadlock():
     results = []
 
     def update_worker(i):
-        mgr.update_processing_state(
-            source=f"worker_{i}", current_frame=i, total_frames=i * 10
-        )
+        mgr.update_processing_state(source=f"worker_{i}", current_frame=i, total_frames=i * 10)
         results.append(i)
 
-    threads = [
-        threading.Thread(target=update_worker, args=(i,)) for i in range(1000)
-    ]
+    threads = [threading.Thread(target=update_worker, args=(i,)) for i in range(1000)]
     start = time.time()
 
     for t in threads:
@@ -86,9 +83,7 @@ def test_100_observers_registered_concurrently():
         observers.append(obs)
         mgr.subscribe(StateCategory.RECORDING, obs)
 
-    threads = [
-        threading.Thread(target=register_observer_worker) for _ in range(100)
-    ]
+    threads = [threading.Thread(target=register_observer_worker) for _ in range(100)]
     for t in threads:
         t.start()
     for t in threads:
@@ -119,8 +114,7 @@ def test_subscribe_unsubscribe_race_condition():
                 errors.append(e)
 
     sub_threads = [
-        threading.Thread(target=subscribe_unsubscribe_worker, args=(obs,))
-        for obs in observers
+        threading.Thread(target=subscribe_unsubscribe_worker, args=(obs,)) for obs in observers
     ]
     update_thread = threading.Thread(target=update_worker)
 

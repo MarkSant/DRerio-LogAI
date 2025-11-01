@@ -4,6 +4,7 @@ Unit tests for ZoneManagementFacade.
 Tests the facade pattern for zone and ROI management operations,
 ensuring proper coordination with ProjectManager and StateManager.
 """
+
 from unittest.mock import Mock
 
 import pytest
@@ -70,9 +71,7 @@ class TestZoneManagementFacadeArenaDrawing:
         mock_state_manager.update_ui_state.assert_called_once()
         mock_state_manager.update_project_state.assert_called_once()
 
-    def test_start_arena_drawing_updates_ui_state(
-        self, zone_facade, mock_state_manager, tmp_path
-    ):
+    def test_start_arena_drawing_updates_ui_state(self, zone_facade, mock_state_manager, tmp_path):
         """Test that start_arena_drawing updates UI state."""
         video_path = tmp_path / "test_video.mp4"
 
@@ -100,9 +99,7 @@ class TestZoneManagementFacadeArenaDrawing:
 
         assert result is False
 
-    def test_save_arena_handles_exception(
-        self, zone_facade, mock_project_manager, tmp_path
-    ):
+    def test_save_arena_handles_exception(self, zone_facade, mock_project_manager, tmp_path):
         """Test save_arena handles exceptions gracefully."""
         video_path = tmp_path / "test_video.mp4"
         polygon = [(0, 0), (100, 0), (100, 100)]
@@ -137,9 +134,7 @@ class TestZoneManagementFacadeROITemplates:
     def test_load_roi_template_not_found(self, zone_facade, mock_project_manager):
         """Test load_roi_template when template doesn't exist."""
         template_name = "nonexistent"
-        mock_project_manager.roi_template_manager.load_template.side_effect = Exception(
-            "Not found"
-        )
+        mock_project_manager.roi_template_manager.load_template.side_effect = Exception("Not found")
 
         result = zone_facade.load_roi_template(template_name)
 
@@ -170,9 +165,7 @@ class TestZoneManagementFacadeROITemplates:
 
         assert result is False
 
-    def test_apply_template_with_arena_scaling(
-        self, zone_facade, mock_project_manager, tmp_path
-    ):
+    def test_apply_template_with_arena_scaling(self, zone_facade, mock_project_manager, tmp_path):
         """Test apply_template_to_video with arena scaling."""
         template_name = "test_template"
         video_path = tmp_path / "test_video.mp4"
@@ -186,9 +179,7 @@ class TestZoneManagementFacadeROITemplates:
         mock_project_manager.roi_template_manager.load_template.return_value = template_data
         mock_project_manager.get_arena_for_video.return_value = arena
 
-        result = zone_facade.apply_template_to_video(
-            template_name, video_path, scale_to_arena=True
-        )
+        result = zone_facade.apply_template_to_video(template_name, video_path, scale_to_arena=True)
 
         assert result is True
 
@@ -215,9 +206,7 @@ class TestZoneManagementFacadeROITemplates:
     def test_list_available_templates(self, zone_facade, mock_project_manager):
         """Test listing available ROI templates."""
         expected_templates = ["template1", "template2", "template3"]
-        mock_project_manager.roi_template_manager.list_templates.return_value = (
-            expected_templates
-        )
+        mock_project_manager.roi_template_manager.list_templates.return_value = expected_templates
 
         result = zone_facade.list_available_templates()
 

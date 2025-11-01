@@ -4,40 +4,40 @@ import sys
 from pathlib import Path
 
 # Adicionar src ao path
-sys.path.insert(0, str(Path(__file__).parents[3] / 'src'))
+sys.path.insert(0, str(Path(__file__).parents[3] / "src"))
 
 # -- Project information -----------------------------------------------------
-project = 'ZebTrack-AI'
-copyright = '2025, The Project Developers'
-author = 'The Project Developers'
-release = '0.1.0'
+project = "ZebTrack-AI"
+copyright = "2025, The Project Developers"
+author = "The Project Developers"
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
-    'sphinx.ext.autodoc',           # Auto-geração de docs
-    'sphinx.ext.napoleon',          # Suporte Google/NumPy docstrings
-    'sphinx.ext.viewcode',          # Links para código-fonte
-    'sphinx.ext.intersphinx',       # Links para docs externas
-    'sphinx_autodoc_typehints',     # Type hints em docs
-    'myst_parser',                  # Suporte Markdown
+    "sphinx.ext.autodoc",  # Auto-geração de docs
+    "sphinx.ext.napoleon",  # Suporte Google/NumPy docstrings
+    "sphinx.ext.viewcode",  # Links para código-fonte
+    "sphinx.ext.intersphinx",  # Links para docs externas
+    "sphinx_autodoc_typehints",  # Type hints em docs
+    "myst_parser",  # Suporte Markdown
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
-language = 'pt_BR'
+language = "pt_BR"
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
 
 # -- Extension configuration -------------------------------------------------
 autodoc_default_options = {
-    'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__'
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
 }
 
 # Napoleon settings (Google/NumPy docstring style)
@@ -58,11 +58,11 @@ napoleon_attr_annotations = True
 
 # Intersphinx mapping
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'pandas': ('https://pandas.pydata.org/docs/', None),
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
 }
 
 # Type hints
-autodoc_typehints = 'description'
-autodoc_typehints_description_target = 'documented'
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"

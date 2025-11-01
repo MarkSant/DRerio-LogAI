@@ -6,6 +6,7 @@ Responsabilidades:
 - Coordenar Recorder com StateManager
 - Publicar eventos de gravação via EventBus
 """
+
 from __future__ import annotations
 
 from pathlib import Path

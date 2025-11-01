@@ -238,9 +238,7 @@ class ROITemplateManager:
             )
 
         except json.JSONDecodeError as e:
-            log.error(
-                "roi_template_manager.load.json_error", file=str(template_path), error=str(e)
-            )
+            log.error("roi_template_manager.load.json_error", file=str(template_path), error=str(e))
             raise InvalidTemplateError(f"JSON inválido em {template_path}: {e}") from e
         except ValidationError as e:
             log.error(
