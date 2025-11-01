@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
+from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 
@@ -95,30 +96,52 @@ def sample_rois():
 @pytest.fixture
 def reporter(mock_settings, sample_trajectory_df, sample_rois):
     """Create Reporter instance with realistic test data."""
-    return Reporter(
-        trajectory_df=sample_trajectory_df,
-        metadata={
-            "experiment_id": "integration_test_001",
-            "group_id": "G1",
-            "subject": "subject_001",
-            "day": 1,
-        },
-        pixelcm_x=10.0,
-        pixelcm_y=10.0,
-        video_height_px=480,
-        arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
-        rois=sample_rois,
-        fps=30.0,
-        roi_colors={"Center": (255, 0, 0), "Border": (0, 255, 0)},
-        video_path=None,
-        calibration=None,
-        sharp_turn_threshold=45.0,
-        freezing_threshold=1.0,
-        freezing_duration=2.0,
-        smoothing_window_length=5,
-        smoothing_polyorder=2,
-        settings_obj=mock_settings,
+# OLD:     return Reporter(
+# OLD:         trajectory_df=sample_trajectory_df,
+# OLD:         metadata={
+# OLD:             "experiment_id": "integration_test_001",
+# OLD:             "group_id": "G1",
+# OLD:             "subject": "subject_001",
+# OLD:             "day": 1,
+# OLD:         },
+# OLD:         pixelcm_x=10.0,
+# OLD:         pixelcm_y=10.0,
+# OLD:         video_height_px=480,
+# OLD:         arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+# OLD:         rois=sample_rois,
+# OLD:         fps=30.0,
+# OLD:         roi_colors={"Center": (255, 0, 0), "Border": (0, 255, 0)},
+# OLD:         video_path=None,
+# OLD:         calibration=None,
+# OLD:         sharp_turn_threshold=45.0,
+# OLD:         freezing_threshold=1.0,
+# OLD:         freezing_duration=2.0,
+# OLD:         smoothing_window_length=5,
+# OLD:         smoothing_polyorder=2,
+# OLD:         settings_obj=mock_settings,
+# OLD:     )
+    # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+    service = AnalysisService(settings_obj=mock_settings)
+    analysis = service.run_full_analysis_as_dto(
+               arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+               calibration=None,
+               fps=30.0,
+               freezing_min_duration=2.0,
+               freezing_vel_threshold=1.0,
+               metadata={'experiment_id': 'integration_test_001', 'group_id': 'G1', 'subject': 'subject_001', 'day': 1},
+               pixelcm_x=10.0,
+               pixelcm_y=10.0,
+               roi_colors={'Center': (255, 0, 0), 'Border': (0, 255, 0)},
+               rois=sample_rois,
+               sharp_turn_threshold=45.0,
+               smoothing_polyorder=2,
+               smoothing_window_length=5,
+               trajectory_df=sample_trajectory_df,
+               video_height_px=480,
+               video_path=None,
     )
+    reporter = Reporter.from_analysis(analysis)
+    return reporter
 
 
 @pytest.mark.integration
@@ -319,17 +342,33 @@ class TestReporterLargeDatasetIntegration:
         }
         large_df = pd.DataFrame(data)
 
-        reporter = Reporter(
-            trajectory_df=large_df,
-            metadata={"experiment_id": "large_test"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=480,
-            arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
-            rois=[],
-            fps=30.0,
-            settings_obj=mock_settings,
-        )
+# OLD:         reporter = Reporter(
+# OLD:             trajectory_df=large_df,
+# OLD:             metadata={"experiment_id": "large_test"},
+# OLD:             pixelcm_x=10.0,
+# OLD:             pixelcm_y=10.0,
+# OLD:             video_height_px=480,
+# OLD:             arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+# OLD:             rois=[],
+# OLD:             fps=30.0,
+# OLD:             settings_obj=mock_settings,
+# OLD:         )
+                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        service = AnalysisService(settings_obj=mock_settings)
+        analysis = service.run_full_analysis_as_dto(
+                       arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+                       fps=30.0,
+                       metadata={'experiment_id': 'large_test'},
+                       pixelcm_x=10.0,
+                       pixelcm_y=10.0,
+                       rois=[],
+                       roi_colors={},
+                       trajectory_df=large_df,
+                       video_height_px=480,
+                       freezing_vel_threshold=1.0,
+                       freezing_min_duration=2.0,
+                   )
+        reporter = Reporter.from_analysis(analysis)
 
         output_path = tmp_path / "large_summary.parquet"
 
@@ -357,21 +396,37 @@ class TestReporterEdgeCasesIntegration:
     ):
         """Test that Unicode characters in metadata are preserved in Parquet files."""
         # Arrange
-        reporter = Reporter(
-            trajectory_df=sample_trajectory_df,
-            metadata={
-                "experiment_id": "experimento_ção_123",
-                "group_name": "Grupo Café",
-                "subject": "Rato São Paulo",
-            },
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=480,
-            arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
-            rois=[],
-            fps=30.0,
-            settings_obj=mock_settings,
-        )
+# OLD:         reporter = Reporter(
+# OLD:             trajectory_df=sample_trajectory_df,
+# OLD:             metadata={
+# OLD:                 "experiment_id": "experimento_ção_123",
+# OLD:                 "group_name": "Grupo Café",
+# OLD:                 "subject": "Rato São Paulo",
+# OLD:             },
+# OLD:             pixelcm_x=10.0,
+# OLD:             pixelcm_y=10.0,
+# OLD:             video_height_px=480,
+# OLD:             arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+# OLD:             rois=[],
+# OLD:             fps=30.0,
+# OLD:             settings_obj=mock_settings,
+# OLD:         )
+                   # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+        service = AnalysisService(settings_obj=mock_settings)
+        analysis = service.run_full_analysis_as_dto(
+                       arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+                       fps=30.0,
+                       metadata={'experiment_id': 'experimento_ção_123', 'group_name': 'Grupo Café', 'subject': 'Rato São Paulo'},
+                       pixelcm_x=10.0,
+                       pixelcm_y=10.0,
+                       rois=[],
+                       roi_colors={},
+                       trajectory_df=sample_trajectory_df,
+                       video_height_px=480,
+                       freezing_vel_threshold=1.0,
+                       freezing_min_duration=2.0,
+                   )
+        reporter = Reporter.from_analysis(analysis)
 
         output_path = tmp_path / "unicode_test.parquet"
 
@@ -407,17 +462,33 @@ class TestReporterEdgeCasesIntegration:
 
         # Act & Assert: Should raise ValueError for empty dataframe
         with pytest.raises(ValueError, match="Input DataFrame is empty"):
-            Reporter(
-                trajectory_df=empty_df,
-                metadata={"experiment_id": "empty_test"},
+# OLD:             Reporter(
+# OLD:                 trajectory_df=empty_df,
+# OLD:                 metadata={"experiment_id": "empty_test"},
+# OLD:                 pixelcm_x=10.0,
+# OLD:                 pixelcm_y=10.0,
+# OLD:                 video_height_px=480,
+# OLD:                 arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+# OLD:                 rois=[],
+# OLD:                 fps=30.0,
+# OLD:                 settings_obj=mock_settings,
+# OLD:             )
+            # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+            service = AnalysisService(settings_obj=mock_settings)
+            analysis = service.run_full_analysis_as_dto(
+                arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+                fps=30.0,
+                metadata={'experiment_id': 'empty_test'},
                 pixelcm_x=10.0,
                 pixelcm_y=10.0,
-                video_height_px=480,
-                arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
                 rois=[],
-                fps=30.0,
-                settings_obj=mock_settings,
+                roi_colors={},
+                trajectory_df=empty_df,
+                video_height_px=480,
+                freezing_vel_threshold=1.0,
+                freezing_min_duration=2.0,
             )
+            reporter = Reporter.from_analysis(analysis)
 
 
 if __name__ == "__main__":

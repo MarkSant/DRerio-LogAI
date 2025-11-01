@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 # Import the actual classes we want to integrate
+from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
@@ -170,24 +171,35 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     trajectory_df["y2"] = trajectory_df["y_center_px"] + 1
 
     # Instantiate the Reporter with the tracked data
-    # Patch the analysis service to avoid re-running all calculations
-    with patch("zebtrack.analysis.reporter.AnalysisService") as mock_service:
-        # Provide a minimal mock report dictionary for the tidy data creation
-        mock_service.return_value.run_full_analysis.return_value = (
-            {"comportamento_geral": {}, "analise_roi": {}},
-            MagicMock(),
-            MagicMock(),
-        )
-        reporter = Reporter(
-            trajectory_df=trajectory_df,
-            metadata={"experiment_id": "integration_test"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=frame_height,
-            arena_polygon_px=arena_polygon,
-            rois=[],
-            fps=fps,
-        )
+    # Create mock settings for AnalysisService
+    mock_settings = MagicMock()
+    mock_settings.trajectory_smoothing = MagicMock()
+    mock_settings.trajectory_smoothing.window_length = 5
+    mock_settings.trajectory_smoothing.polyorder = 2
+    mock_settings.angular_velocity = MagicMock()
+    mock_settings.angular_velocity.min_displacement_threshold_cm = 0.5
+    mock_settings.angular_velocity.angle_calculation_window = 3
+    mock_settings.angular_velocity.angular_velocity_smoothing_window = 5
+    mock_settings.roi_inclusion_rule = "centroid_in"
+    mock_settings.roi_buffer_radius_value = 0.0
+    mock_settings.roi_min_bbox_overlap_ratio = 0.5
+    
+    # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
+    service = AnalysisService(settings_obj=mock_settings)
+    analysis = service.run_full_analysis_as_dto(
+        arena_polygon_px=arena_polygon,
+        fps=fps,
+        metadata={'experiment_id': 'integration_test'},
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        rois=[],
+        roi_colors={},
+        trajectory_df=trajectory_df,
+        video_height_px=frame_height,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=2.0,
+    )
+    reporter = Reporter.from_analysis(analysis)
 
     # Generate a final summary report
     report_output_path = tracking_output_dir / "final_summary.xlsx"
