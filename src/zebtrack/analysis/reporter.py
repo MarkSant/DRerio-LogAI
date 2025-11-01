@@ -2,6 +2,7 @@ import gettext
 import io
 import locale
 import os
+import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -31,6 +32,7 @@ from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
+from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI
 
 log = structlog.get_logger(__name__)
@@ -214,15 +216,15 @@ def _normalize_color_for_matplotlib(color):
 class Reporter:
     def __init__(
         self,
-        trajectory_df: pd.DataFrame,
-        metadata: dict,
+        trajectory_df: pd.DataFrame = None,
+        metadata: dict = None,
         # Calibration and setup
-        pixelcm_x: float,
-        pixelcm_y: float,
-        video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
-        rois: list[ROI],
-        fps: float,
+        pixelcm_x: float = None,
+        pixelcm_y: float = None,
+        video_height_px: int = None,
+        arena_polygon_px: list[tuple[float, float]] = None,
+        rois: list[ROI] = None,
+        fps: float = None,
         # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,
@@ -234,7 +236,85 @@ class Reporter:
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
         settings_obj=None,
+        # Modern path: DTO-based construction
+        analysis: AnalysisResult | None = None,
     ):
+        """Create Reporter instance for generating analysis reports.
+
+        **RECOMMENDED**: Use Reporter.from_analysis(analysis_result) instead
+        of calling this constructor directly.
+
+        Construction Paths:
+            1. Modern (RECOMMENDED): Pass pre-computed analysis via `analysis` parameter
+            2. Legacy (DEPRECATED): Pass trajectory_df + all other parameters
+
+        Args:
+            trajectory_df: Raw trajectory DataFrame (DEPRECATED - use analysis parameter)
+            metadata: Experiment metadata (DEPRECATED - included in analysis)
+            pixelcm_x: Pixels-to-cm conversion (DEPRECATED - included in analysis)
+            pixelcm_y: Pixels-to-cm conversion (DEPRECATED - included in analysis)
+            video_height_px: Video height (DEPRECATED - included in analysis)
+            arena_polygon_px: Arena polygon (DEPRECATED - included in analysis)
+            rois: ROI list (DEPRECATED - included in analysis)
+            fps: Frame rate (DEPRECATED - included in analysis)
+            roi_colors: ROI colors (optional)
+            video_path: Video file path (optional)
+            calibration: Calibration object (optional)
+            sharp_turn_threshold: Sharp turn threshold (deg/s)
+            freezing_threshold: Freezing velocity threshold (cm/s)
+            freezing_duration: Minimum freezing duration (s)
+            smoothing_window_length: Smoothing window (optional)
+            smoothing_polyorder: Smoothing polynomial order (optional)
+            settings_obj: Settings instance (optional)
+            analysis: AnalysisResult DTO (RECOMMENDED - modern path)
+
+        Example (Modern - RECOMMENDED):
+            >>> # Get pre-computed analysis
+            >>> service = AnalysisService(settings_obj=settings)
+            >>> analysis = service.run_full_analysis_as_dto(...)
+            >>> reporter = Reporter.from_analysis(analysis)  # Use factory method!
+
+        Example (Legacy - DEPRECATED):
+            >>> reporter = Reporter(
+            ...     trajectory_df=df,
+            ...     metadata={"experiment_id": "exp_001"},
+            ...     pixelcm_x=10.0,
+            ...     # ... many more parameters ...
+            ... )
+            # DeprecationWarning: Use Reporter.from_analysis() instead
+        """
+        # Modern path: using AnalysisResult DTO
+        if analysis is not None:
+            # Delegate to from_analysis() and copy attributes
+            temp_instance = Reporter.from_analysis(analysis)
+            self.__dict__.update(temp_instance.__dict__)
+            return
+
+        # Legacy path validation
+        if trajectory_df is None:
+            raise ValueError(
+                "Reporter: Either 'analysis' or 'trajectory_df' must be provided. "
+                "RECOMMENDED: Use Reporter.from_analysis(analysis_result) instead."
+            )
+
+        # Emit deprecation warning for legacy constructor
+        warnings.warn(
+            "Reporter: Direct instantiation with trajectory_df is DEPRECATED and will be removed in v3.0. "
+            "\n"
+            "Migration Guide:\n"
+            "  Instead of: Reporter(trajectory_df=df, metadata=meta, pixelcm_x=10.0, ...)\n"
+            "  Use:        service = AnalysisService(settings_obj=settings)\n"
+            "              analysis = service.run_full_analysis_as_dto(...)\n"
+            "              reporter = Reporter.from_analysis(analysis)\n"
+            "\n"
+            "Benefits: Better performance (no re-analysis), improved testability, type safety.\n"
+            "Timeline: Deprecation in v2.1 (2025-11), removal in v3.0 (2026-02).\n"
+            "See docs/migration/reporter-v3.md for details.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        # Legacy constructor logic (unchanged)
         self.settings = settings_obj
         self.metadata = metadata
         self.roi_colors = roi_colors if roi_colors else {}
@@ -255,7 +335,7 @@ class Reporter:
             trajectory_df["track_id"] = track_ids.astype("Int64")
 
         # Run the unified analysis via the service
-        service = AnalysisService()
+        service = AnalysisService(settings_obj=settings_obj)
         self.report, self.b_analyzer, self.r_analyzer = service.run_full_analysis(
             trajectory_df=trajectory_df,
             pixelcm_x=pixelcm_x,
@@ -278,6 +358,56 @@ class Reporter:
         # Generate the tidy dataframe from the report
         tidy_df = self._create_tidy_dataframe()
         self.tidy_data = self._standardize_tidy_dataframe(tidy_df)
+
+    @classmethod
+    def from_analysis(cls, analysis: AnalysisResult) -> "Reporter":
+        """Create Reporter from pre-computed analysis result (RECOMMENDED).
+
+        This is the modern, performant way to create Reporter instances.
+        Avoids re-running analysis and enables better testability.
+
+        Args:
+            analysis: AnalysisResult DTO with pre-computed analysis
+
+        Returns:
+            Reporter instance ready for report generation
+
+        Example:
+            >>> # In analysis workflow
+            >>> service = AnalysisService(settings_obj=settings)
+            >>> result = service.run_full_analysis_as_dto(...)
+            >>> reporter = Reporter.from_analysis(result)
+            >>> reporter.export_summary_data(output_path)
+        """
+        instance = cls.__new__(cls)
+
+        # Store settings reference
+        instance.settings = None  # Not needed when using pre-computed analysis
+
+        # Store metadata and calibration
+        instance.metadata = analysis.metadata
+        instance.roi_colors = analysis.roi_colors
+        instance.video_path = analysis.video_path
+        instance.calibration = analysis.calibration_params.calibration
+        instance._pixelcm_x = analysis.calibration_params.pixelcm_x
+        instance._pixelcm_y = analysis.calibration_params.pixelcm_y
+        instance._video_height_px = analysis.calibration_params.video_height_px
+
+        # Store analysis results directly (no re-computation)
+        instance.report = analysis.report
+        instance.b_analyzer = analysis.behavioral_analyzer
+        instance.r_analyzer = analysis.roi_analyzer
+
+        # Store analysis parameters
+        instance.sharp_turn_threshold = analysis.sharp_turn_threshold
+        instance.freezing_threshold = analysis.freezing_threshold
+        instance.freezing_duration = analysis.freezing_duration
+
+        # Generate tidy dataframe
+        tidy_df = instance._create_tidy_dataframe()
+        instance.tidy_data = instance._standardize_tidy_dataframe(tidy_df)
+
+        return instance
 
     @staticmethod
     def _warp_trajectory_if_needed(trajectory_df: pd.DataFrame, calibration) -> pd.DataFrame:
@@ -588,47 +718,51 @@ class Reporter:
 
         # Get video dimensions if available
         if video_path and Path(video_path).exists():
-            cap = cv2.VideoCapture(video_path)
-            ret, frame = cap.read()
-            if ret:
-                # Apply perspective warp if calibration is available
-                if self.calibration:
-                    frame = self.calibration.warp_frame(frame)
+            cap = None
+            try:
+                cap = cv2.VideoCapture(video_path)
+                ret, frame = cap.read()
+                if ret:
+                    # Apply perspective warp if calibration is available
+                    if self.calibration:
+                        frame = self.calibration.warp_frame(frame)
 
-                frame_height_px = frame.shape[0]
-                frame_width_px = frame.shape[1]
-                # Calculate proper extent based on pixel-to-cm conversion
-                pixelcm_x = self.b_analyzer._pixelcm_x
-                pixelcm_y = self.b_analyzer._pixelcm_y
+                    frame_height_px = frame.shape[0]
+                    frame_width_px = frame.shape[1]
+                    # Calculate proper extent based on pixel-to-cm conversion
+                    pixelcm_x = self.b_analyzer._pixelcm_x
+                    pixelcm_y = self.b_analyzer._pixelcm_y
 
-                # Frame coordinates in cm
-                # Per COORDINATE_SYSTEMS.md:
-                # - Frame warped: y_px=0 at top, y_px=height at bottom
-                #   (image convention)
-                # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
-                #   (cartesian)
-                # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
-                #
-                # To align frame with trajectories:
-                # 1. Flip frame vertically so frame[0] = bottom
-                # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
+                    # Frame coordinates in cm
+                    # Per COORDINATE_SYSTEMS.md:
+                    # - Frame warped: y_px=0 at top, y_px=height at bottom
+                    #   (image convention)
+                    # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
+                    #   (cartesian)
+                    # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
+                    #
+                    # To align frame with trajectories:
+                    # 1. Flip frame vertically so frame[0] = bottom
+                    # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
 
-                frame_extent: tuple[float, float, float, float] = (
-                    0.0,  # left (x=0)
-                    frame_width_px / pixelcm_x,  # right (x=max)
-                    0.0,  # bottom (y=0)
-                    frame_height_px / pixelcm_y,  # top (y=max)
-                )
-                ax.imshow(
-                    frame_rgb_flipped,
-                    extent=frame_extent,
-                    origin="lower",
-                    aspect="auto",
-                    alpha=0.5,
-                )
-            cap.release()
+                    frame_extent: tuple[float, float, float, float] = (
+                        0.0,  # left (x=0)
+                        frame_width_px / pixelcm_x,  # right (x=max)
+                        0.0,  # bottom (y=0)
+                        frame_height_px / pixelcm_y,  # top (y=max)
+                    )
+                    ax.imshow(
+                        frame_rgb_flipped,
+                        extent=frame_extent,
+                        origin="lower",
+                        aspect="auto",
+                        alpha=0.5,
+                    )
+            finally:
+                if cap is not None and cap.isOpened():
+                    cap.release()
 
         ax.set_facecolor("lightgray")
         # Draw arena boundary

@@ -128,6 +128,7 @@ def video_processing_service(
     return service
 
 
+@pytest.mark.unit
 def test_service_instantiation_with_all_dependencies(video_processing_service):
     """Test that VideoProcessingService can be instantiated with all dependencies."""
     assert video_processing_service is not None
@@ -136,6 +137,7 @@ def test_service_instantiation_with_all_dependencies(video_processing_service):
     assert video_processing_service.settings is not None
 
 
+@pytest.mark.unit
 def test_service_has_required_dependencies(video_processing_service):
     """Test that service has all required dependency attributes."""
     assert hasattr(video_processing_service, "detector")
