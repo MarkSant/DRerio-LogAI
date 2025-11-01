@@ -341,7 +341,7 @@ class ProjectWorkflowService:
 
     # === Project Creation Orchestration ===
 
-    def create_project(
+    def create_project(  # noqa: C901
         self,
         setup_detector_callback: callable,
         active_weight_setter: callable | None = None,

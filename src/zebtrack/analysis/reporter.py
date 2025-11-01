@@ -299,7 +299,8 @@ class Reporter:
 
         # Emit deprecation warning for legacy constructor
         warnings.warn(
-            "Reporter: Direct instantiation with trajectory_df is DEPRECATED and will be removed in v3.0. "
+            "Reporter: Direct instantiation with trajectory_df is DEPRECATED and "
+            "will be removed in v3.0. "
             "\n"
             "Migration Guide:\n"
             "  Instead of: Reporter(trajectory_df=df, metadata=meta, pixelcm_x=10.0, ...)\n"

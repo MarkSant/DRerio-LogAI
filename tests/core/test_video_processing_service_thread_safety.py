@@ -52,7 +52,7 @@ def mock_recorder_class():
     """Create mock recorder class for testing instance creation."""
 
     class MockRecorderClass:
-        instances_created = []
+        instances_created: list = []
 
         def __init__(self, settings_obj):
             self.settings = settings_obj
@@ -370,7 +370,7 @@ class TestResourceManagementUnderLoad:
     def test_video_capture_cleanup_under_concurrent_failures(
         self, mock_videocap, video_processing_service
     ):
-        """Test that VideoCapture resources are properly cleaned up even under concurrent failures."""
+        """Test VideoCapture resources cleanup under concurrent failures."""
         # Arrange
         failure_count = [0]
 

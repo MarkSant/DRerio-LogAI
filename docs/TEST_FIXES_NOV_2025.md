@@ -33,17 +33,17 @@ _mock_recorder_instance = None
 
 class MockRecorderClass:
     """Mock Recorder class that delegates to global mock instance."""
-    
+
     def __init__(self, **kwargs):
         # Store ref to global mock for delegation
         self._mock = _mock_recorder_instance
-    
+
     def start_recording(self, **kwargs):
         return self._mock.start_recording(**kwargs)
-    
+
     def write_detection_data(self, *args, **kwargs):
         return self._mock.write_detection_data(*args, **kwargs)
-    
+
     def stop_recording(self, **kwargs):
         return self._mock.stop_recording(**kwargs)
 
@@ -363,7 +363,7 @@ poetry run ruff format .
 
 ### 7. Main Entry Point Tests - Service Import Paths (3 tests)
 
-**Files:** `tests/core/test_main_entry_point.py`  
+**Files:** `tests/core/test_main_entry_point.py`
 **Commit:** `9aaae29`
 
 **Tests Fixed:**
@@ -430,16 +430,16 @@ When patching imports that occur inside functions, always patch the **full impor
 
 ## Success Metrics
 
-✅ **1022/1022 tests passing** (100%)  
-✅ **36.81% code coverage** (exceeds 30% minimum)  
-✅ **No regressions** in previously passing tests  
-✅ **Parallel execution** works with pytest-xdist  
-✅ **Consistent execution time** (~97s for full suite)  
-✅ **All linting checks pass** (ruff check + format)  
+✅ **1022/1022 tests passing** (100%)
+✅ **36.81% code coverage** (exceeds 30% minimum)
+✅ **No regressions** in previously passing tests
+✅ **Parallel execution** works with pytest-xdist
+✅ **Consistent execution time** (~97s for full suite)
+✅ **All linting checks pass** (ruff check + format)
 ✅ **GitHub Actions CI passes** ✨
 
 ---
 
-**Date:** November 1, 2025  
-**Author:** GitHub Copilot (AI Assistant)  
+**Date:** November 1, 2025
+**Author:** GitHub Copilot (AI Assistant)
 **Reviewer:** Test Suite CI Pipeline

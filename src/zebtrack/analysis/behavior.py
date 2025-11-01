@@ -118,7 +118,8 @@ class BehavioralAnalyzer(ABC):
         """Performs data conversion, cleaning, and smoothing."""
         if df.empty:
             raise ValueError(
-                "Input DataFrame is empty. Cannot perform behavioral analysis on empty trajectory data."
+                "Input DataFrame is empty. Cannot perform behavioral analysis on "
+                "empty trajectory data."
             )
         if "timestamp" not in df.columns:
             raise ValueError(
