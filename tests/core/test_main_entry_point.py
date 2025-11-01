@@ -16,7 +16,7 @@ import logging
 def mock_torch_logging():
     """
     Mock logging.getLogger globally to prevent torch/matplotlib from failing on Mock loggers.
-    
+
     This fixture runs before all tests to ensure that when torch/matplotlib initialize
     (via ultralytics -> YOLO import in MainViewModel), they don't fail trying to:
     1. Iterate over log.handlers when they are Mock objects
@@ -39,7 +39,7 @@ def create_mock_settings():
     mock_settings.camera = Mock(index=0)
     mock_settings.yolo_model = Mock(path="yolo11n.pt")
     mock_settings.reproducibility = None
-    
+
     # Configure logging settings to be iterable
     mock_settings.logging = Mock()
     mock_settings.logging.levels = {
@@ -47,21 +47,21 @@ def create_mock_settings():
         "zebtrack.core.detector": "INFO",
         "zebtrack.ui": "WARNING",
     }
-    
+
     # Configure recorder settings with proper types
     mock_settings.recorder = Mock()
     mock_settings.recorder.flush_interval_seconds = 30.0
     mock_settings.recorder.buffer_size_frames = 300
     mock_settings.recorder.flush_row_threshold = 500
-    
+
     # Configure video processing settings
     mock_settings.video_processing = Mock()
     mock_settings.video_processing.fps = 30.0
-    
+
     # Configure UI features
     mock_settings.ui_features = Mock()
     mock_settings.ui_features.enable_event_queue = False
-    
+
     return mock_settings
 
 

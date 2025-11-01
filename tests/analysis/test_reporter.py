@@ -225,7 +225,7 @@ class TestGenerateTrajectoryPlot:
         """Test that video frame is included when video_path provided."""
         # Mock Path.exists to return True
         mock_path.return_value.exists.return_value = True
-        
+
         # Mock video capture
         mock_cap = Mock()
         mock_cap.isOpened = Mock(return_value=True)  # Required for finally block
@@ -246,7 +246,7 @@ class TestGenerateTrajectoryPlot:
         """Test graceful handling when video frame read fails."""
         # Mock Path.exists to return True
         mock_path.return_value.exists.return_value = True
-        
+
         mock_cap = Mock()
         mock_cap.isOpened = Mock(return_value=True)  # Required for finally block
         mock_cap.read = Mock(return_value=(False, None))  # Failed to read

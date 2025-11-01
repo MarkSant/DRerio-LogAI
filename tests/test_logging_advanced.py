@@ -134,7 +134,7 @@ class TestLogLevelConfiguration:
         # Settings with invalid log level should be handled gracefully
         mock_settings = Mock()
         mock_settings.logging.levels = {"module": "INVALID"}
-        
+
         # Should not crash, just use default level
         configure_logging_levels(mock_settings)
 

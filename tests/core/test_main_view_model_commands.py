@@ -38,13 +38,13 @@ def mock_dependencies():
     settings.performance.parquet_compression = "snappy"
     settings.ui_features = Mock()
     settings.ui_features.enable_event_queue = False
-    
+
     # Create weight manager with proper model_cache_dir attribute
     weight_mgr = Mock()
     weight_mgr.model_cache_dir = "openvino_model_cache"
     # Mock get_weight_details to return None for openvino_path to skip conversion check
     weight_mgr.get_weight_details = Mock(return_value={"openvino_path": None})
-    
+
     # Create project_workflow_service with proper return values
     project_workflow = Mock()
     project_workflow.open_project = Mock(return_value={
@@ -63,11 +63,11 @@ def mock_dependencies():
         "resolved_weight": "yolo11n.pt",
         "resolved_openvino": False
     })
-    
+
     # Create detector_service with proper return value for initialize_detector
     detector_svc = Mock()
     detector_svc.initialize_detector = Mock(return_value=(True, None))
-    
+
     return {
         "event_bus": Mock(),
         "state_manager": Mock(),
