@@ -59,11 +59,11 @@ import pytest
 @pytest.mark.benchmark
 def test_my_benchmark(benchmark):
     """Descrição do benchmark."""
-    
+
     def my_function():
         # Código a ser medido
         return some_computation()
-    
+
     result = benchmark(my_function)
     assert result is not None  # Validação opcional
 ```
@@ -77,11 +77,11 @@ import pytest
 @pytest.mark.benchmark
 def test_benchmark_array_operations(benchmark):
     """Benchmark para operações com arrays NumPy."""
-    
+
     def array_operation():
         arr = np.random.rand(1000, 1000)
         return arr.mean() + arr.std()
-    
+
     result = benchmark(array_operation)
     assert isinstance(result, float)
 ```
@@ -92,14 +92,14 @@ def test_benchmark_array_operations(benchmark):
 @pytest.mark.benchmark
 def test_benchmark_with_setup(benchmark):
     """Benchmark com setup que não é medido."""
-    
+
     # Setup (não é medido)
     data = np.random.rand(10000)
-    
+
     def process_data():
         # Apenas isso é medido
         return data.sum()
-    
+
     result = benchmark(process_data)
     assert result > 0
 ```
