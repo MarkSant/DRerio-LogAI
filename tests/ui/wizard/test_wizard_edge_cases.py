@@ -186,6 +186,8 @@ class TestCalibrationEdgeCases:
         """Test aquarium width cannot be zero."""
         with pytest.raises(ValidationError):
             CalibrationData(
+                num_aquariums=1,
+                animals_per_aquarium=5,
                 aquarium_width_cm=0.0,  # Invalid
                 aquarium_height_cm=30.0,
             )
@@ -194,6 +196,8 @@ class TestCalibrationEdgeCases:
         """Test aquarium width cannot be negative."""
         with pytest.raises(ValidationError):
             CalibrationData(
+                num_aquariums=1,
+                animals_per_aquarium=5,
                 aquarium_width_cm=-10.0,  # Invalid
                 aquarium_height_cm=30.0,
             )
@@ -201,6 +205,8 @@ class TestCalibrationEdgeCases:
     def test_aquarium_width_very_small(self):
         """Test aquarium width with very small positive value."""
         data = CalibrationData(
+            num_aquariums=1,
+            animals_per_aquarium=5,
             aquarium_width_cm=0.1,  # Very small but positive
             aquarium_height_cm=30.0,
         )
@@ -209,6 +215,8 @@ class TestCalibrationEdgeCases:
     def test_aquarium_width_very_large(self):
         """Test aquarium width with very large value."""
         data = CalibrationData(
+            num_aquariums=1,
+            animals_per_aquarium=5,
             aquarium_width_cm=10000.0,  # Unrealistic but valid
             aquarium_height_cm=30.0,
         )
@@ -218,6 +226,8 @@ class TestCalibrationEdgeCases:
         """Test aquarium height cannot be zero."""
         with pytest.raises(ValidationError):
             CalibrationData(
+                num_aquariums=1,
+                animals_per_aquarium=5,
                 aquarium_width_cm=50.0,
                 aquarium_height_cm=0.0,  # Invalid
             )
@@ -293,13 +303,14 @@ class TestWizardDataFlowEdgeCases:
     def test_wizard_data_with_unicode_subject_ids(self):
         """Test wizard handles Unicode in subject identifiers."""
         design_data = ExperimentalDesignData(
-            days=1,
-            groups=1,
+            experiment_days=1,
+            num_groups=1,
             subjects_per_group=2,
+            group_names=["Group1"],
         )
 
         # Subject IDs may contain Unicode (though typically numeric)
-        assert design_data.days == 1
+        assert design_data.experiment_days == 1
 
     def test_wizard_data_with_very_long_project_name(self):
         """Test wizard with very long project name."""
