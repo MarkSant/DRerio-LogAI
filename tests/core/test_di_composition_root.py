@@ -7,8 +7,6 @@ dependencies via constructor.
 """
 
 import pytest
-from unittest.mock import Mock, patch
-import tkinter as tk
 
 
 def test_composition_root_loads_settings():
@@ -72,10 +70,10 @@ def test_composition_root_instantiates_weight_manager():
 def test_composition_root_instantiates_detector_service():
     """Validate DetectorService with all required dependencies."""
     from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.weight_manager import WeightManager
-    from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.model_service import ModelService
+    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import load_settings
 
     settings_obj = load_settings()
@@ -89,7 +87,7 @@ def test_composition_root_instantiates_detector_service():
         weight_manager=weight_manager,
         state_manager=state_manager,
         project_manager=project_manager,
-        model_service=model_service
+        model_service=model_service,
     )
 
     assert detector_service is not None
@@ -105,12 +103,12 @@ def test_full_composition_root_assembly(tmp_path):
     can be instantiated with proper dependency injection. Full MainViewModel
     assembly is tested separately in integration tests.
     """
-    from zebtrack.settings import load_settings
-    from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.event_bus import EventBus
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.settings import load_settings
+    from zebtrack.ui.event_bus import EventBus
 
     # 1. Load settings
     settings_obj = load_settings()
@@ -158,10 +156,13 @@ def test_no_singleton_settings_import():
     # because tmp_path override wouldn't work)
 
 
-@pytest.mark.parametrize("service_class", [
-    "zebtrack.core.weight_manager.WeightManager",
-    "zebtrack.analysis.analysis_service.AnalysisService",
-])
+@pytest.mark.parametrize(
+    "service_class",
+    [
+        "zebtrack.core.weight_manager.WeightManager",
+        "zebtrack.analysis.analysis_service.AnalysisService",
+    ],
+)
 def test_service_accepts_settings_obj(service_class):
     """
     Parameterized test: Verify that services accept settings_obj.

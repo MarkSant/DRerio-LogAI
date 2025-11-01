@@ -6,10 +6,11 @@ Tests project lifecycle (create, open, close), workflow orchestration,
 and state synchronization.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from pathlib import Path
 import tkinter as tk
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 from zebtrack.core.main_view_model import MainViewModel
 
@@ -54,22 +55,24 @@ def mock_dependencies():
 
     # Create project_workflow_service with proper return values
     project_workflow = Mock()
-    project_workflow.open_project = Mock(return_value={
-        "success": True,
-        "error_message": None,
-        "project_info": {
-            "name": "Test Project",
-            "videos_count": 0,
-            "zone_status": "No zones defined",
-            "roi_count": 0,
-            "has_arena": False,
-            "active_weight": "yolo11n.pt",
-            "use_openvino": False
-        },
-        "zone_data": None,
-        "resolved_weight": "yolo11n.pt",
-        "resolved_openvino": False
-    })
+    project_workflow.open_project = Mock(
+        return_value={
+            "success": True,
+            "error_message": None,
+            "project_info": {
+                "name": "Test Project",
+                "videos_count": 0,
+                "zone_status": "No zones defined",
+                "roi_count": 0,
+                "has_arena": False,
+                "active_weight": "yolo11n.pt",
+                "use_openvino": False,
+            },
+            "zone_data": None,
+            "resolved_weight": "yolo11n.pt",
+            "resolved_openvino": False,
+        }
+    )
 
     # Create detector_service with proper return value for initialize_detector
     detector_svc = Mock()
@@ -95,11 +98,8 @@ def mock_dependencies():
 def main_view_model(mock_root, mock_dependencies):
     """Create MainViewModel with mocked dependencies."""
     # Patch ApplicationGUI to avoid actual UI creation
-    with patch('zebtrack.core.main_view_model.ApplicationGUI'):
-        controller = MainViewModel(
-            root=mock_root,
-            **mock_dependencies
-        )
+    with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+        controller = MainViewModel(root=mock_root, **mock_dependencies)
         # Mock the view to avoid UI dependencies
         controller.view = Mock()
         return controller
@@ -110,11 +110,8 @@ class TestMainViewModelInitialization:
 
     def test_init_stores_all_dependencies(self, mock_root, mock_dependencies):
         """Test initialization stores all injected dependencies."""
-        with patch('zebtrack.core.main_view_model.ApplicationGUI'):
-            controller = MainViewModel(
-                root=mock_root,
-                **mock_dependencies
-            )
+        with patch("zebtrack.core.main_view_model.ApplicationGUI"):
+            controller = MainViewModel(root=mock_root, **mock_dependencies)
 
             assert controller.root == mock_root
             assert controller.ui_event_bus == mock_dependencies["event_bus"]
@@ -124,7 +121,7 @@ class TestMainViewModelInitialization:
 
     def test_init_creates_view(self, mock_root, mock_dependencies):
         """Test initialization creates ApplicationGUI view."""
-        with patch('zebtrack.core.main_view_model.ApplicationGUI') as mock_gui:
+        with patch("zebtrack.core.main_view_model.ApplicationGUI") as mock_gui:
             MainViewModel(root=mock_root, **mock_dependencies)
 
             # Should create view
@@ -156,11 +153,9 @@ class TestCreateProjectWorkflow:
             "project_type": "live",
         }
 
-        mock_dependencies["project_workflow_service"].create_project = Mock(return_value={
-            "success": True,
-            "animal_method": "det",
-            "wizard_metadata": {}
-        })
+        mock_dependencies["project_workflow_service"].create_project = Mock(
+            return_value={"success": True, "animal_method": "det", "wizard_metadata": {}}
+        )
 
         main_view_model.create_project_workflow(**wizard_data)
 
@@ -175,12 +170,14 @@ class TestCreateProjectWorkflow:
             "confidence_threshold": 0.5,
         }
 
-        with patch.object(main_view_model, '_apply_wizard_detector_overrides') as mock_apply:
-            main_view_model.project_workflow_service.create_project = Mock(return_value={
-                "success": True,
-                "animal_method": "det",
-                "wizard_metadata": {"confidence_threshold": 0.5}
-            })
+        with patch.object(main_view_model, "_apply_wizard_detector_overrides") as mock_apply:
+            main_view_model.project_workflow_service.create_project = Mock(
+                return_value={
+                    "success": True,
+                    "animal_method": "det",
+                    "wizard_metadata": {"confidence_threshold": 0.5},
+                }
+            )
 
             main_view_model.create_project_workflow(**wizard_data)
 
@@ -191,10 +188,9 @@ class TestCreateProjectWorkflow:
         """Test create_project handles workflow service failure."""
         wizard_data = {"project_name": "Test Project"}
 
-        main_view_model.project_workflow_service.create_project = Mock(return_value={
-            "success": False,
-            "error_message": "Creation failed"
-        })
+        main_view_model.project_workflow_service.create_project = Mock(
+            return_value={"success": False, "error_message": "Creation failed"}
+        )
 
         main_view_model.create_project_workflow(**wizard_data)
 
@@ -207,13 +203,15 @@ class TestCreateProjectWorkflow:
             "project_type": "live",
         }
 
-        main_view_model.project_workflow_service.create_project = Mock(return_value={
-            "success": True,
-            "animal_method": "det",
-            "wizard_metadata": {"project_type": "live"}
-        })
+        main_view_model.project_workflow_service.create_project = Mock(
+            return_value={
+                "success": True,
+                "animal_method": "det",
+                "wizard_metadata": {"project_type": "live"},
+            }
+        )
 
-        with patch.object(main_view_model, '_show_post_creation_guide') as mock_guide:
+        with patch.object(main_view_model, "_show_post_creation_guide") as mock_guide:
             main_view_model.create_project_workflow(**wizard_data)
 
             # Should show guide
@@ -227,12 +225,14 @@ class TestOpenProjectWorkflow:
         """Test open_project loads project configuration via project_workflow_service."""
         project_path = Path("/fake/project.zbk")
 
-        with patch.object(main_view_model, '_setup_zones_from_project'):
+        with patch.object(main_view_model, "_setup_zones_from_project"):
             main_view_model.open_project_workflow(project_path)
 
             # Should call project_workflow_service.open_project
             mock_dependencies["project_workflow_service"].open_project.assert_called_once()
-            call_kwargs = mock_dependencies["project_workflow_service"].open_project.call_args.kwargs
+            call_kwargs = mock_dependencies[
+                "project_workflow_service"
+            ].open_project.call_args.kwargs
             assert call_kwargs["project_path"] == project_path
 
     def test_open_project_initializes_detector(self, main_view_model):
@@ -245,8 +245,8 @@ class TestOpenProjectWorkflow:
             "model_weights": "yolo11m-seg.pt",
         }
 
-        with patch.object(main_view_model, 'setup_detector') as mock_setup:
-            with patch.object(main_view_model, '_setup_zones_from_project'):
+        with patch.object(main_view_model, "setup_detector") as mock_setup:
+            with patch.object(main_view_model, "_setup_zones_from_project"):
                 main_view_model.open_project_workflow(project_path)
 
                 # Should setup detector
@@ -283,10 +283,9 @@ class TestOpenProjectWorkflow:
         """Test open_project handles load failure gracefully."""
         project_path = Path("/fake/nonexistent.zbk")
 
-        main_view_model.project_workflow_service.open_project = Mock(return_value={
-            "success": False,
-            "error_message": "Project not found"
-        })
+        main_view_model.project_workflow_service.open_project = Mock(
+            return_value={"success": False, "error_message": "Project not found"}
+        )
 
         main_view_model.open_project_workflow(project_path)
 
@@ -295,7 +294,7 @@ class TestOpenProjectWorkflow:
 
     def test_open_project_handles_invalid_path(self, main_view_model):
         """Test open_project validates path before loading."""
-        project_path = Path("/fake/invalid_extension.txt")
+        Path("/fake/invalid_extension.txt")
 
         # Implementation may validate extension
         # Test should verify graceful handling
@@ -317,7 +316,7 @@ class TestCloseProject:
 
     def test_close_project_clears_project_manager_state(self, main_view_model):
         """Test close_project recreates ProjectManager with clean state."""
-        with patch('zebtrack.core.main_view_model.ProjectManager') as mock_pm_class:
+        with patch("zebtrack.core.main_view_model.ProjectManager") as mock_pm_class:
             main_view_model.close_project()
 
             # Should recreate ProjectManager
@@ -375,12 +374,13 @@ class TestSetupDetector:
         main_view_model.setup_detector(temp_animal_method="seg")
 
         # Should pass override to service
-        call_args = main_view_model.detector_service.initialize_detector.call_args
         # Verify override is used
 
     def test_setup_detector_handles_initialization_failure(self, main_view_model):
         """Test setup_detector handles detector initialization failure."""
-        main_view_model.detector_service.initialize_detector = Mock(return_value=(False, "Initialization failed"))
+        main_view_model.detector_service.initialize_detector = Mock(
+            return_value=(False, "Initialization failed")
+        )
 
         result = main_view_model.setup_detector()
 
@@ -403,12 +403,6 @@ class TestStateSync:
     def test_state_manager_updated_on_recording_start(self, main_view_model):
         """Test StateManager updated when recording starts."""
         # This is tested via RecordingService, but verify integration
-        context = {
-            "folder_name": "test",
-            "output_folder": "/fake",
-            "camera_width": 640,
-            "camera_height": 480,
-        }
 
         # Verify state manager receives updates
         # Implementation depends on RecordingService integration
@@ -429,19 +423,25 @@ class TestJoinThreads:
 
     def test_join_threads_waits_for_worker_threads(self, main_view_model):
         """Test join_threads waits for all worker threads."""
-        # Create mock threads
-        mock_thread1 = Mock()
-        mock_thread1.is_alive = Mock(return_value=False)
-        mock_thread2 = Mock()
-        mock_thread2.is_alive = Mock(return_value=False)
+        # Create mock threads for capture and processing
+        mock_capture_thread = Mock()
+        mock_capture_thread.is_alive = Mock(return_value=True)
+        mock_capture_thread.join = Mock()
 
-        main_view_model.worker_threads = [mock_thread1, mock_thread2]
+        mock_processing_thread = Mock()
+        mock_processing_thread.is_alive = Mock(return_value=True)
+        mock_processing_thread.join = Mock()
+
+        main_view_model.capture_thread = mock_capture_thread
+        main_view_model.processing_thread = mock_processing_thread
 
         main_view_model.join_threads()
 
-        # Should check thread status
-        mock_thread1.is_alive.assert_called()
-        mock_thread2.is_alive.assert_called()
+        # Should check thread status and join them
+        mock_capture_thread.is_alive.assert_called()
+        mock_capture_thread.join.assert_called_once()
+        mock_processing_thread.is_alive.assert_called()
+        mock_processing_thread.join.assert_called_once()
 
     def test_join_threads_handles_active_threads(self, main_view_model):
         """Test join_threads handles threads that are still active."""
@@ -466,7 +466,7 @@ class TestArduinoIntegration:
         mock_arduino_cls = Mock()
         main_view_model._arduino_manager_cls = mock_arduino_cls
 
-        manager = main_view_model._get_arduino_manager()
+        main_view_model._get_arduino_manager()
 
         # Should create manager using _arduino_manager_cls
         mock_arduino_cls.assert_called_once_with(main_view_model)
@@ -499,7 +499,7 @@ class TestOnClose:
         # Mock user confirmation
         main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-        with patch.object(main_view_model, 'join_threads') as mock_join:
+        with patch.object(main_view_model, "join_threads") as mock_join:
             main_view_model.on_close()
 
             # Should call join_threads which handles cleanup
@@ -510,7 +510,7 @@ class TestOnClose:
         # Mock user confirmation
         main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-        with patch.object(main_view_model, 'join_threads') as mock_join:
+        with patch.object(main_view_model, "join_threads") as mock_join:
             main_view_model.on_close()
 
             mock_join.assert_called_once()
@@ -526,7 +526,7 @@ class TestOnClose:
         main_view_model.processing_thread = None
         main_view_model.camera = None
 
-        with patch.object(main_view_model, '_shutdown_arduino_manager') as mock_shutdown:
+        with patch.object(main_view_model, "_shutdown_arduino_manager") as mock_shutdown:
             main_view_model.on_close()
 
             # Should call _shutdown_arduino_manager via join_threads
@@ -537,7 +537,7 @@ class TestOnClose:
         # Mock user confirmation
         main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-        with patch.object(main_view_model, 'join_threads'):
+        with patch.object(main_view_model, "join_threads"):
             main_view_model.on_close()
 
             # Should call root.destroy() to close the window

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import Optional, cast
 
 import cv2
 import matplotlib
@@ -32,7 +32,7 @@ from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.models import AnalysisResult, CalibrationParams
+from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
 
 log = structlog.get_logger(__name__)
@@ -217,14 +217,14 @@ class Reporter:
     def __init__(
         self,
         trajectory_df: pd.DataFrame = None,
-        metadata: dict = None,
+        metadata: Optional[dict] = None,
         # Calibration and setup
-        pixelcm_x: float = None,
-        pixelcm_y: float = None,
-        video_height_px: int = None,
-        arena_polygon_px: list[tuple[float, float]] = None,
-        rois: list[ROI] = None,
-        fps: float = None,
+        pixelcm_x: Optional[float] = None,
+        pixelcm_y: Optional[float] = None,
+        video_height_px: Optional[int] = None,
+        arena_polygon_px: Optional[list[tuple[float, float]]] = None,
+        rois: Optional[list[ROI]] = None,
+        fps: Optional[float] = None,
         # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,

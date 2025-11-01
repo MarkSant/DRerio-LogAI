@@ -7,7 +7,7 @@ hardware for live tracking sessions.
 
 # Standard library imports
 from tkinter import BooleanVar, Checkbutton, Label, OptionMenu, StringVar, messagebox, simpledialog
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings

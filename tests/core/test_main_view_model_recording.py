@@ -6,10 +6,10 @@ Tests trigger_recording, stop_recording, external trigger mode,
 and RecordingService integration.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
 import tkinter as tk
-from datetime import datetime
+from unittest.mock import Mock, patch
+
+import pytest
 
 
 @pytest.fixture
@@ -48,22 +48,24 @@ def mock_dependencies():
 
     # Create project_workflow_service with proper return values
     project_workflow = Mock()
-    project_workflow.open_project = Mock(return_value={
-        "success": True,
-        "error_message": None,
-        "project_info": {
-            "name": "Test Project",
-            "videos_count": 0,
-            "zone_status": "No zones defined",
-            "roi_count": 0,
-            "has_arena": False,
-            "active_weight": "yolo11n.pt",
-            "use_openvino": False
-        },
-        "zone_data": None,
-        "resolved_weight": "yolo11n.pt",
-        "resolved_openvino": False
-    })
+    project_workflow.open_project = Mock(
+        return_value={
+            "success": True,
+            "error_message": None,
+            "project_info": {
+                "name": "Test Project",
+                "videos_count": 0,
+                "zone_status": "No zones defined",
+                "roi_count": 0,
+                "has_arena": False,
+                "active_weight": "yolo11n.pt",
+                "use_openvino": False,
+            },
+            "zone_data": None,
+            "resolved_weight": "yolo11n.pt",
+            "resolved_openvino": False,
+        }
+    )
 
     # Create detector_service with proper return value
     detector_svc = Mock()
@@ -88,13 +90,10 @@ def mock_dependencies():
 @pytest.fixture
 def main_view_model(mock_root, mock_dependencies):
     """Create MainViewModel with mocked dependencies."""
-    with patch('zebtrack.core.main_view_model.ApplicationGUI'):
+    with patch("zebtrack.core.main_view_model.ApplicationGUI"):
         from zebtrack.core.main_view_model import MainViewModel
 
-        controller = MainViewModel(
-            root=mock_root,
-            **mock_dependencies
-        )
+        controller = MainViewModel(root=mock_root, **mock_dependencies)
         controller.view = Mock()
         return controller
 
@@ -144,7 +143,7 @@ class TestTriggerRecording:
         """Test that recording requires loaded project."""
         main_view_model.project_manager.project_path = None  # No project loaded
 
-        with patch.object(main_view_model.view, 'show_error') as mock_error:
+        with patch.object(main_view_model.view, "show_error"):
             # Implementation may validate project before proceeding
             # Test depends on actual validation logic
             pass
@@ -154,9 +153,9 @@ class TestTriggerRecording:
         main_view_model.project_manager.project_path = "/fake/project.zbk"
         main_view_model.project_manager.get_zone_data = Mock(return_value=Mock(polygon=None))
 
-        with patch.object(main_view_model, '_ensure_zones_before_recording', return_value=False):
+        with patch.object(main_view_model, "_ensure_zones_before_recording", return_value=False):
             # Should not proceed if zones not defined
-            result = main_view_model.trigger_recording()
+            main_view_model.trigger_recording()
             # Validation behavior depends on implementation
 
     def test_trigger_recording_disables_start_button(self, main_view_model):
@@ -248,7 +247,6 @@ class TestRecordingServiceIntegration:
         }
 
         # Get recording context
-        context = {}  # Implementation-specific
 
         # Should include camera dimensions
         # Test depends on _get_recording_context implementation
@@ -288,7 +286,7 @@ class TestExternalTriggerMode:
         main_view_model._pending_external_trigger = {"some": "context"}
 
         # Simulate Arduino event (event_code=1 is the start trigger)
-        with patch.object(main_view_model, 'trigger_recording') as mock_trigger:
+        with patch.object(main_view_model, "trigger_recording") as mock_trigger:
             main_view_model.on_arduino_event(event_code=1)
 
             # Should trigger recording

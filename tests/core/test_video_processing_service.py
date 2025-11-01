@@ -10,10 +10,10 @@ Note: VideoProcessingService has many UI dependencies (root, view, ui_coordinato
 These tests focus on validating the service layer logic with mocked components.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from pathlib import Path
 import threading
+from unittest.mock import Mock
+
+import pytest
 
 
 @pytest.fixture
@@ -31,9 +31,9 @@ def mock_settings():
 def mock_detector():
     """Create mock detector."""
     detector = Mock()
-    detector.detect = Mock(return_value=[
-        {"bbox": [100, 100, 200, 200], "confidence": 0.95, "track_id": 1}
-    ])
+    detector.detect = Mock(
+        return_value=[{"bbox": [100, 100, 200, 200], "confidence": 0.95, "track_id": 1}]
+    )
     return detector
 
 
@@ -108,7 +108,7 @@ def video_processing_service(
     mock_event_bus,
     mock_root,
     mock_view,
-    cancel_event
+    cancel_event,
 ):
     """Create VideoProcessingService with mocked dependencies."""
     from zebtrack.core.video_processing_service import VideoProcessingService
@@ -123,7 +123,7 @@ def video_processing_service(
         root=mock_root,
         view=mock_view,
         cancel_event=cancel_event,
-        settings_obj=mock_settings
+        settings_obj=mock_settings,
     )
     return service
 
@@ -156,7 +156,7 @@ def test_service_with_null_detector_allowed(
     mock_event_bus,
     mock_root,
     mock_view,
-    cancel_event
+    cancel_event,
 ):
     """Test that service can be instantiated with None detector (lazy initialization)."""
     from zebtrack.core.video_processing_service import VideoProcessingService
@@ -171,7 +171,7 @@ def test_service_with_null_detector_allowed(
         root=mock_root,
         view=mock_view,
         cancel_event=cancel_event,
-        settings_obj=mock_settings
+        settings_obj=mock_settings,
     )
 
     assert service is not None
@@ -182,30 +182,22 @@ def test_service_state_manager_integration(video_processing_service, mock_state_
     """Test that service can update state via StateManager."""
     # Act: Simulate state update
     video_processing_service.state_manager.update_state(
-        processing_status="running",
-        current_video="test.mp4"
+        processing_status="running", current_video="test.mp4"
     )
 
     # Assert
     mock_state_manager.update_state.assert_called_with(
-        processing_status="running",
-        current_video="test.mp4"
+        processing_status="running", current_video="test.mp4"
     )
 
 
 def test_service_event_bus_integration(video_processing_service, mock_event_bus):
     """Test that service can emit events via EventBus."""
     # Act: Simulate event emission
-    video_processing_service.ui_event_bus.emit(
-        "processing.started",
-        data={"video": "test.mp4"}
-    )
+    video_processing_service.ui_event_bus.emit("processing.started", data={"video": "test.mp4"})
 
     # Assert
-    mock_event_bus.emit.assert_called_with(
-        "processing.started",
-        data={"video": "test.mp4"}
-    )
+    mock_event_bus.emit.assert_called_with("processing.started", data={"video": "test.mp4"})
 
 
 def test_service_cancel_event_integration(video_processing_service, cancel_event):
@@ -226,15 +218,18 @@ def test_service_settings_injection(video_processing_service, mock_settings):
     assert video_processing_service.settings.paths.output_dir == "/fake/output"
 
 
-@pytest.mark.parametrize("attribute", [
-    "detector",
-    "recorder",
-    "project_manager",
-    "state_manager",
-    "ui_coordinator",
-    "ui_event_bus",
-    "settings",
-])
+@pytest.mark.parametrize(
+    "attribute",
+    [
+        "detector",
+        "recorder",
+        "project_manager",
+        "state_manager",
+        "ui_coordinator",
+        "ui_event_bus",
+        "settings",
+    ],
+)
 def test_service_has_injected_dependency(video_processing_service, attribute):
     """Parameterized test: Verify all dependencies are injected."""
     assert hasattr(video_processing_service, attribute)
@@ -258,17 +253,11 @@ def test_service_detector_detection_call(video_processing_service, mock_detector
 def test_service_recorder_write_call(video_processing_service, mock_recorder):
     """Test that service can call recorder.write_detection()."""
     # Arrange
-    detection = {
-        "bbox": [100, 100, 200, 200],
-        "confidence": 0.95,
-        "track_id": 1
-    }
+    detection = {"bbox": [100, 100, 200, 200], "confidence": 0.95, "track_id": 1}
 
     # Act
     video_processing_service.recorder.write_detection(
-        frame_number=1,
-        timestamp=0.033,
-        detection=detection
+        frame_number=1, timestamp=0.033, detection=detection
     )
 
     # Assert

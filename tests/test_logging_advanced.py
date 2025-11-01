@@ -6,16 +6,17 @@ Tests log rotation, formatters, level configuration,
 and module-specific logging.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, mock_open
 import logging
+from unittest.mock import Mock, mock_open, patch
+
+import pytest
 import structlog
 
 
 class TestLogRotation:
     """Test suite for log rotation configuration."""
 
-    @patch('logging.handlers.RotatingFileHandler')
+    @patch("logging.handlers.RotatingFileHandler")
     def test_rotating_handler_max_bytes(self, mock_handler):
         """Test rotating handler configured with correct max bytes."""
         from zebtrack.__main__ import configure_logging
@@ -27,7 +28,7 @@ class TestLogRotation:
         call_args = mock_handler.call_args
         assert call_args[1]["maxBytes"] == 5 * 1024 * 1024
 
-    @patch('logging.handlers.RotatingFileHandler')
+    @patch("logging.handlers.RotatingFileHandler")
     def test_rotating_handler_backup_count(self, mock_handler):
         """Test rotating handler keeps 5 backup files."""
         from zebtrack.__main__ import configure_logging
@@ -37,7 +38,7 @@ class TestLogRotation:
         call_args = mock_handler.call_args
         assert call_args[1]["backupCount"] == 5
 
-    @patch('logging.handlers.RotatingFileHandler')
+    @patch("logging.handlers.RotatingFileHandler")
     def test_rotating_handler_file_path(self, mock_handler):
         """Test rotating handler writes to analysis.log."""
         from zebtrack.__main__ import configure_logging
@@ -51,8 +52,8 @@ class TestLogRotation:
 class TestLogFormatters:
     """Test suite for log formatters."""
 
-    @patch('logging.handlers.RotatingFileHandler')
-    @patch('logging.StreamHandler')
+    @patch("logging.handlers.RotatingFileHandler")
+    @patch("logging.StreamHandler")
     def test_file_handler_uses_json_formatter(self, mock_stream, mock_rotating):
         """Test file handler uses JSON formatter."""
         from zebtrack.__main__ import configure_logging
@@ -65,8 +66,8 @@ class TestLogFormatters:
         # Should set JSON formatter
         mock_file_handler.setFormatter.assert_called_once()
 
-    @patch('logging.handlers.RotatingFileHandler')
-    @patch('logging.StreamHandler')
+    @patch("logging.handlers.RotatingFileHandler")
+    @patch("logging.StreamHandler")
     def test_console_handler_uses_console_formatter(self, mock_stream, mock_rotating):
         """Test console handler uses console formatter."""
         from zebtrack.__main__ import configure_logging
@@ -86,8 +87,10 @@ class TestLogFormatters:
         renderer = CompactConsoleRenderer()
 
         # Mock parent call
-        with patch.object(renderer.__class__.__bases__[0], '__call__', return_value="test  message    here  "):
-            result = renderer(None, None, {})
+        with patch.object(
+            renderer.__class__.__bases__[0], "__call__", return_value="test  message    here  "
+        ):
+            renderer(None, None, {})
 
             # Should have fewer consecutive spaces
             # Implementation may vary
@@ -96,7 +99,7 @@ class TestLogFormatters:
 class TestLogLevelConfiguration:
     """Test suite for log level configuration."""
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_root_logger_set_to_info(self, mock_get_logger):
         """Test root logger level set to INFO."""
         from zebtrack.__main__ import configure_logging
@@ -109,13 +112,18 @@ class TestLogLevelConfiguration:
         # Should set INFO level
         mock_root_logger.setLevel.assert_called_with(logging.INFO)
 
-    @patch('logging.getLogger')
-    def test_module_specific_log_level(self, mock_get_logger):
+    @patch("structlog.get_logger")
+    @patch("logging.getLogger")
+    def test_module_specific_log_level(self, mock_get_logger, mock_structlog_get_logger):
         """Test setting module-specific log level."""
         from zebtrack.logging_config import configure_logging_levels
 
         mock_module_logger = Mock()
         mock_get_logger.return_value = mock_module_logger
+
+        # Mock structlog logger
+        mock_structlog_logger = Mock()
+        mock_structlog_get_logger.return_value = mock_structlog_logger
 
         mock_settings = Mock()
         mock_settings.logging.levels = {"zebtrack.core.detector": "DEBUG"}
@@ -126,7 +134,7 @@ class TestLogLevelConfiguration:
         mock_get_logger.assert_called_with("zebtrack.core.detector")
         mock_module_logger.setLevel.assert_called_with(logging.DEBUG)
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_invalid_log_level_format_ignored(self, mock_get_logger):
         """Test invalid log level format is ignored."""
         from zebtrack.logging_config import configure_logging_levels
@@ -138,7 +146,7 @@ class TestLogLevelConfiguration:
         # Should not crash, just use default level
         configure_logging_levels(mock_settings)
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_multiple_module_log_levels(self, mock_get_logger):
         """Test setting multiple module log levels."""
         from zebtrack.logging_config import configure_logging_levels
@@ -166,8 +174,8 @@ class TestStructlogConfiguration:
         logger = structlog.get_logger()
 
         assert logger is not None
-        assert hasattr(logger, 'info')
-        assert hasattr(logger, 'error')
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "error")
 
     def test_structlog_logger_accepts_context(self):
         """Test structlog logger accepts context parameters."""
@@ -183,8 +191,8 @@ class TestStructlogConfiguration:
 class TestLogFileCreation:
     """Test suite for log file creation."""
 
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('logging.handlers.RotatingFileHandler')
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("logging.handlers.RotatingFileHandler")
     def test_log_file_created_on_startup(self, mock_handler, mock_file):
         """Test log file is created on startup."""
         from zebtrack.__main__ import configure_logging
@@ -194,7 +202,7 @@ class TestLogFileCreation:
         # Handler should be created
         mock_handler.assert_called_once()
 
-    @patch('os.path.exists')
+    @patch("os.path.exists")
     def test_log_file_exists_after_configuration(self, mock_exists):
         """Test log file exists after configuration."""
         from zebtrack.__main__ import configure_logging
@@ -239,7 +247,7 @@ class TestLoggerUsage:
 class TestLoggingEdgeCases:
     """Test suite for logging edge cases."""
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_configure_logging_called_multiple_times(self, mock_get_logger):
         """Test calling configure_logging multiple times."""
         from zebtrack.__main__ import configure_logging
@@ -254,7 +262,7 @@ class TestLoggingEdgeCases:
         # Should handle gracefully (may add multiple handlers)
         # Implementation-specific behavior
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_log_level_case_insensitive(self, mock_get_logger):
         """Test log level parsing is case-insensitive."""
         from zebtrack.logging_config import configure_logging_levels

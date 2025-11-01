@@ -256,35 +256,35 @@ class ProjectOverviewWidget(BaseWidget):
         self._video_index = video_index
 
         # Build tree from hierarchy data
-        for group in hierarchy_data.get('groups', []):
+        for group in hierarchy_data.get("groups", []):
             group_id = f"group_{group['id']}"
 
             # Add group node
             self.add_tree_item(
                 item_id=group_id,
                 text=f"🏷️ {group['display']}",
-                values=(group['status_summary'], group['data_summary'])
+                values=(group["status_summary"], group["data_summary"]),
             )
             self.expand_tree_item(group_id)
 
             # Add days
-            for day in group.get('days', []):
+            for day in group.get("days", []):
                 day_id = f"day_{group['id']}_{day['id']}"
 
                 self.add_tree_item(
                     item_id=day_id,
                     parent=group_id,
                     text=f"📅 {day['title']}",
-                    values=(day['status'], day['data'])
+                    values=(day["status"], day["data"]),
                 )
 
                 # Add videos
-                for video in day.get('videos', []):
-                    video_id = video['id']
+                for video in day.get("videos", []):
+                    video_id = video["id"]
 
                     self.add_tree_item(
                         item_id=video_id,
                         parent=day_id,
-                        text=video['display_name'],
-                        values=(video['status'], video['data_badges'])
+                        text=video["display_name"],
+                        values=(video["status"], video["data_badges"]),
                     )

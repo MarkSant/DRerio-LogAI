@@ -5,13 +5,13 @@ Validates concurrent processing scenarios and shared state management.
 Addresses PR Review Issue #2 - Incomplete Test Coverage Analysis.
 """
 
-import pytest
 import threading
 import time
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
-import pandas as pd
+from unittest.mock import Mock, patch
+
 import numpy as np
+import pytest
 
 
 @pytest.fixture
@@ -50,6 +50,7 @@ def mock_detector():
 @pytest.fixture
 def mock_recorder_class():
     """Create mock recorder class for testing instance creation."""
+
     class MockRecorderClass:
         instances_created = []
 
@@ -67,12 +68,14 @@ def mock_recorder_class():
 def mock_project_manager():
     """Create mock project manager."""
     pm = Mock()
-    pm.get_zone_data = Mock(return_value=Mock(
-        polygon=[[0, 0], [640, 0], [640, 480], [0, 480]],
-        roi_polygons=[],
-        roi_names=[],
-        roi_colors=[]
-    ))
+    pm.get_zone_data = Mock(
+        return_value=Mock(
+            polygon=[[0, 0], [640, 0], [640, 480], [0, 480]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+        )
+    )
     pm.project_path = None
     pm.project_data = {}
     return pm
@@ -80,10 +83,7 @@ def mock_project_manager():
 
 @pytest.fixture
 def video_processing_service(
-    mock_settings,
-    mock_detector,
-    mock_recorder_class,
-    mock_project_manager
+    mock_settings, mock_detector, mock_recorder_class, mock_project_manager
 ):
     """Create VideoProcessingService with mocked dependencies."""
     from zebtrack.core.video_processing_service import VideoProcessingService
@@ -104,7 +104,7 @@ def video_processing_service(
         root=Mock(after=Mock()),
         view=Mock(show_error=Mock()),
         cancel_event=threading.Event(),
-        settings_obj=mock_settings
+        settings_obj=mock_settings,
     )
     return service
 
@@ -134,7 +134,9 @@ class TestThreadSafety:
         assert mock_settings.video_processing.fps == original_fps
         assert mock_settings.paths.output_dir == original_output_dir
 
-    def test_separate_recorder_instances_per_worker(self, video_processing_service, mock_recorder_class):
+    def test_separate_recorder_instances_per_worker(
+        self, video_processing_service, mock_recorder_class
+    ):
         """Test that each worker thread creates its own Recorder instance.
 
         Validates Bug #1 analysis: No race condition exists because each worker
@@ -260,7 +262,7 @@ class TestThreadSafety:
 class TestConcurrentProcessing:
     """Test concurrent video processing scenarios."""
 
-    @patch('cv2.VideoCapture')
+    @patch("cv2.VideoCapture")
     def test_concurrent_initial_frame_display(self, mock_videocap, video_processing_service):
         """Test that display_initial_frame is safe when called concurrently."""
         # Arrange
@@ -291,9 +293,7 @@ class TestConcurrentProcessing:
 
         def create_callback():
             callback = video_processing_service.create_progress_callback(
-                index=0,
-                total_videos=10,
-                experiment_id="test_001"
+                index=0, total_videos=10, experiment_id="test_001"
             )
             callbacks.append(callback)
 
@@ -308,7 +308,7 @@ class TestConcurrentProcessing:
         assert len(callbacks) == 10
         assert all(callable(cb) for cb in callbacks)
 
-    @patch('cv2.VideoCapture')
+    @patch("cv2.VideoCapture")
     def test_concurrent_arena_polygon_creation(self, mock_videocap, video_processing_service):
         """Test that ensure_arena_polygon is safe under concurrent calls."""
         # Arrange
@@ -349,10 +349,7 @@ class TestStateManagerIntegration:
 
         # Act: Update state from multiple threads
         def update_state(index):
-            state_manager.update_state(
-                current_video=f"video_{index}.mp4",
-                progress=index * 0.1
-            )
+            state_manager.update_state(current_video=f"video_{index}.mp4", progress=index * 0.1)
 
         threads = [threading.Thread(target=update_state, args=(i,)) for i in range(10)]
         for t in threads:
@@ -369,8 +366,10 @@ class TestStateManagerIntegration:
 class TestResourceManagementUnderLoad:
     """Test resource management under concurrent load."""
 
-    @patch('cv2.VideoCapture')
-    def test_video_capture_cleanup_under_concurrent_failures(self, mock_videocap, video_processing_service):
+    @patch("cv2.VideoCapture")
+    def test_video_capture_cleanup_under_concurrent_failures(
+        self, mock_videocap, video_processing_service
+    ):
         """Test that VideoCapture resources are properly cleaned up even under concurrent failures."""
         # Arrange
         failure_count = [0]

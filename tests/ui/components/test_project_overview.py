@@ -84,11 +84,7 @@ def test_clear_tree(overview_widget):
 
 def test_add_tree_item(overview_widget):
     """Test that add_tree_item adds items correctly."""
-    overview_widget.add_tree_item(
-        "item1",
-        "Test Item",
-        values=("Status", "Data")
-    )
+    overview_widget.add_tree_item("item1", "Test Item", values=("Status", "Data"))
 
     children = overview_widget.project_overview_tree.get_children()
     assert len(children) == 1
@@ -108,10 +104,7 @@ def test_add_tree_item_with_parent(overview_widget):
 
     # Add child
     overview_widget.add_tree_item(
-        "child",
-        "Child Item",
-        parent="parent",
-        values=("C Status", "C Data")
+        "child", "Child Item", parent="parent", values=("C Status", "C Data")
     )
 
     # Verify parent-child relationship
@@ -152,6 +145,7 @@ def test_event_emission_on_refresh(overview_widget, event_bus):
 
     # Process the event queue manually (since there's no background worker in tests)
     from zebtrack.ui.event_bus import EventType
+
     events = overview_widget.event_bus.drain(max_items=10)
     for event in events:
         if event.type == EventType.NAMED:
@@ -201,7 +195,9 @@ def test_complex_tree_hierarchy(overview_widget):
     # Group 1
     overview_widget.add_tree_item("group1", "🏷️ Group 1", values=("10 videos", ""))
     overview_widget.add_tree_item("day1", "📅 Day 1", parent="group1", values=("5 videos", ""))
-    overview_widget.add_tree_item("video1", "🐟 Subject 1", parent="day1", values=("✅", "Arena ROI"))
+    overview_widget.add_tree_item(
+        "video1", "🐟 Subject 1", parent="day1", values=("✅", "Arena ROI")
+    )
 
     # Group 2
     overview_widget.add_tree_item("group2", "🏷️ Group 2", values=("5 videos", ""))
@@ -219,14 +215,17 @@ def test_complex_tree_hierarchy(overview_widget):
     assert len(day1_children) == 1
 
 
-@pytest.mark.parametrize("status_key,expected_value", [
-    ("total", "0"),
-    ("pending", "0"),
-    ("processing", "0"),
-    ("processed", "0"),
-    ("complete", "0"),
-    ("failed", "0"),
-])
+@pytest.mark.parametrize(
+    "status_key,expected_value",
+    [
+        ("total", "0"),
+        ("pending", "0"),
+        ("processing", "0"),
+        ("processed", "0"),
+        ("complete", "0"),
+        ("failed", "0"),
+    ],
+)
 def test_initial_status_values(overview_widget, status_key, expected_value):
     """Test that all status variables have correct initial values."""
     assert overview_widget.project_status_vars[status_key].get() == expected_value
@@ -235,33 +234,33 @@ def test_initial_status_values(overview_widget, status_key, expected_value):
 def test_populate_tree_with_hierarchy(overview_widget):
     """Test populate_tree_with_hierarchy method."""
     hierarchy_data = {
-        'groups': [
+        "groups": [
             {
-                'id': 'group1',
-                'display': 'Group 1',
-                'status_summary': '5 videos',
-                'data_summary': 'Arena 3/5',
-                'days': [
+                "id": "group1",
+                "display": "Group 1",
+                "status_summary": "5 videos",
+                "data_summary": "Arena 3/5",
+                "days": [
                     {
-                        'id': 'day1',
-                        'title': 'Day 1',
-                        'status': 'Complete',
-                        'data': 'Arena ROI',
-                        'videos': [
+                        "id": "day1",
+                        "title": "Day 1",
+                        "status": "Complete",
+                        "data": "Arena ROI",
+                        "videos": [
                             {
-                                'id': 'video1',
-                                'display_name': 'Subject 1',
-                                'status': 'Complete',
-                                'data_badges': '✓',
-                                'path': '/path/to/video1.mp4'
+                                "id": "video1",
+                                "display_name": "Subject 1",
+                                "status": "Complete",
+                                "data_badges": "✓",
+                                "path": "/path/to/video1.mp4",
                             }
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         ]
     }
-    video_index = {'/path/to/video1.mp4': {'status': 'complete'}}
+    video_index = {"/path/to/video1.mp4": {"status": "complete"}}
 
     overview_widget.populate_tree_with_hierarchy(hierarchy_data, video_index)
 
@@ -280,7 +279,7 @@ def test_populate_tree_with_hierarchy(overview_widget):
 
 def test_populate_tree_with_empty_hierarchy(overview_widget):
     """Test populate_tree_with_hierarchy with empty data."""
-    hierarchy_data = {'groups': []}
+    hierarchy_data = {"groups": []}
     video_index = {}
 
     overview_widget.populate_tree_with_hierarchy(hierarchy_data, video_index)

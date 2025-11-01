@@ -6,10 +6,9 @@ Tests recording session lifecycle, Arduino integration, timed recording,
 and state management coordination.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from datetime import datetime
-from pathlib import Path
 
 from zebtrack.core.recording_service import RecordingService
 
@@ -57,28 +56,32 @@ def recording_service(mock_controller, mock_state_manager, mock_project_manager,
         controller=mock_controller,
         state_manager=mock_state_manager,
         project_manager=mock_project_manager,
-        root=mock_root
+        root=mock_root,
     )
     # Setup UI callbacks
-    service.set_ui_callbacks({
-        "show_error": Mock(),
-        "update_button_state": Mock(),
-        "set_status": Mock(),
-        "stop_recording_callback": Mock()
-    })
+    service.set_ui_callbacks(
+        {
+            "show_error": Mock(),
+            "update_button_state": Mock(),
+            "set_status": Mock(),
+            "stop_recording_callback": Mock(),
+        }
+    )
     return service
 
 
 class TestRecordingServiceInitialization:
     """Test suite for RecordingService initialization."""
 
-    def test_init_with_all_dependencies(self, mock_controller, mock_state_manager, mock_project_manager, mock_root):
+    def test_init_with_all_dependencies(
+        self, mock_controller, mock_state_manager, mock_project_manager, mock_root
+    ):
         """Test initialization with all dependencies."""
         service = RecordingService(
             controller=mock_controller,
             state_manager=mock_state_manager,
             project_manager=mock_project_manager,
-            root=mock_root
+            root=mock_root,
         )
 
         assert service.controller == mock_controller
@@ -93,7 +96,7 @@ class TestRecordingServiceInitialization:
             controller=mock_controller,
             state_manager=mock_state_manager,
             project_manager=mock_project_manager,
-            root=None
+            root=None,
         )
 
         assert service.root is None
@@ -230,7 +233,9 @@ class TestStartSession:
         assert call_args[0][1] == 640
         assert call_args[0][2] == 480
 
-    def test_start_session_updates_state_manager(self, recording_service, mock_state_manager, mock_controller):
+    def test_start_session_updates_state_manager(
+        self, recording_service, mock_state_manager, mock_controller
+    ):
         """Test start_session updates StateManager with recording state."""
         context = {
             "folder_name": "test_session",
@@ -352,11 +357,11 @@ class TestStopSession:
         mock_root.after_cancel.assert_called_once_with("job_id_123")
         assert recording_service.timed_recording_job is None
 
-    def test_stop_session_stops_recorder(self, recording_service, mock_controller, mock_state_manager):
+    def test_stop_session_stops_recorder(
+        self, recording_service, mock_controller, mock_state_manager
+    ):
         """Test stop_session stops recorder."""
-        mock_state_manager.get_recording_state = Mock(
-            return_value=Mock(is_recording=True)
-        )
+        mock_state_manager.get_recording_state = Mock(return_value=Mock(is_recording=True))
 
         recording_service.stop_session()
 
@@ -365,9 +370,7 @@ class TestStopSession:
 
     def test_stop_session_updates_state_manager(self, recording_service, mock_state_manager):
         """Test stop_session updates StateManager."""
-        mock_state_manager.get_recording_state = Mock(
-            return_value=Mock(is_recording=True)
-        )
+        mock_state_manager.get_recording_state = Mock(return_value=Mock(is_recording=True))
 
         recording_service.stop_session()
 
@@ -376,7 +379,9 @@ class TestStopSession:
         call_args = mock_state_manager.update_recording_state.call_args
         assert call_args[1]["is_recording"] is False
 
-    def test_stop_session_sends_arduino_stop_command(self, recording_service, mock_controller, mock_project_manager):
+    def test_stop_session_sends_arduino_stop_command(
+        self, recording_service, mock_controller, mock_project_manager
+    ):
         """Test stop_session sends Arduino stop command."""
         mock_project_manager.project_data = {"use_arduino": True}
         mock_controller.arduino_manager.is_connected = Mock(return_value=True)
@@ -385,9 +390,13 @@ class TestStopSession:
         recording_service.stop_session()
 
         # Should send stop command (box 0)
-        mock_controller.arduino_manager.send_command.assert_called_once_with(0, source="manual-stop")
+        mock_controller.arduino_manager.send_command.assert_called_once_with(
+            0, source="manual-stop"
+        )
 
-    def test_stop_session_handles_arduino_not_connected(self, recording_service, mock_controller, mock_project_manager):
+    def test_stop_session_handles_arduino_not_connected(
+        self, recording_service, mock_controller, mock_project_manager
+    ):
         """Test stop_session handles Arduino not connected gracefully."""
         mock_project_manager.project_data = {"use_arduino": True}
         mock_controller.arduino_manager.is_connected = Mock(return_value=False)
@@ -397,9 +406,7 @@ class TestStopSession:
 
     def test_stop_session_updates_ui_buttons(self, recording_service, mock_state_manager):
         """Test stop_session updates UI button states."""
-        mock_state_manager.get_recording_state = Mock(
-            return_value=Mock(is_recording=True)
-        )
+        mock_state_manager.get_recording_state = Mock(return_value=Mock(is_recording=True))
 
         recording_service.stop_session()
 
@@ -440,13 +447,17 @@ class TestUICallbacks:
         """Test _show_error calls registered callback."""
         recording_service._show_error("Test Title", "Test Message")
 
-        recording_service._ui_callbacks["show_error"].assert_called_once_with("Test Title", "Test Message")
+        recording_service._ui_callbacks["show_error"].assert_called_once_with(
+            "Test Title", "Test Message"
+        )
 
     def test_update_button_state_calls_callback(self, recording_service):
         """Test _update_button_state calls registered callback."""
         recording_service._update_button_state("start_rec", "disabled")
 
-        recording_service._ui_callbacks["update_button_state"].assert_called_once_with("start_rec", "disabled")
+        recording_service._ui_callbacks["update_button_state"].assert_called_once_with(
+            "start_rec", "disabled"
+        )
 
     def test_set_status_calls_callback(self, recording_service):
         """Test _set_status calls registered callback."""
@@ -467,10 +478,16 @@ class TestUICallbacks:
 class TestCountdown:
     """Test suite for countdown functionality."""
 
-    @patch('zebtrack.core.recording_service.Toplevel')
-    @patch('zebtrack.core.recording_service.Label')
-    def test_run_countdown_creates_window(self, mock_label, mock_toplevel, recording_service, mock_root):
+    @patch("zebtrack.core.recording_service.Toplevel")
+    @patch("zebtrack.core.recording_service.Label")
+    def test_run_countdown_creates_window(
+        self, mock_label, mock_toplevel, recording_service, mock_root
+    ):
         """Test countdown creates Toplevel window."""
+        # Mock screen dimensions for division
+        mock_root.winfo_screenwidth.return_value = 1920
+        mock_root.winfo_screenheight.return_value = 1080
+
         callback = Mock()
 
         recording_service._run_countdown(3, callback)
@@ -478,13 +495,15 @@ class TestCountdown:
         # Should create Toplevel
         mock_toplevel.assert_called_once_with(mock_root)
 
-    def test_run_countdown_without_root_executes_callback_immediately(self, mock_controller, mock_state_manager, mock_project_manager):
+    def test_run_countdown_without_root_executes_callback_immediately(
+        self, mock_controller, mock_state_manager, mock_project_manager
+    ):
         """Test countdown without root executes callback immediately."""
         service = RecordingService(
             controller=mock_controller,
             state_manager=mock_state_manager,
             project_manager=mock_project_manager,
-            root=None
+            root=None,
         )
 
         callback = Mock()
@@ -497,7 +516,9 @@ class TestCountdown:
 class TestIntegrationScenarios:
     """Integration test scenarios for RecordingService."""
 
-    def test_full_recording_cycle_with_timed_recording(self, recording_service, mock_controller, mock_root):
+    def test_full_recording_cycle_with_timed_recording(
+        self, recording_service, mock_controller, mock_root, mock_state_manager
+    ):
         """Test complete recording cycle with timed recording."""
         # Setup
         context = {
@@ -521,6 +542,9 @@ class TestIntegrationScenarios:
         # Verify recording started
         mock_controller.recorder.start_recording.assert_called_once()
         assert recording_service.timed_recording_job == "job_id_123"
+
+        # Simulate recording state being active
+        mock_state_manager.get_recording_state.return_value = Mock(is_recording=True)
 
         # Stop recording
         recording_service.stop_session()

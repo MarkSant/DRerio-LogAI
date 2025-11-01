@@ -454,14 +454,22 @@ class ProjectWorkflowService:
                 kwargs["experiment_days"] = len(days)
 
             # Calculate subjects_per_group from detected subjects dict
-            if subjects_dict and isinstance(subjects_dict, dict) and "subjects_per_group" not in kwargs:
+            if (
+                subjects_dict
+                and isinstance(subjects_dict, dict)
+                and "subjects_per_group" not in kwargs
+            ):
                 subject_counts = [len(subjects) for subjects in subjects_dict.values() if subjects]
                 if subject_counts:
                     kwargs["subjects_per_group"] = max(subject_counts)
 
         # Extract active_weight from model selection if available
         weight_assignments = kwargs.get("weight_assignments")
-        if weight_assignments and isinstance(weight_assignments, dict) and "active_weight" not in kwargs:
+        if (
+            weight_assignments
+            and isinstance(weight_assignments, dict)
+            and "active_weight" not in kwargs
+        ):
             animal_weight = weight_assignments.get("animal")
             if animal_weight:
                 kwargs["active_weight"] = animal_weight
@@ -1124,7 +1132,6 @@ class ProjectWorkflowService:
             dictionary suitable for persistence in ``project.json``.
         """
         import copy
-        import re
 
         if not scanned_videos:
             return []

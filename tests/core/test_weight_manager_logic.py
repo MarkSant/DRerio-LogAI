@@ -8,8 +8,6 @@ This module validates WeightManager functionality with the real API:
 """
 
 import pytest
-from pathlib import Path
-from unittest.mock import Mock
 
 
 @pytest.fixture

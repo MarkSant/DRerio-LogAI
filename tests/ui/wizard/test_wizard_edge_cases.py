@@ -6,15 +6,16 @@ Tests validation boundaries, Unicode handling, hardware failures,
 and recovery scenarios.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 from pydantic import ValidationError
 
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
-    LiveConfigData,
-    ExperimentalDesignData,
     CalibrationData,
+    ExperimentalDesignData,
+    LiveConfigData,
 )
 
 
@@ -64,12 +65,14 @@ class TestLiveConfigEdgeCases:
 
     def test_arduino_enabled_without_port(self):
         """Test Arduino enabled but port empty."""
-        is_valid, error = WizardService.validate_live_config({
-            "camera_index": 0,
-            "use_arduino": True,
-            "arduino_port": "",  # Missing port
-            "external_trigger_mode": False,
-        })
+        is_valid, error = WizardService.validate_live_config(
+            {
+                "camera_index": 0,
+                "use_arduino": True,
+                "arduino_port": "",  # Missing port
+                "external_trigger_mode": False,
+            }
+        )
 
         assert not is_valid
         assert "port" in error.lower() or "porta" in error.lower()
@@ -236,7 +239,7 @@ class TestCalibrationEdgeCases:
 class TestWizardServiceHardwareFailures:
     """Test suite for hardware detection failures."""
 
-    @patch('zebtrack.core.wizard_service.cv2.VideoCapture')
+    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
     def test_camera_detection_all_fail(self, mock_videocap):
         """Test camera detection when all cameras fail."""
         # Mock all cameras fail to open
@@ -249,7 +252,7 @@ class TestWizardServiceHardwareFailures:
         # Should return empty list
         assert cameras == []
 
-    @patch('zebtrack.core.wizard_service.serial.tools.list_ports.comports')
+    @patch("zebtrack.core.wizard_service.serial.tools.list_ports.comports")
     def test_arduino_detection_no_ports(self, mock_comports):
         """Test Arduino detection with no serial ports."""
         mock_comports.return_value = []
@@ -259,7 +262,7 @@ class TestWizardServiceHardwareFailures:
         # Should return empty list
         assert ports == []
 
-    @patch('zebtrack.core.wizard_service.serial.tools.list_ports.comports')
+    @patch("zebtrack.core.wizard_service.serial.tools.list_ports.comports")
     def test_arduino_detection_non_arduino_ports(self, mock_comports):
         """Test Arduino detection filters non-Arduino ports."""
         # Mock ports without Arduino
@@ -269,12 +272,12 @@ class TestWizardServiceHardwareFailures:
 
         mock_comports.return_value = [mock_port1]
 
-        ports = WizardService.detect_arduino_ports()
+        WizardService.detect_arduino_ports()
 
         # Should filter out non-Arduino
         # Implementation may or may not include all ports
 
-    @patch('zebtrack.core.wizard_service.cv2.VideoCapture')
+    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
     def test_camera_detection_handles_exception(self, mock_videocap):
         """Test camera detection handles exceptions gracefully."""
         # Mock VideoCapture raises exception
@@ -373,7 +376,7 @@ class TestWizardValidationRecovery:
 class TestWizardCaching:
     """Test suite for wizard service caching."""
 
-    @patch('zebtrack.core.wizard_service.cv2.VideoCapture')
+    @patch("zebtrack.core.wizard_service.cv2.VideoCapture")
     def test_camera_detection_cache_hit(self, mock_videocap):
         """Test camera detection uses cache on repeated calls."""
         mock_cap = Mock()
@@ -382,10 +385,10 @@ class TestWizardCaching:
         mock_videocap.return_value = mock_cap
 
         # First call (no cache)
-        cameras1 = WizardService.detect_available_cameras(use_cache=False)
+        WizardService.detect_available_cameras(use_cache=False)
 
         # Second call (with cache)
-        cameras2 = WizardService.detect_available_cameras(use_cache=True)
+        WizardService.detect_available_cameras(use_cache=True)
 
         # Depends on cache TTL (30 seconds default)
         # May or may not be same call count

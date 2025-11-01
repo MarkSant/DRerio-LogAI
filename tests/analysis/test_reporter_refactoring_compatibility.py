@@ -10,16 +10,16 @@ These tests ensure zero breaking changes during the migration period.
 """
 
 import warnings
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from shapely.geometry import Polygon
 from unittest.mock import Mock
 
-from zebtrack.analysis.reporter import Reporter
+import numpy as np
+import pandas as pd
+import pytest
+from shapely.geometry import Polygon
+
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
+from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 
 
@@ -53,18 +53,20 @@ def sample_trajectory_df():
         center_x = 320 + 100 * np.cos(angle)
         center_y = 240 + 100 * np.sin(angle)
 
-        data.append({
-            "timestamp": timestamp,
-            "frame": frame,
-            "track_id": 1,
-            "x1": center_x - 20,
-            "y1": center_y - 20,
-            "x2": center_x + 20,
-            "y2": center_y + 20,
-            "confidence": 0.95,
-            "x_center_px": center_x,
-            "y_center_px": center_y,
-        })
+        data.append(
+            {
+                "timestamp": timestamp,
+                "frame": frame,
+                "track_id": 1,
+                "x1": center_x - 20,
+                "y1": center_y - 20,
+                "x2": center_x + 20,
+                "y2": center_y + 20,
+                "confidence": 0.95,
+                "x_center_px": center_x,
+                "y_center_px": center_y,
+            }
+        )
 
     return pd.DataFrame(data)
 
@@ -76,12 +78,12 @@ def sample_rois():
         ROI(
             name="Center",
             geometry=Polygon([(270, 190), (370, 190), (370, 290), (270, 290)]),
-            coordinate_space="px"
+            coordinate_space="px",
         ),
         ROI(
             name="Border",
             geometry=Polygon([(50, 50), (150, 50), (150, 150), (50, 150)]),
-            coordinate_space="px"
+            coordinate_space="px",
         ),
     ]
 
@@ -121,11 +123,7 @@ class TestReporterLegacyConstructor:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            reporter = Reporter(
-                trajectory_df=sample_trajectory_df,
-                rois=sample_rois,
-                **analysis_params
-            )
+            Reporter(trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params)
 
             # Verify warning was emitted
             assert len(w) == 1
@@ -142,9 +140,7 @@ class TestReporterLegacyConstructor:
             warnings.simplefilter("ignore")  # Suppress deprecation warning
 
             reporter = Reporter(
-                trajectory_df=sample_trajectory_df,
-                rois=sample_rois,
-                **analysis_params
+                trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params
             )
 
             # Verify reporter is created correctly
@@ -160,7 +156,9 @@ class TestReporterLegacyConstructor:
 
     def test_legacy_constructor_missing_trajectory_raises_error(self):
         """Test that missing trajectory_df raises ValueError."""
-        with pytest.raises(ValueError, match="Either 'analysis' or 'trajectory_df' must be provided"):
+        with pytest.raises(
+            ValueError, match="Either 'analysis' or 'trajectory_df' must be provided"
+        ):
             Reporter()  # No parameters
 
 
@@ -179,9 +177,20 @@ class TestReporterFactoryMethod:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         # Act: Create Reporter using factory method
@@ -206,15 +215,26 @@ class TestReporterFactoryMethod:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            reporter = Reporter.from_analysis(analysis)
+            Reporter.from_analysis(analysis)
 
             # No warnings should be emitted
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
@@ -236,9 +256,20 @@ class TestReporterModernConstructor:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         # Act: Use modern constructor path
@@ -259,15 +290,26 @@ class TestReporterModernConstructor:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            reporter = Reporter(analysis=analysis)
+            Reporter(analysis=analysis)
 
             # No deprecation warnings
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
@@ -286,9 +328,7 @@ class TestReporterEquivalence:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             reporter_legacy = Reporter(
-                trajectory_df=sample_trajectory_df.copy(),
-                rois=sample_rois,
-                **analysis_params
+                trajectory_df=sample_trajectory_df.copy(), rois=sample_rois, **analysis_params
             )
 
         # Path 2: Modern constructor
@@ -298,9 +338,20 @@ class TestReporterEquivalence:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
         reporter_modern = Reporter(analysis=analysis)
 
@@ -321,9 +372,7 @@ class TestReporterEquivalence:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             reporter_legacy = Reporter(
-                trajectory_df=sample_trajectory_df.copy(),
-                rois=sample_rois,
-                **analysis_params
+                trajectory_df=sample_trajectory_df.copy(), rois=sample_rois, **analysis_params
             )
 
         # Modern paths
@@ -333,9 +382,20 @@ class TestReporterEquivalence:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
         reporter_modern = Reporter(analysis=analysis)
 
@@ -360,9 +420,20 @@ class TestAnalysisServiceDTO:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         assert isinstance(result, AnalysisResult)
@@ -383,9 +454,20 @@ class TestAnalysisServiceDTO:
             rois=sample_rois,
             freezing_vel_threshold=analysis_params["freezing_threshold"],
             freezing_min_duration=analysis_params["freezing_duration"],
-            **{k: v for k, v in analysis_params.items()
-               if k in ["pixelcm_x", "pixelcm_y", "video_height_px",
-                       "arena_polygon_px", "fps", "metadata", "roi_colors"]}
+            **{
+                k: v
+                for k, v in analysis_params.items()
+                if k
+                in [
+                    "pixelcm_x",
+                    "pixelcm_y",
+                    "video_height_px",
+                    "arena_polygon_px",
+                    "fps",
+                    "metadata",
+                    "roi_colors",
+                ]
+            },
         )
 
         # Verify all required fields

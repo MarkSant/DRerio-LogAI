@@ -111,9 +111,7 @@ class ConfigEditorWidget(BaseWidget):
         ttk.Label(video_frame, text="FPS de saída (MP4):").grid(
             row=0, column=0, sticky="w", padx=(0, 6), pady=2
         )
-        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
+        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(row=0, column=1, sticky="w")
         ttk.Label(
             video_frame,
             text="Define a taxa de quadros do vídeo salvo em disco.",

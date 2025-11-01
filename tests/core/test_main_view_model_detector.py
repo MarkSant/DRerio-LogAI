@@ -6,9 +6,10 @@ Tests setup_detector, weight management, OpenVINO conversion,
 and detector configuration.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
 import tkinter as tk
+from unittest.mock import Mock, patch
+
+import pytest
 
 
 @pytest.fixture
@@ -25,14 +26,12 @@ def mock_dependencies():
     detector_service = Mock()
     detector_service.initialize_detector = Mock(return_value=(True, None))
     detector_service.detector = None
-    detector_service.get_detector_parameters = Mock(return_value={
-        "conf_threshold": 0.25,
-        "iou_threshold": 0.7
-    })
-    detector_service.get_factory_detector_parameters = Mock(return_value={
-        "conf_threshold": 0.25,
-        "iou_threshold": 0.7
-    })
+    detector_service.get_detector_parameters = Mock(
+        return_value={"conf_threshold": 0.25, "iou_threshold": 0.7}
+    )
+    detector_service.get_factory_detector_parameters = Mock(
+        return_value={"conf_threshold": 0.25, "iou_threshold": 0.7}
+    )
 
     weight_manager = Mock()
     weight_manager.get_active_weight_name = Mock(return_value="yolo11n.pt")
@@ -62,22 +61,24 @@ def mock_dependencies():
 
     # Create project_workflow_service with proper return values
     project_workflow = Mock()
-    project_workflow.open_project = Mock(return_value={
-        "success": True,
-        "error_message": None,
-        "project_info": {
-            "name": "Test Project",
-            "videos_count": 0,
-            "zone_status": "No zones defined",
-            "roi_count": 0,
-            "has_arena": False,
-            "active_weight": "yolo11n.pt",
-            "use_openvino": False
-        },
-        "zone_data": None,
-        "resolved_weight": "yolo11n.pt",
-        "resolved_openvino": False
-    })
+    project_workflow.open_project = Mock(
+        return_value={
+            "success": True,
+            "error_message": None,
+            "project_info": {
+                "name": "Test Project",
+                "videos_count": 0,
+                "zone_status": "No zones defined",
+                "roi_count": 0,
+                "has_arena": False,
+                "active_weight": "yolo11n.pt",
+                "use_openvino": False,
+            },
+            "zone_data": None,
+            "resolved_weight": "yolo11n.pt",
+            "resolved_openvino": False,
+        }
+    )
 
     return {
         "event_bus": Mock(),
@@ -98,13 +99,10 @@ def mock_dependencies():
 @pytest.fixture
 def main_view_model(mock_root, mock_dependencies):
     """Create MainViewModel with mocked dependencies."""
-    with patch('zebtrack.core.main_view_model.ApplicationGUI'):
+    with patch("zebtrack.core.main_view_model.ApplicationGUI"):
         from zebtrack.core.main_view_model import MainViewModel
 
-        controller = MainViewModel(
-            root=mock_root,
-            **mock_dependencies
-        )
+        controller = MainViewModel(root=mock_root, **mock_dependencies)
         controller.view = Mock()
         return controller
 
@@ -129,12 +127,13 @@ class TestSetupDetector:
         main_view_model.setup_detector(temp_animal_method="seg")
 
         # Should pass override to service
-        call_args = main_view_model.detector_service.initialize_detector.call_args
         # Verification depends on implementation
 
     def test_setup_detector_handles_initialization_failure(self, main_view_model):
         """Test detector initialization failure handling."""
-        main_view_model.detector_service.initialize_detector = Mock(return_value=(False, "Initialization failed"))
+        main_view_model.detector_service.initialize_detector = Mock(
+            return_value=(False, "Initialization failed")
+        )
 
         result = main_view_model.setup_detector()
 
@@ -190,7 +189,9 @@ class TestSetActiveWeight:
 
     def test_set_active_weight_handles_invalid_name(self, main_view_model):
         """Test setting invalid weight name."""
-        main_view_model.weight_manager.set_active_weight = Mock(side_effect=ValueError("Invalid weight"))
+        main_view_model.weight_manager.set_active_weight = Mock(
+            side_effect=ValueError("Invalid weight")
+        )
 
         # Should handle error gracefully
         try:
@@ -208,7 +209,7 @@ class TestSetActiveWeight:
         # Should publish event with empty weight name
         main_view_model.ui_event_bus.publish_event.assert_called()
         calls = [str(call) for call in main_view_model.ui_event_bus.publish_event.call_args_list]
-        assert any('weight_name' in call and "''" in call for call in calls)
+        assert any("weight_name" in call and "''" in call for call in calls)
 
 
 class TestGetAllWeightNames:
@@ -273,7 +274,9 @@ class TestDeleteWeight:
 
     def test_delete_weight_cannot_delete_active(self, main_view_model):
         """Test cannot delete currently active weight shows error."""
-        main_view_model.weight_manager.delete_weight = Mock(side_effect=ValueError("Cannot delete active"))
+        main_view_model.weight_manager.delete_weight = Mock(
+            side_effect=ValueError("Cannot delete active")
+        )
 
         # Should catch error and publish error event (not raise)
         main_view_model.delete_weight("yolo11n.pt")
@@ -357,10 +360,12 @@ class TestDetectorConfiguration:
 
     def test_get_current_detector_parameters(self, main_view_model):
         """Test retrieving current detector parameters."""
-        main_view_model.detector_service.get_current_parameters = Mock(return_value={
-            "confidence": 0.5,
-            "iou": 0.45,
-        })
+        main_view_model.detector_service.get_current_parameters = Mock(
+            return_value={
+                "confidence": 0.5,
+                "iou": 0.45,
+            }
+        )
 
         params = main_view_model.get_current_detector_parameters()
 
@@ -368,10 +373,12 @@ class TestDetectorConfiguration:
 
     def test_get_factory_detector_parameters(self, main_view_model):
         """Test retrieving factory default parameters."""
-        main_view_model.detector_service.get_factory_parameters = Mock(return_value={
-            "confidence": 0.25,
-            "iou": 0.7,
-        })
+        main_view_model.detector_service.get_factory_parameters = Mock(
+            return_value={
+                "confidence": 0.25,
+                "iou": 0.7,
+            }
+        )
 
         params = main_view_model.get_factory_detector_parameters()
 

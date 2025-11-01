@@ -1778,16 +1778,21 @@ class ApplicationGUI:
 
         # Create the ProjectOverviewWidget
         self.project_overview_widget = ProjectOverviewWidget(
-            self.project_overview_frame,
-            event_bus=self.event_bus
+            self.project_overview_frame, event_bus=self.event_bus
         )
         self.project_overview_widget.pack(fill="both", expand=True)
 
         # Subscribe to widget events
         if self.event_bus:
-            self.event_bus.subscribe("project.refresh_requested", self._handle_project_refresh_requested)
-            self.event_bus.subscribe("project.video_double_click", self._handle_project_video_double_click)
-            self.event_bus.subscribe("project.video_right_click", self._handle_project_video_right_click)
+            self.event_bus.subscribe(
+                "project.refresh_requested", self._handle_project_refresh_requested
+            )
+            self.event_bus.subscribe(
+                "project.video_double_click", self._handle_project_video_double_click
+            )
+            self.event_bus.subscribe(
+                "project.video_right_click", self._handle_project_video_right_click
+            )
 
         # Add separator
         ttk.Separator(self.project_overview_frame, orient="horizontal").pack(fill="x", pady=(8, 8))
@@ -2004,7 +2009,10 @@ class ApplicationGUI:
 
     def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
         """Update the project overview tree (delegates to widget)."""
-        if not self.project_overview_widget or not self.project_overview_widget.project_overview_tree:
+        if (
+            not self.project_overview_widget
+            or not self.project_overview_widget.project_overview_tree
+        ):
             return
 
         self._overview_video_index = {}
@@ -2018,8 +2026,7 @@ class ApplicationGUI:
 
         # Populate widget tree
         self.project_overview_widget.populate_tree_with_hierarchy(
-            hierarchy_data,
-            self._overview_video_index
+            hierarchy_data, self._overview_video_index
         )
 
     def _prepare_overview_hierarchy_for_widget(self, all_videos: list[dict]) -> dict:
@@ -2091,39 +2098,49 @@ class ApplicationGUI:
                     data_badges = self._format_data_badges(entry)
 
                     # Generate unique video ID
-                    video_id = f"video_{path}" if path else f"video_{group_id}_{day_id}_{len(self._overview_video_index)}"
+                    video_id = (
+                        f"video_{path}"
+                        if path
+                        else f"video_{group_id}_{day_id}_{len(self._overview_video_index)}"
+                    )
 
-                    videos_list.append({
-                        'id': video_id,
-                        'display_name': display_name,
-                        'status': status_display,
-                        'data_badges': data_badges,
-                        'path': path
-                    })
+                    videos_list.append(
+                        {
+                            "id": video_id,
+                            "display_name": display_name,
+                            "status": status_display,
+                            "data_badges": data_badges,
+                            "path": path,
+                        }
+                    )
 
                     # Store in video index for lookups
                     if path:
                         self._overview_video_index[path] = dict(entry)
 
                 # Add day to list
-                days_list.append({
-                    'id': day_id,
-                    'title': day_title,
-                    'status': day_status,
-                    'data': day_data,
-                    'videos': videos_list
-                })
+                days_list.append(
+                    {
+                        "id": day_id,
+                        "title": day_title,
+                        "status": day_status,
+                        "data": day_data,
+                        "videos": videos_list,
+                    }
+                )
 
             # Add group to list
-            groups_list.append({
-                'id': group_id,
-                'display': group_data['display'],
-                'status_summary': status_summary,
-                'data_summary': data_summary,
-                'days': days_list
-            })
+            groups_list.append(
+                {
+                    "id": group_id,
+                    "display": group_data["display"],
+                    "status_summary": status_summary,
+                    "data_summary": data_summary,
+                    "days": days_list,
+                }
+            )
 
-        return {'groups': groups_list}
+        return {"groups": groups_list}
 
     def _format_status_label(self, status_key: str) -> str:
         icon, label = self._get_status_meta(status_key)
@@ -2289,7 +2306,7 @@ class ApplicationGUI:
         self._overview_context_menu = Menu(self.root, tearoff=0)
         self._overview_context_menu.add_command(
             label="Carregar vídeo",
-            command=lambda: self._on_project_overview_tree_double_click_impl(item_id)
+            command=lambda: self._on_project_overview_tree_double_click_impl(item_id),
         )
         self._overview_context_menu.post(x, y)
 
@@ -8393,10 +8410,7 @@ class ApplicationGUI:
         required_fields = ["project_path", "project_name", "project_type"]
         missing = [f for f in required_fields if f not in wizard.result]
         if missing:
-            self.show_error(
-                "Erro no Wizard",
-                f"Campos obrigatórios ausentes: {', '.join(missing)}"
-            )
+            self.show_error("Erro no Wizard", f"Campos obrigatórios ausentes: {', '.join(missing)}")
             return
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)

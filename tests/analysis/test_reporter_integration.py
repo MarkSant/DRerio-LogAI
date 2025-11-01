@@ -5,12 +5,12 @@ Addresses PR Review Issue #4 - Potential False Positives in Mocking.
 These tests validate actual file creation and data integrity rather than just mocking.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from shapely.geometry import Polygon
 from unittest.mock import Mock
+
+import numpy as np
+import pandas as pd
+import pytest
+from shapely.geometry import Polygon
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
@@ -57,18 +57,20 @@ def sample_trajectory_df():
             center_x = 320 + 100 * np.cos(angle)
             center_y = 240 + 100 * np.sin(angle)
 
-            data.append({
-                "timestamp": timestamp,
-                "frame": frame,
-                "track_id": track_id,
-                "x1": center_x - 20,
-                "y1": center_y - 20,
-                "x2": center_x + 20,
-                "y2": center_y + 20,
-                "confidence": 0.85 + np.random.rand() * 0.15,
-                "x_center_px": center_x,
-                "y_center_px": center_y,
-            })
+            data.append(
+                {
+                    "timestamp": timestamp,
+                    "frame": frame,
+                    "track_id": track_id,
+                    "x1": center_x - 20,
+                    "y1": center_y - 20,
+                    "x2": center_x + 20,
+                    "y2": center_y + 20,
+                    "confidence": 0.85 + np.random.rand() * 0.15,
+                    "x_center_px": center_x,
+                    "y_center_px": center_y,
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -77,8 +79,16 @@ def sample_trajectory_df():
 def sample_rois():
     """Create sample ROIs for testing."""
     return [
-        ROI(name="Center", geometry=Polygon([(270, 190), (370, 190), (370, 290), (270, 290)]), coordinate_space="px"),
-        ROI(name="Border", geometry=Polygon([(50, 50), (150, 50), (150, 150), (50, 150)]), coordinate_space="px"),
+        ROI(
+            name="Center",
+            geometry=Polygon([(270, 190), (370, 190), (370, 290), (270, 290)]),
+            coordinate_space="px",
+        ),
+        ROI(
+            name="Border",
+            geometry=Polygon([(50, 50), (150, 50), (150, 150), (50, 150)]),
+            coordinate_space="px",
+        ),
     ]
 
 
@@ -143,18 +153,26 @@ class TestReporterParquetIntegration:
         # Validate required columns exist (using actual column names from COLUMN_MAPPING)
         expected_columns = {"experiment_id", "total_distance_cm", "mean_speed_cm_s"}
         actual_columns = set(df_read.columns)
-        assert expected_columns.issubset(actual_columns), f"Missing columns: {expected_columns - actual_columns}"
+        assert expected_columns.issubset(actual_columns), (
+            f"Missing columns: {expected_columns - actual_columns}"
+        )
 
         # Validate data types
         if "total_distance_cm" in df_read.columns:
-            assert pd.api.types.is_numeric_dtype(df_read["total_distance_cm"]), "Distance should be numeric"
+            assert pd.api.types.is_numeric_dtype(df_read["total_distance_cm"]), (
+                "Distance should be numeric"
+            )
 
         if "mean_speed_cm_s" in df_read.columns:
-            assert pd.api.types.is_numeric_dtype(df_read["mean_speed_cm_s"]), "Velocity should be numeric"
+            assert pd.api.types.is_numeric_dtype(df_read["mean_speed_cm_s"]), (
+                "Velocity should be numeric"
+            )
 
         # Validate metadata is preserved
         if "experiment_id" in df_read.columns:
-            assert "integration_test_001" in df_read["experiment_id"].values, "Metadata should be preserved"
+            assert "integration_test_001" in df_read["experiment_id"].values, (
+                "Metadata should be preserved"
+            )
 
     def test_export_summary_parquet_compression(self, reporter, tmp_path):
         """Test that Parquet files use compression effectively."""
@@ -272,7 +290,9 @@ class TestReporterDataIntegrity:
         # Verify all DataFrames have the same schema
         first_df = dataframes[0]
         for i, df in enumerate(dataframes[1:], 1):
-            assert list(df.columns) == list(first_df.columns), f"DataFrame {i} has different columns"
+            assert list(df.columns) == list(first_df.columns), (
+                f"DataFrame {i} has different columns"
+            )
             assert len(df) == len(first_df), f"DataFrame {i} has different row count"
 
 
@@ -323,14 +343,18 @@ class TestReporterLargeDatasetIntegration:
 
         # Validate compression effectiveness
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        assert file_size_mb < 5.0, f"Large file should be compressed (<5MB), got {file_size_mb:.2f}MB"
+        assert file_size_mb < 5.0, (
+            f"Large file should be compressed (<5MB), got {file_size_mb:.2f}MB"
+        )
 
 
 @pytest.mark.integration
 class TestReporterEdgeCasesIntegration:
     """Integration tests for edge cases with real file I/O."""
 
-    def test_export_unicode_metadata_to_parquet(self, mock_settings, sample_trajectory_df, tmp_path):
+    def test_export_unicode_metadata_to_parquet(
+        self, mock_settings, sample_trajectory_df, tmp_path
+    ):
         """Test that Unicode characters in metadata are preserved in Parquet files."""
         # Arrange
         reporter = Reporter(
@@ -358,17 +382,28 @@ class TestReporterEdgeCasesIntegration:
         df_reloaded = pd.read_parquet(output_path)
 
         if "experiment_id" in df_reloaded.columns:
-            assert any("ção" in str(val) for val in df_reloaded["experiment_id"].values), "Unicode should be preserved"
+            assert any("ção" in str(val) for val in df_reloaded["experiment_id"].values), (
+                "Unicode should be preserved"
+            )
 
     def test_export_empty_dataframe_to_parquet(self, mock_settings, tmp_path):
         """Test that empty DataFrames raise appropriate error."""
         # Arrange
         # Empty dataframe must have all required columns for behavioral analysis
-        empty_df = pd.DataFrame(columns=[
-            "timestamp", "frame", "track_id",
-            "x_center_px", "y_center_px",
-            "x1", "y1", "x2", "y2", "confidence"
-        ])
+        empty_df = pd.DataFrame(
+            columns=[
+                "timestamp",
+                "frame",
+                "track_id",
+                "x_center_px",
+                "y_center_px",
+                "x1",
+                "y1",
+                "x2",
+                "y2",
+                "confidence",
+            ]
+        )
 
         # Act & Assert: Should raise ValueError for empty dataframe
         with pytest.raises(ValueError, match="Input DataFrame is empty"):

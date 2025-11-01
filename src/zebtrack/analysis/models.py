@@ -40,7 +40,7 @@ class CalibrationParams:
     fps: float
     """Video frames per second."""
 
-    calibration: "Calibration | None" = None
+    calibration: Calibration | None = None
     """Optional Calibration object for perspective correction."""
 
 
@@ -88,10 +88,10 @@ class AnalysisResult:
     report: dict[str, Any]
     """Analysis report dictionary with metrics."""
 
-    behavioral_analyzer: "ConcreteBehavioralAnalyzer"
+    behavioral_analyzer: ConcreteBehavioralAnalyzer
     """Behavioral analyzer instance."""
 
-    roi_analyzer: "ROIAnalyzer | None"
+    roi_analyzer: ROIAnalyzer | None
     """ROI analyzer instance (None if no ROIs defined)."""
 
     trajectory_df: pd.DataFrame
@@ -103,7 +103,7 @@ class AnalysisResult:
     calibration_params: CalibrationParams
     """Calibration and video parameters."""
 
-    rois: list["ROI"]
+    rois: list[ROI]
     """List of ROI objects for analysis."""
 
     roi_colors: dict[str, tuple[int, int, int]]
