@@ -1,7 +1,6 @@
 """Testes para validação Pydantic em ROITemplateManager."""
 
 import json
-from pathlib import Path
 
 import pytest
 

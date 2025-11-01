@@ -152,7 +152,7 @@ class Arduino:
             )
 
         try:
-            command_bytes = f"{command_clean}\n".encode("utf-8")
+            command_bytes = f"{command_clean}\n".encode()
             self.ser.write(command_bytes)
             self.ser.flush()
             log.info("arduino.command.sent", command=command_clean)

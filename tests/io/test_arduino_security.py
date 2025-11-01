@@ -1,7 +1,8 @@
 """Testes de segurança para comandos Arduino."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from zebtrack.io.arduino import ALLOWED_ARDUINO_COMMANDS, Arduino, ArduinoCommandError
 
