@@ -158,13 +158,30 @@ class TestMainFunction:
         # Mock controller with run() that returns immediately
         mock_controller_instance = Mock()
         mock_controller_instance.run = Mock()  # Mock run to not block
+        mock_controller_instance.view = Mock()  # Add view attribute
         mock_controller.return_value = mock_controller_instance
 
         # Mock argparse to avoid CLI interference
         with patch("sys.argv", ["zebtrack"]):
-            main()
-            # Test verifies initialization completes and run is called
-            mock_controller_instance.run.assert_called_once()
+            # Mock all service dependencies to avoid construction errors
+            with patch("zebtrack.core.state_manager.StateManager"):
+                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                    with patch("zebtrack.ui.event_bus.EventBus"):
+                        with patch("zebtrack.core.weight_manager.WeightManager"):
+                            with patch("zebtrack.core.model_service.ModelService"):
+                                with patch("zebtrack.core.project_manager.ProjectManager"):
+                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
+                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                            with patch("zebtrack.io.recorder.Recorder"):
+                                                with patch(
+                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                ):
+                                                    with patch(
+                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                    ):
+                                                        main()
+                                                        # Test verifies initialization completes and run is called
+                                                        mock_controller_instance.run.assert_called_once()
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
@@ -299,7 +316,7 @@ class TestMainFunction:
             with patch("zebtrack.core.main_view_model.MainViewModel"):
                 try:
                     main()
-                except:
+                except Exception:
                     pass
 
         # Should set DEBUG level for specified module
@@ -323,7 +340,7 @@ class TestMainFunction:
                 with patch("zebtrack.core.main_view_model.MainViewModel"):
                     try:
                         main()
-                    except:
+                    except Exception:
                         pass
 
         # Should not crash, just ignore invalid format
@@ -352,7 +369,7 @@ class TestMainFunction:
                         with patch("zebtrack.core.weight_manager.WeightManager"):
                             try:
                                 main()
-                            except:
+                            except Exception:
                                 pass
 
                             # Should create core services
@@ -373,13 +390,30 @@ class TestMainFunction:
         mock_settings.return_value = mock_settings_obj
 
         mock_controller_instance = Mock()
+        mock_controller_instance.view = Mock()  # Add view attribute
         mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
-            try:
-                main()
-            except:
-                pass
+            # Mock all service dependencies
+            with patch("zebtrack.core.state_manager.StateManager"):
+                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                    with patch("zebtrack.ui.event_bus.EventBus"):
+                        with patch("zebtrack.core.weight_manager.WeightManager"):
+                            with patch("zebtrack.core.model_service.ModelService"):
+                                with patch("zebtrack.core.project_manager.ProjectManager"):
+                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
+                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                            with patch("zebtrack.io.recorder.Recorder"):
+                                                with patch(
+                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                ):
+                                                    with patch(
+                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                    ):
+                                                        try:
+                                                            main()
+                                                        except Exception:
+                                                            pass
 
         # Should call bind_events
         mock_controller_instance.bind_events.assert_called_once()
@@ -398,13 +432,30 @@ class TestMainFunction:
         mock_settings.return_value = mock_settings_obj
 
         mock_controller_instance = Mock()
+        mock_controller_instance.view = Mock()  # Add view attribute
         mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
-            try:
-                main()
-            except:
-                pass
+            # Mock all service dependencies
+            with patch("zebtrack.core.state_manager.StateManager"):
+                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                    with patch("zebtrack.ui.event_bus.EventBus"):
+                        with patch("zebtrack.core.weight_manager.WeightManager"):
+                            with patch("zebtrack.core.model_service.ModelService"):
+                                with patch("zebtrack.core.project_manager.ProjectManager"):
+                                    with patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"):
+                                        with patch("zebtrack.core.detector_service.DetectorService"):
+                                            with patch("zebtrack.io.recorder.Recorder"):
+                                                with patch(
+                                                    "zebtrack.core.video_processing_service.VideoProcessingService"
+                                                ):
+                                                    with patch(
+                                                        "zebtrack.analysis.analysis_service.AnalysisService"
+                                                    ):
+                                                        try:
+                                                            main()
+                                                        except Exception:
+                                                            pass
 
         # Should call run
         mock_controller_instance.run.assert_called_once()
@@ -431,7 +482,7 @@ class TestDependencyInjection:
                 with patch("zebtrack.core.weight_manager.WeightManager"):
                     try:
                         main()
-                    except:
+                    except Exception:
                         pass
 
                     # Should pass settings_obj to services
@@ -456,7 +507,7 @@ class TestDependencyInjection:
             with patch("zebtrack.core.video_processing_service.VideoProcessingService") as mock_vps:
                 try:
                     main()
-                except:
+                except Exception:
                     pass
 
                 # Should pass detector=None (lazy initialization)
