@@ -14,12 +14,12 @@
 **DRerio LogAI** é uma aplicação desktop construída com Tkinter que automatiza todo o fluxo de rastreamento multi-animal, análise comportamental e geração de relatórios científicos para pesquisa com *Danio rerio* (zebrafish). O projeto combina modelos de visão computacional (YOLO/OpenVINO), análises especializadas de comportamento e uma interface amigável, oferecendo uma solução completa para laboratórios de pesquisa translacional.
 
 > **Nota sobre o nome**: Este projeto foi anteriormente conhecido como "ZebTrack-AI" durante o desenvolvimento. O nome oficial do produto é **DRerio LogAI**. O nome do pacote interno Python (`zebtrack`) foi mantido por compatibilidade.
-
-> _Screenshot/preview do app virá em breve._
+>
+> *Screenshot/preview do app virá em breve.*
 
 ## Sumário rápido
 
-- [Proposito do projeto](#proposito-do-projeto)
+- [Propósito do projeto](#propósito-do-projeto)
 - [Guia rápido](#guia-rápido)
 - [Principais capacidades](#principais-capacidades)
 - [Arquitetura geral](#arquitetura-geral)
@@ -199,6 +199,7 @@ poetry run pre-commit run --all-files
 ```
 
 Os hooks executam automaticamente:
+
 - Ruff (lint e format)
 - Verificação de trailing whitespace
 - Verificação de YAML

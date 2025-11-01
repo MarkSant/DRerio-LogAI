@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Architecture & Code Quality**:
+
 - **Wizard Service Layer**: Extracted all wizard business logic to `zebtrack.core.wizard_service`
   - Centralized hardware detection (cameras, Arduino)
   - Reusable validation functions
@@ -35,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Single-Video Mode Enhancement**: CalibrationDialog now hides "Project Preferences" section when in single-video analysis mode (no project context)
 
 **Wizard Improvements** (from previous phases):
+
 - Express/Advanced wizard modes
 - External Trigger Mode for Arduino-based experiments
 - Zone-based Arduino command triggers
@@ -43,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified preferences dialog with CollapsibleFrame UI
 
 **Hardware Integration**:
+
 - Arduino port detection with handshake validation
 - Port descriptions (e.g., "COM3 - Arduino Uno")
 - Connection test button with detailed error messages
@@ -50,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenCV log suppression during detection
 
 **UI Enhancements**:
+
 - NumberInput widget for intuitive numeric entry (+/- buttons)
 - CollapsibleFrame widget for organized UI sections
 - Treeview color harmonization (consistent green/yellow/red indicators)
@@ -119,12 +123,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.0] - Previous Release
 
 ### Added
+
 - Wizard-based project creation (5-step flow)
 - Live project support with camera/Arduino integration
 - Experimental design fields (groups, days, subjects)
 - Template persistence
 
 ### Changed
+
 - Wizard is now the default project creation method
 - Legacy dialogs maintained for backward compatibility
 
@@ -148,6 +154,6 @@ New fields (experimental design) will use defaults if not present in old templat
 
 ## Support
 
-- Report issues: https://github.com/anthropics/claude-code/issues
+- Report issues: <https://github.com/anthropics/claude-code/issues>
 - Documentation: See `docs/` directory
 - Developer Guide: `docs/DEVELOPER_GUIDE_WIZARD.md`

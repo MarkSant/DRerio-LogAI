@@ -7,6 +7,20 @@ import structlog
 
 log = structlog.get_logger()
 
+# Whitelist de comandos permitidos
+ALLOWED_ARDUINO_COMMANDS = frozenset({
+    "START",
+    "STOP",
+    "STATUS",
+    "TRIGGER",
+    "RESET",
+    "PING",
+})
+
+
+class ArduinoCommandError(ValueError):
+    """Erro quando comando Arduino é inválido."""
+
 
 class Arduino:
     """
@@ -70,6 +84,9 @@ class Arduino:
     def send_command(self, box_number: int) -> bool:
         """
         Sends a command to the Arduino and waits for an acknowledgment.
+
+        Note: This method sends numeric box numbers for backward compatibility.
+        For string-based commands with security validation, use send_string_command().
         """
         try:
             command_num = int(box_number)
@@ -99,6 +116,47 @@ class Arduino:
                 return False
         else:
             log.debug("arduino.command.offline", command=command_num)
+            return False
+
+    def send_string_command(self, command: str) -> bool:
+        """
+        Sends a validated string command to the Arduino.
+
+        Args:
+            command: Command string to send (must be in whitelist)
+
+        Returns:
+            True if command sent successfully, False otherwise
+
+        Raises:
+            ArduinoCommandError: If command not in whitelist
+        """
+        if not self.ser or not self.ser.is_open:
+            log.debug("arduino.command.offline", command=command)
+            return False
+
+        # Validar comando contra whitelist
+        command_clean = command.strip().upper()
+
+        if command_clean not in ALLOWED_ARDUINO_COMMANDS:
+            log.error(
+                "arduino.command.rejected",
+                command=command,
+                allowed=list(ALLOWED_ARDUINO_COMMANDS),
+            )
+            raise ArduinoCommandError(
+                f"Comando inválido: '{command}'. "
+                f"Comandos permitidos: {', '.join(sorted(ALLOWED_ARDUINO_COMMANDS))}"
+            )
+
+        try:
+            command_bytes = f"{command_clean}\n".encode()
+            self.ser.write(command_bytes)
+            self.ser.flush()
+            log.info("arduino.command.sent", command=command_clean)
+            return True
+        except Exception as e:
+            log.error("arduino.command.error", error=str(e), exc_info=True)
             return False
 
     def close(self) -> None:

@@ -8,11 +8,11 @@ Este documento descreve a arquitetura técnica do **DRerio LogAI** (pacote inter
 
 **DRerio LogAI** é uma aplicação desktop baseada em Tkinter que organiza o fluxo completo de análise comportamental de *Danio rerio* (zebrafish) e outros organismos aquáticos:
 
-1.  **Captura/Carga de vídeo** (ao vivo ou pré-gravado).
-2.  **Rastreamento multi-animal** usando plugins de detecção.
-3.  **Registro de trajetórias** em Parquet com esquema rígido.
-4.  **Análises comportamentais e ROI** orientadas a métricas científicas.
-5.  **Geração de relatórios** (Excel/Word/CSV) para uso laboratorial.
+1. **Captura/Carga de vídeo** (ao vivo ou pré-gravado).
+2. **Rastreamento multi-animal** usando plugins de detecção.
+3. **Registro de trajetórias** em Parquet com esquema rígido.
+4. **Análises comportamentais e ROI** orientadas a métricas científicas.
+5. **Geração de relatórios** (Excel/Word/CSV) para uso laboratorial.
 
 ### Arquitetura Geral: MVVM-S com Injeção de Dependência
 
@@ -20,17 +20,17 @@ A aplicação agora segue um padrão **MVVM-S** (Model-View-ViewModel-Service) c
 
 A `ApplicationGUI` (View) é desacoplada e se comunica com o `MainViewModel` exclusivamente via `EventBus`, seguindo um **fluxo de dados unidirecional**. O `StateManager` é a **fonte única da verdade** para o estado do núcleo da aplicação.
 
--   **Model**: Camada de dados gerenciada pelo `StateManager` (imutável) e `ProjectManager` (persistência e carregamento de projetos).
--   **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos via `EventBus`. A `ApplicationGUI` atua como um contêiner para esses componentes.
--   **ViewModel**: O `MainViewModel` (controller) que orquestra as operações. Ele se inscreve em eventos do `EventBus` para responder a interações da UI e atualiza o `StateManager` para acionar atualizações reativas na View.
--   **Service Layer**: Serviços injetados via construtor (`DetectorService`, `VideoProcessingService`, `ProjectWorkflowService`, `WeightManager`, etc.) encapsulam lógica de domínio complexa e dependências externas.
+- **Model**: Camada de dados gerenciada pelo `StateManager` (imutável) e `ProjectManager` (persistência e carregamento de projetos).
+- **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos via `EventBus`. A `ApplicationGUI` atua como um contêiner para esses componentes.
+- **ViewModel**: O `MainViewModel` (controller) que orquestra as operações. Ele se inscreve em eventos do `EventBus` para responder a interações da UI e atualiza o `StateManager` para acionar atualizações reativas na View.
+- **Service Layer**: Serviços injetados via construtor (`DetectorService`, `VideoProcessingService`, `ProjectWorkflowService`, `WeightManager`, etc.) encapsulam lógica de domínio complexa e dependências externas.
 
 Este padrão promove:
 
--   **Inversão de Controle (IoC)**: Todas as dependências são fornecidas externamente pelo Composition Root, eliminando o acoplamento a singletons globais.
--   **Testabilidade**: ViewModels, serviços e componentes de UI são testáveis isoladamente com mocks/stubs.
--   **Reatividade**: `StateManager` notifica a UI sobre mudanças de estado, e o `EventBus` notifica o ViewModel sobre ações do usuário.
--   **Manutenibilidade**: Componentes coesos e de baixo acoplamento facilitam a manutenção e extensão.
+- **Inversão de Controle (IoC)**: Todas as dependências são fornecidas externamente pelo Composition Root, eliminando o acoplamento a singletons globais.
+- **Testabilidade**: ViewModels, serviços e componentes de UI são testáveis isoladamente com mocks/stubs.
+- **Reatividade**: `StateManager` notifica a UI sobre mudanças de estado, e o `EventBus` notifica o ViewModel sobre ações do usuário.
+- **Manutenibilidade**: Componentes coesos e de baixo acoplamento facilitam a manutenção e extensão.
 
 ## 2. Diagrama de Arquitetura
 
@@ -46,7 +46,8 @@ graph TB
             Comp1[VideoDisplayWidget]
             Comp2[ZoneControlsWidget]
             Comp3[ControlPanelWidget]
-            Comp4[Outros Componentes...]
+            Comp4[ArduinoDashboard]
+            Comp5[Outros Componentes...]
         end
 
         EventBus[UI EventBus<br/>- Decoupled events]
@@ -54,7 +55,14 @@ graph TB
     end
 
     subgraph ViewModel["ViewModel Layer"]
-        Controller[MainViewModel<br/>- Orquestra operações<br/>- Ouve o EventBus<br/>- Atualiza o StateManager]
+        Controller[MainViewModel<br/>- Coordenação geral<br/>- Ouve o EventBus<br/>- Atualiza o StateManager]
+        
+        subgraph Facades["🏛️ Facades (Simplificação de APIs)"]
+            RecFacade[RecordingFacade<br/>- Gravação simplificada]
+            ZoneFacade[ZoneManagementFacade<br/>- Gerenciamento de Zonas/ROIs]
+            ArduinoFacade[ArduinoFacade<br/>- Controle Arduino]
+        end
+        
         StateManager[🆕 StateManager<br/>- Estado centralizado<br/>- Padrão Observable<br/>- Thread-safe]
     end
 
@@ -62,18 +70,22 @@ graph TB
         ProjectService[ProjectService<br/>- Project I/O]
         AnalysisService[AnalysisService<br/>- Orquestra análise]
         ProjectManager[ProjectManager<br/>- Dados em memória]
+        RecordingService[RecordingService<br/>- Controle de gravação]
         Detector[Detector<br/>- Abstração de IA]
         Recorder[Recorder<br/>- Escrita Parquet]
+        ArduinoManager[ArduinoManager<br/>- Comunicação serial]
     end
 
     subgraph Infrastructure["Infrastructure"]
         Storage[(Filesystem)]
         DetectorPlugins[Plugins<br/>YOLO/OpenVINO]
+        Arduino[Arduino<br/>Hardware serial]
     end
 
     %% Comunicação Orientada a Eventos e Estado
     Comp1 -->|Emite eventos| EventBus
     Comp2 -->|Emite eventos| EventBus
+    Comp4 -->|Emite eventos| EventBus
     EventBus -->|Notifica handlers| Controller
 
     StateManager -.->|Notifica observers| AppGUI
@@ -83,18 +95,33 @@ graph TB
     %% Fluxo do Wizard
     WizardDialog -->|Dados via Adapter| Controller
 
-    %% ViewModel → Model
-    Controller -->|Coordena| ProjectService
-    Controller -->|Coordena| AnalysisService
+    %% MainViewModel → Facades (Delegação)
+    Controller -->|Delega gravação| RecFacade
+    Controller -->|Delega zonas| ZoneFacade
+    Controller -->|Delega Arduino| ArduinoFacade
+    
+    %% Facades → StateManager & Services
+    RecFacade -->|Atualiza estado| StateManager
+    RecFacade -->|Usa| RecordingService
+    RecFacade -->|Usa| Recorder
+    
+    ZoneFacade -->|Atualiza estado| StateManager
+    ZoneFacade -->|Usa| ProjectManager
+    
+    ArduinoFacade -->|Atualiza estado| StateManager
+    ArduinoFacade -->|Usa| ArduinoManager
+
+    %% MainViewModel → Model (Orquestração direta)
+    Controller -->|Orquestra| ProjectService
+    Controller -->|Orquestra| AnalysisService
     Controller -->|Atualiza estado no| StateManager
-    Controller -->|Gerencia| ProjectManager
-    Controller -->|Controla| Detector
-    Controller -->|Controla| Recorder
+    Controller -->|Gerencia| Detector
 
     %% Model → Infrastructure
     ProjectService --> Storage
     Recorder --> Storage
     Detector --> DetectorPlugins
+    ArduinoManager --> Arduino
 
     %% Estilos
     style StateManager fill:#90EE90
@@ -103,6 +130,44 @@ graph TB
     style AppGUI fill:#FFE4B5
     style ProjectService fill:#DDA0DD
     style AnalysisService fill:#DDA0DD
+    style RecFacade fill:#F0E68C
+    style ZoneFacade fill:#F0E68C
+    style ArduinoFacade fill:#F0E68C
+```
+
+### 2.1. Padrão Facade
+
+Os **Facades** (🏛️) são um padrão de design que simplifica a interface entre o `MainViewModel` e múltiplos serviços relacionados. Eles encapsulam operações complexas e reduzem o acoplamento do controller.
+
+**Benefícios dos Facades:**
+
+- **Simplificação**: Reduz a complexidade do `MainViewModel` ao agrupar operações relacionadas
+- **Coesão**: Agrupa lógica de domínio relacionada (ex: gravação, zonas, Arduino)
+- **Testabilidade**: Facades podem ser mockados independentemente em testes
+- **Manutenibilidade**: Mudanças em services não impactam diretamente o MainViewModel
+
+**Facades implementados/planejados:**
+
+| Facade | Responsabilidade | Services utilizados |
+|--------|------------------|---------------------|
+| `RecordingFacade` | Coordena início/parada de gravação, configuração de codec, gestão de arquivos | `RecordingService`, `Recorder`, `StateManager` |
+| `ZoneManagementFacade` | Gerencia ROIs, arenas, templates de zona, coordenadas | `ProjectManager`, `StateManager` |
+| `ArduinoFacade` | Controla conexão serial, leitura de sensores, comandos | `ArduinoManager`, `StateManager` |
+
+**Exemplo de uso:**
+
+```python
+# Sem facade (MainViewModel gerencia diretamente múltiplos services)
+def start_recording(self):
+    self.recorder.setup_output_file(path)
+    self.recording_service.start()
+    self.state_manager.set_recording_state(True)
+    # ... mais coordenação
+
+# Com facade (delegação simplificada)
+def start_recording(self):
+    self.recording_facade.start(output_path=path)
+    # Facade coordena internamente recorder, service e state
 ```
 
 ## 3. Componentes Principais
@@ -243,6 +308,7 @@ class StateManager:
 ```
 
 **Garantias**:
+
 - Atualizações atômicas via `threading.RLock()`
 - Notificações de observers no mesmo lock para consistência
 - Suporte a nested updates (ex: `set("project.name", "X")` dentro de `on_project_loaded`)
@@ -262,6 +328,7 @@ log.info(
 ```
 
 **Benefícios**:
+
 - Debugging de race conditions
 - Auditoria de mudanças críticas (ex: `recording.is_recording`)
 - Replay de sequências de estado para testes
@@ -328,11 +395,13 @@ class Recorder:
 ```
 
 **Garantias**:
+
 1. **Ordem fixa**: Colunas nunca são reordenadas
 2. **Validação na escrita**: `write_detection_data` falha imediatamente se schema divergir
 3. **Testes de schema**: `tests/test_recorder.py` valida todos os cenários
 
 **Restrições**:
+
 - Novas colunas **só podem ser adicionadas ao final** do schema
 - Mudanças de tipo requerem incremento de versão do schema
 - Remoção de colunas é **proibida** (deprecação semântica apenas)
@@ -351,6 +420,7 @@ table = table.replace_schema_metadata(metadata)
 ```
 
 **Leitura segura**:
+
 ```python
 def read_trajectory(path: Path) -> pd.DataFrame:
     table = pq.read_table(path)
@@ -454,6 +524,7 @@ flowchart TD
 **Callbacks e Thread-Safety**:
 
 1. **on_error** (erro recuperável):
+
    ```python
    def on_error(exc: Exception, context: str):
        # Chamado do worker thread
@@ -461,6 +532,7 @@ flowchart TD
    ```
 
 2. **on_fatal_error** (erro fatal):
+
    ```python
    def on_fatal_error(exc: Exception, context: str, recovery_info: dict):
        # Chamado do worker thread
@@ -468,6 +540,7 @@ flowchart TD
    ```
 
 3. **on_completed** (sempre chamado):
+
    ```python
    def on_completed(was_cancelled: bool, output_dir: str, summary: dict):
        # Chamado do worker thread
@@ -477,6 +550,7 @@ flowchart TD
 **Documentação completa**: [`docs/ERROR_HANDLING.md`](ERROR_HANDLING.md)
 
 **Arquivos relacionados**:
+
 - `src/zebtrack/core/processing_worker.py:272-340` - Implementação de callbacks
 - `src/zebtrack/core/main_view_model.py` - Handlers de callbacks no ViewModel
 
@@ -486,11 +560,12 @@ O sistema usa `structlog` com convenção `domínio.ação.resultado` para loggi
 
 #### Convenção de Nomenclatura
 
-```
+```text
 <módulo>.<operação>.<resultado>
 ```
 
 **Exemplos**:
+
 - `worker.processing.start`
 - `recorder.parquet.write_success`
 - `detector.zone.transition`
@@ -528,6 +603,7 @@ log.info(
 ```
 
 **Campos comuns**:
+
 - `experiment_id`: Identificador do vídeo sendo processado
 - `thread`: Nome da thread (para debugging de concorrência)
 - `video_path` / `project_path`: Contexto de arquivo
@@ -566,6 +642,7 @@ structlog.configure(
 ```
 
 **Formato de saída** (JSON):
+
 ```json
 {
   "event": "worker.processing.video_start",
@@ -581,6 +658,7 @@ structlog.configure(
 #### Debugging com Logs
 
 **Filtrar por domínio**:
+
 ```bash
 # Ver apenas erros do worker
 grep "worker.processing" analysis.log | jq 'select(.level == "error")'
@@ -593,6 +671,7 @@ grep "worker.processing.video_error" analysis.log | jq .experiment_id
 ```
 
 **Níveis por ambiente**:
+
 - **Desenvolvimento**: `INFO` (console + file)
 - **Produção**: `WARNING` (file apenas)
 - **Debugging**: `DEBUG` (StateManager, memory GC)
