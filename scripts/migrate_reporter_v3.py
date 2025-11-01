@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Script de migração automática para Reporter v3.0."""
+"""Script de migração automática para Reporter v3.0.
+
+Limitations:
+- Generates a new AnalysisService instance for each Reporter instantiation.
+  Files with multiple Reporter calls will have duplicate service instances.
+- Cannot migrate highly dynamic code (e.g., Reporter(**kwargs)).
+- Cannot migrate tests with complex mocks.
+"""
 
 import argparse
 import ast
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -64,8 +70,11 @@ def migrate_file(file_path: Path, dry_run: bool = True) -> Optional[str]:
     lines = content.splitlines()
     new_lines = []
     
+    # Create dictionary for O(1) lookup instead of O(n*m) nested iteration
+    migrations_by_line = {m["line"]: m for m in migrator.migrations}
+    
     for i, line in enumerate(lines, start=1):
-        migration = next((m for m in migrator.migrations if m["line"] == i), None)
+        migration = migrations_by_line.get(i)
         
         if migration:
             # Gerar código equivalente
@@ -73,7 +82,7 @@ def migrate_file(file_path: Path, dry_run: bool = True) -> Optional[str]:
             indent = " " * migration["col"]
             
             new_code = f"""{indent}# MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
-{indent}service = AnalysisService(settings_obj=settings)
+{indent}service = AnalysisService(settings_obj=settings_obj)
 {indent}analysis = service.run_full_analysis_as_dto(
 {indent}    trajectory_df={params.get('trajectory_df', 'df')},
 {indent}    pixelcm_x={params.get('pixelcm_x', '10.0')},
