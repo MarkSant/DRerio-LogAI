@@ -204,18 +204,22 @@ class ROITemplateManager:
 
     def load_template(self, template_path: str | Path) -> ZoneData:
         """
-        Carrega template de um caminho específico.
+        Carrega template de um caminho específico com validação Pydantic.
 
         Args:
             template_path: Caminho do arquivo de template
 
         Returns:
-            ZoneData com dados carregados
+            ZoneData com dados carregados e validados
 
         Raises:
             FileNotFoundError: Se arquivo não existir
-            ValueError: Se conteúdo do arquivo for inválido
+            InvalidTemplateError: Se o JSON for inválido ou não passar na validação
         """
+        from pydantic import ValidationError
+
+        from zebtrack.core.schemas import InvalidTemplateError, ROITemplateSchema
+
         template_path = Path(template_path)
 
         if not template_path.exists():
@@ -224,17 +228,31 @@ class ROITemplateManager:
         try:
             with open(template_path, encoding="utf-8") as f:
                 payload = json.load(f)
+
+            # Validar com Pydantic
+            validated = ROITemplateSchema(**payload)
+
+            log.info(
+                "roi_template_manager.template_loaded",
+                path=str(template_path),
+                version=validated.version,
+                name=validated.name,
+            )
+
         except json.JSONDecodeError as e:
-            raise ValueError(f"Arquivo JSON inválido: {e}") from e
+            log.error(
+                "roi_template_manager.load.json_error", file=str(template_path), error=str(e)
+            )
+            raise InvalidTemplateError(f"JSON inválido em {template_path}: {e}") from e
+        except ValidationError as e:
+            log.error(
+                "roi_template_manager.load.validation_error", file=str(template_path), error=str(e)
+            )
+            raise InvalidTemplateError(f"Template inválido em {template_path}: {e}") from e
 
-        if not isinstance(payload, dict):
-            raise ValueError("Formato de template inválido.")
+        # Reconstruir ZoneData a partir dos dados validados
+        data_block = validated.data
 
-        data_block = payload.get("data")
-        if not isinstance(data_block, dict):
-            raise ValueError("Bloco 'data' ausente ou inválido no template.")
-
-        # Reconstruir ZoneData
         polygon = [list(point) for point in data_block.get("polygon", [])]
 
         roi_polygons = []
@@ -249,13 +267,6 @@ class ROITemplateManager:
             roi_polygons=roi_polygons,
             roi_names=roi_names,
             roi_colors=roi_colors,
-        )
-
-        log.info(
-            "roi_template_manager.template_loaded",
-            path=str(template_path),
-            has_arena=bool(zone_data.polygon),
-            roi_count=len(zone_data.roi_polygons),
         )
 
         return zone_data
