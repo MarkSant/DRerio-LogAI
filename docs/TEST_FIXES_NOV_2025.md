@@ -1,7 +1,15 @@
 # Test Fixes Documentation - November 2025
 
 ## Summary
-Fixed all 12 failing tests to achieve **100% test success rate (1022/1022 tests passing)** with **36.81% code coverage**.
+Fixed all **15 failing tests** across two phases to achieve **100% test success rate (1022/1022 tests passing)** with **36.81% code coverage**.
+
+### Phase 1: Initial Test Fixes (12 tests)
+
+Fixed in commit `94b2b43` - November 2025
+
+### Phase 2: GitHub CI Fixes (3 tests)
+
+Fixed in commit `9aaae29` - November 2025, addressing failures discovered by GitHub Actions CI after initial commit.
 
 ## Problems Fixed
 
@@ -351,14 +359,84 @@ poetry run ruff check .
 poetry run ruff format .
 ```
 
+## Phase 2: GitHub CI Test Failures (3 tests)
+
+### 7. Main Entry Point Tests - Service Import Paths (3 tests)
+
+**Files:** `tests/core/test_main_entry_point.py`  
+**Commit:** `9aaae29`
+
+**Tests Fixed:**
+
+- `test_main_successful_startup`
+- `test_main_calls_bind_events`
+- `test_main_calls_controller_run`
+
+**Problem:**
+After the initial commit, GitHub CI revealed that these 3 tests were failing with:
+
+```python
+AttributeError: module 'zebtrack.core' has no attribute 'event_bus'
+```
+
+**Root Cause:**
+
+In `__main__.py`, service imports occur **inside** the `main()` function, not at module level:
+
+```python
+def main():
+    # ... (line 199)
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.ui.event_bus import EventBus  # ← Note: ui.event_bus, not core
+    from zebtrack.core.model_service import ModelService
+    # ... etc
+```
+
+The tests were incorrectly patching `"zebtrack.__main__.StateManager"` but these symbols don't exist at the module level. The correct approach is to patch the actual import paths.
+
+**Solution:**
+
+Updated all service patches to use full import paths:
+
+```python
+# Before (WRONG):
+with patch("zebtrack.__main__.StateManager"):
+    with patch("zebtrack.__main__.EventBus"):
+        # ...
+
+# After (CORRECT):
+with patch("zebtrack.core.state_manager.StateManager"):
+    with patch("zebtrack.ui.event_bus.EventBus"):  # EventBus is in ui, not core!
+        # ...
+```
+
+**Service Import Path Mapping:**
+
+- `StateManager` → `zebtrack.core.state_manager.StateManager`
+- `UICoordinator` → `zebtrack.core.ui_coordinator.UICoordinator`
+- `EventBus` → `zebtrack.ui.event_bus.EventBus` ⚠️ **(not in `core`!)**
+- `WeightManager` → `zebtrack.core.weight_manager.WeightManager`
+- `ModelService` → `zebtrack.core.model_service.ModelService`
+- `ProjectManager` → `zebtrack.core.project_manager.ProjectManager`
+- `ProjectWorkflowService` → `zebtrack.core.project_workflow_service.ProjectWorkflowService`
+- `DetectorService` → `zebtrack.core.detector_service.DetectorService`
+- `Recorder` → `zebtrack.io.recorder.Recorder` ⚠️ **(in `io`, not `core`!)**
+- `VideoProcessingService` → `zebtrack.core.video_processing_service.VideoProcessingService`
+- `AnalysisService` → `zebtrack.analysis.analysis_service.AnalysisService`
+
+**Key Learning:**
+When patching imports that occur inside functions, always patch the **full import path** of the class, not where you think it might be exposed in the calling module.
+
 ## Success Metrics
 
 ✅ **1022/1022 tests passing** (100%)  
 ✅ **36.81% code coverage** (exceeds 30% minimum)  
 ✅ **No regressions** in previously passing tests  
 ✅ **Parallel execution** works with pytest-xdist  
-✅ **Consistent execution time** (~107s for full suite)  
-✅ **All linting checks pass** (ruff check + format)
+✅ **Consistent execution time** (~97s for full suite)  
+✅ **All linting checks pass** (ruff check + format)  
+✅ **GitHub Actions CI passes** ✨
 
 ---
 
