@@ -5,22 +5,29 @@ Obrigado por querer contribuir com o ZebTrack-AI! Este guia descreve o fluxo de 
 ## 1. Preparando o ambiente
 
 1. Clone o repositório:
-	```powershell
-	git clone https://github.com/MarkSant/ZebTrack-AI.git
-	cd ZebTrack-AI
-	```
-2. Instale as dependências com Poetry:
-	```powershell
-	poetry install
-	```
-3. Ative o shell virtual (opcional, mas recomendado):
-	```powershell
-	poetry shell
-	```
-4. Verifique se a aplicação inicia:
-	```powershell
-	poetry run zebtrack
-	```
+
+   ```powershell
+   git clone https://github.com/MarkSant/ZebTrack-AI.git
+   cd ZebTrack-AI
+   ```
+
+1. Instale as dependências com Poetry:
+
+   ```powershell
+   poetry install
+   ```
+
+1. Ative o shell virtual (opcional, mas recomendado):
+
+   ```powershell
+   poetry shell
+   ```
+
+1. Verifique se a aplicação inicia:
+
+   ```powershell
+   poetry run zebtrack
+   ```
 
 ## 2. Fluxo de desenvolvimento
 
@@ -44,9 +51,11 @@ Obrigado por querer contribuir com o ZebTrack-AI! Este guia descreve o fluxo de 
 ## 4. Testes
 
 - Execute a suíte completa antes de abrir o PR:
+
   ```powershell
   poetry run pytest -q
   ```
+
 - Adicione testes para novas funcionalidades ou coberturas regressivas.
 - Atualize cenários críticos:
   - `tests/test_overlay_integration.py` para mudanças em overlays/GUI.
@@ -60,11 +69,13 @@ Obrigado por querer contribuir com o ZebTrack-AI! Este guia descreve o fluxo de 
 **CRITICAL: GUI tests MUST run with serial execution (`-n0`).**
 
 Why:
+
 - `ttkbootstrap.Style` maintains global state (singleton) that is NOT thread-safe
 - When pytest-xdist runs tests in parallel workers, simultaneous Style instantiation causes TclError failures
 - Tkinter/Tcl interpreters conflict between processes
 
 Correct execution:
+
 ```powershell
 # Run all GUI tests (serial)
 poetry run pytest -m gui -n0
@@ -77,6 +88,7 @@ poetry run pytest tests/ui/wizard/test_wizard_confirmation.py -n0
 ```
 
 Incorrect execution (will fail):
+
 ```powershell
 # ❌ Missing -n0, uses default -n=auto (parallel)
 poetry run pytest -m gui
@@ -86,6 +98,7 @@ poetry run pytest
 ```
 
 Writing GUI tests:
+
 1. **Mark ALL GUI tests** with `@pytest.mark.gui` decorator at class or function level
 2. **Use fixtures** from `conftest.py`:
    - `tkinter_root`: Provides configured Tk() root with cleanup
@@ -95,6 +108,7 @@ Writing GUI tests:
 5. **Document requirements**: Add docstring explaining serial execution need
 
 Example GUI test structure:
+
 ```python
 """
 GUI Test for MyComponent
@@ -113,12 +127,14 @@ class TestMyComponent:
 ```
 
 Troubleshooting TclError:
+
 1. Verify Tkinter works: `poetry run python -c "import tkinter; root = tkinter.Tk(); print('OK'); root.destroy()"`
 2. Run test in isolation: `poetry run pytest path/to/test.py::test_name -n0 -v`
 3. Check for missing `@pytest.mark.gui` marker
 4. Ensure not using `-n auto` or parallel execution
 
 References:
+
 - `README_TESTS.md`: Full troubleshooting guide
 - `pytest.ini`: Default exclusion of GUI tests
 - `.github/workflows/ci.yml`: CI configuration (excludes GUI tests)
@@ -135,18 +151,21 @@ References:
 ## 6. Estruturando novas features
 
 1. **Planeje**: descreva inputs/outputs, fluxos afetados e cenários negativos.
-2. **Implemente**: mantenha mudanças focadas; evite reformatar blocos não relacionados.
-3. **Teste**: cubra o caso feliz + 1–2 bordas (ex.: ausência de track_id, arquivo vazio, falta de configuração).
-4. **Documente**:
-	- Atualize `README.md` se o usuário final for impactado.
-	- Ajuste `.github/copilot-instructions.md` para instruir automações.
-	- Edite `docs/ARCHITECTURE.md` quando alterar fluxos ou decisões arquiteturais.
-	- Cite migrações/configurações novas em `config.yaml` e `tests/test_settings.py`.
-5. **Checklist antes do PR**:
-	- [ ] Lint (`poetry run ruff check .`)
-	- [ ] Testes (`poetry run pytest -q`)
-	- [ ] Documentação atualizada
-	- [ ] Capturas de tela/GIF quando relevante à UI
+1. **Implemente**: mantenha mudanças focadas; evite reformatar blocos não relacionados.
+1. **Teste**: cubra o caso feliz + 1–2 bordas (ex.: ausência de track_id, arquivo vazio, falta de configuração).
+1. **Documente**:
+
+   - Atualize `README.md` se o usuário final for impactado.
+   - Ajuste `.github/copilot-instructions.md` para instruir automações.
+   - Edite `docs/ARCHITECTURE.md` quando alterar fluxos ou decisões arquiteturais.
+   - Cite migrações/configurações novas em `config.yaml` e `tests/test_settings.py`.
+
+1. **Checklist antes do PR**:
+
+   - [ ] Lint (`poetry run ruff check .`)
+   - [ ] Testes (`poetry run pytest -q`)
+   - [ ] Documentação atualizada
+   - [ ] Capturas de tela/GIF quando relevante à UI
 
 ## 7. Processo de revisão
 

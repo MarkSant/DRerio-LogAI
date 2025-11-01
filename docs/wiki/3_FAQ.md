@@ -10,7 +10,7 @@ Common answers and troubleshooting tips for ZebTrack-AI users.
 
 ```yaml
 ui_features:
-	use_wizard_for_project_creation: true
+ use_wizard_for_project_creation: true
 ```
 
 Restart the application and the 5-step wizard will appear when you click **Create Project**.
