@@ -16,7 +16,10 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(poetry run ruff format:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(Select-Object -Last 3)",
+      "Bash(Select-String -Pattern \"passed|failed\")",
+      "Bash(Select-Object -Last 1)"
     ],
     "deny": [],
     "ask": []
