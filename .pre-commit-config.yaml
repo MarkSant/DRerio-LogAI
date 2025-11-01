@@ -49,6 +49,20 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: validate-docs
+        name: Validate documentation consistency
+        entry: poetry run python scripts/validate_docs.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: update-copilot-context
+        name: Update Copilot context map
+        entry: poetry run python scripts/generate_copilot_context.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
 # Global settings
 default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]

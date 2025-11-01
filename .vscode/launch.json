@@ -1,0 +1,111 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ZebTrack: Run App",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zebtrack",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "ZebTrack: Run with Local Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zebtrack",
+            "args": ["--config", "config.local.yaml"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "ZebTrack: Debug Tests (Fast)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["-q", "-v"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "ZebTrack: Debug GUI Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["-m", "gui", "-n0", "-v"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "ZebTrack: Debug Current Test File",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${file}", "-v", "-s"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "ZebTrack: Debug Specific Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${file}::${input:testName}", "-v", "-s"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "ZebTrack: Debug Wizard Flow",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zebtrack",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ZEBTRACK_DEBUG_WIZARD": "1"
+            }
+        },
+        {
+            "name": "ZebTrack: Debug Processing Pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "zebtrack",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ZEBTRACK_DEBUG_PROCESSING": "1"
+            }
+        },
+        {
+            "name": "ZebTrack: Smoke Test (< 30s)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["-m", "smoke", "-v"],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testName",
+            "type": "promptString",
+            "description": "Test name (e.g., test_function_name)",
+            "default": "test_"
+        }
+    ]
+}

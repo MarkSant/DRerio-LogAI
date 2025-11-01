@@ -1,4 +1,24 @@
-# ZebTrack-AI Agent Playbook
+# ZebTrack-AI Agent Playbook (Optimized for Speed & Token Efficiency)
+
+## 🎯 Quick Navigation Index
+**ALWAYS check `.copilot-context.yaml` first** - auto-generated file index and decision trees.
+
+### File Quick Access (Minimize Search Time)
+- **Entry Point**: `src/zebtrack/__main__.py` (lines 140-280: Composition Root)
+- **Main UI**: `src/zebtrack/ui/gui.py` (MainWindow + MainViewModel)
+- **Settings**: `src/zebtrack/settings.py` (Pydantic v2 models)
+- **Core Services**: `src/zebtrack/core/{detector_service,project_manager,state_manager,processing_worker}.py`
+- **Data I/O**: `src/zebtrack/io/{video_source,recorder}.py`
+- **Wizard**: `src/zebtrack/ui/wizard/wizard_dialog.py` (5 steps)
+
+## ⚡ Fast Decision Trees (Avoid Unnecessary Reads)
+**UI Change?** → Check `ui/widgets/` → Update `MainViewModel` → Use `root.after()` → Test `tests/test_*_integration.py`
+**Processing Change?** → Check `core/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
+**Config Change?** → Edit `settings.py` → Update `config.yaml` → Pass from `__main__.py` constructor → NEVER singleton import
+**Debug UI?** → Check logs (structlog) → Verify `StateManager` → Check `root.after()` → Run `pytest -m gui -n0`
+**Debug Processing?** → Check zone scaling → Verify `ProcessingWorker` → Validate `Recorder` schema → Run `pytest -q`
+
+## 📋 Core Architecture (Read This Once)
 - **Product**: Desktop Tkinter app branded DRerio LogAI; Python package `zebtrack`.
 - **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
 - **Docs first**: Validate changes against `docs/ARCHITECTURE.md`, `TRANSITION_NOTE.md`, `docs/REFERENCE_GUIDE.md`, `docs/DEPENDENCY_INJECTION_GUIDE.md` before rerouting flows.
