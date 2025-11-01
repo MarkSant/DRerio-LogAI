@@ -96,6 +96,31 @@ def tkinter_session_root():
             pass
 
 
+@pytest.fixture(scope="session", autouse=True)
+def configure_test_logging():
+    """
+    Configure logging for tests to prevent MagicMock comparison errors.
+
+    Issue: When tests use Mock() for settings objects, the logging system
+    tries to compare handler.level (a MagicMock) with an int in background
+    threads (ProcessingWorker), causing:
+    TypeError: '>=' not supported between instances of 'int' and 'MagicMock'
+
+    Solution: Disable logging entirely during tests to prevent threading issues
+    and Mock comparison errors. Tests should focus on business logic, not logs.
+    """
+    import logging
+
+    # Disable all logging during tests to prevent Mock comparison errors
+    # in background threads (e.g., ProcessingWorker)
+    logging.disable(logging.CRITICAL)
+
+    yield
+
+    # Re-enable logging after tests (if needed for debugging)
+    logging.disable(logging.NOTSET)
+
+
 @pytest.fixture
 def tkinter_root(tkinter_session_root):
     """
