@@ -12,6 +12,27 @@ import sys
 import logging
 
 
+@pytest.fixture(autouse=True)
+def mock_torch_logging():
+    """
+    Mock logging.getLogger globally to prevent torch/matplotlib from failing on Mock loggers.
+    
+    This fixture runs before all tests to ensure that when torch/matplotlib initialize
+    (via ultralytics -> YOLO import in MainViewModel), they don't fail trying to:
+    1. Iterate over log.handlers when they are Mock objects
+    2. Compare log.level with integers (matplotlib does `_log.level <= logging.DEBUG`)
+    """
+    with patch('logging.getLogger') as mock_get_logger:
+        # Create a mock logger with handlers as empty list and level as integer
+        mock_logger = Mock()
+        mock_logger.handlers = []
+        mock_logger.level = logging.INFO  # Set as real integer for comparisons
+        mock_logger.setLevel = Mock()
+        mock_logger.addHandler = Mock()
+        mock_get_logger.return_value = mock_logger
+        yield mock_get_logger
+
+
 def create_mock_settings():
     """Create a properly structured mock settings object for testing."""
     mock_settings = Mock()
@@ -31,6 +52,11 @@ def create_mock_settings():
     mock_settings.recorder = Mock()
     mock_settings.recorder.flush_interval_seconds = 30.0
     mock_settings.recorder.buffer_size_frames = 300
+    mock_settings.recorder.flush_row_threshold = 500
+    
+    # Configure video processing settings
+    mock_settings.video_processing = Mock()
+    mock_settings.video_processing.fps = 30.0
     
     # Configure UI features
     mock_settings.ui_features = Mock()
