@@ -219,12 +219,18 @@ class TestGenerateTrajectoryPlot:
         # Should use provided ax
         mock_ax.clear.assert_called_once()
 
+    @patch('zebtrack.analysis.reporter.Path')
     @patch('cv2.VideoCapture')
-    def test_trajectory_plot_includes_video_frame(self, mock_videocap, reporter):
+    def test_trajectory_plot_includes_video_frame(self, mock_videocap, mock_path, reporter):
         """Test that video frame is included when video_path provided."""
+        # Mock Path.exists to return True
+        mock_path.return_value.exists.return_value = True
+        
         # Mock video capture
         mock_cap = Mock()
+        mock_cap.isOpened = Mock(return_value=True)  # Required for finally block
         mock_cap.read = Mock(return_value=(True, np.zeros((480, 640, 3), dtype=np.uint8)))
+        mock_cap.release = Mock()
         mock_videocap.return_value = mock_cap
 
         with patch('zebtrack.analysis.reporter.plt.figure'):
@@ -234,11 +240,17 @@ class TestGenerateTrajectoryPlot:
         # Should release video capture
         mock_cap.release.assert_called_once()
 
+    @patch('zebtrack.analysis.reporter.Path')
     @patch('cv2.VideoCapture')
-    def test_trajectory_plot_handles_video_read_failure(self, mock_videocap, reporter):
+    def test_trajectory_plot_handles_video_read_failure(self, mock_videocap, mock_path, reporter):
         """Test graceful handling when video frame read fails."""
+        # Mock Path.exists to return True
+        mock_path.return_value.exists.return_value = True
+        
         mock_cap = Mock()
+        mock_cap.isOpened = Mock(return_value=True)  # Required for finally block
         mock_cap.read = Mock(return_value=(False, None))  # Failed to read
+        mock_cap.release = Mock()
         mock_videocap.return_value = mock_cap
 
         with patch('zebtrack.analysis.reporter.plt.figure'):
@@ -257,7 +269,10 @@ class TestGenerateHeatmap:
         """Test that heatmap is generated."""
         mock_fig = Mock()
         mock_ax = Mock()
+        mock_ax.get_children = Mock(return_value=[])  # Return empty list for iteration
         mock_fig.add_subplot = Mock(return_value=mock_ax)
+        mock_fig.artists = []  # Set artists as empty list, not Mock
+        mock_fig.colorbar = Mock()  # Mock colorbar method
         mock_figure.return_value = mock_fig
 
         fig = reporter.generate_heatmap()
@@ -268,7 +283,11 @@ class TestGenerateHeatmap:
     def test_heatmap_uses_provided_ax(self, reporter):
         """Test that provided Axes object is used."""
         mock_ax = Mock()
-        mock_ax.get_figure = Mock(return_value=Mock())
+        mock_ax.get_children = Mock(return_value=[])  # Return empty list for iteration
+        mock_fig = Mock()
+        mock_fig.artists = []  # Set artists as empty list, not Mock
+        mock_fig.colorbar = Mock()  # Mock colorbar method
+        mock_ax.get_figure = Mock(return_value=mock_fig)
 
         reporter.generate_heatmap(ax=mock_ax)
 
