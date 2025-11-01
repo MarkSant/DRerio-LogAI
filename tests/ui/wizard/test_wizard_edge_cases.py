@@ -81,81 +81,90 @@ class TestExperimentalDesignEdgeCases:
     def test_days_minimum_boundary(self):
         """Test days at minimum boundary (1)."""
         data = ExperimentalDesignData(
-            days=1,
-            groups=2,
+            experiment_days=1,
+            num_groups=2,
             subjects_per_group=5,
+            group_names=["Group1", "Group2"],
         )
-        assert data.days == 1
+        assert data.experiment_days == 1
 
     def test_days_zero_invalid(self):
         """Test days cannot be zero."""
         with pytest.raises(ValidationError):
             ExperimentalDesignData(
-                days=0,
-                groups=2,
+                experiment_days=0,
+                num_groups=2,
                 subjects_per_group=5,
+                group_names=["Group1", "Group2"],
             )
 
     def test_days_maximum_boundary(self):
         """Test days at maximum boundary (365)."""
         data = ExperimentalDesignData(
-            days=365,
-            groups=2,
+            experiment_days=365,
+            num_groups=2,
             subjects_per_group=5,
+            group_names=["Group1", "Group2"],
         )
-        assert data.days == 365
+        assert data.experiment_days == 365
 
     def test_days_exceeds_maximum(self):
         """Test days exceeding maximum."""
         with pytest.raises(ValidationError):
             ExperimentalDesignData(
-                days=366,  # Over limit
-                groups=2,
+                experiment_days=366,  # Over limit
+                num_groups=2,
                 subjects_per_group=5,
+                group_names=["Group1", "Group2"],
             )
 
     def test_groups_minimum_boundary(self):
         """Test groups at minimum (1)."""
         data = ExperimentalDesignData(
-            days=1,
-            groups=1,
+            experiment_days=1,
+            num_groups=1,
             subjects_per_group=5,
+            group_names=["Group1"],
         )
-        assert data.groups == 1
+        assert data.num_groups == 1
 
     def test_groups_maximum_boundary(self):
         """Test groups at maximum (6)."""
         data = ExperimentalDesignData(
-            days=1,
-            groups=6,
+            experiment_days=1,
+            num_groups=6,
             subjects_per_group=5,
+            group_names=["G1", "G2", "G3", "G4", "G5", "G6"],
         )
-        assert data.groups == 6
+        assert data.num_groups == 6
 
     def test_groups_exceeds_maximum(self):
         """Test groups exceeding maximum."""
         with pytest.raises(ValidationError):
             ExperimentalDesignData(
-                days=1,
-                groups=7,  # Over limit
+                experiment_days=1,
+                num_groups=7,  # Over limit
                 subjects_per_group=5,
+                group_names=["G1", "G2", "G3", "G4", "G5", "G6", "G7"],
             )
 
     def test_subjects_minimum_boundary(self):
         """Test subjects at minimum (1)."""
         data = ExperimentalDesignData(
-            days=1,
-            groups=2,
+            experiment_days=1,
+            num_groups=2,
             subjects_per_group=1,
+            group_names=["Group1", "Group2"],
         )
         assert data.subjects_per_group == 1
 
     def test_subjects_maximum_boundary(self):
         """Test subjects at maximum (20)."""
         data = ExperimentalDesignData(
-            days=1,
-            groups=2,
+            experiment_days=1,
+            num_groups=2,
             subjects_per_group=20,
+            group_names=["Group1", "Group2"],
         )
         assert data.subjects_per_group == 20
 
@@ -163,9 +172,10 @@ class TestExperimentalDesignEdgeCases:
         """Test subjects exceeding maximum."""
         with pytest.raises(ValidationError):
             ExperimentalDesignData(
-                days=1,
-                groups=2,
+                experiment_days=1,
+                num_groups=2,
                 subjects_per_group=21,  # Over limit
+                group_names=["Group1", "Group2"],
             )
 
 
