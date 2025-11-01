@@ -112,12 +112,15 @@ class TestLogLevelConfiguration:
     @patch('logging.getLogger')
     def test_module_specific_log_level(self, mock_get_logger):
         """Test setting module-specific log level."""
-        from zebtrack.__main__ import configure_logging_levels
+        from zebtrack.logging_config import configure_logging_levels
 
         mock_module_logger = Mock()
         mock_get_logger.return_value = mock_module_logger
 
-        configure_logging_levels(["zebtrack.core.detector=DEBUG"])
+        mock_settings = Mock()
+        mock_settings.logging.levels = {"zebtrack.core.detector": "DEBUG"}
+
+        configure_logging_levels(mock_settings)
 
         # Should set DEBUG for specific module
         mock_get_logger.assert_called_with("zebtrack.core.detector")
@@ -126,26 +129,30 @@ class TestLogLevelConfiguration:
     @patch('logging.getLogger')
     def test_invalid_log_level_format_ignored(self, mock_get_logger):
         """Test invalid log level format is ignored."""
-        from zebtrack.__main__ import configure_logging_levels
+        from zebtrack.logging_config import configure_logging_levels
 
-        # Invalid format (missing '=')
-        configure_logging_levels(["invalid_format"])
-
-        # Should not crash, just ignore
-        # No specific assertion needed - just shouldn't raise
+        # Settings with invalid log level should be handled gracefully
+        mock_settings = Mock()
+        mock_settings.logging.levels = {"module": "INVALID"}
+        
+        # Should not crash, just use default level
+        configure_logging_levels(mock_settings)
 
     @patch('logging.getLogger')
     def test_multiple_module_log_levels(self, mock_get_logger):
         """Test setting multiple module log levels."""
-        from zebtrack.__main__ import configure_logging_levels
+        from zebtrack.logging_config import configure_logging_levels
 
         mock_logger = Mock()
         mock_get_logger.return_value = mock_logger
 
-        configure_logging_levels([
-            "zebtrack.core.detector=DEBUG",
-            "zebtrack.analysis=WARNING",
-        ])
+        mock_settings = Mock()
+        mock_settings.logging.levels = {
+            "zebtrack.core.detector": "DEBUG",
+            "zebtrack.analysis": "WARNING",
+        }
+
+        configure_logging_levels(mock_settings)
 
         # Should set levels for both modules
         assert mock_get_logger.call_count >= 2
@@ -250,15 +257,17 @@ class TestLoggingEdgeCases:
     @patch('logging.getLogger')
     def test_log_level_case_insensitive(self, mock_get_logger):
         """Test log level parsing is case-insensitive."""
-        from zebtrack.__main__ import configure_logging_levels
+        from zebtrack.logging_config import configure_logging_levels
 
         mock_logger = Mock()
         mock_get_logger.return_value = mock_logger
 
-        # Try different cases
-        configure_logging_levels(["zebtrack.core=debug"])  # lowercase
+        mock_settings = Mock()
+        mock_settings.logging.levels = {"zebtrack.core": "debug"}  # lowercase
 
-        # Should parse correctly
+        configure_logging_levels(mock_settings)
+
+        # Should parse correctly (function uses .upper())
         # Implementation may or may not be case-insensitive
 
 
