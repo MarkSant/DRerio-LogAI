@@ -588,47 +588,51 @@ class Reporter:
 
         # Get video dimensions if available
         if video_path and Path(video_path).exists():
-            cap = cv2.VideoCapture(video_path)
-            ret, frame = cap.read()
-            if ret:
-                # Apply perspective warp if calibration is available
-                if self.calibration:
-                    frame = self.calibration.warp_frame(frame)
+            cap = None
+            try:
+                cap = cv2.VideoCapture(video_path)
+                ret, frame = cap.read()
+                if ret:
+                    # Apply perspective warp if calibration is available
+                    if self.calibration:
+                        frame = self.calibration.warp_frame(frame)
 
-                frame_height_px = frame.shape[0]
-                frame_width_px = frame.shape[1]
-                # Calculate proper extent based on pixel-to-cm conversion
-                pixelcm_x = self.b_analyzer._pixelcm_x
-                pixelcm_y = self.b_analyzer._pixelcm_y
+                    frame_height_px = frame.shape[0]
+                    frame_width_px = frame.shape[1]
+                    # Calculate proper extent based on pixel-to-cm conversion
+                    pixelcm_x = self.b_analyzer._pixelcm_x
+                    pixelcm_y = self.b_analyzer._pixelcm_y
 
-                # Frame coordinates in cm
-                # Per COORDINATE_SYSTEMS.md:
-                # - Frame warped: y_px=0 at top, y_px=height at bottom
-                #   (image convention)
-                # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
-                #   (cartesian)
-                # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
-                #
-                # To align frame with trajectories:
-                # 1. Flip frame vertically so frame[0] = bottom
-                # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
+                    # Frame coordinates in cm
+                    # Per COORDINATE_SYSTEMS.md:
+                    # - Frame warped: y_px=0 at top, y_px=height at bottom
+                    #   (image convention)
+                    # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
+                    #   (cartesian)
+                    # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
+                    #
+                    # To align frame with trajectories:
+                    # 1. Flip frame vertically so frame[0] = bottom
+                    # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
 
-                frame_extent: tuple[float, float, float, float] = (
-                    0.0,  # left (x=0)
-                    frame_width_px / pixelcm_x,  # right (x=max)
-                    0.0,  # bottom (y=0)
-                    frame_height_px / pixelcm_y,  # top (y=max)
-                )
-                ax.imshow(
-                    frame_rgb_flipped,
-                    extent=frame_extent,
-                    origin="lower",
-                    aspect="auto",
-                    alpha=0.5,
-                )
-            cap.release()
+                    frame_extent: tuple[float, float, float, float] = (
+                        0.0,  # left (x=0)
+                        frame_width_px / pixelcm_x,  # right (x=max)
+                        0.0,  # bottom (y=0)
+                        frame_height_px / pixelcm_y,  # top (y=max)
+                    )
+                    ax.imshow(
+                        frame_rgb_flipped,
+                        extent=frame_extent,
+                        origin="lower",
+                        aspect="auto",
+                        alpha=0.5,
+                    )
+            finally:
+                if cap is not None and cap.isOpened():
+                    cap.release()
 
         ax.set_facecolor("lightgray")
         # Draw arena boundary

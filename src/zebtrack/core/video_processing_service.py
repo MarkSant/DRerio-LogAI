@@ -177,14 +177,18 @@ class VideoProcessingService:
         if arena_polygon_px:
             return arena_polygon_px
 
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return None
+        cap = None
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return None
 
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        return [[0, 0], [width, 0], [width, height], [0, height]]
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            return [[0, 0], [width, 0], [width, height], [0, height]]
+        finally:
+            if cap is not None and cap.isOpened():
+                cap.release()
 
     def load_trajectory_dataframe(
         self, trajectory_path: Path | str, experiment_id: str
@@ -350,8 +354,9 @@ class VideoProcessingService:
         )
 
         recorder = self.recorder.__class__(settings_obj=self.settings)
-        cap = cv2.VideoCapture(str(video_path))
+        cap = None  # Initialize to avoid UnboundLocalError in finally block
         try:
+            cap = cv2.VideoCapture(str(video_path))
             if not cap.isOpened():
                 log.error("controller.tracking.video_open_failed", path=video_path)
                 return False, None
@@ -519,7 +524,7 @@ class VideoProcessingService:
             )
             return False, None
         finally:
-            if cap.isOpened():
+            if cap is not None and cap.isOpened():
                 cap.release()
 
     def _prepare_zone_data_for_tracking(
