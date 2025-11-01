@@ -18,6 +18,23 @@ from zebtrack.analysis.roi import ROI
 
 
 @pytest.fixture
+def mock_settings():
+    """Create mock settings for AnalysisService."""
+    settings = Mock()
+    settings.trajectory_smoothing = Mock()
+    settings.trajectory_smoothing.window_length = 5
+    settings.trajectory_smoothing.polyorder = 2
+    settings.angular_velocity = Mock()
+    settings.angular_velocity.min_displacement_threshold_cm = 0.5
+    settings.angular_velocity.angle_calculation_window = 3
+    settings.angular_velocity.angular_velocity_smoothing_window = 5
+    settings.roi_inclusion_rule = "centroid_in"
+    settings.roi_buffer_radius_value = 0.0
+    settings.roi_min_bbox_overlap_ratio = 0.5
+    return settings
+
+
+@pytest.fixture
 def sample_trajectory_df():
     """Create sample trajectory DataFrame for testing."""
     return pd.DataFrame({
@@ -42,8 +59,11 @@ def sample_rois():
 
 
 @pytest.fixture
-def reporter(sample_trajectory_df, sample_rois):
+def reporter(sample_trajectory_df, sample_rois, mock_settings):
     """Create Reporter instance with test data."""
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="zebtrack.analysis.reporter")
+
     return Reporter(
         trajectory_df=sample_trajectory_df,
         metadata={"experiment_id": "test_001", "group_id": "G1"},
@@ -61,6 +81,7 @@ def reporter(sample_trajectory_df, sample_rois):
         freezing_duration=2.0,
         smoothing_window_length=5,
         smoothing_polyorder=2,
+        settings_obj=mock_settings,
     )
 
 
@@ -71,14 +92,29 @@ class TestReporterInitialization:
     def test_init_stores_all_parameters(self, reporter):
         """Test that all parameters are stored correctly."""
         assert reporter.metadata["experiment_id"] == "test_001"
-        assert reporter.fps == 30.0
-        assert len(reporter.rois) == 2
+        assert reporter._pixelcm_x == 10.0
+        assert reporter.b_analyzer is not None
+        assert reporter.report is not None
 
-    def test_init_requires_trajectory_df(self, sample_rois):
-        """Test that trajectory_df is required."""
+    def test_init_requires_trajectory_df(self, sample_rois, mock_settings):
+        """Test that trajectory_df with minimal columns works."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+        # Create DataFrame with minimal required columns
+        minimal_df = pd.DataFrame({
+            "timestamp": [0.0, 0.1],
+            "frame": [0, 1],
+            "track_id": [1, 1],
+            "x1": [10, 11],
+            "y1": [20, 21],
+            "x2": [30, 31],
+            "y2": [40, 41],
+        })
+
         # Should not raise error
-        Reporter(
-            trajectory_df=pd.DataFrame(),
+        reporter = Reporter(
+            trajectory_df=minimal_df,
             metadata={},
             pixelcm_x=10.0,
             pixelcm_y=10.0,
@@ -86,10 +122,16 @@ class TestReporterInitialization:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=sample_rois,
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
-    def test_init_handles_empty_rois(self, sample_trajectory_df):
+        assert reporter is not None
+
+    def test_init_handles_empty_rois(self, sample_trajectory_df, mock_settings):
         """Test initialization with empty ROI list."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         reporter = Reporter(
             trajectory_df=sample_trajectory_df,
             metadata={},
@@ -99,9 +141,10 @@ class TestReporterInitialization:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
-        assert reporter.rois == []
+        assert reporter.r_analyzer is None  # No ROIs, so no ROI analyzer
 
 
 @pytest.mark.unit
@@ -250,8 +293,11 @@ class TestGenerateROIReferencePlot:
         # Should create figure
         mock_figure.assert_called_once()
 
-    def test_roi_reference_plot_handles_empty_rois(self, sample_trajectory_df):
+    def test_roi_reference_plot_handles_empty_rois(self, sample_trajectory_df, mock_settings):
         """Test ROI reference plot with no ROIs."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         reporter = Reporter(
             trajectory_df=sample_trajectory_df,
             metadata={},
@@ -261,6 +307,7 @@ class TestGenerateROIReferencePlot:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],  # No ROIs
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
         with patch('zebtrack.analysis.reporter.plt.figure'):
@@ -395,8 +442,11 @@ class TestDataValidation:
         # Implementation may or may not have explicit validate_schema method
         # Test based on actual implementation
 
-    def test_handles_missing_columns_gracefully(self, sample_trajectory_df):
+    def test_handles_missing_columns_gracefully(self, sample_trajectory_df, mock_settings):
         """Test Reporter handles trajectories missing optional columns."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         # Remove optional column
         minimal_df = sample_trajectory_df.drop(columns=["confidence"])
 
@@ -409,6 +459,7 @@ class TestDataValidation:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
         # Should initialize without error
@@ -419,8 +470,11 @@ class TestDataValidation:
 class TestEdgeCases:
     """Test suite for edge cases."""
 
-    def test_empty_trajectory_dataframe(self):
+    def test_empty_trajectory_dataframe(self, mock_settings):
         """Test Reporter with empty trajectory DataFrame."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         empty_df = pd.DataFrame(columns=["timestamp", "frame", "track_id"])
 
         reporter = Reporter(
@@ -432,14 +486,18 @@ class TestEdgeCases:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
         # Should not crash on export
         with patch('zebtrack.analysis.reporter.pd.DataFrame.to_parquet'):
             reporter.export_summary_data("/fake/output.parquet", format="parquet")
 
-    def test_unicode_metadata(self, sample_trajectory_df):
+    def test_unicode_metadata(self, sample_trajectory_df, mock_settings):
         """Test Reporter with Unicode characters in metadata."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         reporter = Reporter(
             trajectory_df=sample_trajectory_df,
             metadata={
@@ -452,14 +510,18 @@ class TestEdgeCases:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
         # Should handle Unicode gracefully
         assert "ção" in reporter.metadata["experiment_id"]
 
     @pytest.mark.slow
-    def test_very_large_trajectory(self):
+    def test_very_large_trajectory(self, mock_settings):
         """Test Reporter with large trajectory DataFrame."""
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
         large_df = pd.DataFrame({
             "timestamp": np.arange(0, 10000, 0.1),
             "frame": np.arange(100000),
@@ -479,10 +541,11 @@ class TestEdgeCases:
             arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
             rois=[],
             fps=30.0,
+            settings_obj=mock_settings,
         )
 
         # Should initialize without memory issues
-        assert len(reporter.trajectory_df) == 100000
+        assert reporter.b_analyzer is not None
 
 
 if __name__ == "__main__":

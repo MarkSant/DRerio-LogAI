@@ -19,6 +19,7 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
 if TYPE_CHECKING:
@@ -168,6 +169,113 @@ class AnalysisService:
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 
         return report, b_analyzer, r_analyzer
+
+    def run_full_analysis_as_dto(
+        self,
+        trajectory_df: pd.DataFrame,
+        pixelcm_x: float,
+        pixelcm_y: float,
+        video_height_px: int,
+        arena_polygon_px: list[tuple[float, float]],
+        rois: list[ROI],
+        fps: float,
+        metadata: dict[str, Any],
+        roi_colors: dict[str, tuple[int, int, int]],
+        # Analysis-specific parameters
+        freezing_vel_threshold: float,
+        freezing_min_duration: float,
+        smoothing_window_length: int | None = None,
+        smoothing_polyorder: int | None = None,
+        # Optional parameters
+        video_path: str | None = None,
+        calibration=None,
+        sharp_turn_threshold: float = 45.0,
+    ) -> AnalysisResult:
+        """Run complete analysis and return results as DTO (RECOMMENDED).
+
+        This method wraps run_full_analysis() and returns a structured DTO
+        instead of a tuple. Use this for better type safety and compatibility
+        with Reporter.from_analysis().
+
+        Args:
+            trajectory_df: Raw trajectory data
+            pixelcm_x: Pixels-to-cm conversion factor (x-axis)
+            pixelcm_y: Pixels-to-cm conversion factor (y-axis)
+            video_height_px: Height of the video in pixels
+            arena_polygon_px: Arena vertices in pixels
+            rois: List of ROI objects for analysis
+            fps: Frames per second
+            metadata: Experiment metadata (experiment_id, group, subject, etc.)
+            roi_colors: ROI name to RGB color mapping
+            freezing_vel_threshold: Velocity threshold for freezing detection
+            freezing_min_duration: Minimum freezing episode duration
+            smoothing_window_length: Trajectory smoothing window (optional)
+            smoothing_polyorder: Trajectory smoothing polynomial order (optional)
+            video_path: Optional path to source video file
+            calibration: Optional Calibration object
+            sharp_turn_threshold: Sharp turn detection threshold (deg/s)
+
+        Returns:
+            AnalysisResult DTO with all analysis data
+
+        Example:
+            >>> service = AnalysisService(settings_obj=settings)
+            >>> result = service.run_full_analysis_as_dto(
+            ...     trajectory_df=df,
+            ...     pixelcm_x=10.0,
+            ...     pixelcm_y=10.0,
+            ...     video_height_px=480,
+            ...     arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+            ...     rois=rois,
+            ...     fps=30.0,
+            ...     metadata={"experiment_id": "exp_001"},
+            ...     roi_colors={"ROI1": (255, 0, 0)},
+            ...     freezing_vel_threshold=1.5,
+            ...     freezing_min_duration=1.0,
+            ... )
+            >>> reporter = Reporter.from_analysis(result)
+        """
+        # Run the existing analysis method
+        report, b_analyzer, r_analyzer = self.run_full_analysis(
+            trajectory_df=trajectory_df,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=video_height_px,
+            arena_polygon_px=arena_polygon_px,
+            rois=rois,
+            fps=fps,
+            freezing_vel_threshold=freezing_vel_threshold,
+            freezing_min_duration=freezing_min_duration,
+            smoothing_window_length=smoothing_window_length,
+            smoothing_polyorder=smoothing_polyorder,
+        )
+
+        # Wrap in DTO
+        calibration_params = CalibrationParams(
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=video_height_px,
+            arena_polygon_px=arena_polygon_px,
+            fps=fps,
+            calibration=calibration,
+        )
+
+        return AnalysisResult(
+            report=report,
+            behavioral_analyzer=b_analyzer,
+            roi_analyzer=r_analyzer,
+            trajectory_df=trajectory_df,
+            metadata=metadata,
+            calibration_params=calibration_params,
+            rois=rois,
+            roi_colors=roi_colors,
+            video_path=video_path,
+            sharp_turn_threshold=sharp_turn_threshold,
+            freezing_threshold=freezing_vel_threshold,
+            freezing_duration=freezing_min_duration,
+            smoothing_window_length=smoothing_window_length,
+            smoothing_polyorder=smoothing_polyorder,
+        )
 
     # -------------------------------------------------------------------------
     # Analysis Orchestration Methods (Phase 1, Step 3)
