@@ -291,6 +291,7 @@ class MainViewModel:
             root,
             self,
             event_bus=self.ui_event_bus if self._use_event_bus else None,
+            settings_obj=self.settings,
         )
         self._publish_processing_mode(source="init", force=True)
 

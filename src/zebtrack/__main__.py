@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import sys
 import threading
+import time
 import tkinter as tk
 import warnings
 from tkinter import messagebox
@@ -205,17 +206,26 @@ def main():
         ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
 
         # Model and weight management
+        _t0 = time.perf_counter()
         from zebtrack.core.model_service import ModelService
         from zebtrack.core.weight_manager import WeightManager
 
         weight_manager = WeightManager(settings_obj=settings_obj)
         model_service = ModelService(weight_manager)
+        log.info("timing.model_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Project management
+        _t0 = time.perf_counter()
         from zebtrack.core.project_manager import ProjectManager
         from zebtrack.core.project_workflow_service import ProjectWorkflowService
 
+        log.info("timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        _t0 = time.perf_counter()
         project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
+        log.info("timing.project_manager_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        _t0 = time.perf_counter()
         project_workflow_service = ProjectWorkflowService(
             project_manager=project_manager,
             model_service=model_service,
@@ -223,8 +233,10 @@ def main():
             ui_coordinator=ui_coordinator,
             settings_obj=settings_obj,
         )
+        log.info("timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Detector service
+        _t0 = time.perf_counter()
         from zebtrack.core.detector_service import DetectorService
 
         detector_service = DetectorService(
@@ -234,13 +246,18 @@ def main():
             model_service=model_service,
             settings_obj=settings_obj,
         )
+        log.info("timing.detector_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Video processing service
+        _t0 = time.perf_counter()
         from zebtrack.core.video_processing_service import VideoProcessingService
         from zebtrack.io.recorder import Recorder
 
         # Initialize recorder with settings
         recorder = Recorder(settings_obj=settings_obj)
+        log.info("timing.recorder_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        _t0 = time.perf_counter()
         cancel_event = threading.Event()
 
         # VideoProcessingService is created before detector exists
@@ -259,15 +276,22 @@ def main():
             cancel_event=cancel_event,
             settings_obj=settings_obj,
         )
+        log.info("timing.video_processing_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Analysis service
+        _t0 = time.perf_counter()
         from zebtrack.analysis.analysis_service import AnalysisService
 
         analysis_service = AnalysisService(settings_obj=settings_obj)
+        log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Create MainViewModel with all injected dependencies
+        _t0 = time.perf_counter()
         from zebtrack.core.main_view_model import MainViewModel
 
+        log.info("timing.import_mainviewmodel", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        _t0 = time.perf_counter()
         controller = MainViewModel(
             root=root,
             event_bus=event_bus,
@@ -283,6 +307,7 @@ def main():
             analysis_service=analysis_service,
             recording_service=None,  # Will be created by MainViewModel for now
         )
+        log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Set view reference in video_processing_service after view is created
         video_processing_service.view = controller.view

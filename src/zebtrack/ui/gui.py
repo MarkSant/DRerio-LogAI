@@ -182,13 +182,14 @@ class ApplicationGUI:
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
-    def __init__(self, root, controller, event_bus: EventBus | None = None):
+    def __init__(self, root, controller, event_bus: EventBus | None = None, settings_obj=None):
         """
         Inicializa a ApplicationGUI.
         """
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
+        self.settings = settings_obj
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[EventType, Callable[[Any], None]] = {}
@@ -278,6 +279,7 @@ class ApplicationGUI:
         self.video_label: Label | None = None
         self.progress_bar = None
         self.progress_labels: dict[str, StringVar] = {}
+        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-Track")
         self.track_selector_var = StringVar(value="Todos")
         self.track_selector_widget: ttk.Combobox | None = None
         self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
