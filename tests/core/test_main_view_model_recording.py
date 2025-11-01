@@ -111,6 +111,9 @@ class TestTriggerRecording:
             "use_countdown": False,
         }
 
+        # Set pending trigger (required by trigger_recording)
+        main_view_model._pending_external_trigger = {"some": "context"}
+
         # Trigger recording manually
         main_view_model.trigger_recording(event_code=None)
 
@@ -127,6 +130,9 @@ class TestTriggerRecording:
         }
 
         event_code = 5  # External trigger event
+
+        # Set pending trigger (required by trigger_recording)
+        main_view_model._pending_external_trigger = {"some": "context"}
 
         # Trigger recording with external event
         main_view_model.trigger_recording(event_code=event_code)
@@ -157,9 +163,9 @@ class TestTriggerRecording:
         """Test that start recording button is disabled during recording."""
         main_view_model.recording_service = Mock()
         main_view_model.project_manager.project_data = {}
+        main_view_model._pending_external_trigger = {"some": "context"}
 
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording()
+        main_view_model.trigger_recording()
 
         # Implementation may update UI state
         # Verification depends on implementation details
@@ -278,13 +284,15 @@ class TestExternalTriggerMode:
             "external_trigger_mode": True,
         }
 
-        # Simulate Arduino event
-        with patch.object(main_view_model, 'on_arduino_event') as mock_event:
-            with patch.object(main_view_model, 'trigger_recording'):
-                main_view_model.on_arduino_event(event_code=5)
+        # Set pending trigger (required for on_arduino_event to trigger recording)
+        main_view_model._pending_external_trigger = {"some": "context"}
 
-                # Should trigger recording
-                main_view_model.trigger_recording.assert_called_once()
+        # Simulate Arduino event (event_code=1 is the start trigger)
+        with patch.object(main_view_model, 'trigger_recording') as mock_trigger:
+            main_view_model.on_arduino_event(event_code=1)
+
+            # Should trigger recording
+            mock_trigger.assert_called_once_with(1)
 
     def test_clear_external_trigger_wait(self, main_view_model):
         """Test _clear_external_trigger_wait method."""
@@ -380,10 +388,10 @@ class TestArduinoIntegrationWithRecording:
         main_view_model.project_manager.project_data = {
             "use_arduino": False,
         }
+        main_view_model._pending_external_trigger = {"some": "context"}
 
         # Should work without Arduino
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording()
+        main_view_model.trigger_recording()
 
 
 class TestCountdownIntegration:
@@ -396,10 +404,10 @@ class TestCountdownIntegration:
             "use_countdown": True,
             "countdown_duration_s": 3,
         }
+        main_view_model._pending_external_trigger = {"some": "context"}
 
         # Countdown handled by RecordingService
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording()
+        main_view_model.trigger_recording()
 
         # RecordingService should handle countdown
 
@@ -409,9 +417,9 @@ class TestCountdownIntegration:
         main_view_model.project_manager.project_data = {
             "use_countdown": False,
         }
+        main_view_model._pending_external_trigger = {"some": "context"}
 
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording()
+        main_view_model.trigger_recording()
 
         # Should start immediately
 
@@ -442,13 +450,13 @@ class TestEdgeCases:
         """Test recording with incomplete project configuration."""
         main_view_model.project_manager.project_data = {}  # Empty config
         main_view_model.recording_service = Mock()
+        main_view_model._pending_external_trigger = {"some": "context"}
 
         # Should handle missing fields gracefully
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            try:
-                main_view_model.trigger_recording()
-            except KeyError:
-                pytest.fail("Should handle missing project data gracefully")
+        try:
+            main_view_model.trigger_recording()
+        except KeyError:
+            pytest.fail("Should handle missing project data gracefully")
 
 
 if __name__ == "__main__":

@@ -25,13 +25,27 @@ def mock_dependencies():
     detector_service = Mock()
     detector_service.initialize_detector = Mock(return_value=(True, None))
     detector_service.detector = None
+    detector_service.get_detector_parameters = Mock(return_value={
+        "conf_threshold": 0.25,
+        "iou_threshold": 0.7
+    })
+    detector_service.get_factory_detector_parameters = Mock(return_value={
+        "conf_threshold": 0.25,
+        "iou_threshold": 0.7
+    })
 
     weight_manager = Mock()
     weight_manager.get_active_weight_name = Mock(return_value="yolo11n.pt")
     weight_manager.get_all_weight_names = Mock(return_value=["yolo11n.pt", "yolo11m.pt"])
+    weight_manager._classify_weight_type = Mock(return_value="yolo")
+    weight_manager.delete_weight = Mock()
     weight_manager.model_cache_dir = "openvino_model_cache"
     # Mock get_weight_details to return None for openvino_path to skip conversion check
     weight_manager.get_weight_details = Mock(return_value={"openvino_path": None})
+
+    # Create model_service with proper delegation methods
+    model_service = Mock()
+    model_service.get_all_weight_names = Mock(return_value=["yolo11n.pt", "yolo11m.pt"])
 
     # Create properly structured settings mock
     settings = Mock()
@@ -73,7 +87,7 @@ def mock_dependencies():
         "project_manager": Mock(),
         "project_workflow_service": project_workflow,
         "weight_manager": weight_manager,
-        "model_service": Mock(),
+        "model_service": model_service,
         "detector_service": detector_service,
         "video_processing_service": Mock(),
         "analysis_service": Mock(),
@@ -157,23 +171,22 @@ class TestSetActiveWeight:
     """Test suite for set_active_weight method."""
 
     def test_set_active_weight_updates_weight_manager(self, main_view_model):
-        """Test setting active weight updates WeightManager."""
-        main_view_model.weight_manager.set_active_weight = Mock()
-
+        """Test setting active weight updates active_weight_name."""
         main_view_model.set_active_weight("yolo11m.pt")
 
-        # Should update weight manager
-        main_view_model.weight_manager.set_active_weight.assert_called_once_with("yolo11m.pt")
+        # Should update active weight name
+        assert main_view_model.active_weight_name == "yolo11m.pt"
+
+        # Should publish event (verify event bus was called)
+        assert main_view_model.ui_event_bus.publish_event.called
 
     def test_set_active_weight_reinitializes_detector(self, main_view_model):
-        """Test changing weight reinitializes detector."""
-        main_view_model.weight_manager.set_active_weight = Mock()
+        """Test changing weight publishes events for UI updates."""
+        main_view_model.set_active_weight("yolo11m.pt")
 
-        with patch.object(main_view_model, 'setup_detector') as mock_setup:
-            main_view_model.set_active_weight("yolo11m.pt")
-
-            # Should reinitialize detector
-            mock_setup.assert_called()
+        # Should publish events (detector reinitialization is done by UI layer)
+        main_view_model.ui_event_bus.publish_event.assert_called()
+        assert main_view_model.active_weight_name == "yolo11m.pt"
 
     def test_set_active_weight_handles_invalid_name(self, main_view_model):
         """Test setting invalid weight name."""
@@ -186,13 +199,16 @@ class TestSetActiveWeight:
             pass  # Error may be propagated or handled
 
     def test_set_active_weight_to_none(self, main_view_model):
-        """Test setting weight to None."""
-        main_view_model.weight_manager.set_active_weight = Mock()
-
+        """Test setting weight to None clears active weight."""
         main_view_model.set_active_weight(None)
 
-        # Should allow None (no model)
-        main_view_model.weight_manager.set_active_weight.assert_called_once_with(None)
+        # Should clear active weight (set to empty string)
+        assert main_view_model.active_weight_name == ""
+
+        # Should publish event with empty weight name
+        main_view_model.ui_event_bus.publish_event.assert_called()
+        calls = [str(call) for call in main_view_model.ui_event_bus.publish_event.call_args_list]
+        assert any('weight_name' in call and "''" in call for call in calls)
 
 
 class TestGetAllWeightNames:
@@ -208,7 +224,7 @@ class TestGetAllWeightNames:
 
     def test_get_all_weight_names_handles_empty(self, main_view_model):
         """Test get_all_weight_names with no weights."""
-        main_view_model.weight_manager.get_all_weight_names = Mock(return_value=[])
+        main_view_model.model_service.get_all_weight_names = Mock(return_value=[])
 
         weights = main_view_model.get_all_weight_names()
 
@@ -220,7 +236,7 @@ class TestClassifyWeightType:
 
     def test_classify_weight_type_detection(self, main_view_model):
         """Test weight type classification for detection."""
-        main_view_model.weight_manager.classify_weight_type = Mock(return_value="det")
+        main_view_model.weight_manager._classify_weight_type = Mock(return_value="det")
 
         weight_type = main_view_model.classify_weight_type("yolo11n.pt")
 
@@ -228,7 +244,7 @@ class TestClassifyWeightType:
 
     def test_classify_weight_type_segmentation(self, main_view_model):
         """Test weight type classification for segmentation."""
-        main_view_model.weight_manager.classify_weight_type = Mock(return_value="seg")
+        main_view_model.weight_manager._classify_weight_type = Mock(return_value="seg")
 
         weight_type = main_view_model.classify_weight_type("yolo11n-seg.pt")
 
@@ -236,7 +252,7 @@ class TestClassifyWeightType:
 
     def test_classify_weight_type_unknown(self, main_view_model):
         """Test classification for unknown weight type."""
-        main_view_model.weight_manager.classify_weight_type = Mock(return_value=None)
+        main_view_model.weight_manager._classify_weight_type = Mock(return_value=None)
 
         weight_type = main_view_model.classify_weight_type("unknown.pt")
 
@@ -256,13 +272,16 @@ class TestDeleteWeight:
         main_view_model.weight_manager.delete_weight.assert_called_once_with("yolo11m.pt")
 
     def test_delete_weight_cannot_delete_active(self, main_view_model):
-        """Test cannot delete currently active weight."""
-        main_view_model.weight_manager.get_active_weight_name = Mock(return_value="yolo11n.pt")
+        """Test cannot delete currently active weight shows error."""
         main_view_model.weight_manager.delete_weight = Mock(side_effect=ValueError("Cannot delete active"))
 
-        # Should prevent deletion or show error
-        with pytest.raises(ValueError):
-            main_view_model.delete_weight("yolo11n.pt")
+        # Should catch error and publish error event (not raise)
+        main_view_model.delete_weight("yolo11n.pt")
+
+        # Should publish error event
+        main_view_model.ui_event_bus.publish_event.assert_called()
+        calls = [str(call) for call in main_view_model.ui_event_bus.publish_event.call_args_list]
+        assert any("UI_SHOW_ERROR" in call or "error" in call.lower() for call in calls)
 
 
 class TestOpenVINOConversion:
@@ -270,48 +289,67 @@ class TestOpenVINOConversion:
 
     def test_set_openvino_usage_enables(self, main_view_model):
         """Test enabling OpenVINO usage."""
-        main_view_model.weight_manager.set_use_openvino = Mock()
-
         main_view_model.set_openvino_usage(True)
 
-        # Should update weight manager
-        main_view_model.weight_manager.set_use_openvino.assert_called_once_with(True)
+        # Should update use_openvino flag
+        assert main_view_model.use_openvino is True
+
+        # Should publish UI event
+        assert main_view_model.ui_event_bus.publish_event.called
 
     def test_set_openvino_usage_disables(self, main_view_model):
         """Test disabling OpenVINO usage."""
-        main_view_model.weight_manager.set_use_openvino = Mock()
-
         main_view_model.set_openvino_usage(False)
 
-        main_view_model.weight_manager.set_use_openvino.assert_called_once_with(False)
+        # Should update use_openvino flag
+        assert main_view_model.use_openvino is False
+
+        # Should publish UI event
+        assert main_view_model.ui_event_bus.publish_event.called
 
     def test_convert_active_weight_to_openvino(self, main_view_model):
         """Test converting active weight to OpenVINO format."""
-        main_view_model.weight_manager.convert_weight_to_openvino = Mock(return_value=True)
+        main_view_model.model_service.convert_to_openvino = Mock()
+        main_view_model.active_weight_name = "yolo11n.pt"
         mock_dialog = Mock()
 
-        result = main_view_model.convert_active_weight_to_openvino(mock_dialog)
+        main_view_model.convert_active_weight_to_openvino(mock_dialog)
 
-        # Should call conversion
-        main_view_model.weight_manager.convert_weight_to_openvino.assert_called_once()
+        # Should call model_service conversion
+        main_view_model.model_service.convert_to_openvino.assert_called_once_with("yolo11n.pt")
+
+        # Should publish status events
+        assert main_view_model.ui_event_bus.publish_event.called
 
     def test_convert_weight_handles_failure(self, main_view_model):
         """Test handling of conversion failure."""
-        main_view_model.weight_manager.convert_weight_to_openvino = Mock(return_value=False)
+        from zebtrack.core.weight_manager import OpenVINOExportError
+
+        main_view_model.model_service.convert_to_openvino = Mock(
+            side_effect=OpenVINOExportError("Conversion failed")
+        )
+        main_view_model.active_weight_name = "yolo11n.pt"
         mock_dialog = Mock()
 
-        result = main_view_model.convert_active_weight_to_openvino(mock_dialog)
+        main_view_model.convert_active_weight_to_openvino(mock_dialog)
 
-        # Should handle failure gracefully
-        assert result is False
+        # Should handle failure gracefully by publishing error event
+        calls = [str(call) for call in main_view_model.ui_event_bus.publish_event.call_args_list]
+        assert any("UI_SHOW_ERROR" in call or "error" in call.lower() for call in calls)
 
     def test_get_openvino_status(self, main_view_model):
         """Test getting OpenVINO status string."""
-        main_view_model.weight_manager.get_use_openvino = Mock(return_value=True)
+        main_view_model.model_service.get_openvino_status = Mock(return_value="OpenVINO: Active")
+        main_view_model.active_weight_name = "yolo11n.pt"
+        main_view_model.use_openvino = True
 
         status = main_view_model.get_openvino_status()
 
         assert isinstance(status, str)
+        assert status == "OpenVINO: Active"
+
+        # Should call model_service
+        main_view_model.model_service.get_openvino_status.assert_called_once()
 
 
 class TestDetectorConfiguration:
@@ -344,7 +382,7 @@ class TestDetectorConfiguration:
         """Test checking if project overrides are active."""
         main_view_model._using_project_overrides = True
 
-        assert main_view_model.are_project_overrides_active() is True
+        assert main_view_model.are_project_overrides_active is True
 
 
 class TestDetectorPropertyAccess:
@@ -388,12 +426,14 @@ class TestManageWeights:
     """Test suite for manage_weights method."""
 
     def test_manage_weights_opens_dialog(self, main_view_model):
-        """Test manage_weights opens management dialog."""
-        with patch('zebtrack.core.main_view_model.ManageWeightsDialog') as mock_dialog:
-            main_view_model.manage_weights()
+        """Test manage_weights publishes event to open management dialog."""
+        main_view_model.manage_weights()
 
-            # Should open dialog
-            mock_dialog.assert_called_once()
+        # Should publish event to open dialog
+        main_view_model.ui_event_bus.publish_event.assert_called_once()
+        call_args = main_view_model.ui_event_bus.publish_event.call_args
+        # Verify event type is for opening manage weights dialog
+        assert "MANAGE_WEIGHTS" in str(call_args) or "manage_weights" in str(call_args).lower()
 
     def test_manage_weights_refreshes_after_changes(self, main_view_model):
         """Test manage_weights refreshes detector after changes."""

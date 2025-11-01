@@ -176,16 +176,17 @@ class TestMainFunction:
         mock_root = Mock()
         mock_tk.return_value = mock_root
 
-        with pytest.raises(SystemExit) as exc_info:
-            main()
+        with patch('sys.argv', ['zebtrack']):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
 
-        # Should exit with code 1
-        assert exc_info.value.code == 1
+            # Should exit with code 1
+            assert exc_info.value.code == 1
 
-        # Should show error dialog
-        mock_msgbox.assert_called_once()
-        call_args = mock_msgbox.call_args[0]
-        assert "Configuration File Not Found" in call_args[0]
+            # Should show error dialog
+            mock_msgbox.assert_called_once()
+            call_args = mock_msgbox.call_args[0]
+            assert "Configuration File Not Found" in call_args[0]
 
     @patch('zebtrack.__main__.configure_logging')
     @patch('zebtrack.settings.load_settings')
@@ -201,16 +202,17 @@ class TestMainFunction:
         mock_root = Mock()
         mock_tk.return_value = mock_root
 
-        with pytest.raises(SystemExit) as exc_info:
-            main()
+        with patch('sys.argv', ['zebtrack']):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
 
-        # Should exit with code 1
-        assert exc_info.value.code == 1
+            # Should exit with code 1
+            assert exc_info.value.code == 1
 
-        # Should show validation error dialog
-        mock_msgbox.assert_called_once()
-        call_args = mock_msgbox.call_args[0]
-        assert "Configuration Validation Error" in call_args[0]
+            # Should show validation error dialog
+            mock_msgbox.assert_called_once()
+            call_args = mock_msgbox.call_args[0]
+            assert "Configuration Validation Error" in call_args[0]
 
     @patch('zebtrack.__main__.configure_logging')
     @patch('zebtrack.settings.load_settings')
@@ -226,14 +228,15 @@ class TestMainFunction:
         mock_root = Mock()
         mock_tk.return_value = mock_root
 
-        with pytest.raises(SystemExit) as exc_info:
-            main()
+        with patch('sys.argv', ['zebtrack']):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
 
-        # Should exit with code 1
-        assert exc_info.value.code == 1
+            # Should exit with code 1
+            assert exc_info.value.code == 1
 
-        # Should show error message
-        mock_msgbox.assert_called_once()
+            # Should show error message
+            mock_msgbox.assert_called_once()
 
     @patch('zebtrack.__main__.configure_logging')
     @patch('zebtrack.settings.load_settings')
@@ -248,12 +251,13 @@ class TestMainFunction:
         mock_settings_obj.reproducibility = Mock(seed=42)
         mock_settings.return_value = mock_settings_obj
 
-        with patch('tkinter.Tk'):
-            with patch('zebtrack.core.main_view_model.MainViewModel'):
-                try:
-                    main()
-                except:
-                    pass  # Ignore other errors, just check seed was set
+        with patch('sys.argv', ['zebtrack']):
+            with patch('tkinter.Tk'):
+                with patch('zebtrack.core.main_view_model.MainViewModel'):
+                    try:
+                        main()
+                    except:
+                        pass  # Ignore other errors, just check seed was set
 
         # Should set seed
         mock_set_seed.assert_called_once_with(42)
@@ -323,7 +327,7 @@ class TestMainFunction:
             # Mock all service imports
             with patch('zebtrack.core.state_manager.StateManager') as mock_state:
                 with patch('zebtrack.ui.event_bus.EventBus') as mock_eventbus:
-                    with patch('zebtrack.__main__.ProjectManager') as mock_pm:
+                    with patch('zebtrack.core.project_manager.ProjectManager') as mock_pm:
                         with patch('zebtrack.core.weight_manager.WeightManager') as mock_wm:
                             try:
                                 main()
@@ -396,7 +400,7 @@ class TestDependencyInjection:
         mock_settings.return_value = mock_settings_obj
 
         with patch('sys.argv', ['zebtrack']):
-            with patch('zebtrack.__main__.ProjectManager') as mock_pm:
+            with patch('zebtrack.core.project_manager.ProjectManager') as mock_pm:
                 with patch('zebtrack.core.weight_manager.WeightManager') as mock_wm:
                     try:
                         main()
@@ -420,7 +424,7 @@ class TestDependencyInjection:
         mock_settings.return_value = mock_settings_obj
 
         with patch('sys.argv', ['zebtrack']):
-            with patch('zebtrack.__main__.VideoProcessingService') as mock_vps:
+            with patch('zebtrack.core.video_processing_service.VideoProcessingService') as mock_vps:
                 try:
                     main()
                 except:
