@@ -27,10 +27,25 @@ class ROITemplateSchema(BaseModel):
     @classmethod
     def validate_data_structure(cls, v: dict) -> dict:
         """Valida estrutura básica dos dados."""
-        required_keys = {"polygon", "roi_polygons", "roi_names", "roi_colors"}
-        missing = required_keys - set(v.keys())
-        if missing:
-            raise ValueError(f"Chaves obrigatórias ausentes: {missing}")
+        # Template deve ter pelo menos arena (polygon) OU ROIs (roi_polygons, roi_names, roi_colors)
+        has_polygon = "polygon" in v
+        has_rois = all(k in v for k in ("roi_polygons", "roi_names", "roi_colors"))
+        
+        if not has_polygon and not has_rois:
+            raise ValueError(
+                "Template deve conter pelo menos arena (polygon) ou ROIs "
+                "(roi_polygons, roi_names, roi_colors)"
+            )
+        
+        # Se tem ROIs, valida que as três chaves estão juntas
+        roi_keys = {"roi_polygons", "roi_names", "roi_colors"}
+        present_roi_keys = roi_keys & set(v.keys())
+        if present_roi_keys and present_roi_keys != roi_keys:
+            missing = roi_keys - present_roi_keys
+            raise ValueError(
+                f"Se incluir ROIs, todas as chaves devem estar presentes. Faltam: {missing}"
+            )
+        
         return v
 
 

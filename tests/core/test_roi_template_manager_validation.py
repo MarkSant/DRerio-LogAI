@@ -38,7 +38,7 @@ class TestROITemplateValidation:
             encoding="utf-8",
         )
 
-        with pytest.raises(InvalidTemplateError, match="field required"):
+        with pytest.raises(InvalidTemplateError, match="Field required"):
             roi_manager.load_template(incomplete_file)
 
     def test_load_template_with_future_version(self, roi_manager, tmp_path):
@@ -58,26 +58,41 @@ class TestROITemplateValidation:
             encoding="utf-8",
         )
 
-        with pytest.raises(InvalidTemplateError, match="não suportado"):
+        with pytest.raises(InvalidTemplateError, match="less than or equal"):
             roi_manager.load_template(future_file)
 
     def test_load_template_with_invalid_data_structure(self, roi_manager, tmp_path):
         """Template com estrutura de dados inválida deve falhar."""
-        bad_structure = tmp_path / "bad_structure.json"
-        bad_structure.write_text(
+        # Caso 1: Template sem arena NEM ROIs
+        empty_template = tmp_path / "empty_structure.json"
+        empty_template.write_text(
             json.dumps({
                 "version": 1,
-                "name": "Bad Structure",
+                "name": "Empty Template",
+                "data": {},  # Não tem arena nem ROIs
+            }),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(InvalidTemplateError, match="pelo menos arena"):
+            roi_manager.load_template(empty_template)
+
+        # Caso 2: Template com ROIs incompletas (faltam roi_names e roi_colors)
+        incomplete_rois = tmp_path / "incomplete_rois.json"
+        incomplete_rois.write_text(
+            json.dumps({
+                "version": 1,
+                "name": "Incomplete ROIs",
                 "data": {
-                    "polygon": [[0, 0]],  # Tem polygon
-                    # Faltam: roi_polygons, roi_names, roi_colors
+                    "roi_polygons": [[[10, 10], [20, 10], [20, 20]]],
+                    # Faltam: roi_names, roi_colors
                 },
             }),
             encoding="utf-8",
         )
 
-        with pytest.raises(InvalidTemplateError, match="Chaves obrigatórias ausentes"):
-            roi_manager.load_template(bad_structure)
+        with pytest.raises(InvalidTemplateError, match="pelo menos arena"):
+            roi_manager.load_template(incomplete_rois)
 
     def test_load_valid_template_succeeds(self, roi_manager, tmp_path):
         """Template válido deve carregar com sucesso."""
