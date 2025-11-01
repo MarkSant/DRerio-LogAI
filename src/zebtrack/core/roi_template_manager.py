@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import structlog
+from pydantic import ValidationError
 
 from zebtrack.core.detector import ZoneData
+from zebtrack.core.schemas import InvalidTemplateError, ROITemplateSchema
 
 log = structlog.get_logger()
 
@@ -216,10 +218,6 @@ class ROITemplateManager:
             FileNotFoundError: Se arquivo não existir
             InvalidTemplateError: Se o JSON for inválido ou não passar na validação
         """
-        from pydantic import ValidationError
-
-        from zebtrack.core.schemas import InvalidTemplateError, ROITemplateSchema
-
         template_path = Path(template_path)
 
         if not template_path.exists():

@@ -49,10 +49,6 @@ class ProjectConfigSchema(BaseModel):
 class InvalidTemplateError(ValueError):
     """Erro quando template é inválido."""
 
-    pass
-
 
 class InvalidProjectConfigError(ValueError):
     """Erro quando configuração de projeto é inválida."""
-
-    pass

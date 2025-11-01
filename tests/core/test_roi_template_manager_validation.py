@@ -1,4 +1,4 @@
-"""Testes para validação Pydantic em ROITemplateManager."""
+"""Tests for Pydantic validation in ROITemplateManager."""
 
 import json
 

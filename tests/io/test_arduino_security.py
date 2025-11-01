@@ -1,4 +1,4 @@
-"""Testes de segurança para comandos Arduino."""
+"""Security tests for Arduino commands."""
 
 from unittest.mock import Mock, patch
 
