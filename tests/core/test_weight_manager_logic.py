@@ -17,7 +17,7 @@ def weight_manager():
     """Create WeightManager instance with real settings."""
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import load_settings
-    
+
     settings_obj = load_settings()
     return WeightManager(settings_obj=settings_obj)
 
@@ -33,11 +33,11 @@ def test_get_default_weight_returns_tuple(weight_manager):
     """Test that get_default_weight() returns tuple (name, metadata)."""
     # Act
     result = weight_manager.get_default_weight()
-    
+
     # Assert
     assert isinstance(result, tuple)
     assert len(result) == 2
-    
+
     name, metadata = result
     # Either both None or both have values
     if name is not None:
@@ -50,7 +50,7 @@ def test_get_default_weight_returns_tuple(weight_manager):
 def test_get_default_seg_weight(weight_manager):
     """Test getting default segmentation weight."""
     name, metadata = weight_manager.get_default_seg_weight()
-    
+
     # If a default seg weight exists, validate it
     if name is not None:
         assert isinstance(name, str)
@@ -61,7 +61,7 @@ def test_get_default_seg_weight(weight_manager):
 def test_get_default_det_weight(weight_manager):
     """Test getting default detection weight."""
     name, metadata = weight_manager.get_default_det_weight()
-    
+
     # If a default det weight exists, validate it
     if name is not None:
         assert isinstance(name, str)
@@ -80,7 +80,7 @@ def test_set_default_weight_logs_warning_for_missing(weight_manager):
     # Act: Try to set nonexistent weight
     # Based on the test output, this logs warning but doesn't raise
     weight_manager.set_default_weight("/fake/path/nonexistent.pt")
-    
+
     # Assert: No exception raised, method completes
     # (Real implementation logs warning instead of raising)
 

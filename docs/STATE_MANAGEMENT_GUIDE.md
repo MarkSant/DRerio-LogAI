@@ -47,17 +47,17 @@ class StateManager:
         self._state = {}
         self._observers = []
         self._lock = threading.RLock()
-    
+
     def update_state(self, **updates):
         """Atualiza estado e notifica observadores."""
         with self._lock:
             self._state.update(updates)
             self._notify_observers()
-    
+
     def register_observer(self, callback):
         """Registra callback para receber notificações."""
         self._observers.append(callback)
-    
+
     def get_project_state(self):
         """Retorna cópia imutável do estado."""
         with self._lock:
@@ -81,15 +81,15 @@ class EventBus:
     def __init__(self, enabled: bool = True):
         self._enabled = enabled
         self._subscribers = {}
-    
+
     def emit(self, event_type: str, data: Any = None):
         """UI emite evento sem conhecer quem vai processar."""
         if not self._enabled:
             return
-        
+
         for callback in self._subscribers.get(event_type, []):
             callback(data)
-    
+
     def subscribe(self, event_type: str, callback):
         """ViewModel se inscreve para receber eventos."""
         self._subscribers.setdefault(event_type, []).append(callback)
@@ -102,7 +102,7 @@ class VideoDisplayWidget(ttk.Frame):
     def __init__(self, parent, event_bus: EventBus):
         super().__init__(parent)
         self.event_bus = event_bus
-    
+
     def _on_play_button_clicked(self):
         # UI não conhece a lógica de processamento
         self.event_bus.emit("video.play_requested", data=None)
@@ -115,10 +115,10 @@ class MainViewModel:
     def __init__(self, event_bus: EventBus, state_manager: StateManager, ...):
         self.event_bus = event_bus
         self.state_manager = state_manager
-        
+
         # Inscrever-se em eventos
         self.event_bus.subscribe("video.play_requested", self._handle_play_video)
-    
+
     def _handle_play_video(self, data):
         # Executar lógica de negócio
         # ...
@@ -139,43 +139,43 @@ O `MainViewModel` (`src/zebtrack/ui/main_viewmodel.py`) atua como um **controlle
 
 ```python
 class MainViewModel:
-    def __init__(self, 
+    def __init__(self,
                  settings_obj: "Settings",
                  state_manager: StateManager,
                  event_bus: EventBus,
                  detector_service: DetectorService,
                  video_processing_service: VideoProcessingService,
                  project_manager: ProjectManager):
-        
+
         self.settings = settings_obj
         self.state_manager = state_manager
         self.event_bus = event_bus
         self.detector_service = detector_service
         self.video_processing_service = video_processing_service
         self.project_manager = project_manager
-        
+
         # Inscrever-se em eventos da UI
         self.event_bus.subscribe("project.load_requested", self._handle_load_project)
-    
+
     def _handle_load_project(self, project_path: str):
         """Manipulador de evento: carregar projeto."""
         try:
             # 1. Chamar serviço de domínio
             project_data = self.project_manager.load_project(project_path)
-            
+
             # 2. Inicializar detector baseado em configuração do projeto
             self.detector_service.initialize_detector(
                 model_path=project_data["model_path"],
                 backend=project_data["backend"]
             )
-            
+
             # 3. Atualizar estado (StateManager notifica a UI automaticamente)
             self.state_manager.update_state(
                 project_loaded=True,
                 project_name=project_data["name"],
                 project_data=project_data  # Deep copy feita pelo StateManager
             )
-            
+
         except Exception as e:
             logger.error(f"Erro ao carregar projeto: {e}")
             self.state_manager.update_state(
@@ -200,29 +200,29 @@ class ApplicationGUI:
         self.root = root
         self.view_model = view_model
         self.event_bus = event_bus
-        
+
         # Registrar callback para receber atualizações de estado
         view_model.state_manager.register_observer(self._on_state_changed)
-        
+
         # Criar componentes da UI
         self.video_display = VideoDisplayWidget(root, event_bus=event_bus)
         self.control_panel = ControlPanelWidget(root, event_bus=event_bus)
-    
+
     def _on_state_changed(self):
         """Callback chamado quando StateManager atualiza."""
         # Obter estado imutável
         state = self.view_model.state_manager.get_project_state()
-        
+
         # Atualizar UI baseado no estado
         if state.get("project_loaded"):
             self.control_panel.enable_processing_buttons()
             self.status_bar.set_text(f"Projeto: {state.get('project_name')}")
-        
+
         if state.get("is_playing"):
             self.video_display.show_pause_icon()
         else:
             self.video_display.show_play_icon()
-        
+
         if state.get("error_message"):
             messagebox.showerror("Erro", state.get("error_message"))
 ```
@@ -290,7 +290,7 @@ def test_load_project_updates_state():
     mock_event_bus = Mock(spec=EventBus)
     mock_project_manager = Mock(spec=ProjectManager)
     mock_project_manager.load_project.return_value = {"name": "TestProject"}
-    
+
     view_model = MainViewModel(
         settings_obj=test_settings,
         state_manager=mock_state_manager,
@@ -298,10 +298,10 @@ def test_load_project_updates_state():
         project_manager=mock_project_manager,
         # ... outros mocks
     )
-    
+
     # Act: Simular evento
     view_model._handle_load_project("/fake/path.yaml")
-    
+
     # Assert: Verificar que estado foi atualizado
     mock_state_manager.update_state.assert_called_with(
         project_loaded=True,
@@ -327,12 +327,12 @@ class ProcessingWorker(threading.Thread):
     def __init__(self, state_manager: StateManager):
         super().__init__()
         self.state_manager = state_manager
-    
+
     def run(self):
         # Worker em thread separada
         for i in range(100):
             process_frame(i)
-            
+
             # Atualização thread-safe do estado
             self.state_manager.update_state(
                 processing_progress=i,
@@ -361,7 +361,7 @@ def _handle_seek_to_frame(self, data):
 # UI consulta estado via callback
 def _on_state_changed(self):
     state = self.view_model.state_manager.get_project_state()
-    
+
     # UI sempre lê do estado, nunca de variáveis locais
     if state.get("detector_initialized"):
         self.detection_panel.show()
@@ -374,14 +374,14 @@ def _on_state_changed(self):
 def _handle_start_processing(self, data):
     # Atualizar estado imediatamente
     self.state_manager.update_state(is_processing=True, progress=0)
-    
+
     # Iniciar worker
     worker = ProcessingWorker(
         state_manager=self.state_manager,
         video_processing_service=self.video_processing_service
     )
     worker.start()
-    
+
     # Worker atualiza o estado periodicamente
     # UI recebe notificações automaticamente via callback
 ```
@@ -439,7 +439,7 @@ class MainViewModel:
 class MainViewModel:
     def __init__(self, ...):
         self.current_frame = 0  # Estado duplicado!
-    
+
     def next_frame(self):
         self.current_frame += 1  # UI não será notificada
 ```
@@ -451,7 +451,7 @@ class MainViewModel:
     def _handle_next_frame(self, data):
         state = self.state_manager.get_project_state()
         current_frame = state.get("current_frame", 0)
-        
+
         # Atualizar estado centralizado
         self.state_manager.update_state(current_frame=current_frame + 1)
 ```

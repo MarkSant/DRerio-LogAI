@@ -14,9 +14,9 @@ import tkinter as tk
 def test_composition_root_loads_settings():
     """Validate that load_settings() returns a Settings object."""
     from zebtrack.settings import load_settings
-    
+
     settings_obj = load_settings()
-    
+
     assert settings_obj is not None
     assert hasattr(settings_obj, "camera")
     assert hasattr(settings_obj, "yolo_model")
@@ -26,9 +26,9 @@ def test_composition_root_loads_settings():
 def test_composition_root_instantiates_state_manager():
     """Validate StateManager instantiation (no dependencies)."""
     from zebtrack.core.state_manager import StateManager
-    
+
     state_manager = StateManager()
-    
+
     assert state_manager is not None
     assert hasattr(state_manager, "update_project_state")
     assert hasattr(state_manager, "get_project_state")
@@ -37,9 +37,9 @@ def test_composition_root_instantiates_state_manager():
 def test_composition_root_instantiates_event_bus():
     """Validate EventBus instantiation."""
     from zebtrack.ui.event_bus import EventBus
-    
+
     event_bus = EventBus(maxsize=0)
-    
+
     assert event_bus is not None
     assert hasattr(event_bus, "publish")
     assert hasattr(event_bus, "subscribe")
@@ -49,10 +49,10 @@ def test_composition_root_instantiates_project_manager():
     """Validate ProjectManager with settings_obj injection."""
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.settings import load_settings
-    
+
     settings_obj = load_settings()
     project_manager = ProjectManager(settings_obj=settings_obj)
-    
+
     assert project_manager is not None
     assert project_manager.settings is not None
 
@@ -61,10 +61,10 @@ def test_composition_root_instantiates_weight_manager():
     """Validate WeightManager with settings_obj injection."""
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import load_settings
-    
+
     settings_obj = load_settings()
     weight_manager = WeightManager(settings_obj=settings_obj)
-    
+
     assert weight_manager is not None
     assert weight_manager.settings is not None
 
@@ -77,13 +77,13 @@ def test_composition_root_instantiates_detector_service():
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.model_service import ModelService
     from zebtrack.settings import load_settings
-    
+
     settings_obj = load_settings()
     state_manager = StateManager()
     project_manager = ProjectManager(settings_obj=settings_obj)
     weight_manager = WeightManager(settings_obj=settings_obj)
     model_service = ModelService(weight_manager=weight_manager)
-    
+
     detector_service = DetectorService(
         settings_obj=settings_obj,
         weight_manager=weight_manager,
@@ -91,7 +91,7 @@ def test_composition_root_instantiates_detector_service():
         project_manager=project_manager,
         model_service=model_service
     )
-    
+
     assert detector_service is not None
     assert detector_service.settings is not None
 
@@ -100,7 +100,7 @@ def test_composition_root_instantiates_detector_service():
 def test_full_composition_root_assembly(tmp_path):
     """
     Integration test: Validate core services can be instantiated.
-    
+
     This test validates that the main services required by the application
     can be instantiated with proper dependency injection. Full MainViewModel
     assembly is tested separately in integration tests.
@@ -111,19 +111,19 @@ def test_full_composition_root_assembly(tmp_path):
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.analysis.analysis_service import AnalysisService
-    
+
     # 1. Load settings
     settings_obj = load_settings()
-    
+
     # 2. Instantiate core services (no dependencies)
     state_manager = StateManager()
     event_bus = EventBus(maxsize=0)
-    
+
     # 3. Instantiate domain services (with settings_obj)
     project_manager = ProjectManager(settings_obj=settings_obj)
     weight_manager = WeightManager(settings_obj=settings_obj)
     analysis_service = AnalysisService(settings_obj=settings_obj)
-    
+
     # Assertions
     assert settings_obj is not None
     assert state_manager is not None
@@ -131,7 +131,7 @@ def test_full_composition_root_assembly(tmp_path):
     assert project_manager is not None
     assert weight_manager is not None
     assert analysis_service is not None
-    
+
     # Verify services have settings injected
     assert project_manager.settings is not None
     assert weight_manager.settings is not None
@@ -141,7 +141,7 @@ def test_full_composition_root_assembly(tmp_path):
 def test_no_singleton_settings_import():
     """
     Validate that the singleton 'settings' is deprecated.
-    
+
     This test ensures that importing 'from zebtrack.settings import settings'
     is not used anywhere in the core service layer.
     """
@@ -149,10 +149,10 @@ def test_no_singleton_settings_import():
     # the other tests above (because settings won't be overridden).
     # Here we just document the expectation.
     from zebtrack.settings import Settings
-    
+
     # Settings class exists for type hinting
     assert Settings is not None
-    
+
     # But singleton 'settings' should not be used
     # (If it were, the test_full_composition_root_assembly would fail
     # because tmp_path override wouldn't work)
@@ -165,23 +165,23 @@ def test_no_singleton_settings_import():
 def test_service_accepts_settings_obj(service_class):
     """
     Parameterized test: Verify that services accept settings_obj.
-    
+
     This test ensures that services can be instantiated with settings_obj
     parameter via dependency injection.
     """
     from zebtrack.settings import load_settings
-    
+
     # Import the class dynamically
     module_name, class_name = service_class.rsplit(".", 1)
     module = __import__(module_name, fromlist=[class_name])
     ServiceClass = getattr(module, class_name)
-    
+
     # Load settings
     settings_obj = load_settings()
-    
+
     # Instantiate with settings_obj
     service = ServiceClass(settings_obj=settings_obj)
-    
+
     # Verify settings were injected
     assert service is not None
     assert hasattr(service, "settings")

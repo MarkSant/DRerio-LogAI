@@ -112,7 +112,7 @@ def video_processing_service(
 ):
     """Create VideoProcessingService with mocked dependencies."""
     from zebtrack.core.video_processing_service import VideoProcessingService
-    
+
     service = VideoProcessingService(
         detector=mock_detector,
         recorder=mock_recorder,
@@ -158,7 +158,7 @@ def test_service_with_null_detector_allowed(
 ):
     """Test that service can be instantiated with None detector (lazy initialization)."""
     from zebtrack.core.video_processing_service import VideoProcessingService
-    
+
     service = VideoProcessingService(
         detector=None,  # Lazy initialization pattern
         recorder=mock_recorder,
@@ -171,7 +171,7 @@ def test_service_with_null_detector_allowed(
         cancel_event=cancel_event,
         settings_obj=mock_settings
     )
-    
+
     assert service is not None
     assert service.detector is None  # Allowed for lazy initialization
 
@@ -183,7 +183,7 @@ def test_service_state_manager_integration(video_processing_service, mock_state_
         processing_status="running",
         current_video="test.mp4"
     )
-    
+
     # Assert
     mock_state_manager.update_state.assert_called_with(
         processing_status="running",
@@ -198,7 +198,7 @@ def test_service_event_bus_integration(video_processing_service, mock_event_bus)
         "processing.started",
         data={"video": "test.mp4"}
     )
-    
+
     # Assert
     mock_event_bus.emit.assert_called_with(
         "processing.started",
@@ -210,10 +210,10 @@ def test_service_cancel_event_integration(video_processing_service, cancel_event
     """Test that service respects cancel_event."""
     # Arrange
     assert not cancel_event.is_set()
-    
+
     # Act: Set cancel event
     cancel_event.set()
-    
+
     # Assert: Service should detect cancellation
     assert video_processing_service.cancel_event.is_set()
 
@@ -243,10 +243,10 @@ def test_service_detector_detection_call(video_processing_service, mock_detector
     """Test that service can call detector.detect()."""
     # Arrange
     fake_frame = Mock()
-    
+
     # Act
     detections = video_processing_service.detector.detect(fake_frame)
-    
+
     # Assert
     mock_detector.detect.assert_called_once_with(fake_frame)
     assert len(detections) == 1
@@ -261,14 +261,14 @@ def test_service_recorder_write_call(video_processing_service, mock_recorder):
         "confidence": 0.95,
         "track_id": 1
     }
-    
+
     # Act
     video_processing_service.recorder.write_detection(
         frame_number=1,
         timestamp=0.033,
         detection=detection
     )
-    
+
     # Assert
     mock_recorder.write_detection.assert_called_once()
 
@@ -277,7 +277,7 @@ def test_service_ui_coordinator_integration(video_processing_service, mock_ui_co
     """Test that service can schedule UI updates via UICoordinator."""
     # Act: Simulate UI update
     video_processing_service.ui_coordinator.schedule_update(lambda: None)
-    
+
     # Assert
     mock_ui_coordinator.schedule_update.assert_called_once()
 
@@ -286,7 +286,7 @@ def test_service_project_manager_integration(video_processing_service, mock_proj
     """Test that service can access project data."""
     # Act
     project_data = video_processing_service.project_manager.get_project_data()
-    
+
     # Assert
     mock_project_manager.get_project_data.assert_called_once()
     assert "videos" in project_data

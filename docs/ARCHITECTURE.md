@@ -16,7 +16,7 @@ Este documento descreve a arquitetura técnica do **DRerio LogAI** (pacote inter
 
 ### Arquitetura Geral: MVVM-S com Injeção de Dependência
 
-A aplicação agora segue um padrão **MVVM-S** (Model-View-ViewModel-Service) com **Injeção de Dependência (DI)** completa. O `__main__.py` atua como o **Composition Root**, instanciando todos os serviços (`StateManager`, `DetectorService`, `VideoProcessingService`, `ProjectManager`, `Settings`, etc.) e injetando-os no `MainViewModel`. 
+A aplicação agora segue um padrão **MVVM-S** (Model-View-ViewModel-Service) com **Injeção de Dependência (DI)** completa. O `__main__.py` atua como o **Composition Root**, instanciando todos os serviços (`StateManager`, `DetectorService`, `VideoProcessingService`, `ProjectManager`, `Settings`, etc.) e injetando-os no `MainViewModel`.
 
 A `ApplicationGUI` (View) é desacoplada e se comunica com o `MainViewModel` exclusivamente via `EventBus`, seguindo um **fluxo de dados unidirecional**. O `StateManager` é a **fonte única da verdade** para o estado do núcleo da aplicação.
 
@@ -52,12 +52,12 @@ graph TB
         EventBus[UI EventBus<br/>- Decoupled events]
         WizardDialog[🧙 WizardDialog]
     end
-    
+
     subgraph ViewModel["ViewModel Layer"]
         Controller[MainViewModel<br/>- Orquestra operações<br/>- Ouve o EventBus<br/>- Atualiza o StateManager]
         StateManager[🆕 StateManager<br/>- Estado centralizado<br/>- Padrão Observable<br/>- Thread-safe]
     end
-    
+
     subgraph Model["Model Layer (Services & Domain)"]
         ProjectService[ProjectService<br/>- Project I/O]
         AnalysisService[AnalysisService<br/>- Orquestra análise]
@@ -65,12 +65,12 @@ graph TB
         Detector[Detector<br/>- Abstração de IA]
         Recorder[Recorder<br/>- Escrita Parquet]
     end
-    
+
     subgraph Infrastructure["Infrastructure"]
         Storage[(Filesystem)]
         DetectorPlugins[Plugins<br/>YOLO/OpenVINO]
     end
-    
+
     %% Comunicação Orientada a Eventos e Estado
     Comp1 -->|Emite eventos| EventBus
     Comp2 -->|Emite eventos| EventBus
@@ -79,10 +79,10 @@ graph TB
     StateManager -.->|Notifica observers| AppGUI
     AppGUI -.->|Atualiza estado dos| Comp1
     AppGUI -.->|Atualiza estado dos| Comp2
-    
+
     %% Fluxo do Wizard
     WizardDialog -->|Dados via Adapter| Controller
-    
+
     %% ViewModel → Model
     Controller -->|Coordena| ProjectService
     Controller -->|Coordena| AnalysisService
@@ -90,7 +90,7 @@ graph TB
     Controller -->|Gerencia| ProjectManager
     Controller -->|Controla| Detector
     Controller -->|Controla| Recorder
-    
+
     %% Model → Infrastructure
     ProjectService --> Storage
     Recorder --> Storage
@@ -379,9 +379,9 @@ sequenceDiagram
     Note over UI,App: O usuário clica no botão "Start Recording"
     UI->>EV: publish("recording.start_requested")
     EV->>VM: notify_subscriber("recording.start_requested")
-    
+
     VM->>SM: update_recording_state(is_recording=True)
-    
+
     SM-->>App: Notify observer: _on_recording_state_changed
     App->>App: Atualiza UI via root.after() (ex: desabilita botão "Start")
 ```
@@ -397,19 +397,19 @@ graph LR
         StateManager[StateManager]
         GUI[UI Components]
     end
-    
+
     subgraph "Worker Thread"
         ProcessingLoop[Processing Loop<br/>- Detecção de objetos<br/>- Escrita de Parquet]
         AnalysisTask[Analysis Task<br/>- Cálculo de métricas]
     end
-    
+
     Controller --o|spawn thread| ProcessingLoop
     ProcessingLoop -->>|update_state| StateManager
     StateManager -.->|notify observers| GUI
     GUI -->>|root.after()| GUI
     ProcessingLoop --> AnalysisTask
     AnalysisTask -->>|final_update| StateManager
-    
+
     style ProcessingLoop fill:#FFB6C1
     style AnalysisTask fill:#FFB6C1
 ```
