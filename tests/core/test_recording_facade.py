@@ -4,8 +4,7 @@ Unit tests for RecordingFacade.
 Tests the facade pattern for recording operations, ensuring proper
 coordination between Recorder, StateManager, and EventBus.
 """
-from pathlib import Path
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -76,10 +75,14 @@ class TestRecordingFacadeStartRecording:
         video_path = tmp_path / "test_video.mp4"
         video_path.touch()
         output_dir = tmp_path / "output"
+        mock_zones = Mock()
 
         result = recording_facade.start_recording(
             video_path=video_path,
             output_dir=output_dir,
+            frame_width=1920,
+            frame_height=1080,
+            zones=mock_zones,
             fps=30.0,
             record_video=True,
         )
@@ -92,10 +95,14 @@ class TestRecordingFacadeStartRecording:
         """Test start_recording when video file doesn't exist."""
         video_path = tmp_path / "nonexistent.mp4"
         output_dir = tmp_path / "output"
+        mock_zones = Mock()
 
         result = recording_facade.start_recording(
             video_path=video_path,
             output_dir=output_dir,
+            frame_width=1920,
+            frame_height=1080,
+            zones=mock_zones,
         )
 
         assert result is False
@@ -107,8 +114,15 @@ class TestRecordingFacadeStartRecording:
         video_path = tmp_path / "test_video.mp4"
         video_path.touch()
         output_dir = tmp_path / "output"
+        mock_zones = Mock()
 
-        recording_facade.start_recording(video_path=video_path, output_dir=output_dir)
+        recording_facade.start_recording(
+            video_path=video_path,
+            output_dir=output_dir,
+            frame_width=1920,
+            frame_height=1080,
+            zones=mock_zones,
+        )
 
         mock_state_manager.update_recording_state.assert_called_once()
         call_kwargs = mock_state_manager.update_recording_state.call_args[1]
@@ -120,8 +134,15 @@ class TestRecordingFacadeStartRecording:
         video_path = tmp_path / "test_video.mp4"
         video_path.touch()
         output_dir = tmp_path / "output"
+        mock_zones = Mock()
 
-        recording_facade.start_recording(video_path=video_path, output_dir=output_dir)
+        recording_facade.start_recording(
+            video_path=video_path,
+            output_dir=output_dir,
+            frame_width=1920,
+            frame_height=1080,
+            zones=mock_zones,
+        )
 
         mock_event_bus.publish_event.assert_called_once()
         call_args = mock_event_bus.publish_event.call_args
@@ -134,11 +155,18 @@ class TestRecordingFacadeStartRecording:
         video_path = tmp_path / "test_video.mp4"
         video_path.touch()
         output_dir = tmp_path / "output"
+        mock_zones = Mock()
 
         # Make recorder raise an exception
         mock_recorder.start_recording.side_effect = RuntimeError("Test error")
 
-        result = recording_facade.start_recording(video_path=video_path, output_dir=output_dir)
+        result = recording_facade.start_recording(
+            video_path=video_path,
+            output_dir=output_dir,
+            frame_width=1920,
+            frame_height=1080,
+            zones=mock_zones,
+        )
 
         assert result is False
 
@@ -181,7 +209,9 @@ class TestRecordingFacadeStopRecording:
         call_kwargs = mock_state_manager.update_recording_state.call_args[1]
         assert call_kwargs["is_recording"] is False
 
-    def test_stop_recording_publishes_event(self, recording_facade, mock_event_bus, mock_state_manager):
+    def test_stop_recording_publishes_event(
+        self, recording_facade, mock_event_bus, mock_state_manager
+    ):
         """Test that stop_recording publishes event via EventBus."""
         # Set state to recording
         recording_state = Mock()
@@ -192,7 +222,9 @@ class TestRecordingFacadeStopRecording:
 
         mock_event_bus.publish_event.assert_called_once_with("recording.stopped")
 
-    def test_stop_recording_handles_exception(self, recording_facade, mock_state_manager, mock_recorder):
+    def test_stop_recording_handles_exception(
+        self, recording_facade, mock_state_manager, mock_recorder
+    ):
         """Test stop_recording handles exceptions gracefully."""
         # Set state to recording
         recording_state = Mock()

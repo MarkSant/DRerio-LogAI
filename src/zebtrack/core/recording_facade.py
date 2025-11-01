@@ -22,7 +22,7 @@ log = structlog.get_logger()
 
 
 class RecordingFacade:
-    """Facade para operações de gravação."""
+    """Facade for recording operations."""
 
     def __init__(
         self,
@@ -48,8 +48,13 @@ class RecordingFacade:
         self,
         video_path: Path,
         output_dir: Path,
+        frame_width: int,
+        frame_height: int,
+        zones,
         fps: float = 30.0,
-        record_video: bool = False,
+        record_video: bool = True,
+        pixel_per_cm_ratio: float | None = None,
+        calibration=None,
     ) -> bool:
         """
         Start recording session.
@@ -57,8 +62,13 @@ class RecordingFacade:
         Args:
             video_path: Path to input video
             output_dir: Directory for output files
+            frame_width: Width of video frames
+            frame_height: Height of video frames
+            zones: Zone definitions (ZoneData)
             fps: Frames per second
-            record_video: Whether to record overlay video
+            record_video: Whether to record overlay video (controls is_video_file parameter)
+            pixel_per_cm_ratio: Optional pixel to cm conversion ratio
+            calibration: Optional calibration data
 
         Returns:
             True if started successfully, False otherwise
@@ -74,13 +84,13 @@ class RecordingFacade:
             # Start recorder
             self.recorder.start_recording(
                 output_folder=str(output_dir),
-                frame_width=1920,  # Default values, should be provided by caller
-                frame_height=1080,
-                zones=None,  # Zones should be provided by caller
-                is_video_file=True,
-                pixel_per_cm_ratio=None,
+                frame_width=frame_width,
+                frame_height=frame_height,
+                zones=zones,
+                is_video_file=not record_video,  # is_video_file=True means no video recording
+                pixel_per_cm_ratio=pixel_per_cm_ratio,
                 base_name=video_path.stem,
-                calibration=None,
+                calibration=calibration,
             )
 
             # Update state

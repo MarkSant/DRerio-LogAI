@@ -22,7 +22,7 @@ log = structlog.get_logger()
 
 
 class ZoneManagementFacade:
-    """Facade para gerenciamento de zonas."""
+    """Facade for zone management."""
 
     def __init__(
         self,

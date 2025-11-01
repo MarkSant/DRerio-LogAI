@@ -4,8 +4,7 @@ Unit tests for ZoneManagementFacade.
 Tests the facade pattern for zone and ROI management operations,
 ensuring proper coordination with ProjectManager and StateManager.
 """
-from pathlib import Path
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
 

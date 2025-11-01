@@ -21,7 +21,7 @@ log = structlog.get_logger()
 
 
 class ArduinoFacade:
-    """Facade para operações Arduino."""
+    """Facade for Arduino operations."""
 
     def __init__(
         self,
