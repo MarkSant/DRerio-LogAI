@@ -414,11 +414,16 @@ class TestDetectorPropertyAccess:
         assert main_view_model.detector_service.detector is None
 
     def test_detector_initialized_property(self, main_view_model):
-        """Test detector_initialized property."""
-        main_view_model.detector_service.detector = None
+        """Test detector_initialized property delegates to StateManager."""
+        # Mock state_manager.get_detector_state() to return detector_initialized = False
+        mock_detector_state = Mock()
+        mock_detector_state.detector_initialized = False
+        main_view_model.state_manager.get_detector_state = Mock(return_value=mock_detector_state)
+
         assert main_view_model.detector_initialized is False
 
-        main_view_model.detector_service.detector = Mock()
+        # Mock state_manager.get_detector_state() to return detector_initialized = True
+        mock_detector_state.detector_initialized = True
         assert main_view_model.detector_initialized is True
 
 

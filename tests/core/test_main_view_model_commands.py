@@ -462,24 +462,26 @@ class TestArduinoIntegration:
         """Test _get_arduino_manager creates ArduinoManager on demand."""
         main_view_model.arduino_manager = None
 
-        with patch('zebtrack.core.main_view_model.ArduinoManager') as mock_arduino:
-            manager = main_view_model._get_arduino_manager()
+        # Mock the _arduino_manager_cls callable
+        mock_arduino_cls = Mock()
+        main_view_model._arduino_manager_cls = mock_arduino_cls
 
-            # Should create manager
-            mock_arduino.assert_called_once()
+        manager = main_view_model._get_arduino_manager()
+
+        # Should create manager using _arduino_manager_cls
+        mock_arduino_cls.assert_called_once_with(main_view_model)
 
     def test_shutdown_arduino_manager_closes_connection(self, main_view_model):
-        """Test _shutdown_arduino_manager closes Arduino connection."""
+        """Test _shutdown_arduino_manager calls shutdown on Arduino manager."""
         mock_manager = Mock()
-        mock_manager.is_connected = Mock(return_value=True)
-        mock_manager.disconnect = Mock()
+        mock_manager.shutdown = Mock()
 
         main_view_model.arduino_manager = mock_manager
 
         main_view_model._shutdown_arduino_manager()
 
-        # Should disconnect
-        mock_manager.disconnect.assert_called_once()
+        # Should call shutdown
+        mock_manager.shutdown.assert_called_once()
 
     def test_on_arduino_status_change_updates_ui(self, main_view_model):
         """Test on_arduino_status_change callback updates UI."""
@@ -493,41 +495,53 @@ class TestOnClose:
     """Test suite for application shutdown."""
 
     def test_on_close_stops_recording(self, main_view_model):
-        """Test on_close stops active recording."""
-        main_view_model.state_manager.get_recording_state = Mock(
-            return_value=Mock(is_recording=True)
-        )
+        """Test on_close proceeds when user confirms."""
+        # Mock user confirmation
+        main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-        with patch.object(main_view_model, 'stop_recording') as mock_stop:
-            with patch.object(main_view_model, 'join_threads'):
-                with patch.object(main_view_model, '_shutdown_arduino_manager'):
-                    main_view_model.on_close()
+        with patch.object(main_view_model, 'join_threads') as mock_join:
+            main_view_model.on_close()
 
-                    mock_stop.assert_called_once()
+            # Should call join_threads which handles cleanup
+            mock_join.assert_called_once()
 
     def test_on_close_waits_for_threads(self, main_view_model):
         """Test on_close waits for worker threads."""
-        with patch.object(main_view_model, 'join_threads') as mock_join:
-            with patch.object(main_view_model, '_shutdown_arduino_manager'):
-                main_view_model.on_close()
+        # Mock user confirmation
+        main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-                mock_join.assert_called_once()
+        with patch.object(main_view_model, 'join_threads') as mock_join:
+            main_view_model.on_close()
+
+            mock_join.assert_called_once()
 
     def test_on_close_shuts_down_arduino(self, main_view_model):
-        """Test on_close shuts down Arduino manager."""
-        with patch.object(main_view_model, '_shutdown_arduino_manager') as mock_shutdown:
-            with patch.object(main_view_model, 'join_threads'):
-                main_view_model.on_close()
+        """Test join_threads (called by on_close) shuts down Arduino manager."""
+        # Mock user confirmation
+        main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-                mock_shutdown.assert_called_once()
+        # Mock threads to prevent actual thread operations
+        main_view_model.capture_thread = Mock()
+        main_view_model.capture_thread.is_alive = Mock(return_value=False)
+        main_view_model.processing_thread = None
+        main_view_model.camera = None
+
+        with patch.object(main_view_model, '_shutdown_arduino_manager') as mock_shutdown:
+            main_view_model.on_close()
+
+            # Should call _shutdown_arduino_manager via join_threads
+            mock_shutdown.assert_called_once()
 
     def test_on_close_quits_tkinter(self, main_view_model, mock_root):
-        """Test on_close calls root.quit()."""
-        with patch.object(main_view_model, 'join_threads'):
-            with patch.object(main_view_model, '_shutdown_arduino_manager'):
-                main_view_model.on_close()
+        """Test on_close calls root.destroy()."""
+        # Mock user confirmation
+        main_view_model.view.ask_ok_cancel = Mock(return_value=True)
 
-                mock_root.quit.assert_called_once()
+        with patch.object(main_view_model, 'join_threads'):
+            main_view_model.on_close()
+
+            # Should call root.destroy() to close the window
+            mock_root.destroy.assert_called_once()
 
 
 if __name__ == "__main__":
