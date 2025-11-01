@@ -36,16 +36,8 @@ def sample_trajectory_df():
 def sample_rois():
     """Create sample ROI list for testing."""
     return [
-        ROI(
-            name="ROI1",
-            geometry=Polygon([(0, 0), (10, 0), (10, 10), (0, 10)]),
-            coordinate_space="px"
-        ),
-        ROI(
-            name="ROI2",
-            geometry=Polygon([(20, 20), (30, 20), (30, 30), (20, 30)]),
-            coordinate_space="px"
-        ),
+        ROI(name="ROI1", geometry=Polygon([(0, 0), (10, 0), (10, 10), (0, 10)]), coordinate_space="px"),
+        ROI(name="ROI2", geometry=Polygon([(20, 20), (30, 20), (30, 30), (20, 30)]), coordinate_space="px"),
     ]
 
 
@@ -72,6 +64,7 @@ def reporter(sample_trajectory_df, sample_rois):
     )
 
 
+@pytest.mark.unit
 class TestReporterInitialization:
     """Test suite for Reporter initialization."""
 
@@ -111,6 +104,7 @@ class TestReporterInitialization:
         assert reporter.rois == []
 
 
+@pytest.mark.unit
 class TestExportSummaryData:
     """Test suite for export_summary_data method."""
 
@@ -154,6 +148,7 @@ class TestExportSummaryData:
         # Should not raise error
 
 
+@pytest.mark.unit
 class TestGenerateTrajectoryPlot:
     """Test suite for generate_trajectory_plot method."""
 
@@ -210,6 +205,7 @@ class TestGenerateTrajectoryPlot:
         mock_cap.release.assert_called_once()
 
 
+@pytest.mark.unit
 class TestGenerateHeatmap:
     """Test suite for generate_heatmap method."""
 
@@ -237,6 +233,7 @@ class TestGenerateHeatmap:
         mock_ax.get_figure.assert_called_once()
 
 
+@pytest.mark.unit
 class TestGenerateROIReferencePlot:
     """Test suite for generate_roi_reference_plot method."""
 
@@ -271,6 +268,7 @@ class TestGenerateROIReferencePlot:
             fig = reporter.generate_roi_reference_plot()
 
 
+@pytest.mark.unit
 class TestGenerateAngularVelocityPlot:
     """Test suite for generate_angular_velocity_plot method."""
 
@@ -288,6 +286,7 @@ class TestGenerateAngularVelocityPlot:
         mock_figure.assert_called_once()
 
 
+@pytest.mark.unit
 class TestGeneratePositionVsTimePlot:
     """Test suite for generate_position_vs_time_plot method."""
 
@@ -305,6 +304,7 @@ class TestGeneratePositionVsTimePlot:
         mock_figure.assert_called_once()
 
 
+@pytest.mark.unit
 class TestGenerateCumulativeDistancePlot:
     """Test suite for generate_cumulative_distance_plot method."""
 
@@ -322,6 +322,7 @@ class TestGenerateCumulativeDistancePlot:
         mock_figure.assert_called_once()
 
 
+@pytest.mark.unit
 class TestExportIndividualReport:
     """Test suite for export_individual_report_step_by_step method."""
 
@@ -379,6 +380,7 @@ class TestExportIndividualReport:
                     assert "Plot generation failed" in str(e)
 
 
+@pytest.mark.unit
 class TestDataValidation:
     """Test suite for data validation methods."""
 
@@ -413,6 +415,7 @@ class TestDataValidation:
         assert reporter is not None
 
 
+@pytest.mark.unit
 class TestEdgeCases:
     """Test suite for edge cases."""
 
@@ -454,6 +457,7 @@ class TestEdgeCases:
         # Should handle Unicode gracefully
         assert "ção" in reporter.metadata["experiment_id"]
 
+    @pytest.mark.slow
     def test_very_large_trajectory(self):
         """Test Reporter with large trajectory DataFrame."""
         large_df = pd.DataFrame({
