@@ -25,8 +25,8 @@ class ArduinoFacade:
 
     def __init__(
         self,
-        arduino_manager: "ArduinoManager",
-        state_manager: "StateManager",
+        arduino_manager: ArduinoManager,
+        state_manager: StateManager,
     ):
         """
         Initialize ArduinoFacade.

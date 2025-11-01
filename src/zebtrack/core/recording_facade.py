@@ -26,9 +26,9 @@ class RecordingFacade:
 
     def __init__(
         self,
-        recorder: "Recorder",
-        state_manager: "StateManager",
-        event_bus: "EventBus",
+        recorder: Recorder,
+        state_manager: StateManager,
+        event_bus: EventBus,
     ):
         """
         Initialize RecordingFacade.

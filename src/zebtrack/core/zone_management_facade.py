@@ -26,8 +26,8 @@ class ZoneManagementFacade:
 
     def __init__(
         self,
-        project_manager: "ProjectManager",
-        state_manager: "StateManager",
+        project_manager: ProjectManager,
+        state_manager: StateManager,
     ):
         """
         Initialize ZoneManagementFacade.
