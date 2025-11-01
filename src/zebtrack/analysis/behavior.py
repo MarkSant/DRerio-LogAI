@@ -73,7 +73,7 @@ class BehavioralAnalyzer(ABC):
                 moving average smoothing of angular velocities. Must be odd or 1
                 (1 disables smoothing). Defaults to 3.
         """
-        if polyorder >= window_length:
+        if polyorder is not None and window_length is not None and polyorder >= window_length:
             raise ValueError("polyorder must be less than window_length.")
 
         self._pixelcm_x = pixelcm_x
@@ -116,6 +116,10 @@ class BehavioralAnalyzer(ABC):
         polyorder: int,
     ) -> pd.DataFrame:
         """Performs data conversion, cleaning, and smoothing."""
+        if df.empty:
+            raise ValueError(
+                "Input DataFrame is empty. Cannot perform behavioral analysis on empty trajectory data."
+            )
         if "timestamp" not in df.columns:
             raise ValueError(
                 "Input DataFrame must include a 'timestamp' column for proper temporal analysis."

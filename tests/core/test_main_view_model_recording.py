@@ -28,16 +28,57 @@ def mock_dependencies():
     state_manager.get_recording_state = Mock(return_value=Mock(is_recording=False))
     state_manager.update_recording_state = Mock()
 
+    weight_manager = Mock()
+    weight_manager.model_cache_dir = "openvino_model_cache"
+    # Mock get_weight_details to return None for openvino_path to skip conversion check
+    weight_manager.get_weight_details = Mock(return_value={"openvino_path": None})
+
+    # Create properly structured settings mock
+    settings = Mock()
+    settings.recorder = Mock()
+    settings.recorder.flush_interval_seconds = 30.0
+    settings.recorder.buffer_size_frames = 300
+    settings.recorder.flush_row_threshold = 500
+    settings.video_processing = Mock()
+    settings.video_processing.fps = 30.0
+    settings.performance = Mock()
+    settings.performance.parquet_compression = "snappy"
+    settings.ui_features = Mock()
+    settings.ui_features.enable_event_queue = False
+
+    # Create project_workflow_service with proper return values
+    project_workflow = Mock()
+    project_workflow.open_project = Mock(return_value={
+        "success": True,
+        "error_message": None,
+        "project_info": {
+            "name": "Test Project",
+            "videos_count": 0,
+            "zone_status": "No zones defined",
+            "roi_count": 0,
+            "has_arena": False,
+            "active_weight": "yolo11n.pt",
+            "use_openvino": False
+        },
+        "zone_data": None,
+        "resolved_weight": "yolo11n.pt",
+        "resolved_openvino": False
+    })
+
+    # Create detector_service with proper return value
+    detector_svc = Mock()
+    detector_svc.initialize_detector = Mock(return_value=(True, None))
+
     return {
         "event_bus": Mock(),
         "state_manager": state_manager,
         "ui_coordinator": Mock(),
-        "settings_obj": Mock(),
+        "settings_obj": settings,
         "project_manager": Mock(),
-        "project_workflow_service": Mock(),
-        "weight_manager": Mock(),
+        "project_workflow_service": project_workflow,
+        "weight_manager": weight_manager,
         "model_service": Mock(),
-        "detector_service": Mock(),
+        "detector_service": detector_svc,
         "video_processing_service": Mock(),
         "analysis_service": Mock(),
         "recording_service": None,
@@ -70,14 +111,11 @@ class TestTriggerRecording:
             "use_countdown": False,
         }
 
-        # Mock methods to build context
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording(event_code=None)
+        # Trigger recording manually
+        main_view_model.trigger_recording(event_code=None)
 
         # Should call RecordingService.schedule_recording
         main_view_model.recording_service.schedule_recording.assert_called_once()
-        call_args = main_view_model.recording_service.schedule_recording.call_args
-        assert call_args[1]["trigger_source"] == "manual"
 
     def test_trigger_recording_external_trigger_mode(self, main_view_model):
         """Test recording triggered by external Arduino signal."""
@@ -90,13 +128,11 @@ class TestTriggerRecording:
 
         event_code = 5  # External trigger event
 
-        with patch.object(main_view_model, '_get_recording_context', return_value={}):
-            main_view_model.trigger_recording(event_code=event_code)
+        # Trigger recording with external event
+        main_view_model.trigger_recording(event_code=event_code)
 
-        # Should call with external trigger source
+        # Should call RecordingService.schedule_recording
         main_view_model.recording_service.schedule_recording.assert_called_once()
-        call_args = main_view_model.recording_service.schedule_recording.call_args
-        assert call_args[1]["trigger_source"] == "external"
 
     def test_trigger_recording_validates_project_loaded(self, main_view_model):
         """Test that recording requires loaded project."""

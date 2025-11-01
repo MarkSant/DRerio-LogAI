@@ -12,6 +12,33 @@ import sys
 import logging
 
 
+def create_mock_settings():
+    """Create a properly structured mock settings object for testing."""
+    mock_settings = Mock()
+    mock_settings.camera = Mock(index=0)
+    mock_settings.yolo_model = Mock(path="yolo11n.pt")
+    mock_settings.reproducibility = None
+    
+    # Configure logging settings to be iterable
+    mock_settings.logging = Mock()
+    mock_settings.logging.levels = {
+        "zebtrack": "INFO",
+        "zebtrack.core.detector": "INFO",
+        "zebtrack.ui": "WARNING",
+    }
+    
+    # Configure recorder settings with proper types
+    mock_settings.recorder = Mock()
+    mock_settings.recorder.flush_interval_seconds = 30.0
+    mock_settings.recorder.buffer_size_frames = 300
+    
+    # Configure UI features
+    mock_settings.ui_features = Mock()
+    mock_settings.ui_features.enable_event_queue = False
+    
+    return mock_settings
+
+
 class TestLoggingConfiguration:
     """Test suite for configure_logging function."""
 
@@ -83,18 +110,15 @@ class TestMainFunction:
     """Test suite for main() function."""
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_successful_startup(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test successful application startup."""
         from zebtrack.__main__ import main
 
-        # Mock settings
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        # Mock settings with proper structure
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         # Mock Tkinter
@@ -113,8 +137,8 @@ class TestMainFunction:
             # Test verifies initialization completes
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
     @patch('zebtrack.__main__.messagebox.showerror')
     def test_main_handles_missing_config_file(self, mock_msgbox, mock_tk, mock_settings, mock_config_logging):
         """Test handling of missing config.yaml."""
@@ -138,8 +162,8 @@ class TestMainFunction:
         assert "Configuration File Not Found" in call_args[0]
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
     @patch('zebtrack.__main__.messagebox.showerror')
     def test_main_handles_invalid_yaml_syntax(self, mock_msgbox, mock_tk, mock_settings, mock_config_logging):
         """Test handling of YAML syntax errors."""
@@ -163,8 +187,8 @@ class TestMainFunction:
         assert "Configuration Validation Error" in call_args[0]
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
     @patch('zebtrack.__main__.messagebox.showerror')
     def test_main_handles_validation_errors(self, mock_msgbox, mock_tk, mock_settings, mock_config_logging):
         """Test handling of Pydantic validation errors."""
@@ -186,8 +210,8 @@ class TestMainFunction:
         mock_msgbox.assert_called_once()
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.set_seed')
+    @patch('zebtrack.settings.load_settings')
+    @patch('zebtrack.utils.set_seed')
     def test_main_sets_reproducibility_seed(self, mock_set_seed, mock_settings, mock_config_logging):
         """Test that reproducibility seed is set when configured."""
         from zebtrack.__main__ import main
@@ -198,8 +222,8 @@ class TestMainFunction:
         mock_settings_obj.reproducibility = Mock(seed=42)
         mock_settings.return_value = mock_settings_obj
 
-        with patch('zebtrack.__main__.tk.Tk'):
-            with patch('zebtrack.__main__.MainViewModel'):
+        with patch('tkinter.Tk'):
+            with patch('zebtrack.core.main_view_model.MainViewModel'):
                 try:
                     main()
                 except:
@@ -209,17 +233,14 @@ class TestMainFunction:
         mock_set_seed.assert_called_once_with(42)
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
     @patch('zebtrack.__main__.logging.getLogger')
     def test_main_applies_cli_log_level_overrides(self, mock_get_logger, mock_tk, mock_settings, mock_config_logging):
         """Test CLI --log-level overrides."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         # Mock specific logger
@@ -228,7 +249,7 @@ class TestMainFunction:
 
         # Simulate CLI argument
         with patch('sys.argv', ['zebtrack', '--log-level', 'zebtrack.core.detector=DEBUG']):
-            with patch('zebtrack.__main__.MainViewModel'):
+            with patch('zebtrack.core.main_view_model.MainViewModel'):
                 try:
                     main()
                 except:
@@ -238,22 +259,19 @@ class TestMainFunction:
         # (actual call depends on implementation details)
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
+    @patch('zebtrack.settings.load_settings')
     @patch('zebtrack.__main__.logging.getLogger')
     def test_main_ignores_invalid_log_level_format(self, mock_get_logger, mock_settings, mock_config_logging):
         """Test that invalid --log-level format is ignored."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         # Invalid format (missing '=')
         with patch('sys.argv', ['zebtrack', '--log-level', 'invalid_format']):
-            with patch('zebtrack.__main__.tk.Tk'):
-                with patch('zebtrack.__main__.MainViewModel'):
+            with patch('tkinter.Tk'):
+                with patch('zebtrack.core.main_view_model.MainViewModel'):
                     try:
                         main()
                     except:
@@ -262,17 +280,14 @@ class TestMainFunction:
         # Should not crash, just ignore invalid format
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_creates_all_services(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test that all required services are instantiated."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         mock_root = Mock()
@@ -280,10 +295,10 @@ class TestMainFunction:
 
         with patch('sys.argv', ['zebtrack']):
             # Mock all service imports
-            with patch('zebtrack.__main__.StateManager') as mock_state:
-                with patch('zebtrack.__main__.EventBus') as mock_eventbus:
+            with patch('zebtrack.core.state_manager.StateManager') as mock_state:
+                with patch('zebtrack.ui.event_bus.EventBus') as mock_eventbus:
                     with patch('zebtrack.__main__.ProjectManager') as mock_pm:
-                        with patch('zebtrack.__main__.WeightManager') as mock_wm:
+                        with patch('zebtrack.core.weight_manager.WeightManager') as mock_wm:
                             try:
                                 main()
                             except:
@@ -294,17 +309,14 @@ class TestMainFunction:
                             mock_eventbus.assert_called_once()
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_calls_bind_events(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test that controller.bind_events() is called."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         mock_controller_instance = Mock()
@@ -320,17 +332,14 @@ class TestMainFunction:
         mock_controller_instance.bind_events.assert_called_once()
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_calls_controller_run(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test that controller.run() is called."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         mock_controller_instance = Mock()
@@ -350,22 +359,19 @@ class TestDependencyInjection:
     """Test suite for dependency injection in main()."""
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_injects_settings_to_services(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test that settings_obj is injected to all services."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         with patch('sys.argv', ['zebtrack']):
             with patch('zebtrack.__main__.ProjectManager') as mock_pm:
-                with patch('zebtrack.__main__.WeightManager') as mock_wm:
+                with patch('zebtrack.core.weight_manager.WeightManager') as mock_wm:
                     try:
                         main()
                     except:
@@ -377,17 +383,14 @@ class TestDependencyInjection:
                         assert "settings_obj" in str(call_args)
 
     @patch('zebtrack.__main__.configure_logging')
-    @patch('zebtrack.__main__.load_settings')
-    @patch('zebtrack.__main__.tk.Tk')
-    @patch('zebtrack.__main__.MainViewModel')
+    @patch('zebtrack.settings.load_settings')
+    @patch('tkinter.Tk')
+    @patch('zebtrack.core.main_view_model.MainViewModel')
     def test_main_passes_detector_none_initially(self, mock_controller, mock_tk, mock_settings, mock_config_logging):
         """Test that VideoProcessingService receives detector=None initially."""
         from zebtrack.__main__ import main
 
-        mock_settings_obj = Mock()
-        mock_settings_obj.camera = Mock(index=0)
-        mock_settings_obj.yolo_model = Mock(path="yolo11n.pt")
-        mock_settings_obj.reproducibility = None
+        mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
         with patch('sys.argv', ['zebtrack']):

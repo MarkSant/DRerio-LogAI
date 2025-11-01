@@ -26,8 +26,17 @@ def mock_settings():
     settings.video_processing.freezing_velocity_threshold = 1.5
     settings.video_processing.freezing_min_duration_s = 1.0
     settings.trajectory_smoothing = Mock()
-    settings.trajectory_smoothing.window_length = None
-    settings.trajectory_smoothing.polyorder = None
+    settings.trajectory_smoothing.window_length = 7  # Default from settings schema
+    settings.trajectory_smoothing.polyorder = 3  # Default from settings schema
+    # Angular velocity settings
+    settings.angular_velocity = Mock()
+    settings.angular_velocity.min_displacement_threshold_cm = 0.5
+    settings.angular_velocity.angle_calculation_window = 1
+    settings.angular_velocity.angular_velocity_smoothing_window = 3
+    # ROI inclusion settings
+    settings.roi_inclusion_rule = "bbox_intersects"
+    settings.roi_buffer_radius_value = 0.5
+    settings.roi_min_bbox_overlap_ratio = 0.10
     return settings
 
 
@@ -131,8 +140,8 @@ class TestReporterParquetIntegration:
         assert isinstance(df_read, pd.DataFrame), "Should read as DataFrame"
         assert len(df_read) > 0, "DataFrame should contain data"
 
-        # Validate required columns exist
-        expected_columns = {"experiment_id", "total_distance_cm", "average_velocity_cm_s"}
+        # Validate required columns exist (using actual column names from COLUMN_MAPPING)
+        expected_columns = {"experiment_id", "total_distance_cm", "mean_speed_cm_s"}
         actual_columns = set(df_read.columns)
         assert expected_columns.issubset(actual_columns), f"Missing columns: {expected_columns - actual_columns}"
 
@@ -140,8 +149,8 @@ class TestReporterParquetIntegration:
         if "total_distance_cm" in df_read.columns:
             assert pd.api.types.is_numeric_dtype(df_read["total_distance_cm"]), "Distance should be numeric"
 
-        if "average_velocity_cm_s" in df_read.columns:
-            assert pd.api.types.is_numeric_dtype(df_read["average_velocity_cm_s"]), "Velocity should be numeric"
+        if "mean_speed_cm_s" in df_read.columns:
+            assert pd.api.types.is_numeric_dtype(df_read["mean_speed_cm_s"]), "Velocity should be numeric"
 
         # Validate metadata is preserved
         if "experiment_id" in df_read.columns:
@@ -352,33 +361,28 @@ class TestReporterEdgeCasesIntegration:
             assert any("ção" in str(val) for val in df_reloaded["experiment_id"].values), "Unicode should be preserved"
 
     def test_export_empty_dataframe_to_parquet(self, mock_settings, tmp_path):
-        """Test that empty DataFrames are handled gracefully."""
+        """Test that empty DataFrames raise appropriate error."""
         # Arrange
-        empty_df = pd.DataFrame(columns=["timestamp", "frame", "track_id"])
+        # Empty dataframe must have all required columns for behavioral analysis
+        empty_df = pd.DataFrame(columns=[
+            "timestamp", "frame", "track_id",
+            "x_center_px", "y_center_px",
+            "x1", "y1", "x2", "y2", "confidence"
+        ])
 
-        reporter = Reporter(
-            trajectory_df=empty_df,
-            metadata={"experiment_id": "empty_test"},
-            pixelcm_x=10.0,
-            pixelcm_y=10.0,
-            video_height_px=480,
-            arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
-            rois=[],
-            fps=30.0,
-            settings_obj=mock_settings,
-        )
-
-        output_path = tmp_path / "empty_summary.parquet"
-
-        # Act
-        reporter.export_summary_data(output_path, format="parquet")
-
-        # Assert: File should exist even if empty
-        assert output_path.exists()
-
-        # Validate it can be read back
-        df_reloaded = pd.read_parquet(output_path)
-        assert isinstance(df_reloaded, pd.DataFrame)
+        # Act & Assert: Should raise ValueError for empty dataframe
+        with pytest.raises(ValueError, match="Input DataFrame is empty"):
+            Reporter(
+                trajectory_df=empty_df,
+                metadata={"experiment_id": "empty_test"},
+                pixelcm_x=10.0,
+                pixelcm_y=10.0,
+                video_height_px=480,
+                arena_polygon_px=[(0, 0), (640, 0), (640, 480), (0, 480)],
+                rois=[],
+                fps=30.0,
+                settings_obj=mock_settings,
+            )
 
 
 if __name__ == "__main__":

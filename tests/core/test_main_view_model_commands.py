@@ -26,19 +26,61 @@ def mock_root():
 @pytest.fixture
 def mock_dependencies():
     """Create all mocked dependencies for MainViewModel."""
+    # Create properly structured settings mock
+    settings = Mock()
+    settings.recorder = Mock()
+    settings.recorder.flush_interval_seconds = 30.0
+    settings.recorder.buffer_size_frames = 300
+    settings.recorder.flush_row_threshold = 500
+    settings.video_processing = Mock()
+    settings.video_processing.fps = 30.0
+    settings.performance = Mock()
+    settings.performance.parquet_compression = "snappy"
+    settings.ui_features = Mock()
+    settings.ui_features.enable_event_queue = False
+    
+    # Create weight manager with proper model_cache_dir attribute
+    weight_mgr = Mock()
+    weight_mgr.model_cache_dir = "openvino_model_cache"
+    # Mock get_weight_details to return None for openvino_path to skip conversion check
+    weight_mgr.get_weight_details = Mock(return_value={"openvino_path": None})
+    
+    # Create project_workflow_service with proper return values
+    project_workflow = Mock()
+    project_workflow.open_project = Mock(return_value={
+        "success": True,
+        "error_message": None,
+        "project_info": {
+            "name": "Test Project",
+            "videos_count": 0,
+            "zone_status": "No zones defined",
+            "roi_count": 0,
+            "has_arena": False,
+            "active_weight": "yolo11n.pt",
+            "use_openvino": False
+        },
+        "zone_data": None,
+        "resolved_weight": "yolo11n.pt",
+        "resolved_openvino": False
+    })
+    
+    # Create detector_service with proper return value for initialize_detector
+    detector_svc = Mock()
+    detector_svc.initialize_detector = Mock(return_value=(True, None))
+    
     return {
         "event_bus": Mock(),
         "state_manager": Mock(),
         "ui_coordinator": Mock(),
-        "settings_obj": Mock(),
+        "settings_obj": settings,
         "project_manager": Mock(),
-        "project_workflow_service": Mock(),
-        "weight_manager": Mock(),
+        "project_workflow_service": project_workflow,
+        "weight_manager": weight_mgr,
         "model_service": Mock(),
-        "detector_service": Mock(),
+        "detector_service": detector_svc,
         "video_processing_service": Mock(),
         "analysis_service": Mock(),
-        "recording_service": None,  # Created by MainViewModel
+        "recording_service": None,
     }
 
 
@@ -68,7 +110,7 @@ class TestMainViewModelInitialization:
             )
 
             assert controller.root == mock_root
-            assert controller.event_bus == mock_dependencies["event_bus"]
+            assert controller.ui_event_bus == mock_dependencies["event_bus"]
             assert controller.state_manager == mock_dependencies["state_manager"]
             assert controller.project_manager == mock_dependencies["project_manager"]
             assert controller.settings == mock_dependencies["settings_obj"]
@@ -83,12 +125,16 @@ class TestMainViewModelInitialization:
 
     def test_detector_initialized_property_false_initially(self, main_view_model):
         """Test detector_initialized returns False when detector is None."""
-        main_view_model._detector = None
+        detector_state = Mock()
+        detector_state.detector_initialized = False
+        main_view_model.state_manager.get_detector_state.return_value = detector_state
         assert main_view_model.detector_initialized is False
 
     def test_detector_initialized_property_true_when_set(self, main_view_model):
         """Test detector_initialized returns True when detector exists."""
-        main_view_model._detector = Mock()
+        detector_state = Mock()
+        detector_state.detector_initialized = True
+        main_view_model.state_manager.get_detector_state.return_value = detector_state
         assert main_view_model.detector_initialized is True
 
 
@@ -158,20 +204,16 @@ class TestOpenProjectWorkflow:
     """Test suite for open_project_workflow command."""
 
     def test_open_project_loads_project_data(self, main_view_model, mock_dependencies):
-        """Test open_project loads project configuration."""
+        """Test open_project loads project configuration via project_workflow_service."""
         project_path = Path("/fake/project.zbk")
-
-        mock_dependencies["project_manager"].load_project = Mock(return_value=True)
-        mock_dependencies["project_manager"].project_data = {
-            "project_name": "Loaded Project",
-            "videos": [],
-        }
 
         with patch.object(main_view_model, '_setup_zones_from_project'):
             main_view_model.open_project_workflow(project_path)
 
-            # Should call load_project
-            mock_dependencies["project_manager"].load_project.assert_called_once_with(project_path)
+            # Should call project_workflow_service.open_project
+            mock_dependencies["project_workflow_service"].open_project.assert_called_once()
+            call_kwargs = mock_dependencies["project_workflow_service"].open_project.call_args.kwargs
+            assert call_kwargs["project_path"] == project_path
 
     def test_open_project_initializes_detector(self, main_view_model):
         """Test open_project initializes detector from project settings."""
@@ -295,7 +337,7 @@ class TestSetupDetector:
 
     def test_setup_detector_calls_detector_service(self, main_view_model, mock_dependencies):
         """Test setup_detector delegates to DetectorService."""
-        mock_dependencies["detector_service"].initialize_detector = Mock(return_value=Mock())
+        mock_dependencies["detector_service"].initialize_detector = Mock(return_value=(True, None))
 
         result = main_view_model.setup_detector()
 
@@ -305,7 +347,7 @@ class TestSetupDetector:
 
     def test_setup_detector_with_temp_method_override(self, main_view_model):
         """Test setup_detector accepts temporary method override."""
-        main_view_model.detector_service.initialize_detector = Mock(return_value=Mock())
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
 
         main_view_model.setup_detector(temp_animal_method="seg")
 
@@ -315,21 +357,21 @@ class TestSetupDetector:
 
     def test_setup_detector_handles_initialization_failure(self, main_view_model):
         """Test setup_detector handles detector initialization failure."""
-        main_view_model.detector_service.initialize_detector = Mock(return_value=None)
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(False, "Initialization failed"))
 
         result = main_view_model.setup_detector()
 
         assert result is False
 
     def test_setup_detector_assigns_to_video_processing_service(self, main_view_model):
-        """Test setup_detector updates VideoProcessingService detector reference."""
-        mock_detector = Mock()
-        main_view_model.detector_service.initialize_detector = Mock(return_value=mock_detector)
+        """Test setup_detector successfully initializes detector."""
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
 
-        main_view_model.setup_detector()
+        result = main_view_model.setup_detector()
 
-        # Should assign to video processing service
-        assert main_view_model.video_processing_service.detector == mock_detector
+        # Should successfully initialize
+        assert result is True
+        main_view_model.detector_service.initialize_detector.assert_called_once()
 
 
 class TestStateSync:

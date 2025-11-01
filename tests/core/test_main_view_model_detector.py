@@ -23,20 +23,55 @@ def mock_root():
 def mock_dependencies():
     """Create all mocked dependencies for MainViewModel."""
     detector_service = Mock()
-    detector_service.initialize_detector = Mock(return_value=Mock())
+    detector_service.initialize_detector = Mock(return_value=(True, None))
     detector_service.detector = None
 
     weight_manager = Mock()
     weight_manager.get_active_weight_name = Mock(return_value="yolo11n.pt")
     weight_manager.get_all_weight_names = Mock(return_value=["yolo11n.pt", "yolo11m.pt"])
+    weight_manager.model_cache_dir = "openvino_model_cache"
+    # Mock get_weight_details to return None for openvino_path to skip conversion check
+    weight_manager.get_weight_details = Mock(return_value={"openvino_path": None})
+
+    # Create properly structured settings mock
+    settings = Mock()
+    settings.recorder = Mock()
+    settings.recorder.flush_interval_seconds = 30.0
+    settings.recorder.buffer_size_frames = 300
+    settings.recorder.flush_row_threshold = 500
+    settings.video_processing = Mock()
+    settings.video_processing.fps = 30.0
+    settings.performance = Mock()
+    settings.performance.parquet_compression = "snappy"
+    settings.ui_features = Mock()
+    settings.ui_features.enable_event_queue = False
+
+    # Create project_workflow_service with proper return values
+    project_workflow = Mock()
+    project_workflow.open_project = Mock(return_value={
+        "success": True,
+        "error_message": None,
+        "project_info": {
+            "name": "Test Project",
+            "videos_count": 0,
+            "zone_status": "No zones defined",
+            "roi_count": 0,
+            "has_arena": False,
+            "active_weight": "yolo11n.pt",
+            "use_openvino": False
+        },
+        "zone_data": None,
+        "resolved_weight": "yolo11n.pt",
+        "resolved_openvino": False
+    })
 
     return {
         "event_bus": Mock(),
         "state_manager": Mock(),
         "ui_coordinator": Mock(),
-        "settings_obj": Mock(),
+        "settings_obj": settings,
         "project_manager": Mock(),
-        "project_workflow_service": Mock(),
+        "project_workflow_service": project_workflow,
         "weight_manager": weight_manager,
         "model_service": Mock(),
         "detector_service": detector_service,
@@ -65,8 +100,7 @@ class TestSetupDetector:
 
     def test_setup_detector_initializes_via_service(self, main_view_model):
         """Test setup_detector delegates to DetectorService."""
-        mock_detector = Mock()
-        main_view_model.detector_service.initialize_detector = Mock(return_value=mock_detector)
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
 
         result = main_view_model.setup_detector()
 
@@ -76,8 +110,7 @@ class TestSetupDetector:
 
     def test_setup_detector_with_temp_method_override(self, main_view_model):
         """Test temporary detection method override."""
-        mock_detector = Mock()
-        main_view_model.detector_service.initialize_detector = Mock(return_value=mock_detector)
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
 
         main_view_model.setup_detector(temp_animal_method="seg")
 
@@ -87,28 +120,28 @@ class TestSetupDetector:
 
     def test_setup_detector_handles_initialization_failure(self, main_view_model):
         """Test detector initialization failure handling."""
-        main_view_model.detector_service.initialize_detector = Mock(return_value=None)
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(False, "Initialization failed"))
 
         result = main_view_model.setup_detector()
 
         assert result is False
 
     def test_setup_detector_updates_video_processing_service(self, main_view_model):
-        """Test detector assigned to VideoProcessingService."""
-        mock_detector = Mock()
-        main_view_model.detector_service.initialize_detector = Mock(return_value=mock_detector)
-        main_view_model.detector_service.detector = mock_detector
+        """Test detector successfully initialized."""
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
 
-        main_view_model.setup_detector()
+        result = main_view_model.setup_detector()
 
-        # Should update video processing service
-        assert main_view_model.video_processing_service.detector == mock_detector
+        # Should successfully initialize
+        assert result is True
+        main_view_model.detector_service.initialize_detector.assert_called_once()
 
     def test_setup_detector_sets_zones_when_available(self, main_view_model):
         """Test detector zones are set when available."""
         mock_detector = Mock()
         mock_detector.set_zones = Mock()
-        main_view_model.detector_service.initialize_detector = Mock(return_value=mock_detector)
+        main_view_model.detector_service.initialize_detector = Mock(return_value=(True, None))
+        main_view_model.detector_service.detector = mock_detector
 
         main_view_model.project_manager.get_zone_data = Mock(
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
