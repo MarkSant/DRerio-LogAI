@@ -5,10 +5,3 @@ Main View Model
    :members:
    :undoc-members:
    :show-inheritance:
-
-Classes
--------
-
-.. autoclass:: zebtrack.core.main_view_model.MainViewModel
-   :members:
-   :special-members: __init__

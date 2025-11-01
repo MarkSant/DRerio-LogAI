@@ -833,19 +833,22 @@ class ProjectManager:
         Returns:
             A list of dictionaries, where each dictionary represents a video and
             contains detailed information about existing parquet files.
-            Example: [{
-                'path': 'path/to/video.mp4',
-                'has_arena': True,
-                'has_rois': True,
-                'has_trajectory': True,
-                'has_complete_data': True,
-                'has_data': True,  # Backward compatibility
-                'parquet_files': {
-                    'arena': 'path/to/1_ProcessingArea_video.parquet',
-                    'rois': 'path/to/2_AreasOfInterest_video.parquet',
-                    'trajectory': 'path/to/3_CoordMovimento_video.parquet'
-                }
-            }, ...]
+
+            Example::
+
+                [{
+                    'path': 'path/to/video.mp4',
+                    'has_arena': True,
+                    'has_rois': True,
+                    'has_trajectory': True,
+                    'has_complete_data': True,
+                    'has_data': True,
+                    'parquet_files': {
+                        'arena': 'path/to/1_ProcessingArea_video.parquet',
+                        'rois': 'path/to/2_AreasOfInterest_video.parquet',
+                        'trajectory': 'path/to/3_CoordMovimento_video.parquet'
+                    }
+                }, ...]
         """
         video_files: set[Path] = set()
         video_extensions = {".mp4", ".avi", ".mov"}
@@ -1128,21 +1131,27 @@ class ProjectManager:
         based on the wizard's import configuration.
 
         Args:
-            import_config: List of per-video import configurations from wizard:
-                [
-                    {
-                        "video": str,  # Video path
-                        "import_arena": bool,
-                        "import_rois": bool,
-                        "import_trajectory": bool,
-                        "action": str,  # ImportAction.value
-                    },
-                    ...
-                ]
-            roi_merge_strategy: How to handle ROI conflicts
+            import_config: List of per-video import configurations from wizard.
+
+                Example::
+
+                    [
+                        {
+                            "video": str,
+                            "import_arena": bool,
+                            "import_rois": bool,
+                            "import_trajectory": bool,
+                            "action": str,
+                        },
+                        ...
+                    ]
+
+            roi_merge_strategy: How to handle ROI conflicts:
+
                 - "replace": Replace existing ROIs with imported ones
                 - "merge": Keep both, rename conflicts with "_imported" suffix
                 - "manual": Ask user for each conflict (future implementation)
+
             scanned_videos: List of scanned video info (from wizard) containing
                 parquet file paths. If None, will re-scan paths.
 

@@ -19,7 +19,8 @@ State Categories:
 - Processing State: current operation, progress, thread management
 - UI State: view mode, selected videos, display settings
 
-Quick Start Example:
+Quick Start Example::
+
     # Initialize StateManager
     state_manager = StateManager(enable_history=True)
 
@@ -76,29 +77,30 @@ log = structlog.get_logger().bind(component="state_manager")
 def timeout(seconds: int):
     """
     Context manager for timeout of callbacks.
-    
+
     WARNING: Uses signal.SIGALRM which only works on Unix systems and
     is not thread-safe. On Windows or when in a thread, this gracefully
     degrades to no timeout.
-    
+
     Args:
         seconds: Timeout in seconds
-        
+
     Raises:
         TimeoutError: If the context block exceeds the timeout
     """
     # Check if we can use signal-based timeout
     # SIGALRM only works on Unix and only in the main thread
     can_use_signal = (
-        platform.system() != "Windows" and 
-        hasattr(signal, "SIGALRM") and
-        threading.current_thread() is threading.main_thread()
+        platform.system() != "Windows"
+        and hasattr(signal, "SIGALRM")
+        and threading.current_thread() is threading.main_thread()
     )
-    
+
     if can_use_signal:
+
         def timeout_handler(signum, frame):
             raise TimeoutError("Observer callback exceeded timeout")
-        
+
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(seconds)
         try:
@@ -349,7 +351,8 @@ class ObserverAdapter:
     Allows observing specific categories and/or keys without implementing
     the full BaseStateObserver interface.
 
-    Example:
+    Example::
+
         def handle_recording(category, key, old_value, new_value):
             print(f"Recording changed: {key} = {new_value}")
 
@@ -407,7 +410,8 @@ class StateManager:
     with thread-safe access and change notifications. Components can observe
     specific state categories or individual state keys.
 
-    Example Usage:
+    Example Usage::
+
         # Create state manager
         state_mgr = StateManager()
 
@@ -645,7 +649,7 @@ class StateManager:
             category_observers = list(self._observers[category])
             global_observers = list(self._global_observers)
             observer_timeout = self._observer_timeout_seconds
-        
+
         # Step 2: Notify OUTSIDE the lock (prevents deadlock)
         # Task 1.2: With timeout protection for slow observers
         # Notify category-specific observers
@@ -659,7 +663,7 @@ class StateManager:
                     category=category.name,
                     key=key,
                     timeout_seconds=observer_timeout,
-                    observer=getattr(observer, "__name__", repr(observer))
+                    observer=getattr(observer, "__name__", repr(observer)),
                 )
             except Exception as e:
                 log.error(
@@ -668,7 +672,7 @@ class StateManager:
                     key=key,
                     error=str(e),
                     observer=getattr(observer, "__name__", repr(observer)),
-                    exc_info=True
+                    exc_info=True,
                 )
 
         # Notify global observers
@@ -682,7 +686,7 @@ class StateManager:
                     category=category.name,
                     key=key,
                     timeout_seconds=observer_timeout,
-                    observer=getattr(observer, "__name__", repr(observer))
+                    observer=getattr(observer, "__name__", repr(observer)),
                 )
             except Exception as e:
                 log.error(
@@ -691,7 +695,7 @@ class StateManager:
                     key=key,
                     error=str(e),
                     observer=getattr(observer, "__name__", repr(observer)),
-                    exc_info=True
+                    exc_info=True,
                 )
 
     # ==================== State Snapshots ====================
@@ -813,7 +817,7 @@ class StateManager:
         """
         # Collect notifications to send (Task 1.1 - deadlock fix)
         notifications = []
-        
+
         with self._lock:
             for key, new_value in kwargs.items():
                 if not hasattr(self._state.project, key):
@@ -834,7 +838,7 @@ class StateManager:
                         key=key,
                         source=source,
                     )
-        
+
         # Send notifications OUTSIDE the lock (prevents deadlock)
         for category, key, old_value, new_value, src in notifications:
             self._notify_observers(category, key, old_value, new_value, src)
@@ -855,7 +859,7 @@ class StateManager:
         """
         # Collect notifications to send (Task 1.1 - deadlock fix)
         notifications = []
-        
+
         with self._lock:
             for key, new_value in kwargs.items():
                 if not hasattr(self._state.detector, key):
@@ -870,13 +874,14 @@ class StateManager:
                 if old_value != new_value:
                     setattr(self._state.detector, key, new_value)
                     # Queue notification instead of sending immediately
-                    notifications.append((StateCategory.DETECTOR, key, old_value, new_value, source))
+                    notification = (StateCategory.DETECTOR, key, old_value, new_value, source)
+                    notifications.append(notification)
                     log.debug(
                         "state_manager.detector_updated",
                         key=key,
                         source=source,
                     )
-        
+
         # Send notifications OUTSIDE the lock (prevents deadlock)
         for category, key, old_value, new_value, src in notifications:
             self._notify_observers(category, key, old_value, new_value, src)
@@ -897,7 +902,7 @@ class StateManager:
         """
         # Collect notifications to send (Task 1.1 - deadlock fix)
         notifications = []
-        
+
         with self._lock:
             for key, new_value in kwargs.items():
                 if not hasattr(self._state.recording, key):
@@ -912,13 +917,14 @@ class StateManager:
                 if old_value != new_value:
                     setattr(self._state.recording, key, new_value)
                     # Queue notification instead of sending immediately
-                    notifications.append((StateCategory.RECORDING, key, old_value, new_value, source))
+                    notification = (StateCategory.RECORDING, key, old_value, new_value, source)
+                    notifications.append(notification)
                     log.debug(
                         "state_manager.recording_updated",
                         key=key,
                         source=source,
                     )
-        
+
         # Send notifications OUTSIDE the lock (prevents deadlock)
         for category, key, old_value, new_value, src in notifications:
             self._notify_observers(category, key, old_value, new_value, src)
@@ -939,7 +945,7 @@ class StateManager:
         """
         # Collect notifications to send (Task 1.1 - deadlock fix)
         notifications = []
-        
+
         with self._lock:
             for key, new_value in kwargs.items():
                 if not hasattr(self._state.processing, key):
@@ -954,13 +960,14 @@ class StateManager:
                 if old_value != new_value:
                     setattr(self._state.processing, key, new_value)
                     # Queue notification instead of sending immediately
-                    notifications.append((StateCategory.PROCESSING, key, old_value, new_value, source))
+                    notification = (StateCategory.PROCESSING, key, old_value, new_value, source)
+                    notifications.append(notification)
                     log.debug(
                         "state_manager.processing_updated",
                         key=key,
                         source=source,
                     )
-        
+
         # Send notifications OUTSIDE the lock (prevents deadlock)
         for category, key, old_value, new_value, src in notifications:
             self._notify_observers(category, key, old_value, new_value, src)
@@ -981,7 +988,7 @@ class StateManager:
         """
         # Collect notifications to send (Task 1.1 - deadlock fix)
         notifications = []
-        
+
         with self._lock:
             for key, new_value in kwargs.items():
                 if not hasattr(self._state.ui, key):
@@ -1002,7 +1009,7 @@ class StateManager:
                         key=key,
                         source=source,
                     )
-        
+
         # Send notifications OUTSIDE the lock (prevents deadlock)
         for category, key, old_value, new_value, src in notifications:
             self._notify_observers(category, key, old_value, new_value, src)
