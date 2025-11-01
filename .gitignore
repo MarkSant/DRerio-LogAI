@@ -85,3 +85,6 @@ test_progress_stats.py
 test_simple_progress.py
 demo_realtime_stats.py
 test_integration_stats.py
+
+# Sphinx documentation build artifacts
+docs/api/build/
