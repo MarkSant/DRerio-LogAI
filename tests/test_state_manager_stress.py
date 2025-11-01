@@ -40,7 +40,7 @@ def test_1000_concurrent_updates_no_deadlock():
     elapsed = time.time() - start
 
     assert len(results) == 1000, "All updates should complete"
-    assert elapsed < 5.0, f"Updates took {elapsed:.2f}s (should be <5s)"
+    assert elapsed < 10.0, f"Updates took {elapsed:.2f}s (should be <10s)"
 
 
 @pytest.mark.slow

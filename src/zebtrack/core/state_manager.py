@@ -455,6 +455,8 @@ class StateManager:
         self._history: list[StateChange] = []
 
         # Task 1.2: Observer timeout protection (default 5 seconds)
+        # NOTE: This should only be modified during initialization or when no
+        # notifications are in progress to avoid race conditions
         self._observer_timeout_seconds = 5
 
         log.info("state_manager.initialized", history_enabled=enable_history)

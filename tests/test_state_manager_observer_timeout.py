@@ -6,7 +6,6 @@ Task 1.2: Validate that slow observers are properly timed out.
 import time
 import platform
 import threading
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,7 +21,6 @@ def test_observer_timeout():
     mgr = StateManager()
     mgr._observer_timeout_seconds = 1  # Short timeout for testing
     
-    timeout_logged = []
     normal_observer_called = []
     
     def slow_observer(category, key, old_value, new_value):
@@ -58,10 +56,11 @@ def test_observer_timeout_on_windows_no_crash():
     completed = []
     
     def observer(category, key, old_value, new_value):
-        """Observer that would timeout on Unix."""
-        if platform.system() != "Windows":
-            # Skip actual sleep on Unix to avoid real timeout in tests
-            pass
+        """Observer that would timeout on Unix but runs without timeout on Windows."""
+        if platform.system() == "Windows":
+            # Simulate slow observer on Windows to test graceful degradation
+            time.sleep(2)  # Exceed 1s timeout
+        # Skip actual sleep on Unix to avoid real timeout in tests
         completed.append(True)
     
     mgr.subscribe(StateCategory.RECORDING, observer)
@@ -69,7 +68,7 @@ def test_observer_timeout_on_windows_no_crash():
     # Should not crash on any platform
     mgr.update_recording_state(source="test", is_recording=True)
     
-    assert len(completed) == 1, "Observer should complete on Windows"
+    assert len(completed) == 1, "Observer should complete on all platforms"
 
 
 def test_observer_exception_handling_with_timeout():
