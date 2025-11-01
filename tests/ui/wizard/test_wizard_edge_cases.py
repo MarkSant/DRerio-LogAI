@@ -32,15 +32,15 @@ class TestLiveConfigEdgeCases:
             )
 
     def test_camera_index_very_large(self):
-        """Test camera index with very large value."""
-        # Should allow but may fail at runtime
-        data = LiveConfigData(
-            camera_index=999,
-            use_arduino=False,
-            arduino_port="",
-            external_trigger_mode=False,
-        )
-        assert data.camera_index == 999
+        """Test camera index with very large value is rejected."""
+        # camera_index has max limit of 10 per Pydantic validation
+        with pytest.raises(ValidationError, match="less than or equal to 10"):
+            LiveConfigData(
+                camera_index=999,
+                use_arduino=False,
+                arduino_port="",
+                external_trigger_mode=False,
+            )
 
     def test_arduino_port_with_special_characters(self):
         """Test Arduino port with special characters."""
@@ -244,7 +244,7 @@ class TestWizardServiceHardwareFailures:
         mock_cap.isOpened = Mock(return_value=False)
         mock_videocap.return_value = mock_cap
 
-        cameras = WizardService.detect_cameras()
+        cameras = WizardService.detect_available_cameras(use_cache=False)
 
         # Should return empty list
         assert cameras == []
@@ -281,7 +281,7 @@ class TestWizardServiceHardwareFailures:
         mock_videocap.side_effect = Exception("Camera initialization failed")
 
         # Should handle gracefully
-        cameras = WizardService.detect_cameras()
+        cameras = WizardService.detect_available_cameras(use_cache=False)
 
         # Should return empty or partial list
         assert isinstance(cameras, list)
@@ -381,11 +381,11 @@ class TestWizardCaching:
         mock_cap.release = Mock()
         mock_videocap.return_value = mock_cap
 
-        # First call
-        cameras1 = WizardService.detect_cameras()
+        # First call (no cache)
+        cameras1 = WizardService.detect_available_cameras(use_cache=False)
 
-        # Second call (should use cache if TTL not expired)
-        cameras2 = WizardService.detect_cameras()
+        # Second call (with cache)
+        cameras2 = WizardService.detect_available_cameras(use_cache=True)
 
         # Depends on cache TTL (30 seconds default)
         # May or may not be same call count
