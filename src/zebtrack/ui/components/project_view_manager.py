@@ -1,0 +1,844 @@
+"""
+Project View Manager Component for ApplicationGUI.
+
+Responsável por gerenciar visualizações de projeto, navegação entre views,
+atualização de árvores e refresh de dados.
+
+Categories:
+1. Navegação e Window Management
+2. Project Overview Management
+3. Formatadores e Helpers
+4. Pipeline e Video Selector Management
+5. Processing Reports Management
+6. Reports Tree Management
+7. Event Handlers
+"""
+
+import os
+import subprocess
+import sys
+from collections import Counter
+from typing import Any
+
+import structlog
+
+log = structlog.get_logger()
+
+
+class ProjectViewManager:
+    """
+    Manager for project views, navigation, and data refresh.
+
+    Encapsulates all view management logic extracted from ApplicationGUI.
+    Uses self.gui to access parent GUI state and methods.
+
+    Thread-safety: All UI updates must use gui.root.after(0, ...) pattern.
+    """
+
+    def __init__(self, gui):
+        """
+        Initialize ProjectViewManager with reference to parent GUI.
+
+        Args:
+            gui: Reference to ApplicationGUI instance
+        """
+        self.gui = gui
+        self._overview_refresh_pending = False
+        self._overview_refresh_after_id = None
+
+    # ===========================================================================
+    # CATEGORIA 1: NAVEGAÇÃO E WINDOW MANAGEMENT
+    # ===========================================================================
+
+    def update_window_title(self, project_name: str | None = None):
+        """
+        Updates the window title with optional project name.
+
+        Args:
+            project_name: Name of the current project, or None for default title
+        """
+        if project_name:
+            self.gui.root.title(f"DRerio LogAI - {project_name}")
+        else:
+            self.gui.root.title("DRerio LogAI")
+
+    def navigate_to_processing_reports_tab(self) -> None:
+        """Navigate to the Processing and Reports tab."""
+        if not self.gui.notebook:
+            return
+
+        # Find the index of the Processing and Reports tab
+        tab_count = self.gui.notebook.index("end")
+        for i in range(tab_count):
+            tab_text = self.gui.notebook.tab(i, "text")
+            if "Processamento e Relatórios" in tab_text:
+                self.gui.notebook.select(i)
+                return
+
+        log.warning("gui.navigate.processing_reports_tab_not_found")
+
+    # ===========================================================================
+    # CATEGORIA 2: PROJECT OVERVIEW MANAGEMENT
+    # ===========================================================================
+
+    def request_overview_refresh(
+        self,
+        reason: str | None = None,
+        *,
+        force: bool = False,
+        debounce_ms: int = 300,
+    ) -> None:
+        """
+        Request a refresh of the project overview (debounced).
+
+        Args:
+            reason: Optional reason for the refresh (for logging)
+            force: If True, cancel pending refresh and execute immediately
+            debounce_ms: Millisecond delay for debouncing (default 300ms)
+        """
+        if force:
+            if self._overview_refresh_after_id:
+                self.gui.root.after_cancel(self._overview_refresh_after_id)
+                self._overview_refresh_after_id = None
+            self._overview_refresh_pending = False
+            self.refresh_project_views()
+            return
+
+        if self._overview_refresh_pending:
+            return
+
+        self._overview_refresh_pending = True
+        if reason:
+            log.debug("gui.overview.refresh_requested", reason=reason)
+
+        def _execute():
+            self._overview_refresh_pending = False
+            self._overview_refresh_after_id = None
+            self.refresh_project_views()
+
+        self._overview_refresh_after_id = self.gui.root.after(debounce_ms, _execute)
+
+    def refresh_project_views(self) -> None:
+        """
+        Refresh project overview, pipeline table, and reports tab.
+
+        This is the main orchestrator for updating all project-related views.
+        """
+        self._refresh_project_overview()
+
+        # Refresh pipeline table if in pre-recorded mode
+        project_type = self.gui.controller.project_manager.get_project_type()
+        if project_type == "pre-recorded":
+            self._refresh_pipeline_video_table()
+
+        # Refresh processing reports tab
+        self._refresh_processing_reports_tab()
+
+    def _refresh_project_overview(self) -> None:
+        """Update the project overview panel with current project data."""
+        if not hasattr(self.gui, "project_overview_widget"):
+            return
+        if not self.gui.project_overview_widget:
+            return
+
+        self._update_project_overview_summary()
+        self._update_project_overview_tree()
+
+        # Schedule legend update via root.after for thread-safety
+        def _update_legend():
+            if hasattr(self.gui, "project_overview_widget"):
+                if self.gui.project_overview_widget:
+                    self.gui.project_overview_widget.update_legend()
+
+        self.gui.root.after(0, _update_legend)
+
+    def _update_project_overview_summary(self) -> None:
+        """Update the summary section of the project overview."""
+        if not hasattr(self.gui, "project_overview_widget"):
+            return
+        if not self.gui.project_overview_widget:
+            return
+
+        pm = self.gui.controller.project_manager
+        all_videos = pm.get_all_videos()
+
+        # Count videos by status
+        status_counts = Counter()
+        for video in all_videos:
+            has_trajectory = pm.has_trajectory_data(video["path"])
+            has_summary = pm.has_summary_data(video["path"])
+
+            if has_summary:
+                status_counts["complete"] += 1
+            elif has_trajectory:
+                status_counts["processed"] += 1
+            else:
+                status_counts["pending"] += 1
+
+        status_counts["total"] = len(all_videos)
+
+        # Update widget
+        self.gui.project_overview_widget.update_summary(status_counts)
+
+    def _update_project_overview_tree(self) -> None:
+        """Update the tree view in the project overview."""
+        if not hasattr(self.gui, "project_overview_widget"):
+            return
+        if not self.gui.project_overview_widget:
+            return
+
+        pm = self.gui.controller.project_manager
+        pm.get_all_videos()
+
+        # Build hierarchy data
+        hierarchy_data = self.gui._build_video_hierarchy_snapshot()
+
+        # Update widget
+        self.gui.project_overview_widget.update_tree(hierarchy_data)
+
+    # ===========================================================================
+    # CATEGORIA 3: FORMATADORES E HELPERS
+    # ===========================================================================
+
+    def format_status_label(self, count: int) -> str:
+        """Format status count for display."""
+        return f"{count} vídeo{'s' if count != 1 else ''}"
+
+    def format_status_summary(self, total: int, count: int) -> str:
+        """
+        Format status summary with count and percentage.
+
+        Args:
+            total: Total number of videos
+            count: Count for this status
+
+        Returns:
+            Formatted string like "5 vídeos (25%)"
+        """
+        if total == 0:
+            return "0 vídeos (0%)"
+        percentage = int((count / total) * 100)
+        label = self.format_status_label(count)
+        return f"{label} ({percentage}%)"
+
+    def format_status_ratio(self, numerator: int, denominator: int) -> str:
+        """
+        Format ratio display.
+
+        Args:
+            numerator: Numerator value
+            denominator: Denominator value
+
+        Returns:
+            Formatted string like "5/10"
+        """
+        return f"{numerator}/{denominator}"
+
+    def summarize_batch_data(self, videos: list[dict]) -> dict[str, Any]:
+        """
+        Summarize batch of videos into counts.
+
+        Args:
+            videos: List of video dictionaries
+
+        Returns:
+            Dictionary with counts by status
+        """
+        pm = self.gui.controller.project_manager
+        counts = {
+            "total": len(videos),
+            "with_arena": 0,
+            "with_rois": 0,
+            "with_trajectory": 0,
+            "with_summary": 0,
+        }
+
+        for video in videos:
+            if pm.has_arena_data(video["path"]):
+                counts["with_arena"] += 1
+            if pm.has_roi_data(video["path"]):
+                counts["with_rois"] += 1
+            if pm.has_trajectory_data(video["path"]):
+                counts["with_trajectory"] += 1
+            if pm.has_summary_data(video["path"]):
+                counts["with_summary"] += 1
+
+        return counts
+
+    def format_data_badges(self, video_path: str) -> str:
+        """
+        Format data availability badges for a video.
+
+        Args:
+            video_path: Path to video file
+
+        Returns:
+            String with status symbols (e.g., "🏟 🎯 🧭")
+        """
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        pm = self.gui.controller.project_manager
+        badges = []
+
+        if pm.has_arena_data(video_path):
+            badges.append(STATUS_SYMBOLS["arena"])
+        if pm.has_roi_data(video_path):
+            badges.append(STATUS_SYMBOLS["rois"])
+        if pm.has_trajectory_data(video_path):
+            badges.append(STATUS_SYMBOLS["trajectory"])
+
+        return " ".join(badges) if badges else "—"
+
+    def format_video_metadata(self, video: dict) -> str:
+        """
+        Format video metadata for display.
+
+        Args:
+            video: Video dictionary with metadata
+
+        Returns:
+            Formatted string with metadata info
+        """
+        parts = []
+        metadata = video.get("metadata", {})
+
+        if metadata.get("group"):
+            parts.append(f"Grupo: {metadata['group']}")
+        if metadata.get("day") is not None:
+            parts.append(f"Dia: {metadata['day']}")
+        if metadata.get("subject"):
+            parts.append(f"Sujeito: {metadata['subject']}")
+
+        return " | ".join(parts) if parts else "Sem metadata"
+
+    @staticmethod
+    def format_status_token(status: str) -> str:
+        """Format status token for tree display."""
+        return status if status else "—"
+
+    # ===========================================================================
+    # CATEGORIA 4: PIPELINE E VIDEO SELECTOR MANAGEMENT
+    # ===========================================================================
+
+    def refresh_pipeline_video_table(self) -> None:
+        """Refresh the pipeline video table in pre-recorded projects."""
+        # Note: This method is called _refresh_pipeline_video_table in gui.py
+        # but exposed as public method here
+        self._refresh_pipeline_video_table()
+
+    def _refresh_pipeline_video_table(self) -> None:
+        """Internal implementation of pipeline video table refresh."""
+        log.warning(
+            "project_view_manager.refresh_pipeline_video_table_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ProcessingReportsWidget
+        # Kept here for backward compatibility
+
+    def resolve_processing_reports_video_paths(self) -> list[str]:
+        """
+        Resolve selected video paths from processing reports tree.
+
+        Returns:
+            List of selected video paths
+        """
+        if not hasattr(self.gui, "processing_reports_widget"):
+            return []
+        if not self.gui.processing_reports_widget:
+            return []
+
+        tree = self.gui.processing_reports_widget.tree
+        if not tree:
+            return []
+
+        selected = tree.selection()
+        pm = self.gui.controller.project_manager
+        video_paths = []
+
+        for item_id in selected:
+            video_path = tree.set(item_id, "video_path")
+            if video_path and pm.video_exists(video_path):
+                video_paths.append(video_path)
+
+        return video_paths
+
+    def update_pipeline_buttons_state(self) -> None:
+        """Update state of pipeline action buttons."""
+        log.warning(
+            "project_view_manager.update_pipeline_buttons_state_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ProcessingReportsWidget
+        # Kept here for backward compatibility
+
+    def populate_video_selector_tree(self, search_text: str = "") -> None:
+        """
+        Populate video selector tree with filtered videos.
+
+        Args:
+            search_text: Search filter text
+        """
+        log.warning(
+            "project_view_manager.populate_video_selector_tree_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ZoneControlsWidget
+        # Kept here for backward compatibility
+
+    def refresh_video_selector_tree(self) -> None:
+        """Refresh the video selector tree."""
+        log.warning(
+            "project_view_manager.refresh_video_selector_tree_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ZoneControlsWidget
+        # Kept here for backward compatibility
+
+    # ===========================================================================
+    # CATEGORIA 5: PROCESSING REPORTS MANAGEMENT
+    # ===========================================================================
+
+    def refresh_processing_reports_tab(self) -> None:
+        """Refresh the unified Processing and Reports tab."""
+        self._refresh_processing_reports_tab()
+
+    def _refresh_processing_reports_tab(self) -> None:
+        """
+        Internal implementation of processing reports tab refresh.
+
+        Updates the tree with current project data and report artifacts.
+        """
+        if not hasattr(self.gui, "processing_reports_widget"):
+            return
+        if not self.gui.processing_reports_widget:
+            return
+
+        pm = self.gui.controller.project_manager
+        all_videos = pm.get_all_videos()
+
+        # Build hierarchy
+        hierarchy = self.gui._build_report_hierarchy(all_videos, pm)
+
+        # Clear existing metadata
+        if not hasattr(self.gui, "_processing_reports_tree_metadata"):
+            self.gui._processing_reports_tree_metadata = {}
+        self.gui._processing_reports_tree_metadata.clear()
+
+        # Update widget tree
+        tree = self.gui.processing_reports_widget.tree
+        if not tree:
+            return
+
+        # Clear tree
+        for item in tree.get_children():
+            tree.delete(item)
+
+        # Populate tree
+        self._populate_reports_tree_from_hierarchy(
+            tree, hierarchy, "", self.gui._processing_reports_tree_metadata
+        )
+
+    def append_processing_reports_artifacts(
+        self,
+        tree,
+        parent_id: str,
+        results_dir: str,
+        metadata_store: dict,
+    ) -> None:
+        """
+        Append report artifacts to tree node.
+
+        Args:
+            tree: ttk.Treeview widget
+            parent_id: Parent node ID
+            results_dir: Results directory path
+            metadata_store: Metadata storage dictionary
+        """
+        if not os.path.exists(results_dir):
+            return
+
+        # Look for report files
+        for file in os.listdir(results_dir):
+            if file.endswith((".docx", ".xlsx")):
+                file_path = os.path.join(results_dir, file)
+                item_id = self.gui.widget_factory.build_processing_report_artifact_id(
+                    parent_id, file_path
+                )
+
+                # Determine icon based on file type
+                icon = "📄" if file.endswith(".docx") else "📊"
+
+                tree.insert(
+                    parent_id,
+                    "end",
+                    iid=item_id,
+                    text=f"{icon} {file}",
+                    values=("", ""),
+                )
+
+                metadata_store[item_id] = {
+                    "type": "file",
+                    "file_path": file_path,
+                }
+
+    def on_processing_reports_item_double_click(self, event=None) -> None:
+        """
+        Handle double-click on items in the Processing Reports tree.
+
+        Args:
+            event: Tkinter event object
+        """
+        if (
+            not self.gui.processing_reports_widget
+            or not self.gui.processing_reports_widget.tree
+        ):
+            return
+
+        tree = self.gui.processing_reports_widget.tree
+
+        # Get item at click position
+        item_id = None
+        if event is not None:
+            item_id = tree.identify_row(event.y)
+        if not item_id:
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+        if not item_id:
+            return
+
+        metadata = self.gui._processing_reports_tree_metadata.get(item_id)
+        if not metadata:
+            return
+
+        node_type = metadata.get("type")
+
+        # Handle file nodes (docx/xlsx) - open them
+        if node_type == "file":
+            self._handle_report_file_node(metadata)
+            return
+
+        # Handle video nodes - open results folder
+        if node_type == "video":
+            results_dir = metadata.get("results_dir")
+            if results_dir and os.path.exists(results_dir):
+                log.info("gui.open_results_folder", path=results_dir)
+                try:
+                    if os.name == "nt":  # Windows
+                        os.startfile(results_dir)
+                    elif os.name == "posix":  # macOS, Linux
+                        subprocess.Popen(["xdg-open", results_dir])
+                except Exception as e:
+                    log.error("gui.open_results_folder.failed", error=str(e))
+                    self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+
+    def _handle_report_file_node(self, metadata: dict) -> None:
+        """
+        Handle opening of report file node.
+
+        Args:
+            metadata: Node metadata dictionary
+        """
+        file_path = metadata.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            return
+
+        log.info("gui.open_report_file", path=file_path)
+        try:
+            if sys.platform == "win32":
+                os.startfile(file_path)
+            elif sys.platform == "darwin":  # macOS
+                subprocess.Popen(["open", file_path])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", file_path])
+        except Exception as e:
+            log.error("gui.open_report_file.failed", error=str(e))
+            self.gui.show_error("Erro", f"Não foi possível abrir o arquivo: {e}")
+
+    def on_processing_reports_generate_partial(self) -> None:
+        """Handle partial report generation from the unified tab."""
+        from zebtrack.ui.events import Events
+
+        if not self.gui.processing_reports_widget:
+            return
+
+        selection = self.gui.processing_reports_widget.get_selection()
+        if not selection:
+            return
+
+        selected_videos = []
+        all_videos = self.gui.controller.project_manager.get_all_videos()
+        metadata_store = getattr(self.gui, "_processing_reports_tree_metadata", {})
+
+        for item_id in selection:
+            metadata = metadata_store.get(item_id)
+            if not metadata or metadata.get("type") != "video":
+                continue
+            video_path = metadata.get("video_path")
+            if not video_path:
+                continue
+            for video_data in all_videos:
+                if video_data["path"] == video_path:
+                    selected_videos.append(video_data)
+                    break
+
+        if selected_videos:
+            self.gui.event_dispatcher.publish_event(
+                Events.REPORT_GENERATE,
+                {"videos": selected_videos, "report_type": "partial"},
+            )
+
+    # ===========================================================================
+    # CATEGORIA 6: REPORTS TREE MANAGEMENT
+    # ===========================================================================
+
+    def update_reports_tree(self) -> None:
+        """Update the reports tree view."""
+        log.warning(
+            "project_view_manager.update_reports_tree_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ProcessingReportsWidget
+        # Kept here for backward compatibility
+
+    def _populate_reports_tree_from_hierarchy(
+        self,
+        tree,
+        hierarchy: dict,
+        parent: str,
+        metadata_store: dict,
+    ) -> None:
+        """
+        Populate reports tree from hierarchy data.
+
+        Args:
+            tree: ttk.Treeview widget
+            hierarchy: Hierarchy data dictionary
+            parent: Parent node ID
+            metadata_store: Metadata storage dictionary
+        """
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        # Iterate over groups
+        for group_id, group_data in sorted(hierarchy.items()):
+            group_name = group_data.get("display", group_id)
+            group_node_id = f"group_{group_id}"
+
+            tree.insert(
+                parent,
+                "end",
+                iid=group_node_id,
+                text=f"🏷️ {group_name}",
+                values=("", ""),
+                open=True,
+            )
+
+            metadata_store[group_node_id] = {
+                "type": "group",
+                "group_id": group_id,
+            }
+
+            # Iterate over days
+            days = group_data.get("days", {})
+            for day_id, day_data in sorted(days.items()):
+                day_label = day_data.get("display", f"Dia {day_id}")
+                day_node_id = f"{group_node_id}_day_{day_id}"
+
+                tree.insert(
+                    group_node_id,
+                    "end",
+                    iid=day_node_id,
+                    text=f"📅 {day_label}",
+                    values=("", ""),
+                    open=True,
+                )
+
+                metadata_store[day_node_id] = {
+                    "type": "day",
+                    "group_id": group_id,
+                    "day_id": day_id,
+                }
+
+                # Iterate over videos
+                videos = day_data.get("videos", [])
+                for video in videos:
+                    video_path = video.get("video_path")
+                    if not video_path:
+                        continue
+
+                    video_name = os.path.basename(video_path)
+                    subject = video.get("metadata", {}).get("subject", "")
+                    subject_label = f"Sujeito {subject}" if subject else video_name
+
+                    # Build status icons
+                    status_icons = []
+                    if video.get("has_arena"):
+                        status_icons.append(STATUS_SYMBOLS["arena"])
+                    if video.get("has_rois"):
+                        status_icons.append(STATUS_SYMBOLS["rois"])
+                    if video.get("has_trajectory"):
+                        status_icons.append(STATUS_SYMBOLS["trajectory"])
+
+                    status_str = " ".join(status_icons) if status_icons else "—"
+
+                    video_node_id = f"{day_node_id}_video_{video_path}"
+
+                    tree.insert(
+                        day_node_id,
+                        "end",
+                        iid=video_node_id,
+                        text=f"🐟 {subject_label}",
+                        values=(status_str, ""),
+                    )
+
+                    metadata_store[video_node_id] = {
+                        "type": "video",
+                        "video_path": video_path,
+                        "results_dir": video.get("results_dir"),
+                    }
+
+                    # Append artifacts (docx, xlsx files)
+                    results_dir = video.get("results_dir")
+                    if results_dir:
+                        self.append_processing_reports_artifacts(
+                            tree, video_node_id, results_dir, metadata_store
+                        )
+
+    def append_report_artifacts(
+        self, tree, parent_id: str, results_dir: str, metadata_store: dict
+    ) -> None:
+        """
+        Append report artifacts (LEGACY name for backward compatibility).
+
+        Args:
+            tree: ttk.Treeview widget
+            parent_id: Parent node ID
+            results_dir: Results directory path
+            metadata_store: Metadata storage dictionary
+        """
+        self.append_processing_reports_artifacts(
+            tree, parent_id, results_dir, metadata_store
+        )
+
+    # ===========================================================================
+    # CATEGORIA 7: EVENT HANDLERS
+    # ===========================================================================
+
+    def on_report_item_select(self, event=None) -> None:
+        """Handle selection of report item."""
+        log.warning(
+            "project_view_manager.on_report_item_select_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ProcessingReportsWidget
+        # Kept here for backward compatibility
+
+    def on_report_item_double_click(self, event=None) -> None:
+        """Handle double-click on report item."""
+        log.warning(
+            "project_view_manager.on_report_item_double_click_deprecated",
+            message="This method is LEGACY and may be removed in future versions",
+        )
+        # This functionality has been moved to ProcessingReportsWidget
+        # Kept here for backward compatibility
+
+    def on_project_overview_tree_double_click(self, event=None) -> None:
+        """
+        Handler for double-click on project overview tree.
+
+        Args:
+            event: Tkinter event object
+        """
+        self._on_project_overview_tree_double_click_impl(event)
+
+    def _on_project_overview_tree_double_click_impl(self, event=None) -> None:
+        """
+        Implementation of double-click handler for project overview tree.
+
+        Args:
+            event: Tkinter event object
+        """
+        if not hasattr(self.gui, "project_overview_widget"):
+            return
+        if not self.gui.project_overview_widget:
+            return
+
+        tree = self.gui.project_overview_widget.tree
+        if not tree:
+            return
+
+        # Get selected item
+        item_id = None
+        if event is not None:
+            item_id = tree.identify_row(event.y)
+        if not item_id:
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+        if not item_id:
+            return
+
+        # Get video path from tree metadata
+        video_path = tree.set(item_id, "video_path")
+        if not video_path:
+            return
+
+        # Open results folder if it exists
+        pm = self.gui.controller.project_manager
+        results_dir = pm.get_video_results_dir(video_path)
+
+        if results_dir and os.path.exists(results_dir):
+            log.info("gui.open_results_folder", path=results_dir)
+            try:
+                if os.name == "nt":  # Windows
+                    os.startfile(results_dir)
+                elif os.name == "posix":  # macOS, Linux
+                    subprocess.Popen(["xdg-open", results_dir])
+            except Exception as e:
+                log.error("gui.open_results_folder.failed", error=str(e))
+                self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+
+    def on_project_overview_right_click(self, event=None) -> None:
+        """
+        Handler for right-click on project overview tree.
+
+        Args:
+            event: Tkinter event object
+        """
+        if not hasattr(self.gui, "project_overview_widget"):
+            return
+        if not self.gui.project_overview_widget:
+            return
+
+        tree = self.gui.project_overview_widget.tree
+        if not tree:
+            return
+
+        # Select item at cursor
+        item_id = tree.identify_row(event.y)
+        if item_id:
+            tree.selection_set(item_id)
+            self.gui.menu_manager.show_project_overview_context_menu(event)
+
+    def update_delete_template_button_state(self) -> None:
+        """Update state of delete template button."""
+        # This method operates on zone controls, kept here for backward compatibility
+        if not hasattr(self.gui, "delete_template_btn"):
+            return
+
+        has_selection = False
+        if hasattr(self.gui, "roi_template_var"):
+            current = self.gui.roi_template_var.get()
+            has_selection = bool(current and current != "Nenhum")
+
+        if hasattr(self.gui, "delete_template_btn"):
+            state = "normal" if has_selection else "disabled"
+            self.gui.delete_template_btn.config(state=state)
+
+    def refresh_openvino_summary(self) -> None:
+        """Refresh OpenVINO model summary display."""
+        if not hasattr(self.gui, "_openvino_display_var"):
+            return
+
+        openvino_status = self.gui.controller.get_openvino_cache_status()
+        self.gui._openvino_display_var.set(openvino_status)
