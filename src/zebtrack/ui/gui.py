@@ -750,66 +750,8 @@ class ApplicationGUI:
             self._ttkbootstrap_theme = None
 
     def _configure_styles(self) -> None:
-        """Configura estilos personalizados para os componentes ttk usados pela GUI."""
-        style = ttk.Style(self.root)
-        self._style = style
-
-        try:
-            style.theme_use()
-        except Exception:  # pragma: no cover - defensive safeguard
-            style.theme_use("default")
-
-        base_background = (
-            style.lookup("TNotebook", "background", None)
-            or (
-                self._ttkbootstrap_style.lookup("TFrame", "background")
-                if self._ttkbootstrap_style is not None
-                else None
-            )
-            or "#f6f7fb"
-        )
-        accent_background = (
-            style.lookup("TNotebook.Tab", "background", None, ("selected",))
-            or style.lookup("TFrame", "background", None)
-            or "#ffffff"
-        )
-        tab_inactive = style.lookup("TNotebook.Tab", "background", None) or "#dce3ee"
-        border_color = (
-            style.lookup("TNotebook", "bordercolor", None)
-            or style.lookup("TNotebook", "lightcolor", None)
-            or "#c5ccd9"
-        )
-        text_active = style.lookup("TNotebook.Tab", "foreground", None, ("selected",)) or "#1d2733"
-        text_inactive = style.lookup("TNotebook.Tab", "foreground", None) or "#4a5568"
-
-        style.configure(
-            "Zebtrack.TNotebook",
-            background=base_background,
-            borderwidth=0,
-            tabmargins=(10, 6, 10, 0),
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            background=tab_inactive,
-            padding=(18, 10),
-            font=("Segoe UI", 10, "bold"),
-            foreground=text_inactive,
-            bordercolor=border_color,
-        )
-
-        style.map(
-            "Zebtrack.TNotebook.Tab",
-            background=[("selected", accent_background), ("!selected", tab_inactive)],
-            foreground=[("selected", text_active), ("!selected", text_inactive)],
-            bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            focuscolor="",
-        )
-        style.configure("Zebtrack.TNotebook", padding=(4, 4))
+        """Configure custom styles. Delegates to WidgetFactory."""
+        return self.widget_factory.configure_styles()
 
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():
@@ -4744,71 +4686,8 @@ class ApplicationGUI:
             self.current_polygon_points = []
 
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
-        """Atualiza lista com indicadores visuais de cor."""
-        # Guard against missing zone_listbox
-        if not hasattr(self, "zone_listbox") or self.zone_listbox is None:
-            return
-
-        # Limpa lista
-        for item in self.zone_listbox.get_children():
-            self.zone_listbox.delete(item)
-
-        # Phase 4: Stop if zone_data is None (don't pull from controller)
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
-            if zone_data is None:
-                log.warning("gui.update_zone_listbox.no_zone_data")
-                return
-
-        # Arena principal com emoji e cor
-        if zone_data.polygon:
-            self.zone_listbox.insert(
-                "",
-                "end",
-                values=("🏠 Arena Principal", "Polígono", "Ciano"),
-                tags=("arena",),
-            )
-            # Configura cor do texto para arena
-            self.zone_listbox.tag_configure("arena", foreground="darkcyan")
-
-        # Enable/disable ROI button based on arena existence
-        self._enable_roi_button_if_arena_exists(zone_data)
-
-        # Mapear cores BGR (formato OpenCV) para nomes e hex
-        color_map = {
-            (0, 255, 0): ("Verde", "#00AA00"),
-            (255, 0, 0): ("Azul", "#0000AA"),  # BGR: (255, 0, 0) = Blue
-            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR: (0, 0, 255) = Red
-            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR: (0, 255, 255) = Yellow
-            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR: (255, 0, 255) = Magenta
-            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR: (255, 255, 0) = Cyan
-        }
-
-        # ROIs com emojis, cores e tags
-        for i, name in enumerate(zone_data.roi_names):
-            # Obter cor da ROI se disponível
-            color_name = "Verde"
-            color_hex = "#00AA00"
-
-            if i < len(zone_data.roi_colors):
-                roi_color = tuple(zone_data.roi_colors[i])
-                color_info = color_map.get(roi_color, ("Verde", "#00AA00"))
-                color_name = color_info[0]
-                color_hex = color_info[1]
-
-            # Insere ROI com emoji
-            self.zone_listbox.insert(
-                "",
-                "end",
-                values=(f"📍 {name}", "Área de Interesse", color_name),
-                tags=(f"roi_{i}",),
-            )
-
-            # Configura cor do texto para ROI
-            try:
-                self.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
-            except Exception:
-                pass  # Fallback silencioso se a cor não for suportada
+        """Update zone listbox. Delegates to CanvasManager."""
+        return self.canvas_manager.update_zone_listbox(zone_data)
 
     def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
         """Habilita o botão de desenhar ROI se a arena principal existir."""

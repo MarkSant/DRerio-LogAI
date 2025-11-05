@@ -374,7 +374,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             if not cameras:
                 messagebox.showinfo(
                     "Câmeras",
-                    "Nenhuma câmera detectada.\n\nVerifique se a câmera está conectada e não está sendo usada por outro aplicativo."
+                    (
+                        "Nenhuma câmera detectada.\n\n"
+                        "Verifique se a câmera está conectada e não está sendo "
+                        "usada por outro aplicativo."
+                    ),
                 )
                 self.camera_combo["values"] = []
                 self.camera_index_map.clear()

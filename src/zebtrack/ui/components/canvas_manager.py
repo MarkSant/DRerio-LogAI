@@ -999,3 +999,70 @@ class CanvasManager:
         if label is not None:
             label.configure(image=imgtk)
             label.image = imgtk
+
+    def update_zone_listbox(self, zone_data=None):
+        """Update zone listbox with visual color indicators."""
+        # Guard against missing zone_listbox
+        if not hasattr(self.gui, "zone_listbox") or self.gui.zone_listbox is None:
+            return
+
+        # Clear list
+        for item in self.gui.zone_listbox.get_children():
+            self.gui.zone_listbox.delete(item)
+
+        # Phase 4: Stop if zone_data is None (don't pull from controller)
+        if zone_data is None:
+            zone_data = self.gui._get_zone_data_for_active_context()
+            if zone_data is None:
+                log.warning("gui.update_zone_listbox.no_zone_data")
+                return
+
+        # Main arena with emoji and color
+        if zone_data.polygon:
+            self.gui.zone_listbox.insert(
+                "",
+                "end",
+                values=("🏠 Arena Principal", "Polígono", "Ciano"),
+                tags=("arena",),
+            )
+            # Configure text color for arena
+            self.gui.zone_listbox.tag_configure("arena", foreground="darkcyan")
+
+        # Enable/disable ROI button based on arena existence
+        self.gui._enable_roi_button_if_arena_exists(zone_data)
+
+        # Map BGR colors (OpenCV format) to names and hex
+        color_map = {
+            (0, 255, 0): ("Verde", "#00AA00"),
+            (255, 0, 0): ("Azul", "#0000AA"),  # BGR: (255, 0, 0) = Blue
+            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR: (0, 0, 255) = Red
+            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR: (0, 255, 255) = Yellow
+            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR: (255, 0, 255) = Magenta
+            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR: (255, 255, 0) = Cyan
+        }
+
+        # ROIs with emojis, colors and tags
+        for i, name in enumerate(zone_data.roi_names):
+            # Get ROI color if available
+            color_name = "Verde"
+            color_hex = "#00AA00"
+
+            if i < len(zone_data.roi_colors):
+                roi_color = tuple(zone_data.roi_colors[i])
+                color_info = color_map.get(roi_color, ("Verde", "#00AA00"))
+                color_name = color_info[0]
+                color_hex = color_info[1]
+
+            # Insert ROI with emoji
+            self.gui.zone_listbox.insert(
+                "",
+                "end",
+                values=(f"📍 {name}", "Área de Interesse", color_name),
+                tags=(f"roi_{i}",),
+            )
+
+            # Configure text color for ROI
+            try:
+                self.gui.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
+            except Exception:
+                pass  # Silent fallback if color not supported

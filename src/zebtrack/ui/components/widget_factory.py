@@ -1357,3 +1357,65 @@ class WidgetFactory:
 
         # Initialize display based on current rule
         self.gui._on_roi_rule_change()
+
+    def configure_styles(self) -> None:
+        """Configure custom styles for ttk components used by the GUI."""
+        style = ttk.Style(self.gui.root)
+        self.gui._style = style
+
+        try:
+            style.theme_use()
+        except Exception:  # pragma: no cover - defensive safeguard
+            style.theme_use("default")
+
+        base_background = (
+            style.lookup("TNotebook", "background", None)
+            or (
+                self.gui._ttkbootstrap_style.lookup("TFrame", "background")
+                if self.gui._ttkbootstrap_style is not None
+                else None
+            )
+            or "#f6f7fb"
+        )
+        accent_background = (
+            style.lookup("TNotebook.Tab", "background", None, ("selected",))
+            or style.lookup("TFrame", "background", None)
+            or "#ffffff"
+        )
+        tab_inactive = style.lookup("TNotebook.Tab", "background", None) or "#dce3ee"
+        border_color = (
+            style.lookup("TNotebook", "bordercolor", None)
+            or style.lookup("TNotebook", "lightcolor", None)
+            or "#c5ccd9"
+        )
+        text_active = style.lookup("TNotebook.Tab", "foreground", None, ("selected",)) or "#1d2733"
+        text_inactive = style.lookup("TNotebook.Tab", "foreground", None) or "#4a5568"
+
+        style.configure(
+            "Zebtrack.TNotebook",
+            background=base_background,
+            borderwidth=0,
+            tabmargins=(10, 6, 10, 0),
+        )
+
+        style.configure(
+            "Zebtrack.TNotebook.Tab",
+            background=tab_inactive,
+            padding=(18, 10),
+            font=("Segoe UI", 10, "bold"),
+            foreground=text_inactive,
+            bordercolor=border_color,
+        )
+
+        style.map(
+            "Zebtrack.TNotebook.Tab",
+            background=[("selected", accent_background), ("!selected", tab_inactive)],
+            foreground=[("selected", text_active), ("!selected", text_inactive)],
+            bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
+        )
+
+        style.configure(
+            "Zebtrack.TNotebook.Tab",
+            focuscolor="",
+        )
+        style.configure("Zebtrack.TNotebook", padding=(4, 4))
