@@ -219,7 +219,9 @@ def main():
         from zebtrack.core.project_manager import ProjectManager
         from zebtrack.core.project_workflow_service import ProjectWorkflowService
 
-        log.info("timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         _t0 = time.perf_counter()
         project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
@@ -233,7 +235,9 @@ def main():
             ui_coordinator=ui_coordinator,
             settings_obj=settings_obj,
         )
-        log.info("timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         # Detector service
         _t0 = time.perf_counter()
@@ -276,7 +280,9 @@ def main():
             cancel_event=cancel_event,
             settings_obj=settings_obj,
         )
-        log.info("timing.video_processing_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.video_processing_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         # Analysis service
         _t0 = time.perf_counter()
@@ -284,6 +290,43 @@ def main():
 
         analysis_service = AnalysisService(settings_obj=settings_obj)
         log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        # Create Coordinators (Phase: REFACTOR-VIEWMODEL-001)
+        _t0 = time.perf_counter()
+        from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+        from zebtrack.core.hardware_coordinator import HardwareCoordinator
+        from zebtrack.core.video_orchestrator import VideoOrchestrator
+
+        video_orchestrator = VideoOrchestrator(
+            project_manager=project_manager,
+            video_processing_service=video_processing_service,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+            ui_event_bus=event_bus,
+            settings_obj=settings_obj,
+            root=root,
+            view=None,  # Will be set after view creation
+        )
+
+        hardware_coordinator = HardwareCoordinator(
+            project_manager=project_manager,
+            state_manager=state_manager,
+            ui_event_bus=event_bus,
+            settings_obj=settings_obj,
+        )
+
+        analysis_coordinator = AnalysisCoordinator(
+            analysis_service=analysis_service,
+            detector_service=detector_service,
+            weight_manager=weight_manager,
+            project_manager=project_manager,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+            ui_event_bus=event_bus,
+            settings_obj=settings_obj,
+            view=None,  # Will be set after view creation
+        )
+        log.info("timing.coordinators_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
@@ -306,6 +349,9 @@ def main():
             video_processing_service=video_processing_service,
             analysis_service=analysis_service,
             recording_service=None,  # Will be created by MainViewModel for now
+            video_orchestrator=video_orchestrator,
+            hardware_coordinator=hardware_coordinator,
+            analysis_coordinator=analysis_coordinator,
         )
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 

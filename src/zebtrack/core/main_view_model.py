@@ -129,6 +129,9 @@ class MainViewModel:
         analysis_service: AnalysisService | None = None,
         recording_service: RecordingService | None = None,
         live_camera_service=None,
+        video_orchestrator=None,
+        hardware_coordinator=None,
+        analysis_coordinator=None,
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -147,6 +150,9 @@ class MainViewModel:
             video_processing_service: Video processing service
             analysis_service: Analysis service (optional, will be created if None)
             recording_service: Recording service (optional, will be created later)
+            video_orchestrator: Video orchestrator (optional, for Phase REFACTOR-VIEWMODEL-001)
+            hardware_coordinator: Hardware coordinator (optional, for Phase REFACTOR-VIEWMODEL-001)
+            analysis_coordinator: Analysis coordinator (optional, for Phase REFACTOR-VIEWMODEL-001)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -164,6 +170,11 @@ class MainViewModel:
         self.video_processing_service = video_processing_service
         self.project_workflow_service = project_workflow_service
         self.ui_coordinator = ui_coordinator
+
+        # Phase REFACTOR-VIEWMODEL-001: Coordinator dependencies
+        self.video_orchestrator = video_orchestrator
+        self.hardware_coordinator = hardware_coordinator
+        self.analysis_coordinator = analysis_coordinator
 
         # Live camera service will be initialized after recording_service
         self._live_camera_service_param = live_camera_service
