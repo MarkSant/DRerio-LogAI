@@ -5,13 +5,18 @@ Handles field validation, form validation, requirement checks, pre-conditions,
 data preparation, and formatting helpers.
 """
 
+import copy
 import os
 import re
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import structlog
+import yaml
+from pydantic import ValidationError
 
+from zebtrack import settings as settings_module
 from zebtrack.core.detector import ZoneData
 
 log = structlog.get_logger()
@@ -47,6 +52,116 @@ class ValidationManager:
     # ========================================================================
     # Main Validation and Preparation Methods
     # ========================================================================
+
+    @staticmethod
+    def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+        """Deep merge two dictionaries.
+
+        Args:
+            base: Base dictionary
+            override: Override dictionary
+
+        Returns:
+            Merged dictionary
+        """
+        result = copy.deepcopy(base)
+        for key, value in override.items():
+            if isinstance(value, dict) and key in result and isinstance(result[key], dict):
+                result[key] = ValidationManager._deep_merge_dicts(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def save_global_config_from_widget(self, values: dict) -> None:
+        """Validate and save config from ConfigEditorWidget values.
+
+        Args:
+            values: Configuration values from widget
+        """
+        try:
+            # Extract values (already parsed by widget)
+            fps = values["video_processing"]["fps"]
+            processing_interval = values["video_processing"]["processing_interval"]
+            processing_offset = values["video_processing"]["processing_offset"]
+            flush_interval = values["recorder"]["flush_interval_seconds"]
+            flush_rows = values["recorder"]["flush_row_threshold"]
+            window_length = values["trajectory_smoothing"]["window_length"]
+            polyorder = values["trajectory_smoothing"]["polyorder"]
+
+            # Validate
+            if fps <= 0:
+                raise ValueError("FPS deve ser maior que 0.")
+            if processing_interval <= 0:
+                raise ValueError("O intervalo de processamento deve ser maior que 0.")
+            if processing_offset < 0:
+                raise ValueError("O offset deve ser maior ou igual a 0.")
+            if flush_interval < 0:
+                raise ValueError("O intervalo de flush deve ser >= 0.")
+            if flush_rows < 1:
+                raise ValueError("O limite de linhas para flush deve ser >= 1.")
+            if window_length < 3 or window_length % 2 == 0:
+                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+            if polyorder < 1:
+                raise ValueError("Polyorder deve ser pelo menos 1.")
+
+        except ValueError as exc:
+            self.gui.show_error("Erro de Validação", str(exc))
+            return
+
+        update_payload: dict[str, Any] = values
+
+        active_settings = settings_module.settings
+        if active_settings is None:
+            try:
+                active_settings = settings_module.load_settings()
+                settings_module.settings = active_settings
+            except Exception as exc:
+                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
+                return
+
+        merged = self._deep_merge_dicts(active_settings.model_dump(), update_payload)
+
+        try:
+            validated = settings_module.Settings.model_validate(merged)
+        except ValidationError as exc:
+            self.gui.show_error("Erro de Validação", str(exc))
+            return
+
+        override_path = Path("config.local.yaml")
+        try:
+            if override_path.exists():
+                with open(override_path, encoding="utf-8") as handle:
+                    override_content = yaml.safe_load(handle) or {}
+            else:
+                override_content = {}
+
+            merged_override = self._deep_merge_dicts(override_content, update_payload)
+            with open(override_path, "w", encoding="utf-8") as handle:
+                yaml.safe_dump(
+                    merged_override,
+                    handle,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+        except Exception as exc:
+            self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
+            return
+
+        if settings_module.settings is None:
+            settings_module.settings = validated
+        else:
+            for field_name in validated.model_fields:
+                setattr(
+                    settings_module.settings,
+                    field_name,
+                    getattr(validated, field_name),
+                )
+
+        self.gui._reload_config_editor_values_widget()
+        self.gui.show_info(
+            "Configurações salvas",
+            "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
+        )
 
     def compose_overview_status_line(self, total: int, counts: Counter) -> str:
         """Compose status line for project overview.
