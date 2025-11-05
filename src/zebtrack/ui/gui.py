@@ -3056,10 +3056,9 @@ class ApplicationGUI:
 
         return snapshot
 
-    @staticmethod
-    def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
-        symbol = STATUS_SYMBOLS[symbol_key]
-        return f"{symbol} ✓" if has_parquet else f"{symbol} ✗"
+    def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
+        """Format status token. Delegates to ValidationManager."""
+        return self.validation_manager.format_status_token(has_parquet, symbol_key)
 
     def _populate_video_selector_tree(self, filter_text: str | None = None):
         """Popula a árvore hierárquica do seletor de vídeos."""
@@ -3520,201 +3519,8 @@ class ApplicationGUI:
             )
 
     def _refresh_processing_reports_tab(self) -> None:
-        """
-        Refresh the unified Processing and Reports tab.
-
-        Consolidates logic from _refresh_pipeline_video_table() and update_reports_tree().
-        """
-        if not self.processing_reports_widget:
-            return
-
-        widget = self.processing_reports_widget
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.refresh_processing_reports.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos() or []
-
-        log.debug(
-            "gui.refresh_processing_reports.start",
-            video_count=len(all_videos),
-            has_project_path=bool(pm.project_path),
-        )
-
-        # Clear tree and metadata
-        widget.clear_tree()
-        self._processing_reports_tree_metadata.clear()
-
-        if not all_videos:
-            log.debug("gui.refresh_processing_reports.no_videos")
-            return
-
-        # Update status cards
-        from collections import Counter
-
-        counts: Counter = Counter(
-            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
-        )
-        total = sum(counts.values())
-
-        status_counts = {
-            "total": total,
-            "pending": counts.get("pending", 0),
-            "processing": counts.get("processing", 0),
-            "processed": counts.get("processed", 0),
-            "complete": counts.get("complete", 0),
-            "failed": counts.get("failed", 0),
-        }
-
-        widget.update_status_counts(status_counts)
-
-        # Build hierarchy (Group > Day > Subject)
-        hierarchy = self._build_report_hierarchy(all_videos, pm)
-
-        # Populate tree
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            videos_by_day = group_data["days"]
-            total_videos = sum(len(items) for items in videos_by_day.values())
-            if total_videos == 0:
-                continue
-
-            total_arena = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
-            )
-            total_rois = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
-            )
-            total_trajectory = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
-            )
-            total_summary = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_complete_data"] or entry.get("has_summary")
-            )
-
-            # Determine color tag for group based on completion
-            group_tag = self._determine_status_tag(total_summary, total_videos)
-
-            group_node_id = f"group_{group_id}"
-            widget.add_tree_item(
-                item_id=group_node_id,
-                text=f"🏷️ {group_data['display']}",
-                values=(
-                    self._format_status_ratio("arena", total_arena, total_videos),
-                    self._format_status_ratio("rois", total_rois, total_videos),
-                    self._format_status_ratio("trajectory", total_trajectory, total_videos),
-                    self._format_status_ratio("summary", total_summary, total_videos),
-                    f"{total_videos} vídeos",
-                ),
-                tags=(group_tag,),
-            )
-            widget.expand_tree_item(group_node_id)
-
-            self._processing_reports_tree_metadata[group_node_id] = {
-                "type": "group",
-                "identifier": group_id,
-            }
-
-            for day_id, entries in sorted(
-                videos_by_day.items(), key=lambda item: self._sort_key_for_reports(item[0])
-            ):
-                if not entries:
-                    continue
-
-                day_arena = sum(1 for entry in entries if entry["has_arena"])
-                day_rois = sum(1 for entry in entries if entry["has_rois"])
-                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
-                day_summary = sum(
-                    1 for entry in entries if entry["has_complete_data"] or entry.get("has_summary")
-                )
-
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-
-                # Determine color tag for day based on completion
-                day_tag = self._determine_status_tag(day_summary, len(entries))
-
-                day_node_id = f"day_{group_id}_{day_id}"
-                widget.add_tree_item(
-                    item_id=day_node_id,
-                    text=f"📅 {day_title}",
-                    parent=group_node_id,
-                    values=(
-                        self._format_status_ratio("arena", day_arena, len(entries)),
-                        self._format_status_ratio("rois", day_rois, len(entries)),
-                        self._format_status_ratio("trajectory", day_trajectory, len(entries)),
-                        self._format_status_ratio("summary", day_summary, len(entries)),
-                        f"{len(entries)} vídeos",
-                    ),
-                    tags=(day_tag,),
-                )
-
-                self._processing_reports_tree_metadata[day_node_id] = {
-                    "type": "day",
-                    "identifier": day_id,
-                    "group_id": group_id,
-                }
-
-                for entry in sorted(
-                    entries, key=lambda item: self._sort_key_for_reports(item.get("subject"))
-                ):
-                    video_path = entry.get("path")
-                    if not video_path:
-                        continue
-
-                    subject_label = self._format_subject_for_reports(entry.get("subject"))
-
-                    # Determine color tag for video based on completion
-                    video_complete = entry.get("has_summary") or entry.get("has_complete_data")
-                    video_tag = (
-                        "status_complete"
-                        if video_complete
-                        else ("status_partial" if entry["has_trajectory"] else "status_missing")
-                    )
-
-                    video_node_id = f"video_{video_path}"
-                    widget.add_tree_item(
-                        item_id=video_node_id,
-                        text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
-                        parent=day_node_id,
-                        values=(
-                            self._format_status_token(entry["has_arena"], "arena"),
-                            self._format_status_token(entry["has_rois"], "rois"),
-                            self._format_status_token(entry["has_trajectory"], "trajectory"),
-                            self._format_status_token(
-                                entry.get("has_summary") or entry.get("has_complete_data"),
-                                "summary",
-                            ),
-                            entry["status"],
-                        ),
-                        tags=(video_tag, "video-node"),
-                    )
-
-                    self._processing_reports_tree_metadata[video_node_id] = {
-                        "type": "video",
-                        "video_path": video_path,
-                        "results_dir": entry.get("results_dir") or "",
-                        "parquet_files": entry.get("parquet_files") or {},
-                        "metadata": entry.get("metadata") or {},
-                    }
-
-                    # Add report artifacts as children
-                    self._append_processing_reports_artifacts(
-                        widget, video_node_id, entry, video_path
-                    )
-
-        log.info(
-            "gui.processing_reports_tab.refreshed",
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-        )
+        """Refresh the processing reports tab. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_processing_reports_tab()
 
     def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
         """
@@ -3869,21 +3675,8 @@ class ApplicationGUI:
             return (1, value_str.lower())
 
     def _format_subject_for_reports(self, value):
-        if value is None:
-            return "??"
-        if isinstance(value, int):
-            return f"{value:02d}"
-        if isinstance(value, float) and value.is_integer():
-            return f"{int(value):02d}"
-        value_str = str(value).strip()
-        if not value_str:
-            return "??"
-        if value_str.isdigit():
-            try:
-                return f"{int(value_str):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+        """Format subject for reports. Delegates to ValidationManager."""
+        return self.validation_manager.format_subject_for_reports(value)
 
     def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
         """Build a nested hierarchy of groups -> days -> entries used to populate the tree."""
