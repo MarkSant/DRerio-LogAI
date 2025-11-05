@@ -17,7 +17,6 @@ from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
-    Canvas,
     Frame,
     Label,
     Menu,
@@ -25,7 +24,6 @@ from tkinter import (
     Toplevel,
     filedialog,
     messagebox,
-    simpledialog,
     ttk,
 )
 from tkinter import font as tkfont
@@ -51,16 +49,23 @@ from zebtrack.io.camera import Camera
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
     ArduinoDashboardWidget,
+    CanvasManager,
     ConfigEditorWidget,
+    DialogManager,
+    EventDispatcher,
+    MenuManager,
     ProjectOverviewWidget,
+    ProjectViewManager,
+    StateSynchronizer,
+    ValidationManager,
     VideoDisplayWidget,
+    WidgetFactory,
     ZoneControlsWidget,
 )
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
     ColorSelectionDialog,
-    ManageWeightsDialog,
     MissingMetadataDialog,
     PendingVideosDialog,
     SaveROITemplateDialog,
@@ -69,11 +74,10 @@ from zebtrack.ui.dialogs import (
     SubjectSelectionDialog,
     TemplateDialog,
 )
-from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType, NamedEvent
+from zebtrack.ui.event_bus import EventBus, EventType
 from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
-    set_geometry_if_not_maximized,
 )
 from zebtrack.utils import polygon_centroid, snap_point_to_axes
 
@@ -200,8 +204,21 @@ class ApplicationGUI:
         self._ttkbootstrap_theme = None
         self._initialize_theme()
 
+        # Initialize component managers (extracted from God Object)
+        # Phase 1 components
+        self.menu_manager = MenuManager(self)
+        self.canvas_manager = CanvasManager(self)
+        self.state_synchronizer = StateSynchronizer(self)
+        self.event_dispatcher = EventDispatcher(self)
+
+        # Phase 2 components
+        self.validation_manager = ValidationManager(self)
+        self.dialog_manager = DialogManager(self)
+        self.widget_factory = WidgetFactory(self)
+        self.project_view_manager = ProjectViewManager(self)
+
         # Create menu bar
-        self._create_menu_bar()
+        self.menu_manager.create_menu_bar()
 
         # Dynamic widgets / state variables
         self.welcome_frame = None
@@ -367,357 +384,53 @@ class ApplicationGUI:
             log.info("gui.init.registering_handlers")
             self._register_event_bus_handlers()
             log.info("gui.init.subscribing_to_ui_events")
-            self._subscribe_to_ui_events()  # New: Subscribe to Controller->UI events
+            # New: Subscribe to Controller->UI events
+            self.event_dispatcher.subscribe_to_ui_events()
             log.info("gui.init.scheduling_first_poll")
-            self._schedule_event_bus_poll()
+            self.event_dispatcher.schedule_event_bus_poll()
             log.info("gui.init.event_bus_setup_complete")
         else:
             log.warning("gui.init.no_event_bus")
 
         # Subscribe to StateManager state changes for reactive UI updates
-        self._subscribe_to_state_changes()
+        self.state_synchronizer.subscribe_to_state_changes()
 
-    def _subscribe_to_ui_events(self) -> None:
-        """Subscribe to events published by the MainViewModel for UI updates."""
-        if not self.event_bus:
-            return
 
-        # A mapping from event names to their handler methods in the GUI
-        ui_event_handlers = {
-            # Basic UI feedback
-            Events.UI_SET_STATUS: self._handle_set_status,
-            Events.UI_SHOW_ERROR: self._handle_show_error,
-            Events.UI_SHOW_WARNING: self._handle_show_warning,
-            Events.UI_SHOW_INFO: self._handle_show_info,
-            Events.UI_UPDATE_BUTTON_STATE: self._handle_update_button_state,
-            # Navigation and view updates
-            Events.UI_NAVIGATE_TO_WELCOME: self._handle_navigate_to_welcome,
-            Events.UI_NAVIGATE_TO_PROJECT_VIEW: self._handle_navigate_to_project_view,
-            Events.UI_NAVIGATE_TO_ANALYSIS_VIEW: self._handle_navigate_to_analysis_view,
-            Events.UI_REFRESH_PROJECT_VIEWS: self._handle_refresh_project_views,
-            Events.UI_SELECT_TAB: self._handle_select_tab,
-            # Model and weight management
-            Events.UI_UPDATE_WEIGHTS_LIST: self._handle_update_weights_list,
-            Events.UI_SET_ACTIVE_WEIGHT: self._handle_set_active_weight,
-            Events.UI_UPDATE_OPENVINO_CHECKBOX: self._handle_update_openvino_checkbox,
-            Events.UI_UPDATE_OPENVINO_STATUS: self._handle_update_openvino_status,
-            # Zone and drawing management
-            Events.UI_REDRAW_ZONES: self._handle_redraw_zones,
-            Events.UI_UPDATE_ZONE_LIST: self._handle_update_zone_list,
-            Events.UI_SETUP_INTERACTIVE_POLYGON: self._handle_setup_interactive_polygon,
-            # Frame and overlay display
-            Events.UI_DISPLAY_VIDEO_FRAME: self._handle_display_video_frame,
-            Events.UI_DISPLAY_FRAME: self._handle_display_frame,
-            Events.UI_UPDATE_DETECTION_OVERLAY: self._handle_update_detection_overlay,
-            # Live recording and Arduino
-            Events.UI_UPDATE_ARDUINO_STATUS: self._handle_update_arduino_status,
-            Events.UI_APPEND_ARDUINO_LOG: self._handle_append_arduino_log,
-            Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE: self._handle_show_external_trigger_notice,
-            Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE: self._handle_clear_external_trigger_notice,
-            # Analysis and processing
-            Events.UI_UPDATE_PROCESSING_MODE: self._handle_update_processing_mode,
-            Events.UI_UPDATE_PROCESSING_STATS: self._handle_update_processing_stats,
-            Events.UI_UPDATE_ANALYSIS_METADATA: self._handle_update_analysis_metadata,
-            Events.UI_UPDATE_ANALYSIS_TASK_STATUS: self._handle_update_analysis_task_status,
-            Events.UI_UPDATE_SOCIAL_SUMMARY: self._handle_update_social_summary,
-            Events.UI_REQUEST_WEIGHT_FILE: self._handle_request_weight_file,
-            Events.UI_REQUEST_WEIGHT_TYPE: self._handle_request_weight_type,
-            Events.UI_REQUEST_WEIGHT_ACTION: self._handle_request_weight_action,
-            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: self._handle_open_manage_weights_dialog,
-        }
 
-        for event_name, handler in ui_event_handlers.items():
-            self.event_bus.subscribe(event_name, handler)
 
-    def _handle_request_weight_file(self, data: dict) -> None:
-        """Handles the request to open a file dialog for selecting a weight file."""
-        filepath = filedialog.askopenfilename(
-            title="Selecione o arquivo de peso do modelo (.pt)",
-            filetypes=[("PyTorch Model", "*.pt"), ("All files", "*.*")],
-        )
-        if filepath:
-            # Publish event back to view model with the selected file path
-            self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"filepath": filepath})
 
-    def _handle_request_weight_type(self, data: dict) -> None:
-        """Handles the request to ask the user for the weight type."""
-        weight_type = self._prompt_for_weight_type()
-        if weight_type:
-            self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"weight_type": weight_type})
 
-    def _handle_request_weight_action(self, data: dict) -> None:
-        """Handles the request to ask the user what to do with the new weight."""
-        weight_type = data.get("weight_type", "desconhecido")
-        response = messagebox.askyesnocancel(
-            "Adicionar Novo Peso",
-            f"O modelo foi identificado como do tipo '{weight_type}'.\n\n"
-            "Deseja definir este como o novo padrão para este tipo?\n\n"
-            "• Sim: Define como novo padrão.\n"
-            "• Não: Adiciona como uma opção alternativa.\n"
-            "• Cancelar: Não adiciona o peso.",
-        )
-        choice = "cancel"
-        if response is True:
-            choice = "yes"
-        elif response is False:
-            choice = "no"
 
-        self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"choice": choice})
 
-    def _handle_open_manage_weights_dialog(self, data: dict) -> None:
-        """Opens the weight management dialog."""
-        ManageWeightsDialog(self.root, self.controller)
 
-    # --- UI Event Handlers ---
 
-    def _handle_set_status(self, data: dict) -> None:
-        self.set_status(data.get("message", ""))
-        self.update_idletasks()
 
-    def _handle_navigate_to_welcome(self, data: dict) -> None:
-        self._create_welcome_frame()
 
-    def _handle_navigate_to_project_view(self, data: dict) -> None:
-        self._load_project_view()
 
-    def _handle_navigate_to_analysis_view(self, data: dict) -> None:
-        activate_mode = data.get("activate_mode", True)
-        if activate_mode:
-            self.start_analysis_view_mode()
-        else:
-            self._switch_to_analysis_view()
 
-    def _handle_select_tab(self, data: dict) -> None:
-        tab_name = data.get("tab_name")
-        if tab_name == "zone_tab" and self.zone_tab_frame:
-            self.notebook.select(self.zone_tab_frame)
 
-    def _handle_update_weights_list(self, data: dict) -> None:
-        self.update_weights_dropdown(data.get("weights", []))
 
-    def _handle_set_active_weight(self, data: dict) -> None:
-        self.set_active_weight_in_dropdown(data.get("weight_name"))
 
-    def _handle_update_openvino_checkbox(self, data: dict) -> None:
-        self.update_openvino_checkbox(data.get("is_checked", False))
 
-    def _handle_redraw_zones(self, data: dict) -> None:
-        # Phase 4: Pass zone_data from event instead of pulling from controller
-        self.redraw_zones_from_project_data(data.get("zone_data"))
 
-    def _handle_update_zone_list(self, data: dict) -> None:
-        # Phase 4: Pass zone_data from event instead of pulling from controller
-        self.update_zone_listbox(data.get("zone_data"))
 
-    def _handle_display_frame(self, data: dict) -> None:
-        frame = data.get("frame")
-        self.display_frame(frame)
 
-    def _handle_update_detection_overlay(self, data: dict) -> None:
-        detections = data.get("detections")
-        report = data.get("report")
-        self.update_detection_overlay(detections, report)
 
-    def _handle_show_external_trigger_notice(self, data: dict) -> None:
-        self.show_external_trigger_notice(**data)
 
-    def _handle_clear_external_trigger_notice(self, data: dict) -> None:
-        self.clear_external_trigger_notice()
 
-    def _handle_update_processing_stats(self, data: dict) -> None:
-        stats = data.get("stats", {})
-        # Map stats to the parameters expected by update_progress_stats
-        self.update_progress_stats(
-            total=stats.get("total_frames"),
-            processed=stats.get("processed_frames"),
-            detected=stats.get("detected_frames"),
-            percent=stats.get("percent"),
-            elapsed=stats.get("elapsed"),
-            eta=stats.get("eta"),
-        )
 
-    def _handle_update_analysis_metadata(self, data: dict) -> None:
-        self.update_analysis_metadata(**data)
 
-    def _handle_update_analysis_task_status(self, data: dict) -> None:
-        self.update_analysis_task_status(**data.get("payload", {}))
 
-    def _handle_update_social_summary(self, data: dict) -> None:
-        self.update_social_summary(**data)
 
-    def _handle_show_error(self, data: dict) -> None:
-        self.show_error(data.get("title", "Erro"), data.get("message", ""))
 
-    def _handle_show_warning(self, data: dict) -> None:
-        self.show_warning(data.get("title", "Aviso"), data.get("message", ""))
 
-    def _handle_show_info(self, data: dict) -> None:
-        self.show_info(data.get("title", "Informação"), data.get("message", ""))
 
-    def _handle_update_button_state(self, data: dict) -> None:
-        self.update_button_state(data.get("button_name"), data.get("state"))
 
-    def _handle_refresh_project_views(self, data: dict) -> None:
-        self.refresh_project_views(
-            reason=data.get("reason"),
-            append_summary=data.get("append_summary", False),
-            immediate=data.get("immediate", False),
-        )
 
-    def _handle_update_arduino_status(self, data: dict) -> None:
-        if self.arduino_dashboard_widget:
-            self.arduino_dashboard_widget.update_status(data.get("connected"), data.get("port"))
 
-    def _handle_append_arduino_log(self, data: dict) -> None:
-        if self.arduino_dashboard_widget:
-            self.arduino_dashboard_widget.append_log(data.get("message", ""))
 
-    def _handle_update_openvino_status(self, data: dict) -> None:
-        self.update_openvino_status_display(data.get("status", ""))
 
-    def _handle_setup_interactive_polygon(self, data: dict) -> None:
-        polygon = data.get("polygon")
-        if polygon is not None:
-            self.setup_interactive_polygon(np.array(polygon))
 
-    def _handle_display_video_frame(self, data: dict) -> None:
-        self.display_roi_video_frame(data.get("video_path"))
-
-    def _handle_update_processing_mode(self, data: dict) -> None:
-        self.update_processing_mode(data.get("report"))
-
-    def _handle_project_refresh_requested(self, data: dict) -> None:
-        """Handle refresh request from ProjectOverviewWidget."""
-        self._request_overview_refresh(immediate=True)
-
-    def _handle_project_video_double_click(self, data: dict) -> None:
-        """Handle video double-click from ProjectOverviewWidget."""
-        item_id = data.get("item_id")
-        if item_id:
-            self._on_project_overview_tree_double_click_impl(item_id)
-
-    def _handle_project_video_right_click(self, data: dict) -> None:
-        """Handle video right-click from ProjectOverviewWidget."""
-        item_id = data.get("item_id")
-        x = data.get("x")
-        y = data.get("y")
-        if item_id and x is not None and y is not None:
-            self._show_project_overview_context_menu(item_id, x, y)
-
-    def _subscribe_to_state_changes(self) -> None:
-        """Subscribe to StateManager events for reactive UI updates."""
-        from zebtrack.core.state_manager import StateCategory
-
-        # Subscribe to recording state changes
-        self.controller.state_manager.subscribe(
-            StateCategory.RECORDING, self._on_recording_state_changed
-        )
-
-        # Subscribe to processing state changes
-        self.controller.state_manager.subscribe(
-            StateCategory.PROCESSING, self._on_processing_state_changed
-        )
-
-        # Subscribe to detector state changes
-        self.controller.state_manager.subscribe(
-            StateCategory.DETECTOR, self._on_detector_state_changed
-        )
-
-        # Subscribe to project state changes
-        self.controller.state_manager.subscribe(
-            StateCategory.PROJECT, self._on_project_state_changed
-        )
-
-        log.info(
-            "gui.state_observers.subscribed",
-            categories=["RECORDING", "PROCESSING", "DETECTOR", "PROJECT"],
-        )
-
-    def _on_recording_state_changed(self, category, key, old_value, new_value) -> None:
-        """Handle recording state changes."""
-        if key == "is_recording":
-            # Schedule UI update on main thread
-            self.root.after(0, self._update_recording_ui, new_value)
-        elif key == "arduino_connected":
-            # Schedule Arduino UI update on main thread
-            self.root.after(0, self._update_arduino_ui, new_value)
-
-    def _on_processing_state_changed(self, category, key, old_value, new_value) -> None:
-        """Handle processing state changes."""
-        if key == "is_processing":
-            # Schedule UI update on main thread
-            self.root.after(0, self._update_processing_ui, new_value)
-
-    def _on_detector_state_changed(self, category, key, old_value, new_value) -> None:
-        """Handle detector state changes."""
-        if key == "detector_initialized":
-            # Schedule UI update on main thread
-            self.root.after(0, self._update_detector_ui, new_value)
-
-    def _on_project_state_changed(self, category, key, old_value, new_value) -> None:
-        """Handle project state changes."""
-        if key == "project_path":
-            # Schedule project UI update on main thread
-            self.root.after(0, self._update_project_ui, new_value)
-
-    def _update_recording_ui(self, is_recording: bool) -> None:
-        """Update UI elements based on recording state."""
-        if is_recording:
-            log.debug("gui.recording_state.started")
-            # Update recording button states if they exist
-            if self.start_rec_btn:
-                self.start_rec_btn.config(state="disabled")
-            if self.stop_rec_btn:
-                self.stop_rec_btn.config(state="normal")
-        else:
-            log.debug("gui.recording_state.stopped")
-            # Update recording button states if they exist
-            if self.start_rec_btn:
-                self.start_rec_btn.config(state="normal")
-            if self.stop_rec_btn:
-                self.stop_rec_btn.config(state="disabled")
-
-    def _update_processing_ui(self, is_processing: bool) -> None:
-        """Update UI elements based on processing state."""
-        if is_processing:
-            log.debug("gui.processing_state.started")
-            # Disable process button during processing
-            if self.process_video_btn:
-                self.process_video_btn.config(state="disabled")
-        else:
-            log.debug("gui.processing_state.stopped")
-            # Re-enable process button after processing
-            if self.process_video_btn:
-                self.process_video_btn.config(state="normal")
-
-    def _update_detector_ui(self, detector_initialized: bool) -> None:
-        """Update UI elements based on detector state."""
-        if detector_initialized:
-            log.debug("gui.detector_state.initialized")
-            # Detector is ready - UI elements can be enabled
-        else:
-            log.debug("gui.detector_state.uninitialized")
-            # Detector not ready - disable dependent UI elements
-
-    def _update_arduino_ui(self, arduino_connected: bool) -> None:
-        """Update UI elements based on Arduino connection state."""
-        if self.arduino_dashboard_widget:
-            port = None  # Port info not available in this context
-            self.arduino_dashboard_widget.update_status(arduino_connected, port)
-
-            if arduino_connected:
-                log.debug("gui.arduino_state.connected")
-            else:
-                log.debug("gui.arduino_state.disconnected")
-
-    def _update_project_ui(self, project_path) -> None:
-        """Update UI elements based on project state."""
-        if project_path:
-            log.debug("gui.project_state.loaded", project_path=str(project_path))
-            # Project loaded - update window title or status
-        else:
-            log.debug("gui.project_state.closed")
-            # Project closed - show welcome screen
 
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
         """Compose a compact legend string for the status glyphs."""
@@ -739,60 +452,9 @@ class ApplicationGUI:
             EventType.NAMED: self._handle_named_event,
         }
 
-    def _handle_callable_event(self, payload: CallableEvent) -> None:
-        try:
-            payload.execute()
-        except Exception:
-            log.warning("gui.event_bus.callable_failed", exc_info=True)
 
-    def _handle_named_event(self, payload: NamedEvent) -> None:
-        """Dispatch named events to controller subscribers."""
-        log.info("gui.handle_named_event.called", event_name=payload.event_name)
-        try:
-            if self.event_bus:
-                self.event_bus.dispatch_named_event(payload)
-        except Exception:
-            log.warning(
-                "gui.event_bus.named_event_failed",
-                event_name=payload.event_name,
-                exc_info=True,
-            )
 
-    def publish_event(self, event_name: str, data: dict[str, Any] | None = None) -> None:
-        """Publish a named event to the controller via the event bus.
 
-        Falls back to direct controller method call if event bus is not available.
-
-        Args:
-            event_name: Name of the event (from Events class)
-            data: Optional event data dictionary
-        """
-        if self.event_bus:
-            self.event_bus.publish_event(event_name, data or {})
-        else:
-            # Fallback to direct controller call (backward compatibility)
-            # This path is only used when event bus is disabled
-            log.debug("gui.publish_event.no_bus", event_name=event_name)
-
-    def _schedule_event_bus_poll(self) -> None:
-        log.debug(
-            "gui.event_bus.schedule_poll.called",
-            has_bus=self.event_bus is not None,
-            has_after_id=self._event_bus_after_id is not None,
-        )
-        if self.event_bus is None:
-            log.warning("gui.event_bus.schedule_poll.no_bus")
-            return
-        if self._event_bus_after_id is None:
-            self._event_bus_after_id = self.root.after(
-                self._event_bus_poll_interval_ms,
-                self._poll_event_bus,
-            )
-            log.debug("gui.event_bus.schedule_poll.scheduled", after_id=self._event_bus_after_id)
-        else:
-            log.debug(
-                "gui.event_bus.schedule_poll.already_scheduled", after_id=self._event_bus_after_id
-            )
 
     def _poll_event_bus(self) -> None:
         """Poll the event bus for pending events and dispatch them."""
@@ -833,7 +495,7 @@ class ApplicationGUI:
             log.debug("gui.event_bus.processed", count=processed)
 
         log.info("gui.event_bus.poll_complete", will_reschedule=True)
-        self._schedule_event_bus_poll()
+        self.event_dispatcher.schedule_event_bus_poll()
 
     @staticmethod
     def _extract_setting(root: Any, path: tuple[str, ...], default: Any) -> Any:
@@ -857,14 +519,6 @@ class ApplicationGUI:
                 result[key] = value
         return result
 
-    def stop_event_bus_polling(self) -> None:
-        if self._event_bus_after_id is not None:
-            try:
-                self.root.after_cancel(self._event_bus_after_id)
-            except Exception:
-                log.warning("gui.event_bus.stop_failed", exc_info=True)
-            finally:
-                self._event_bus_after_id = None
 
     @staticmethod
     def _get_zone_summary_helper_text() -> str:
@@ -894,139 +548,14 @@ class ApplicationGUI:
     def _update_window_title(self, project_name: str | None = None):
         """
         Updates the window title with optional project name.
+        Delegates to ProjectViewManager.
 
         Args:
             project_name: Name of the current project, or None for default title
         """
-        if project_name:
-            self.root.title(f"DRerio LogAI - {project_name}")
-        else:
-            self.root.title("DRerio LogAI")
+        return self.project_view_manager.update_window_title(project_name)
 
-    def _create_menu_bar(self):
-        """Creates the application menu bar with File and Help menus."""
-        menubar = Menu(self.root)
-        self.root.config(menu=menubar)
 
-        # File menu
-        file_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Arquivo", menu=file_menu)
-        file_menu.add_command(
-            label="Analisar Câmera ao Vivo...",
-            command=self.controller.start_live_camera_analysis,
-            accelerator="Ctrl+L",
-        )
-        file_menu.add_separator()
-        file_menu.add_command(label="Sair", command=self.root.quit, accelerator="Ctrl+Q")
-
-        # Bind keyboard shortcuts
-        self.root.bind("<Control-l>", lambda e: self.controller.start_live_camera_analysis())
-        self.root.bind("<Control-q>", lambda e: self.root.quit())
-
-        # Help menu
-        help_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Ajuda", menu=help_menu)
-        help_menu.add_command(label="Sobre DRerio LogAI", command=self._show_about_dialog)
-
-    def _show_about_dialog(self):
-        """Shows the About dialog with application information."""
-        from pathlib import Path
-
-        about_window = Toplevel(self.root)
-        about_window.title("Sobre DRerio LogAI")
-        about_window.resizable(False, False)
-
-        # Set icon for About window
-        from zebtrack.ui.icon_utils import set_window_icon
-
-        set_window_icon(about_window)
-
-        # Center the window
-        about_window.geometry("400x450")
-        about_window.transient(self.root)
-        about_window.grab_set()
-
-        # Logo
-        try:
-            logo_path = Path(__file__).parent / "assets" / "logo_about.png"
-            if not logo_path.exists():
-                logo_path = Path("src/zebtrack/ui/assets/logo_about.png")
-
-            if logo_path.exists():
-                logo_pil = Image.open(logo_path)
-                self._about_logo_image = ImageTk.PhotoImage(logo_pil)
-                logo_label = ttk.Label(about_window, image=self._about_logo_image)
-                logo_label.pack(pady=(20, 10))
-        except Exception as e:
-            log.warning("about.logo.load_error", error=str(e))
-
-        # Application name
-        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("-size", 18, "bold"))
-        name_label.pack(pady=(10, 5))
-
-        # Version (from pyproject.toml)
-        try:
-            import tomli
-
-            pyproject_path = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
-            if pyproject_path.exists():
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomli.load(f)
-                    version = (
-                        pyproject_data.get("tool", {}).get("poetry", {}).get("version", "Unknown")
-                    )
-            else:
-                version = "Development"
-        except Exception:
-            version = "Unknown"
-
-        version_label = ttk.Label(about_window, text=f"Versão {version}", font=("-size", 10))
-        version_label.pack(pady=(0, 15))
-
-        # Description
-        desc_text = (
-            "Rastreamento e análise comportamental automatizada\n"
-            "para pesquisa com Danio rerio (zebrafish)\n\n"
-            "Integração de visão computacional (YOLO/OpenVINO),\n"
-            "análise comportamental e geração de relatórios científicos"
-        )
-        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("-size", 9))
-        desc_label.pack(pady=(0, 15))
-
-        # Repository link
-        repo_frame = ttk.Frame(about_window)
-        repo_frame.pack(pady=(0, 10))
-
-        ttk.Label(repo_frame, text="Repositório:", font=("-size", 9, "bold")).pack()
-        repo_link = ttk.Label(
-            repo_frame,
-            text="github.com/YOUR_USERNAME/ZebTrack-AI",
-            font=("-size", 9),
-            foreground="blue",
-            cursor="hand2",
-        )
-        repo_link.pack()
-
-        def open_repo(event):
-            import webbrowser
-
-            webbrowser.open("https://github.com/YOUR_USERNAME/ZebTrack-AI")
-
-        repo_link.bind("<Button-1>", open_repo)
-
-        # License
-        license_label = ttk.Label(about_window, text="Licença: MIT", font=("-size", 9))
-        license_label.pack(pady=(10, 15))
-
-        # Close button
-        close_btn = ttk.Button(about_window, text="Fechar", command=about_window.destroy)
-        close_btn.pack(pady=(0, 20))
-
-        # Center window on screen
-        about_window.update_idletasks()
-        x = (about_window.winfo_screenwidth() // 2) - (400 // 2)
-        y = (about_window.winfo_screenheight() // 2) - (450 // 2)
-        about_window.geometry(f"400x450+{x}+{y}")
 
     def _display_welcome_logo(self):
         """Displays the DRerio LogAI logo in the welcome frame."""
@@ -1097,149 +626,23 @@ class ApplicationGUI:
     def _reset_analysis_widgets(self) -> None:
         """Encapsula a limpeza e destruição de widgets da aba de análise."""
         # Break the cleanup into smaller helpers to reduce cognitive complexity
-        self._reset_analysis_media()
-        self._reset_analysis_progress_and_metadata()
-        self._reset_roi_and_visual_frames()
-        self._destroy_notebook_and_main_controls()
+        self.state_synchronizer._reset_analysis_media()
+        self.state_synchronizer._reset_analysis_progress_and_metadata()
+        self.state_synchronizer._reset_roi_and_visual_frames()
+        self.state_synchronizer._destroy_notebook_and_main_controls()
         self.analysis_tab_frame = None
 
-    def _reset_analysis_media(self) -> None:
-        """Reset media-related widgets such as analysis image overlays."""
-        if hasattr(self, "analysis_video_label") and self.analysis_video_label:
-            try:
-                if self.analysis_video_label.winfo_exists():
-                    self.analysis_video_label.configure(image="")
-                    self._analysis_overlay_image = None
-            except Exception:
-                pass
 
-    def _reset_analysis_progress_and_metadata(self) -> None:
-        """Reset progress indicators and analysis metadata to defaults."""
-        try:
-            self.hide_progress_bar()
-        except Exception:
-            pass
 
-        try:
-            self.analysis_status_var.set("Nenhuma análise em andamento.")
-        except Exception:
-            pass
 
-        try:
-            self.analysis_task_var.set(self._default_analysis_task_text())
-        except Exception:
-            pass
-
-        try:
-            self._set_analysis_metadata_defaults()
-        except Exception:
-            pass
-
-        if hasattr(self, "progress_labels") and self.progress_labels:
-            for var in self.progress_labels.values():
-                try:
-                    var.set("-")
-                except Exception:
-                    pass
-
-    def _reset_roi_and_visual_frames(self) -> None:
-        """Handle ROI canvas and visualization frame teardown."""
-        if hasattr(self, "roi_canvas") and self.roi_canvas:
-            try:
-                if self.roi_canvas.winfo_exists():
-                    self.roi_canvas.pack_forget()
-            except Exception:
-                pass
-
-        # Destroy viz_frame (parent frame)
-        if hasattr(self, "viz_frame") and self.viz_frame:
-            try:
-                if self.viz_frame.winfo_exists():
-                    self.viz_frame.destroy()
-            except Exception:
-                pass
-            self.viz_frame = None
-
-        # Clean up zone tab frame components
-        if hasattr(self, "zone_tab_frame") and self.zone_tab_frame:
-            try:
-                if self.zone_tab_frame.winfo_exists():
-                    self.zone_tab_frame.destroy()
-            except Exception:
-                pass
-            self.zone_tab_frame = None
-            self.zone_summary_frame = None
-            self.zone_summary_cards = {}
-
-    def _destroy_notebook_and_main_controls(self) -> None:
-        """Destroy the main notebook and controls, clear project overview state."""
-        if self.notebook:
-            self.notebook.destroy()
-            self.notebook = None
-        if self.main_controls_frame:
-            self.main_controls_frame.destroy()
-            self.main_controls_frame = None
-            self.arduino_dashboard_widget = None
-            self.external_trigger_notice_label = None
-            try:
-                self.external_trigger_notice_var.set("")
-            except Exception:
-                pass
-            if self._overview_refresh_job is not None:
-                try:
-                    self.root.after_cancel(self._overview_refresh_job)
-                except Exception:
-                    pass
-                self._overview_refresh_job = None
-            self.project_overview_frame = None
-            self.project_overview_tree = None
-            self.project_status_vars.clear()
-            self._project_status_containers.clear()
-            self._last_overview_counts = {}
 
     def _build_project_actions(self, parent) -> None:
-        """Create the project actions controls in the welcome frame."""
-        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
-        project_actions_frame.pack(fill="x", pady=10, expand=True)
-
-        ttk.Button(
-            project_actions_frame,
-            text="Calibração Global (Pesos e Diagnóstico)...",
-            command=self._open_global_calibration_window,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Analisar Vídeo Único",
-            command=self._on_analyze_single_video_clicked,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Criar Novo Projeto",
-            command=self._create_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Abrir Projeto Existente",
-            command=self._open_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
+        """Create the project actions controls. Delegates to WidgetFactory."""
+        return self.widget_factory.build_project_actions(parent)
 
     def _build_model_status(self, parent) -> None:
-        """Create the model status display in the welcome frame."""
-        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
-        model_status_frame.pack(fill="x", pady=10, expand=True)
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._active_weight_display_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._openvino_display_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._gpu_hardware_display_var,
-            foreground="gray",
-        ).pack(anchor="w", pady=(4, 0))
+        """Create the model status display. Delegates to WidgetFactory."""
+        return self.widget_factory.build_model_status(parent)
 
     def _initialize_theme(self) -> None:
         """Apply a modern ttkbootstrap theme if the library is available."""
@@ -1490,33 +893,8 @@ class ApplicationGUI:
         self.hide_progress_bar()
 
     def _create_configuration_tab_widget(self) -> None:
-        """Creates the configuration tab using ConfigEditorWidget."""
-        if not self.notebook:
-            return
-
-        # Create widget
-        self.config_editor_widget = ConfigEditorWidget(
-            self.notebook,
-            event_bus=self.event_bus,
-        )
-
-        # Add to notebook
-        self.notebook.add(self.config_editor_widget, text="Config. Avançadas")
-
-        # Connect events
-        if self.event_bus:
-            self._event_bus_handlers["config.save_requested"] = (
-                lambda data: self._on_save_global_config_from_widget(data["values"])
-            )
-            self._event_bus_handlers["config.reset_requested"] = (
-                lambda data: self._on_reset_global_config_form_widget()
-            )
-            self._event_bus_handlers["config.roi_rule_changed"] = (
-                lambda data: self._on_roi_rule_change_widget(data["rule"])
-            )
-
-        # Load current values
-        self._reload_config_editor_values_widget()
+        """Creates the configuration tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_configuration_tab_widget()
 
     def _reload_config_editor_values_widget(self) -> None:
         """Load current settings into ConfigEditorWidget."""
@@ -1685,13 +1063,13 @@ class ApplicationGUI:
             self.start_rec_btn = Button(
                 controls_container,
                 text="Iniciar Gravação",
-                command=lambda: self.publish_event(Events.RECORDING_START, {}),
+                command=lambda: self.event_dispatcher.publish_event(Events.RECORDING_START, {}),
             )
             self.start_rec_btn.pack(side="left", padx=5)
             self.stop_rec_btn = Button(
                 controls_container,
                 text="Parar Gravação",
-                command=lambda: self.publish_event(Events.RECORDING_STOP, {}),
+                command=lambda: self.event_dispatcher.publish_event(Events.RECORDING_STOP, {}),
                 state="disabled",
             )
             self.stop_rec_btn.pack(side="left", padx=5)
@@ -1700,7 +1078,9 @@ class ApplicationGUI:
             ttk.Button(
                 controls_container,
                 text="Adicionar e Processar Novos Vídeos/Pastas...",
-                command=lambda: self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {}),
+                command=lambda: self.event_dispatcher.publish_event(
+                    Events.PROJECT_PROCESS_VIDEOS, {}
+                ),
             ).pack(side="left", padx=5)
 
             # Project-wide interval settings
@@ -1728,7 +1108,7 @@ class ApplicationGUI:
         Button(
             controls_container,
             text="Fechar Projeto",
-            command=lambda: self.publish_event(Events.PROJECT_CLOSE, {}),
+            command=lambda: self.event_dispatcher.publish_event(Events.PROJECT_CLOSE, {}),
         ).pack(side="right", padx=5)
 
         self._create_project_overview_panel(self.main_controls_frame)
@@ -1852,19 +1232,9 @@ class ApplicationGUI:
 
         log.warning("gui.navigate.processing_reports_tab_not_found")
 
-    @staticmethod
-    def _get_status_meta(status_key: str) -> tuple[str, str]:
-        if status_key == "total":
-            return "🧮", "Total"
-        if status_key == "arena":
-            return STATUS_SYMBOLS["arena"], "Arena"
-        if status_key == "rois":
-            return STATUS_SYMBOLS["rois"], "ROIs"
-        if status_key == "trajectory":
-            return STATUS_SYMBOLS["trajectory"], "Trajetória"
-        if status_key == "summary":
-            return STATUS_SYMBOLS["summary"], "Sumário"
-        return PROJECT_STATUS_META.get(status_key, ("•", status_key.title()))
+    def _get_status_meta(self, status_key: str) -> tuple[str, str]:
+        """Get status metadata. Delegates to ProjectViewManager."""
+        return self.project_view_manager._get_status_meta(status_key)
 
     def _request_overview_refresh(
         self,
@@ -1873,25 +1243,12 @@ class ApplicationGUI:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        if reason is not None:
-            self._pending_overview_status = reason
-            self._overview_status_append = append_summary
-
-        if self._overview_refresh_job is not None:
-            try:
-                self.root.after_cancel(self._overview_refresh_job)
-            except Exception:
-                pass
-            self._overview_refresh_job = None
-
-        if immediate:
-            self._refresh_project_overview()
-            return
-
-        try:
-            self._overview_refresh_job = self.root.after(150, self._refresh_project_overview)
-        except Exception:
-            self._refresh_project_overview()
+        """Request overview refresh. Delegates to ProjectViewManager."""
+        return self.project_view_manager._request_overview_refresh(
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
 
     def refresh_project_views(
         self,
@@ -1900,101 +1257,20 @@ class ApplicationGUI:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        """Refresh overview, pipeline, and reports panels in a single call."""
-
-        log.info(
-            "gui.project_refresh.dispatched",
+        """Refresh overview, pipeline, and reports panels. Delegates to ProjectViewManager."""
+        return self.project_view_manager.refresh_project_views(
             reason=reason,
             append_summary=append_summary,
             immediate=immediate,
         )
-
-        self._request_overview_refresh(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-        # Refresh new unified tab if present
-        if getattr(self, "processing_reports_widget", None):
-            self._refresh_processing_reports_tab()
-
-        # Legacy: Refresh old tabs if they still exist
-        if getattr(self, "pipeline_video_tree", None):
-            self._refresh_pipeline_video_table()
-
-        if getattr(self, "reports_tree", None):
-            self.update_reports_tree()
 
     def _refresh_project_overview(self) -> None:
-        self._overview_refresh_job = None
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.refresh_overview.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos() or []
-
-        log.debug(
-            "gui.refresh_overview.start",
-            video_count=len(all_videos),
-            has_project_path=bool(pm.project_path),
-        )
-
-        # Allow display even when there's no project file
-        # This enables single video workflow results to be shown
-        if not all_videos and not pm.project_path:
-            # No videos and no project - nothing to show
-            log.debug("gui.refresh_overview.no_videos_and_no_project")
-            return
-
-        counts: Counter = Counter(
-            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
-        )
-        total = sum(counts.values())
-
-        log.debug(
-            "gui.refresh_overview.updating",
-            total=total,
-            counts=dict(counts),
-        )
-        self._update_project_overview_summary(counts, total, all_videos)
-        # Tree removed in favor of unified Processing and Reports tab
-        if getattr(self, "project_overview_tree", None):
-            self._update_project_overview_tree(pm, all_videos)
-        self._refresh_zone_indicators(all_videos)
-
-        if self._pending_overview_status is not None:
-            summary_line = self._compose_overview_status_line(total, counts)
-            if summary_line:
-                if self._overview_status_append and self._pending_overview_status:
-                    message = f"{self._pending_overview_status} • {summary_line}"
-                elif self._pending_overview_status:
-                    message = f"{self._pending_overview_status} — {summary_line}"
-                else:
-                    message = summary_line
-                self.set_status(message)
-            self._pending_overview_status = None
-            self._overview_status_append = False
+        """Refresh the project overview display. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_project_overview()
 
     def _compose_overview_status_line(self, total: int, counts: Counter) -> str:
-        if total <= 0:
-            return "Nenhum vídeo cadastrado."
-
-        parts: list[str] = [f"🧮 {total} vídeo(s)"]
-        for key in ("pending", "processing", "processed", "complete", "failed"):
-            value = counts.get(key, 0)
-            if value:
-                icon, _ = PROJECT_STATUS_META.get(key, ("•", key.title()))
-                parts.append(f"{icon} {value}")
-
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
-        if others:
-            parts.append(f"➕ {others}")
-
-        return " • ".join(parts)
+        """Compose status line for overview. Delegates to ProjectViewManager."""
+        return self.project_view_manager._compose_overview_status_line(total, counts)
 
     def _update_project_overview_summary(
         self,
@@ -2002,254 +1278,40 @@ class ApplicationGUI:
         total: int,
         videos: list[dict] | None,
     ) -> None:
-        """Update project overview summary (delegates to widget)."""
-        if not self.project_overview_widget:
-            return
-
-        videos = videos or []
-
-        summary_values: dict[str, int] = {"total": total}
-        for status_key in PROJECT_STATUS_META:
-            summary_values[status_key] = counts.get(status_key, 0)
-
-        arena_ready = sum(1 for video in videos if video.get("has_arena"))
-        rois_ready = sum(1 for video in videos if video.get("has_rois"))
-        trajectory_ready = sum(1 for video in videos if video.get("has_trajectory"))
-        summary_ready = sum(
-            1
-            for video in videos
-            if video.get("has_summary")
-            or video.get("has_complete_data")
-            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
-        )
-
-        summary_values["arena"] = arena_ready
-        summary_values["rois"] = rois_ready
-        summary_values["trajectory"] = trajectory_ready
-        summary_values["summary"] = summary_ready
-
-        # Update widget with new counts
-        self.project_overview_widget.update_status_counts(summary_values)
+        """Update project overview summary. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_project_overview_summary(counts, total, videos)
 
     def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
-        """Update the project overview tree (delegates to widget)."""
-        if (
-            not self.project_overview_widget
-            or not self.project_overview_widget.project_overview_tree
-        ):
-            return
-
-        self._overview_video_index = {}
-
-        if not all_videos:
-            self.project_overview_widget.clear_tree()
-            return
-
-        # Build hierarchy data structure
-        hierarchy_data = self._prepare_overview_hierarchy_for_widget(all_videos)
-
-        # Populate widget tree
-        self.project_overview_widget.populate_tree_with_hierarchy(
-            hierarchy_data, self._overview_video_index
-        )
+        """Update the project overview tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_project_overview_tree(project_manager, all_videos)
 
     def _prepare_overview_hierarchy_for_widget(self, all_videos: list[dict]) -> dict:
-        """
-        Prepare hierarchy data in the format expected by ProjectOverviewWidget.
-
-        Returns:
-            Dictionary with 'groups' list containing formatted hierarchy
-        """
-        hierarchy = self._build_video_hierarchy_data(all_videos, "")
-
-        groups_list = []
-
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            days_dict = group_data.get("days") or {}
-            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
-            if not group_entries:
-                continue
-
-            # Calculate group-level summaries
-            group_counts: Counter = Counter(
-                (str(entry.get("status") or "pending")).strip().lower() for entry in group_entries
-            )
-            status_summary = self._format_status_summary(group_counts)
-            data_summary = self._summarize_batch_data(group_entries)
-
-            # Prepare days list for this group
-            days_list = []
-            for day_id, entries in sorted(
-                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
-            ):
-                entries = entries or []
-                if not entries:
-                    continue
-
-                # Calculate day-level summaries
-                day_counts: Counter = Counter(
-                    (str(entry.get("status") or "pending")).strip().lower() for entry in entries
-                )
-                day_status = self._format_status_summary(day_counts)
-                day_data = self._summarize_batch_data(entries)
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-
-                # Prepare videos list for this day
-                videos_list = []
-                for entry in sorted(
-                    entries,
-                    key=lambda item: self._video_sort_key(item.get("subject")),
-                ):
-                    path = entry.get("path") or ""
-                    filename = entry.get("filename") or (
-                        os.path.basename(path) if path else "(sem arquivo)"
-                    )
-                    metadata = entry.get("metadata") or {}
-                    meta_snippet = self._format_video_metadata(metadata)
-
-                    subject_label = self._format_subject_label(entry.get("subject"))
-                    display_name = f"🐟 Sujeito {subject_label}"
-                    if filename:
-                        display_name = f"{display_name} ({filename})"
-                    if meta_snippet:
-                        display_name = f"{display_name} [{meta_snippet}]"
-
-                    status_key = str(entry.get("status") or "pending").strip().lower()
-                    status_display = self._format_status_label(status_key)
-                    data_badges = self._format_data_badges(entry)
-
-                    # Generate unique video ID
-                    video_id = (
-                        f"video_{path}"
-                        if path
-                        else f"video_{group_id}_{day_id}_{len(self._overview_video_index)}"
-                    )
-
-                    videos_list.append(
-                        {
-                            "id": video_id,
-                            "display_name": display_name,
-                            "status": status_display,
-                            "data_badges": data_badges,
-                            "path": path,
-                        }
-                    )
-
-                    # Store in video index for lookups
-                    if path:
-                        self._overview_video_index[path] = dict(entry)
-
-                # Add day to list
-                days_list.append(
-                    {
-                        "id": day_id,
-                        "title": day_title,
-                        "status": day_status,
-                        "data": day_data,
-                        "videos": videos_list,
-                    }
-                )
-
-            # Add group to list
-            groups_list.append(
-                {
-                    "id": group_id,
-                    "display": group_data["display"],
-                    "status_summary": status_summary,
-                    "data_summary": data_summary,
-                    "days": days_list,
-                }
-            )
-
-        return {"groups": groups_list}
+        """Prepare hierarchy data for ProjectOverviewWidget. Delegates to ProjectViewManager."""
+        return self.project_view_manager._prepare_overview_hierarchy_for_widget(all_videos)
 
     def _format_status_label(self, status_key: str) -> str:
-        icon, label = self._get_status_meta(status_key)
-        return f"{icon} {label}"
+        """Format status label. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_label(status_key)
 
     def _format_status_summary(self, counts: Counter) -> str:
-        parts: list[str] = []
-        for key in PROJECT_STATUS_META:
-            value = counts.get(key, 0)
-            if value:
-                icon, _ = PROJECT_STATUS_META[key]
-                parts.append(f"{icon} {value}")
+        """Format status summary. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_summary(counts)
 
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
-        if others:
-            parts.append(f"➕ {others}")
-
-        return " | ".join(parts) if parts else "-"
-
-    @staticmethod
-    def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
-        symbol = STATUS_SYMBOLS[symbol_key]
-        safe_total = max(total, 0)
-        clamped_completed = max(0, min(completed, safe_total)) if safe_total else 0
-        if safe_total:
-            return f"{symbol} {clamped_completed}/{safe_total}"
-        return f"{symbol} 0/0"
+    def _format_status_ratio(self, symbol_key: str, completed: int, total: int) -> str:
+        """Format status ratio. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_ratio(symbol_key, completed, total)
 
     def _summarize_batch_data(self, videos: list[dict]) -> str:
-        if not videos:
-            return "-"
-
-        total = len(videos)
-        arena_count = sum(1 for video in videos if video.get("has_arena"))
-        roi_count = sum(1 for video in videos if video.get("has_rois"))
-        traj_count = sum(1 for video in videos if video.get("has_trajectory"))
-        complete_count = sum(
-            1
-            for video in videos
-            if video.get("has_complete_data")
-            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
-        )
-
-        return (
-            f"{self._format_status_ratio('arena', arena_count, total)}  "
-            f"{self._format_status_ratio('rois', roi_count, total)}  "
-            f"{self._format_status_ratio('trajectory', traj_count, total)}  "
-            f"{self._format_status_ratio('summary', complete_count, total)}"
-        )
+        """Summarize batch data. Delegates to ProjectViewManager."""
+        return self.project_view_manager._summarize_batch_data(videos)
 
     def _format_data_badges(self, video: dict) -> str:
-        has_arena = bool(video.get("has_arena"))
-        has_rois = bool(video.get("has_rois"))
-        has_trajectory = bool(video.get("has_trajectory"))
-        has_complete = bool(video.get("has_complete_data")) or (
-            has_arena and has_rois and has_trajectory
-        )
-
-        markers = [
-            self._format_status_token(has_arena, "arena"),
-            self._format_status_token(has_rois, "rois"),
-            self._format_status_token(has_trajectory, "trajectory"),
-            self._format_status_token(has_complete, "summary"),
-        ]
-        return "  ".join(markers)
+        """Format data badges. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_data_badges(video)
 
     def _format_video_metadata(self, metadata: dict) -> str:
-        if not metadata:
-            return ""
-
-        parts: list[str] = []
-        group = metadata.get("group")
-        if group not in (None, ""):
-            parts.append(f"G:{group}")
-
-        day = metadata.get("day")
-        if day not in (None, ""):
-            day_display = metadata.get("day_label") or self._format_day_display(day)
-            parts.append(f"D:{day_display or day}")
-
-        subject = metadata.get("subject")
-        if subject not in (None, ""):
-            parts.append(f"S:{self._format_subject_label(subject)}")
-
-        return " ".join(parts)
+        """Format video metadata. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_video_metadata(metadata)
 
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
@@ -2282,10 +1344,10 @@ class ApplicationGUI:
             )
             return
 
-        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
         if success:
             self._maybe_offer_zone_reuse(video_path)
-            self.redraw_zones_from_project_data()
+            self.canvas_manager.redraw_zones_from_project_data()
             message = f"Frame carregado: {os.path.basename(video_path)}"
             self.set_status(message)
             self._request_overview_refresh(reason=message, append_summary=True)
@@ -2303,223 +1365,14 @@ class ApplicationGUI:
 
         item_id = tree.identify_row(event.y)
         if item_id:
-            self._show_project_overview_context_menu(item_id, event.x_root, event.y_root)
-
-    def _show_project_overview_context_menu(self, item_id: str, x: int, y: int) -> None:
-        """Show context menu for project overview item (reusable implementation)."""
-        tree = self.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return
-
-        tree.selection_set(item_id)
-
-        tags = tree.item(item_id, "tags") or ()
-        video_path = None
-        for tag in tags:
-            if tag and not tag.startswith("status_"):
-                video_path = tag
-                break
-
-        if not video_path:
-            return
-
-        # For now, show a simple context menu - can be expanded later
-        if self._overview_context_menu:
-            self._overview_context_menu.destroy()
-
-        self._overview_context_menu = Menu(self.root, tearoff=0)
-        self._overview_context_menu.add_command(
-            label="Carregar vídeo",
-            command=lambda: self._on_project_overview_tree_double_click_impl(item_id),
-        )
-        self._overview_context_menu.post(x, y)
-
-    def _get_overview_badge_font(self) -> tkfont.Font:
-        if self._overview_menu_font is None:
-            tree = self.project_overview_tree
-            font_name = tree.cget("font") if tree else ""
-            try:
-                if font_name:
-                    self._overview_menu_font = tkfont.Font(font=font_name)
-                else:
-                    self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
-            except Exception:
-                self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
-
-        return self._overview_menu_font
-
-    def _resolve_overview_asset_from_click(self, item_id: str, event_x: int) -> str | None:
-        tree = self.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return None
-
-        bbox = tree.bbox(item_id, "#2")
-        if not bbox:
-            return None
-
-        cell_x = event_x - bbox[0]
-        if cell_x < 0:
-            return None
-
-        data_text = tree.set(item_id, "data")
-        if not data_text:
-            return None
-
-        tokens = [token for token in data_text.split("  ") if token.strip()]
-        assets = ("arena", "rois", "trajectory", "summary")
-        font = self._get_overview_badge_font()
-        cursor = 0
-
-        for token, asset in zip(tokens, assets, strict=False):
-            segment = token.strip()
-            if not segment:
-                continue
-            display = f"{segment}  "
-            segment_width = font.measure(display)
-            if cursor <= cell_x <= cursor + segment_width:
-                return asset
-            cursor += segment_width
-
-        return None
-
-    def _show_overview_context_menu(
-        self,
-        event,
-        video_path: str,
-        asset: str,
-    ) -> None:
-        tree = self.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return
-
-        if self._overview_context_menu is None:
-            self._overview_context_menu = Menu(tree, tearoff=0)
-
-        labels = {
-            "arena": "Apagar arena",
-            "rois": "Apagar ROIs",
-            "trajectory": "Apagar trajetória",
-            "summary": "Apagar relatórios/sumários",
-            "video": "Remover vídeo do projeto",
-        }
-
-        menu = self._overview_context_menu
-        menu.delete(0, "end")
-        menu.add_command(
-            label=labels.get(asset, f"Remover {asset}"),
-            command=lambda: self._handle_overview_asset_removal(video_path, asset),
-        )
-
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
-
-    def _handle_overview_asset_removal(self, video_path: str, asset: str) -> None:
-        allowed, reason = self.controller.can_remove_project_asset(video_path, asset)
-        if not allowed:
-            self.show_warning(
-                "Ação indisponível",
-                reason or "Não é possível remover o item selecionado neste momento.",
-            )
-            return
-
-        basename = os.path.basename(video_path) or video_path
-        prompts = {
-            "arena": (
-                "Remover arena",
-                ("Deseja remover a arena deste vídeo? As ROIs associadas também serão limpas."),
-            ),
-            "rois": (
-                "Remover ROIs",
-                "Deseja remover todas as ROIs salvas para este vídeo?",
-            ),
-            "trajectory": (
-                "Remover trajetória",
-                "Deseja remover a trajetória gerada para este vídeo?",
-            ),
-            "summary": (
-                "Remover relatórios",
-                "Deseja remover os relatórios e sumários associados a este vídeo?",
-            ),
-            "video": (
-                "Remover vídeo do projeto",
-                (
-                    "Deseja remover este vídeo do projeto? As arenas, ROIs e "
-                    "trajetórias já removidas não poderão ser recuperadas "
-                    "automaticamente."
-                ),
-            ),
-        }
-
-        title, message = prompts.get(
-            asset,
-            (
-                "Remover item",
-                "Confirma a remoção do item selecionado?",
-            ),
-        )
-
-        confirm = messagebox.askyesno(
-            title,
-            f"{message}\n\nVídeo: {basename}",
-            icon="warning",
-        )
-        if not confirm:
-            return
-
-        delete_files = True
-        if asset == "video":
-            delete_files = messagebox.askyesno(
-                "Excluir arquivo do disco?",
-                (
-                    "Deseja também remover o arquivo de vídeo do disco? Essa ação "
-                    "não poderá ser desfeita."
-                ),
-                icon="question",
+            self.menu_manager.show_project_overview_context_menu(
+                item_id, event.x_root, event.y_root
             )
 
-        if asset == "video":
-            self.publish_event(
-                Events.PROJECT_DELETE_ASSET,
-                {
-                    "video_path": video_path,
-                    "asset": asset,
-                    "delete_source": delete_files,
-                },
-            )
-            success = True  # Assume success
-        else:
-            self.publish_event(
-                Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset}
-            )
-            success = True  # Assume success
 
-        if not success:
-            self.show_error(
-                "Remoção não realizada",
-                (
-                    "Não foi possível remover o item selecionado. Consulte os "
-                    "logs para mais detalhes."
-                ),
-            )
-            return
 
-        status_labels = {
-            "arena": "Arena removida",
-            "rois": "ROIs removidas",
-            "trajectory": "Trajetória removida",
-            "summary": "Relatórios removidos",
-            "video": "Vídeo removido do projeto",
-        }
 
-        status_message = f"{status_labels.get(asset, 'Item removido')} • {basename}"
-        self.set_status(status_message)
-        self.refresh_project_views(
-            reason=status_message,
-            append_summary=True,
-            immediate=True,
-        )
+
 
     def show_external_trigger_notice(self, session_label: str, **details):
         if not self.external_trigger_notice_label:
@@ -2662,7 +1515,7 @@ class ApplicationGUI:
 
         # 7. ✨ NEW: Create context menu before subscribing to events
         self.roi_context_menu = None
-        self._create_roi_context_menu()
+        self.menu_manager.create_roi_context_menu()
 
         # 8. ✨ NEW: Subscribe to events emitted by the components
         self._subscribe_zone_component_events()
@@ -2714,7 +1567,7 @@ class ApplicationGUI:
         )
         self.event_bus.subscribe(
             "zone.list_item_right_click",
-            lambda data: self._on_zone_right_click(self._create_mock_event(data)),
+            lambda data: self._on_zone_right_click(self.event_dispatcher._create_mock_event(data)),
         )
 
         # Video selector events
@@ -2732,29 +1585,7 @@ class ApplicationGUI:
 
         self.event_bus.subscribe("zone.auto_detect_clicked", self._handle_zone_auto_detect_event)
 
-    def _handle_zone_auto_detect_event(self, data: dict | None) -> None:
-        """Proxy auto-detect requests coming from the ZoneControlsWidget."""
-        frames_value = None
-        if data:
-            frames_value = data.get("stabilization_frames")
-        self._on_auto_detect_clicked(stabilization_frames=frames_value)
 
-    def _create_mock_event(self, data: dict):
-        """Create a mock event object for backward compatibility with old event handlers."""
-
-        class MockEvent:
-            def __init__(self, data, zone_listbox):
-                self.x_root = data.get("x", 0)
-                self.y_root = data.get("y", 0)
-                # Convert root coordinates to widget-relative coordinates
-                if zone_listbox and "x" in data and "y" in data:
-                    self.x = data["x"] - zone_listbox.winfo_rootx()
-                    self.y = data["y"] - zone_listbox.winfo_rooty()
-                else:
-                    self.x = 0
-                    self.y = 0
-
-        return MockEvent(data, self.zone_listbox)
 
     def _on_canvas_configure(self, event=None):
         """Handle canvas resize events to properly scale and center the image."""
@@ -2777,10 +1608,10 @@ class ApplicationGUI:
 
         # Re-scale and center the background image using the new method
         try:
-            self._draw_bg_image_to_canvas()
+            self.canvas_manager._draw_bg_image_to_canvas()
             # After updating the background, redraw any zones that exist
             if hasattr(self, "controller") and self.controller:
-                self.redraw_zones_from_project_data()
+                self.canvas_manager.redraw_zones_from_project_data()
         except Exception as e:
             log.warning("gui.canvas.configure_error", error=str(e))
 
@@ -3072,7 +1903,7 @@ class ApplicationGUI:
 
         # Menu de contexto para ROIs
         self.roi_context_menu = None
-        self._create_roi_context_menu()
+        self.menu_manager.create_roi_context_menu()
 
         scrollbar.pack(side="right", fill="y")
 
@@ -3360,232 +2191,12 @@ class ApplicationGUI:
         self._refresh_pipeline_video_table()
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
-        """Atualiza os cartões de resumo com base na lista de vídeos."""
-        if not self.zone_summary_cards:
-            return
-
-        if all_videos is None:
-            controller = getattr(self, "controller", None)
-            if controller and controller.project_manager:
-                all_videos = controller.project_manager.get_all_videos() or []
-            else:
-                all_videos = []
-
-        all_videos = list(all_videos or [])
-        total_videos = len(all_videos)
-
-        if total_videos == 0:
-            for card in self.zone_summary_cards.values():
-                card["value"].set("0")
-                card["detail"].set("Nenhum vídeo listado")
-            log.info(
-                "gui.zone_summary.cards_refresh",
-                total=0,
-                arenas_missing=0,
-                rois_missing=0,
-                ready_pending=0,
-                ready_completed=0,
-            )
-            return
-
-        arenas_missing = sum(1 for video in all_videos if not video.get("has_arena"))
-        rois_missing = sum(1 for video in all_videos if not video.get("has_rois"))
-
-        ready_total = sum(
-            1 for video in all_videos if video.get("has_arena") and video.get("has_rois")
-        )
-        ready_completed = sum(
-            1
-            for video in all_videos
-            if video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory")
-        )
-        ready_pending = max(ready_total - ready_completed, 0)
-
-        self.zone_summary_cards["arena_missing"]["value"].set(str(arenas_missing))
-        self.zone_summary_cards["arena_missing"]["detail"].set(
-            f"{total_videos - arenas_missing} com arena salva"
-        )
-
-        self.zone_summary_cards["rois_missing"]["value"].set(str(rois_missing))
-        self.zone_summary_cards["rois_missing"]["detail"].set(
-            f"{total_videos - rois_missing} com ROIs salvas"
-        )
-
-        self.zone_summary_cards["ready_for_processing"]["value"].set(str(ready_pending))
-        self.zone_summary_cards["ready_for_processing"]["detail"].set(
-            f"{ready_completed} já com trajetórias"
-            if ready_total
-            else "Sem arenas/ROIs disponíveis"
-        )
-
-        log.info(
-            "gui.zone_summary.cards_refresh",
-            total=total_videos,
-            arenas_missing=arenas_missing,
-            rois_missing=rois_missing,
-            ready_pending=ready_pending,
-            ready_completed=ready_completed,
-        )
+        """Update zone summary cards. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_zone_summary_cards(all_videos)
 
     def _refresh_pipeline_video_table(self, all_videos=None) -> None:
-        """LEGACY: Replaced by _refresh_processing_reports_tab()."""
-        if not self.pipeline_video_tree or not self.pipeline_tab_frame:
-            return
-
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-
-        if all_videos is None and pm is not None:
-            all_videos = pm.get_all_videos() or []
-
-        for item in self.pipeline_video_tree.get_children():
-            self.pipeline_video_tree.delete(item)
-
-        prepared_videos: list[dict] = []
-        self.pipeline_video_vars = {}
-        summary_total = 0
-
-        for video in all_videos or []:
-            path = video.get("path")
-            if not path or not video.get("has_arena"):
-                continue
-
-            summary_exists = self._pipeline_summary_exists(video)
-
-            prepared = dict(video)
-            prepared["path"] = path
-            prepared["metadata"] = video.get("metadata") or {}
-            prepared["has_arena"] = bool(video.get("has_arena"))
-            prepared["has_rois"] = bool(video.get("has_rois"))
-            prepared["has_trajectory"] = bool(video.get("has_trajectory"))
-            prepared["has_complete_data"] = bool(video.get("has_complete_data")) or (
-                prepared["has_arena"] and prepared["has_rois"] and prepared["has_trajectory"]
-            )
-            prepared["has_summary"] = bool(summary_exists)
-            prepared["filename"] = os.path.basename(path)
-
-            prepared_videos.append(prepared)
-
-            self.pipeline_video_vars[path] = {
-                "info": video,
-                "summary": summary_exists,
-            }
-            if summary_exists:
-                summary_total += 1
-
-        hierarchy = self._build_video_hierarchy_data(prepared_videos, "")
-
-        def _count(entries: list[dict], key: str) -> int:
-            return sum(1 for entry in entries if entry.get(key))
-
-        def _summary_count(entries: list[dict]) -> int:
-            return sum(
-                1 for entry in entries if entry.get("has_summary") or entry.get("has_complete_data")
-            )
-
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            days_dict = group_data.get("days") or {}
-            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
-            if not group_entries:
-                continue
-
-            total_group = len(group_entries)
-            group_node = self.pipeline_video_tree.insert(
-                "",
-                "end",
-                text=f"🏷️ {group_data['display']}",
-                values=(
-                    self._format_status_ratio(
-                        "rois", _count(group_entries, "has_rois"), total_group
-                    ),
-                    self._format_status_ratio(
-                        "trajectory",
-                        _count(group_entries, "has_trajectory"),
-                        total_group,
-                    ),
-                    self._format_status_ratio(
-                        "summary", _summary_count(group_entries), total_group
-                    ),
-                    f"{total_group} vídeos",
-                ),
-                open=True,
-            )
-
-            for day_id, entries in sorted(
-                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
-            ):
-                entries = entries or []
-                if not entries:
-                    continue
-
-                total_day = len(entries)
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-                day_node = self.pipeline_video_tree.insert(
-                    group_node,
-                    "end",
-                    text=f"📅 {day_title}",
-                    values=(
-                        self._format_status_ratio("rois", _count(entries, "has_rois"), total_day),
-                        self._format_status_ratio(
-                            "trajectory", _count(entries, "has_trajectory"), total_day
-                        ),
-                        self._format_status_ratio("summary", _summary_count(entries), total_day),
-                        f"{total_day} vídeos",
-                    ),
-                    open=False,
-                )
-
-                for entry in sorted(
-                    entries,
-                    key=lambda item: self._video_sort_key(item.get("subject")),
-                ):
-                    path = entry.get("path")
-                    if not path:
-                        continue
-
-                    rois_label = "✓" if entry.get("has_rois") else "✗"
-                    traj_label = "✓" if entry.get("has_trajectory") else "✗"
-                    summary_label = "✓" if entry.get("has_summary") else "✗"
-
-                    status_key = str(entry.get("status") or "pending").strip().lower()
-                    status_display = self._format_status_label(status_key)
-
-                    subject_label = self._format_subject_label(entry.get("subject"))
-                    filename = entry.get("filename")
-                    node_text = f"🐟 Sujeito {subject_label}"
-                    if filename:
-                        node_text = f"{node_text} ({filename})"
-
-                    self.pipeline_video_tree.insert(
-                        day_node,
-                        "end",
-                        iid=path,
-                        text=node_text,
-                        values=(rois_label, traj_label, summary_label, status_display),
-                        tags=(path,),
-                    )
-
-        log.info(
-            "gui.pipeline_table.refreshed",
-            eligible=len(prepared_videos),
-            with_rois=sum(1 for entry in prepared_videos if entry.get("has_rois")),
-            with_trajectory=sum(1 for entry in prepared_videos if entry.get("has_trajectory")),
-            with_summary=summary_total,
-        )
-
-        listed = len(self.pipeline_video_vars)
-        if listed == 0:
-            selection_text = "Nenhum vídeo elegível listado."
-        else:
-            selection_text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-
-        if self.pipeline_selection_label:
-            self.pipeline_selection_label.config(text=selection_text)
-
-        self._update_pipeline_buttons_state()
+        """Refresh pipeline video table. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_pipeline_video_table(all_videos)
 
     def _pipeline_summary_exists(self, video_info: dict) -> bool:
         controller = getattr(self, "controller", None)
@@ -3732,7 +2343,9 @@ class ApplicationGUI:
         if not unique_paths:
             return
 
-        self.publish_event(Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths})
+        self.event_dispatcher.publish_event(
+            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
+        )
         self._request_overview_refresh()
         # Switch to analysis tab to show progress of the newly requested batch.
         self._switch_to_analysis_view()
@@ -3746,82 +2359,22 @@ class ApplicationGUI:
             )
             return
 
-        self.publish_event(Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections})
+        self.event_dispatcher.publish_event(
+            Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections}
+        )
         self._refresh_pipeline_video_table()
 
     def _refresh_zone_indicators(self, videos=None) -> None:
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        if videos is None:
-            videos = pm.get_all_videos() if pm else []
-        self._update_zone_summary_cards(videos)
-        self._refresh_pipeline_video_table(videos)
+        """Refresh zone indicators. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_zone_indicators(videos)
 
     def _create_analysis_tab_widget(self):
-        """Creates the analysis tab using the AnalysisDisplayWidget."""
-        if not self.notebook:
-            return
-
-        # Create the widget
-        self.analysis_display_widget = AnalysisDisplayWidget(
-            self.notebook,
-            event_bus=self.event_bus,
-            available_track_options=list(self._available_track_options),
-        )
-
-        # Add to notebook
-        self.notebook.add(self.analysis_display_widget, text="Análise de Vídeo")
-
-        # Connect widget events to GUI handlers
-        if self.event_bus:
-            self._event_bus_handlers["analysis.track_selected"] = (
-                lambda data: self._on_track_selection_changed()
-            )
-            self._event_bus_handlers["analysis.cancel_requested"] = lambda data: self.publish_event(
-                Events.VIDEO_CANCEL_ANALYSIS, {}
-            )
-
-        # Set up backward compatibility aliases
-        self.video_label = self.analysis_display_widget.video_label
-        self.progress_frame = self.analysis_display_widget.progress_frame
-        self.progress_bar = self.analysis_display_widget.progress_bar
-        self.progress_labels = self.analysis_display_widget.progress_labels
-        self.cancel_proc_btn = self.analysis_display_widget.cancel_btn
-        self.track_selector_var = self.analysis_display_widget.track_selector_var
-        self.track_selector_widget = self.analysis_display_widget.track_selector_widget
-        self.social_summary_var = self.analysis_display_widget.social_summary_var
+        """Creates the analysis tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_analysis_tab_widget()
 
     def _create_scrollable_controls_frame(self, parent):
-        """Create a scrollable frame for the zone controls."""
-        # Create a canvas and scrollbar for scrolling
-        self.controls_canvas = Canvas(parent, highlightthickness=0)
-        self.controls_scrollbar = ttk.Scrollbar(
-            parent, orient="vertical", command=self.controls_canvas.yview
-        )
-
-        # Create the main scrollable frame inside the canvas
-        self.zone_controls_frame = ttk.Frame(self.controls_canvas)
-
-        # Create a frame for the fixed button at the bottom
-        self.fixed_button_frame = ttk.Frame(parent)
-
-        # Configure canvas scrolling
-        self.controls_canvas.configure(yscrollcommand=self.controls_scrollbar.set)
-
-        # Pack the scrollbar and canvas
-        self.controls_scrollbar.pack(side="right", fill="y")
-        self.fixed_button_frame.pack(side="bottom", fill="x", padx=5, pady=5)
-        self.controls_canvas.pack(side="left", fill="both", expand=True)
-
-        # Create window in canvas for the scrollable frame
-        self.controls_canvas_window = self.controls_canvas.create_window(
-            0, 0, anchor="nw", window=self.zone_controls_frame
-        )
-
-        # Bind events for proper scrolling behavior
-        self.zone_controls_frame.bind("<Configure>", self._on_frame_configure)
-        self.controls_canvas.bind("<Configure>", self._on_canvas_configure_scroll)
-        self._bind_mousewheel()
+        """Create a scrollable frame. Delegates to WidgetFactory."""
+        return self.widget_factory.create_scrollable_controls_frame(parent)
 
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
@@ -3974,7 +2527,7 @@ class ApplicationGUI:
         """Draws a suggested polygon that the user can interactively edit."""
         # Garante que há frame no canvas antes de desenhar
         if self._canvas_bg_image is None:
-            if not self.load_video_frame_to_canvas():
+            if not self.canvas_manager.load_video_frame_to_canvas():
                 self.show_error(
                     "Erro",
                     "Não foi possível carregar um frame para mostrar o polígono detectado.",
@@ -3984,7 +2537,7 @@ class ApplicationGUI:
         self._clear_interactive_polygon()  # Clear any previous one
         self.edited_polygon_points = [list(p) for p in polygon]
 
-        self._draw_interactive_polygon()
+        self.canvas_manager._draw_interactive_polygon()
 
         # Show the save/discard buttons using component method
         if hasattr(self, "zone_controls") and self.zone_controls:
@@ -3997,85 +2550,6 @@ class ApplicationGUI:
 
         self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
 
-    def _draw_interactive_polygon(self):
-        """Helper to (re)draw the polygon and its handles based on current points."""
-        # Clear previous drawings
-        self.roi_canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator")
-
-        # Convert video coordinates to canvas coordinates for display
-        canvas_points = []
-        for point in self.edited_polygon_points:
-            canvas_point = self._video_to_canvas(point[0], point[1])
-            canvas_points.append([canvas_point[0], canvas_point[1]])
-
-        # Draw the polygon itself using canvas coordinates
-        flat_points = [coord for point in canvas_points for coord in point]
-        self.interactive_polygon_item = self.roi_canvas.create_polygon(
-            flat_points,
-            fill="",
-            outline="yellow",
-            width=2,
-            tags="interactive_polygon",
-        )
-
-        # Draw the handles using canvas coordinates
-        self.polygon_handles = []
-        for i, canvas_point in enumerate(canvas_points):
-            x, y = canvas_point[0], canvas_point[1]
-
-            # Check if this vertex is on the arena boundary (for visual feedback)
-            is_on_boundary = False
-            if (
-                isinstance(self.current_editing_zone, tuple)
-                and self.current_editing_zone[0] == "roi"
-            ):
-                zone_data = self._get_zone_data_for_active_context()
-                main_arena_poly = zone_data.polygon if zone_data else None
-                if main_arena_poly:
-                    canvas_arena_poly = []
-                    for point in main_arena_poly:
-                        canvas_pt = self._video_to_canvas(point[0], point[1])
-                        canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                    arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-                    result = cv2.pointPolygonTest(arena_array, (x, y), True)
-
-                    # Consider point on boundary if very close to edge (distance ~0)
-                    is_on_boundary = abs(result) < 1.0
-
-            # Choose handle color based on whether it's clamped to boundary
-            handle_fill = "orange" if is_on_boundary else "darkgoldenrod"
-            handle_outline = "red" if is_on_boundary else "yellow"
-
-            handle = self.roi_canvas.create_rectangle(
-                x - 4,
-                y - 4,
-                x + 4,
-                y + 4,
-                fill=handle_fill,
-                outline=handle_outline,
-                tags=("handle", f"handle-{i}"),
-            )
-            self.polygon_handles.append(handle)
-
-            # Draw an additional indicator circle for clamped vertices
-            if is_on_boundary:
-                self.roi_canvas.create_oval(
-                    x - 8,
-                    y - 8,
-                    x + 8,
-                    y + 8,
-                    outline="orange",
-                    width=2,
-                    tags="edit_clamp_indicator",
-                )
-
-            # Bind events to each handle
-            self.roi_canvas.tag_bind(
-                handle, "<ButtonPress-1>", lambda e, i=i: self._on_handle_press(e, i)
-            )
-            self.roi_canvas.tag_bind(handle, "<B1-Motion>", self._on_handle_drag)
-            self.roi_canvas.tag_bind(handle, "<ButtonRelease-1>", self._on_handle_release)
 
     def _on_handle_press(self, event, handle_index):
         """Records which handle is being dragged and initial offset."""
@@ -4087,7 +2561,7 @@ class ApplicationGUI:
         # Get current handle position in video coordinates
         video_point = self.edited_polygon_points[handle_index]
         # Convert to canvas coordinates
-        canvas_point = self._video_to_canvas(video_point[0], video_point[1])
+        canvas_point = self.canvas_manager._video_to_canvas(video_point[0], video_point[1])
         self._drag_start_handle = canvas_point
 
         # Calculate offset between mouse and handle center
@@ -4119,7 +2593,7 @@ class ApplicationGUI:
                 # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
                 for point in main_arena_poly:
-                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
                 arena_array = np.array(canvas_arena_poly, dtype=np.float32)
@@ -4138,7 +2612,7 @@ class ApplicationGUI:
                         p1 = canvas_arena_poly[i]
                         p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
 
-                        edge_snap = self._point_to_segment_distance(
+                        edge_snap = self.canvas_manager._point_to_segment_distance(
                             canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
@@ -4156,14 +2630,14 @@ class ApplicationGUI:
         canvas_y = max(0, min(canvas_y, canvas_height))
 
         # Convert canvas coordinates to video coordinates before storing
-        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        video_point = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
         self.edited_polygon_points[self._dragged_handle_index] = [
             video_point[0],
             video_point[1],
         ]
 
         # Redraw the entire interactive polygon and its handles
-        self._draw_interactive_polygon()
+        self.canvas_manager._draw_interactive_polygon()
 
     def _on_handle_drag_global(self, event):
         """Global drag handler for canvas-wide dragging."""
@@ -4189,7 +2663,7 @@ class ApplicationGUI:
         """Saves the edited polygon and makes it static."""
         if self.current_editing_zone == "arena":
             # Save main arena
-            self.publish_event(
+            self.event_dispatcher.publish_event(
                 Events.ZONE_SAVE_MANUAL_ARENA,
                 {"polygon_points": self.edited_polygon_points},
             )
@@ -4223,7 +2697,7 @@ class ApplicationGUI:
 
         # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
-        self.redraw_zones_from_project_data()
+        self.canvas_manager.redraw_zones_from_project_data()
         self.update_zone_listbox()
         self._refresh_zone_indicators()
 
@@ -4239,7 +2713,7 @@ class ApplicationGUI:
             self.set_status("Edição descartada.")
 
         # Redraw zones to restore original state
-        self.redraw_zones_from_project_data()
+        self.canvas_manager.redraw_zones_from_project_data()
 
     def _clear_interactive_polygon(self):
         """Clears all interactive elements from the canvas and hides buttons."""
@@ -4259,251 +2733,15 @@ class ApplicationGUI:
         self._drag_offset = (0, 0)
         self.current_editing_zone = None
 
-    def display_roi_video_frame(self, video_path):
-        """
-        Loads the first frame of a video, displays it on the canvas,
-        and adjusts the window size.
-        """
-        try:
-            if not video_path or not os.path.exists(video_path):
-                log.error(
-                    "gui.display_roi_frame.invalid_path",
-                    path=video_path,
-                )
-                self.controller.project_manager.set_active_zone_video(None)
-                self.show_error(
-                    "Erro",
-                    "O vídeo selecionado não foi encontrado ou está inacessível.",
-                )
-                return
 
-            self.controller.project_manager.set_active_zone_video(video_path)
-            self._refresh_roi_templates()
 
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                self.show_error("Erro", "Não foi possível abrir o vídeo.")
-                return
-            ret, frame = cap.read()
-            cap.release()
-            if not ret:
-                self.show_error("Erro", "Não foi possível ler um frame do vídeo.")
-                return
+    def _video_sort_key(self, value):
+        """Get video sort key. Delegates to ProjectViewManager."""
+        return self.project_view_manager._video_sort_key(value)
 
-            # Logic to display on the canvas
-            h, w, _ = frame.shape
-            # Adjust the main window to a proportional size
-            screen_w = self.root.winfo_screenwidth()
-            screen_h = self.root.winfo_screenheight()
-            win_w = min(int(screen_w * 0.8), w + 400)  # Account for controls space
-            win_h = min(int(screen_h * 0.8), h + 150)  # Account for window decorations
-            set_geometry_if_not_maximized(self.root, f"{win_w}x{win_h}")
-            self.root.update_idletasks()
-
-            # Convert the frame for display
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._original_image = Image.fromarray(frame_rgb)
-            # Also store as _raw_bg_image as mentioned in requirements
-            self._raw_bg_image = self._original_image
-
-            # Wait for the canvas to be properly sized after geometry update
-            self.root.after(10, lambda: self._draw_bg_image_to_canvas())
-
-        except Exception as e:
-            self.show_error("Erro ao Exibir Frame", str(e))
-
-    def _display_image_on_canvas(self):
-        """Display the original image on the canvas with proper scaling."""
-        if not hasattr(self, "_original_image") or not self._original_image:
-            return
-
-        # Get actual canvas dimensions after layout
-        canvas_width = self.roi_canvas.winfo_width()
-        canvas_height = self.roi_canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not ready yet, try again
-            self.root.after(10, self._display_image_on_canvas)
-            return
-
-        # Calculate scaling to fit image while maintaining aspect ratio
-        img_w, img_h = self._original_image.size
-        scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
-        new_width = int(img_w * scale)
-        new_height = int(img_h * scale)
-
-        # Scale the image
-        image = self._original_image.resize((new_width, new_height), Image.LANCZOS)
-
-        # Clear canvas and display centered image
-        self.roi_canvas.delete("all")
-        self._canvas_bg_image = ImageTk.PhotoImage(image)
-
-        # Center the image within the canvas
-        center_x = canvas_width // 2
-        center_y = canvas_height // 2
-
-        # Store positioning for later restoration in redraw_zones_from_project_data
-        self._canvas_bg_position = (center_x, center_y, "center")
-
-        self.roi_canvas.create_image(
-            center_x,
-            center_y,
-            anchor="center",
-            image=self._canvas_bg_image,
-            tags="background_image",
-        )
-
-    def _draw_bg_image_to_canvas(self):
-        """Draws the background image to canvas with proper scaling and centering."""
-        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
-            if hasattr(self, "_original_image") and self._original_image:
-                self._raw_bg_image = self._original_image
-            else:
-                return
-
-        # Get actual canvas dimensions after layout
-        canvas_width = self.roi_canvas.winfo_width()
-        canvas_height = self.roi_canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not ready yet, try again
-            self.root.after(10, self._draw_bg_image_to_canvas)
-            return
-
-        # Calculate scaling to fit image while maintaining aspect ratio
-        img_w, img_h = self._raw_bg_image.size
-        scale = min(canvas_width / img_w, canvas_height / img_h, 1.0)
-        new_width = int(img_w * scale)
-        new_height = int(img_h * scale)
-
-        # Store scaling information for coordinate conversion
-        self._bg_scale = scale
-        self._bg_img_size = (img_w, img_h)  # Original image size
-
-        # Calculate offset (top-left position of scaled image in canvas)
-        center_x = canvas_width // 2
-        center_y = canvas_height // 2
-        offset_x = center_x - new_width // 2
-        offset_y = center_y - new_height // 2
-        self._bg_offset = (offset_x, offset_y)
-
-        # Scale the image
-        image = self._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
-
-        # Clear canvas and display centered image
-        self.roi_canvas.delete("all")
-        self._canvas_bg_image = ImageTk.PhotoImage(image)
-
-        # Store positioning for later restoration in redraw_zones_from_project_data
-        self._canvas_bg_position = (center_x, center_y, "center")
-
-        self.roi_canvas.create_image(
-            center_x,
-            center_y,
-            anchor="center",
-            image=self._canvas_bg_image,
-            tags="background_image",
-        )
-
-    def _canvas_to_video(self, canvas_x, canvas_y):
-        """Convert canvas coordinates to video frame coordinates."""
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
-            # Fallback: return canvas coordinates if scaling info not available
-            return (float(canvas_x), float(canvas_y))
-
-        scale = self._bg_scale
-        offset_x, offset_y = self._bg_offset
-
-        # Convert canvas coordinates to video coordinates
-        video_x = (canvas_x - offset_x) / scale
-        video_y = (canvas_y - offset_y) / scale
-
-        return (float(video_x), float(video_y))
-
-    def _video_to_canvas(self, video_x, video_y):
-        """Convert video frame coordinates to canvas coordinates."""
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
-            # Fallback: return video coordinates if scaling info not available
-            return (float(video_x), float(video_y))
-
-        scale = self._bg_scale
-        offset_x, offset_y = self._bg_offset
-
-        # Convert video coordinates to canvas coordinates
-        canvas_x = video_x * scale + offset_x
-        canvas_y = video_y * scale + offset_y
-
-        return (float(canvas_x), float(canvas_y))
-
-    def load_video_frame_to_canvas(self, video_path: str | None = None, frame_number: int = 0):
-        """Carrega um frame do vídeo no canvas"""
-        if video_path is None:
-            # Tenta usar o vídeo pendente ou do projeto
-            if hasattr(self, "pending_single_video_path") and self.pending_single_video_path:
-                video_path = self.pending_single_video_path
-            elif self.controller.project_manager.project_path:
-                videos = self.controller.project_manager.get_all_videos()
-                if videos:
-                    video_path = videos[0].get("path")
-
-        if not video_path or not os.path.exists(video_path):
-            log.error("gui.load_frame.no_video")
-            self.controller.project_manager.set_active_zone_video(None)
-            return False
-
-        try:
-            self.controller.project_manager.set_active_zone_video(video_path)
-
-            cap = cv2.VideoCapture(video_path)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            ret, frame = cap.read()
-            cap.release()
-
-            if not ret:
-                return False
-
-            # Convert frame and store original
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._original_image = Image.fromarray(frame_rgb)
-            # Also store as _raw_bg_image as mentioned in requirements
-            self._raw_bg_image = self._original_image
-
-            # Display the image using proper canvas scaling
-            self._draw_bg_image_to_canvas()
-
-            log.info("gui.canvas.frame_loaded", video=video_path)
-            return True
-
-        except Exception as e:
-            log.error("gui.load_frame.error", error=str(e))
-            return False
-
-    @staticmethod
-    def _video_sort_key(value):
-        try:
-            return (0, int(value))
-        except (TypeError, ValueError):
-            value_str = str(value) if value is not None else ""
-            return (1, value_str.lower())
-
-    @staticmethod
-    def _format_subject_label(value):
-        if value is None:
-            return "??"
-        if isinstance(value, int):
-            return f"{value:02d}"
-        if isinstance(value, float) and value.is_integer():
-            return f"{int(value):02d}"
-        value_str = str(value).strip()
-        if not value_str:
-            return "??"
-        if value_str.isdigit():
-            try:
-                return f"{int(value_str):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+    def _format_subject_label(self, value):
+        """Format subject label. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_subject_label(value)
 
     @staticmethod
     def _format_day_display(value):
@@ -4529,87 +2767,16 @@ class ApplicationGUI:
         return value_str
 
     def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
-        metadata = metadata or {}
-        candidate = metadata.get("day_label") or ""
-        if not candidate and metadata.get("day") is not None:
-            candidate = self._format_day_display(metadata.get("day"))
-        if not candidate:
-            candidate = self._format_day_display(day_value)
-        if not candidate:
-            base_value = day_value if day_value not in (None, "") else None
-            candidate = str(base_value) if base_value is not None else "Sem Dia"
-        candidate_str = str(candidate).strip()
-        if not candidate_str:
-            candidate_str = "Sem Dia"
-        if candidate_str.lower() == "sem dia":
-            return "Sem Dia"
-        return f"Dia {candidate_str}"
+        """Build day title. Delegates to ProjectViewManager."""
+        return self.project_view_manager._build_day_title(day_value, metadata)
 
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],
         search_text: str,
     ) -> dict[str, dict]:
-        hierarchy: dict[str, dict] = {}
-
-        normalized = search_text.strip().lower()
-
-        for video in all_videos:
-            metadata = video.get("metadata") or {}
-            group_id = metadata.get("group") or "Sem Grupo"
-            group_display = metadata.get("group_display_name") or group_id
-            day_id = metadata.get("day") or "Sem Dia"
-            day_display = metadata.get("day_label") or self._format_day_display(day_id)
-            subject_id = metadata.get("subject")
-            filename = os.path.basename(video.get("path", ""))
-            status_label = video.get("status", "")
-
-            searchable_values = (
-                str(group_id),
-                str(group_display),
-                str(day_id),
-                str(day_display),
-                str(subject_id) if subject_id is not None else "",
-                filename,
-                status_label,
-            )
-
-            if normalized and not any(
-                normalized in str(value).lower() for value in searchable_values
-            ):
-                continue
-
-            group_data = hierarchy.setdefault(
-                group_id,
-                {"display": group_display, "days": {}},
-            )
-            days_dict = group_data["days"]
-
-            has_arena = bool(video.get("has_arena"))
-            has_rois = bool(video.get("has_rois"))
-            has_trajectory = bool(video.get("has_trajectory"))
-            has_complete = bool(video.get("has_complete_data")) or (
-                has_arena and has_rois and has_trajectory
-            )
-            has_summary = bool(video.get("has_summary")) or bool(video.get("has_summary_parquet"))
-
-            video_entry = {
-                "path": video.get("path"),
-                "metadata": metadata,
-                "day_label": day_display,
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete,
-                "has_summary": has_summary,
-                "filename": filename,
-                "status": status_label,
-                "subject": subject_id,
-            }
-
-            days_dict.setdefault(day_id, []).append(video_entry)
-
-        return hierarchy
+        """Build video hierarchy data. Delegates to ProjectViewManager."""
+        return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
 
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
         controller = getattr(self, "controller", None)
@@ -4669,141 +2836,13 @@ class ApplicationGUI:
 
         return snapshot
 
-    @staticmethod
-    def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
-        symbol = STATUS_SYMBOLS[symbol_key]
-        return f"{symbol} ✓" if has_parquet else f"{symbol} ✗"
+    def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
+        """Format status token. Delegates to ValidationManager."""
+        return self.validation_manager.format_status_token(has_parquet, symbol_key)
 
     def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Popula a árvore hierárquica do seletor de vídeos."""
-
-        if not self.video_selector_tree:
-            return
-
-        # Determine filter text priority: argument > entry value > stored filter
-        if filter_text is None:
-            if self.video_search_var is not None:
-                filter_text = self.video_search_var.get()
-            elif self._video_selector_filter:
-                filter_text = self._video_selector_filter
-            else:
-                filter_text = ""
-
-        search_text = (filter_text or "").strip().lower()
-        self._video_selector_filter = search_text
-
-        for item in self.video_selector_tree.get_children():
-            self.video_selector_tree.delete(item)
-
-        # Configure readiness color tags
-        self.video_selector_tree.tag_configure("ready_full", foreground="#166534")
-        self.video_selector_tree.tag_configure("ready_partial", foreground="#b45309")
-        self.video_selector_tree.tag_configure("ready_missing", foreground="#b91c1c")
-        self.video_selector_tree.tag_configure("ready_optional", foreground="#0369a1")
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            self._update_zone_summary_cards([])
-            return
-
-        pm = controller.project_manager
-        if not pm.project_path:
-            self._update_zone_summary_cards([])
-            return
-
-        all_videos = pm.get_all_videos()
-        self._update_zone_summary_cards(all_videos)
-
-        if not all_videos:
-            return
-
-        hierarchy = self._build_video_hierarchy_data(all_videos, search_text)
-        readiness_tags = self._pending_readiness_snapshot or {}
-
-        displayed_videos = 0
-
-        def format_status(has_parquet: bool, symbol_key: str) -> str:
-            symbol = STATUS_SYMBOLS[symbol_key]
-            return f"{symbol} ✓" if has_parquet else f"{symbol} ✗"
-
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            days_dict = group_data["days"]
-            total_group_videos = sum(len(videos) for videos in days_dict.values())
-            if total_group_videos == 0:
-                continue
-
-            group_node = self.video_selector_tree.insert(
-                "",
-                "end",
-                text=f"🏷️ {group_data['display']} ({group_id})",
-                values=("", f"{total_group_videos} vídeos"),
-                open=True,
-            )
-
-            for day_id, videos in sorted(
-                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
-            ):
-                if not videos:
-                    continue
-
-                sample_metadata = videos[0].get("metadata") if videos else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-                day_node = self.video_selector_tree.insert(
-                    group_node,
-                    "end",
-                    text=f"📅 {day_title}",
-                    values=("", f"{len(videos)} vídeos"),
-                    open=False,
-                )
-
-                for video_entry in sorted(
-                    videos,
-                    key=lambda entry: self._video_sort_key(entry.get("subject")),
-                ):
-                    video_path = video_entry.get("path") or ""
-                    if not video_path:
-                        continue
-
-                    subject_label = self._format_subject_label(video_entry.get("subject"))
-
-                    status_tokens = " ".join(
-                        (
-                            format_status(video_entry["has_arena"], "arena"),
-                            format_status(video_entry["has_rois"], "rois"),
-                            format_status(video_entry["has_trajectory"], "trajectory"),
-                        )
-                    )
-
-                    extra_tags = readiness_tags.get(video_path, ())
-                    if extra_tags:
-                        tag_tuple = (video_path, *extra_tags)
-                    else:
-                        tag_tuple = (video_path,)
-
-                    self.video_selector_tree.insert(
-                        day_node,
-                        "end",
-                        text=f"🐟 Sujeito {subject_label}",
-                        values=(status_tokens, video_entry["filename"]),
-                        tags=tag_tuple,
-                    )
-                    displayed_videos += 1
-
-        zone_controls = getattr(self, "zone_controls", None)
-        if zone_controls:
-            zone_controls.apply_video_tree_expand_state()
-
-        log.info(
-            "gui.video_selector.populated",
-            filter=self._video_selector_filter,
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-            displayed=displayed_videos,
-        )
-
-        self._request_overview_refresh()
+        """Populate video selector tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager._populate_video_selector_tree(filter_text)
 
     def _refresh_video_selector_tree(self) -> None:
         """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
@@ -4908,11 +2947,11 @@ class ApplicationGUI:
             return
 
         video_path = tags[0]
-        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
 
         if success:
             self._maybe_offer_zone_reuse(video_path)
-            self.redraw_zones_from_project_data()
+            self.canvas_manager.redraw_zones_from_project_data()
             filename = os.path.basename(video_path)
             self.set_status(f"✓ Frame carregado: {filename}")
             log.info("gui.video_selector.frame_loaded", path=video_path)
@@ -5053,48 +3092,8 @@ class ApplicationGUI:
         self.generate_unified_report_btn.pack(side="left", padx=10)
 
     def _create_processing_reports_tab(self) -> None:
-        """
-        Creates the unified Processing and Reports tab.
-
-        This tab consolidates functionality from the old "Trajectories and Summaries"
-        and "Reports" tabs into a single interface for better UX and reduced redundancy.
-        """
-        if not self.notebook:
-            return
-
-        # Clean up existing tab if present
-        if self.processing_reports_tab_frame and self.processing_reports_tab_frame.winfo_exists():
-            try:
-                self.processing_reports_tab_frame.destroy()
-            except Exception:
-                pass
-
-        # Create tab frame
-        self.processing_reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.processing_reports_tab_frame, text="Processamento e Relatórios")
-
-        # Import the component
-        from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
-
-        # Create the widget with callbacks
-        self.processing_reports_widget = ProcessingReportsWidget(
-            self.processing_reports_tab_frame,
-            event_bus=self.event_bus,
-            on_generate_trajectories=self._trigger_batch_trajectory_processing,
-            on_export_summaries=self._trigger_parquet_summaries,
-            on_generate_partial_report=self._on_processing_reports_generate_partial,
-            on_generate_unified_report=self._generate_unified_report,
-        )
-        self.processing_reports_widget.pack(fill="both", expand=True)
-
-        # Bind double-click event for opening files
-        if self.processing_reports_widget.tree:
-            self.processing_reports_widget.tree.bind(
-                "<Double-Button-1>", self._on_processing_reports_item_double_click
-            )
-
-        # Initial refresh
-        self._refresh_processing_reports_tab()
+        """Creates the processing reports tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
         """Handle double-click on items in the Processing Reports tree."""
@@ -5167,230 +3166,18 @@ class ApplicationGUI:
                     break
 
         if selected_videos:
-            self.publish_event(
+            self.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
                 {"videos": selected_videos, "report_type": "partial"},
             )
 
     def _refresh_processing_reports_tab(self) -> None:
-        """
-        Refresh the unified Processing and Reports tab.
-
-        Consolidates logic from _refresh_pipeline_video_table() and update_reports_tree().
-        """
-        if not self.processing_reports_widget:
-            return
-
-        widget = self.processing_reports_widget
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.refresh_processing_reports.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos() or []
-
-        log.debug(
-            "gui.refresh_processing_reports.start",
-            video_count=len(all_videos),
-            has_project_path=bool(pm.project_path),
-        )
-
-        # Clear tree and metadata
-        widget.clear_tree()
-        self._processing_reports_tree_metadata.clear()
-
-        if not all_videos:
-            log.debug("gui.refresh_processing_reports.no_videos")
-            return
-
-        # Update status cards
-        from collections import Counter
-
-        counts: Counter = Counter(
-            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
-        )
-        total = sum(counts.values())
-
-        status_counts = {
-            "total": total,
-            "pending": counts.get("pending", 0),
-            "processing": counts.get("processing", 0),
-            "processed": counts.get("processed", 0),
-            "complete": counts.get("complete", 0),
-            "failed": counts.get("failed", 0),
-        }
-
-        widget.update_status_counts(status_counts)
-
-        # Build hierarchy (Group > Day > Subject)
-        hierarchy = self._build_report_hierarchy(all_videos, pm)
-
-        # Populate tree
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            videos_by_day = group_data["days"]
-            total_videos = sum(len(items) for items in videos_by_day.values())
-            if total_videos == 0:
-                continue
-
-            total_arena = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
-            )
-            total_rois = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
-            )
-            total_trajectory = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
-            )
-            total_summary = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_complete_data"] or entry.get("has_summary")
-            )
-
-            # Determine color tag for group based on completion
-            group_tag = self._determine_status_tag(total_summary, total_videos)
-
-            group_node_id = f"group_{group_id}"
-            widget.add_tree_item(
-                item_id=group_node_id,
-                text=f"🏷️ {group_data['display']}",
-                values=(
-                    self._format_status_ratio("arena", total_arena, total_videos),
-                    self._format_status_ratio("rois", total_rois, total_videos),
-                    self._format_status_ratio("trajectory", total_trajectory, total_videos),
-                    self._format_status_ratio("summary", total_summary, total_videos),
-                    f"{total_videos} vídeos",
-                ),
-                tags=(group_tag,),
-            )
-            widget.expand_tree_item(group_node_id)
-
-            self._processing_reports_tree_metadata[group_node_id] = {
-                "type": "group",
-                "identifier": group_id,
-            }
-
-            for day_id, entries in sorted(
-                videos_by_day.items(), key=lambda item: self._sort_key_for_reports(item[0])
-            ):
-                if not entries:
-                    continue
-
-                day_arena = sum(1 for entry in entries if entry["has_arena"])
-                day_rois = sum(1 for entry in entries if entry["has_rois"])
-                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
-                day_summary = sum(
-                    1 for entry in entries if entry["has_complete_data"] or entry.get("has_summary")
-                )
-
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-
-                # Determine color tag for day based on completion
-                day_tag = self._determine_status_tag(day_summary, len(entries))
-
-                day_node_id = f"day_{group_id}_{day_id}"
-                widget.add_tree_item(
-                    item_id=day_node_id,
-                    text=f"📅 {day_title}",
-                    parent=group_node_id,
-                    values=(
-                        self._format_status_ratio("arena", day_arena, len(entries)),
-                        self._format_status_ratio("rois", day_rois, len(entries)),
-                        self._format_status_ratio("trajectory", day_trajectory, len(entries)),
-                        self._format_status_ratio("summary", day_summary, len(entries)),
-                        f"{len(entries)} vídeos",
-                    ),
-                    tags=(day_tag,),
-                )
-
-                self._processing_reports_tree_metadata[day_node_id] = {
-                    "type": "day",
-                    "identifier": day_id,
-                    "group_id": group_id,
-                }
-
-                for entry in sorted(
-                    entries, key=lambda item: self._sort_key_for_reports(item.get("subject"))
-                ):
-                    video_path = entry.get("path")
-                    if not video_path:
-                        continue
-
-                    subject_label = self._format_subject_for_reports(entry.get("subject"))
-
-                    # Determine color tag for video based on completion
-                    video_complete = entry.get("has_summary") or entry.get("has_complete_data")
-                    video_tag = (
-                        "status_complete"
-                        if video_complete
-                        else ("status_partial" if entry["has_trajectory"] else "status_missing")
-                    )
-
-                    video_node_id = f"video_{video_path}"
-                    widget.add_tree_item(
-                        item_id=video_node_id,
-                        text=f"🐟 Sujeito {subject_label}  ({entry['filename']})",
-                        parent=day_node_id,
-                        values=(
-                            self._format_status_token(entry["has_arena"], "arena"),
-                            self._format_status_token(entry["has_rois"], "rois"),
-                            self._format_status_token(entry["has_trajectory"], "trajectory"),
-                            self._format_status_token(
-                                entry.get("has_summary") or entry.get("has_complete_data"),
-                                "summary",
-                            ),
-                            entry["status"],
-                        ),
-                        tags=(video_tag, "video-node"),
-                    )
-
-                    self._processing_reports_tree_metadata[video_node_id] = {
-                        "type": "video",
-                        "video_path": video_path,
-                        "results_dir": entry.get("results_dir") or "",
-                        "parquet_files": entry.get("parquet_files") or {},
-                        "metadata": entry.get("metadata") or {},
-                    }
-
-                    # Add report artifacts as children
-                    self._append_processing_reports_artifacts(
-                        widget, video_node_id, entry, video_path
-                    )
-
-        log.info(
-            "gui.processing_reports_tab.refreshed",
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-        )
+        """Refresh the processing reports tab. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_processing_reports_tab()
 
     def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
-        """
-        Determine the status tag based on completion ratio.
-
-        Args:
-            complete_count: Number of complete items
-            total_count: Total number of items
-
-        Returns:
-            Tag name for color coding
-        """
-        if total_count == 0:
-            return "status_missing"
-
-        completion_ratio = complete_count / total_count
-
-        if completion_ratio >= 1.0:
-            return "status_complete"  # All complete - green
-        elif completion_ratio > 0:
-            return "status_partial"  # Some complete - orange/yellow
-        else:
-            return "status_missing"  # None complete - red
+        """Determine status tag. Delegates to ProjectViewManager."""
+        return self.project_view_manager._determine_status_tag(complete_count, total_count)
 
     def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
         """Create a stable item id for report artifacts while avoiding duplicates."""
@@ -5515,189 +3302,20 @@ class ApplicationGUI:
         self._populate_video_selector_tree()
 
     def _sort_key_for_reports(self, value):
-        try:
-            return (0, int(value))
-        except (TypeError, ValueError):
-            value_str = str(value) if value is not None else ""
-            return (1, value_str.lower())
+        """Sort key for reports. Delegates to ProjectViewManager."""
+        return self.project_view_manager._sort_key_for_reports(value)
 
     def _format_subject_for_reports(self, value):
-        if value is None:
-            return "??"
-        if isinstance(value, int):
-            return f"{value:02d}"
-        if isinstance(value, float) and value.is_integer():
-            return f"{int(value):02d}"
-        value_str = str(value).strip()
-        if not value_str:
-            return "??"
-        if value_str.isdigit():
-            try:
-                return f"{int(value_str):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+        """Format subject for reports. Delegates to ValidationManager."""
+        return self.validation_manager.format_subject_for_reports(value)
 
     def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
-        """Build a nested hierarchy of groups -> days -> entries used to populate the tree."""
-        hierarchy: dict[str, dict] = {}
-        for video in all_videos:
-            metadata = video.get("metadata") or {}
-            group_id = metadata.get("group") or "Sem Grupo"
-            group_display = metadata.get("group_display_name") or group_id
-            day_id = metadata.get("day") or "Sem Dia"
-
-            has_arena = bool(video.get("has_arena"))
-            has_rois = bool(video.get("has_rois"))
-            has_trajectory = bool(video.get("has_trajectory"))
-            has_complete = bool(video.get("has_complete_data")) or (
-                has_arena and has_rois and has_trajectory
-            )
-
-            entry = {
-                "path": video.get("path"),
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete,
-                "status": video.get("status", "pending"),
-                "filename": os.path.basename(video.get("path", "")),
-                "subject": metadata.get("subject"),
-                "results_dir": video.get("results_dir"),
-                "metadata": dict(metadata),
-                "parquet_files": dict(video.get("parquet_files") or {}),
-            }
-
-            if not entry["results_dir"] and entry["path"]:
-                try:
-                    computed_results = pm.resolve_results_directory(
-                        os.path.splitext(os.path.basename(entry["path"]))[0],
-                        video_path=entry["path"],
-                        metadata=metadata,
-                    )
-                    entry["results_dir"] = str(computed_results)
-                except Exception:  # pragma: no cover - defensive logging only
-                    log.debug(
-                        "gui.reports_tree.results_dir_compute_failed",
-                        video=entry["path"],
-                    )
-
-            group_data = hierarchy.setdefault(group_id, {"display": group_display, "days": {}})
-            group_days = group_data["days"]
-            group_days.setdefault(day_id, []).append(entry)
-
-        return hierarchy
+        """Build report hierarchy. Delegates to ProjectViewManager."""
+        return self.project_view_manager._build_report_hierarchy(all_videos, pm)
 
     def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
-        """Insert nodes into the reports tree from a precomputed hierarchy."""
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            videos_by_day = group_data["days"]
-            total_videos = sum(len(items) for items in videos_by_day.values())
-            if total_videos == 0:
-                continue
-            total_arena = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_arena"]
-            )
-            total_rois = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_rois"]
-            )
-            total_trajectory = sum(
-                1 for items in videos_by_day.values() for entry in items if entry["has_trajectory"]
-            )
-            total_complete = sum(
-                1
-                for items in videos_by_day.values()
-                for entry in items
-                if entry["has_complete_data"] or entry.get("has_summary")
-            )
-
-            group_node = self.reports_tree.insert(
-                "",
-                "end",
-                text=f"🏷️ {group_data['display']}",
-                values=(
-                    self._format_status_ratio("arena", total_arena, total_videos),
-                    self._format_status_ratio("rois", total_rois, total_videos),
-                    self._format_status_ratio("trajectory", total_trajectory, total_videos),
-                    self._format_status_ratio("summary", total_complete, total_videos),
-                    f"{total_videos} vídeos",
-                ),
-                open=True,
-            )
-
-            self._report_tree_metadata[group_node] = {"type": "group", "identifier": group_id}
-
-            for day_id, entries in sorted(
-                videos_by_day.items(), key=lambda item: self._sort_key_for_reports(item[0])
-            ):
-                if not entries:
-                    continue
-                day_arena = sum(1 for entry in entries if entry["has_arena"])
-                day_rois = sum(1 for entry in entries if entry["has_rois"])
-                day_trajectory = sum(1 for entry in entries if entry["has_trajectory"])
-                day_complete = sum(
-                    1 for entry in entries if entry["has_complete_data"] or entry.get("has_summary")
-                )
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-
-                day_node = self.reports_tree.insert(
-                    group_node,
-                    "end",
-                    text=f"📅 {day_title}",
-                    values=(
-                        self._format_status_ratio("arena", day_arena, len(entries)),
-                        self._format_status_ratio("rois", day_rois, len(entries)),
-                        self._format_status_ratio("trajectory", day_trajectory, len(entries)),
-                        self._format_status_ratio("summary", day_complete, len(entries)),
-                        f"{len(entries)} vídeos",
-                    ),
-                    open=False,
-                )
-
-                self._report_tree_metadata[day_node] = {
-                    "type": "day",
-                    "identifier": day_id,
-                    "group_id": group_id,
-                }
-
-                for entry in sorted(
-                    entries, key=lambda item: self._sort_key_for_reports(item.get("subject"))
-                ):
-                    video_path = entry.get("path")
-                    if not video_path:
-                        continue
-
-                    subject_label = self._format_subject_for_reports(entry.get("subject"))
-
-                    video_node = self.reports_tree.insert(
-                        day_node,
-                        "end",
-                        text=(f"🐟 Sujeito {subject_label}  ({entry['filename']})"),
-                        values=(
-                            self._format_status_token(entry["has_arena"], "arena"),
-                            self._format_status_token(entry["has_rois"], "rois"),
-                            self._format_status_token(entry["has_trajectory"], "trajectory"),
-                            self._format_status_token(
-                                entry.get("has_summary") or entry.get("has_complete_data"),
-                                "summary",
-                            ),
-                            entry["status"],
-                        ),
-                        tags=("video-node",),
-                    )
-
-                    self._report_tree_metadata[video_node] = {
-                        "type": "video",
-                        "video_path": video_path,
-                        "results_dir": entry.get("results_dir") or "",
-                        "parquet_files": entry.get("parquet_files") or {},
-                        "metadata": entry.get("metadata") or {},
-                    }
-
-                    self._append_report_artifacts(video_node, entry)
+        """Populate reports tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
 
     def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
         tree = getattr(self, "reports_tree", None)
@@ -5915,7 +3533,7 @@ class ApplicationGUI:
                     break
 
         if selected_videos:
-            self.publish_event(
+            self.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
                 {"videos": selected_videos, "report_type": "partial"},
             )
@@ -5929,7 +3547,10 @@ class ApplicationGUI:
                 "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
-        self.publish_event(Events.REPORT_GENERATE, {"videos": all_videos, "report_type": "unified"})
+        self.event_dispatcher.publish_event(
+            Events.REPORT_GENERATE,
+            {"videos": all_videos, "report_type": "unified"},
+        )
 
     def _start_main_arena_drawing(self):
         """Starts drawing the main arena polygon."""
@@ -5971,7 +3592,7 @@ class ApplicationGUI:
         # Garante que há frame no canvas
         if self._canvas_bg_image is None:
             self.set_status("Carregando frame para desenho...")
-            if not self.load_video_frame_to_canvas():
+            if not self.canvas_manager.load_video_frame_to_canvas():
                 self.show_error(
                     "Erro",
                     "Não foi possível carregar um frame. "
@@ -6114,7 +3735,7 @@ class ApplicationGUI:
         self.current_polygon_points.pop()
 
         # Redraw the polygon
-        self._redraw_polygon_in_progress()
+        self.canvas_manager._redraw_polygon_in_progress()
 
         self.set_status(f"Último ponto desfeito. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
@@ -6131,35 +3752,11 @@ class ApplicationGUI:
         self.current_polygon_points.append(current_pt)
 
         # Redraw the polygon
-        self._redraw_polygon_in_progress()
+        self.canvas_manager._redraw_polygon_in_progress()
 
         self.set_status(f"Ponto restaurado. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
 
-    def _redraw_polygon_in_progress(self):
-        """Redraws the polygon vertices and edges after undo/redo."""
-        # Clear existing drawing aids
-        self.roi_canvas.delete("drawing_aid")
-
-        # Redraw all vertices
-        for canvas_x, canvas_y in self.current_polygon_points:
-            self.roi_canvas.create_oval(
-                canvas_x - 2,
-                canvas_y - 2,
-                canvas_x + 2,
-                canvas_y + 2,
-                fill="red",
-                outline="red",
-                tags=("temp_vertex", "drawing_aid"),
-            )
-
-        # Redraw all edges
-        for i in range(len(self.current_polygon_points) - 1):
-            p1 = self.current_polygon_points[i]
-            p2 = self.current_polygon_points[i + 1]
-            self.roi_canvas.create_line(
-                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
-            )
 
     def _on_vertex_drag_motion(self, event):
         """Handle mouse motion while dragging a vertex."""
@@ -6175,7 +3772,7 @@ class ApplicationGUI:
             if main_arena_poly:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
-                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
                 arena_array = np.array(canvas_arena_poly, dtype=np.float32)
@@ -6190,7 +3787,7 @@ class ApplicationGUI:
                         p1 = canvas_arena_poly[i]
                         p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
 
-                        edge_snap = self._point_to_segment_distance(
+                        edge_snap = self.canvas_manager._point_to_segment_distance(
                             canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
@@ -6203,11 +3800,11 @@ class ApplicationGUI:
         # Update vertex position
         self.current_polygon_points[self._dragging_vertex_index] = (canvas_x, canvas_y)
         self._poly_pts_canvas[self._dragging_vertex_index] = (canvas_x, canvas_y)
-        video_pt = self._canvas_to_video(canvas_x, canvas_y)
+        video_pt = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
         self._poly_pts_video[self._dragging_vertex_index] = video_pt
 
         # Redraw polygon
-        self._redraw_polygon_in_progress()
+        self.canvas_manager._redraw_polygon_in_progress()
 
     def _on_vertex_drag_end(self, event):
         """Handle mouse release after dragging a vertex."""
@@ -6237,7 +3834,7 @@ class ApplicationGUI:
             # Convert to canvas coordinates
             canvas_polygon = []
             for point in zone_data.polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                 canvas_polygon.append(canvas_pt)
 
             # Only add if not editing this polygon
@@ -6248,7 +3845,7 @@ class ApplicationGUI:
         for idx, roi_polygon in enumerate(zone_data.roi_polygons):
             canvas_polygon = []
             for point in roi_polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                 canvas_polygon.append(canvas_pt)
 
             # Only add if not editing this specific ROI
@@ -6279,7 +3876,7 @@ class ApplicationGUI:
                 p2 = polygon[(i + 1) % len(polygon)]
 
                 # Calculate distance from point to line segment
-                edge_snap = self._point_to_segment_distance(
+                edge_snap = self.canvas_manager._point_to_segment_distance(
                     canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                 )
 
@@ -6295,12 +3892,12 @@ class ApplicationGUI:
         if zone_data.polygon:
             centroid = polygon_centroid(zone_data.polygon)
             if centroid:
-                axis_centers.append(self._video_to_canvas(*centroid))
+                axis_centers.append(self.canvas_manager._video_to_canvas(*centroid))
 
         for roi_polygon in zone_data.roi_polygons or []:
             centroid = polygon_centroid(roi_polygon)
             if centroid:
-                axis_centers.append(self._video_to_canvas(*centroid))
+                axis_centers.append(self.canvas_manager._video_to_canvas(*centroid))
 
         axis_snap = snap_point_to_axes(
             (canvas_x, canvas_y),
@@ -6930,7 +4527,7 @@ class ApplicationGUI:
             return
 
         # Refresh UI
-        self.redraw_zones_from_project_data()
+        self.canvas_manager.redraw_zones_from_project_data()
         self.update_zone_listbox()
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
@@ -7154,7 +4751,7 @@ class ApplicationGUI:
             self.show_error("Erro ao aplicar template", str(exc))
             return
 
-        self.redraw_zones_from_project_data()
+        self.canvas_manager.redraw_zones_from_project_data()
         self.update_zone_listbox()
         self._refresh_zone_indicators()
         self._enable_roi_button_if_arena_exists()
@@ -7170,39 +4767,6 @@ class ApplicationGUI:
         )
         self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
-    def _point_to_segment_distance(self, px, py, x1, y1, x2, y2):
-        """
-        Calculates the shortest distance from point (px, py) to line segment
-        (x1,y1)-(x2,y2).
-
-        Returns:
-            dict or None: {'distance': float, 'x': float, 'y': float} with the
-                         closest point on segment, or None if projection falls
-                         outside segment
-        """
-        # Vector from p1 to p2
-        dx = x2 - x1
-        dy = y2 - y1
-
-        if dx == 0 and dy == 0:
-            # Degenerate segment (single point)
-            dist = np.sqrt((px - x1) ** 2 + (py - y1) ** 2)
-            return {"distance": dist, "x": x1, "y": y1}
-
-        # Parameter t for projection of point onto line
-        t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
-
-        # Clamp t to [0, 1] to stay on segment
-        t = max(0, min(1, t))
-
-        # Closest point on segment
-        closest_x = x1 + t * dx
-        closest_y = y1 + t * dy
-
-        # Distance to closest point
-        dist = np.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
-
-        return {"distance": dist, "x": closest_x, "y": closest_y}
 
     def _on_canvas_click(self, event):
         """Handles single clicks on the canvas during polygon drawing."""
@@ -7236,7 +4800,7 @@ class ApplicationGUI:
                 # Convert main arena polygon from video coords to canvas coords
                 canvas_arena_poly = []
                 for point in main_arena_poly:
-                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
                 arena_array = np.array(canvas_arena_poly, dtype=np.float32)
@@ -7255,7 +4819,7 @@ class ApplicationGUI:
                         p1 = canvas_arena_poly[i]
                         p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
 
-                        edge_snap = self._point_to_segment_distance(
+                        edge_snap = self.canvas_manager._point_to_segment_distance(
                             canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
@@ -7278,7 +4842,7 @@ class ApplicationGUI:
 
         # Store both canvas and video coordinates
         canvas_point = (canvas_x, canvas_y)
-        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        video_point = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
         self._poly_pts_canvas.append(canvas_point)
         self._poly_pts_video.append(video_point)
 
@@ -7341,7 +4905,7 @@ class ApplicationGUI:
                 # Convert arena to canvas coordinates
                 canvas_arena_poly = []
                 for point in main_arena_poly:
-                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
                 arena_array = np.array(canvas_arena_poly, dtype=np.float32)
@@ -7360,7 +4924,7 @@ class ApplicationGUI:
                         p1 = canvas_arena_poly[i]
                         p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
 
-                        edge_snap = self._point_to_segment_distance(
+                        edge_snap = self.canvas_manager._point_to_segment_distance(
                             display_x, display_y, p1[0], p1[1], p2[0], p2[1]
                         )
 
@@ -7474,7 +5038,7 @@ class ApplicationGUI:
                         self.drawing_instruction_label = None
 
                     # Força redesenho com dados salvos
-                    self.redraw_zones_from_project_data()
+                    self.canvas_manager.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
                     status_message = "✓ Arena principal definida com sucesso!"
@@ -7531,7 +5095,7 @@ class ApplicationGUI:
                         self.drawing_instruction_label = None
 
                     # Força redesenho com dados salvos
-                    self.redraw_zones_from_project_data()
+                    self.canvas_manager.redraw_zones_from_project_data()
                     self.update_zone_listbox()
 
                     status_message = (
@@ -7644,161 +5208,6 @@ class ApplicationGUI:
             else:
                 self.draw_roi_button.config(state="disabled")
 
-    def redraw_zones_from_project_data(self, zone_data: ZoneData | None = None):
-        """Redesenha zonas preservando o background."""
-        log.info("gui.redraw_zones.start")
-
-        canvas = self.roi_canvas
-        if canvas is None:
-            log.warning("gui.redraw_zones.no_canvas")
-            return
-
-        # Phase 4: Stop if zone_data is None (don't pull from controller)
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
-            if zone_data is None:
-                log.warning("gui.redraw_zones.no_zone_data")
-                return
-
-        # Apaga apenas elementos de zona, preserva background
-        for tag in [
-            "main_polygon",
-            "roi_polygon",
-            "roi_label",
-            "roi_label_bg",
-            "elastic_line",
-            "drawing_aid",
-            "temp_vertex",
-        ]:
-            canvas.delete(tag)
-
-        # Background já deve estar presente, se não, tenta restaurar
-        if self._canvas_bg_image:
-            # Verifica se a imagem ainda está no canvas
-            bg_items = canvas.find_withtag("background_image")
-            if not bg_items:
-                # Use stored positioning if available, otherwise default to center
-                if hasattr(self, "_canvas_bg_position"):
-                    x, y, anchor = self._canvas_bg_position
-                else:
-                    # Fallback to center of current canvas
-                    canvas_width = canvas.winfo_width() or 800
-                    canvas_height = canvas.winfo_height() or 600
-                    x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
-
-                canvas.create_image(
-                    x,
-                    y,
-                    anchor=anchor,
-                    image=self._canvas_bg_image,
-                    tags="background_image",
-                )
-                canvas.tag_lower("background_image")  # Envia para trás
-                log.info("gui.redraw_zones.background_restored")
-        else:
-            log.warning("gui.redraw_zones.no_background_image")
-            # Tenta carregar um frame se não há imagem de fundo
-            self.load_video_frame_to_canvas()
-        log.info(
-            "gui.redraw_zones.zone_data_loaded",
-            has_main_polygon=bool(zone_data.polygon),
-            roi_count=len(zone_data.roi_polygons),
-        )
-
-        # Desenha polígono principal
-        if zone_data.polygon and len(zone_data.polygon) >= 3:
-            try:
-                # Convert video coordinates to canvas coordinates
-                canvas_polygon = []
-                for point in zone_data.polygon:
-                    canvas_point = self._video_to_canvas(point[0], point[1])
-                    canvas_polygon.extend([canvas_point[0], canvas_point[1]])
-
-                canvas.create_polygon(
-                    canvas_polygon,
-                    fill="",
-                    outline="cyan",
-                    width=2,
-                    tags="main_polygon",
-                )
-                log.info("gui.main_polygon.drawn", points=len(zone_data.polygon))
-            except Exception as e:
-                log.error("gui.main_polygon.draw_error", error=str(e))
-
-        # Desenha ROI polygons com melhorias visuais
-        for i, polygon in enumerate(zone_data.roi_polygons):
-            if len(polygon) < 3:
-                continue
-
-            # Cor da ROI (armazenada em BGR para OpenCV)
-            color_bgr = zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
-            # Convert BGR to RGB for Tkinter hex color
-            color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
-
-            # Nome da ROI
-            name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i + 1}"
-
-            # Desenha polígono com tags específicas
-            try:
-                # Convert video coordinates to canvas coordinates
-                canvas_polygon = []
-                for point in polygon:
-                    canvas_point = self._video_to_canvas(point[0], point[1])
-                    canvas_polygon.extend([canvas_point[0], canvas_point[1]])
-
-                # Cria o polígono
-                canvas.create_polygon(
-                    canvas_polygon,
-                    fill="",  # Sem preenchimento para manter transparência
-                    outline=color_hex,
-                    width=2,
-                    tags=("roi_polygon", f"roi_{i}"),
-                )
-
-                # Adiciona label com o nome no centro do polígono
-                import numpy as np
-
-                # Calculate center using canvas coordinates
-                poly_array = np.array(
-                    [
-                        (canvas_polygon[i], canvas_polygon[i + 1])
-                        for i in range(0, len(canvas_polygon), 2)
-                    ]
-                )
-                center_x = int(poly_array[:, 0].mean())
-                center_y = int(poly_array[:, 1].mean())
-
-                # Cria fundo semi-transparente para melhor legibilidade
-                canvas.create_oval(
-                    center_x - 25,
-                    center_y - 10,
-                    center_x + 25,
-                    center_y + 10,
-                    fill="white",
-                    outline=color_hex,
-                    width=1,
-                    tags=("roi_label_bg", f"roi_label_bg_{i}"),
-                )
-
-                # Cria o texto do nome
-                canvas.create_text(
-                    center_x,
-                    center_y,
-                    text=name,
-                    fill=color_hex,
-                    font=("Arial", 9, "bold"),
-                    tags=("roi_label", f"roi_label_{i}"),
-                )
-
-                log.info("gui.roi_drawn", name=name, color=color_hex, points=len(polygon))
-
-            except Exception as e:
-                log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
-
-        # Atualiza listbox
-        self.update_zone_listbox(zone_data)
-
-        log.info("gui.redraw_zones.complete")
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
@@ -8081,21 +5490,8 @@ class ApplicationGUI:
             self.root.after(1000, self._check_live_project_calibration)
 
     def _create_progress_grid_tab(self):
-        """Creates the tab for viewing the experimental progress grid."""
-        self.progress_grid_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.progress_grid_frame, text="Progresso do Experimento")
-
-        # This frame will hold the actual grid of buttons, which is rendered later
-        self.grid_container = ttk.Frame(self.progress_grid_frame)
-        self.grid_container.pack(expand=True, fill="both")
-
-        # Add a refresh button
-        refresh_button = ttk.Button(
-            self.progress_grid_frame,
-            text="Atualizar Grade",
-            command=self._render_progress_grid,
-        )
-        refresh_button.pack(side="bottom", pady=10)
+        """Creates the progress grid tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_progress_grid_tab()
 
     def _check_live_project_calibration(self):
         """Checks if Live project needs calibration and prompts user automatically."""
@@ -8266,7 +5662,7 @@ class ApplicationGUI:
             should_display = (frame_number % self.controller.display_interval_frames) == 0
 
             detections = []  # Initialize empty for frames that aren't analyzed
-            
+
             if self.controller.is_processing and should_analyze:
                 # Apply perspective warp if calibration data is available
                 calib_data = self.controller.project_manager.project_data.get("calibration", {})
@@ -8362,7 +5758,7 @@ class ApplicationGUI:
 
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""
-        self.publish_event(Events.MODEL_MANAGE_WEIGHTS)
+        self.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
 
     def update_weights_dropdown(self, weights: list[str]):
         """Caches available weights so summaries stay consistent."""
@@ -8456,7 +5852,7 @@ class ApplicationGUI:
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)
         # The service now handles data enrichment and processing internally
-        self.publish_event(Events.WIZARD_CREATE_PROJECT, wizard.result)
+        self.event_dispatcher.publish_event(Events.WIZARD_CREATE_PROJECT, wizard.result)
 
     def _open_project_workflow(self):
         """Handles the UI part of opening a project, then calls the controller."""
@@ -8464,7 +5860,7 @@ class ApplicationGUI:
         if not project_path:
             return
 
-        self.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
+        self.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     def _on_analyze_single_video_clicked(self):
         """Handles the UI part of the single video workflow."""
@@ -8491,7 +5887,7 @@ class ApplicationGUI:
             return
 
         # Pass both config and video path to the controller via event
-        self.publish_event(
+        self.event_dispatcher.publish_event(
             Events.VIDEO_ANALYZE_SINGLE,
             {
                 "video_path": video_path,
@@ -8521,7 +5917,7 @@ class ApplicationGUI:
         if not self.notebook:
             self._create_main_control_frame()
 
-        self.display_roi_video_frame(video_path)
+        self.canvas_manager.display_roi_video_frame(video_path)
         self.notebook.select(self.zone_tab_frame)
 
         # Clear template selection for single video workflow - user should
@@ -8668,7 +6064,7 @@ class ApplicationGUI:
 
         video_path = self.pending_single_video_path or None
 
-        self.publish_event(
+        self.event_dispatcher.publish_event(
             Events.ZONE_AUTO_DETECT,
             {
                 "video_path": video_path,
@@ -8712,7 +6108,7 @@ class ApplicationGUI:
 
         # 2. Disable the button and publish the event
         self.start_single_analysis_btn.config(state="disabled")
-        self.publish_event(
+        self.event_dispatcher.publish_event(
             Events.VIDEO_START_SINGLE_PROCESSING,
             {
                 "video_path": self.pending_single_video_path,
@@ -8799,51 +6195,7 @@ class ApplicationGUI:
         if self.cancel_proc_btn and self.cancel_proc_btn.winfo_exists():
             self.cancel_proc_btn.config(state="disabled")
 
-    def _draw_zones_on_frame(self, frame):
-        """Desenha a arena e as ROIs salvas no frame de vídeo."""
-        zone_data = self._get_zone_data_for_active_context()
-        if zone_data.polygon:
-            pts = np.array(zone_data.polygon, np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            cv2.polylines(
-                frame, [pts], isClosed=True, color=(0, 255, 255), thickness=2
-            )  # Yellow for the main arena
 
-        for i, polygon in enumerate(zone_data.roi_polygons):
-            color = (
-                zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
-            )  # Default to green
-            pts = np.array(polygon, np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            cv2.polylines(frame, [pts], isClosed=True, color=color, thickness=2)
-        return frame
-
-    def display_frame(self, frame):
-        """Display a video frame inside the GUI, with overlays."""
-        # If analysis is active, route to analysis display
-        if self.analysis_active:
-            self.display_analysis_frame(frame)
-            return
-
-        try:
-            # Original behavior for non-analysis display
-            # Desenha as zonas antes de exibir
-            frame_with_zones = self._draw_zones_on_frame(frame.copy())
-
-            # Converte e embute
-            frame_rgb = cv2.cvtColor(frame_with_zones, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb)
-            imgtk = ImageTk.PhotoImage(image=img)
-            if self.video_label:
-                self.video_label.configure(image=imgtk)
-                self.video_label.image = imgtk  # keep reference
-        except Exception:
-            # Fallback to OpenCV window if Pillow not installed or other error
-            try:
-                cv2.imshow("Preview", frame)
-                cv2.waitKey(1)
-            except Exception:
-                pass
 
     def _toggle_canvas_view(self):
         """Toggle between zone drawing view and analysis progress view."""
@@ -8887,7 +6239,7 @@ class ApplicationGUI:
         self.analysis_status_var.set("Preparando análise...")
         if self.analysis_task_var is not None:
             self.analysis_task_var.set("Preparando fila de análise...")
-        self._set_analysis_metadata_defaults()
+        self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self.show_progress_bar()
         if self.toggle_view_btn:
@@ -8907,69 +6259,11 @@ class ApplicationGUI:
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         if self.analysis_task_var is not None:
             self.analysis_task_var.set(self._default_analysis_task_text())
-        self._set_analysis_metadata_defaults()
+        self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self._switch_to_zones_view()
 
-    def display_analysis_frame(self, frame):
-        """Display analysis frame in the overlay instead of separate progress bar."""
-        try:
-            # Store the original frame with zones only (before detection overlay)
-            # so we can redraw detections when they update
-            frame_with_zones = self._draw_zones_on_frame(frame.copy())
-            self._last_analysis_frame = frame_with_zones.copy()
 
-            # Now render with current detections
-            self._render_last_analysis_frame()
-        except Exception:
-            # Fallback to OpenCV window if Pillow not installed or other error
-            try:
-                cv2.imshow("Preview", frame)
-                cv2.waitKey(1)
-            except Exception:
-                pass
-
-    def _draw_detections_on_frame(self, frame):
-        """Draw all current detections (bounding boxes, IDs, confidence) on the frame."""
-        if not hasattr(self, "_current_detections") or not self._current_detections:
-            return frame
-
-        for det in self._current_detections:
-            if len(det) < 7:  # Need at least x1, y1, x2, y2, conf, track_id, class_id
-                continue
-
-            try:
-                x1, y1, x2, y2, conf, track_id = det[:6]
-                x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
-
-                # Draw bounding box
-                color = (0, 255, 0)  # Green color for all detections
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-
-                # Draw track ID and confidence
-                label = f"ID {track_id}"
-                if conf is not None:
-                    label += f" {conf:.2f}"
-
-                # Background for label
-                (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                cv2.rectangle(frame, (x1, y1 - label_h - 4), (x1 + label_w, y1), color, -1)
-
-                # Text label
-                cv2.putText(
-                    frame,
-                    label,
-                    (x1, y1 - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 0),  # Black text
-                    1,
-                )
-            except (TypeError, ValueError):
-                # Skip invalid detections
-                continue
-
-        return frame
 
     def update_detection_overlay(
         self,
@@ -8989,13 +6283,13 @@ class ApplicationGUI:
 
         if mode is ProcessingMode.SINGLE_SUBJECT:
             self.track_selector_var.set("Todos")
-            self._update_track_options(["Todos"])
+            self.state_synchronizer._update_track_options(["Todos"])
         else:
             options = self._build_track_options(self._current_detections)
-            self._update_track_options(options)
+            self.state_synchronizer._update_track_options(options)
 
         if self._last_analysis_frame is not None:
-            self._render_last_analysis_frame()
+            self.canvas_manager._render_last_analysis_frame()
 
     def update_processing_mode(self, report: ProcessingReport | None) -> None:
         """Update the UI to reflect the active tracking pipeline."""
@@ -9017,10 +6311,10 @@ class ApplicationGUI:
 
         if mode is ProcessingMode.SINGLE_SUBJECT:
             self.track_selector_var.set("Todos")
-            self._update_track_options(["Todos"])
+            self.state_synchronizer._update_track_options(["Todos"])
         elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
             options = self._build_track_options(self._current_detections)
-            self._update_track_options(options)
+            self.state_synchronizer._update_track_options(options)
 
     def update_analysis_profile(self, profile_name: str) -> None:
         """Update the label describing the active analysis profile."""
@@ -9060,7 +6354,7 @@ class ApplicationGUI:
         if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
             if normalized_tracks:
-                self._update_track_options(["Todos", *normalized_tracks])
+                self.state_synchronizer._update_track_options(["Todos", *normalized_tracks])
 
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""
@@ -9068,7 +6362,7 @@ class ApplicationGUI:
         self._last_analysis_frame = None
         self._analysis_overlay_image = None
         self.track_selector_var.set("Todos")
-        self._update_track_options(["Todos"])
+        self.state_synchronizer._update_track_options(["Todos"])
         if self.track_selector_widget:
             state = (
                 "disabled"
@@ -9092,234 +6386,12 @@ class ApplicationGUI:
         ordered = sorted(observed, key=str)
         return ["Todos", *ordered]
 
-    def _update_track_options(self, options: list[str]) -> None:
-        cleaned: list[str] = []
-        seen: set[str] = set()
-        for option in options:
-            option_str = str(option).strip() or "Todos"
-            if option_str not in seen:
-                cleaned.append(option_str)
-                seen.add(option_str)
-
-        if not cleaned:
-            cleaned = ["Todos"]
-
-        normalized = tuple(cleaned)
-        if normalized == self._available_track_options:
-            return
-
-        self._available_track_options = normalized
-        if self.track_selector_widget:
-            self.track_selector_widget.configure(values=list(normalized))
-
-        if self.track_selector_var.get() not in normalized:
-            self.track_selector_var.set(normalized[0] if normalized else "Todos")
 
     def _on_track_selection_changed(self, _event=None) -> None:
-        self._render_last_analysis_frame()
+        self.canvas_manager._render_last_analysis_frame()
 
-    def _render_last_analysis_frame(self) -> None:
-        if self._last_analysis_frame is None:
-            return
-        # Start with base frame (zones already drawn)
-        frame = self._last_analysis_frame.copy()
-        # Draw all detections (bounding boxes with IDs)
-        frame = self._draw_detections_on_frame(frame)
-        # Add highlight overlay for selected track if needed
-        frame = self._annotate_selected_tracks(frame)
-        # Display final result
-        self._show_analysis_frame_image(frame)
 
-    def _annotate_selected_tracks(self, frame):
-        selected = self.track_selector_var.get() if hasattr(self, "track_selector_var") else "Todos"
-        selected = str(selected).strip()
-        if not selected or selected.lower() == "todos":
-            return frame
 
-        for det in self._current_detections:
-            if len(det) < 6:
-                continue
-            x1, y1, x2, y2, _, track_id = det
-            if track_id is None or str(track_id).strip() != selected:
-                continue
-            try:
-                x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
-            except (TypeError, ValueError):
-                continue
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 3)
-            cv2.putText(
-                frame,
-                f"ID {track_id}",
-                (x1, max(y1 - 8, 12)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 215, 255),
-                2,
-            )
-
-        return frame
-
-    def _show_analysis_frame_image(self, frame) -> None:  # noqa: C901
-        """Display frame image in analysis view with proper scaling."""
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame_rgb)
-        label = getattr(self, "analysis_video_label", None)
-
-        if label is None:
-            return
-
-        # Get actual frame dimensions
-        frame_h, frame_w = frame.shape[:2]
-
-        # Strategy: Use root window dimensions as reference since tab dimensions may not be updated
-        available_width = None
-        available_height = None
-
-        # First, try to get the notebook (parent of analysis_tab_frame) dimensions
-        if hasattr(self, "notebook") and self.notebook:
-            self.notebook.update_idletasks()
-            notebook_width = self.notebook.winfo_width()
-            notebook_height = self.notebook.winfo_height()
-
-            log.info(
-                "gui.notebook_dimensions",
-                width=notebook_width,
-                height=notebook_height,
-                valid=notebook_width > 100 and notebook_height > 100,
-            )
-
-            if notebook_width > 100 and notebook_height > 100:
-                # IMPROVED: Calculate actual controls height dynamically
-                # Since info_frame and controls_frame are not stored as instance attrs,
-                # measure from the stored child widgets and progress_frame
-                controls_height = 0
-
-                # Measure status label + task/metadata labels (info section)
-                if hasattr(self, "analysis_status_label") and self.analysis_status_label:
-                    self.analysis_status_label.update_idletasks()
-                    status_h = self.analysis_status_label.winfo_height()
-                    if status_h > 1:
-                        controls_height += status_h + 5
-
-                if hasattr(self, "analysis_task_label") and self.analysis_task_label:
-                    self.analysis_task_label.update_idletasks()
-                    task_h = self.analysis_task_label.winfo_height()
-                    if task_h > 1:
-                        controls_height += task_h + 5
-
-                # Measure metadata labels frame height (group, day, subject, profile)
-                if hasattr(self, "analysis_group_label") and self.analysis_group_label:
-                    self.analysis_group_label.update_idletasks()
-                    meta_h = self.analysis_group_label.winfo_height()
-                    if meta_h > 1:
-                        controls_height += meta_h + 5
-
-                # Measure tracking mode label
-                if hasattr(self, "tracking_mode_label") and self.tracking_mode_label:
-                    self.tracking_mode_label.update_idletasks()
-                    mode_h = self.tracking_mode_label.winfo_height()
-                    if mode_h > 1:
-                        controls_height += mode_h + 5
-
-                # Measure track selector (controls section)
-                if hasattr(self, "track_selector_widget") and self.track_selector_widget:
-                    self.track_selector_widget.update_idletasks()
-                    ctrl_h = self.track_selector_widget.winfo_height()
-                    if ctrl_h > 1:
-                        controls_height += ctrl_h + 15  # Extra padding for controls frame
-
-                # Check if progress frame is visible and add its height
-                if (
-                    hasattr(self, "progress_frame")
-                    and self.progress_frame
-                    and self.progress_frame.winfo_viewable()
-                ):
-                    self.progress_frame.update_idletasks()
-                    prog_h = self.progress_frame.winfo_height()
-                    if prog_h > 10:
-                        controls_height += prog_h + 10
-
-                # Fallback if measurements failed
-                if controls_height < 50:
-                    controls_height = 250  # More conservative fallback (was 200)
-
-                # Account for notebook padding and frame padding
-                available_width = notebook_width - 60  # 20 padding + 20 margins + 20 buffer
-                available_height = (
-                    notebook_height - controls_height - 80
-                )  # Increased buffer (was 60)
-
-                log.info(
-                    "gui.controls_height.total",
-                    total=controls_height,
-                    available_height=available_height,
-                )
-
-                log.info(
-                    "gui.frame_sizing",
-                    frame_size=f"{frame_w}x{frame_h}",
-                    notebook_size=f"{notebook_width}x{notebook_height}",
-                    controls_h=controls_height,
-                    available=f"{int(available_width)}x{int(available_height)}",
-                )
-
-        # Fallback: use video_container or label dimensions
-        if (
-            available_width is None
-            or available_width <= 100
-            or available_height is None
-            or available_height <= 100
-        ):
-            if hasattr(self, "video_container") and self.video_container:
-                self.video_container.update_idletasks()
-                available_width = self.video_container.winfo_width() - 10
-                available_height = self.video_container.winfo_height() - 10
-                log.info(
-                    "gui.frame_sizing.fallback_container",
-                    available=f"{int(available_width)}x{int(available_height)}",
-                )
-
-        # Apply scaling to fit available space
-        if (
-            available_width
-            and available_height
-            and available_width > 100
-            and available_height > 100
-        ):
-            # Calculate scale to fit both dimensions
-            scale = min(available_width / frame_w, available_height / frame_h)
-            # Ensure we don't exceed available space (never upscale)
-            scale = min(scale, 1.0)
-
-            if scale < 1.0:
-                resample_attr = getattr(Image, "Resampling", None)
-                if resample_attr is not None:
-                    resample = getattr(
-                        resample_attr,
-                        "LANCZOS",
-                        getattr(
-                            resample_attr,
-                            "BICUBIC",
-                            getattr(resample_attr, "BILINEAR", 0),
-                        ),
-                    )
-                else:
-                    resample = getattr(
-                        Image,
-                        "LANCZOS",
-                        getattr(Image, "BICUBIC", getattr(Image, "BILINEAR", 0)),
-                    )
-                new_size = (
-                    max(1, int(frame_w * scale)),
-                    max(1, int(frame_h * scale)),
-                )
-                img = img.resize(new_size, resample=resample)
-
-        imgtk = ImageTk.PhotoImage(image=img)
-        self._analysis_overlay_image = imgtk
-        if label is not None:
-            label.configure(image=imgtk)
-            label.image = imgtk
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
@@ -9381,7 +6453,7 @@ class ApplicationGUI:
         day_display = self._resolve_day_display(metadata)
         subject_display = self._resolve_subject_display(metadata)
 
-        self._apply_analysis_metadata_strings(
+        self.state_synchronizer._apply_analysis_metadata_strings(
             group_display,
             day_display,
             subject_display,
@@ -9420,41 +6492,12 @@ class ApplicationGUI:
         self.analysis_task_var.set(" ".join(parts))
 
     @staticmethod
-    def _analysis_metadata_defaults() -> tuple[str, str, str]:
-        return ("Sem Grupo", "Sem Dia", "Não informado")
 
     @classmethod
-    def _default_analysis_metadata_text(cls) -> str:
-        group, day, subject = cls._analysis_metadata_defaults()
-        return f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
 
-    def _set_analysis_metadata_defaults(self) -> None:
-        group, day, subject = self._analysis_metadata_defaults()
-        self._apply_analysis_metadata_strings(group, day, subject)
 
-    def _apply_analysis_metadata_strings(
-        self,
-        group: str,
-        day: str,
-        subject: str,
-    ) -> None:
-        combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
-
-        if getattr(self, "analysis_metadata_var", None) is not None:
-            self.analysis_metadata_var.set(combined)
-
-        if getattr(self, "analysis_group_var", None) is not None:
-            self.analysis_group_var.set(f"Grupo: {group}")
-
-        if getattr(self, "analysis_day_var", None) is not None:
-            self.analysis_day_var.set(f"Dia: {day}")
-
-        if getattr(self, "analysis_subject_var", None) is not None:
-            self.analysis_subject_var.set(f"Indivíduo: {subject}")
 
     @staticmethod
-    def _default_analysis_task_text() -> str:
-        return "Nenhuma tarefa em andamento."
 
     def _resolve_group_display(self, metadata: dict) -> str:
         for key in (
@@ -9537,16 +6580,16 @@ class ApplicationGUI:
         return f"{s:d}s"
 
     def show_error(self, title, message):
-        """Shows an error message box."""
-        messagebox.showerror(title, message)
+        """Shows an error message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_error(title, message)
 
     def show_warning(self, title, message):
-        """Shows a warning message box."""
-        messagebox.showwarning(title, message)
+        """Shows a warning message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_warning(title, message)
 
     def show_info(self, title, message):
-        """Shows an info message box."""
-        messagebox.showinfo(title, message)
+        """Shows an info message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_info(title, message)
 
     def show_pending_videos_dialog(
         self,
@@ -9577,36 +6620,21 @@ class ApplicationGUI:
         return dialog.result
 
     def ask_ok_cancel(self, title, message):
-        """Shows a confirmation dialog."""
-        return messagebox.askokcancel(title, message)
+        """Shows a confirmation dialog. Delegates to DialogManager."""
+        return self.dialog_manager.ask_ok_cancel(title, message)
 
     def ask_string(self, title, prompt, initialvalue=None):
-        """Shows a dialog for string input."""
-        return simpledialog.askstring(title, prompt, initialvalue=initialvalue)
+        """Shows a dialog for string input. Delegates to DialogManager."""
+        return self.dialog_manager.ask_string(title, prompt, initialvalue=initialvalue)
 
     def ask_directory(self, title):
-        """Shows a dialog to select a directory."""
-        return filedialog.askdirectory(title=title)
+        """Shows a dialog to select a directory. Delegates to DialogManager."""
+        return self.dialog_manager.ask_directory(title)
 
     def ask_open_filenames(self, title, filetypes):
-        """Shows a dialog to select one or more files."""
-        return filedialog.askopenfilenames(title=title, filetypes=filetypes)
+        """Shows a dialog to select one or more files. Delegates to DialogManager."""
+        return self.dialog_manager.ask_open_filenames(title, filetypes)
 
-    def _create_roi_context_menu(self):
-        """Cria menu de contexto para ROIs"""
-        from tkinter import Menu
-
-        self.roi_context_menu = Menu(self.root, tearoff=0)
-        self.roi_context_menu.add_command(
-            label="🔧 Editar Vértices", command=self._edit_selected_zone_vertices
-        )
-        self.roi_context_menu.add_separator()
-        self.roi_context_menu.add_command(label="✏️ Renomear", command=self._rename_selected_roi)
-        self.roi_context_menu.add_command(label="🎨 Mudar Cor", command=self._change_roi_color)
-        self.roi_context_menu.add_separator()
-        self.roi_context_menu.add_command(
-            label="🗑️ Remover", command=self._remove_selected_roi_confirm
-        )
 
     def _on_zone_double_click(self, event):
         """Handle double-click on zone list - opens vertex editing mode."""
@@ -9708,7 +6736,7 @@ class ApplicationGUI:
                 self.controller.project_manager.save_zone_data(zone_data)
 
                 # Atualiza visualização
-                self.redraw_zones_from_project_data()
+                self.canvas_manager.redraw_zones_from_project_data()
                 self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
                 status_message = f"ROI renomeada para '{new_name}'."
                 self.set_status(status_message)
@@ -9745,7 +6773,7 @@ class ApplicationGUI:
             self.controller.project_manager.save_zone_data(zone_data)
 
             # Atualiza visualização
-            self.redraw_zones_from_project_data()
+            self.canvas_manager.redraw_zones_from_project_data()
             self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
             status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
             self.set_status(status_message)
@@ -9796,7 +6824,7 @@ class ApplicationGUI:
                 self.controller.project_manager.save_zone_data(zone_data)
 
                 # Atualiza visualização
-                self.redraw_zones_from_project_data()
+                self.canvas_manager.redraw_zones_from_project_data()
                 self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
                 status_message = f"ROI '{roi_name}' removida com sucesso."
                 self.set_status(status_message)
