@@ -9,6 +9,7 @@ import os
 import cv2
 import numpy as np
 import structlog
+import ttkbootstrap as ttk
 from PIL import Image, ImageTk
 
 log = structlog.get_logger()
@@ -1066,3 +1067,136 @@ class CanvasManager:
                 self.gui.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
             except Exception:
                 pass  # Silent fallback if color not supported
+
+    def start_polygon_drawing(self):
+        """Activates polygon drawing mode."""
+        # Garante que há frame no canvas
+        if self.gui._canvas_bg_image is None:
+            self.gui.set_status("Carregando frame para desenho...")
+            if not self.load_video_frame_to_canvas():
+                self.gui.show_error(
+                    "Erro",
+                    "Não foi possível carregar um frame. "
+                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
+                    "primeiro.",
+                )
+                return False
+
+        # Preserve drawing type before cleaning
+        preserved_drawing_type = self.gui.current_drawing_type
+        self.gui._stop_drawing()  # Ensure clean state
+        self.gui.current_drawing_type = preserved_drawing_type  # Restore
+
+        self.gui.drawing_mode = "polygon"
+        self.gui.current_polygon_points = []
+        self.gui._poly_pts_canvas = []  # Canvas coordinates for UI
+        self.gui._poly_pts_video = []  # Video coordinates for saving
+        self.gui._drawing_history = []  # Reset history
+        self.gui._drawing_redo_stack = []  # Reset redo stack
+        self.gui._dragging_vertex_index = None  # Reset dragging state
+        self.gui._vertex_hover_index = None  # Reset hover state
+
+        self.gui.roi_canvas.config(cursor="crosshair")
+        self.gui.roi_canvas.bind("<Button-1>", self.gui._on_canvas_click)
+        self.gui.roi_canvas.bind("<B1-Motion>", self.gui._on_vertex_drag_motion)
+        self.gui.roi_canvas.bind("<ButtonRelease-1>", self.gui._on_vertex_drag_end)
+        self.gui.roi_canvas.bind("<Double-Button-1>", self.gui._on_canvas_double_click)
+        self.gui.roi_canvas.bind("<Motion>", self.gui._on_canvas_motion)
+
+        # Bind keyboard shortcuts for undo/redo
+        self.gui.roi_canvas.bind("<Control-z>", self.gui._on_drawing_undo)
+        self.gui.roi_canvas.bind("<Control-y>", self.gui._on_drawing_redo)
+        self.gui.roi_canvas.bind("<Control-Shift-Z>", self.gui._on_drawing_redo)  # Alternative
+        self.gui.roi_canvas.focus_set()  # Ensure canvas can receive keyboard events
+
+        # Add a persistent instruction label
+        if not self.gui.drawing_instruction_label:
+            self.gui.drawing_instruction_label = ttk.Label(
+                self.gui.zone_controls_frame,
+                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
+                "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
+                justify="center",
+                relief="solid",
+                padding=5,
+            )
+            self.gui.drawing_instruction_label.pack(
+                pady=5, before=self.gui.zone_listbox.master
+            )
+
+        # Create floating undo/redo buttons over canvas
+        self.gui._create_drawing_buttons()
+
+        self.gui.set_status(
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
+            "finalizar. Ctrl+Z para desfazer."
+        )
+
+    def handle_vertex_drag(self, event):
+        """Updates the polygon point and redraws as the handle is dragged."""
+        if self.gui._dragged_handle_index is None:
+            return
+
+        # Apply the drag offset to get the actual handle position
+        canvas_x = float(event.x) + self.gui._drag_offset[0]
+        canvas_y = float(event.y) + self.gui._drag_offset[1]
+
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
+
+        # If editing an ROI, clamp the point within the main arena
+        if (
+            isinstance(self.gui.current_editing_zone, tuple)
+            and self.gui.current_editing_zone[0] == "roi"
+        ):
+            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            if main_arena_poly:
+                # Convert main arena polygon from video coords to canvas coords
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    # Update to clamped position
+                    canvas_x, canvas_y = closest_point
+
+        # Clamp to canvas bounds for all zones (arena and ROI)
+        canvas_width = self.gui.roi_canvas.winfo_width() or 800
+        canvas_height = self.gui.roi_canvas.winfo_height() or 600
+        canvas_x = max(0, min(canvas_x, canvas_width))
+        canvas_y = max(0, min(canvas_y, canvas_height))
+
+        # Convert canvas coordinates to video coordinates before storing
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        self.gui.edited_polygon_points[self.gui._dragged_handle_index] = [
+            video_point[0],
+            video_point[1],
+        ]
+
+        # Redraw the entire interactive polygon and its handles
+        self._draw_interactive_polygon()
