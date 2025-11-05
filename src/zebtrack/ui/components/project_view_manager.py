@@ -842,3 +842,134 @@ class ProjectViewManager:
 
         openvino_status = self.gui.controller.get_openvino_cache_status()
         self.gui._openvino_display_var.set(openvino_status)
+
+    def append_report_artifacts_from_entry(self, parent_id: str, entry: dict) -> None:
+        """Append report artifacts (docx, xlsx) from video entry to reports tree."""
+        from pathlib import Path
+
+        tree = getattr(self.gui, "reports_tree", None)
+        if not tree:
+            return
+
+        video_path = entry.get("path")
+        if not video_path:
+            return
+
+        results_dir = entry.get("results_dir") or ""
+        parquet_files = entry.get("parquet_files") or {}
+        experiment_id = Path(video_path).stem if video_path else None
+
+        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
+            if candidate and os.path.exists(candidate):
+                return candidate
+            if results_dir and experiment_id:
+                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
+                if guess_path.exists():
+                    return str(guess_path)
+            return None
+
+        docx_path = _resolve_artifact(
+            parquet_files.get("report_docx"),
+            "report.docx",
+        )
+        excel_path = _resolve_artifact(
+            parquet_files.get("summary_excel"),
+            "summary.xlsx",
+        )
+
+        artifacts: list[tuple[str, str, str]] = []
+        if docx_path:
+            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
+        if excel_path:
+            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
+
+        if not artifacts:
+            return
+
+        for _kind, artifact_path, label in artifacts:
+            child_id = tree.insert(
+                parent_id,
+                "end",
+                text=label,
+                values=("", "", "", "", "Abrir"),
+                tags=("report-file",),
+            )
+            self.gui._report_tree_metadata[child_id] = {
+                "type": "file",
+                "path": artifact_path,
+                "parent_video": video_path,
+            }
+
+        tree.item(parent_id, open=True)
+
+    def handle_report_video_node(self, metadata: dict) -> None:
+        """Handle double-click on report video node - opens results directory."""
+        import sys
+        from pathlib import Path
+
+        video_path = metadata.get("video_path")
+        if not video_path:
+            return
+
+        controller = getattr(self.gui, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        if not pm:
+            return
+
+        entry = pm.find_video_entry(path=video_path)
+        results_dir = metadata.get("results_dir") or ""
+        metadata_hint: dict = {}
+        has_results = False
+
+        if entry:
+            metadata_hint = dict(entry.get("metadata") or {})
+            if not results_dir:
+                results_dir = entry.get("results_dir") or ""
+            for key in ("group", "group_display_name", "day", "subject"):
+                if entry.get(key) is not None and key not in metadata_hint:
+                    metadata_hint[key] = entry[key]
+            parquet_files = entry.get("parquet_files") or {}
+            for key in ("summary", "summary_excel", "report_docx"):
+                candidate_path = parquet_files.get(key)
+                if candidate_path and os.path.exists(candidate_path):
+                    has_results = True
+                    break
+
+        experiment_id = Path(video_path).stem
+        if not results_dir:
+            results_path = pm.resolve_results_directory(
+                experiment_id,
+                video_path=video_path,
+                metadata=metadata_hint,
+            )
+            results_dir = str(results_path)
+
+        if not has_results and results_dir:
+            summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
+            report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
+            excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
+            if (
+                summary_candidate.exists()
+                or report_candidate.exists()
+                or excel_candidate.exists()
+            ):
+                has_results = True
+
+        if not results_dir or not os.path.isdir(results_dir) or not has_results:
+            self.gui.show_warning(
+                "Relatórios indisponíveis",
+                ("Gere o relatório para este vídeo antes de abrir a pasta de resultados."),
+            )
+            return
+
+        # Open directory in file explorer
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(results_dir)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                os.system(f'open "{results_dir}"')
+            else:  # Linux and other Unix-like systems
+                os.system(f'xdg-open "{results_dir}"')
+        except Exception as exc:
+            log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
+            self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")

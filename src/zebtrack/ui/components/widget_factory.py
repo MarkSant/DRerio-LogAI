@@ -1707,3 +1707,135 @@ class WidgetFactory:
 
         self.gui.roi_data.setdefault(current_arena_id, []).extend(rois_to_add)
         self.gui._on_arena_select()
+
+    def render_progress_grid(self) -> None:
+        """Clears and redraws the experimental progress grid based on project data."""
+        from tkinter import Button
+
+        # 1. Clear existing widgets
+        for widget in self.gui.grid_container.winfo_children():
+            widget.destroy()
+
+        # 2. Get project data from controller/project_manager
+        pm = self.gui.controller.project_manager
+        if not pm or pm.get_project_type() != "live":
+            return
+
+        days = pm.project_data.get("experiment_days", 0)
+        groups = pm.project_data.get("groups", [])
+        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+
+        if not all([days, groups, subjects_per_group]):
+            ttk.Label(
+                self.gui.grid_container,
+                text="O design experimental não está totalmente configurado.",
+            ).pack()
+            return
+
+        completed_sessions = pm.get_completed_sessions()
+
+        # 3. Create headers
+        ttk.Label(
+            self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
+        ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        for j, group_name in enumerate(groups):
+            ttk.Label(
+                self.gui.grid_container,
+                text=group_name,
+                font=("Helvetica", 10, "bold"),
+                anchor="center",
+            ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
+
+        # 4. Create grid cells
+        for i in range(days):
+            day = i + 1
+            day_title = self.gui._build_day_title(day)
+            ttk.Label(
+                self.gui.grid_container,
+                text=day_title,
+                font=("Helvetica", 10, "bold"),
+            ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
+
+            for j, group_name in enumerate(groups):
+                completed_count = sum(
+                    1 for (d, g, s) in completed_sessions if d == day and g == group_name
+                )
+
+                status_text = f"{completed_count}/{subjects_per_group}"
+
+                if completed_count == 0:
+                    color = "#E0E0E0"  # Grey - Pending
+                elif completed_count < subjects_per_group:
+                    color = "#FFFACD"  # LemonChiffon - In progress
+                else:
+                    color = "#90EE90"  # LightGreen - Completed
+
+                cell_btn = Button(
+                    self.gui.grid_container,
+                    text=status_text,
+                    background=color,
+                    width=15,
+                    height=3,
+                    command=lambda d=day, g=group_name: self.gui._on_grid_cell_clicked(d, g),
+                )
+                cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
+
+        for col_index in range(len(groups) + 1):
+            self.gui.grid_container.columnconfigure(col_index, weight=1)
+        for row_index in range(days + 1):
+            self.gui.grid_container.rowconfigure(row_index, weight=1)
+
+    def save_roi_template(self) -> None:
+        """Save ROI template to file."""
+        pm = getattr(self.gui.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        zone_data = pm.get_zone_data()
+        if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
+            self.gui.show_warning(
+                "Template incompleto",
+                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
+            )
+            return
+
+        allow_project = bool(getattr(pm, "project_path", None))
+        selected_template = self.get_selected_roi_template()
+        if selected_template:
+            initial_name = selected_template.get("name", "")
+        else:
+            initial_name = self.gui.roi_template_var.get() or ""
+        dialog_result = self.gui._show_template_save_dialog(
+            has_arena=bool(zone_data.polygon),
+            has_rois=bool(zone_data.roi_polygons),
+            allow_project=allow_project,
+            initial_name=initial_name,
+        )
+
+        if not dialog_result:
+            return
+
+        try:
+            metadata = pm.save_roi_template(
+                dialog_result["name"],
+                zone_data,
+                save_arena=dialog_result["save_arena"],
+                save_rois=dialog_result["save_rois"],
+                save_location=dialog_result["save_location"],
+                custom_path=dialog_result.get("custom_path"),
+                persist=dialog_result["save_location"] == "project",
+            )
+        except ValueError as exc:
+            self.gui.show_warning("Template inválido", str(exc))
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error("gui.roi_templates.save_failed", error=str(exc))
+            self.gui.show_error("Erro ao salvar", str(exc))
+            return
+
+        self.gui._refresh_roi_templates()
+        self.select_roi_template(metadata)
+        self.gui.show_info(
+            "Template salvo",
+            (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
+        )

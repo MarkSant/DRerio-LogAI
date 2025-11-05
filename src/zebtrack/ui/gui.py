@@ -2412,60 +2412,8 @@ class ApplicationGUI:
         return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
 
     def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
-        tree = getattr(self, "reports_tree", None)
-        if not tree:
-            return
-
-        video_path = entry.get("path")
-        if not video_path:
-            return
-
-        results_dir = entry.get("results_dir") or ""
-        parquet_files = entry.get("parquet_files") or {}
-        experiment_id = Path(video_path).stem if video_path else None
-
-        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
-            if candidate and os.path.exists(candidate):
-                return candidate
-            if results_dir and experiment_id:
-                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
-                if guess_path.exists():
-                    return str(guess_path)
-            return None
-
-        docx_path = _resolve_artifact(
-            parquet_files.get("report_docx"),
-            "report.docx",
-        )
-        excel_path = _resolve_artifact(
-            parquet_files.get("summary_excel"),
-            "summary.xlsx",
-        )
-
-        artifacts: list[tuple[str, str, str]] = []
-        if docx_path:
-            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
-        if excel_path:
-            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
-
-        if not artifacts:
-            return
-
-        for _kind, artifact_path, label in artifacts:
-            child_id = tree.insert(
-                parent_id,
-                "end",
-                text=label,
-                values=("", "", "", "", "Abrir"),
-                tags=("report-file",),
-            )
-            self._report_tree_metadata[child_id] = {
-                "type": "file",
-                "path": artifact_path,
-                "parent_video": video_path,
-            }
-
-        tree.item(parent_id, open=True)
+        """Append report artifacts to tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
 
     def _on_report_item_select(self, event=None):
         """Enables or disables the partial report button based on selection."""
@@ -2529,58 +2477,8 @@ class ApplicationGUI:
             )
 
     def _handle_report_video_node(self, metadata: dict) -> None:
-        video_path = metadata.get("video_path")
-        if not video_path:
-            return
-
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        if not pm:
-            return
-
-        entry = pm.find_video_entry(path=video_path)
-        results_dir = metadata.get("results_dir") or ""
-        metadata_hint: dict = {}
-        has_results = False
-
-        if entry:
-            metadata_hint = dict(entry.get("metadata") or {})
-            if not results_dir:
-                results_dir = entry.get("results_dir") or ""
-            for key in ("group", "group_display_name", "day", "subject"):
-                if entry.get(key) is not None and key not in metadata_hint:
-                    metadata_hint[key] = entry[key]
-            parquet_files = entry.get("parquet_files") or {}
-            for key in ("summary", "summary_excel", "report_docx"):
-                candidate_path = parquet_files.get(key)
-                if candidate_path and os.path.exists(candidate_path):
-                    has_results = True
-                    break
-
-        experiment_id = Path(video_path).stem
-        if not results_dir:
-            results_path = pm.resolve_results_directory(
-                experiment_id,
-                video_path=video_path,
-                metadata=metadata_hint,
-            )
-            results_dir = str(results_path)
-
-        if not has_results and results_dir:
-            summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
-            report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
-            excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
-            if summary_candidate.exists() or report_candidate.exists() or excel_candidate.exists():
-                has_results = True
-
-        if not results_dir or not os.path.isdir(results_dir) or not has_results:
-            self.show_warning(
-                "Relatórios indisponíveis",
-                ("Gere o relatório para este vídeo antes de abrir a pasta de resultados."),
-            )
-            return
-
-        self._open_path_in_explorer(results_dir)
+        """Handle report video node. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_report_video_node(metadata)
 
     def _open_path_in_explorer(self, target_path: str) -> None:
         """Open the given directory in the user's file explorer."""
@@ -3205,58 +3103,8 @@ class ApplicationGUI:
         self._update_delete_template_button_state()
 
     def _on_save_roi_template(self) -> None:
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        zone_data = pm.get_zone_data()
-        if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
-            self.show_warning(
-                "Template incompleto",
-                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
-            )
-            return
-
-        allow_project = bool(getattr(pm, "project_path", None))
-        selected_template = self._get_selected_roi_template()
-        if selected_template:
-            initial_name = selected_template.get("name", "")
-        else:
-            initial_name = self.roi_template_var.get() or ""
-        dialog_result = self._show_template_save_dialog(
-            has_arena=bool(zone_data.polygon),
-            has_rois=bool(zone_data.roi_polygons),
-            allow_project=allow_project,
-            initial_name=initial_name,
-        )
-
-        if not dialog_result:
-            return
-
-        try:
-            metadata = pm.save_roi_template(
-                dialog_result["name"],
-                zone_data,
-                save_arena=dialog_result["save_arena"],
-                save_rois=dialog_result["save_rois"],
-                save_location=dialog_result["save_location"],
-                custom_path=dialog_result.get("custom_path"),
-                persist=dialog_result["save_location"] == "project",
-            )
-        except ValueError as exc:
-            self.show_warning("Template inválido", str(exc))
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.save_failed", error=str(exc))
-            self.show_error("Erro ao salvar", str(exc))
-            return
-
-        self._refresh_roi_templates()
-        self._select_roi_template(metadata)
-        self.show_info(
-            "Template salvo",
-            (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
-        )
+        """Save ROI template. Delegates to WidgetFactory."""
+        return self.widget_factory.save_roi_template()
 
     def _format_roi_template_display(self, template: dict[str, Any]) -> str:
         """Format ROI template display. Delegates to WidgetFactory."""
@@ -4315,79 +4163,8 @@ class ApplicationGUI:
                 log.info("ui.live_calibration.auto_declined")
 
     def _render_progress_grid(self):
-        """Clears and redraws the experimental progress grid based on project data."""
-        # 1. Clear existing widgets
-        for widget in self.grid_container.winfo_children():
-            widget.destroy()
-
-        # 2. Get project data from controller/project_manager
-        pm = self.controller.project_manager
-        if not pm or pm.get_project_type() != "live":
-            return
-
-        days = pm.project_data.get("experiment_days", 0)
-        groups = pm.project_data.get("groups", [])
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
-
-        if not all([days, groups, subjects_per_group]):
-            ttk.Label(
-                self.grid_container,
-                text="O design experimental não está totalmente configurado.",
-            ).pack()
-            return
-
-        completed_sessions = pm.get_completed_sessions()
-
-        # 3. Create headers
-        ttk.Label(self.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
-            row=0, column=0, padx=5, pady=5, sticky="nsew"
-        )
-        for j, group_name in enumerate(groups):
-            ttk.Label(
-                self.grid_container,
-                text=group_name,
-                font=("Helvetica", 10, "bold"),
-                anchor="center",
-            ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
-
-        # 4. Create grid cells
-        for i in range(days):
-            day = i + 1
-            day_title = self._build_day_title(day)
-            ttk.Label(
-                self.grid_container,
-                text=day_title,
-                font=("Helvetica", 10, "bold"),
-            ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
-
-            for j, group_name in enumerate(groups):
-                completed_count = sum(
-                    1 for (d, g, s) in completed_sessions if d == day and g == group_name
-                )
-
-                status_text = f"{completed_count}/{subjects_per_group}"
-
-                if completed_count == 0:
-                    color = "#E0E0E0"  # Grey - Pending
-                elif completed_count < subjects_per_group:
-                    color = "#FFFACD"  # LemonChiffon - In progress
-                else:
-                    color = "#90EE90"  # LightGreen - Completed
-
-                cell_btn = Button(
-                    self.grid_container,
-                    text=status_text,
-                    background=color,
-                    width=15,
-                    height=3,
-                    command=lambda d=day, g=group_name: self._on_grid_cell_clicked(d, g),
-                )
-                cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
-
-        for col_index in range(len(groups) + 1):
-            self.grid_container.columnconfigure(col_index, weight=1)
-        for row_index in range(days + 1):
-            self.grid_container.rowconfigure(row_index, weight=1)
+        """Clears and redraws progress grid. Delegates to WidgetFactory."""
+        return self.widget_factory.render_progress_grid()
 
     def _on_grid_cell_clicked(self, day, group_name):
         pm = self.controller.project_manager
