@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 
 import cv2
 import matplotlib
@@ -217,14 +217,14 @@ class Reporter:
     def __init__(
         self,
         trajectory_df: pd.DataFrame = None,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         # Calibration and setup
-        pixelcm_x: Optional[float] = None,
-        pixelcm_y: Optional[float] = None,
-        video_height_px: Optional[int] = None,
-        arena_polygon_px: Optional[list[tuple[float, float]]] = None,
-        rois: Optional[list[ROI]] = None,
-        fps: Optional[float] = None,
+        pixelcm_x: float | None = None,
+        pixelcm_y: float | None = None,
+        video_height_px: int | None = None,
+        arena_polygon_px: list[tuple[float, float]] | None = None,
+        rois: list[ROI] | None = None,
+        fps: float | None = None,
         # Optional params
         roi_colors: dict | None = None,
         video_path: str | None = None,

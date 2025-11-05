@@ -124,8 +124,8 @@ def check_context_file_freshness() -> list[str]:
     for key_file in key_files:
         if key_file.exists() and key_file.stat().st_mtime > context_mtime:
             issues.append(
-                f"⏰ .copilot-context.yaml outdated - run: "
-                f"poetry run python scripts/generate_copilot_context.py"
+                "⏰ .copilot-context.yaml outdated - run: "
+                "poetry run python scripts/generate_copilot_context.py"
             )
             break
 

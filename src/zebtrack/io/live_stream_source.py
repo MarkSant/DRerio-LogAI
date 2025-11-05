@@ -7,7 +7,6 @@ processing pipeline that expects a finite frame count.
 """
 
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -158,7 +157,6 @@ class LiveStreamSource(FrameSource):
 if __name__ == "__main__":
     """Test LiveStreamSource with mock settings."""
     import cv2
-    import numpy as np
 
     from zebtrack.settings import load_settings
 

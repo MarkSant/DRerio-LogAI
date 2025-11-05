@@ -1282,52 +1282,8 @@ class ApplicationGUI:
         main_pane.after(200, _set_initial_sash)
 
     def _subscribe_zone_component_events(self):
-        """
-        Subscribe to events emitted by ZoneControlsWidget.
-
-        This method connects component events to existing ApplicationGUI handlers,
-        maintaining backward compatibility while using the new component architecture.
-        """
-        if not self.event_bus:
-            return
-
-        # Drawing action events
-        self.event_bus.subscribe("zone.toggle_view", lambda data: self._toggle_canvas_view())
-        self.event_bus.subscribe("zone.draw_arena", lambda data: self._start_main_arena_drawing())
-        self.event_bus.subscribe("zone.draw_roi", lambda data: self._start_roi_drawing())
-        self.event_bus.subscribe("zone.save_arena", lambda data: self._on_save_arena())
-        self.event_bus.subscribe("zone.discard_arena", lambda data: self._on_discard_arena())
-
-        # ROI template events
-        self.event_bus.subscribe("zone.template_apply", lambda data: self._on_apply_roi_template())
-        self.event_bus.subscribe("zone.template_save", lambda data: self._on_save_roi_template())
-        self.event_bus.subscribe(
-            "zone.template_import", lambda data: self._on_import_roi_template()
-        )
-
-        # Zone list interaction events
-        self.event_bus.subscribe(
-            "zone.list_item_double_click", lambda data: self._edit_selected_zone_vertices()
-        )
-        self.event_bus.subscribe(
-            "zone.list_item_right_click",
-            lambda data: self._on_zone_right_click(self.event_dispatcher._create_mock_event(data)),
-        )
-
-        # Video selector events
-        self.event_bus.subscribe(
-            "zone.video_double_click", lambda data: self._load_selected_video_frame()
-        )
-        self.event_bus.subscribe(
-            "zone.video_frame_load", lambda data: self._load_selected_video_frame()
-        )
-        self.event_bus.subscribe(
-            "zone.video_refresh", lambda data: self._refresh_video_selector_tree()
-        )
-        # Note: zone.video_search_changed is handled differently (continuous filtering),
-        # so it's not subscribed here - the component handles it internally
-
-        self.event_bus.subscribe("zone.auto_detect_clicked", self._handle_zone_auto_detect_event)
+        """Subscribe to events emitted by ZoneControlsWidget. Delegates to EventDispatcher."""
+        return self.event_dispatcher.subscribe_zone_component_events()
 
 
 

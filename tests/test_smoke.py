@@ -59,7 +59,7 @@ def test_detector_service_init():
 
 def test_video_source_exists():
     """Verifica que módulo de video source existe."""
-    from zebtrack.io import video_source  # noqa: F401
+    from zebtrack.io import video_source
 
     assert video_source is not None
 

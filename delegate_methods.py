@@ -4,6 +4,7 @@
 import re
 from pathlib import Path
 
+
 def analyze_methods(filepath):
     """Analyze methods in gui.py and categorize them."""
     content = Path(filepath).read_text()

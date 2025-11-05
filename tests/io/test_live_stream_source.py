@@ -2,7 +2,6 @@
 Tests for LiveStreamSource - time-limited camera wrapper for analysis.
 """
 
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest

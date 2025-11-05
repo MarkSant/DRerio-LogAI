@@ -7,8 +7,7 @@ Tests the complete flow: Dialog → RecordingService → Camera → Recorder →
 from __future__ import annotations
 
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -69,7 +68,6 @@ def mock_settings():
 @pytest.fixture
 def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_settings):
     """Create a mock MainViewModel with necessary dependencies."""
-    from zebtrack.ui.events import Events
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.recording_service import RecordingService
     from zebtrack.core.state_manager import StateManager
@@ -82,10 +80,10 @@ def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_setting
     controller.program_exit_event = Mock()
     controller.program_exit_event.is_set.return_value = False
 
-    # Mock view 
+    # Mock view
     controller.view = Mock()
     controller.view.root = Mock()
-    
+
     # Mock camera (stored in controller, not view)
     controller.camera = None  # Will be created by method if needed
 
@@ -295,11 +293,11 @@ def test_live_camera_analysis_camera_unavailable(mock_main_view_model):
 
         controller = mock_main_view_model
         controller.camera = None  # No camera available
-        
+
         # Patch Camera to raise an exception
         with patch("zebtrack.io.camera.Camera") as mock_camera_class:
             mock_camera_class.side_effect = OSError("Cannot open camera")
-            
+
             MainViewModel.start_live_camera_analysis(controller)
 
             # Verify error event was published

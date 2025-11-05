@@ -1312,7 +1312,7 @@ class VideoProcessingService:
     def process_frame_source(
         self,
         *,
-        frame_source: "FrameSource",
+        frame_source: FrameSource,
         output_dir: str,
         experiment_id: str,
         single_video_config: dict | None = None,
@@ -1338,7 +1338,6 @@ class VideoProcessingService:
         Returns:
             True if processing succeeded, False otherwise
         """
-        from zebtrack.io.frame_source import FrameSource
 
         log.info(
             "video_processing_service.process_frame_source.start",
