@@ -1200,3 +1200,99 @@ class CanvasManager:
 
         # Redraw the entire interactive polygon and its handles
         self._draw_interactive_polygon()
+
+    def handle_canvas_click(self, event):
+        """Handles single clicks on the canvas during polygon drawing."""
+        if self.gui.drawing_mode != "polygon":
+            return
+
+        # Get canvas coordinates directly from event
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+
+        # Check if clicking on an existing vertex (for dragging)
+        if self.gui.current_polygon_points:
+            for i, (vx, vy) in enumerate(self.gui.current_polygon_points):
+                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+                if dist <= self.gui._vertex_hover_tolerance:
+                    # Start dragging this vertex
+                    self.gui._dragging_vertex_index = i
+                    self.gui.roi_canvas.config(cursor="hand2")
+                    return  # Don't add new point
+
+        # Not over a vertex, proceed to add new point
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
+
+        # If drawing an ROI, clamp the point inside the main arena
+        if self.gui.current_drawing_type == "roi":
+            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            if main_arena_poly:
+                # Convert main arena polygon from video coords to canvas coords
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if click point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    # Use the clamped point
+                    canvas_x, canvas_y = closest_point
+                    log.debug(
+                        "roi_click_clamped",
+                        original=(float(event.x), float(event.y)),
+                        clamped=(canvas_x, canvas_y),
+                    )
+
+        # Clear redo stack when adding a new point (standard undo/redo behavior)
+        self.gui._drawing_redo_stack = []
+
+        self.gui.current_polygon_points.append((canvas_x, canvas_y))
+
+        # Store both canvas and video coordinates
+        canvas_point = (canvas_x, canvas_y)
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        self.gui._poly_pts_canvas.append(canvas_point)
+        self.gui._poly_pts_video.append(video_point)
+
+        # Draw a small circle to mark the vertex
+        self.gui.roi_canvas.create_oval(
+            canvas_x - 2,
+            canvas_y - 2,
+            canvas_x + 2,
+            canvas_y + 2,
+            fill="red",
+            outline="red",
+            tags=("temp_vertex", "drawing_aid"),
+        )
+        # Draw the fixed line segment if it's not the first point
+        if len(self.gui.current_polygon_points) > 1:
+            p1 = self.gui.current_polygon_points[-2]
+            p2 = self.gui.current_polygon_points[-1]
+            self.gui.roi_canvas.create_line(
+                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+            )
