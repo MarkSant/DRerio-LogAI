@@ -72,10 +72,9 @@ class VideoOrchestrator:
         self.root = root
         self.view = view
 
-        # Threading support for background processing
-        self.cancel_event = threading.Event()
-        self.processing_thread: threading.Thread | None = None
-        self.processing_worker: ProcessingWorker | None = None
+        # Note: Threading attributes (cancel_event, processing_thread, processing_worker)
+        # are managed by MainViewModel and passed to methods as needed.
+        # This coordinator provides operations but doesn't own the threading state.
 
         log.info("video_orchestrator.initialized")
 
