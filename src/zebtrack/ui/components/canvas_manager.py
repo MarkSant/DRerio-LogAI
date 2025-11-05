@@ -5,10 +5,11 @@ Handles canvas drawing, coordinate transformations, overlays, and rendering.
 """
 
 import os
+
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
 import structlog
+from PIL import Image, ImageTk
 
 log = structlog.get_logger()
 
@@ -302,7 +303,8 @@ class CanvasManager:
         """
         if video_path is None:
             # Try to use pending video or from project
-            if hasattr(self.gui, "pending_single_video_path") and self.gui.pending_single_video_path:
+            has_pending = hasattr(self.gui, "pending_single_video_path")
+            if has_pending and self.gui.pending_single_video_path:
                 video_path = self.gui.pending_single_video_path
             elif self.gui.controller.project_manager.project_path:
                 videos = self.gui.controller.project_manager.get_all_videos()
@@ -800,7 +802,8 @@ class CanvasManager:
         Returns:
             frame: Frame with selected track highlighted
         """
-        selected = self.gui.track_selector_var.get() if hasattr(self.gui, "track_selector_var") else "Todos"
+        has_selector = hasattr(self.gui, "track_selector_var")
+        selected = self.gui.track_selector_var.get() if has_selector else "Todos"
         selected = str(selected).strip()
         if not selected or selected.lower() == "todos":
             return frame
