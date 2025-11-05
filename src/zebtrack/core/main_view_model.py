@@ -327,6 +327,13 @@ class MainViewModel:
             event_bus=self.ui_event_bus if self._use_event_bus else None,
             settings_obj=self.settings,
         )
+
+        # Phase REFACTOR-VIEWMODEL-001: Configure view in coordinators
+        if self.video_orchestrator:
+            self.video_orchestrator.set_view(self.view)
+        if self.analysis_coordinator:
+            self.analysis_coordinator.set_view(self.view)
+
         self._publish_processing_mode(source="init", force=True)
 
         # Update GPU hardware display in UI (Phase 7)
@@ -2790,22 +2797,33 @@ class MainViewModel:
     # --- New Refactored Workflows ---
 
     def cancel_current_analysis(self) -> None:
-        """Request cancellation for the currently running analysis workflow."""
+        """Request cancellation for the currently running analysis workflow.
 
-        worker_running = bool(self.processing_worker and self.processing_worker.is_running)
-        thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
+        Phase REFACTOR-VIEWMODEL-001: Delegates to VideoOrchestrator when available.
+        """
+        # Delegate to VideoOrchestrator if available
+        if self.video_orchestrator:
+            self.video_orchestrator.cancel_processing(
+                self.cancel_event,
+                self.processing_thread,
+                self.processing_worker,
+            )
+        else:
+            # Fallback for tests without coordinator
+            worker_running = bool(self.processing_worker and self.processing_worker.is_running)
+            thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
 
-        if not worker_running and not thread_running:
-            log.info("controller.analysis.cancel_ignored", reason="no_active_processing")
-            return
+            if not worker_running and not thread_running:
+                log.info("controller.analysis.cancel_ignored", reason="no_active_processing")
+                return
 
-        log.info("controller.analysis.cancel_requested")
-        self.cancel_event.set()
+            log.info("controller.analysis.cancel_requested")
+            self.cancel_event.set()
 
-        self.state_manager.update_processing_state(
-            source="controller.cancel_current_analysis",
-            cancel_requested=True,
-        )
+            self.state_manager.update_processing_state(
+                source="controller.cancel_current_analysis",
+                cancel_requested=True,
+            )
 
         # Provide immediate feedback to the user interface
         self.ui_coordinator.set_status(self.view, "Cancelando análise em andamento...")

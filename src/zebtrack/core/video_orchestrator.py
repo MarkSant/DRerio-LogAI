@@ -15,7 +15,6 @@ from contextlib import contextmanager
 
 import structlog
 
-from zebtrack.analysis.processing_worker import ProcessingWorker
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
@@ -300,22 +299,36 @@ class VideoOrchestrator:
             data_changed,
         )
 
-    def cancel_processing(self) -> None:
+    def cancel_processing(
+        self,
+        cancel_event: threading.Event,
+        processing_thread: threading.Thread | None,
+        processing_worker,
+    ) -> None:
         """Request cancellation of active processing.
+
+        Args:
+            cancel_event: Cancel event to set
+            processing_thread: Processing thread to check
+            processing_worker: Processing worker to check
 
         Sets the cancel event and updates state manager.
         """
-        if not self.processing_thread or not self.processing_thread.is_alive():
-            log.warning("video_orchestrator.cancel.no_active_processing")
+        worker_running = bool(processing_worker and hasattr(processing_worker, 'is_running')
+                            and processing_worker.is_running)
+        thread_running = bool(processing_thread and processing_thread.is_alive())
+
+        if not worker_running and not thread_running:
+            log.info("video_orchestrator.cancel.no_active_processing")
             return
 
         log.info("video_orchestrator.cancel.requested")
-        self.cancel_event.set()
+        cancel_event.set()
 
         # Update state
         self.state_manager.update_processing_state(
             source="video_orchestrator.cancel",
-            is_processing=False,
+            cancel_requested=True,
         )
 
         # Show feedback
@@ -325,33 +338,3 @@ class VideoOrchestrator:
                 {"message": "Cancelando processamento..."},
             )
         )
-
-    def is_processing(self) -> bool:
-        """Check if video processing is currently active.
-
-        Returns:
-            True if processing thread is alive, False otherwise
-        """
-        return self.processing_thread is not None and self.processing_thread.is_alive()
-
-    def join_processing_thread(self, timeout: float | None = None) -> bool:
-        """Wait for processing thread to terminate.
-
-        Args:
-            timeout: Maximum time to wait in seconds (None = wait forever)
-
-        Returns:
-            True if thread terminated, False if timeout occurred
-        """
-        if not self.processing_thread:
-            return True
-
-        self.processing_thread.join(timeout=timeout)
-        is_alive = self.processing_thread.is_alive()
-
-        if not is_alive:
-            self.processing_thread = None
-            self.processing_worker = None
-            log.info("video_orchestrator.thread.joined")
-
-        return not is_alive
