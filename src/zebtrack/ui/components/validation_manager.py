@@ -1048,3 +1048,62 @@ class ValidationManager:
             days_dict.setdefault(day_id, []).append(video_entry)
 
         return hierarchy
+
+    def build_video_hierarchy_snapshot(self) -> list[dict]:
+        """Build hierarchical snapshot of videos for display."""
+        controller = getattr(self.gui, "controller", None)
+        if not controller or not controller.project_manager:
+            return []
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+        hierarchy = self._build_video_hierarchy_data(all_videos, "")
+
+        snapshot: list[dict] = []
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            group_entry = {
+                "label": f"🏷️ {group_data['display']} ({group_id})",
+                "status_label": "",
+                "filename_display": "",
+                "children": [],
+            }
+            for day_id, videos in sorted(
+                group_data["days"].items(),
+                key=lambda item: self._video_sort_key(item[0]),
+            ):
+                sample_metadata = videos[0].get("metadata") if videos else None
+                day_title = self._build_day_title(day_id, sample_metadata)
+                day_entry = {
+                    "label": f"📅 {day_title}",
+                    "status_label": "",
+                    "children": [],
+                }
+                for video_entry in sorted(
+                    videos,
+                    key=lambda entry: self._video_sort_key(entry.get("subject")),
+                ):
+                    subject_label = self.format_subject_label(video_entry.get("subject"))
+                    has_arena = video_entry.get("has_arena", False)
+                    has_rois = video_entry.get("has_rois", False)
+                    has_traj = video_entry.get("has_trajectory", False)
+                    status_tokens = " ".join(
+                        [
+                            self.format_status_token(has_arena, "arena"),
+                            self.format_status_token(has_rois, "rois"),
+                            self.format_status_token(has_traj, "trajectory"),
+                        ]
+                    )
+                    day_entry["children"].append(
+                        {
+                            "path": video_entry.get("path"),
+                            "label": f"🐟 Sujeito {subject_label}",
+                            "filename": video_entry.get("filename", ""),
+                            "status_label": status_tokens,
+                        }
+                    )
+                group_entry["children"].append(day_entry)
+            snapshot.append(group_entry)
+
+        return snapshot
