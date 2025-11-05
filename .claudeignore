@@ -32,3 +32,48 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Historical documentation (archived)
+docs/archive/
+
+# API documentation (auto-generated)
+docs/api/build/
+docs/api/source/modules/
+
+# Media and assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+
+# Migration guides (historical)
+docs/migration/
+
+# Test fixtures and scenarios (data files)
+tests/fixtures/*.parquet
+tests/fixtures/*.mp4
+test_scenarios/sample_data/
+
+# Generated reports and outputs
+*_results/
+outputs/
+live_analysis_sessions/
+templates/*.json
+
+# OpenVINO cache
+openvino_model_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Compiled translations
+*.mo
+
+# Documentation that's rarely changed
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+LICENSE
