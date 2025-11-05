@@ -16,6 +16,7 @@ from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
+from zebtrack.ui.components.dialog_manager import DialogManager
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.components.menu_manager import MenuManager
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
@@ -32,6 +33,7 @@ __all__ = [
     "CanvasManager",
     "ConfigEditorWidget",
     "ControlPanelWidget",
+    "DialogManager",
     "EventDispatcher",
     "MenuManager",
     "ProjectOverviewWidget",
