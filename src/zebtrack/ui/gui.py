@@ -30,7 +30,6 @@ from typing import Any
 import cv2
 import numpy as np
 import structlog
-from PIL import Image, ImageTk
 
 try:
     import ttkbootstrap as ttkb
@@ -537,43 +536,8 @@ class ApplicationGUI:
 
 
     def _display_welcome_logo(self):
-        """Displays the DRerio LogAI logo in the welcome frame."""
-        try:
-            from pathlib import Path
-
-            # Try to load logo from assets
-            logo_path = Path(__file__).parent / "assets" / "logo_welcome.png"
-
-            if not logo_path.exists():
-                # Fallback for development environment
-                logo_path = Path("src/zebtrack/ui/assets/logo_welcome.png")
-
-            if logo_path.exists():
-                # Load and display logo
-                logo_pil = Image.open(logo_path)
-                self._welcome_logo_image = ImageTk.PhotoImage(logo_pil)
-
-                logo_label = ttk.Label(self.welcome_frame, image=self._welcome_logo_image)
-                logo_label.pack(pady=(10, 20))
-
-                log.debug("welcome.logo.displayed", path=str(logo_path))
-            else:
-                # Fallback to text if logo not found
-                ttk.Label(
-                    self.welcome_frame,
-                    text="Bem-vindo ao DRerio LogAI",
-                    font=("Helvetica", 16),
-                ).pack(pady=(0, 15))
-                log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
-
-        except Exception as e:
-            # Fallback to text on any error
-            ttk.Label(
-                self.welcome_frame,
-                text="Bem-vindo ao DRerio LogAI",
-                font=("Helvetica", 16),
-            ).pack(pady=(0, 15))
-            log.warning("welcome.logo.load_error", error=str(e))
+        """Displays the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
+        return self.widget_factory.display_welcome_logo()
 
     def _create_welcome_frame(self):
         """Creates the initial UI for project selection and model configuration."""

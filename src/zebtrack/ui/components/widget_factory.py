@@ -2003,3 +2003,50 @@ class WidgetFactory:
 
         if hasattr(self.gui, "rule_help_label") and self.gui.rule_help_label:
             self.gui.rule_help_label.config(text=help_text)
+
+    def display_welcome_logo(self):
+        """Displays the DRerio LogAI logo in the welcome frame."""
+        from pathlib import Path
+
+        try:
+            # Try to load logo from assets
+            logo_path = Path(__file__).parent.parent / "assets" / "logo_welcome.png"
+
+            if not logo_path.exists():
+                # Fallback for development environment
+                logo_path = Path("src/zebtrack/ui/assets/logo_welcome.png")
+
+            if logo_path.exists():
+                # Load and display logo
+                from PIL import Image, ImageTk
+
+                logo_pil = Image.open(logo_path)
+                self.gui._welcome_logo_image = ImageTk.PhotoImage(logo_pil)
+
+                import ttkbootstrap as ttk
+
+                logo_label = ttk.Label(self.gui.welcome_frame, image=self.gui._welcome_logo_image)
+                logo_label.pack(pady=(10, 20))
+
+                log.debug("welcome.logo.displayed", path=str(logo_path))
+            else:
+                # Fallback to text if logo not found
+                import ttkbootstrap as ttk
+
+                ttk.Label(
+                    self.gui.welcome_frame,
+                    text="Bem-vindo ao DRerio LogAI",
+                    font=("Helvetica", 16),
+                ).pack(pady=(0, 15))
+                log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
+
+        except Exception as e:
+            # Fallback to text on any error
+            import ttkbootstrap as ttk
+
+            ttk.Label(
+                self.gui.welcome_frame,
+                text="Bem-vindo ao DRerio LogAI",
+                font=("Helvetica", 16),
+            ).pack(pady=(0, 15))
+            log.warning("welcome.logo.load_error", error=str(e))
