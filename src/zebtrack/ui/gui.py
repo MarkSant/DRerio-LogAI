@@ -2191,232 +2191,12 @@ class ApplicationGUI:
         self._refresh_pipeline_video_table()
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
-        """Atualiza os cartões de resumo com base na lista de vídeos."""
-        if not self.zone_summary_cards:
-            return
-
-        if all_videos is None:
-            controller = getattr(self, "controller", None)
-            if controller and controller.project_manager:
-                all_videos = controller.project_manager.get_all_videos() or []
-            else:
-                all_videos = []
-
-        all_videos = list(all_videos or [])
-        total_videos = len(all_videos)
-
-        if total_videos == 0:
-            for card in self.zone_summary_cards.values():
-                card["value"].set("0")
-                card["detail"].set("Nenhum vídeo listado")
-            log.info(
-                "gui.zone_summary.cards_refresh",
-                total=0,
-                arenas_missing=0,
-                rois_missing=0,
-                ready_pending=0,
-                ready_completed=0,
-            )
-            return
-
-        arenas_missing = sum(1 for video in all_videos if not video.get("has_arena"))
-        rois_missing = sum(1 for video in all_videos if not video.get("has_rois"))
-
-        ready_total = sum(
-            1 for video in all_videos if video.get("has_arena") and video.get("has_rois")
-        )
-        ready_completed = sum(
-            1
-            for video in all_videos
-            if video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory")
-        )
-        ready_pending = max(ready_total - ready_completed, 0)
-
-        self.zone_summary_cards["arena_missing"]["value"].set(str(arenas_missing))
-        self.zone_summary_cards["arena_missing"]["detail"].set(
-            f"{total_videos - arenas_missing} com arena salva"
-        )
-
-        self.zone_summary_cards["rois_missing"]["value"].set(str(rois_missing))
-        self.zone_summary_cards["rois_missing"]["detail"].set(
-            f"{total_videos - rois_missing} com ROIs salvas"
-        )
-
-        self.zone_summary_cards["ready_for_processing"]["value"].set(str(ready_pending))
-        self.zone_summary_cards["ready_for_processing"]["detail"].set(
-            f"{ready_completed} já com trajetórias"
-            if ready_total
-            else "Sem arenas/ROIs disponíveis"
-        )
-
-        log.info(
-            "gui.zone_summary.cards_refresh",
-            total=total_videos,
-            arenas_missing=arenas_missing,
-            rois_missing=rois_missing,
-            ready_pending=ready_pending,
-            ready_completed=ready_completed,
-        )
+        """Update zone summary cards. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_zone_summary_cards(all_videos)
 
     def _refresh_pipeline_video_table(self, all_videos=None) -> None:
-        """LEGACY: Replaced by _refresh_processing_reports_tab()."""
-        if not self.pipeline_video_tree or not self.pipeline_tab_frame:
-            return
-
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-
-        if all_videos is None and pm is not None:
-            all_videos = pm.get_all_videos() or []
-
-        for item in self.pipeline_video_tree.get_children():
-            self.pipeline_video_tree.delete(item)
-
-        prepared_videos: list[dict] = []
-        self.pipeline_video_vars = {}
-        summary_total = 0
-
-        for video in all_videos or []:
-            path = video.get("path")
-            if not path or not video.get("has_arena"):
-                continue
-
-            summary_exists = self._pipeline_summary_exists(video)
-
-            prepared = dict(video)
-            prepared["path"] = path
-            prepared["metadata"] = video.get("metadata") or {}
-            prepared["has_arena"] = bool(video.get("has_arena"))
-            prepared["has_rois"] = bool(video.get("has_rois"))
-            prepared["has_trajectory"] = bool(video.get("has_trajectory"))
-            prepared["has_complete_data"] = bool(video.get("has_complete_data")) or (
-                prepared["has_arena"] and prepared["has_rois"] and prepared["has_trajectory"]
-            )
-            prepared["has_summary"] = bool(summary_exists)
-            prepared["filename"] = os.path.basename(path)
-
-            prepared_videos.append(prepared)
-
-            self.pipeline_video_vars[path] = {
-                "info": video,
-                "summary": summary_exists,
-            }
-            if summary_exists:
-                summary_total += 1
-
-        hierarchy = self._build_video_hierarchy_data(prepared_videos, "")
-
-        def _count(entries: list[dict], key: str) -> int:
-            return sum(1 for entry in entries if entry.get(key))
-
-        def _summary_count(entries: list[dict]) -> int:
-            return sum(
-                1 for entry in entries if entry.get("has_summary") or entry.get("has_complete_data")
-            )
-
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            days_dict = group_data.get("days") or {}
-            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
-            if not group_entries:
-                continue
-
-            total_group = len(group_entries)
-            group_node = self.pipeline_video_tree.insert(
-                "",
-                "end",
-                text=f"🏷️ {group_data['display']}",
-                values=(
-                    self._format_status_ratio(
-                        "rois", _count(group_entries, "has_rois"), total_group
-                    ),
-                    self._format_status_ratio(
-                        "trajectory",
-                        _count(group_entries, "has_trajectory"),
-                        total_group,
-                    ),
-                    self._format_status_ratio(
-                        "summary", _summary_count(group_entries), total_group
-                    ),
-                    f"{total_group} vídeos",
-                ),
-                open=True,
-            )
-
-            for day_id, entries in sorted(
-                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
-            ):
-                entries = entries or []
-                if not entries:
-                    continue
-
-                total_day = len(entries)
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-                day_node = self.pipeline_video_tree.insert(
-                    group_node,
-                    "end",
-                    text=f"📅 {day_title}",
-                    values=(
-                        self._format_status_ratio("rois", _count(entries, "has_rois"), total_day),
-                        self._format_status_ratio(
-                            "trajectory", _count(entries, "has_trajectory"), total_day
-                        ),
-                        self._format_status_ratio("summary", _summary_count(entries), total_day),
-                        f"{total_day} vídeos",
-                    ),
-                    open=False,
-                )
-
-                for entry in sorted(
-                    entries,
-                    key=lambda item: self._video_sort_key(item.get("subject")),
-                ):
-                    path = entry.get("path")
-                    if not path:
-                        continue
-
-                    rois_label = "✓" if entry.get("has_rois") else "✗"
-                    traj_label = "✓" if entry.get("has_trajectory") else "✗"
-                    summary_label = "✓" if entry.get("has_summary") else "✗"
-
-                    status_key = str(entry.get("status") or "pending").strip().lower()
-                    status_display = self._format_status_label(status_key)
-
-                    subject_label = self._format_subject_label(entry.get("subject"))
-                    filename = entry.get("filename")
-                    node_text = f"🐟 Sujeito {subject_label}"
-                    if filename:
-                        node_text = f"{node_text} ({filename})"
-
-                    self.pipeline_video_tree.insert(
-                        day_node,
-                        "end",
-                        iid=path,
-                        text=node_text,
-                        values=(rois_label, traj_label, summary_label, status_display),
-                        tags=(path,),
-                    )
-
-        log.info(
-            "gui.pipeline_table.refreshed",
-            eligible=len(prepared_videos),
-            with_rois=sum(1 for entry in prepared_videos if entry.get("has_rois")),
-            with_trajectory=sum(1 for entry in prepared_videos if entry.get("has_trajectory")),
-            with_summary=summary_total,
-        )
-
-        listed = len(self.pipeline_video_vars)
-        if listed == 0:
-            selection_text = "Nenhum vídeo elegível listado."
-        else:
-            selection_text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-
-        if self.pipeline_selection_label:
-            self.pipeline_selection_label.config(text=selection_text)
-
-        self._update_pipeline_buttons_state()
+        """Refresh pipeline video table. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_pipeline_video_table(all_videos)
 
     def _pipeline_summary_exists(self, video_info: dict) -> bool:
         controller = getattr(self, "controller", None)
@@ -3523,27 +3303,8 @@ class ApplicationGUI:
         return self.project_view_manager._refresh_processing_reports_tab()
 
     def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
-        """
-        Determine the status tag based on completion ratio.
-
-        Args:
-            complete_count: Number of complete items
-            total_count: Total number of items
-
-        Returns:
-            Tag name for color coding
-        """
-        if total_count == 0:
-            return "status_missing"
-
-        completion_ratio = complete_count / total_count
-
-        if completion_ratio >= 1.0:
-            return "status_complete"  # All complete - green
-        elif completion_ratio > 0:
-            return "status_partial"  # Some complete - orange/yellow
-        else:
-            return "status_missing"  # None complete - red
+        """Determine status tag. Delegates to ProjectViewManager."""
+        return self.project_view_manager._determine_status_tag(complete_count, total_count)
 
     def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
         """Create a stable item id for report artifacts while avoiding duplicates."""
@@ -3668,11 +3429,8 @@ class ApplicationGUI:
         self._populate_video_selector_tree()
 
     def _sort_key_for_reports(self, value):
-        try:
-            return (0, int(value))
-        except (TypeError, ValueError):
-            value_str = str(value) if value is not None else ""
-            return (1, value_str.lower())
+        """Sort key for reports. Delegates to ProjectViewManager."""
+        return self.project_view_manager._sort_key_for_reports(value)
 
     def _format_subject_for_reports(self, value):
         """Format subject for reports. Delegates to ValidationManager."""
