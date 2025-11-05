@@ -144,6 +144,49 @@ class WidgetFactory:
         digest = hashlib.sha1(digest_source).hexdigest()[:16]
         return f"file_{digest}"
 
+    def format_roi_template_display(self, template: dict[str, Any]) -> str:
+        """
+        Format ROI template for display in dropdown.
+
+        Args:
+            template: Template dictionary
+
+        Returns:
+            Formatted display string
+        """
+        base_name = template.get("name", "")
+        location = template.get("location", "project")
+
+        content_parts: list[str] = []
+        if template.get("includes_arena"):
+            content_parts.append("Arena")
+        if template.get("includes_rois"):
+            content_parts.append("ROIs")
+
+        if not content_parts:
+            content_label = "Sem dados"
+        elif len(content_parts) == 2:
+            content_label = "Arena + ROIs"
+        else:
+            content_label = content_parts[0]
+
+        location_label: str | None = None
+        if location == "global":
+            location_label = "Global"
+        elif location not in {"project", "global", None}:
+            location_label = str(location)
+
+        suffix_parts = [content_label] if content_label else []
+        if location_label:
+            suffix_parts.append(location_label)
+
+        suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
+
+        if base_name:
+            return f"{base_name}{suffix}"
+
+        return suffix.lstrip() or "Template"
+
     def build_roi_template_identifier(self, template: dict[str, Any]) -> str:
         """
         Build unique identifier for ROI template.
@@ -165,6 +208,36 @@ class WidgetFactory:
             return f"{location}:{file_ref}"
 
         return f"{location}:{template.get('name', '')}"
+
+    def get_selected_roi_template(self) -> dict[str, Any] | None:
+        """
+        Get currently selected template from dropdown.
+
+        Returns:
+            Selected template dict or None
+        """
+        if not self.gui._roi_templates_cache:
+            log.debug("gui.get_selected_roi_template.empty_cache")
+            return None
+
+        current_display = self.gui.roi_template_var.get().strip()
+        if not current_display:
+            log.debug("gui.get_selected_roi_template.no_selection")
+            return None
+
+        log.debug(
+            "gui.get_selected_roi_template.searching",
+            current_display=current_display,
+            cache_size=len(self.gui._roi_templates_cache),
+        )
+
+        for template in self.gui._roi_templates_cache:
+            if template.get("display_name") == current_display:
+                log.debug("gui.get_selected_roi_template.found", template_name=template.get("name"))
+                return template
+
+        log.warning("gui.get_selected_roi_template.not_found", current_display=current_display)
+        return None
 
     def build_track_options(self, detections: list[tuple]) -> list[str]:
         """

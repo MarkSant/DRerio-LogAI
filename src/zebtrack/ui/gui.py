@@ -3600,85 +3600,16 @@ class ApplicationGUI:
         )
 
     def _format_roi_template_display(self, template: dict[str, Any]) -> str:
-        base_name = template.get("name", "")
-        location = template.get("location", "project")
-
-        content_parts: list[str] = []
-        if template.get("includes_arena"):
-            content_parts.append("Arena")
-        if template.get("includes_rois"):
-            content_parts.append("ROIs")
-
-        if not content_parts:
-            content_label = "Sem dados"
-        elif len(content_parts) == 2:
-            content_label = "Arena + ROIs"
-        else:
-            content_label = content_parts[0]
-
-        location_label: str | None = None
-        if location == "global":
-            location_label = "Global"
-        elif location not in {"project", "global", None}:
-            location_label = str(location)
-
-        suffix_parts = [content_label] if content_label else []
-        if location_label:
-            suffix_parts.append(location_label)
-
-        suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
-
-        if base_name:
-            return f"{base_name}{suffix}"
-
-        return suffix.lstrip() or "Template"
+        """Format ROI template display. Delegates to WidgetFactory."""
+        return self.widget_factory.format_roi_template_display(template)
 
     def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
-        location = template.get("location", "project")
-        slug = template.get("slug") or ""
-        file_ref = template.get("file") or ""
-
-        if location == "project" and slug:
-            return f"{location}:{slug}"
-
-        if file_ref:
-            return f"{location}:{file_ref}"
-
-        return f"{location}:{template.get('name', '')}"
+        """Build ROI template identifier. Delegates to WidgetFactory."""
+        return self.widget_factory.build_roi_template_identifier(template)
 
     def _get_selected_roi_template(self) -> dict[str, Any] | None:
-        """Get the currently selected template from the dropdown."""
-        if not self._roi_templates_cache:
-            log.debug("gui.get_selected_roi_template.empty_cache")
-            return None
-
-        current_display = self.roi_template_var.get().strip()
-        if not current_display:
-            log.debug("gui.get_selected_roi_template.no_selection")
-            return None
-
-        log.debug(
-            "gui.get_selected_roi_template.searching",
-            current_display=current_display,
-            cache_size=len(self._roi_templates_cache),
-            available_names=[e.get("display_name") for e in self._roi_templates_cache],
-        )
-
-        for entry in self._roi_templates_cache:
-            if entry.get("display_name") == current_display:
-                log.info(
-                    "gui.get_selected_roi_template.found",
-                    display_name=current_display,
-                    template_name=entry.get("name"),
-                )
-                return entry
-
-        log.warning(
-            "gui.get_selected_roi_template.not_found",
-            current_display=current_display,
-            cache_entries=[e.get("display_name") for e in self._roi_templates_cache],
-        )
-        return None
+        """Get selected template. Delegates to WidgetFactory."""
+        return self.widget_factory.get_selected_roi_template()
 
     def _get_zone_data_for_active_context(self) -> ZoneData:
         pm = getattr(self.controller, "project_manager", None)
