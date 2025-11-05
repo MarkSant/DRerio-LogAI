@@ -17,7 +17,7 @@ import queue
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import cv2
 import structlog
@@ -145,7 +145,12 @@ class LiveCameraService:
         # Apply zones to detector if available
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
         if zone_data and self.camera:
-            self.controller.setup_detector_zones()
+            # CRITICAL: Use actual camera dimensions for correct zone rescaling
+            self.detector_service.configure_zones(
+                zone_data=zone_data,
+                width=self.camera.actual_width,
+                height=self.camera.actual_height
+            )
 
         # Create preview window
         self._create_preview_window(camera_index, duration_s)
@@ -182,6 +187,11 @@ class LiveCameraService:
         # Register completion callback
         def on_complete():
             self._on_session_complete(output_dir)
+
+        # Register UI callbacks for timed recording completion
+        self.recording_service.set_ui_callbacks({
+            "stop_recording_callback": on_complete,
+        })
 
         # Start recording session
         self.recording_service.start_session(
@@ -342,7 +352,12 @@ class LiveCameraService:
                     self.video_queue.put(frame.copy())
 
                 # Control capture rate
-                fps = self.controller.settings.video_processing.fps if self.controller.settings else 30.0
+                default_fps = 30.0
+                fps = (
+                    self.controller.settings.video_processing.fps
+                    if self.controller.settings
+                    else default_fps
+                )
                 time.sleep(1 / (fps * 1.5))
 
             except Exception as e:
@@ -386,7 +401,7 @@ class LiveCameraService:
                     # Run detection
                     detector = self.detector_service.detector
                     if detector:
-                        detections, command = detector.detect(frame, "live")
+                        detections, _command = detector.detect(frame, "live")
 
                         # Record detections
                         if self.controller.recorder and self.controller.recorder.start_time:
@@ -402,7 +417,12 @@ class LiveCameraService:
                 # Update preview window if exists (respect display interval)
                 if self.preview_window and should_display:
                     try:
-                        self.preview_window.update_frame(frame, detections)
+                        # CRITICAL: Schedule on main thread for Tkinter thread safety
+                        if self.root:
+                            self.root.after(0, self.preview_window.update_frame, frame, detections)
+                        else:
+                            # Fallback if root not available (edge case)
+                            self.preview_window.update_frame(frame, detections)
                     except Exception as e:
                         log.error("live_camera_service.preview_update_error", error=str(e))
 

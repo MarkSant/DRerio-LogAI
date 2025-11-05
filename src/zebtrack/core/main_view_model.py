@@ -164,7 +164,7 @@ class MainViewModel:
         self.video_processing_service = video_processing_service
         self.project_workflow_service = project_workflow_service
         self.ui_coordinator = ui_coordinator
-        
+
         # Live camera service will be initialized after recording_service
         self._live_camera_service_param = live_camera_service
 
@@ -251,14 +251,14 @@ class MainViewModel:
         self.live_preview_window = None  # Live preview window for camera analysis
         self.analysis_interval_frames = 1  # How often to run detection (default every frame)
         self.display_interval_frames = 1  # How often to display frames (default every frame)
-        
+
         # Queues for live frame processing
         import queue
         self.frame_queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
         self.video_queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
         self.is_capturing_for_video = False  # Flag for video recording
         self.active_frame_source = None  # Current source for live frames (Camera or other)
-        
+
         self.arduino: Arduino | None = None
         self.arduino_manager: ArduinoManager | None = None
         self._arduino_manager_cls = ArduinoManager
@@ -268,7 +268,7 @@ class MainViewModel:
 
         # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
         self.recording_service: RecordingService | None = recording_service
-        
+
         # Live camera service - initialized later or from parameter
         self.live_camera_service = None
 
@@ -277,7 +277,7 @@ class MainViewModel:
             source="controller.init",
             is_recording=False,
         )
-        
+
         # Exit event for threads (deprecated - now managed by live_camera_service)
         import threading
         self.program_exit_event = threading.Event()
@@ -622,7 +622,7 @@ class MainViewModel:
 
         # Setup UI callbacks
         self._setup_recording_service_callbacks()
-        
+
         # Initialize LiveCameraService (Phase: Live Camera Analysis)
         if self._live_camera_service_param is None:
             from zebtrack.core.live_camera_service import LiveCameraService
@@ -5150,7 +5150,7 @@ class MainViewModel:
                         return
 
         # --- Create and show progress dialog ---
-        from zebtrack.ui.gui import DiagnosticProgressDialog
+        from zebtrack.ui.dialogs import DiagnosticProgressDialog
 
         progress_dialog = DiagnosticProgressDialog(self.root)
         config["progress_dialog"] = progress_dialog
