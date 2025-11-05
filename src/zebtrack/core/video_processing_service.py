@@ -232,6 +232,192 @@ class VideoProcessingService:
             )
             return None
 
+    def _setup_tracking_session(
+        self,
+        *,
+        video_path: Path,
+        results_dir: str,
+        experiment_id: str,
+        calibration_data: dict | None,
+    ) -> tuple[cv2.VideoCapture | None, any, ZoneData, list, Calibration | None, tuple | None]:
+        """Setup tracking session: open video, prepare recorder, zones, and calibration.
+
+        Args:
+            video_path: Path to video file
+            results_dir: Output directory for results
+            experiment_id: Unique experiment identifier
+            calibration_data: Optional calibration configuration
+
+        Returns:
+            Tuple of (cap, recorder, zone_data, arena_polygon, calibration, pixel_per_cm_ratio)
+        """
+        recorder = self.recorder.__class__(settings_obj=self.settings)
+        cap = cv2.VideoCapture(str(video_path))
+
+        if not cap.isOpened():
+            log.error("controller.tracking.video_open_failed", path=video_path)
+            return None, None, None, None, None, None
+
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
+            frame_width, frame_height
+        )
+
+        cal, pixel_per_cm_ratio = self._build_calibration_context(
+            arena_polygon, calibration_data
+        )
+
+        recorder.start_recording(
+            output_folder=results_dir,
+            frame_width=frame_width,
+            frame_height=frame_height,
+            zones=zone_data,
+            is_video_file=True,
+            base_name=experiment_id,
+            pixel_per_cm_ratio=pixel_per_cm_ratio,
+            calibration=cal,
+        )
+
+        return cap, recorder, zone_data, arena_polygon, cal, pixel_per_cm_ratio
+
+    def _reset_detector_tracking_state(self) -> None:
+        """Reset detector tracking state if supported."""
+        if self.detector and hasattr(self.detector, "reset_tracking_state"):
+            try:
+                self.detector.reset_tracking_state()
+            except Exception:  # pragma: no cover - defensive
+                plugin_obj = getattr(self.detector, "plugin", None)
+                plugin_class = getattr(plugin_obj, "__class__", type(self.detector))
+                log.warning(
+                    "controller.tracking.reset_tracker_failed",
+                    plugin=plugin_class,
+                    exc_info=True,
+                )
+
+    def _process_tracking_frame(
+        self,
+        *,
+        frame,
+        frame_num: int,
+        analysis_interval_frames: int,
+        cap: cv2.VideoCapture,
+        recorder: any,
+    ) -> tuple[list, int]:
+        """Process a single frame for tracking.
+
+        Args:
+            frame: Video frame
+            frame_num: Current frame number
+            analysis_interval_frames: Interval for running detection
+            cap: Video capture object
+            recorder: Recorder instance
+
+        Returns:
+            Tuple of (detections, detected_count_increment)
+        """
+        should_process = frame_num % analysis_interval_frames == 0
+        detections = []
+        detected_count_increment = 0
+
+        if should_process:
+            detections, _ = self.detector.detect(frame, project_type="pre-recorded")
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            recorder.write_detection_data(timestamp, frame_num, detections)
+
+            if detections:
+                detected_count_increment = 1
+
+        return detections, detected_count_increment
+
+    def _calculate_tracking_progress_stats(
+        self,
+        *,
+        frame_num: int,
+        processed_frames_count: int,
+        detected_frames_count: int,
+        start_time: float,
+        cap: cv2.VideoCapture,
+    ) -> tuple[float, dict]:
+        """Calculate tracking progress statistics.
+
+        Args:
+            frame_num: Current frame number
+            processed_frames_count: Number of processed frames
+            detected_frames_count: Number of frames with detections
+            start_time: Processing start time
+            cap: Video capture object
+
+        Returns:
+            Tuple of (progress_fraction, stats_dict)
+        """
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
+
+        elapsed_time = time.time() - start_time
+        if frame_num > 0 and progress_fraction > 0:
+            estimated_total_time = elapsed_time / progress_fraction
+            eta_time = estimated_total_time - elapsed_time
+        else:
+            eta_time = -1  # Unknown
+
+        stats = {
+            "total_frames": total_frames,
+            "current_frame": frame_num + 1,
+            "processed_frames": processed_frames_count,
+            "detected_frames": detected_frames_count,
+            "start_time": start_time,
+            "elapsed": elapsed_time,
+            "eta": eta_time,
+            "percent": progress_fraction * 100,
+        }
+
+        return progress_fraction, stats
+
+    def _finalize_tracking_session(
+        self,
+        *,
+        recorder: any,
+        cancel_requested: bool,
+        experiment_id: str,
+        trajectory_path: str,
+        arena_polygon: list,
+    ) -> tuple[bool, list]:
+        """Finalize tracking session: stop recording, log results, publish events.
+
+        Args:
+            recorder: Recorder instance
+            cancel_requested: Whether cancellation was requested
+            experiment_id: Unique experiment identifier
+            trajectory_path: Path to trajectory file
+            arena_polygon: Arena polygon coordinates
+
+        Returns:
+            Tuple of (success, arena_polygon)
+        """
+        stop_reason = "Cancelled by user" if cancel_requested else None
+        recorder.stop_recording(force_stop=cancel_requested, reason=stop_reason)
+
+        if cancel_requested:
+            log.info("controller.tracking.cancelled", video=experiment_id)
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SET_STATUS,
+                    {"message": f"Cancelamento solicitado para {experiment_id}."},
+                )
+            else:
+                self.ui_coordinator.set_status(
+                    self.view, f"Cancelamento solicitado para {experiment_id}."
+                )
+            return False, arena_polygon
+
+        log.info("controller.tracking.success", path=trajectory_path)
+        self.ui_event_bus.publish_event(
+            Events.UI_SET_STATUS,
+            {"message": f"Trajetória para {experiment_id} gerada."},
+        )
+        return True, arena_polygon
+
     def create_progress_callback(
         self, *, index: int, total_videos: int, experiment_id: str
     ) -> Callable:
@@ -322,6 +508,7 @@ class VideoProcessingService:
         """Run tracking process if trajectory doesn't exist.
 
         Phase 3: Moved from MainViewModel._run_tracking_if_needed
+        Phase 4 Refactoring: Simplified by extracting helper methods
 
         Args:
             video_path: Path to video file
@@ -339,6 +526,8 @@ class VideoProcessingService:
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         arena_polygon = self.project_manager.get_zone_data().polygon
+
+        # Early return if trajectory already exists
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
             return True, arena_polygon
@@ -353,58 +542,35 @@ class VideoProcessingService:
             {"message": f"Gerando trajetória para {experiment_id}..."},
         )
 
-        recorder = self.recorder.__class__(settings_obj=self.settings)
-        cap = None  # Initialize to avoid UnboundLocalError in finally block
+        cap = None
         try:
-            cap = cv2.VideoCapture(str(video_path))
-            if not cap.isOpened():
-                log.error("controller.tracking.video_open_failed", path=video_path)
+            # Setup tracking session
+            setup_result = self._setup_tracking_session(
+                video_path=video_path,
+                results_dir=results_dir,
+                experiment_id=experiment_id,
+                calibration_data=calibration_data,
+            )
+            cap, recorder, _zone_data, arena_polygon, _cal, _pixel_per_cm_ratio = setup_result
+
+            if cap is None:
                 return False, None
 
-            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
-                frame_width, frame_height
-            )
+            # Reset detector tracking state
+            self._reset_detector_tracking_state()
 
-            cal, pixel_per_cm_ratio = self._build_calibration_context(
-                arena_polygon, calibration_data
-            )
-
-            recorder.start_recording(
-                output_folder=results_dir,
-                frame_width=frame_width,
-                frame_height=frame_height,
-                zones=zone_data,
-                is_video_file=True,
-                base_name=experiment_id,
-                pixel_per_cm_ratio=pixel_per_cm_ratio,
-                calibration=cal,
-            )
-
-            if self.detector and hasattr(self.detector, "reset_tracking_state"):
-                try:
-                    self.detector.reset_tracking_state()
-                except Exception:  # pragma: no cover - defensive
-                    plugin_obj = getattr(self.detector, "plugin", None)
-                    plugin_class = getattr(plugin_obj, "__class__", type(self.detector))
-                    log.warning(
-                        "controller.tracking.reset_tracker_failed",
-                        plugin=plugin_class,
-                        exc_info=True,
-                    )
-
+            # Process frames loop
             frame_num = 0
             processed_frames_count = 0
-            detected_frames_count = 0  # Frames that actually have detections
-            start_time = time.time()  # Track processing start time
+            detected_frames_count = 0
+            start_time = time.time()
             cancel_requested = False
+
             log.info("controller.tracking.loop.start", video=experiment_id)
+
             while True:
                 if self._tracking_cancelled(
-                    experiment_id,
-                    frame_num,
-                    "controller.tracking.cancelled.event_detected",
+                    experiment_id, frame_num, "controller.tracking.cancelled.event_detected"
                 ):
                     cancel_requested = True
                     break
@@ -415,63 +581,40 @@ class VideoProcessingService:
                     break
 
                 if self._tracking_cancelled(
-                    experiment_id,
-                    frame_num,
-                    "controller.tracking.cancelled.after_read",
+                    experiment_id, frame_num, "controller.tracking.cancelled.after_read"
                 ):
                     cancel_requested = True
                     break
 
-                # Check if we should process this frame (analysis interval)
-                should_process = frame_num % analysis_interval_frames == 0
-                detections = []
+                # Process frame
+                detections, detected_increment = self._process_tracking_frame(
+                    frame=frame,
+                    frame_num=frame_num,
+                    analysis_interval_frames=analysis_interval_frames,
+                    cap=cap,
+                    recorder=recorder,
+                )
 
-                if should_process:
-                    detections, _ = self.detector.detect(frame, project_type="pre-recorded")
-
-                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-                    recorder.write_detection_data(timestamp, frame_num, detections)
-
+                if frame_num % analysis_interval_frames == 0:
                     processed_frames_count += 1
-
-                    # Count frames that actually have detections
-                    if detections:
-                        detected_frames_count += 1
+                    detected_frames_count += detected_increment
 
                 if self._tracking_cancelled(
-                    experiment_id,
-                    frame_num,
-                    "controller.tracking.cancelled.before_progress",
+                    experiment_id, frame_num, "controller.tracking.cancelled.before_progress"
                 ):
                     cancel_requested = True
                     break
 
-                # Update GUI display every processed frame for smoother visualization
-                if progress_callback and should_process:
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
+                # Update progress
+                if progress_callback and frame_num % analysis_interval_frames == 0:
+                    progress_fraction, stats = self._calculate_tracking_progress_stats(
+                        frame_num=frame_num,
+                        processed_frames_count=processed_frames_count,
+                        detected_frames_count=detected_frames_count,
+                        start_time=start_time,
+                        cap=cap,
+                    )
 
-                    # Calculate elapsed time and ETA
-                    elapsed_time = time.time() - start_time
-                    if frame_num > 0 and progress_fraction > 0:
-                        estimated_total_time = elapsed_time / progress_fraction
-                        eta_time = estimated_total_time - elapsed_time
-                    else:
-                        eta_time = -1  # Unknown
-
-                    # Prepare statistics for GUI update
-                    stats = {
-                        "total_frames": total_frames,
-                        "current_frame": frame_num + 1,  # For accurate ETA calculation
-                        "processed_frames": processed_frames_count,
-                        "detected_frames": detected_frames_count,
-                        "start_time": start_time,
-                        "elapsed": elapsed_time,
-                        "eta": eta_time,
-                        "percent": progress_fraction * 100,
-                    }
-
-                    # Always draw overlay on processed frames
                     self.detector.draw_overlay(frame, detections)
                     progress_callback(
                         progress_fraction,
@@ -483,30 +626,14 @@ class VideoProcessingService:
 
                 frame_num += 1
 
-            stop_reason = "Cancelled by user" if cancel_requested else None
-            recorder.stop_recording(
-                force_stop=cancel_requested, reason=stop_reason
-            )  # Skip save on cancel
-
-            if cancel_requested:
-                log.info("controller.tracking.cancelled", video=experiment_id)
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SET_STATUS,
-                        {"message": f"Cancelamento solicitado para {experiment_id}."},
-                    )
-                else:
-                    self.ui_coordinator.set_status(
-                        self.view, f"Cancelamento solicitado para {experiment_id}."
-                    )
-                return False, arena_polygon
-
-            log.info("controller.tracking.success", path=trajectory_path)
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Trajetória para {experiment_id} gerada."},
+            # Finalize session
+            return self._finalize_tracking_session(
+                recorder=recorder,
+                cancel_requested=cancel_requested,
+                experiment_id=experiment_id,
+                trajectory_path=trajectory_path,
+                arena_polygon=arena_polygon,
             )
-            return True, arena_polygon
 
         except Exception as e:
             log.error(
@@ -519,7 +646,10 @@ class VideoProcessingService:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro de Rastreamento",
-                    "message": f"Ocorreu um erro inesperado ao gerar a trajetória para {experiment_id}:\n{e}",  # noqa: E501
+                    "message": (
+                        f"Ocorreu um erro inesperado ao gerar a trajetória "
+                        f"para {experiment_id}:\n{e}"
+                    ),
                 },
             )
             return False, None
@@ -977,7 +1107,7 @@ class VideoProcessingService:
         assert height_cm is not None
 
         cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-        video_width_px, video_height_px = cal.target_dims_px
+        _video_width_px, _video_height_px = cal.target_dims_px
         pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
 
         warped_points = cal.transform_points(arena_polygon_px)
@@ -1055,6 +1185,209 @@ class VideoProcessingService:
 
         return summary_parquet_path, summary_excel_path, report_docx_path
 
+    def _filter_trajectory_by_tracks(
+        self,
+        *,
+        trajectory_df: pd.DataFrame,
+        analysis_profile: dict | None,
+        experiment_id: str,
+    ) -> tuple[pd.DataFrame, list[str]]:
+        """Filter trajectory dataframe by requested track IDs from analysis profile.
+
+        Args:
+            trajectory_df: Full trajectory dataframe
+            analysis_profile: Analysis profile configuration
+            experiment_id: Experiment identifier (for logging)
+
+        Returns:
+            Tuple of (filtered_df, resolved_track_ids)
+        """
+        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
+        requested_track_ids_raw = profile_dict.get("track_ids", [])
+
+        if isinstance(requested_track_ids_raw, (list, tuple, set)):
+            requested_track_ids = list(requested_track_ids_raw)
+        elif requested_track_ids_raw in (None, ""):
+            requested_track_ids = []
+        else:
+            requested_track_ids = [requested_track_ids_raw]
+
+        filtered_df = trajectory_df
+        resolved_track_ids: list[str] = []
+
+        if "track_id" in trajectory_df.columns:
+            resolved_track_ids = sorted(
+                {str(track) for track in trajectory_df["track_id"].dropna().unique().tolist()}
+            )
+
+            if requested_track_ids:
+                requested_str = {
+                    str(track).strip() for track in requested_track_ids if track not in (None, "")
+                }
+
+                mask = trajectory_df["track_id"].astype(str).isin(requested_str)
+                narrowed = trajectory_df[mask]
+                if narrowed.empty:
+                    log.warning(
+                        "controller.analysis.profile_track_miss",
+                        video=experiment_id,
+                        requested=list(requested_str),
+                    )
+                else:
+                    filtered_df = narrowed
+                    resolved_track_ids = sorted(requested_str)
+        elif requested_track_ids:
+            log.warning(
+                "controller.analysis.profile_track_column_missing",
+                video=experiment_id,
+            )
+
+        return filtered_df, resolved_track_ids
+
+    def _enrich_metadata_with_profile(
+        self,
+        *,
+        metadata: dict,
+        analysis_profile: dict | None,
+    ) -> dict:
+        """Enrich metadata with analysis profile information.
+
+        Args:
+            metadata: Base metadata dictionary
+            analysis_profile: Analysis profile configuration
+
+        Returns:
+            Enriched metadata dictionary
+        """
+        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
+
+        if isinstance(profile_dict, dict):
+            profile_name = profile_dict.get("name")
+            if profile_name and isinstance(metadata, dict):
+                metadata.setdefault("analysis_profile", profile_name)
+            track_list = profile_dict.get("track_ids")
+            if track_list and isinstance(metadata, dict):
+                metadata.setdefault("analysis_profile_tracks", list(track_list))
+
+        return metadata
+
+    def _create_reporter_instance(
+        self,
+        *,
+        filtered_df: pd.DataFrame,
+        metadata: dict,
+        calibration: Calibration,
+        arena_polygon_warped: list,
+        rois: list,
+        roi_colors: dict,
+        video_path: str,
+        pixelcm_x: float,
+        pixelcm_y: float,
+        sharp_turn_threshold: float,
+        freezing_threshold: float,
+        freezing_duration: float,
+        smoothing_window: int,
+        smoothing_polyorder: int,
+    ) -> Reporter:
+        """Create Reporter instance with all required parameters.
+
+        Args:
+            filtered_df: Filtered trajectory dataframe
+            metadata: Enriched metadata
+            calibration: Calibration instance
+            arena_polygon_warped: Warped arena polygon coordinates
+            rois: List of ROI objects
+            roi_colors: ROI color mapping
+            video_path: Path to video file
+            pixelcm_x: Pixels per cm ratio (X axis)
+            pixelcm_y: Pixels per cm ratio (Y axis)
+            sharp_turn_threshold: Sharp turn detection threshold
+            freezing_threshold: Freezing detection threshold
+            freezing_duration: Minimum freezing duration
+            smoothing_window: Trajectory smoothing window length
+            smoothing_polyorder: Trajectory smoothing polynomial order
+
+        Returns:
+            Reporter instance
+        """
+        return Reporter(
+            trajectory_df=filtered_df,
+            metadata=metadata,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            video_height_px=calibration.target_dims_px[1],
+            arena_polygon_px=arena_polygon_warped,
+            rois=rois,
+            fps=self.settings.video_processing.fps,
+            roi_colors=roi_colors,
+            video_path=video_path,
+            calibration=calibration,
+            sharp_turn_threshold=sharp_turn_threshold,
+            freezing_threshold=freezing_threshold,
+            freezing_duration=freezing_duration,
+            smoothing_window_length=smoothing_window,
+            smoothing_polyorder=smoothing_polyorder,
+        )
+
+    def _analyze_social_proximity(
+        self,
+        *,
+        filtered_df: pd.DataFrame,
+        analysis_profile: dict | None,
+        pixelcm_x: float,
+        pixelcm_y: float,
+        experiment_id: str,
+    ) -> dict | None:
+        """Analyze social proximity if enabled in analysis profile.
+
+        Args:
+            filtered_df: Filtered trajectory dataframe
+            analysis_profile: Analysis profile configuration
+            pixelcm_x: Pixels per cm ratio (X axis)
+            pixelcm_y: Pixels per cm ratio (Y axis)
+            experiment_id: Experiment identifier (for logging)
+
+        Returns:
+            Social proximity summary dict or None if disabled/failed
+        """
+        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
+        raw_social_config = profile_dict.get("social") if isinstance(profile_dict, dict) else {}
+        social_config = raw_social_config if isinstance(raw_social_config, dict) else {}
+        social_enabled = bool(social_config.get("enabled"))
+
+        if not social_enabled:
+            return None
+
+        if pixelcm_x is None or pixelcm_y is None:
+            return None
+
+        if "track_id" not in filtered_df.columns:
+            return None
+
+        active_tracks = filtered_df["track_id"].dropna().unique().tolist()
+        if len(active_tracks) <= 1:
+            return None
+
+        try:
+            radius_cm = float(social_config.get("radius_cm", 5.0))
+        except (TypeError, ValueError):
+            radius_cm = 5.0
+
+        try:
+            return ROIAnalyzer.analyze_social_proximity(
+                filtered_df,
+                radius_cm,
+                pixelcm_x,
+                pixelcm_y,
+            )
+        except Exception:  # pragma: no cover - defensive
+            log.warning(
+                "controller.analysis.social_failed",
+                video=experiment_id,
+                exc_info=True,
+            )
+            return None
+
     def _register_project_outputs(
         self,
         *,
@@ -1098,58 +1431,26 @@ class VideoProcessingService:
         """Run complete analysis pipeline for a video.
 
         Phase 3: Moved from MainViewModel._run_analysis_pipeline
+        Phase 4 Refactoring: Simplified by extracting helper methods
         """
+        # Load trajectory data
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         trajectory_df = self.load_trajectory_dataframe(trajectory_path, experiment_id)
         if trajectory_df is None:
             return False
 
         if self.cancel_event.is_set():
-            log.info(
-                "controller.analysis.cancelled_before_pipeline",
-                video=experiment_id,
-            )
+            log.info("controller.analysis.cancelled_before_pipeline", video=experiment_id)
             return False
 
-        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
-        requested_track_ids_raw = profile_dict.get("track_ids", [])
-        if isinstance(requested_track_ids_raw, (list, tuple, set)):
-            requested_track_ids = list(requested_track_ids_raw)
-        elif requested_track_ids_raw in (None, ""):
-            requested_track_ids = []
-        else:
-            requested_track_ids = [requested_track_ids_raw]
+        # Filter trajectory by requested tracks
+        filtered_df, resolved_track_ids = self._filter_trajectory_by_tracks(
+            trajectory_df=trajectory_df,
+            analysis_profile=analysis_profile,
+            experiment_id=experiment_id,
+        )
 
-        filtered_df = trajectory_df
-        resolved_track_ids: list[str] = []
-
-        if "track_id" in trajectory_df.columns:
-            resolved_track_ids = sorted(
-                {str(track) for track in trajectory_df["track_id"].dropna().unique().tolist()}
-            )
-
-            if requested_track_ids:
-                requested_str = {
-                    str(track).strip() for track in requested_track_ids if track not in (None, "")
-                }
-
-                mask = trajectory_df["track_id"].astype(str).isin(requested_str)
-                narrowed = trajectory_df[mask]
-                if narrowed.empty:
-                    log.warning(
-                        "controller.analysis.profile_track_miss",
-                        video=experiment_id,
-                        requested=list(requested_str),
-                    )
-                else:
-                    filtered_df = narrowed
-                    resolved_track_ids = sorted(requested_str)
-        elif requested_track_ids:
-            log.warning(
-                "controller.analysis.profile_track_column_missing",
-                video=experiment_id,
-            )
-
+        # Collect analysis parameters
         (
             metadata,
             width_cm,
@@ -1166,14 +1467,13 @@ class VideoProcessingService:
             video_path=video_path,
         )
 
-        if isinstance(profile_dict, dict):
-            profile_name = profile_dict.get("name")
-            if profile_name and isinstance(metadata, dict):
-                metadata.setdefault("analysis_profile", profile_name)
-            track_list = profile_dict.get("track_ids")
-            if track_list and isinstance(metadata, dict):
-                metadata.setdefault("analysis_profile_tracks", list(track_list))
+        # Enrich metadata with profile information
+        metadata = self._enrich_metadata_with_profile(
+            metadata=metadata,
+            analysis_profile=analysis_profile,
+        )
 
+        # Validate calibration data
         zone_data = self.project_manager.get_zone_data()
         arena_polygon_px = self.ensure_arena_polygon(arena_polygon_px, video_path)
         if not all([width_cm, height_cm, arena_polygon_px]):
@@ -1188,6 +1488,7 @@ class VideoProcessingService:
 
         assert arena_polygon_px is not None
 
+        # Prepare calibration context
         (
             calibration,
             arena_polygon_warped,
@@ -1217,32 +1518,29 @@ class VideoProcessingService:
             )
             return False
 
-        reporter = Reporter(
-            trajectory_df=filtered_df,
+        # Create Reporter instance
+        reporter = self._create_reporter_instance(
+            filtered_df=filtered_df,
             metadata=metadata,
-            pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y,
-            video_height_px=calibration.target_dims_px[1],
-            arena_polygon_px=arena_polygon_warped,
+            calibration=calibration,
+            arena_polygon_warped=arena_polygon_warped,
             rois=rois,
-            fps=self.settings.video_processing.fps,
             roi_colors=roi_colors,
             video_path=video_path,
-            calibration=calibration,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
             sharp_turn_threshold=sharp_turn_threshold,
             freezing_threshold=freezing_threshold,
             freezing_duration=freezing_duration,
-            smoothing_window_length=smoothing_window,
+            smoothing_window=smoothing_window,
             smoothing_polyorder=smoothing_polyorder,
         )
 
         if self.cancel_event.is_set():
-            log.info(
-                "controller.analysis.cancelled_before_reports",
-                video=experiment_id,
-            )
+            log.info("controller.analysis.cancelled_before_reports", video=experiment_id)
             return False
 
+        # Generate reports
         generated_outputs = self._generate_reports_for_video(
             reporter=reporter,
             experiment_id=experiment_id,
@@ -1254,50 +1552,26 @@ class VideoProcessingService:
         if generated_outputs is None:
             return False
 
-        (
-            summary_parquet_path,
-            summary_excel_path,
-            report_docx_path,
-        ) = generated_outputs
+        summary_parquet_path, summary_excel_path, report_docx_path = generated_outputs
 
-        social_summary: dict | None = None
-        raw_social_config = profile_dict.get("social") if isinstance(profile_dict, dict) else {}
-        social_config = raw_social_config if isinstance(raw_social_config, dict) else {}
-        social_enabled = bool(social_config.get("enabled"))
-        if (
-            social_enabled
-            and pixelcm_x is not None
-            and pixelcm_y is not None
-            and "track_id" in filtered_df.columns
-        ):
-            active_tracks = filtered_df["track_id"].dropna().unique().tolist()
-            if len(active_tracks) > 1:
-                try:
-                    radius_cm = float(social_config.get("radius_cm", 5.0))
-                except (TypeError, ValueError):
-                    radius_cm = 5.0
+        # Analyze social proximity
+        social_summary = self._analyze_social_proximity(
+            filtered_df=filtered_df,
+            analysis_profile=analysis_profile,
+            pixelcm_x=pixelcm_x,
+            pixelcm_y=pixelcm_y,
+            experiment_id=experiment_id,
+        )
 
-                try:
-                    social_summary = ROIAnalyzer.analyze_social_proximity(
-                        filtered_df,
-                        radius_cm,
-                        pixelcm_x,
-                        pixelcm_y,
-                    )
-                except Exception:  # pragma: no cover - defensive
-                    log.warning(
-                        "controller.analysis.social_failed",
-                        video=experiment_id,
-                        exc_info=True,
-                    )
-
+        # Publish social summary
+        profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
         profile_name = profile_dict.get("name", "default")
         self.ui_event_bus.publish_event(
             Events.UI_UPDATE_SOCIAL_SUMMARY,
             {"profile": profile_name, "stats": social_summary, "tracks": resolved_track_ids},
         )
 
-        # Register outputs for both project and single video workflows
+        # Register outputs
         self._register_project_outputs(
             video_path=video_path,
             results_dir=results_dir,
@@ -1312,7 +1586,7 @@ class VideoProcessingService:
     def process_frame_source(
         self,
         *,
-        frame_source: "FrameSource",
+        frame_source,  # FrameSource type hint removed due to circular import
         output_dir: str,
         experiment_id: str,
         single_video_config: dict | None = None,
@@ -1338,7 +1612,6 @@ class VideoProcessingService:
         Returns:
             True if processing succeeded, False otherwise
         """
-        from zebtrack.io.frame_source import FrameSource
 
         log.info(
             "video_processing_service.process_frame_source.start",
