@@ -17,7 +17,6 @@ from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
-    Canvas,
     Frame,
     Label,
     Menu,
@@ -25,7 +24,6 @@ from tkinter import (
     Toplevel,
     filedialog,
     messagebox,
-    simpledialog,
     ttk,
 )
 from tkinter import font as tkfont
@@ -53,11 +51,15 @@ from zebtrack.ui.components import (
     ArduinoDashboardWidget,
     CanvasManager,
     ConfigEditorWidget,
+    DialogManager,
     EventDispatcher,
     MenuManager,
     ProjectOverviewWidget,
+    ProjectViewManager,
     StateSynchronizer,
+    ValidationManager,
     VideoDisplayWidget,
+    WidgetFactory,
     ZoneControlsWidget,
 )
 from zebtrack.ui.dialogs import (
@@ -203,10 +205,17 @@ class ApplicationGUI:
         self._initialize_theme()
 
         # Initialize component managers (extracted from God Object)
+        # Phase 1 components
         self.menu_manager = MenuManager(self)
         self.canvas_manager = CanvasManager(self)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
+
+        # Phase 2 components
+        self.validation_manager = ValidationManager(self)
+        self.dialog_manager = DialogManager(self)
+        self.widget_factory = WidgetFactory(self)
+        self.project_view_manager = ProjectViewManager(self)
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
@@ -539,14 +548,12 @@ class ApplicationGUI:
     def _update_window_title(self, project_name: str | None = None):
         """
         Updates the window title with optional project name.
+        Delegates to ProjectViewManager.
 
         Args:
             project_name: Name of the current project, or None for default title
         """
-        if project_name:
-            self.root.title(f"DRerio LogAI - {project_name}")
-        else:
-            self.root.title("DRerio LogAI")
+        return self.project_view_manager.update_window_title(project_name)
 
 
 
@@ -630,48 +637,12 @@ class ApplicationGUI:
 
 
     def _build_project_actions(self, parent) -> None:
-        """Create the project actions controls in the welcome frame."""
-        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
-        project_actions_frame.pack(fill="x", pady=10, expand=True)
-
-        ttk.Button(
-            project_actions_frame,
-            text="Calibração Global (Pesos e Diagnóstico)...",
-            command=self._open_global_calibration_window,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Analisar Vídeo Único",
-            command=self._on_analyze_single_video_clicked,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Criar Novo Projeto",
-            command=self._create_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Abrir Projeto Existente",
-            command=self._open_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
+        """Create the project actions controls. Delegates to WidgetFactory."""
+        return self.widget_factory.build_project_actions(parent)
 
     def _build_model_status(self, parent) -> None:
-        """Create the model status display in the welcome frame."""
-        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
-        model_status_frame.pack(fill="x", pady=10, expand=True)
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._active_weight_display_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._openvino_display_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._gpu_hardware_display_var,
-            foreground="gray",
-        ).pack(anchor="w", pady=(4, 0))
+        """Create the model status display. Delegates to WidgetFactory."""
+        return self.widget_factory.build_model_status(parent)
 
     def _initialize_theme(self) -> None:
         """Apply a modern ttkbootstrap theme if the library is available."""
@@ -922,33 +893,8 @@ class ApplicationGUI:
         self.hide_progress_bar()
 
     def _create_configuration_tab_widget(self) -> None:
-        """Creates the configuration tab using ConfigEditorWidget."""
-        if not self.notebook:
-            return
-
-        # Create widget
-        self.config_editor_widget = ConfigEditorWidget(
-            self.notebook,
-            event_bus=self.event_bus,
-        )
-
-        # Add to notebook
-        self.notebook.add(self.config_editor_widget, text="Config. Avançadas")
-
-        # Connect events
-        if self.event_bus:
-            self._event_bus_handlers["config.save_requested"] = (
-                lambda data: self._on_save_global_config_from_widget(data["values"])
-            )
-            self._event_bus_handlers["config.reset_requested"] = (
-                lambda data: self._on_reset_global_config_form_widget()
-            )
-            self._event_bus_handlers["config.roi_rule_changed"] = (
-                lambda data: self._on_roi_rule_change_widget(data["rule"])
-            )
-
-        # Load current values
-        self._reload_config_editor_values_widget()
+        """Creates the configuration tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_configuration_tab_widget()
 
     def _reload_config_editor_values_widget(self) -> None:
         """Load current settings into ConfigEditorWidget."""
@@ -1286,19 +1232,9 @@ class ApplicationGUI:
 
         log.warning("gui.navigate.processing_reports_tab_not_found")
 
-    @staticmethod
-    def _get_status_meta(status_key: str) -> tuple[str, str]:
-        if status_key == "total":
-            return "🧮", "Total"
-        if status_key == "arena":
-            return STATUS_SYMBOLS["arena"], "Arena"
-        if status_key == "rois":
-            return STATUS_SYMBOLS["rois"], "ROIs"
-        if status_key == "trajectory":
-            return STATUS_SYMBOLS["trajectory"], "Trajetória"
-        if status_key == "summary":
-            return STATUS_SYMBOLS["summary"], "Sumário"
-        return PROJECT_STATUS_META.get(status_key, ("•", status_key.title()))
+    def _get_status_meta(self, status_key: str) -> tuple[str, str]:
+        """Get status metadata. Delegates to ProjectViewManager."""
+        return self.project_view_manager._get_status_meta(status_key)
 
     def _request_overview_refresh(
         self,
@@ -1307,25 +1243,12 @@ class ApplicationGUI:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        if reason is not None:
-            self._pending_overview_status = reason
-            self._overview_status_append = append_summary
-
-        if self._overview_refresh_job is not None:
-            try:
-                self.root.after_cancel(self._overview_refresh_job)
-            except Exception:
-                pass
-            self._overview_refresh_job = None
-
-        if immediate:
-            self._refresh_project_overview()
-            return
-
-        try:
-            self._overview_refresh_job = self.root.after(150, self._refresh_project_overview)
-        except Exception:
-            self._refresh_project_overview()
+        """Request overview refresh. Delegates to ProjectViewManager."""
+        return self.project_view_manager._request_overview_refresh(
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
 
     def refresh_project_views(
         self,
@@ -1334,101 +1257,20 @@ class ApplicationGUI:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        """Refresh overview, pipeline, and reports panels in a single call."""
-
-        log.info(
-            "gui.project_refresh.dispatched",
+        """Refresh overview, pipeline, and reports panels. Delegates to ProjectViewManager."""
+        return self.project_view_manager.refresh_project_views(
             reason=reason,
             append_summary=append_summary,
             immediate=immediate,
         )
-
-        self._request_overview_refresh(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-        # Refresh new unified tab if present
-        if getattr(self, "processing_reports_widget", None):
-            self._refresh_processing_reports_tab()
-
-        # Legacy: Refresh old tabs if they still exist
-        if getattr(self, "pipeline_video_tree", None):
-            self._refresh_pipeline_video_table()
-
-        if getattr(self, "reports_tree", None):
-            self.update_reports_tree()
 
     def _refresh_project_overview(self) -> None:
-        self._overview_refresh_job = None
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.refresh_overview.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos() or []
-
-        log.debug(
-            "gui.refresh_overview.start",
-            video_count=len(all_videos),
-            has_project_path=bool(pm.project_path),
-        )
-
-        # Allow display even when there's no project file
-        # This enables single video workflow results to be shown
-        if not all_videos and not pm.project_path:
-            # No videos and no project - nothing to show
-            log.debug("gui.refresh_overview.no_videos_and_no_project")
-            return
-
-        counts: Counter = Counter(
-            (str(video.get("status") or "pending")).strip().lower() for video in all_videos
-        )
-        total = sum(counts.values())
-
-        log.debug(
-            "gui.refresh_overview.updating",
-            total=total,
-            counts=dict(counts),
-        )
-        self._update_project_overview_summary(counts, total, all_videos)
-        # Tree removed in favor of unified Processing and Reports tab
-        if getattr(self, "project_overview_tree", None):
-            self._update_project_overview_tree(pm, all_videos)
-        self._refresh_zone_indicators(all_videos)
-
-        if self._pending_overview_status is not None:
-            summary_line = self._compose_overview_status_line(total, counts)
-            if summary_line:
-                if self._overview_status_append and self._pending_overview_status:
-                    message = f"{self._pending_overview_status} • {summary_line}"
-                elif self._pending_overview_status:
-                    message = f"{self._pending_overview_status} — {summary_line}"
-                else:
-                    message = summary_line
-                self.set_status(message)
-            self._pending_overview_status = None
-            self._overview_status_append = False
+        """Refresh the project overview display. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_project_overview()
 
     def _compose_overview_status_line(self, total: int, counts: Counter) -> str:
-        if total <= 0:
-            return "Nenhum vídeo cadastrado."
-
-        parts: list[str] = [f"🧮 {total} vídeo(s)"]
-        for key in ("pending", "processing", "processed", "complete", "failed"):
-            value = counts.get(key, 0)
-            if value:
-                icon, _ = PROJECT_STATUS_META.get(key, ("•", key.title()))
-                parts.append(f"{icon} {value}")
-
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
-        if others:
-            parts.append(f"➕ {others}")
-
-        return " • ".join(parts)
+        """Compose status line for overview. Delegates to ProjectViewManager."""
+        return self.project_view_manager._compose_overview_status_line(total, counts)
 
     def _update_project_overview_summary(
         self,
@@ -1436,254 +1278,40 @@ class ApplicationGUI:
         total: int,
         videos: list[dict] | None,
     ) -> None:
-        """Update project overview summary (delegates to widget)."""
-        if not self.project_overview_widget:
-            return
-
-        videos = videos or []
-
-        summary_values: dict[str, int] = {"total": total}
-        for status_key in PROJECT_STATUS_META:
-            summary_values[status_key] = counts.get(status_key, 0)
-
-        arena_ready = sum(1 for video in videos if video.get("has_arena"))
-        rois_ready = sum(1 for video in videos if video.get("has_rois"))
-        trajectory_ready = sum(1 for video in videos if video.get("has_trajectory"))
-        summary_ready = sum(
-            1
-            for video in videos
-            if video.get("has_summary")
-            or video.get("has_complete_data")
-            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
-        )
-
-        summary_values["arena"] = arena_ready
-        summary_values["rois"] = rois_ready
-        summary_values["trajectory"] = trajectory_ready
-        summary_values["summary"] = summary_ready
-
-        # Update widget with new counts
-        self.project_overview_widget.update_status_counts(summary_values)
+        """Update project overview summary. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_project_overview_summary(counts, total, videos)
 
     def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
-        """Update the project overview tree (delegates to widget)."""
-        if (
-            not self.project_overview_widget
-            or not self.project_overview_widget.project_overview_tree
-        ):
-            return
-
-        self._overview_video_index = {}
-
-        if not all_videos:
-            self.project_overview_widget.clear_tree()
-            return
-
-        # Build hierarchy data structure
-        hierarchy_data = self._prepare_overview_hierarchy_for_widget(all_videos)
-
-        # Populate widget tree
-        self.project_overview_widget.populate_tree_with_hierarchy(
-            hierarchy_data, self._overview_video_index
-        )
+        """Update the project overview tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager._update_project_overview_tree(project_manager, all_videos)
 
     def _prepare_overview_hierarchy_for_widget(self, all_videos: list[dict]) -> dict:
-        """
-        Prepare hierarchy data in the format expected by ProjectOverviewWidget.
-
-        Returns:
-            Dictionary with 'groups' list containing formatted hierarchy
-        """
-        hierarchy = self._build_video_hierarchy_data(all_videos, "")
-
-        groups_list = []
-
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            days_dict = group_data.get("days") or {}
-            group_entries = [entry for videos in days_dict.values() for entry in videos or []]
-            if not group_entries:
-                continue
-
-            # Calculate group-level summaries
-            group_counts: Counter = Counter(
-                (str(entry.get("status") or "pending")).strip().lower() for entry in group_entries
-            )
-            status_summary = self._format_status_summary(group_counts)
-            data_summary = self._summarize_batch_data(group_entries)
-
-            # Prepare days list for this group
-            days_list = []
-            for day_id, entries in sorted(
-                days_dict.items(), key=lambda item: self._video_sort_key(item[0])
-            ):
-                entries = entries or []
-                if not entries:
-                    continue
-
-                # Calculate day-level summaries
-                day_counts: Counter = Counter(
-                    (str(entry.get("status") or "pending")).strip().lower() for entry in entries
-                )
-                day_status = self._format_status_summary(day_counts)
-                day_data = self._summarize_batch_data(entries)
-                sample_metadata = entries[0].get("metadata") if entries else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-
-                # Prepare videos list for this day
-                videos_list = []
-                for entry in sorted(
-                    entries,
-                    key=lambda item: self._video_sort_key(item.get("subject")),
-                ):
-                    path = entry.get("path") or ""
-                    filename = entry.get("filename") or (
-                        os.path.basename(path) if path else "(sem arquivo)"
-                    )
-                    metadata = entry.get("metadata") or {}
-                    meta_snippet = self._format_video_metadata(metadata)
-
-                    subject_label = self._format_subject_label(entry.get("subject"))
-                    display_name = f"🐟 Sujeito {subject_label}"
-                    if filename:
-                        display_name = f"{display_name} ({filename})"
-                    if meta_snippet:
-                        display_name = f"{display_name} [{meta_snippet}]"
-
-                    status_key = str(entry.get("status") or "pending").strip().lower()
-                    status_display = self._format_status_label(status_key)
-                    data_badges = self._format_data_badges(entry)
-
-                    # Generate unique video ID
-                    video_id = (
-                        f"video_{path}"
-                        if path
-                        else f"video_{group_id}_{day_id}_{len(self._overview_video_index)}"
-                    )
-
-                    videos_list.append(
-                        {
-                            "id": video_id,
-                            "display_name": display_name,
-                            "status": status_display,
-                            "data_badges": data_badges,
-                            "path": path,
-                        }
-                    )
-
-                    # Store in video index for lookups
-                    if path:
-                        self._overview_video_index[path] = dict(entry)
-
-                # Add day to list
-                days_list.append(
-                    {
-                        "id": day_id,
-                        "title": day_title,
-                        "status": day_status,
-                        "data": day_data,
-                        "videos": videos_list,
-                    }
-                )
-
-            # Add group to list
-            groups_list.append(
-                {
-                    "id": group_id,
-                    "display": group_data["display"],
-                    "status_summary": status_summary,
-                    "data_summary": data_summary,
-                    "days": days_list,
-                }
-            )
-
-        return {"groups": groups_list}
+        """Prepare hierarchy data for ProjectOverviewWidget. Delegates to ProjectViewManager."""
+        return self.project_view_manager._prepare_overview_hierarchy_for_widget(all_videos)
 
     def _format_status_label(self, status_key: str) -> str:
-        icon, label = self._get_status_meta(status_key)
-        return f"{icon} {label}"
+        """Format status label. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_label(status_key)
 
     def _format_status_summary(self, counts: Counter) -> str:
-        parts: list[str] = []
-        for key in PROJECT_STATUS_META:
-            value = counts.get(key, 0)
-            if value:
-                icon, _ = PROJECT_STATUS_META[key]
-                parts.append(f"{icon} {value}")
+        """Format status summary. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_summary(counts)
 
-        others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
-        if others:
-            parts.append(f"➕ {others}")
-
-        return " | ".join(parts) if parts else "-"
-
-    @staticmethod
-    def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
-        symbol = STATUS_SYMBOLS[symbol_key]
-        safe_total = max(total, 0)
-        clamped_completed = max(0, min(completed, safe_total)) if safe_total else 0
-        if safe_total:
-            return f"{symbol} {clamped_completed}/{safe_total}"
-        return f"{symbol} 0/0"
+    def _format_status_ratio(self, symbol_key: str, completed: int, total: int) -> str:
+        """Format status ratio. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_status_ratio(symbol_key, completed, total)
 
     def _summarize_batch_data(self, videos: list[dict]) -> str:
-        if not videos:
-            return "-"
-
-        total = len(videos)
-        arena_count = sum(1 for video in videos if video.get("has_arena"))
-        roi_count = sum(1 for video in videos if video.get("has_rois"))
-        traj_count = sum(1 for video in videos if video.get("has_trajectory"))
-        complete_count = sum(
-            1
-            for video in videos
-            if video.get("has_complete_data")
-            or (video.get("has_arena") and video.get("has_rois") and video.get("has_trajectory"))
-        )
-
-        return (
-            f"{self._format_status_ratio('arena', arena_count, total)}  "
-            f"{self._format_status_ratio('rois', roi_count, total)}  "
-            f"{self._format_status_ratio('trajectory', traj_count, total)}  "
-            f"{self._format_status_ratio('summary', complete_count, total)}"
-        )
+        """Summarize batch data. Delegates to ProjectViewManager."""
+        return self.project_view_manager._summarize_batch_data(videos)
 
     def _format_data_badges(self, video: dict) -> str:
-        has_arena = bool(video.get("has_arena"))
-        has_rois = bool(video.get("has_rois"))
-        has_trajectory = bool(video.get("has_trajectory"))
-        has_complete = bool(video.get("has_complete_data")) or (
-            has_arena and has_rois and has_trajectory
-        )
-
-        markers = [
-            self._format_status_token(has_arena, "arena"),
-            self._format_status_token(has_rois, "rois"),
-            self._format_status_token(has_trajectory, "trajectory"),
-            self._format_status_token(has_complete, "summary"),
-        ]
-        return "  ".join(markers)
+        """Format data badges. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_data_badges(video)
 
     def _format_video_metadata(self, metadata: dict) -> str:
-        if not metadata:
-            return ""
-
-        parts: list[str] = []
-        group = metadata.get("group")
-        if group not in (None, ""):
-            parts.append(f"G:{group}")
-
-        day = metadata.get("day")
-        if day not in (None, ""):
-            day_display = metadata.get("day_label") or self._format_day_display(day)
-            parts.append(f"D:{day_display or day}")
-
-        subject = metadata.get("subject")
-        if subject not in (None, ""):
-            parts.append(f"S:{self._format_subject_label(subject)}")
-
-        return " ".join(parts)
+        """Format video metadata. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_video_metadata(metadata)
 
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
@@ -2957,80 +2585,16 @@ class ApplicationGUI:
         self._refresh_pipeline_video_table()
 
     def _refresh_zone_indicators(self, videos=None) -> None:
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        if videos is None:
-            videos = pm.get_all_videos() if pm else []
-        self._update_zone_summary_cards(videos)
-        self._refresh_pipeline_video_table(videos)
+        """Refresh zone indicators. Delegates to ProjectViewManager."""
+        return self.project_view_manager._refresh_zone_indicators(videos)
 
     def _create_analysis_tab_widget(self):
-        """Creates the analysis tab using the AnalysisDisplayWidget."""
-        if not self.notebook:
-            return
-
-        # Create the widget
-        self.analysis_display_widget = AnalysisDisplayWidget(
-            self.notebook,
-            event_bus=self.event_bus,
-            available_track_options=list(self._available_track_options),
-        )
-
-        # Add to notebook
-        self.notebook.add(self.analysis_display_widget, text="Análise de Vídeo")
-
-        # Connect widget events to GUI handlers
-        if self.event_bus:
-            self._event_bus_handlers["analysis.track_selected"] = (
-                lambda data: self._on_track_selection_changed()
-            )
-            self._event_bus_handlers["analysis.cancel_requested"] = (
-                lambda data: self.event_dispatcher.publish_event(
-                    Events.VIDEO_CANCEL_ANALYSIS, {}
-                )
-            )
-
-        # Set up backward compatibility aliases
-        self.video_label = self.analysis_display_widget.video_label
-        self.progress_frame = self.analysis_display_widget.progress_frame
-        self.progress_bar = self.analysis_display_widget.progress_bar
-        self.progress_labels = self.analysis_display_widget.progress_labels
-        self.cancel_proc_btn = self.analysis_display_widget.cancel_btn
-        self.track_selector_var = self.analysis_display_widget.track_selector_var
-        self.track_selector_widget = self.analysis_display_widget.track_selector_widget
-        self.social_summary_var = self.analysis_display_widget.social_summary_var
+        """Creates the analysis tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_analysis_tab_widget()
 
     def _create_scrollable_controls_frame(self, parent):
-        """Create a scrollable frame for the zone controls."""
-        # Create a canvas and scrollbar for scrolling
-        self.controls_canvas = Canvas(parent, highlightthickness=0)
-        self.controls_scrollbar = ttk.Scrollbar(
-            parent, orient="vertical", command=self.controls_canvas.yview
-        )
-
-        # Create the main scrollable frame inside the canvas
-        self.zone_controls_frame = ttk.Frame(self.controls_canvas)
-
-        # Create a frame for the fixed button at the bottom
-        self.fixed_button_frame = ttk.Frame(parent)
-
-        # Configure canvas scrolling
-        self.controls_canvas.configure(yscrollcommand=self.controls_scrollbar.set)
-
-        # Pack the scrollbar and canvas
-        self.controls_scrollbar.pack(side="right", fill="y")
-        self.fixed_button_frame.pack(side="bottom", fill="x", padx=5, pady=5)
-        self.controls_canvas.pack(side="left", fill="both", expand=True)
-
-        # Create window in canvas for the scrollable frame
-        self.controls_canvas_window = self.controls_canvas.create_window(
-            0, 0, anchor="nw", window=self.zone_controls_frame
-        )
-
-        # Bind events for proper scrolling behavior
-        self.zone_controls_frame.bind("<Configure>", self._on_frame_configure)
-        self.controls_canvas.bind("<Configure>", self._on_canvas_configure_scroll)
-        self._bind_mousewheel()
+        """Create a scrollable frame. Delegates to WidgetFactory."""
+        return self.widget_factory.create_scrollable_controls_frame(parent)
 
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
@@ -3391,31 +2955,13 @@ class ApplicationGUI:
 
 
 
-    @staticmethod
-    def _video_sort_key(value):
-        try:
-            return (0, int(value))
-        except (TypeError, ValueError):
-            value_str = str(value) if value is not None else ""
-            return (1, value_str.lower())
+    def _video_sort_key(self, value):
+        """Get video sort key. Delegates to ProjectViewManager."""
+        return self.project_view_manager._video_sort_key(value)
 
-    @staticmethod
-    def _format_subject_label(value):
-        if value is None:
-            return "??"
-        if isinstance(value, int):
-            return f"{value:02d}"
-        if isinstance(value, float) and value.is_integer():
-            return f"{int(value):02d}"
-        value_str = str(value).strip()
-        if not value_str:
-            return "??"
-        if value_str.isdigit():
-            try:
-                return f"{int(value_str):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+    def _format_subject_label(self, value):
+        """Format subject label. Delegates to ProjectViewManager."""
+        return self.project_view_manager._format_subject_label(value)
 
     @staticmethod
     def _format_day_display(value):
@@ -3441,87 +2987,16 @@ class ApplicationGUI:
         return value_str
 
     def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
-        metadata = metadata or {}
-        candidate = metadata.get("day_label") or ""
-        if not candidate and metadata.get("day") is not None:
-            candidate = self._format_day_display(metadata.get("day"))
-        if not candidate:
-            candidate = self._format_day_display(day_value)
-        if not candidate:
-            base_value = day_value if day_value not in (None, "") else None
-            candidate = str(base_value) if base_value is not None else "Sem Dia"
-        candidate_str = str(candidate).strip()
-        if not candidate_str:
-            candidate_str = "Sem Dia"
-        if candidate_str.lower() == "sem dia":
-            return "Sem Dia"
-        return f"Dia {candidate_str}"
+        """Build day title. Delegates to ProjectViewManager."""
+        return self.project_view_manager._build_day_title(day_value, metadata)
 
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],
         search_text: str,
     ) -> dict[str, dict]:
-        hierarchy: dict[str, dict] = {}
-
-        normalized = search_text.strip().lower()
-
-        for video in all_videos:
-            metadata = video.get("metadata") or {}
-            group_id = metadata.get("group") or "Sem Grupo"
-            group_display = metadata.get("group_display_name") or group_id
-            day_id = metadata.get("day") or "Sem Dia"
-            day_display = metadata.get("day_label") or self._format_day_display(day_id)
-            subject_id = metadata.get("subject")
-            filename = os.path.basename(video.get("path", ""))
-            status_label = video.get("status", "")
-
-            searchable_values = (
-                str(group_id),
-                str(group_display),
-                str(day_id),
-                str(day_display),
-                str(subject_id) if subject_id is not None else "",
-                filename,
-                status_label,
-            )
-
-            if normalized and not any(
-                normalized in str(value).lower() for value in searchable_values
-            ):
-                continue
-
-            group_data = hierarchy.setdefault(
-                group_id,
-                {"display": group_display, "days": {}},
-            )
-            days_dict = group_data["days"]
-
-            has_arena = bool(video.get("has_arena"))
-            has_rois = bool(video.get("has_rois"))
-            has_trajectory = bool(video.get("has_trajectory"))
-            has_complete = bool(video.get("has_complete_data")) or (
-                has_arena and has_rois and has_trajectory
-            )
-            has_summary = bool(video.get("has_summary")) or bool(video.get("has_summary_parquet"))
-
-            video_entry = {
-                "path": video.get("path"),
-                "metadata": metadata,
-                "day_label": day_display,
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete,
-                "has_summary": has_summary,
-                "filename": filename,
-                "status": status_label,
-                "subject": subject_id,
-            }
-
-            days_dict.setdefault(day_id, []).append(video_entry)
-
-        return hierarchy
+        """Build video hierarchy data. Delegates to ProjectViewManager."""
+        return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
 
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
         controller = getattr(self, "controller", None)
@@ -3965,48 +3440,8 @@ class ApplicationGUI:
         self.generate_unified_report_btn.pack(side="left", padx=10)
 
     def _create_processing_reports_tab(self) -> None:
-        """
-        Creates the unified Processing and Reports tab.
-
-        This tab consolidates functionality from the old "Trajectories and Summaries"
-        and "Reports" tabs into a single interface for better UX and reduced redundancy.
-        """
-        if not self.notebook:
-            return
-
-        # Clean up existing tab if present
-        if self.processing_reports_tab_frame and self.processing_reports_tab_frame.winfo_exists():
-            try:
-                self.processing_reports_tab_frame.destroy()
-            except Exception:
-                pass
-
-        # Create tab frame
-        self.processing_reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.processing_reports_tab_frame, text="Processamento e Relatórios")
-
-        # Import the component
-        from zebtrack.ui.components.processing_reports import ProcessingReportsWidget
-
-        # Create the widget with callbacks
-        self.processing_reports_widget = ProcessingReportsWidget(
-            self.processing_reports_tab_frame,
-            event_bus=self.event_bus,
-            on_generate_trajectories=self._trigger_batch_trajectory_processing,
-            on_export_summaries=self._trigger_parquet_summaries,
-            on_generate_partial_report=self._on_processing_reports_generate_partial,
-            on_generate_unified_report=self._generate_unified_report,
-        )
-        self.processing_reports_widget.pack(fill="both", expand=True)
-
-        # Bind double-click event for opening files
-        if self.processing_reports_widget.tree:
-            self.processing_reports_widget.tree.bind(
-                "<Double-Button-1>", self._on_processing_reports_item_double_click
-            )
-
-        # Initial refresh
-        self._refresh_processing_reports_tab()
+        """Creates the processing reports tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
         """Handle double-click on items in the Processing Reports tree."""
@@ -6784,21 +6219,8 @@ class ApplicationGUI:
             self.root.after(1000, self._check_live_project_calibration)
 
     def _create_progress_grid_tab(self):
-        """Creates the tab for viewing the experimental progress grid."""
-        self.progress_grid_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.progress_grid_frame, text="Progresso do Experimento")
-
-        # This frame will hold the actual grid of buttons, which is rendered later
-        self.grid_container = ttk.Frame(self.progress_grid_frame)
-        self.grid_container.pack(expand=True, fill="both")
-
-        # Add a refresh button
-        refresh_button = ttk.Button(
-            self.progress_grid_frame,
-            text="Atualizar Grade",
-            command=self._render_progress_grid,
-        )
-        refresh_button.pack(side="bottom", pady=10)
+        """Creates the progress grid tab. Delegates to WidgetFactory."""
+        return self.widget_factory.create_progress_grid_tab()
 
     def _check_live_project_calibration(self):
         """Checks if Live project needs calibration and prompts user automatically."""
@@ -7887,16 +7309,16 @@ class ApplicationGUI:
         return f"{s:d}s"
 
     def show_error(self, title, message):
-        """Shows an error message box."""
-        messagebox.showerror(title, message)
+        """Shows an error message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_error(title, message)
 
     def show_warning(self, title, message):
-        """Shows a warning message box."""
-        messagebox.showwarning(title, message)
+        """Shows a warning message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_warning(title, message)
 
     def show_info(self, title, message):
-        """Shows an info message box."""
-        messagebox.showinfo(title, message)
+        """Shows an info message box. Delegates to DialogManager."""
+        return self.dialog_manager.show_info(title, message)
 
     def show_pending_videos_dialog(
         self,
@@ -7927,20 +7349,20 @@ class ApplicationGUI:
         return dialog.result
 
     def ask_ok_cancel(self, title, message):
-        """Shows a confirmation dialog."""
-        return messagebox.askokcancel(title, message)
+        """Shows a confirmation dialog. Delegates to DialogManager."""
+        return self.dialog_manager.ask_ok_cancel(title, message)
 
     def ask_string(self, title, prompt, initialvalue=None):
-        """Shows a dialog for string input."""
-        return simpledialog.askstring(title, prompt, initialvalue=initialvalue)
+        """Shows a dialog for string input. Delegates to DialogManager."""
+        return self.dialog_manager.ask_string(title, prompt, initialvalue=initialvalue)
 
     def ask_directory(self, title):
-        """Shows a dialog to select a directory."""
-        return filedialog.askdirectory(title=title)
+        """Shows a dialog to select a directory. Delegates to DialogManager."""
+        return self.dialog_manager.ask_directory(title)
 
     def ask_open_filenames(self, title, filetypes):
-        """Shows a dialog to select one or more files."""
-        return filedialog.askopenfilenames(title=title, filetypes=filetypes)
+        """Shows a dialog to select one or more files. Delegates to DialogManager."""
+        return self.dialog_manager.ask_open_filenames(title, filetypes)
 
 
     def _on_zone_double_click(self, event):
