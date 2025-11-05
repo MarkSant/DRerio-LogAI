@@ -1269,7 +1269,20 @@ class MainViewModel:
         return self.arduino_manager.is_connected()
 
     def setup_arduino(self) -> bool:
-        """Ensures the Arduino connection is ready when the project requests it."""
+        """Ensures the Arduino connection is ready when the project requests it.
+
+        Phase REFACTOR-VIEWMODEL-001: Delegates to HardwareCoordinator when available.
+        """
+        # Delegate to HardwareCoordinator if available
+        if self.hardware_coordinator:
+            manager = self._get_arduino_manager()
+            baud_rate = self.settings.arduino.baud_rate
+            success = self.hardware_coordinator.setup_arduino(manager, baud_rate)
+            if success and manager.is_connected():
+                self.arduino = manager.arduino
+            return success
+
+        # Fallback: original implementation for tests without coordinator
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         use_arduino = bool(project_data.get("use_arduino"))
         if not use_arduino:

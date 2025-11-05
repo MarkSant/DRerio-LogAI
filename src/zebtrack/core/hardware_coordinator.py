@@ -53,24 +53,11 @@ class HardwareCoordinator:
         self.ui_event_bus = ui_event_bus
         self.settings = settings_obj
 
-        # Lazy-loaded Arduino manager
+        # Reference to Arduino manager (managed by MainViewModel)
+        # This is set by MainViewModel after initialization
         self.arduino_manager: ArduinoManager | None = None
 
         log.info("hardware_coordinator.initialized")
-
-    def _get_arduino_manager(self) -> ArduinoManager:
-        """Lazy-load ArduinoManager instance.
-
-        Returns:
-            ArduinoManager instance
-        """
-        if self.arduino_manager is None:
-            self.arduino_manager = ArduinoManager()
-            self.arduino_manager.set_event_callback(self.on_arduino_event)
-            self.arduino_manager.set_status_callback(self.on_arduino_status_change)
-            self.arduino_manager.set_command_callback(self.on_arduino_command_sent)
-            log.info("hardware_coordinator.arduino_manager.created")
-        return self.arduino_manager
 
     def _shutdown_arduino_manager(self):
         """Cleanly shut down and disconnect Arduino manager."""
@@ -185,12 +172,17 @@ class HardwareCoordinator:
             return False
         return self.arduino_manager.is_connected()
 
-    def setup_arduino(self) -> bool:
+    def setup_arduino(self, arduino_manager: ArduinoManager, baud_rate: int) -> bool:
         """Initialize Arduino connection based on project settings.
+
+        Args:
+            arduino_manager: ArduinoManager instance from MainViewModel
+            baud_rate: Baud rate for serial communication
 
         Returns:
             True if Arduino setup succeeded or is not required, False on error
         """
+        self.arduino_manager = arduino_manager
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         use_arduino = bool(project_data.get("use_arduino"))
 
@@ -211,14 +203,13 @@ class HardwareCoordinator:
             log.warning("hardware_coordinator.arduino.no_port_configured")
             return False
 
-        manager = self._get_arduino_manager()
-        if manager.is_connected() and manager.current_port() == port:
+        if self.arduino_manager.is_connected() and self.arduino_manager.current_port() == port:
             log.debug("hardware_coordinator.arduino.already_connected", port=port)
             return True
 
         # Attempt connection
         log.info("hardware_coordinator.arduino.connecting", port=port)
-        success = manager.connect(port)
+        success = self.arduino_manager.connect(port, baud_rate)
 
         if success:
             log.info("hardware_coordinator.arduino.connected", port=port)
