@@ -433,16 +433,8 @@ class ApplicationGUI:
 
 
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
-        """Compose a compact legend string for the status glyphs."""
-        legend_parts = [
-            f"{STATUS_SYMBOLS['arena']} ✓ Arena",
-            f"{STATUS_SYMBOLS['rois']} ✓ ROIs",
-            f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória",
-        ]
-        if include_summary:
-            legend_parts.append(f"{STATUS_SYMBOLS['summary']} ✓ Sumário")
-        legend_parts.append("✗ Ausente")
-        return "Legenda: " + " | ".join(legend_parts)
+        """Build status icon legend. Delegates to WidgetFactory."""
+        return self.widget_factory.build_status_icon_legend_simple(include_summary=include_summary)
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -520,13 +512,9 @@ class ApplicationGUI:
         return result
 
 
-    @staticmethod
-    def _get_zone_summary_helper_text() -> str:
-        return (
-            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar "
-            "trajetórias (arena e ROIs salvos). O valor mostra quantos ainda "
-            "aguardam processamento."
-        )
+    def _get_zone_summary_helper_text(self) -> str:
+        """Get zone summary helper text. Delegates to WidgetFactory."""
+        return self.widget_factory.get_zone_summary_helper_text()
 
     def _cleanup_single_analysis_button(self):
         """Destroys the single analysis button if it exists."""
@@ -2586,70 +2574,6 @@ class ApplicationGUI:
         del event  # Evento não é utilizado diretamente
         self._load_selected_video_frame()
 
-    def _create_reports_tab(self):
-        """
-        LEGACY: Replaced by _create_processing_reports_tab().
-
-        This method is no longer called but kept for reference.
-        """
-        reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(reports_tab_frame, text="Relatórios")
-
-        # --- Estrutura Hierárquica do Experimento ---
-        list_frame = ttk.LabelFrame(reports_tab_frame, text="Estrutura do Experimento", padding=10)
-        list_frame.pack(fill="both", expand=True, pady=5)
-
-        self.reports_tree = ttk.Treeview(
-            list_frame,
-            columns=("arena", "rois", "trajectory", "summary", "status"),
-            show="tree headings",
-        )
-
-        # Cabeçalhos
-        self.reports_tree.heading("#0", text="Nome")
-        self.reports_tree.heading("arena", text="🏛️ Arena")
-        self.reports_tree.heading("rois", text="📍 ROIs")
-        self.reports_tree.heading("trajectory", text="📈 Trajetória")
-        self.reports_tree.heading("summary", text=f"{STATUS_SYMBOLS['summary']} Sumário")
-        self.reports_tree.heading("status", text="Status")
-
-        # Larguras e alinhamentos
-        self.reports_tree.column("#0", width=300, stretch=True)
-        self.reports_tree.column("arena", width=80, anchor="center")
-        self.reports_tree.column("rois", width=80, anchor="center")
-        self.reports_tree.column("trajectory", width=100, anchor="center")
-        self.reports_tree.column("summary", width=90, anchor="center")
-        self.reports_tree.column("status", width=120, anchor="center")
-
-        self.reports_tree.pack(side="left", fill="both", expand=True)
-
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.reports_tree.yview)
-        self.reports_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-
-        self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
-        self.reports_tree.bind("<Double-1>", self._on_report_item_double_click)
-
-        self._report_tree_metadata: dict[str, dict] = {}
-
-        # --- Actions Panel ---
-        actions_frame = ttk.LabelFrame(reports_tab_frame, text="Ações", padding=10)
-        actions_frame.pack(fill="x", pady=5)
-
-        self.generate_partial_report_btn = ttk.Button(
-            actions_frame,
-            text="Gerar Relatório para Selecionados",
-            command=self._generate_partial_report,
-            state="disabled",
-        )
-        self.generate_partial_report_btn.pack(side="left", padx=10)
-
-        self.generate_unified_report_btn = ttk.Button(
-            actions_frame,
-            text="Gerar Relatório Unificado (Todos)",
-            command=self._generate_unified_report,
-        )
-        self.generate_unified_report_btn.pack(side="left", padx=10)
 
     def _create_processing_reports_tab(self) -> None:
         """Creates the processing reports tab. Delegates to WidgetFactory."""
@@ -2811,55 +2735,6 @@ class ApplicationGUI:
         # Expand video node to show report files
         widget.expand_tree_item(parent_id)
 
-    def update_reports_tree(self):
-        """
-        LEGACY: Replaced by _refresh_processing_reports_tab().
-
-        This method is kept for backward compatibility.
-        """
-        if not hasattr(self, "reports_tree") or self.reports_tree is None:
-            log.debug("gui.update_reports.legacy_tree_missing")
-            return
-
-        # Clear existing tree
-        for item in self.reports_tree.get_children():
-            self.reports_tree.delete(item)
-
-        # Reset metadata store
-        if not hasattr(self, "_report_tree_metadata"):
-            self._report_tree_metadata = {}
-        else:
-            self._report_tree_metadata.clear()
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.update_reports.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos()
-
-        log.debug(
-            "gui.update_reports.start",
-            video_count=len(all_videos) if all_videos else 0,
-            has_project_path=bool(pm.project_path),
-        )
-
-        if not all_videos:
-            log.debug("gui.update_reports.no_videos")
-            return
-
-        hierarchy = self._build_report_hierarchy(all_videos, pm)
-        self._populate_reports_tree_from_hierarchy(hierarchy, pm)
-
-        log.info(
-            "gui.reports_tree.updated",
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-        )
-
-        # Keep selector synced
-        self._populate_video_selector_tree()
 
     def _sort_key_for_reports(self, value):
         """Sort key for reports. Delegates to ProjectViewManager."""

@@ -60,6 +60,26 @@ class WidgetFactory:
     # CATEGORIA 1: UTILITÁRIOS SIMPLES
     # ===========================================================================
 
+    def build_status_icon_legend_simple(self, *, include_summary: bool = False) -> str:
+        """Compose a compact legend string for the status glyphs."""
+        legend_parts = [
+            f"{STATUS_SYMBOLS['arena']} ✓ Arena",
+            f"{STATUS_SYMBOLS['rois']} ✓ ROIs",
+            f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória",
+        ]
+        if include_summary:
+            legend_parts.append(f"{STATUS_SYMBOLS['summary']} ✓ Sumário")
+        legend_parts.append("✗ Ausente")
+        return "Legenda: " + " | ".join(legend_parts)
+
+    def get_zone_summary_helper_text(self) -> str:
+        """Return helper text for zone summary section."""
+        return (
+            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar "
+            "trajetórias (arena e ROIs salvos). O valor mostra quantos ainda "
+            "aguardam processamento."
+        )
+
     def build_status_icon_legend(self, *, include_summary: bool = False) -> str:
         """
         Compose a compact legend string for the status glyphs.
