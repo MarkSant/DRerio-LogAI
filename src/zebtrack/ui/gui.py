@@ -20,7 +20,6 @@ from tkinter import (
     Label,
     Menu,
     StringVar,
-    Toplevel,
     filedialog,
     messagebox,
     ttk,
@@ -39,7 +38,6 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = None
 
 # Import custom modules
-import zebtrack.settings as settings_module
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.camera import Camera
@@ -820,55 +818,8 @@ class ApplicationGUI:
         return self.widget_factory.create_configuration_tab_widget()
 
     def _reload_config_editor_values_widget(self) -> None:
-        """Load current settings into ConfigEditorWidget."""
-        current = settings_module.settings
-        if current is None:
-            try:
-                current = settings_module.load_settings()
-                settings_module.settings = current
-            except Exception as exc:  # pragma: no cover - defensive UI feedback
-                self.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
-
-        values = {
-            "video_processing": {
-                "fps": self._extract_setting(current, ("video_processing", "fps"), 30),
-                "processing_interval": self._extract_setting(
-                    current, ("video_processing", "processing_interval"), 10
-                ),
-                "processing_offset": self._extract_setting(
-                    current, ("video_processing", "processing_offset"), 0
-                ),
-            },
-            "trajectory_smoothing": {
-                "window_length": self._extract_setting(
-                    current, ("trajectory_smoothing", "window_length"), 7
-                ),
-                "polyorder": self._extract_setting(
-                    current, ("trajectory_smoothing", "polyorder"), 3
-                ),
-            },
-            "recorder": {
-                "flush_interval_seconds": self._extract_setting(
-                    current, ("recorder", "flush_interval_seconds"), 5.0
-                ),
-                "flush_row_threshold": self._extract_setting(
-                    current, ("recorder", "flush_row_threshold"), 500
-                ),
-            },
-            "roi_inclusion_rule": self._extract_setting(
-                current, ("roi_inclusion_rule",), "centroid_in"
-            ),
-            "roi_buffer_radius_value": self._extract_setting(
-                current, ("roi_buffer_radius_value",), 0.0
-            ),
-            "roi_min_bbox_overlap_ratio": self._extract_setting(
-                current, ("roi_min_bbox_overlap_ratio",), 0.5
-            ),
-        }
-
-        if self.config_editor_widget:
-            self.config_editor_widget.set_values(values)
+        """Load current settings into ConfigEditorWidget. Delegates to WidgetFactory."""
+        return self.widget_factory.reload_config_editor_values()
 
     def _on_reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
@@ -1007,55 +958,8 @@ class ApplicationGUI:
         self._request_overview_refresh()
 
     def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
-        """Create the project overview panel using ProjectOverviewWidget."""
-        if not parent:
-            return
-
-        if self.project_overview_frame and self.project_overview_frame.winfo_exists():
-            try:
-                self.project_overview_frame.destroy()
-            except Exception:
-                pass
-
-        self.project_overview_frame = ttk.LabelFrame(parent, text="Resumo do Projeto", padding=10)
-        self.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
-
-        # Create the ProjectOverviewWidget
-        self.project_overview_widget = ProjectOverviewWidget(
-            self.project_overview_frame, event_bus=self.event_bus
-        )
-        self.project_overview_widget.pack(fill="both", expand=True)
-
-        # Subscribe to widget events
-        if self.event_bus:
-            self.event_bus.subscribe(
-                "project.refresh_requested", self._handle_project_refresh_requested
-            )
-            self.event_bus.subscribe(
-                "project.video_double_click", self._handle_project_video_double_click
-            )
-            self.event_bus.subscribe(
-                "project.video_right_click", self._handle_project_video_right_click
-            )
-
-        # Add separator
-        ttk.Separator(self.project_overview_frame, orient="horizontal").pack(fill="x", pady=(8, 8))
-
-        # Add help text and button to access full details
-        info_frame = ttk.Frame(self.project_overview_frame)
-        info_frame.pack(fill="x", pady=(5, 5))
-
-        ttk.Label(
-            info_frame,
-            text="Para visualizar a estrutura completa do projeto e realizar processamento:",
-            font=("TkDefaultFont", 9),
-        ).pack(anchor="w", pady=(0, 5))
-
-        ttk.Button(
-            info_frame,
-            text="Ver Detalhes Completos \u2192",
-            command=self._navigate_to_processing_reports_tab,
-        ).pack(anchor="w")
+        """Create the project overview panel. Delegates to WidgetFactory."""
+        return self.widget_factory.create_project_overview_panel(parent)
 
     def _navigate_to_processing_reports_tab(self) -> None:
         """Navigate to the Processing and Reports tab."""
@@ -1699,63 +1603,9 @@ class ApplicationGUI:
         )
 
     def _on_roi_rule_change(self, event=None):
-        """Handle ROI inclusion rule change and update UI accordingly."""
+        """Handle ROI inclusion rule change and update UI. Delegates to WidgetFactory."""
         rule = self.roi_inclusion_rule_var.get()
-
-        # Hide all parameter frames first (only if they exist)
-        if hasattr(self, "radius_frame") and self.radius_frame:
-            self.radius_frame.pack_forget()
-        if hasattr(self, "overlap_frame") and self.overlap_frame:
-            self.overlap_frame.pack_forget()
-
-        # Show appropriate parameters and help text based on rule
-        if rule == "centroid_in":
-            help_text = (
-                "Considera dentro quando o centróide do animal está dentro do "
-                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
-                "(ex.: cabeça entra primeiro)."
-            )
-
-        elif rule == "centroid_in_on_buffered_roi":
-            if hasattr(self, "radius_frame") and self.radius_frame:
-                self.radius_frame.pack(fill="x", pady=2)
-            help_text = (
-                "Igual ao centróide, porém com ROI dilatada por r para capturar "
-                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
-                "senão em px."
-            )
-
-        elif rule == "bbox_intersects":
-            if hasattr(self, "overlap_frame") and self.overlap_frame:
-                self.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
-                self.overlap_help_label.config(
-                    text="A detecção é considerada dentro da ROI quando a fração de "
-                    "área do bbox contida na ROI atinge este valor."
-                )
-            help_text = (
-                "Considera dentro quando o retângulo do animal (bbox) sobrepõe a "
-                "ROI ao menos pela fração definida. Captura entradas parciais; "
-                "pode superestimar em bordas."
-            )
-
-        elif rule == "seg_overlap":
-            if hasattr(self, "overlap_frame") and self.overlap_frame:
-                self.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
-                self.overlap_help_label.config(
-                    text="Requer dados de máscara. Se não houver, selecione outra regra."
-                )
-            help_text = (
-                "Considera dentro com base na sobreposição da máscara do animal com "
-                "a ROI. Requer segmentação; mais preciso e mais custoso."
-            )
-
-        else:
-            help_text = ""
-
-        if hasattr(self, "rule_help_label") and self.rule_help_label:
-            self.rule_help_label.config(text=help_text)
+        return self.widget_factory.update_roi_rule_ui(rule)
 
     def _on_apply_roi_settings(self):
         """Apply ROI inclusion rule settings to the global settings."""
@@ -4211,59 +4061,8 @@ class ApplicationGUI:
         log.info("gui.live_processing_loop.finished")
 
     def _prompt_for_weight_type(self):
-        """Prompts user to select weight type when it cannot be determined
-        from filename."""
-        from tkinter import Radiobutton
-
-        dialog = Toplevel(self.root)
-        dialog.title("Tipo de Peso")
-        dialog.geometry("300x150")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-
-        # Center dialog
-        self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() // 2) - (300 // 2)
-        y = (self.root.winfo_screenheight() // 2) - (150 // 2)
-        dialog.geometry(f"+{x}+{y}")
-
-        Label(dialog, text="Selecione o tipo de modelo:").pack(pady=10)
-
-        weight_type_var = StringVar(value="seg")
-
-        Radiobutton(
-            dialog,
-            text="Segmentação (para máscaras e bordas precisas)",
-            variable=weight_type_var,
-            value="seg",
-        ).pack(anchor="w", padx=20)
-
-        Radiobutton(
-            dialog,
-            text="Detecção (para caixas delimitadoras rápidas)",
-            variable=weight_type_var,
-            value="det",
-        ).pack(anchor="w", padx=20)
-
-        result = [None]  # Use list to allow modification in nested function
-
-        def on_ok():
-            result[0] = weight_type_var.get()
-            dialog.destroy()
-
-        def on_cancel():
-            result[0] = None
-            dialog.destroy()
-
-        button_frame = Frame(dialog)
-        button_frame.pack(pady=20)
-
-        Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
-
-        dialog.wait_window()
-        return result[0]
+        """Prompts user to select weight type. Delegates to WidgetFactory."""
+        return self.widget_factory.prompt_for_weight_type()
 
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""
