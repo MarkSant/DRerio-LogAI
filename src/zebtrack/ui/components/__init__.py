@@ -15,6 +15,7 @@ from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
+from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
@@ -26,6 +27,7 @@ __all__ = [
     "BaseWidget",
     "ConfigEditorWidget",
     "ControlPanelWidget",
+    "EventDispatcher",
     "ProjectOverviewWidget",
     "VideoDisplayWidget",
     "ZoneControlsWidget",
