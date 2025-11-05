@@ -1296,3 +1296,53 @@ class CanvasManager:
             self.gui.roi_canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
+
+    def edit_selected_zone_vertices(self):
+        """Enables interactive editing of the selected zone's vertices."""
+        selected = self.gui.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.gui.zone_listbox.item(selected[0])
+        zone_name = item["values"][0]
+
+        # Check if we are already in drawing mode
+        if self.gui.drawing_mode is not None:
+            self.gui.show_warning(
+                "Modo de Desenho Ativo",
+                "Finalize o desenho atual antes de editar vértices de outra zona.",
+            )
+            return
+
+        zone_data = self.gui._get_zone_data_for_active_context()
+
+        if "Arena Principal" in zone_name:
+            # Edit main arena
+            if not zone_data.polygon:
+                self.gui.show_warning("Erro", "Arena principal não encontrada.")
+                return
+
+            # Convert polygon to the format expected by setup_interactive_polygon
+            polygon_points = np.array(zone_data.polygon)
+            self.gui.setup_interactive_polygon(polygon_points)
+            self.gui.current_editing_zone = "arena"
+            self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
+
+        else:
+            # Edit ROI
+            roi_name = zone_name.replace("📍 ", "")
+            try:
+                roi_index = zone_data.roi_names.index(roi_name)
+                roi_polygon = zone_data.roi_polygons[roi_index]
+
+                # Convert polygon to the format expected by setup_interactive_polygon
+                polygon_points = np.array(roi_polygon)
+                self.gui.setup_interactive_polygon(polygon_points)
+                self.gui.current_editing_zone = ("roi", roi_index, roi_name)
+                self.gui.set_status(
+                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
+                )
+
+            except (ValueError, IndexError):
+                self.gui.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
+                return

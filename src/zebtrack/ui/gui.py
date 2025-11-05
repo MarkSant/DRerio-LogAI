@@ -4659,54 +4659,8 @@ class ApplicationGUI:
                 arena_menu.post(event.x_root, event.y_root)
 
     def _edit_selected_zone_vertices(self):
-        """Enables interactive editing of the selected zone's vertices."""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        zone_name = item["values"][0]
-
-        # Check if we are already in drawing mode
-        if self.drawing_mode is not None:
-            self.show_warning(
-                "Modo de Desenho Ativo",
-                "Finalize o desenho atual antes de editar vértices de outra zona.",
-            )
-            return
-
-        zone_data = self._get_zone_data_for_active_context()
-
-        if "Arena Principal" in zone_name:
-            # Edit main arena
-            if not zone_data.polygon:
-                self.show_warning("Erro", "Arena principal não encontrada.")
-                return
-
-            # Convert polygon to the format expected by setup_interactive_polygon
-            polygon_points = np.array(zone_data.polygon)
-            self.setup_interactive_polygon(polygon_points)
-            self.current_editing_zone = "arena"
-            self.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
-
-        else:
-            # Edit ROI
-            roi_name = zone_name.replace("📍 ", "")
-            try:
-                roi_index = zone_data.roi_names.index(roi_name)
-                roi_polygon = zone_data.roi_polygons[roi_index]
-
-                # Convert polygon to the format expected by setup_interactive_polygon
-                polygon_points = np.array(roi_polygon)
-                self.setup_interactive_polygon(polygon_points)
-                self.current_editing_zone = ("roi", roi_index, roi_name)
-                self.set_status(
-                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
-                )
-
-            except (ValueError, IndexError):
-                self.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
-                return
+        """Enables interactive editing of selected zone vertices. Delegates to CanvasManager."""
+        return self.canvas_manager.edit_selected_zone_vertices()
 
     def _rename_selected_roi(self):
         """Renomeia ROI selecionada"""
