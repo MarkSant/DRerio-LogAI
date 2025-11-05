@@ -69,7 +69,6 @@ from zebtrack.ui.dialogs import (
     SingleVideoConfigDialog,
     StartRecordingDialog,
     SubjectSelectionDialog,
-    TemplateDialog,
 )
 from zebtrack.ui.event_bus import EventBus, EventType
 from zebtrack.ui.events import Events
@@ -3296,66 +3295,8 @@ class ApplicationGUI:
         return pm.get_zone_data()
 
     def _select_roi_template(self, metadata: dict[str, Any]) -> None:
-        """Select a template in the dropdown by matching metadata."""
-        if not self._roi_templates_cache:
-            log.warning("gui.select_roi_template.no_cache", metadata_name=metadata.get("name"))
-            return
-
-        identifier = self._build_roi_template_identifier(metadata)
-
-        # First try: exact identifier match
-        for entry in self._roi_templates_cache:
-            if entry.get("identifier") == identifier:
-                display_name = entry.get("display_name", "")
-                if display_name:
-                    self.roi_template_var.set(display_name)
-                    log.info(
-                        "gui.select_roi_template.success_by_identifier",
-                        display_name=display_name,
-                        identifier=identifier,
-                    )
-                    return
-
-        # Second try: match by name
-        fallback_name = metadata.get("name", "")
-        if fallback_name:
-            for entry in self._roi_templates_cache:
-                if entry.get("name") == fallback_name:
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_name",
-                            display_name=display_name,
-                            name=fallback_name,
-                        )
-                        return
-
-        # Third try: match by slug or file reference
-        slug = metadata.get("slug", "")
-        file_ref = metadata.get("file", "")
-        if slug or file_ref:
-            for entry in self._roi_templates_cache:
-                if (slug and entry.get("slug") == slug) or (
-                    file_ref and entry.get("file") == file_ref
-                ):
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_slug_or_file",
-                            display_name=display_name,
-                        )
-                        return
-
-        # Failed to find template
-        log.warning(
-            "gui.select_roi_template.not_found",
-            metadata_name=fallback_name,
-            identifier=identifier,
-            cache_size=len(self._roi_templates_cache),
-        )
-        self.roi_template_var.set("")
+        """Select a template in the dropdown. Delegates to WidgetFactory."""
+        return self.widget_factory.select_roi_template(metadata)
 
     def _show_template_save_dialog(
         self,
@@ -3379,68 +3320,8 @@ class ApplicationGUI:
         return dialog.result
 
     def _on_delete_roi_template(self) -> None:
-        """Delete the currently selected template."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        selected_template = self._get_selected_roi_template()
-        if not selected_template:
-            self.show_warning(
-                "Nenhum template selecionado",
-                "Por favor, selecione um template na lista para deletar.",
-            )
-            return
-
-        template_name = selected_template.get("name", "Template")
-        template_file = selected_template.get("file")
-        template_location = selected_template.get("location", "unknown")
-
-        # Confirm deletion
-        from tkinter import messagebox
-
-        response = messagebox.askyesno(
-            "Confirmar Deleção",
-            f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
-            f"Localização: {template_location}\n"
-            f"Arquivo: {template_file}\n\n"
-            f"Esta ação não pode ser desfeita.",
-            icon="warning",
-        )
-
-        if not response:
-            return
-
-        try:
-            from pathlib import Path
-
-            # Delete the file
-            if template_file:
-                file_path = Path(template_file)
-                if file_path.exists():
-                    file_path.unlink()
-                    log.info(
-                        "gui.roi_templates.deleted", template_name=template_name, file=template_file
-                    )
-                else:
-                    log.warning(
-                        "gui.roi_templates.delete_file_not_found",
-                        template_name=template_name,
-                        file=template_file,
-                    )
-
-            # Refresh the template list
-            self._refresh_roi_templates(clear_selection=True)
-
-            self.show_info(
-                "Template Deletado", f"O template '{template_name}' foi removido com sucesso."
-            )
-
-        except Exception as exc:
-            log.error(
-                "gui.roi_templates.delete_failed", template_name=template_name, error=str(exc)
-            )
-            self.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
+        """Delete the currently selected template. Delegates to WidgetFactory."""
+        return self.widget_factory.delete_roi_template()
 
     def _on_import_roi_template(self) -> None:
         """Import a template file into the library (does not apply it)."""
@@ -4213,66 +4094,8 @@ class ApplicationGUI:
         )
 
     def _create_template_rois(self):
-        """Opens a dialog to create ROIs from a template."""
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Selecione um aquário ativo primeiro.")
-            return
-
-        # Get the arena polygon bounds from the controller
-        arena_data = self.controller.get_arena_data(current_arena_id)
-        if not arena_data or "polygon_px" not in arena_data:
-            self.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
-            return
-
-        import numpy as np
-
-        poly_points = np.array(arena_data["polygon_px"])
-        x_min, y_min = poly_points.min(axis=0)
-        x_max, y_max = poly_points.max(axis=0)
-        width = x_max - x_min
-        height = y_max - y_min
-
-        dialog = TemplateDialog(self.root)
-        if not dialog.result:
-            return
-
-        rois_to_add = []
-        template = dialog.result
-        if template["type"] == "vertical":
-            lane_width = width / template["lanes"]
-            for i in range(template["lanes"]):
-                x1 = x_min + i * lane_width
-                x2 = x1 + lane_width
-                coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
-                rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
-        elif template["type"] == "horizontal":
-            lane_height = height / template["lanes"]
-            for i in range(template["lanes"]):
-                y1 = y_min + i * lane_height
-                y2 = y1 + lane_height
-                coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
-                rois_to_add.append({"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords})
-        elif template["type"] == "grid":
-            col_width = width / template["cols"]
-            row_height = height / template["rows"]
-            for r in range(template["rows"]):
-                for c in range(template["cols"]):
-                    x1 = x_min + c * col_width
-                    y1 = y_min + r * row_height
-                    x2 = x1 + col_width
-                    y2 = y1 + row_height
-                    coords = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-                    rois_to_add.append(
-                        {
-                            "name": f"Grid_{r + 1}-{c + 1}",
-                            "type": "polygon",
-                            "coords": coords,
-                        }
-                    )
-
-        self.roi_data.setdefault(current_arena_id, []).extend(rois_to_add)
-        self._on_arena_select()
+        """Opens a dialog to create ROIs from a template. Delegates to WidgetFactory."""
+        return self.widget_factory.create_template_rois()
 
     def _start_circle_drawing(self):
         """Activates circle drawing mode."""
