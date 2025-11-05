@@ -20,6 +20,7 @@ from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.components.menu_manager import MenuManager
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
+from zebtrack.ui.components.validation_manager import ValidationManager
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 
@@ -35,6 +36,7 @@ __all__ = [
     "MenuManager",
     "ProjectOverviewWidget",
     "StateSynchronizer",
+    "ValidationManager",
     "VideoDisplayWidget",
     "ZoneControlsWidget",
 ]
