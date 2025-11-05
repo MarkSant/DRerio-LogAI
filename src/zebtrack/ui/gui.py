@@ -1925,64 +1925,8 @@ class ApplicationGUI:
             )
 
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
-        """Prompt user to reuse the last zones when the current video has none."""
-
-        if not video_path:
-            return
-
-        if video_path in self._zone_prompt_history:
-            return
-
-        pm = self.controller.project_manager
-        if pm.has_zone_data(video_path):
-            return
-
-        last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
-        if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
-            return
-
-        self._zone_prompt_history.add(video_path)
-
-        current_name = os.path.basename(video_path)
-        last_name = os.path.basename(last_video_with_zones)
-
-        reuse = messagebox.askyesno(
-            "Reutilizar zonas existentes?",
-            (
-                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
-                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
-                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
-            ),
-            icon="question",
-        )
-
-        if reuse:
-            cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
-            pm.save_zone_data(cloned_zone_data, video_path=video_path, persist=False)
-            copied_files = pm.copy_zone_parquet_files(
-                last_video_with_zones, video_path, persist=False
-            )
-            pm.save_project()
-            self._refresh_zone_indicators()
-            self._refresh_video_selector_tree()
-            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-            if not copied_files:
-                self.show_warning(
-                    "Arquivos Parquet Indisponíveis",
-                    (
-                        "As zonas foram copiadas, mas não encontramos os arquivos "
-                        "Parquet originais para duplicar. Caso necessário, redesenhe "
-                        "as zonas e salve-as manualmente para gerar novos arquivos."
-                    ),
-                )
-        else:
-            pm.clear_zone_data_for_video(video_path, persist=False)
-            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-            self._refresh_video_selector_tree()
+        """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
+        return self.dialog_manager.offer_zone_reuse(video_path)
 
     def _on_video_tree_double_click(self, event):
         """Callback para duplo clique no seletor de vídeos."""

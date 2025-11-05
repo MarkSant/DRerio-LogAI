@@ -580,28 +580,6 @@ class DialogManager:
             "Cancelar: Voltar para edição",
         )
 
-    def offer_zone_reuse(
-        self, current_video_name: str, source_video_name: str
-    ) -> bool:
-        """Prompts user to reuse zones from another video.
-
-        Args:
-            current_video_name: Name of the current video (without zones)
-            source_video_name: Name of the video with existing zones
-
-        Returns:
-            True if user wants to reuse zones, False otherwise
-        """
-        return self.ask_yes_no(
-            "Reutilizar zonas existentes?",
-            (
-                f'O vídeo "{current_video_name}" não possui arena ou ROIs salvas.\n\n'
-                f'Deseja reutilizar as zonas desenhadas para "{source_video_name}"?\n'
-                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
-            ),
-            icon="question",
-        )
-
     # =========================================================================
     # Notification Dialogs
     # =========================================================================
@@ -709,3 +687,66 @@ class DialogManager:
                     f"Caminho: {target_path}\n\nDetalhes: {exc}"
                 ),
             )
+
+    def offer_zone_reuse(self, video_path: str) -> None:
+        """Prompt user to reuse the last zones when the current video has none.
+
+        Args:
+            video_path: Path to the video that needs zone data
+        """
+        if not video_path:
+            return
+
+        if video_path in self.gui._zone_prompt_history:
+            return
+
+        pm = self.gui.controller.project_manager
+        if pm.has_zone_data(video_path):
+            return
+
+        last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
+        if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
+            return
+
+        self.gui._zone_prompt_history.add(video_path)
+
+        current_name = os.path.basename(video_path)
+        last_name = os.path.basename(last_video_with_zones)
+
+        reuse = messagebox.askyesno(
+            "Reutilizar zonas existentes?",
+            (
+                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
+                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
+                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
+            ),
+            icon="question",
+        )
+
+        if reuse:
+            cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
+            pm.save_zone_data(cloned_zone_data, video_path=video_path, persist=False)
+            copied_files = pm.copy_zone_parquet_files(
+                last_video_with_zones, video_path, persist=False
+            )
+            pm.save_project()
+            self.gui._refresh_zone_indicators()
+            self.gui._refresh_video_selector_tree()
+            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
+            self.gui.set_status(status_message)
+            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+            if not copied_files:
+                self.show_warning(
+                    "Arquivos Parquet Indisponíveis",
+                    (
+                        "As zonas foram copiadas, mas não encontramos os arquivos "
+                        "Parquet originais para duplicar. Caso necessário, redesenhe "
+                        "as zonas e salve-as manualmente para gerar novos arquivos."
+                    ),
+                )
+        else:
+            pm.clear_zone_data_for_video(video_path, persist=False)
+            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
+            self.gui.set_status(status_message)
+            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+            self.gui._refresh_video_selector_tree()
