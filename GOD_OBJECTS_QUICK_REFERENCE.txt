@@ -1,0 +1,342 @@
+================================================================================
+GOD OBJECTS - QUICK REFERENCE
+ZebTrack-AI Codebase Analysis (Nov 5, 2025)
+================================================================================
+
+CRITICAL ISSUES
+================================================================================
+
+[CRITICAL-1] ApplicationGUI (ui/gui.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        9,951 lines (LARGEST CLASS IN CODEBASE)
+Methods:          322 (EXCESSIVE)
+Dependencies:     4 major components
+Cyclomatic:       CC ~30 in __init__
+
+Responsibility Categories:
+  • UI Layout Creation (20 methods) .............. _create_*
+  • Event Handling (55 methods) ................ _handle_*
+  • State Synchronization (41 methods) ........ _refresh_*
+  • Canvas Drawing (29 methods) ............... _draw_*
+  • Dialog Management (3 methods) ............. _show_*
+  • Tree/Table Management (10 methods) ....... _build_*
+  • Misc & Utilities (174 methods) ........... Everything else
+
+Problem: Class combines layout, events, drawing, and state sync into one
+Symptom: __init__ is 691 lines with 104 control flow statements
+
+Refactoring Plan:
+  Extract to 6 focused components:
+  ├── LayoutBuilder (UI creation - 20 methods)
+  ├── EventDispatcher (event routing - 55 methods)
+  ├── StateDisplay (synchronization - 41 methods)
+  ├── CanvasManager (drawing - 29 methods)
+  ├── TabManager (tab management - 5 methods)
+  └── DialogManager (dialogs - 10 methods)
+  
+  Result: Reduce ApplicationGUI from 322 to ~100 methods
+
+Effort: 25 days
+
+
+[CRITICAL-2] MainViewModel (core/main_view_model.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        5,588 lines
+Methods:          151
+Dependencies:     13 (!!!) - ANTI-PATTERN
+Cyclomatic:       CC ~25 max
+
+Injected Dependencies (Constructor Parameters):
+  1. root
+  2. event_bus
+  3. state_manager
+  4. ui_coordinator
+  5. settings_obj
+  6. project_manager
+  7. project_workflow_service
+  8. weight_manager
+  9. model_service
+  10. detector_service
+  11. video_processing_service
+  12. analysis_service
+  13. recording_service
+  + live_camera_service (optional)
+  + test_sync_event
+
+Responsibility Categories:
+  • Project Management (25 methods) ...... create/open/save workflows
+  • Video Processing (25 methods) ....... process, classify, coordinate
+  • Detector Setup (25 methods) ......... initialize, restore, configure
+  • Recording Control (9 methods) ....... start, stop, schedule, trigger
+  • Hardware Integration (8 methods) .... Arduino setup and events
+  • Analysis Orchestration (10 methods)  coordinate analysis pipeline
+  • Event Handling (3 methods) ......... bind_events, dispatchers
+  • Utilities (55+ methods) ........... threads, diagnostics, etc.
+
+Problem: God Object Orchestrator - tries to coordinate everything
+Symptom: Constructor is a "service locator" anti-pattern
+
+Refactoring Plan:
+  Extract 5 domain coordinators:
+  ├── ProjectWorkflowCoordinator (20 methods) - [EXISTS: ProjectWorkflowService]
+  ├── VideoProcessingCoordinator (25 methods) - EXTRACT
+  ├── DetectorCoordinator (20 methods) ...... EXTRACT
+  ├── RecordingCoordinator (15 methods) .... EXTRACT
+  └── HardwareCoordinator (10 methods) .... EXTRACT
+  
+  Reduce MainViewModel to:
+  • 70 methods
+  • 5-6 dependencies
+  • Pure orchestration only
+
+Effort: 35 days
+
+
+HIGH SEVERITY ISSUES
+================================================================================
+
+[HIGH-1] ProjectManager (core/project_manager.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        2,795 lines
+Methods:          79
+Dependencies:     2 (StateManager, Settings)
+Cyclomatic:       CC ~40 max
+
+Responsibility Categories:
+  • Project File I/O (8 methods) .......... create, load, save
+  • Video Inventory (15 methods) ........ add, get, update, reset
+  • Zone/ROI Management (20 methods) ..... save, load, template handling
+  • Analysis Profiles (10 methods) ....... resolve, match profiles
+  • Parquet Import (8 methods) .......... import, validate
+  • Asset Management (8 methods) ........ cleanup, removal
+  • Utility Methods (10 methods) ........ helpers
+
+Problem: Multiple unrelated domains in single class
+Symptom: add_video_batch (206 lines), load_project (175 lines)
+
+Refactoring Plan:
+  Extract 6 focused managers:
+  ├── ProjectFileManager (I/O only)
+  ├── VideoInventoryManager (video CRUD)
+  ├── ZoneManager (zones/ROIs/templates)
+  ├── AnalysisProfileResolver (profile matching)
+  ├── ParquetManager (import/validation)
+  └── AssetManager (asset cleanup)
+  
+  ProjectManager becomes facade delegating to these
+
+Effort: 20 days
+
+
+[HIGH-2] VideoProcessingService (core/video_processing_service.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        1,513 lines
+Methods:          27
+Dependencies:     6 major + 4 positional args
+Cyclomatic:       CC ~40 max
+
+Critical God Method:
+  • _collect_params_from_single_video: 641 LINES, CC ~40 (!)
+    └─ Needs to be split into 6 smaller methods
+
+Responsibility Categories:
+  • Frame Display (1 method) ............ display_initial_frame
+  • Path Resolution (1 method) ......... resolve_results_path
+  • Frame Loading (1 method) .......... load_trajectory_dataframe
+  • Progress Callbacks (1 method) ...... create_progress_callback
+  • Parameter Collection (1 method) .... _collect_params (641 lines!!!)
+  • Detector Integration (3 methods) ... run_tracking, detect callbacks
+  • Analysis Coordination (8 methods) .. process_single_video, etc.
+  • Result Processing (2 methods) ..... schedule metadata, notify
+
+Problem: Single 641-line god method mixed with coordination
+Symptom: _collect_params_from_single_video is unmaintainable
+
+Refactoring Plan:
+  Break god method into:
+  ├── _resolve_video_metadata
+  ├── _build_detector_params
+  ├── _build_calibration_params
+  ├── _build_analysis_params
+  ├── _build_recording_params
+  └── _validate_parameters
+  
+  Extract coordination to:
+  ├── ProcessingParameterBuilder (parameter collection)
+  ├── FrameSourceManager (frame handling)
+  └── AnalysisCoordinator (coordination)
+
+Effort: 15 days
+
+
+MEDIUM-HIGH SEVERITY ISSUES
+================================================================================
+
+[MED-1] Reporter (analysis/reporter.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        1,412 lines
+Methods:          29
+Cyclomatic:       CC ~50 max (3 large methods)
+
+Large Methods Requiring Attention:
+  • export_summary_data: 442 lines
+  • _roi_geometry_to_cm: 195 lines
+  • _prepare_report_document: 183 lines
+
+Responsibility Categories:
+  • Data Transformation (3 methods) ...... tidy dataframe, standardize
+  • Trajectory Visualization (3 methods)  trajectory, heatmap, ROI plots
+  • Behavioral Analysis (3 methods) .... angular velocity, position, distance
+  • Report Generation (3 methods) ...... individual, project reports
+  • Export (1 method) ................. excel/parquet export
+  • Geometry Transforms (2 methods) ... warping, coordinate conversion
+
+Problem: Mixing data transformation, visualization, and reporting
+Symptom: 442-line method doing too many things
+
+Refactoring Plan:
+  Extract 5 focused components:
+  ├── TrajectoryCleaner (coordinate transforms)
+  ├── MetricsCollector (tidy data, ROI metrics)
+  ├── PlotGenerator (all plot generation)
+  ├── ReportBuilder (DOCX generation)
+  └── DataExporter (Excel/Parquet export)
+
+Effort: 10 days
+
+
+[MED-2] StateManager (core/state_manager.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        1,184 lines
+Classes:          9 state classes + StateManager
+Methods:          26 (main class)
+Cyclomatic:       CC ~10 max
+
+Assessment: WELL-DESIGNED (No action needed)
+
+Why it's good:
+  • Clear separation of concerns across 9 classes
+  • All methods relate to state management
+  • Observer pattern properly implemented
+  • Well-distributed complexity
+
+Recommendation: Use as TEMPLATE for other extractions
+
+
+[MED-3] ProjectWorkflowService (core/project_workflow_service.py)
+────────────────────────────────────────────────────────────────────────────────
+File Size:        1,204 lines
+Methods:          17
+Dependencies:     5 (reasonable)
+Cyclomatic:       CC ~12 max
+
+Assessment: GOOD REFACTORING (No action needed)
+
+Why it's good:
+  • Extracted from MainViewModel (good practice)
+  • Well-focused on workflow coordination
+  • Reasonable method count
+  • Clean dependencies
+
+Recommendation: Use as TEMPLATE for MainViewModel extractions
+
+
+METRICS SUMMARY
+================================================================================
+
+God Objects by Severity:
+
+Rank | Class                    | Lines | Methods | Deps | Severity  | Days
+─────┼──────────────────────────┼───────┼─────────┼──────┼───────────┼──────
+  1  | ApplicationGUI           | 9951  | 322     | 4    | CRITICAL  | 25
+  2  | MainViewModel            | 5588  | 151     | 13   | CRITICAL  | 35
+  3  | ProjectManager           | 2795  | 79      | 2    | HIGH      | 20
+  4  | VideoProcessingService   | 1513  | 27      | 6+   | HIGH      | 15
+  5  | Reporter                 | 1412  | 29      | 0    | MED-HIGH  | 10
+  ─  | StateManager             | 1184  | 26      | 0    | MED-HIGH  | --
+  ─  | ProjectWorkflowService   | 1204  | 17      | 5    | GOOD      | --
+───────────────────────────────────────────────────────────────────────────────
+
+Total God Object Code: 26,349 lines (47% of codebase)
+Total Refactoring Effort: 115 days (2.5-3 months)
+
+
+REFACTORING ROADMAP
+================================================================================
+
+Phase 1 - CRITICAL (70 days) [DO FIRST]
+──────────────────────────────────────────────────────────────────────────────
+Task 1: Extract ApplicationGUI components ..................... 25 days
+Task 2: Extract MainViewModel coordinators .................... 35 days
+Task 3: Document and establish guidelines ..................... 10 days
+
+Phase 2 - HIGH (35 days) [DO NEXT]
+──────────────────────────────────────────────────────────────────────────────
+Task 3: Refactor ProjectManager ................................ 20 days
+Task 4: Break VideoProcessingService god method ............... 15 days
+
+Phase 3 - MEDIUM (10 days) [BACKLOG]
+──────────────────────────────────────────────────────────────────────────────
+Task 5: Refactor Reporter ...................................... 10 days
+
+Phase 4 - MONITORING [NO ACTION]
+──────────────────────────────────────────────────────────────────────────────
+Monitor: StateManager (well-designed)
+Monitor: ProjectWorkflowService (good example)
+
+
+EXTRACTION PATTERNS
+================================================================================
+
+Pattern 1: Large Class → Focused Components
+  Before: 322 methods in ApplicationGUI
+  After:  6 focused classes with 30-60 methods each
+  Pattern: Extract by responsibility (Events, State, Drawing, etc.)
+
+Pattern 2: Massive Method → Multiple Methods
+  Before: _collect_params_from_single_video (641 lines)
+  After:  6 focused methods (50-150 lines each)
+  Pattern: Extract by sub-concern (build_X_params)
+
+Pattern 3: Too Many Dependencies → Coordinator Services
+  Before: MainViewModel(13 dependencies)
+  After:  MainViewModel(5-6) → delegates to coordinators
+  Pattern: Create specialist services for each domain
+
+
+PREVENTION STRATEGIES
+================================================================================
+
+1. Code Review Checklist
+   ☐ Flag classes exceeding 50 methods
+   ☐ Flag constructors with >7 dependencies
+   ☐ Flag files exceeding 2000 lines
+   ☐ Flag methods exceeding 200 lines
+
+2. Development Guidelines
+   ☐ Extract at 1000 lines (not 5000+)
+   ☐ Target: 30 methods per class max
+   ☐ Target: 5-7 dependencies max
+   ☐ Enforce Single Responsibility Principle
+
+3. Architecture Decisions
+   ☐ Use facade pattern for large classes
+   ☐ Component testing separate from integration
+   ☐ Regular refactoring cycles
+
+
+REFERENCES
+================================================================================
+
+Full detailed report: /home/user/ZebTrack-AI/GOD_OBJECTS_ANALYSIS.md
+
+This file contains:
+  • Detailed metrics for each God Object
+  • Method responsibility breakdown with examples
+  • Specific refactoring strategies with code structure
+  • Cyclomatic complexity analysis
+  • Root cause analysis
+  • Prevention guidelines and best practices
+
+
+================================================================================
