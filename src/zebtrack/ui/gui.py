@@ -2217,42 +2217,8 @@ class ApplicationGUI:
         return self.canvas_manager.start_polygon_drawing()
 
     def _stop_drawing(self):
-        """Deactivates any drawing mode and unbinds all associated events."""
-        # Destroy the instruction label if it exists
-        if self.drawing_instruction_label:
-            self.drawing_instruction_label.destroy()
-            self.drawing_instruction_label = None
-
-        # Destroy floating drawing buttons if they exist
-        if self._drawing_buttons_frame:
-            self._drawing_buttons_frame.destroy()
-            self._drawing_buttons_frame = None
-
-        self.drawing_mode = None
-        self.current_drawing_type = None
-        self.roi_canvas.config(cursor="")
-        # Unbind all possible drawing events
-        self.roi_canvas.unbind("<Button-1>")
-        self.roi_canvas.unbind("<Double-Button-1>")
-        self.roi_canvas.unbind("<Motion>")
-        self.roi_canvas.unbind("<ButtonPress-1>")
-        self.roi_canvas.unbind("<B1-Motion>")
-        self.roi_canvas.unbind("<ButtonRelease-1>")
-        # Unbind keyboard shortcuts
-        self.roi_canvas.unbind("<Control-z>")
-        self.roi_canvas.unbind("<Control-y>")
-        self.roi_canvas.unbind("<Control-Shift-Z>")
-
-        self.roi_canvas.delete("elastic_line")
-        self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
-        self.roi_canvas.delete("snap_indicator")  # Clear snap indicators
-
-        # Clear coordinate lists
-        self.current_polygon_points = []
-        self._poly_pts_canvas = []
-        self._poly_pts_video = []
-
-        self.set_status("Pronto.")
+        """Deactivates drawing mode and unbinds events. Delegates to CanvasManager."""
+        return self.canvas_manager.stop_drawing()
 
     def _create_drawing_buttons(self):
         """Creates floating undo/redo buttons over the canvas."""

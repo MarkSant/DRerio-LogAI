@@ -1346,3 +1346,41 @@ class CanvasManager:
             except (ValueError, IndexError):
                 self.gui.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
                 return
+
+    def stop_drawing(self):
+        """Deactivates any drawing mode and unbinds all associated events."""
+        # Destroy the instruction label if it exists
+        if self.gui.drawing_instruction_label:
+            self.gui.drawing_instruction_label.destroy()
+            self.gui.drawing_instruction_label = None
+
+        # Destroy floating drawing buttons if they exist
+        if self.gui._drawing_buttons_frame:
+            self.gui._drawing_buttons_frame.destroy()
+            self.gui._drawing_buttons_frame = None
+
+        self.gui.drawing_mode = None
+        self.gui.current_drawing_type = None
+        self.gui.roi_canvas.config(cursor="")
+        # Unbind all possible drawing events
+        self.gui.roi_canvas.unbind("<Button-1>")
+        self.gui.roi_canvas.unbind("<Double-Button-1>")
+        self.gui.roi_canvas.unbind("<Motion>")
+        self.gui.roi_canvas.unbind("<ButtonPress-1>")
+        self.gui.roi_canvas.unbind("<B1-Motion>")
+        self.gui.roi_canvas.unbind("<ButtonRelease-1>")
+        # Unbind keyboard shortcuts
+        self.gui.roi_canvas.unbind("<Control-z>")
+        self.gui.roi_canvas.unbind("<Control-y>")
+        self.gui.roi_canvas.unbind("<Control-Shift-Z>")
+
+        self.gui.roi_canvas.delete("elastic_line")
+        self.gui.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+        self.gui.roi_canvas.delete("snap_indicator")  # Clear snap indicators
+
+        # Clear coordinate lists
+        self.gui.current_polygon_points = []
+        self.gui._poly_pts_canvas = []
+        self.gui._poly_pts_video = []
+
+        self.gui.set_status("Pronto.")
