@@ -277,8 +277,10 @@ class ApplicationGUI:
 
         # Maintain backward compatibility aliases (will be removed later)
         self.video_label: Label | None = None
+        self.progress_frame: ttk.Frame | None = None
         self.progress_bar = None
         self.progress_labels: dict[str, StringVar] = {}
+        self.cancel_proc_btn: ttk.Button | None = None
         self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-Track")
         self.track_selector_var = StringVar(value="Todos")
         self.track_selector_widget: ttk.Combobox | None = None
@@ -287,6 +289,11 @@ class ApplicationGUI:
         self._current_detections: list[tuple] = []
         self._last_analysis_frame = None
         self._analysis_overlay_image = None
+
+        # Analysis status widgets and variables
+        self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
+        self.analysis_task_var = StringVar(value="Nenhuma tarefa em andamento.")
+        self.analysis_video_label: Label | None = None
 
         # User options
         self.processing_interval_var = StringVar(
@@ -897,9 +904,24 @@ class ApplicationGUI:
             self.root.title("DRerio LogAI")
 
     def _create_menu_bar(self):
-        """Creates the application menu bar with Help menu."""
+        """Creates the application menu bar with File and Help menus."""
         menubar = Menu(self.root)
         self.root.config(menu=menubar)
+
+        # File menu
+        file_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Arquivo", menu=file_menu)
+        file_menu.add_command(
+            label="Analisar Câmera ao Vivo...",
+            command=self.controller.start_live_camera_analysis,
+            accelerator="Ctrl+L",
+        )
+        file_menu.add_separator()
+        file_menu.add_command(label="Sair", command=self.root.quit, accelerator="Ctrl+Q")
+
+        # Bind keyboard shortcuts
+        self.root.bind("<Control-l>", lambda e: self.controller.start_live_camera_analysis())
+        self.root.bind("<Control-q>", lambda e: self.root.quit())
 
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
@@ -3761,8 +3783,10 @@ class ApplicationGUI:
 
         # Set up backward compatibility aliases
         self.video_label = self.analysis_display_widget.video_label
+        self.progress_frame = self.analysis_display_widget.progress_frame
         self.progress_bar = self.analysis_display_widget.progress_bar
         self.progress_labels = self.analysis_display_widget.progress_labels
+        self.cancel_proc_btn = self.analysis_display_widget.cancel_btn
         self.track_selector_var = self.analysis_display_widget.track_selector_var
         self.track_selector_widget = self.analysis_display_widget.track_selector_widget
         self.social_summary_var = self.analysis_display_widget.social_summary_var
@@ -8237,7 +8261,13 @@ class ApplicationGUI:
             except queue.Empty:
                 continue
 
-            if self.controller.is_processing:
+            # Determine if we should process/display this frame based on intervals
+            should_analyze = (frame_number % self.controller.analysis_interval_frames) == 0
+            should_display = (frame_number % self.controller.display_interval_frames) == 0
+
+            detections = []  # Initialize empty for frames that aren't analyzed
+            
+            if self.controller.is_processing and should_analyze:
                 # Apply perspective warp if calibration data is available
                 calib_data = self.controller.project_manager.project_data.get("calibration", {})
                 h_matrix = calib_data.get("homography_matrix")
@@ -8259,7 +8289,16 @@ class ApplicationGUI:
                     )
                 self.controller.detector.draw_overlay(frame, detections)
 
-            cv2.imshow("Live View", frame)
+            # Update live preview window if it exists (respect display interval)
+            if self.controller.live_preview_window and should_display:
+                try:
+                    self.controller.live_preview_window.update_frame(frame, detections)
+                except Exception as e:
+                    log.error("gui.live_preview.update_error", error=str(e))
+
+            # Only show cv2 window if no preview window is active (respect display interval)
+            if not self.controller.live_preview_window and should_display:
+                cv2.imshow("Live View", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.controller.on_close()
                 break
@@ -8433,7 +8472,20 @@ class ApplicationGUI:
         if not dialog.result:
             return  # User cancelled
 
-        # Video path is now included in dialog.result
+        source_type = dialog.result.get("source_type", "video")
+
+        if source_type == "camera":
+            # Camera analysis: use camera_index
+            camera_index = dialog.result.get("camera_index", 0)
+            self.show_info(
+                "Análise de Câmera",
+                f"Iniciando análise da câmera {camera_index}..."
+            )
+            # Trigger camera analysis via controller
+            self.controller.start_live_camera_analysis(camera_index=camera_index)
+            return
+
+        # Video file analysis: require video_path
         video_path = dialog.result.get("video_path")
         if not video_path:
             return

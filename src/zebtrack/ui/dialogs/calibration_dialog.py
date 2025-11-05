@@ -106,14 +106,17 @@ class CalibrationDialog(simpledialog.Dialog):
         calibration_collapsible.pack(fill="both", expand=False, pady=(0, 5))
         self.calibration_section = calibration_collapsible.get_content_frame()
 
-        # Preferences section with collapsible frame (initially collapsed for better focus)
-        preferences_collapsible = CollapsibleFrame(
-            container,
-            title="⚙️ Preferências do Projeto",
-            start_collapsed=False,
-        )
-        preferences_collapsible.pack(fill="both", expand=False, pady=(0, 5))
-        self.preferences_section = preferences_collapsible.get_content_frame()
+        # Preferences section - only show for project scope
+        if self.scope == "project":
+            preferences_collapsible = CollapsibleFrame(
+                container,
+                title="⚙️ Preferências do Projeto",
+                start_collapsed=False,
+            )
+            preferences_collapsible.pack(fill="both", expand=False, pady=(0, 5))
+            self.preferences_section = preferences_collapsible.get_content_frame()
+        else:
+            self.preferences_section = None
 
         # Note: We no longer need the separator as CollapsibleFrames provide visual separation
         self.preferences_separator = None

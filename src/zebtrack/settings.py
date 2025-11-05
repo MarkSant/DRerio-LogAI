@@ -83,6 +83,41 @@ class CameraSettings(BaseModel):
     )
 
 
+class LiveAnalysisSettings(BaseModel):
+    """Settings for live camera analysis sessions."""
+
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    default_duration_s: float = Field(
+        300.0,
+        gt=0.0,
+        le=7200.0,
+        description="Default duration for live analysis sessions (seconds, max 2 hours)",
+    )
+    max_duration_s: float = Field(
+        7200.0,
+        gt=0.0,
+        description="Maximum allowed duration for live analysis sessions (seconds)",
+    )
+    auto_stop_on_limit: bool = Field(
+        True,
+        description="Automatically stop recording when duration limit is reached",
+    )
+    show_countdown: bool = Field(
+        True,
+        description="Show countdown timer before starting live analysis",
+    )
+    countdown_duration_s: int = Field(
+        5,
+        ge=0,
+        le=60,
+        description="Countdown duration in seconds before starting analysis",
+    )
+
+
 class ArduinoSettings(BaseModel):
     """Settings for connecting to an Arduino device."""
 
@@ -486,6 +521,10 @@ class Settings(BaseModel):
     recorder: RecorderSettings = Field(
         default_factory=lambda: RecorderSettings(),  # type: ignore[call-arg]
         description="Settings for Parquet/video recorder behavior",
+    )
+    live_analysis: LiveAnalysisSettings = Field(
+        default_factory=lambda: LiveAnalysisSettings(),  # type: ignore[call-arg]
+        description="Settings for live camera analysis sessions",
     )
     bytetrack: ByteTrackSettings = Field(
         default_factory=lambda: ByteTrackSettings(),  # type: ignore[call-arg]

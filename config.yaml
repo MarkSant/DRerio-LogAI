@@ -22,7 +22,7 @@ camera:
   # Camera device index (0 for default webcam, 1+ for additional cameras)
   # Use config.local.yaml to override this for your specific setup
   index: 1
-  
+
   # Reference resolution for zone definitions (zones are auto-scaled to actual camera resolution)
   # These dimensions define the coordinate space when drawing detection zones in the GUI
   desired_width: 1280
@@ -39,6 +39,25 @@ camera:
   # Maximum acceptable frame lag in milliseconds
   # Warnings logged if frame age exceeds this threshold
   max_frame_lag_ms: 500.0
+
+# -----------------------------------------------------------------------------
+# Live Camera Analysis Settings
+# -----------------------------------------------------------------------------
+live_analysis:
+  # Default duration for live analysis sessions (in seconds, max 7200 = 2 hours)
+  default_duration_s: 300.0  # 5 minutes
+
+  # Maximum allowed duration for live analysis sessions (in seconds)
+  max_duration_s: 7200.0  # 2 hours
+
+  # Automatically stop recording when duration limit is reached
+  auto_stop_on_limit: true
+
+  # Show countdown timer before starting live analysis
+  show_countdown: true
+
+  # Countdown duration in seconds (0-60)
+  countdown_duration_s: 5
 
 # -----------------------------------------------------------------------------
 # Arduino Settings (optional hardware integration)
@@ -64,12 +83,12 @@ yolo_model:
   # Path to model weights file (.pt format)
   # This path is used as fallback; actual model selection happens via model_selection section
   path: 'best_seg.pt'
-  
+
   # Confidence threshold: detections below this score are ignored
   # Range: 0.0-1.0. Lower values detect more but may increase false positives
   # Typical: 0.05-0.5 depending on model quality and use case
   confidence_threshold: 0.05
-  
+
   # Non-Maximum Suppression (NMS) threshold: filters overlapping bounding boxes
   # Range: 0.0-1.0. Higher values allow more overlap between detections
   # Typical: 0.3-0.7
@@ -91,22 +110,22 @@ bytetrack:
 video_processing:
   # Output video frame rate (FPS) when recording annotated videos
   fps: 30
-  
+
   # Frame processing interval: process every Nth frame for detection
   # Higher values = faster processing but lower temporal resolution
   # Example: interval=10 means detect on frames 1, 11, 21, ...
   processing_interval: 10
-  
+
   # Frame offset: starting frame for detection cycle
   # Example: offset=1, interval=10 → process frames 1, 11, 21, ...
   #          offset=0, interval=10 → process frames 0, 10, 20, ...
   processing_offset: 1
-  
+
   # Behavioral thresholds (used in analysis phase)
   sharp_turn_threshold_deg_s: 90.0  # Degrees/second to classify as sharp turn
   freezing_velocity_threshold: 1.5   # cm/s below which animal is "frozen"
   freezing_min_duration_s: 1.0       # Minimum duration to count as freezing episode
-  
+
   # Single-animal mode: force track_id=1 for all detections (ignores multi-animal tracking)
   single_animal_per_aquarium: false
 
@@ -128,7 +147,7 @@ model_selection:
   # Aquarium/arena detection method: "seg" (segmentation) or "det" (bounding box detection)
   # Segmentation provides pixel-precise boundaries; detection is faster but less accurate
   aquarium_method: "seg"
-  
+
   # Animal tracking method: "seg" or "det"
   # Most use cases work well with "det" for speed; use "seg" for precise shape analysis
   animal_method: "det"
@@ -178,13 +197,13 @@ angular_velocity:
   # Prevents noise amplification from detector jitter (~1-2 pixels)
   # Typical: 0.3-1.0 cm depending on resolution and detector quality
   min_displacement_threshold_cm: 0.5
-  
+
   # Frame step for angle calculation (temporal window)
   # 1 = consecutive frames (F-1, F, F+1) → high temporal resolution, more noise
   # 3 = skip frames (F-3, F, F+3) → lower noise, reduced temporal resolution
   # Use 2-5 for very noisy detectors
   angle_calculation_window: 1
-  
+
   # Moving average smoothing window for angular velocity time series
   # 1 = no smoothing
   # 3-5 = light smoothing to reduce high-frequency noise

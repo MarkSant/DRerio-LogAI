@@ -242,7 +242,7 @@ PS> poetry run pre-commit run --all-files
 
 1. **Settings Pydantic v2**: Validação estrita requer configuração completa
    - Solução: Smoke tests focam em imports, não instanciação
-   
+
 2. **StateManager API**: Métodos específicos diferentes do esperado
    - Solução: Testes verificam apenas existência de métodos
 

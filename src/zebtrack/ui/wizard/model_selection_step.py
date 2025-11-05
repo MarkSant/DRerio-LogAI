@@ -219,13 +219,13 @@ class ModelSelectionStep(WizardStep):
         left_column = ttk.Frame(paned_window)
         left_column.columnconfigure(0, weight=1)
         self._left_column = left_column
-        paned_window.add(left_column, weight=60, minsize=380)
+        paned_window.add(left_column, minsize=380)
 
         # Right pane: Quick Guide
         right_column = ttk.Frame(paned_window)
         right_column.columnconfigure(0, weight=1)
         self._right_column = right_column
-        paned_window.add(right_column, weight=40, minsize=280)
+        paned_window.add(right_column, minsize=280)
 
         self.template_info_label = Label(
             left_column,

@@ -312,10 +312,10 @@ class WizardDialog(Dialog):
         usable_h = screen_h - 220
 
         # FIXED SIZE STRATEGY: Wide window for 3-column horizontal layouts
-        # Target: 1150×760 (wide for 3 columns, tall enough for buttons)
+        # Target: 1150×850 (wide for 3 columns, taller to show all content)
 
         target_width = 1150
-        target_height = 760
+        target_height = 850
 
         # But don't exceed available space on smaller screens
         width = min(target_width, usable_w)
@@ -323,8 +323,8 @@ class WizardDialog(Dialog):
 
         # Ensure absolute minimums for usability
         width = max(width, 950)
-        if usable_h >= 660:
-            height = max(height, 660)
+        if usable_h >= 700:
+            height = max(height, 700)
 
         # Set resizable bounds (75% to 120% of target)
         min_width = max(int(target_width * 0.75), 900)

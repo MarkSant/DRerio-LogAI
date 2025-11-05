@@ -128,6 +128,7 @@ class MainViewModel:
         video_processing_service: VideoProcessingService,
         analysis_service: AnalysisService | None = None,
         recording_service: RecordingService | None = None,
+        live_camera_service=None,
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -163,6 +164,9 @@ class MainViewModel:
         self.video_processing_service = video_processing_service
         self.project_workflow_service = project_workflow_service
         self.ui_coordinator = ui_coordinator
+        
+        # Live camera service will be initialized after recording_service
+        self._live_camera_service_param = live_camera_service
 
         # Register test observer if sync event provided
         if self._test_sync_event is not None:
@@ -243,6 +247,18 @@ class MainViewModel:
         # Note: detector is now managed by detector_service (Phase 6)
         # Access via self.detector property which delegates to service
         self.recorder = Recorder(settings_obj=self.settings)
+        self.camera = None  # Camera instance (created on-demand for live analysis)
+        self.live_preview_window = None  # Live preview window for camera analysis
+        self.analysis_interval_frames = 1  # How often to run detection (default every frame)
+        self.display_interval_frames = 1  # How often to display frames (default every frame)
+        
+        # Queues for live frame processing
+        import queue
+        self.frame_queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
+        self.video_queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
+        self.is_capturing_for_video = False  # Flag for video recording
+        self.active_frame_source = None  # Current source for live frames (Camera or other)
+        
         self.arduino: Arduino | None = None
         self.arduino_manager: ArduinoManager | None = None
         self._arduino_manager_cls = ArduinoManager
@@ -252,12 +268,19 @@ class MainViewModel:
 
         # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
         self.recording_service: RecordingService | None = recording_service
+        
+        # Live camera service - initialized later or from parameter
+        self.live_camera_service = None
 
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
             source="controller.init",
             is_recording=False,
         )
+        
+        # Exit event for threads (deprecated - now managed by live_camera_service)
+        import threading
+        self.program_exit_event = threading.Event()
 
         # Event bus configuration
         self.ui_event_bus = event_bus
@@ -599,6 +622,21 @@ class MainViewModel:
 
         # Setup UI callbacks
         self._setup_recording_service_callbacks()
+        
+        # Initialize LiveCameraService (Phase: Live Camera Analysis)
+        if self._live_camera_service_param is None:
+            from zebtrack.core.live_camera_service import LiveCameraService
+
+            self.live_camera_service = LiveCameraService(
+                controller=self,
+                state_manager=self.state_manager,
+                project_manager=self.project_manager,
+                recording_service=self.recording_service,
+                detector_service=self.detector_service,
+                root=self.root,
+            )
+        else:
+            self.live_camera_service = self._live_camera_service_param
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
     _EVENT_METHOD_MAPPING: ClassVar[dict] = {
@@ -2546,6 +2584,72 @@ class MainViewModel:
 
         self._pending_external_trigger = None
         self._schedule_recording(context, project_data, trigger_source="manual")
+
+    def start_live_camera_analysis(self, camera_index: int | None = None):
+        """
+        Start a live camera analysis session.
+
+        Delegates to LiveCameraService for thread management and coordination.
+        Shows a dialog to configure the session if camera_index is not provided.
+
+        Args:
+            camera_index: Optional camera index. If provided, uses this camera directly
+                         without showing the configuration dialog. If None, shows dialog.
+        """
+        log.info("controller.live_analysis.start", camera_index=camera_index)
+
+        # Get configuration from dialog or use defaults
+        if camera_index is not None:
+            # Use camera directly with default settings
+            if hasattr(self.settings, 'live_analysis'):
+                duration_s = self.settings.live_analysis.default_duration_s
+            else:
+                duration_s = 300
+            experiment_id = f"camera_{camera_index}"
+            analysis_interval_frames = 1
+            display_interval_frames = 1
+            record_video = True
+        else:
+            # Show configuration dialog
+            from zebtrack.ui.dialogs import LiveAnalysisDialog
+
+            dialog = LiveAnalysisDialog(self.view.root, settings_obj=self.settings)
+
+            if not dialog.result:
+                log.info("controller.live_analysis.cancelled")
+                return
+
+            config = dialog.result
+            camera_index = config["camera_index"]
+            duration_s = config["duration_s"]
+            experiment_id = config["experiment_id"]
+            analysis_interval_frames = config.get("analysis_interval_frames", 1)
+            display_interval_frames = config.get("display_interval_frames", 1)
+            record_video = config.get("record_video", True)
+
+        # Delegate to LiveCameraService
+        success = self.live_camera_service.start_session(
+            camera_index=camera_index,
+            duration_s=duration_s,
+            experiment_id=experiment_id,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            record_video=record_video,
+        )
+
+        if success and self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
+            )
+        elif not success and self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro na Análise",
+                    "message": "Falha ao iniciar análise de câmera.",
+                },
+            )
 
     def stop_recording(self):
         """Stops the current recording session (delegates to RecordingService - Phase 2.2)."""

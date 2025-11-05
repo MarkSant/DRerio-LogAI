@@ -1309,6 +1309,86 @@ class VideoProcessingService:
 
         return True
 
+    def process_frame_source(
+        self,
+        *,
+        frame_source: "FrameSource",
+        output_dir: str,
+        experiment_id: str,
+        single_video_config: dict | None = None,
+        analysis_interval_frames: int = 10,
+        display_interval_frames: int = 10,
+        record_video: bool = True,
+    ) -> bool:
+        """
+        Process frames from a FrameSource (live camera or video file).
+
+        This method provides a unified interface for processing both
+        video files and live camera streams.
+
+        Args:
+            frame_source: FrameSource instance (VideoFileSource, LiveStreamSource, or Camera)
+            output_dir: Output directory for results
+            experiment_id: Unique experiment identifier
+            single_video_config: Optional configuration dict for single video mode
+            analysis_interval_frames: Frame interval for running detection/tracking
+            display_interval_frames: Frame interval for updating UI
+            record_video: Whether to save video with overlay
+
+        Returns:
+            True if processing succeeded, False otherwise
+        """
+        from zebtrack.io.frame_source import FrameSource
+
+        log.info(
+            "video_processing_service.process_frame_source.start",
+            experiment_id=experiment_id,
+            output_dir=output_dir,
+            is_live=frame_source.get_properties().get("is_live_stream", False),
+        )
+
+        # Use the existing run_tracking_if_needed which now should support FrameSource
+        # We'll pass a pseudo video_path for compatibility
+        from pathlib import Path
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # Run tracking (will be adapted to use frame_source internally)
+        success, arena_polygon = self.run_tracking_if_needed(
+            video_path=frame_source,  # Pass frame_source directly
+            results_dir=str(output_path),
+            experiment_id=experiment_id,
+            progress_callback=None,
+            calibration_data=single_video_config,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+        )
+
+        if not success:
+            log.warning(
+                "video_processing_service.process_frame_source.tracking_failed",
+                experiment_id=experiment_id,
+            )
+            return False
+
+        # Run analysis if tracking succeeded
+        if single_video_config:
+            analysis_success = self._run_analysis_pipeline(
+                experiment_id=experiment_id,
+                video_path="live_stream",  # Placeholder for live streams
+                results_dir=str(output_path),
+                arena_polygon_px=arena_polygon,
+                metadata_context=single_video_config,
+                single_video_config=single_video_config,
+                progress_callback=None,
+                analysis_profile=None,
+            )
+
+            return analysis_success
+
+        return True
+
     def process_single_video(
         self,
         *,

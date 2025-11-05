@@ -6,14 +6,23 @@ hardware for live tracking sessions.
 """
 
 # Standard library imports
-from tkinter import BooleanVar, Checkbutton, Label, OptionMenu, StringVar, messagebox, simpledialog
+from tkinter import (
+    BooleanVar,
+    Button,
+    Checkbutton,
+    Frame,
+    Label,
+    StringVar,
+    messagebox,
+    simpledialog,
+    ttk,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
 # Third-party imports
-import cv2
 import serial.tools.list_ports
 import structlog
 
@@ -43,17 +52,27 @@ class LiveConfigDialog(simpledialog.Dialog):
         self.arduino_port_var = StringVar()
 
         # --- Camera Selection ---
-        Label(master, text="Selecionar Câmera:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        camera_names = list(self.available_cameras.keys())
-        if not camera_names:
-            camera_names = ["Nenhuma câmera encontrada"]
-        self.camera_menu = OptionMenu(master, self.camera_var, *camera_names)
-        self.camera_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        camera_frame = Frame(master)
+        camera_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
 
-        if self.available_cameras:
-            self.camera_var.set(next(iter(self.available_cameras.keys())))
+        Label(camera_frame, text="Selecionar Câmera:").pack(side="left", padx=(0, 5))
+
+        self.camera_combo = ttk.Combobox(
+            camera_frame, textvariable=self.camera_var, width=40, state="readonly"
+        )
+        self.camera_combo.pack(side="left", padx=5)
+
+        Button(camera_frame, text="🔍 Detectar", command=self._refresh_cameras, width=10).pack(
+            side="left", padx=5
+        )
+
+        camera_names = list(self.available_cameras.keys())
+        if camera_names:
+            self.camera_combo["values"] = camera_names
+            self.camera_var.set(camera_names[0])
         else:
-            self.camera_menu.config(state="disabled")
+            self.camera_combo["values"] = ["Nenhuma câmera encontrada"]
+            self.camera_combo.config(state="disabled")
 
         # --- Arduino Selection ---
         self.arduino_check = Checkbutton(
@@ -62,50 +81,69 @@ class LiveConfigDialog(simpledialog.Dialog):
             variable=self.use_arduino_var,
             command=self._toggle_arduino_menu,
         )
-        self.arduino_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        self.arduino_check.grid(row=1, column=0, columnspan=3, sticky="w", padx=5, pady=5)
 
-        Label(master, text="Porta Arduino:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        arduino_frame = Frame(master)
+        arduino_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
+
+        Label(arduino_frame, text="Porta Arduino:").pack(side="left", padx=(0, 5))
+
+        self.arduino_combo = ttk.Combobox(
+            arduino_frame, textvariable=self.arduino_port_var, width=40, state="disabled"
+        )
+        self.arduino_combo.pack(side="left", padx=5)
+
         port_names = list(self.available_ports.keys())
-        if not port_names:
-            port_names = ["Nenhuma porta encontrada"]
-        self.arduino_menu = OptionMenu(master, self.arduino_port_var, *port_names)
-        self.arduino_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
-
-        if self.available_ports:
-            self.arduino_port_var.set(next(iter(self.available_ports.keys())))
+        if port_names:
+            self.arduino_combo["values"] = port_names
+            self.arduino_port_var.set(port_names[0])
+        else:
+            self.arduino_combo["values"] = ["Nenhuma porta encontrada"]
 
         self._toggle_arduino_menu()  # Set initial state
-        return self.camera_menu  # Initial focus
+        return self.camera_combo  # Initial focus
+
+    def _refresh_cameras(self):
+        """Refresh camera list on user request."""
+        from zebtrack.core.wizard_service import WizardService
+
+        # Clear cache and re-detect
+        self.available_cameras.clear()
+        cameras = WizardService.detect_available_cameras(use_cache=False)
+
+        for camera in cameras:
+            description = camera.get("description", f"Câmera {camera['index']}")
+            self.available_cameras[description] = camera["index"]
+
+        # Update combobox
+        camera_names = list(self.available_cameras.keys())
+        if camera_names:
+            self.camera_combo["values"] = camera_names
+            self.camera_combo.config(state="readonly")
+            # Keep current selection if still valid, otherwise select first
+            current = self.camera_var.get()
+            if current not in camera_names:
+                self.camera_var.set(camera_names[0])
+        else:
+            self.camera_combo["values"] = ["Nenhuma câmera encontrada"]
+            self.camera_combo.config(state="disabled")
+            self.camera_var.set("Nenhuma câmera encontrada")
+
+        log.info("device_detection.camera.refreshed", cameras=self.available_cameras)
 
     def _detect_devices(self):
         """Detects available cameras and serial ports."""
-        # Detect cameras with early stopping optimization
-        log.info("device_detection.camera.start")
-        consecutive_failures = 0
-        max_consecutive_failures = 3  # Stop after 3 consecutive failures
+        # Import here to access WizardService camera detection
+        from zebtrack.core.wizard_service import WizardService
 
-        for i in range(10):  # Check up to 10 indices
-            try:
-                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                if cap.isOpened():
-                    self.available_cameras[f"Câmera {i}"] = i
-                    cap.release()
-                    consecutive_failures = 0  # Reset counter on success
-                else:
-                    consecutive_failures += 1
-                    if consecutive_failures >= max_consecutive_failures and self.available_cameras:
-                        # Stop early if we found at least one camera and hit N consecutive failures
-                        log.info(
-                            "device_detection.camera.early_stop",
-                            last_index=i,
-                            reason=f"{consecutive_failures} consecutive failures",
-                        )
-                        break
-            except Exception as e:
-                log.warning("device_detection.camera.error", index=i, error=str(e))
-                consecutive_failures += 1
-                if consecutive_failures >= max_consecutive_failures and self.available_cameras:
-                    break
+        # Use WizardService to detect cameras (includes real names)
+        log.info("device_detection.camera.start")
+        cameras = WizardService.detect_available_cameras(use_cache=False)
+
+        for camera in cameras:
+            description = camera.get("description", f"Câmera {camera['index']}")
+            self.available_cameras[description] = camera["index"]
+
         log.info("device_detection.camera.found", cameras=self.available_cameras)
 
         # Detect serial ports
@@ -156,9 +194,9 @@ class LiveConfigDialog(simpledialog.Dialog):
     def _toggle_arduino_menu(self):
         """Enable or disable the Arduino port dropdown based on the checkbox."""
         if self.use_arduino_var.get() and self.available_ports:
-            self.arduino_menu.config(state="normal")
+            self.arduino_combo.config(state="readonly")
         else:
-            self.arduino_menu.config(state="disabled")
+            self.arduino_combo.config(state="disabled")
             if not self.available_ports:
                 self.use_arduino_var.set(False)
 

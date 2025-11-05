@@ -7,6 +7,7 @@ logic should live here instead of in the UI layer.
 """
 
 import os
+import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -148,6 +149,86 @@ class WizardService:
         elapsed = time.time() - cache_time
         return elapsed < cls._cache_ttl_seconds
 
+    @staticmethod
+    def _get_camera_names_windows() -> dict[int, str]:
+        """
+        Get real camera names on Windows using multiple methods.
+
+        Tries:
+        1. PowerShell PnP device query (most reliable for real cameras)
+        2. WMI Win32_PnPEntity query (alternative method)
+        3. Registry query as fallback
+
+        Returns:
+            Dictionary mapping camera index to camera name
+        """
+        camera_names = {}
+
+        if sys.platform != "win32":
+            return camera_names
+
+        # Try method 1: PowerShell PnP devices
+        try:
+            powershell_cmd = (
+                "Get-PnpDevice -Class Camera,Image | "
+                "Where-Object {$_.Status -eq 'OK'} | "
+                "Select-Object -Property FriendlyName | "
+                "ForEach-Object { $_.FriendlyName }"
+            )
+
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", powershell_cmd],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                names = [name.strip() for name in result.stdout.strip().split("\n") if name.strip()]
+                for idx, name in enumerate(names):
+                    camera_names[idx] = name
+                log.debug(
+                    "wizard_service.camera_names_detected",
+                    method="pnp",
+                    count=len(camera_names),
+                )
+                return camera_names
+
+        except Exception as e:
+            log.debug("wizard_service.camera_names_pnp_error", error=str(e))
+
+        # Try method 2: WMI query for video devices
+        try:
+            wmi_cmd = (
+                "Get-WmiObject Win32_PnPEntity | "
+                "Where-Object {$_.PNPClass -eq 'Camera' -or $_.PNPClass -eq 'Image'} | "
+                "Select-Object -Property Name | "
+                "ForEach-Object { $_.Name }"
+            )
+
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", wmi_cmd],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                names = [name.strip() for name in result.stdout.strip().split("\n") if name.strip()]
+                for idx, name in enumerate(names):
+                    camera_names[idx] = name
+                log.debug(
+                    "wizard_service.camera_names_detected", method="wmi", count=len(camera_names)
+                )
+                return camera_names
+
+        except Exception as e:
+            log.debug("wizard_service.camera_names_wmi_error", error=str(e))
+
+        return camera_names
+
     @classmethod
     def detect_available_cameras(cls, use_cache: bool = True) -> list[dict]:
         """
@@ -185,6 +266,9 @@ class WizardService:
         consecutive_failures = 0
         max_consecutive_failures = 3
 
+        # Get real camera names on Windows
+        camera_names = cls._get_camera_names_windows()
+
         with cls.suppress_opencv_logs():
             for i in range(10):
                 try:
@@ -195,12 +279,33 @@ class WizardService:
                         cap = cv2.VideoCapture(i)
 
                     if cap.isOpened():
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        fps = cap.get(cv2.CAP_PROP_FPS)
+
+                        # Use real camera name if available, otherwise fallback to description
+                        if i in camera_names:
+                            description = camera_names[i]
+                        else:
+                            # Generate descriptive name based on resolution as fallback
+                            if width >= 1920 and height >= 1080:
+                                resolution_desc = "Full HD"
+                            elif width >= 1280 and height >= 720:
+                                resolution_desc = "HD"
+                            elif width >= 640 and height >= 480:
+                                resolution_desc = "SD"
+                            else:
+                                resolution_desc = f"{width}x{height}"
+
+                            description = f"Câmera {i} ({resolution_desc})"
+
                         cameras.append(
                             {
                                 "index": i,
-                                "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                                "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                                "fps": cap.get(cv2.CAP_PROP_FPS),
+                                "width": width,
+                                "height": height,
+                                "fps": fps,
+                                "description": description,
                             }
                         )
                         cap.release()

@@ -62,7 +62,8 @@ class LiveConfigStep(WizardStep):
         self.step_id = WizardStepID.LIVE_CONFIG
 
         # UI state
-        self.camera_index_var = IntVar(value=0)
+        self.camera_selection_var = StringVar(value="")  # Stores camera display name
+        self.camera_index_map = {}  # Maps display name -> camera index
         self.use_arduino_var = BooleanVar(value=False)
         self.arduino_port_var = StringVar(value="")
         self.external_trigger_mode_var = BooleanVar(value=False)
@@ -77,6 +78,7 @@ class LiveConfigStep(WizardStep):
         # Available cameras and Arduino ports (populated on show)
         self.available_cameras = []
         self.available_ports = []
+        self.arduino_port_map = {}  # Maps display name -> port device
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
 
@@ -108,27 +110,27 @@ class LiveConfigStep(WizardStep):
         camera_frame = LabelFrame(self, text="Configuração de Câmera", padx=15, pady=10)
         camera_frame.pack(fill="x", pady=(0, 15))
 
-        # Camera index
+        # Camera selection
         camera_row = Frame(camera_frame)
         camera_row.pack(fill="x", pady=5)
 
         Label(
             camera_row,
-            text="Índice da Câmera:",
+            text="Selecionar Câmera:",
             width=25,
             anchor="w",
         ).pack(side="left")
-        camera_spinbox = Spinbox(
+
+        self.camera_combo = ttk.Combobox(
             camera_row,
-            from_=0,
-            to=10,
-            textvariable=self.camera_index_var,
-            width=10,
+            textvariable=self.camera_selection_var,
+            width=40,
+            state="readonly",
         )
-        camera_spinbox.pack(side="left", padx=(5, 0))
+        self.camera_combo.pack(side="left", padx=(5, 10))
         ToolTip(
-            camera_spinbox,
-            ("Índice da câmera a ser usada (geralmente 0 para câmera padrão)."),
+            self.camera_combo,
+            ("Selecione a câmera para gravação ao vivo."),
         )
 
         Button(
@@ -180,9 +182,6 @@ class LiveConfigStep(WizardStep):
             state="disabled",
         )
         self.arduino_port_combo.pack(side="left", padx=(5, 5))
-
-        # Store mapping of display text to actual port device
-        self.arduino_port_map = {}
 
         self.detect_arduino_btn = Button(
             self.arduino_port_frame,
@@ -485,17 +484,31 @@ class LiveConfigStep(WizardStep):
 
         # Use WizardService for camera detection
         cameras = WizardService.detect_available_cameras()
-        available_indices = [cam["index"] for cam in cameras]
 
-        if available_indices:
+        if cameras:
+            # Build display list with camera names and map to indices
+            camera_list = []
+            self.camera_index_map.clear()
+
+            for cam in cameras:
+                description = cam.get("description", f"Câmera {cam['index']}")
+                camera_list.append(description)
+                self.camera_index_map[description] = cam["index"]
+
+            # Update combobox
+            self.camera_combo["values"] = camera_list
+
             self.camera_status_label.config(
-                text=f"✓ {len(available_indices)} câmera(s) detectada(s): {available_indices}",
+                text=f"✓ {len(cameras)} câmera(s) detectada(s)",
                 fg="green",
             )
-            # Auto-select first camera
-            if self.camera_index_var.get() not in available_indices:
-                self.camera_index_var.set(available_indices[0])
+
+            # Auto-select first camera if none selected
+            if not self.camera_selection_var.get() and camera_list:
+                self.camera_selection_var.set(camera_list[0])
         else:
+            self.camera_combo["values"] = []
+            self.camera_index_map.clear()
             self.camera_status_label.config(
                 text="✗ Nenhuma câmera detectada",
                 fg="red",
@@ -641,6 +654,10 @@ class LiveConfigStep(WizardStep):
                 - use_countdown (bool)
                 - countdown_duration_s (int)
         """
+        # Get camera index from selected camera name
+        selected_camera = self.camera_selection_var.get()
+        camera_index = self.camera_index_map.get(selected_camera, 0)
+
         arduino_port = None
         if self.use_arduino_var.get():
             selected_display = self.arduino_port_var.get().strip()
@@ -649,7 +666,7 @@ class LiveConfigStep(WizardStep):
                 arduino_port = self.arduino_port_map.get(selected_display, selected_display)
 
         return {
-            "camera_index": self.camera_index_var.get(),
+            "camera_index": camera_index,
             "use_arduino": self.use_arduino_var.get(),
             "arduino_port": arduino_port,
             "external_trigger_mode": self.external_trigger_mode_var.get(),
@@ -669,7 +686,17 @@ class LiveConfigStep(WizardStep):
             data: Previously collected live config data
         """
         if "camera_index" in data:
-            self.camera_index_var.set(data["camera_index"])
+            # Find camera display name for this index
+            camera_idx = data["camera_index"]
+            found_camera = None
+            for display_name, idx in self.camera_index_map.items():
+                if idx == camera_idx:
+                    found_camera = display_name
+                    break
+
+            if found_camera:
+                self.camera_selection_var.set(found_camera)
+            # If not found in map, it will be set when cameras are detected
 
         if "use_arduino" in data:
             self.use_arduino_var.set(data["use_arduino"])
