@@ -3421,39 +3421,8 @@ class ApplicationGUI:
         return self.widget_factory.create_progress_grid_tab()
 
     def _check_live_project_calibration(self):
-        """Checks if Live project needs calibration and prompts user automatically."""
-        if self.controller.project_manager.get_project_type() != "live":
-            return
-
-        zone_data = self._get_zone_data_for_active_context()
-        if not zone_data or not zone_data.polygon:
-            log.info("ui.live_calibration.auto_prompt")
-
-            response = self.ask_ok_cancel(
-                "Calibração Automática",
-                "Nenhuma arena principal foi definida para este projeto ao vivo.\n\n"
-                "Deseja configurar a calibração automaticamente agora?\n\n"
-                "• Será aberta a aba de Configuração de Zonas\n"
-                "• Você pode usar 'Detectar Aquário (Auto)' ou desenhar manualmente\n"
-                "• A configuração será salva automaticamente",
-            )
-
-            if response:
-                log.info("ui.live_calibration.auto_accepted")
-                # Switch to zone configuration tab
-                if hasattr(self, "notebook") and hasattr(self, "zone_tab_frame"):
-                    self.notebook.select(self.zone_tab_frame)
-
-                # Show guidance message
-                self.show_info(
-                    "Configuração de Arena Principal",
-                    "Configure a arena principal usando:\n\n"
-                    "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
-                    "2. 'Desenhar Polígono Principal' - Para desenho manual\n\n"
-                    "A configuração será salva automaticamente.",
-                )
-            else:
-                log.info("ui.live_calibration.auto_declined")
+        """Checks if Live project needs calibration. Delegates to ValidationManager."""
+        return self.validation_manager.check_live_project_calibration()
 
     def _render_progress_grid(self):
         """Clears and redraws progress grid. Delegates to WidgetFactory."""
