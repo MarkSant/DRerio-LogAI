@@ -4626,43 +4626,8 @@ class ApplicationGUI:
                 self.show_error("Erro", "ROI não encontrada")
 
     def _change_roi_color(self):
-        """Muda cor da ROI selecionada"""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        old_name = item["values"][0].replace("📍 ", "")
-
-        # Usa o diálogo de cores personalizado
-        color_dialog = ColorSelectionDialog(self.root, "Mudar Cor da ROI")
-        if not color_dialog.result:
-            return
-
-        selected_color = color_dialog.result
-        new_color = selected_color["rgb"]
-        color_name = selected_color["name"]
-
-        # Atualiza no projeto
-        zone_data = self._get_zone_data_for_active_context()
-        try:
-            idx = zone_data.roi_names.index(old_name)
-            zone_data.roi_colors[idx] = new_color
-
-            # Persist color change
-            self.controller.project_manager.save_zone_data(zone_data)
-
-            # Atualiza visualização
-            self.canvas_manager.redraw_zones_from_project_data()
-            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
-            status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-
-        except ValueError:
-            self.show_error("Erro", "ROI não encontrada")
-        except IndexError:
-            self.show_error("Erro", "Dados de cor da ROI não encontrados")
+        """Changes the color of the selected ROI. Delegates to DialogManager."""
+        return self.dialog_manager.change_roi_color()
 
     def _remove_selected_roi_confirm(self):
         """Remove ROI selecionada com confirmação"""
