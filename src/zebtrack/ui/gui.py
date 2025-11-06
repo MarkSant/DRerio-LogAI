@@ -2618,33 +2618,8 @@ class ApplicationGUI:
         return self.widget_factory.delete_roi_template()
 
     def _on_import_roi_template(self) -> None:
-        """Import a template file into the library (does not apply it)."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        file_path = filedialog.askopenfilename(
-            title="Importar Template de ROI para Biblioteca",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
-        )
-        if not file_path:
-            return
-
-        try:
-            metadata = pm.import_roi_template(file_path)
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
-            self.show_error("Erro ao importar", str(exc))
-            return
-
-        self._refresh_roi_templates()
-        self._select_roi_template(metadata)
-        template_name = metadata.get("name", Path(file_path).stem)
-        message = (
-            f"Template '{template_name}' adicionado à biblioteca.\n\n"
-            "Use o botão 'Aplicar' para usar este template."
-        )
-        self.show_info("Template importado", message)
+        """Import a template file into the library. Delegates to WidgetFactory."""
+        return self.widget_factory.import_roi_template()
 
     def _on_import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video."""

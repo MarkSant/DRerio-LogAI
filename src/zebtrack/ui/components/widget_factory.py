@@ -2050,3 +2050,35 @@ class WidgetFactory:
                 font=("Helvetica", 16),
             ).pack(pady=(0, 15))
             log.warning("welcome.logo.load_error", error=str(e))
+
+    def import_roi_template(self) -> None:
+        """Import a template file into the library (does not apply it)."""
+        from pathlib import Path
+        from tkinter import filedialog
+
+        pm = getattr(self.gui.controller, "project_manager", None)
+        if pm is None:
+            return
+
+        file_path = filedialog.askopenfilename(
+            title="Importar Template de ROI para Biblioteca",
+            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+
+        try:
+            metadata = pm.import_roi_template(file_path)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
+            self.gui.show_error("Erro ao importar", str(exc))
+            return
+
+        self.gui._refresh_roi_templates()
+        self.gui._select_roi_template(metadata)
+        template_name = metadata.get("name", Path(file_path).stem)
+        message = (
+            f"Template '{template_name}' adicionado à biblioteca.\n\n"
+            "Use o botão 'Aplicar' para usar este template."
+        )
+        self.gui.show_info("Template importado", message)
