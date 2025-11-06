@@ -1850,43 +1850,8 @@ class ApplicationGUI:
             self._populate_video_selector_tree(self._video_selector_filter)
 
     def _load_selected_video_frame(self, event=None):
-        """Carrega o frame do vídeo selecionado no canvas principal."""
-
-        if not self.video_selector_tree:
-            return
-
-        selection = self.video_selector_tree.selection()
-        if not selection:
-            self.show_warning(
-                "Nenhum Vídeo Selecionado",
-                "Por favor, selecione um vídeo da lista para carregar.",
-            )
-            return
-
-        item_id = selection[0]
-        tags = self.video_selector_tree.item(item_id, "tags")
-
-        if not tags or not tags[0]:
-            self.show_info(
-                "Selecione um Vídeo",
-                ("Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame."),
-            )
-            return
-
-        video_path = tags[0]
-        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
-
-        if success:
-            self._maybe_offer_zone_reuse(video_path)
-            self.canvas_manager.redraw_zones_from_project_data()
-            filename = os.path.basename(video_path)
-            self.set_status(f"✓ Frame carregado: {filename}")
-            log.info("gui.video_selector.frame_loaded", path=video_path)
-        else:
-            self.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
-            )
+        """Loads frame from selected video to canvas. Delegates to CanvasManager."""
+        return self.canvas_manager.load_selected_video_frame(event)
 
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
         """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""

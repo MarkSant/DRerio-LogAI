@@ -1384,3 +1384,43 @@ class CanvasManager:
         self.gui._poly_pts_video = []
 
         self.gui.set_status("Pronto.")
+
+    def load_selected_video_frame(self, event=None):
+        """Loads the frame from the selected video to the main canvas."""
+        import os
+
+        if not self.gui.video_selector_tree:
+            return
+
+        selection = self.gui.video_selector_tree.selection()
+        if not selection:
+            self.gui.show_warning(
+                "Nenhum Vídeo Selecionado",
+                "Por favor, selecione um vídeo da lista para carregar.",
+            )
+            return
+
+        item_id = selection[0]
+        tags = self.gui.video_selector_tree.item(item_id, "tags")
+
+        if not tags or not tags[0]:
+            self.gui.show_info(
+                "Selecione um Vídeo",
+                ("Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame."),
+            )
+            return
+
+        video_path = tags[0]
+        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+
+        if success:
+            self.gui._maybe_offer_zone_reuse(video_path)
+            self.redraw_zones_from_project_data()
+            filename = os.path.basename(video_path)
+            self.gui.set_status(f"✓ Frame carregado: {filename}")
+            log.info("gui.video_selector.frame_loaded", path=video_path)
+        else:
+            self.gui.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )
