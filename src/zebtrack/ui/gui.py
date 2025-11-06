@@ -2185,33 +2185,8 @@ class ApplicationGUI:
         return self.canvas_manager.stop_drawing()
 
     def _create_drawing_buttons(self):
-        """Creates floating undo/redo buttons over the canvas."""
-        if self._drawing_buttons_frame:
-            self._drawing_buttons_frame.destroy()
-
-        # Create a frame that floats over the canvas (top-right corner)
-        self._drawing_buttons_frame = ttk.Frame(self.viz_frame, relief="raised", borderwidth=2)
-
-        # Undo button
-        undo_btn = ttk.Button(
-            self._drawing_buttons_frame,
-            text="↶ Desfazer (Ctrl+Z)",
-            command=lambda: self._on_drawing_undo(None),
-            width=20,
-        )
-        undo_btn.pack(side="left", padx=2)
-
-        # Redo button
-        redo_btn = ttk.Button(
-            self._drawing_buttons_frame,
-            text="↷ Refazer (Ctrl+Y)",
-            command=lambda: self._on_drawing_redo(None),
-            width=20,
-        )
-        redo_btn.pack(side="left", padx=2)
-
-        # Position the frame in top-right corner of canvas
-        self._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+        """Creates floating undo/redo buttons over the canvas. Delegates to WidgetFactory."""
+        return self.widget_factory.create_drawing_buttons()
 
     def _on_drawing_undo(self, event):
         """Undo last point added to polygon."""
