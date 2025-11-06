@@ -791,3 +791,36 @@ class DialogManager:
             self.show_error("Erro", "ROI não encontrada")
         except IndexError:
             self.show_error("Erro", "Dados de cor da ROI não encontrados")
+
+    def rename_selected_roi(self):
+        """Renames the selected ROI."""
+        selected = self.gui.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.gui.zone_listbox.item(selected[0])
+        old_name = item["values"][0].replace("📍 ", "")
+
+        new_name = self.ask_string(
+            "Renomear ROI", f"Novo nome para '{old_name}':", initialvalue=old_name
+        )
+
+        if new_name and new_name != old_name:
+            # Update in project
+            zone_data = self.gui._get_zone_data_for_active_context()
+            try:
+                idx = zone_data.roi_names.index(old_name)
+                zone_data.roi_names[idx] = new_name
+
+                # Persist updated ROI name
+                self.gui.controller.project_manager.save_zone_data(zone_data)
+
+                # Update visualization
+                self.gui.canvas_manager.redraw_zones_from_project_data()
+                self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
+                status_message = f"ROI renomeada para '{new_name}'."
+                self.gui.set_status(status_message)
+                self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+
+            except ValueError:
+                self.show_error("Erro", "ROI não encontrada")
