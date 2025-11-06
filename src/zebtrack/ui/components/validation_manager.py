@@ -1107,3 +1107,46 @@ class ValidationManager:
             snapshot.append(group_entry)
 
         return snapshot
+
+    def apply_roi_settings(self):
+        """Apply ROI inclusion rule settings to the global settings."""
+        try:
+            # Validate and convert parameters
+            buffer_radius = float(self.gui.roi_buffer_radius_var.get())
+            overlap_ratio = float(self.gui.roi_overlap_ratio_var.get())
+
+            # Validate ranges
+            if buffer_radius < 0:
+                raise ValueError("Raio de buffer deve ser >= 0")
+            if not (0 <= overlap_ratio <= 1):
+                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
+
+            # Update settings if available
+            if self.gui.controller.settings:
+                self.gui.controller.settings.roi_inclusion_rule = (
+                    self.gui.roi_inclusion_rule_var.get()
+                )
+                self.gui.controller.settings.roi_buffer_radius_value = buffer_radius
+                self.gui.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
+
+                # Save to project if available
+                if self.gui.controller.project_manager.project_path:
+                    self.gui.controller.project_manager._save_settings_snapshot()
+
+                self.gui.show_info(
+                    "Sucesso",
+                    f"Configurações de ROI aplicadas:\n"
+                    f"Regra: {self.gui.controller.settings.roi_inclusion_rule}\n"
+                    f"Raio buffer: {self.gui.controller.settings.roi_buffer_radius_value}\n"
+                    f"Sobreposição mínima: "
+                    f"{self.gui.controller.settings.roi_min_bbox_overlap_ratio}",
+                )
+            else:
+                self.gui.show_warning(
+                    "Aviso", "Settings não disponível. Configurações não foram salvas."
+                )
+
+        except ValueError as e:
+            self.gui.show_error("Erro de Validação", str(e))
+        except Exception as e:
+            self.gui.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")

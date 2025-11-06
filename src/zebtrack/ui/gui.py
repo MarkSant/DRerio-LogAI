@@ -1528,44 +1528,8 @@ class ApplicationGUI:
         return self.widget_factory.update_roi_rule_ui(rule)
 
     def _on_apply_roi_settings(self):
-        """Apply ROI inclusion rule settings to the global settings."""
-        try:
-            # Validate and convert parameters
-            buffer_radius = float(self.roi_buffer_radius_var.get())
-            overlap_ratio = float(self.roi_overlap_ratio_var.get())
-
-            # Validate ranges
-            if buffer_radius < 0:
-                raise ValueError("Raio de buffer deve ser >= 0")
-            if not (0 <= overlap_ratio <= 1):
-                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
-
-            # Update settings if available
-            if self.controller.settings:
-                self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-                self.controller.settings.roi_buffer_radius_value = buffer_radius
-                self.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
-
-                # Save to project if available
-                if self.controller.project_manager.project_path:
-                    self.controller.project_manager._save_settings_snapshot()
-
-                self.show_info(
-                    "Sucesso",
-                    f"Configurações de ROI aplicadas:\n"
-                    f"Regra: {self.controller.settings.roi_inclusion_rule}\n"
-                    f"Raio buffer: {self.controller.settings.roi_buffer_radius_value}\n"
-                    f"Sobreposição mínima: {self.controller.settings.roi_min_bbox_overlap_ratio}",
-                )
-            else:
-                self.show_warning(
-                    "Aviso", "Settings não disponível. Configurações não foram salvas."
-                )
-
-        except ValueError as e:
-            self.show_error("Erro de Validação", str(e))
-        except Exception as e:
-            self.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+        """Apply ROI inclusion rule settings. Delegates to ValidationManager."""
+        return self.validation_manager.apply_roi_settings()
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Draws a suggested polygon that the user can interactively edit."""
