@@ -487,33 +487,54 @@ class VideoOrchestrator:
     ) -> tuple[dict | None, list, list]:
         """Scan and validate candidate video file paths.
 
+        Uses ProjectManager.scan_input_paths to read video metadata (dimensions, fps, frames)
+        and validate parquet files existence.
+
         Args:
             candidate_entries: List of candidate video dicts
 
         Returns:
             Tuple of (info_by_norm dict or None, missing_files list, scanned_videos list)
+            Returns (None, None, None) if there are no valid candidate paths.
         """
-        # Placeholder: In actual implementation, this would:
-        # - Check file existence
-        # - Read video metadata (dimensions, fps, frames)
-        # - Validate parquet files
-        # - Return video info indexed by normalized path
+        candidate_paths = [
+            video.get("path")
+            for video in candidate_entries
+            if isinstance(video.get("path"), str) and video.get("path")
+        ]
+        if not candidate_paths:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro",
+                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
+                },
+            )
+            return None, None, None
 
-        # For now, return simple validation
-        info_by_norm = {}
-        missing_files = []
-        scanned_videos = []
+        # Use ProjectManager to scan input paths and read metadata
+        scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
+        info_by_norm = {
+            os.path.normpath(info["path"]): info
+            for info in scanned_videos
+            if isinstance(info.get("path"), str)
+        }
 
-        for video in candidate_entries:
-            path = video.get("path")
-            if not path or not os.path.exists(path):
-                missing_files.append(path)
-            else:
-                norm_path = os.path.normpath(path)
-                info_by_norm[norm_path] = video
-                scanned_videos.append(video)
-
+        missing_files = [
+            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
+        ]
         if missing_files:
+            sample_names = [os.path.basename(path) for path in missing_files[:5]]
+            if len(missing_files) > 5:
+                sample_names.append(f"... (+{len(missing_files) - 5})")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Vídeos Não Encontrados",
+                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
+                    + "\n".join(sample_names),
+                },
+            )
             log.warning(
                 "video_orchestrator.validation.missing_files",
                 count=len(missing_files),
@@ -526,27 +547,56 @@ class VideoOrchestrator:
     ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
         """Classify candidate videos by processing status.
 
+        Uses scanned video info to determine:
+        - ready_with_trajectory: Videos with complete trajectory data (3_CoordMovimento_*.parquet)
+        - ready_with_zones: Videos with zone/ROI data (1_ArenaROI_*.parquet, 2_Zones_*.parquet)
+        - arena_only: Videos with arena defined but no zones/trajectory
+        - without_arena: Videos without arena configuration
+
         Returns:
             Tuple of (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed)
         """
-        # Placeholder: In actual implementation, this would classify videos by:
-        # - Has trajectory data
-        # - Has zone data
-        # - Has arena only
-        # - No arena/zone data
+        ready_with_trajectory: list[dict] = []
+        ready_with_zones: list[dict] = []
+        arena_only: list[dict] = []
+        without_arena: list[dict] = []
 
-        # For now, return simple classification
-        ready_with_trajectory = []
-        ready_with_zones = []
-        arena_only = []
-        without_arena = []
         data_changed = False
 
         for video in candidate_entries:
-            # Simplified classification
-            ready_with_zones.append(video)
+            path = video.get("path")
+            if not isinstance(path, str) or not path:
+                continue
 
-        return ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed
+            info = info_by_norm.get(os.path.normpath(path))
+            if not info:
+                continue
+
+            # Sync video dict with scanned info flags
+            for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
+                new_value = info.get(key, False)
+                if video.get(key) != new_value:
+                    video[key] = new_value
+                    data_changed = True
+
+            # Classify based on what data exists
+            if info.get("has_arena"):
+                if info.get("has_trajectory"):
+                    ready_with_trajectory.append(info)
+                elif info.get("has_rois"):
+                    ready_with_zones.append(info)
+                else:
+                    arena_only.append(info)
+            else:
+                without_arena.append(info)
+
+        return (
+            ready_with_trajectory,
+            ready_with_zones,
+            arena_only,
+            without_arena,
+            data_changed,
+        )
 
     def _select_eligible_videos(
         self,
