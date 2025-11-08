@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,6 +26,7 @@ from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
@@ -51,6 +53,7 @@ class AnalysisCoordinator:
         root,
         view: ApplicationGUI,
         ui_event_bus: EventBus,
+        ui_coordinator: UICoordinator,
         settings_obj: Settings,
         project_manager: ProjectManager,
         analysis_service: AnalysisService,
@@ -62,6 +65,7 @@ class AnalysisCoordinator:
             root: Tkinter root window
             view: Application GUI instance
             ui_event_bus: Event bus for UI events
+            ui_coordinator: UI coordinator for thread-safe UI operations
             settings_obj: Settings instance (injected)
             project_manager: Project manager
             analysis_service: Analysis service
@@ -70,6 +74,7 @@ class AnalysisCoordinator:
         self.root = root
         self.view = view
         self.ui_event_bus = ui_event_bus
+        self.ui_coordinator = ui_coordinator
         self.settings = settings_obj
         self.project_manager = project_manager
         self.analysis_service = analysis_service
@@ -125,8 +130,19 @@ class AnalysisCoordinator:
                 try:
                     df = pd.read_parquet(summary_path)
                     all_tidy_data.append(df)
-                except Exception as e:
-                    log.warning("analysis_coordinator.report.load_error", path=str(summary_path), error=e)
+                except (OSError, ValueError) as exc:
+                    log.error(
+                        "analysis_coordinator.report.parquet_load_failed",
+                        path=str(summary_path),
+                        error=str(exc),
+                        exc_info=True
+                    )
+                except Exception as exc:  # pragma: no cover - unexpected errors
+                    log.exception(
+                        "analysis_coordinator.report.unexpected_load_error",
+                        path=str(summary_path),
+                        error=str(exc)
+                    )
             else:
                 log.warning("analysis_coordinator.report.not_found", path=str(summary_path))
 
@@ -389,11 +405,12 @@ class AnalysisCoordinator:
     # HELPER METHODS (Parquet Summary Generation)
     # =============================================================================
 
-    def set_refresh_callback(self, callback):
+    def set_refresh_callback(self, callback: Callable[..., None] | None) -> None:
         """Set callback for refreshing project views.
 
         Args:
-            callback: Function to call for refreshing project views
+            callback: Function to call for refreshing project views.
+                     Accepts optional keyword arguments (reason, append_summary, etc.)
         """
         self._refresh_project_views_callback = callback
 
@@ -419,7 +436,20 @@ class AnalysisCoordinator:
                     video,
                     settings_obj,
                 )
-            except Exception as exc:  # pragma: no cover - defensive
+            except (OSError, ValueError) as exc:  # I/O and data errors
+                log.error(
+                    "analysis_coordinator.process_summaries.video_processing_failed",
+                    video=video.get("path"),
+                    error=str(exc),
+                    exc_info=True
+                )
+                state, info_msg, _ppath, changed = "failed", str(exc), None, False
+            except Exception as exc:  # pragma: no cover - unexpected errors
+                log.exception(
+                    "analysis_coordinator.process_summaries.unexpected_error",
+                    video=video.get("path"),
+                    error=str(exc)
+                )
                 state, info_msg, _ppath, changed = "failed", str(exc), None, False
 
             if state == "completed":
@@ -463,7 +493,7 @@ class AnalysisCoordinator:
             if self._refresh_project_views_callback:
                 self._refresh_project_views_callback(reason=status_msg, append_summary=True)
 
-        self.root.after(0, finalize)
+        self.ui_coordinator.schedule(finalize)
 
     def _process_summary_video(
         self,
@@ -517,10 +547,28 @@ class AnalysisCoordinator:
         # Load trajectory data
         try:
             trajectory_df = pd.read_parquet(trajectory_path)
-        except Exception as exc:  # pragma: no cover - I/O defensive
+        except (OSError, ValueError) as exc:
+            log.error(
+                "analysis_coordinator.process_summary.parquet_read_failed",
+                path=trajectory_path,
+                error=str(exc),
+                exc_info=True
+            )
             return (
                 "skipped",
                 f"{experiment_id}: falha ao ler trajetória ({exc}).",
+                None,
+                False,
+            )
+        except Exception as exc:  # pragma: no cover - unexpected errors
+            log.exception(
+                "analysis_coordinator.process_summary.unexpected_error",
+                path=trajectory_path,
+                error=str(exc)
+            )
+            return (
+                "skipped",
+                f"{experiment_id}: erro inesperado ao ler trajetória ({exc}).",
                 None,
                 False,
             )

@@ -6,6 +6,7 @@ Handles detector setup, Arduino management, and zone configuration.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -225,8 +226,17 @@ class HardwareCoordinator:
         if self.arduino_manager:
             try:
                 self.arduino_manager.shutdown()
-            except Exception:
-                log.warning("hardware_coordinator.arduino.shutdown_failed", exc_info=True)
+            except OSError as exc:
+                log.error(
+                    "hardware_coordinator.arduino.shutdown_io_failed",
+                    error=str(exc),
+                    exc_info=True
+                )
+            except Exception as exc:  # pragma: no cover - unexpected errors
+                log.exception(
+                    "hardware_coordinator.arduino.shutdown_unexpected_error",
+                    error=str(exc)
+                )
             self.arduino_manager = None
         self.arduino = None
 
@@ -331,13 +341,17 @@ class HardwareCoordinator:
             self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
 
     def set_recording_callbacks(
-        self, trigger_callback: callable, stop_callback: callable
+        self,
+        trigger_callback: Callable[[int], None] | None,
+        stop_callback: Callable[[], None] | None,
     ) -> None:
         """Set callbacks for Arduino-triggered recording events.
 
         Args:
-            trigger_callback: Function to call when Arduino triggers recording start
-            stop_callback: Function to call when Arduino triggers recording stop
+            trigger_callback: Function to call when Arduino triggers recording start.
+                             Accepts event_code (int) as parameter.
+            stop_callback: Function to call when Arduino triggers recording stop.
+                          No parameters.
         """
         self._trigger_recording_callback = trigger_callback
         self._stop_recording_callback = stop_callback

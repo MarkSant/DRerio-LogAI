@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -172,10 +173,37 @@ class VideoOrchestrator:
                 if first_video:
                     import cv2
 
-                    cap = cv2.VideoCapture(first_video)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    cap.release()
+                    try:
+                        cap = cv2.VideoCapture(first_video)
+                        if not cap.isOpened():
+                            log.error(
+                                "video_orchestrator.create_default_arena.failed_to_open",
+                                video=first_video
+                            )
+                            return
+
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+                        if width <= 0 or height <= 0:
+                            log.error(
+                                "video_orchestrator.create_default_arena.invalid_dimensions",
+                                width=width,
+                                height=height,
+                                video=first_video
+                            )
+                            cap.release()
+                            return
+
+                        cap.release()
+                    except (cv2.error, Exception) as exc:
+                        log.error(
+                            "video_orchestrator.create_default_arena.exception",
+                            video=first_video,
+                            error=str(exc),
+                            exc_info=True
+                        )
+                        return
 
                     default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
@@ -214,13 +242,13 @@ class VideoOrchestrator:
         # Note: This event is handled by the view
         self.ui_event_bus.publish_event(Events.UI_OPEN_ADD_VIDEOS_DIALOG)
 
-    def set_arena_callback(self, callback) -> None:
+    def set_arena_callback(self, callback: Callable[[list], bool] | None) -> None:
         """Set callback for setting main arena polygon.
 
         This is a temporary solution until ArenaCoordinator is extracted.
 
         Args:
-            callback: Function that accepts polygon and returns success bool
+            callback: Function that accepts polygon list and returns success bool
         """
         self._set_main_arena_polygon_callback = callback
 
@@ -833,26 +861,28 @@ class VideoOrchestrator:
         if self.processing_worker:
             self.processing_worker.cancel()
 
-    def set_analysis_view_mode_callback(self, callback) -> None:
+    def set_analysis_view_mode_callback(self, callback: Callable[[], None] | None) -> None:
         """Set callback for activating analysis view mode.
 
         Args:
-            callback: Function to call to activate analysis view mode
+            callback: Function to call to activate analysis view mode (no parameters)
         """
         self._activate_analysis_view_mode_callback = callback
 
-    def set_refresh_callback(self, callback) -> None:
+    def set_refresh_callback(self, callback: Callable[..., None] | None) -> None:
         """Set callback for refreshing project views.
 
         Args:
-            callback: Function to call to refresh project views
+            callback: Function to call to refresh project views.
+                     Accepts optional keyword arguments (reason, append_summary, etc.)
         """
         self._refresh_project_views_callback = callback
 
-    def set_publish_processing_mode_callback(self, callback) -> None:
+    def set_publish_processing_mode_callback(self, callback: Callable[[str], None] | None) -> None:
         """Set callback for publishing processing mode.
 
         Args:
-            callback: Function to call to publish processing mode
+            callback: Function to call to publish processing mode.
+                     Accepts mode string as parameter.
         """
         self._publish_processing_mode_callback = callback

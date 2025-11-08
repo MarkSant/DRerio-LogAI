@@ -398,6 +398,7 @@ class MainViewModel:
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
