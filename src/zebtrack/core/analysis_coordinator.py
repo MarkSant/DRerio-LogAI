@@ -7,17 +7,23 @@ Handles analysis pipeline orchestration, report generation, and summary generati
 from __future__ import annotations
 
 import os
+import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.gui import ApplicationGUI
 
+import cv2
+import numpy as np
 import pandas as pd
 import structlog
+from shapely.geometry import Polygon
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.roi import ROI
+from zebtrack.core.calibration import Calibration
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.ui.event_bus import EventBus
@@ -42,6 +48,7 @@ class AnalysisCoordinator:
 
     def __init__(
         self,
+        root,
         view: ApplicationGUI,
         ui_event_bus: EventBus,
         settings_obj: Settings,
@@ -52,6 +59,7 @@ class AnalysisCoordinator:
         """Initialize AnalysisCoordinator with dependency injection.
 
         Args:
+            root: Tkinter root window
             view: Application GUI instance
             ui_event_bus: Event bus for UI events
             settings_obj: Settings instance (injected)
@@ -59,12 +67,16 @@ class AnalysisCoordinator:
             analysis_service: Analysis service
             video_processing_service: Video processing service
         """
+        self.root = root
         self.view = view
         self.ui_event_bus = ui_event_bus
         self.settings = settings_obj
         self.project_manager = project_manager
         self.analysis_service = analysis_service
         self.video_processing_service = video_processing_service
+
+        # Callback for refreshing project views (set by MainViewModel)
+        self._refresh_project_views_callback = None
 
     # =============================================================================
     # REPORT GENERATION
@@ -287,18 +299,30 @@ class AnalysisCoordinator:
             )
             return
 
+        # Filter videos with trajectory data
+        eligible_videos = [video for video in selected_videos if video.get("has_trajectory")]
+        if not eligible_videos:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Sumários",
+                    "message": "Nenhum dos vídeos selecionados possui trajetória gerada.",
+                },
+            )
+            return
+
         # Launch summary generation in worker thread
-        # TODO: Implement worker thread for summary generation
-        # For now, just log and notify
         log.info(
             "analysis_coordinator.summaries.launching_worker",
-            count=len(selected_videos),
+            count=len(eligible_videos),
         )
 
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": f"Gerando sumários para {len(selected_videos)} vídeo(s)..."},
+        worker_thread = threading.Thread(
+            target=self._generate_parquet_summaries_worker,
+            args=(eligible_videos, self.settings),
+            daemon=True,
         )
+        worker_thread.start()
 
     # =============================================================================
     # ANALYSIS PIPELINE ORCHESTRATION
@@ -360,3 +384,253 @@ class AnalysisCoordinator:
             )
 
         return success
+
+    # =============================================================================
+    # HELPER METHODS (Parquet Summary Generation)
+    # =============================================================================
+
+    def set_refresh_callback(self, callback):
+        """Set callback for refreshing project views.
+
+        Args:
+            callback: Function to call for refreshing project views
+        """
+        self._refresh_project_views_callback = callback
+
+    def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
+        """Worker method to generate parquet summaries for a list of videos.
+
+        Runs in background thread. Separated to reduce complexity in the public API method.
+
+        Args:
+            target_videos: List of video dicts to process
+            settings_obj: Settings instance
+        """
+        completed: list[str] = []
+        skipped: list[str] = []
+        details: list[str] = []
+        data_changed = False
+
+        for video in target_videos:
+            # Process each video
+            state = None
+            try:
+                state, info_msg, _ppath, changed = self._process_summary_video(
+                    video,
+                    settings_obj,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                state, info_msg, _ppath, changed = "failed", str(exc), None, False
+
+            if state == "completed":
+                completed.append(info_msg or "(desconhecido)")
+                data_changed = data_changed or bool(changed)
+            else:
+                skipped.append(info_msg.split(":")[0] if info_msg else "(desconhecido)")
+                details.append(f"• {info_msg}")
+
+        if data_changed:
+            self.project_manager.save_project()
+
+        def finalize() -> None:
+            if completed:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Sumários Gerados",
+                        "message": "Sumários parquet atualizados para "
+                        f"{len(completed)} vídeo(s).\n"
+                        + "\n".join(f"• {item}" for item in completed),
+                    },
+                )
+                status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
+            else:
+                status_msg = "Nenhum sumário foi atualizado."
+
+            if details:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Vídeos ignorados",
+                        "message": "Alguns sumários não puderam ser gerados:\n"
+                        + "\n".join(details),
+                    },
+                )
+
+            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
+
+            # Call refresh callback if set
+            if self._refresh_project_views_callback:
+                self._refresh_project_views_callback(reason=status_msg, append_summary=True)
+
+        self.root.after(0, finalize)
+
+    def _process_summary_video(
+        self,
+        video: dict,
+        settings_obj,
+    ) -> tuple[str, str | None, str | None, bool]:
+        """Process a single video for summary generation.
+
+        Args:
+            video: Video dict with path and metadata
+            settings_obj: Settings instance
+
+        Returns:
+            Tuple of (state, info_msg, parquet_path, data_changed)
+        """
+        path = video.get("path")
+        if not isinstance(path, str) or not path:
+            return "skipped", "Caminho do vídeo não definido.", None, False
+
+        experiment_id = os.path.splitext(os.path.basename(path))[0]
+        metadata_hint = dict(video.get("metadata") or {})
+        results_path = self.project_manager.resolve_results_directory(
+            experiment_id, video_path=path, metadata=metadata_hint
+        )
+        results_dir = str(results_path)
+
+        # Find trajectory parquet file
+        parquet_info = video.get("parquet_files") or {}
+        trajectory_path = parquet_info.get("trajectory")
+        if trajectory_path and not os.path.exists(trajectory_path):
+            trajectory_path = None
+
+        if not trajectory_path:
+            candidates = [
+                os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet"),
+                os.path.join(os.path.dirname(path), f"3_CoordMovimento_{experiment_id}.parquet"),
+            ]
+            for candidate in candidates:
+                if os.path.exists(candidate):
+                    trajectory_path = candidate
+                    break
+
+        if not trajectory_path:
+            return (
+                "skipped",
+                f"{experiment_id}: arquivo de trajetória ausente.",
+                None,
+                False,
+            )
+
+        # Load trajectory data
+        try:
+            trajectory_df = pd.read_parquet(trajectory_path)
+        except Exception as exc:  # pragma: no cover - I/O defensive
+            return (
+                "skipped",
+                f"{experiment_id}: falha ao ler trajetória ({exc}).",
+                None,
+                False,
+            )
+
+        if trajectory_df.empty:
+            return (
+                "skipped",
+                f"{experiment_id}: trajetória vazia, sumário não gerado.",
+                None,
+                False,
+            )
+
+        # Load zone data and calibration
+        self.project_manager.set_active_zone_video(path)
+        try:
+            zone_data = self.project_manager.get_zone_data(video_path=path)
+
+            arena_polygon_px = list(zone_data.polygon or [])
+
+            # Create default arena if not defined
+            if not arena_polygon_px:
+                cap = cv2.VideoCapture(path)
+                if not cap.isOpened():
+                    return (
+                        "skipped",
+                        f"{experiment_id}: não foi possível abrir o vídeo.",
+                        None,
+                        False,
+                    )
+                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                arena_polygon_px = [
+                    [0, 0],
+                    [frame_width, 0],
+                    [frame_width, frame_height],
+                    [0, frame_height],
+                ]
+
+            # Get calibration data
+            calib_data = self.project_manager.project_data.get("calibration", {})
+            width_cm = calib_data.get("aquarium_width_cm")
+            height_cm = calib_data.get("aquarium_height_cm")
+            if not width_cm or not height_cm:
+                return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
+
+            # Create calibration object
+            cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
+            video_width_px, video_height_px = cal.target_dims_px
+            pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
+            arena_polygon_warped = cal.transform_points(arena_polygon_px)
+
+            # Load ROIs
+            roi_polygons = list(zone_data.roi_polygons or [])
+            roi_names = list(zone_data.roi_names or [])
+            roi_colors_list = list(zone_data.roi_colors or [])
+
+            rois: list[ROI] = []
+            for idx, roi_points in enumerate(roi_polygons):
+                warped_points = cal.transform_points(roi_points)
+                roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
+                roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
+                rois.append(
+                    ROI(
+                        name=roi_name,
+                        geometry=Polygon(roi_polygon_px),
+                        coordinate_space="px",
+                    )
+                )
+
+            roi_colors = {
+                (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
+                for i in range(len(roi_colors_list))
+            }
+
+            # Get metadata
+            metadata = self.project_manager.get_metadata_for_experiment(experiment_id) or {
+                "experiment_id": experiment_id,
+                "video_name": experiment_id,
+            }
+
+            # Create reporter and generate summary
+            reporter = Reporter(
+                trajectory_df=trajectory_df,
+                metadata=metadata,
+                pixelcm_x=pixelcm_x,
+                pixelcm_y=pixelcm_y,
+                video_height_px=video_height_px,
+                arena_polygon_px=arena_polygon_warped,
+                rois=rois,
+                fps=settings_obj.video_processing.fps,
+                roi_colors=roi_colors,
+                video_path=path,
+                calibration=cal,
+                sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
+                freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
+                freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
+                smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
+                smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
+            )
+
+            os.makedirs(results_dir, exist_ok=True)
+            parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
+            reporter.export_summary_data(parquet_path, format="parquet")
+
+            video.setdefault("parquet_files", {})["summary"] = parquet_path
+            video["has_complete_data"] = True
+            return "completed", experiment_id, parquet_path, True
+        except Exception as exc:  # pragma: no cover - defensive
+            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
+        finally:
+            # Reset active zone video
+            self.project_manager.set_active_zone_video(None)

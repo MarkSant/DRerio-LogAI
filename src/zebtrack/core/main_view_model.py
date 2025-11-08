@@ -385,6 +385,7 @@ class MainViewModel:
             view=self.view,
             state_manager=self.state_manager,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             video_processing_service=self.video_processing_service,
@@ -394,6 +395,7 @@ class MainViewModel:
 
         # Analysis coordinator (reports, summaries, analysis pipeline)
         self.analysis_coordinator = AnalysisCoordinator(
+            root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
             settings_obj=self.settings,
@@ -405,6 +407,9 @@ class MainViewModel:
         # Set callbacks for coordinators that need to call back to MainViewModel
         self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
         self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
+        self.video_orchestrator.set_refresh_callback(self.refresh_project_views)
+        self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
+        self.analysis_coordinator.set_refresh_callback(self.refresh_project_views)
 
         log.info("main_view_model.coordinators_initialized")
 
