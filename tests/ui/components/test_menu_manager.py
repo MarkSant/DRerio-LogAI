@@ -221,9 +221,7 @@ class TestProjectOverviewContextMenu:
         # Should return without error
         menu_manager.show_project_overview_context_menu("item1", 100, 100)
 
-    def test_show_project_overview_context_menu_creates_menu(
-        self, menu_manager, tkinter_root
-    ):
+    def test_show_project_overview_context_menu_creates_menu(self, menu_manager, tkinter_root):
         """Test that context menu is created for valid item."""
         from tkinter import ttk
 
@@ -237,9 +235,7 @@ class TestProjectOverviewContextMenu:
             menu_manager.show_project_overview_context_menu(item_id, 100, 100)
             mock_post.assert_called_once_with(100, 100)
 
-    def test_show_project_overview_context_menu_selects_item(
-        self, menu_manager, tkinter_root
-    ):
+    def test_show_project_overview_context_menu_selects_item(self, menu_manager, tkinter_root):
         """Test that item is selected before showing menu."""
         from tkinter import ttk
 
@@ -253,9 +249,7 @@ class TestProjectOverviewContextMenu:
 
         assert item_id in tree.selection()
 
-    def test_show_project_overview_context_menu_no_video_path(
-        self, menu_manager, tkinter_root
-    ):
+    def test_show_project_overview_context_menu_no_video_path(self, menu_manager, tkinter_root):
         """Test handling when item has no video_path tag."""
         from tkinter import ttk
 
@@ -560,9 +554,7 @@ class TestCreateRoiContextMenu:
         # Menu should have been created with commands
         # (Detailed inspection of menu items is difficult in Tk, so we just verify it exists)
 
-    def test_create_roi_context_menu_commands_call_gui_methods(
-        self, menu_manager, tkinter_root
-    ):
+    def test_create_roi_context_menu_commands_call_gui_methods(self, menu_manager, tkinter_root):
         """Test that menu commands are wired to gui methods."""
         menu_manager.gui.root = tkinter_root
 

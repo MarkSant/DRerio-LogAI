@@ -168,13 +168,23 @@ class TestEventDispatcher:
 
         mock_gui.set_status.assert_called_once_with("")
 
-    @pytest.mark.parametrize("handler_name,event_method,expected_title,expected_message", [
-        ("_handle_show_error", "show_error", "Erro", "Error message"),
-        ("_handle_show_warning", "show_warning", "Aviso", "Warning message"),
-        ("_handle_show_info", "show_info", "Informação", "Info message"),
-    ])
-    def test_handle_show_messages(self, event_dispatcher, mock_gui, handler_name,
-                                  event_method, expected_title, expected_message):
+    @pytest.mark.parametrize(
+        "handler_name,event_method,expected_title,expected_message",
+        [
+            ("_handle_show_error", "show_error", "Erro", "Error message"),
+            ("_handle_show_warning", "show_warning", "Aviso", "Warning message"),
+            ("_handle_show_info", "show_info", "Informação", "Info message"),
+        ],
+    )
+    def test_handle_show_messages(
+        self,
+        event_dispatcher,
+        mock_gui,
+        handler_name,
+        event_method,
+        expected_title,
+        expected_message,
+    ):
         """Test message display handlers."""
         handler = getattr(event_dispatcher, handler_name)
         gui_method = getattr(mock_gui, event_method)
@@ -191,10 +201,9 @@ class TestEventDispatcher:
 
     def test_handle_update_button_state(self, event_dispatcher, mock_gui):
         """Test _handle_update_button_state."""
-        event_dispatcher._handle_update_button_state({
-            "button_name": "start_btn",
-            "state": "disabled"
-        })
+        event_dispatcher._handle_update_button_state(
+            {"button_name": "start_btn", "state": "disabled"}
+        )
 
         mock_gui.update_button_state.assert_called_once_with("start_btn", "disabled")
 
@@ -248,16 +257,12 @@ class TestEventDispatcher:
 
     def test_handle_refresh_project_views(self, event_dispatcher, mock_gui):
         """Test _handle_refresh_project_views with all parameters."""
-        event_dispatcher._handle_refresh_project_views({
-            "reason": "test_reason",
-            "append_summary": True,
-            "immediate": True
-        })
+        event_dispatcher._handle_refresh_project_views(
+            {"reason": "test_reason", "append_summary": True, "immediate": True}
+        )
 
         mock_gui.refresh_project_views.assert_called_once_with(
-            reason="test_reason",
-            append_summary=True,
-            immediate=True
+            reason="test_reason", append_summary=True, immediate=True
         )
 
     def test_handle_refresh_project_views_defaults(self, event_dispatcher, mock_gui):
@@ -265,9 +270,7 @@ class TestEventDispatcher:
         event_dispatcher._handle_refresh_project_views({})
 
         mock_gui.refresh_project_views.assert_called_once_with(
-            reason=None,
-            append_summary=False,
-            immediate=False
+            reason=None, append_summary=False, immediate=False
         )
 
     # =========================================================================
@@ -317,7 +320,7 @@ class TestEventDispatcher:
 
         mock_gui.update_openvino_status_display.assert_called_once_with("")
 
-    @patch('zebtrack.ui.components.event_dispatcher.filedialog')
+    @patch("zebtrack.ui.components.event_dispatcher.filedialog")
     def test_handle_request_weight_file_selected(self, mock_filedialog, event_dispatcher):
         """Test _handle_request_weight_file when file is selected."""
         mock_filedialog.askopenfilename.return_value = "/path/to/weight.pt"
@@ -326,11 +329,10 @@ class TestEventDispatcher:
 
         mock_filedialog.askopenfilename.assert_called_once()
         event_dispatcher.gui.event_bus.publish_event.assert_called_once_with(
-            Events.MODEL_LOAD_NEW_WEIGHT,
-            {"filepath": "/path/to/weight.pt"}
+            Events.MODEL_LOAD_NEW_WEIGHT, {"filepath": "/path/to/weight.pt"}
         )
 
-    @patch('zebtrack.ui.components.event_dispatcher.filedialog')
+    @patch("zebtrack.ui.components.event_dispatcher.filedialog")
     def test_handle_request_weight_file_cancelled(self, mock_filedialog, event_dispatcher):
         """Test _handle_request_weight_file when user cancels."""
         mock_filedialog.askopenfilename.return_value = ""
@@ -346,8 +348,7 @@ class TestEventDispatcher:
         event_dispatcher._handle_request_weight_type({})
 
         event_dispatcher.gui.event_bus.publish_event.assert_called_once_with(
-            Events.MODEL_LOAD_NEW_WEIGHT,
-            {"weight_type": "yolo11n"}
+            Events.MODEL_LOAD_NEW_WEIGHT, {"weight_type": "yolo11n"}
         )
 
     def test_handle_request_weight_type_cancelled(self, event_dispatcher, mock_gui):
@@ -358,7 +359,7 @@ class TestEventDispatcher:
 
         event_dispatcher.gui.event_bus.publish_event.assert_not_called()
 
-    @patch('zebtrack.ui.components.event_dispatcher.messagebox')
+    @patch("zebtrack.ui.components.event_dispatcher.messagebox")
     def test_handle_request_weight_action_yes(self, mock_messagebox, event_dispatcher):
         """Test _handle_request_weight_action when user chooses Yes."""
         mock_messagebox.askyesnocancel.return_value = True
@@ -366,11 +367,10 @@ class TestEventDispatcher:
         event_dispatcher._handle_request_weight_action({"weight_type": "yolo11n"})
 
         event_dispatcher.gui.event_bus.publish_event.assert_called_once_with(
-            Events.MODEL_LOAD_NEW_WEIGHT,
-            {"choice": "yes"}
+            Events.MODEL_LOAD_NEW_WEIGHT, {"choice": "yes"}
         )
 
-    @patch('zebtrack.ui.components.event_dispatcher.messagebox')
+    @patch("zebtrack.ui.components.event_dispatcher.messagebox")
     def test_handle_request_weight_action_no(self, mock_messagebox, event_dispatcher):
         """Test _handle_request_weight_action when user chooses No."""
         mock_messagebox.askyesnocancel.return_value = False
@@ -378,11 +378,10 @@ class TestEventDispatcher:
         event_dispatcher._handle_request_weight_action({"weight_type": "yolo11n"})
 
         event_dispatcher.gui.event_bus.publish_event.assert_called_once_with(
-            Events.MODEL_LOAD_NEW_WEIGHT,
-            {"choice": "no"}
+            Events.MODEL_LOAD_NEW_WEIGHT, {"choice": "no"}
         )
 
-    @patch('zebtrack.ui.components.event_dispatcher.messagebox')
+    @patch("zebtrack.ui.components.event_dispatcher.messagebox")
     def test_handle_request_weight_action_cancel(self, mock_messagebox, event_dispatcher):
         """Test _handle_request_weight_action when user cancels."""
         mock_messagebox.askyesnocancel.return_value = None
@@ -390,11 +389,10 @@ class TestEventDispatcher:
         event_dispatcher._handle_request_weight_action({"weight_type": "yolo11n"})
 
         event_dispatcher.gui.event_bus.publish_event.assert_called_once_with(
-            Events.MODEL_LOAD_NEW_WEIGHT,
-            {"choice": "cancel"}
+            Events.MODEL_LOAD_NEW_WEIGHT, {"choice": "cancel"}
         )
 
-    @patch('zebtrack.ui.components.event_dispatcher.ManageWeightsDialog')
+    @patch("zebtrack.ui.components.event_dispatcher.ManageWeightsDialog")
     def test_handle_open_manage_weights_dialog(self, mock_dialog, event_dispatcher, mock_gui):
         """Test _handle_open_manage_weights_dialog."""
         event_dispatcher._handle_open_manage_weights_dialog({})
@@ -433,8 +431,7 @@ class TestEventDispatcher:
         # Should convert to numpy array and call setup_interactive_polygon
         assert mock_gui.setup_interactive_polygon.call_count == 1
         np.testing.assert_array_equal(
-            mock_gui.setup_interactive_polygon.call_args[0][0],
-            np.array(polygon)
+            mock_gui.setup_interactive_polygon.call_args[0][0], np.array(polygon)
         )
 
     def test_handle_setup_interactive_polygon_none(self, event_dispatcher, mock_gui):
@@ -453,20 +450,16 @@ class TestEventDispatcher:
         event_dispatcher._handle_display_frame({"frame": frame})
 
         mock_gui.display_frame.assert_called_once()
-        np.testing.assert_array_equal(
-            mock_gui.display_frame.call_args[0][0],
-            frame
-        )
+        np.testing.assert_array_equal(mock_gui.display_frame.call_args[0][0], frame)
 
     def test_handle_update_detection_overlay(self, event_dispatcher, mock_gui):
         """Test _handle_update_detection_overlay."""
         detections = [{"track_id": 1, "bbox": [10, 20, 30, 40]}]
         report = Mock()
 
-        event_dispatcher._handle_update_detection_overlay({
-            "detections": detections,
-            "report": report
-        })
+        event_dispatcher._handle_update_detection_overlay(
+            {"detections": detections, "report": report}
+        )
 
         mock_gui.update_detection_overlay.assert_called_once_with(detections, report)
 
@@ -482,10 +475,7 @@ class TestEventDispatcher:
 
     def test_handle_update_arduino_status_connected(self, event_dispatcher, mock_gui):
         """Test _handle_update_arduino_status when connected."""
-        event_dispatcher._handle_update_arduino_status({
-            "connected": True,
-            "port": "COM3"
-        })
+        event_dispatcher._handle_update_arduino_status({"connected": True, "port": "COM3"})
 
         mock_gui.arduino_dashboard_widget.update_status.assert_called_once_with(True, "COM3")
 
@@ -493,10 +483,7 @@ class TestEventDispatcher:
         """Test _handle_update_arduino_status when widget doesn't exist."""
         mock_gui.arduino_dashboard_widget = None
 
-        event_dispatcher._handle_update_arduino_status({
-            "connected": False,
-            "port": None
-        })
+        event_dispatcher._handle_update_arduino_status({"connected": False, "port": None})
         # Should not raise exception
 
     def test_handle_append_arduino_log(self, event_dispatcher, mock_gui):
@@ -518,8 +505,7 @@ class TestEventDispatcher:
         event_dispatcher._handle_show_external_trigger_notice(data)
 
         mock_gui.show_external_trigger_notice.assert_called_once_with(
-            context="recording",
-            info="trigger active"
+            context="recording", info="trigger active"
         )
 
     def test_handle_clear_external_trigger_notice(self, event_dispatcher, mock_gui):
@@ -534,16 +520,18 @@ class TestEventDispatcher:
 
     def test_handle_update_processing_stats(self, event_dispatcher, mock_gui):
         """Test _handle_update_processing_stats with all stats."""
-        event_dispatcher._handle_update_processing_stats({
-            "stats": {
-                "total_frames": 1000,
-                "processed_frames": 500,
-                "detected_frames": 450,
-                "percent": 50.0,
-                "elapsed": "00:05:00",
-                "eta": "00:05:00"
+        event_dispatcher._handle_update_processing_stats(
+            {
+                "stats": {
+                    "total_frames": 1000,
+                    "processed_frames": 500,
+                    "detected_frames": 450,
+                    "percent": 50.0,
+                    "elapsed": "00:05:00",
+                    "eta": "00:05:00",
+                }
             }
-        })
+        )
 
         mock_gui.update_progress_stats.assert_called_once_with(
             total=1000,
@@ -551,7 +539,7 @@ class TestEventDispatcher:
             detected=450,
             percent=50.0,
             elapsed="00:05:00",
-            eta="00:05:00"
+            eta="00:05:00",
         )
 
     def test_handle_update_processing_stats_empty(self, event_dispatcher, mock_gui):
@@ -559,12 +547,7 @@ class TestEventDispatcher:
         event_dispatcher._handle_update_processing_stats({})
 
         mock_gui.update_progress_stats.assert_called_once_with(
-            total=None,
-            processed=None,
-            detected=None,
-            percent=None,
-            elapsed=None,
-            eta=None
+            total=None, processed=None, detected=None, percent=None, elapsed=None, eta=None
         )
 
     def test_handle_update_analysis_metadata(self, event_dispatcher, mock_gui):
@@ -572,23 +555,16 @@ class TestEventDispatcher:
         metadata = {"video": "test.mp4", "fps": 30}
         event_dispatcher._handle_update_analysis_metadata(metadata)
 
-        mock_gui.update_analysis_metadata.assert_called_once_with(
-            video="test.mp4",
-            fps=30
-        )
+        mock_gui.update_analysis_metadata.assert_called_once_with(video="test.mp4", fps=30)
 
     def test_handle_update_analysis_task_status(self, event_dispatcher, mock_gui):
         """Test _handle_update_analysis_task_status."""
-        event_dispatcher._handle_update_analysis_task_status({
-            "payload": {
-                "task": "detection",
-                "status": "running"
-            }
-        })
+        event_dispatcher._handle_update_analysis_task_status(
+            {"payload": {"task": "detection", "status": "running"}}
+        )
 
         mock_gui.update_analysis_task_status.assert_called_once_with(
-            task="detection",
-            status="running"
+            task="detection", status="running"
         )
 
     def test_handle_update_social_summary(self, event_dispatcher, mock_gui):
@@ -596,9 +572,7 @@ class TestEventDispatcher:
         summary = {"total_interactions": 42}
         event_dispatcher._handle_update_social_summary(summary)
 
-        mock_gui.update_social_summary.assert_called_once_with(
-            total_interactions=42
-        )
+        mock_gui.update_social_summary.assert_called_once_with(total_interactions=42)
 
     def test_handle_update_processing_mode(self, event_dispatcher, mock_gui):
         """Test _handle_update_processing_mode."""
@@ -631,11 +605,9 @@ class TestEventDispatcher:
 
     def test_handle_project_video_right_click(self, event_dispatcher, mock_gui):
         """Test _handle_project_video_right_click."""
-        event_dispatcher._handle_project_video_right_click({
-            "item_id": "video_123",
-            "x": 100,
-            "y": 200
-        })
+        event_dispatcher._handle_project_video_right_click(
+            {"item_id": "video_123", "x": 100, "y": 200}
+        )
 
         mock_gui._show_project_overview_context_menu.assert_called_once_with("video_123", 100, 200)
 
@@ -647,9 +619,7 @@ class TestEventDispatcher:
 
     def test_handle_zone_auto_detect_event_with_frames(self, event_dispatcher, mock_gui):
         """Test _handle_zone_auto_detect_event with stabilization_frames."""
-        event_dispatcher._handle_zone_auto_detect_event({
-            "stabilization_frames": 30
-        })
+        event_dispatcher._handle_zone_auto_detect_event({"stabilization_frames": 30})
 
         mock_gui._on_auto_detect_clicked.assert_called_once_with(stabilization_frames=30)
 
@@ -774,12 +744,10 @@ class TestEventDispatcher:
 
         # Create mock events
         callable_event = UIEvent(
-            type=EventType.CALLABLE,
-            payload=CallableEvent(callback=Mock(), args=(), kwargs={})
+            type=EventType.CALLABLE, payload=CallableEvent(callback=Mock(), args=(), kwargs={})
         )
         named_event = UIEvent(
-            type=EventType.NAMED,
-            payload=NamedEvent(event_name="test:event", data={})
+            type=EventType.NAMED, payload=NamedEvent(event_name="test:event", data={})
         )
 
         mock_event_bus.drain.return_value = [callable_event, named_event]
@@ -834,7 +802,7 @@ class TestEventDispatcher:
         bad_callback = Mock(side_effect=ValueError("Test error"))
         error_event = UIEvent(
             type=EventType.CALLABLE,
-            payload=CallableEvent(callback=bad_callback, args=(), kwargs={})
+            payload=CallableEvent(callback=bad_callback, args=(), kwargs={}),
         )
         mock_event_bus.drain.return_value = [error_event]
 
@@ -914,16 +882,12 @@ class TestEventDispatcher:
     # Integration Tests - Zone Component Events
     # =========================================================================
 
-    def test_zone_component_events_integration(
-        self, event_dispatcher, mock_event_bus, mock_gui
-    ):
+    def test_zone_component_events_integration(self, event_dispatcher, mock_event_bus, mock_gui):
         """Test integration of zone component event subscriptions."""
         event_dispatcher.subscribe_zone_component_events()
 
         # Extract subscribed handlers
-        subscriptions = {
-            c[0][0]: c[0][1] for c in mock_event_bus.subscribe.call_args_list
-        }
+        subscriptions = {c[0][0]: c[0][1] for c in mock_event_bus.subscribe.call_args_list}
 
         # Test zone.toggle_view
         if "zone.toggle_view" in subscriptions:
@@ -942,9 +906,7 @@ class TestEventDispatcher:
         event_dispatcher.subscribe_zone_component_events()
 
         # Find the handler for zone.list_item_right_click
-        subscriptions = {
-            c[0][0]: c[0][1] for c in mock_event_bus.subscribe.call_args_list
-        }
+        subscriptions = {c[0][0]: c[0][1] for c in mock_event_bus.subscribe.call_args_list}
 
         if "zone.list_item_right_click" in subscriptions:
             handler = subscriptions["zone.list_item_right_click"]
@@ -990,8 +952,7 @@ class TestEventDispatcher:
         # Create 100 callable events
         events = [
             UIEvent(
-                type=EventType.CALLABLE,
-                payload=CallableEvent(callback=Mock(), args=(), kwargs={})
+                type=EventType.CALLABLE, payload=CallableEvent(callback=Mock(), args=(), kwargs={})
             )
             for _ in range(100)
         ]

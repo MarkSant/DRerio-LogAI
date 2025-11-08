@@ -81,9 +81,7 @@ class DialogManager:
         """
         return messagebox.askokcancel(title, message)
 
-    def ask_yes_no(
-        self, title: str, message: str, *, icon: str = "question"
-    ) -> bool:
+    def ask_yes_no(self, title: str, message: str, *, icon: str = "question") -> bool:
         """Shows a confirmation dialog with Yes/No buttons.
 
         Args:
@@ -96,9 +94,7 @@ class DialogManager:
         """
         return messagebox.askyesno(title, message, icon=icon)
 
-    def ask_yes_no_cancel(
-        self, title: str, message: str, *, icon: str = "question"
-    ) -> bool | None:
+    def ask_yes_no_cancel(self, title: str, message: str, *, icon: str = "question") -> bool | None:
         """Shows a confirmation dialog with Yes/No/Cancel buttons.
 
         Args:
@@ -184,9 +180,7 @@ class DialogManager:
         """
         return filedialog.asksaveasfilename(**options)
 
-    def ask_string(
-        self, title: str, prompt: str, initialvalue: str | None = None
-    ) -> str | None:
+    def ask_string(self, title: str, prompt: str, initialvalue: str | None = None) -> str | None:
         """Shows a dialog for string input.
 
         Args:
@@ -224,9 +218,7 @@ class DialogManager:
             CalibrationDialog(self.gui.root, self.gui.controller)
         self.gui.update_openvino_checkbox(self.gui.controller.use_openvino)
         self.gui.set_active_weight_in_dropdown(self.gui.controller.active_weight_name)
-        self.gui.update_openvino_status_display(
-            self.gui.controller.get_openvino_status()
-        )
+        self.gui.update_openvino_status_display(self.gui.controller.get_openvino_status())
 
     # =========================================================================
     # Custom Dialogs - ROI Templates
@@ -433,9 +425,7 @@ class DialogManager:
         Returns:
             Dialog result with video config, or None if cancelled
         """
-        dialog = SingleVideoConfigDialog(
-            self.gui.root, settings_obj=self.gui.controller.settings
-        )
+        dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=self.gui.controller.settings)
         return dialog.result if dialog.result else None
 
     # =========================================================================
@@ -511,17 +501,13 @@ class DialogManager:
 
     def open_project_workflow(self) -> None:
         """Handles the UI part of opening a project, then calls the controller."""
-        project_path = self.ask_directory(
-            title="Selecione uma Pasta de Projeto Existente"
-        )
+        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
 
         from zebtrack.ui.events import Events
 
-        self.gui.event_dispatcher.publish_event(
-            Events.PROJECT_OPEN, {"project_path": project_path}
-        )
+        self.gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     # =========================================================================
     # Confirmation Dialogs
@@ -584,9 +570,7 @@ class DialogManager:
     # Notification Dialogs
     # =========================================================================
 
-    def show_external_trigger_notice(
-        self, session_label: str, **details
-    ) -> None:
+    def show_external_trigger_notice(self, session_label: str, **details) -> None:
         """Shows a notice that the system is waiting for external trigger.
 
         Args:

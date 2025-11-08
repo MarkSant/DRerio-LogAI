@@ -115,7 +115,7 @@ class TestProjectOverviewManagement:
     def test_request_overview_refresh_force(self, view_manager, mock_gui):
         """Test forcing overview refresh."""
         view_manager._refresh_project_overview = Mock()
-        
+
         # Mock tree.get_children() to return empty list for iteration
         mock_gui.processing_reports_widget.tree.get_children.return_value = []
 

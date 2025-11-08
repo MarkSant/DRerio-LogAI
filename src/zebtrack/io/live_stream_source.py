@@ -165,7 +165,9 @@ if __name__ == "__main__":
     try:
         settings = load_settings()
         stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=settings  # 10 second test
+            camera_index=0,
+            max_duration_s=10.0,
+            settings_obj=settings,  # 10 second test
         )
 
         print(f"Stream properties: {stream.get_properties()}")
@@ -186,9 +188,7 @@ if __name__ == "__main__":
             if frame is not None:
                 # Add frame info overlay
                 text = f"Frame {frame_count} | {stream.get_remaining_time():.1f}s left"
-                cv2.putText(
-                    frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2
-                )
+                cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.imshow("LiveStreamSource Test", frame)
 
             # Break on 'q' key

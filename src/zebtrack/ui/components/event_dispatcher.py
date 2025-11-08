@@ -105,12 +105,8 @@ class EventDispatcher:
         self.gui.event_bus.subscribe(
             "zone.draw_arena", lambda data: self.gui._start_main_arena_drawing()
         )
-        self.gui.event_bus.subscribe(
-            "zone.draw_roi", lambda data: self.gui._start_roi_drawing()
-        )
-        self.gui.event_bus.subscribe(
-            "zone.save_arena", lambda data: self.gui._on_save_arena()
-        )
+        self.gui.event_bus.subscribe("zone.draw_roi", lambda data: self.gui._start_roi_drawing())
+        self.gui.event_bus.subscribe("zone.save_arena", lambda data: self.gui._on_save_arena())
         self.gui.event_bus.subscribe(
             "zone.discard_arena", lambda data: self.gui._on_discard_arena()
         )
@@ -440,13 +436,12 @@ class EventDispatcher:
                 self.poll_event_bus,
             )
             log.debug(
-                "gui.event_bus.schedule_poll.scheduled",
-                after_id=self.gui._event_bus_after_id
+                "gui.event_bus.schedule_poll.scheduled", after_id=self.gui._event_bus_after_id
             )
         else:
             log.debug(
                 "gui.event_bus.schedule_poll.already_scheduled",
-                after_id=self.gui._event_bus_after_id
+                after_id=self.gui._event_bus_after_id,
             )
 
     def poll_event_bus(self) -> None:
@@ -526,8 +521,7 @@ class EventDispatcher:
             # Camera analysis: use camera_index
             camera_index = dialog.result.get("camera_index", 0)
             self.gui.show_info(
-                "Análise de Câmera",
-                f"Iniciando análise da câmera {camera_index}..."
+                "Análise de Câmera", f"Iniciando análise da câmera {camera_index}..."
             )
             # Trigger camera analysis via controller
             self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
@@ -560,6 +554,7 @@ class EventDispatcher:
         Returns:
             MockEvent object with coordinate attributes
         """
+
         class MockEvent:
             def __init__(self, data, zone_listbox):
                 self.x_root = data.get("x", 0)

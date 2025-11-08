@@ -23,7 +23,7 @@ def test_interactive_buttons_positioned_after_zone_list():
     # Phase 3: Buttons may be in ZoneControls component
     zone_controls_file = os.path.join(components_dir, "zone_controls.py")
     widget_factory_file = os.path.join(components_dir, "widget_factory.py")
-    
+
     combined_code = gui_code
     if os.path.exists(zone_controls_file):
         with open(zone_controls_file, encoding="utf-8") as f:
@@ -33,12 +33,12 @@ def test_interactive_buttons_positioned_after_zone_list():
             combined_code += f.read()
 
     # Just verify that save/discard buttons exist somewhere
-    assert (
-        "Salvar" in combined_code and "button" in combined_code.lower()
-    ), "Save button functionality should exist"
-    assert (
-        "Descartar" in combined_code or "Cancelar" in combined_code
-    ), "Discard/Cancel button functionality should exist"
+    assert "Salvar" in combined_code and "button" in combined_code.lower(), (
+        "Save button functionality should exist"
+    )
+    assert "Descartar" in combined_code or "Cancelar" in combined_code, (
+        "Discard/Cancel button functionality should exist"
+    )
 
 
 def test_interactive_buttons_not_packed_initially():
@@ -57,7 +57,7 @@ def test_interactive_buttons_not_packed_initially():
     # Phase 3: Zone controls may be in separate component
     zone_controls_file = os.path.join(components_dir, "zone_controls.py")
     canvas_manager_file = os.path.join(components_dir, "canvas_manager.py")
-    
+
     combined_code = gui_code
     if os.path.exists(zone_controls_file):
         with open(zone_controls_file, encoding="utf-8") as f:
@@ -67,8 +67,6 @@ def test_interactive_buttons_not_packed_initially():
             combined_code += f.read()
 
     # Just verify that zone editing functionality exists
-    assert (
-        "edit" in combined_code.lower() 
-        and ("zone" in combined_code.lower() or "arena" in combined_code.lower())
+    assert "edit" in combined_code.lower() and (
+        "zone" in combined_code.lower() or "arena" in combined_code.lower()
     ), "Zone editing functionality should exist"
-

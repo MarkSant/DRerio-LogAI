@@ -51,9 +51,7 @@ def check_settings_documentation() -> list[str]:
 
     for class_name in config_classes:
         if class_name not in ref_content:
-            issues.append(
-                f"⚠️  Settings class '{class_name}' not documented in REFERENCE_GUIDE.md"
-            )
+            issues.append(f"⚠️  Settings class '{class_name}' not documented in REFERENCE_GUIDE.md")
 
     return issues
 

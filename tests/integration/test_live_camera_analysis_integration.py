@@ -138,14 +138,16 @@ def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_setting
 
 
 def test_live_camera_analysis_uses_recording_service(mock_main_view_model, mock_camera):
-    """Test that start_live_camera_analysis uses RecordingService instead of direct recorder calls."""
+    """Test that start_live_camera_analysis uses RecordingService instead of direct
+    recorder calls.
+    """
     from zebtrack.core.main_view_model import MainViewModel
 
     # Patch the dialog, Camera, and LivePreviewWindow to return config
     with (
         patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class,
         patch("zebtrack.io.camera.Camera") as mock_camera_class,
-        patch("zebtrack.ui.dialogs.LivePreviewWindow") as mock_preview_class,
+        patch("zebtrack.ui.dialogs.LivePreviewWindow") as _mock_preview_class,
     ):
         mock_dialog = Mock()
         mock_dialog.result = {
@@ -184,7 +186,7 @@ def test_live_camera_analysis_sets_active_frame_source(mock_main_view_model, moc
     with (
         patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class,
         patch("zebtrack.io.camera.Camera") as mock_camera_class,
-        patch("zebtrack.ui.dialogs.LivePreviewWindow") as mock_preview_class,
+        patch("zebtrack.ui.dialogs.LivePreviewWindow") as _mock_preview_class,
     ):
         mock_dialog = Mock()
         mock_dialog.result = {
@@ -213,7 +215,7 @@ def test_live_camera_analysis_enables_timed_recording(mock_main_view_model, mock
     with (
         patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class,
         patch("zebtrack.io.camera.Camera") as mock_camera_class,
-        patch("zebtrack.ui.dialogs.LivePreviewWindow") as mock_preview_class,
+        patch("zebtrack.ui.dialogs.LivePreviewWindow") as _mock_preview_class,
     ):
         mock_dialog = Mock()
         duration_s = 10
@@ -253,7 +255,7 @@ def test_live_camera_analysis_creates_output_directory(mock_main_view_model, moc
     with (
         patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class,
         patch("zebtrack.io.camera.Camera") as mock_camera_class,
-        patch("zebtrack.ui.dialogs.LivePreviewWindow") as mock_preview_class,
+        patch("zebtrack.ui.dialogs.LivePreviewWindow") as _mock_preview_class,
     ):
         mock_dialog = Mock()
         mock_dialog.result = {
@@ -370,7 +372,7 @@ def test_live_camera_analysis_no_arduino(mock_main_view_model, mock_camera):
     with (
         patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class,
         patch("zebtrack.io.camera.Camera") as mock_camera_class,
-        patch("zebtrack.ui.dialogs.LivePreviewWindow") as mock_preview_class,
+        patch("zebtrack.ui.dialogs.LivePreviewWindow") as _mock_preview_class,
     ):
         mock_dialog = Mock()
         mock_dialog.result = {

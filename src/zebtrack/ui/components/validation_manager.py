@@ -491,9 +491,7 @@ class ValidationManager:
             return False, "Selecione um aquário ativo primeiro."
         return True, ""
 
-    def validate_arena_polygon_data(
-        self, arena_data: dict | None
-    ) -> tuple[bool, str, dict | None]:
+    def validate_arena_polygon_data(self, arena_data: dict | None) -> tuple[bool, str, dict | None]:
         """Validate that arena data contains polygon information.
 
         Args:

@@ -390,9 +390,7 @@ class TestConstrutoresAbas:
         widget_factory.create_configuration_tab_widget()
         # If notebook is None, ConfigEditorWidget shouldn't be created
 
-    def test_create_configuration_tab_no_notebook(
-        self, widget_factory, mock_gui
-    ):
+    def test_create_configuration_tab_no_notebook(self, widget_factory, mock_gui):
         """Test creating configuration tab with no notebook."""
         mock_gui.notebook = None
         widget_factory.create_configuration_tab_widget()
@@ -425,9 +423,7 @@ class TestConstrutoresAbas:
         mock_gui.notebook.add.assert_called_once()
         mock_gui._refresh_processing_reports_tab.assert_called_once()
 
-    def test_create_project_overview_panel(
-        self, widget_factory, mock_gui
-    ):
+    def test_create_project_overview_panel(self, widget_factory, mock_gui):
         """Test creating project overview panel."""
         # Phase 3: Just verify method doesn't crash with None parent
         widget_factory.create_project_overview_panel(None)  # type: ignore
@@ -487,7 +483,7 @@ class TestConstrutoresComplexos:
         mock_gui.root = Mock()
         mock_gui.notebook = None  # Will be set by method
         mock_gui.status_var = Mock()
-        
+
         # Mock methods called by create_main_control_frame
         mock_gui._create_main_controls_tab = Mock()
         mock_gui._create_roi_analysis_tab = Mock()
@@ -495,7 +491,7 @@ class TestConstrutoresComplexos:
         mock_gui.hide_progress_bar = Mock()
         mock_gui.controller.project_manager.get_project_type.return_value = "pre-recorded"
         mock_gui.controller.project_manager.get_project_name.return_value = "Test Project"
-        
+
         # Mock WidgetFactory methods that create tabs
         widget_factory.create_progress_grid_tab = Mock()
         widget_factory.create_processing_reports_tab = Mock()
@@ -504,7 +500,7 @@ class TestConstrutoresComplexos:
 
         # Should not crash with all tkinter mocked
         widget_factory.create_main_control_frame()
-        
+
         # Verify key components were called
         mock_notebook.assert_called_once()
         widget_factory.create_configuration_tab_widget.assert_called_once()
@@ -714,7 +710,7 @@ class TestConfigHandlers:
         """Test saving config with Pydantic validation error."""
         from pydantic import ValidationError as PydanticValidationError
         from pydantic_core import InitErrorDetails
-        
+
         values = {
             "video_processing": {
                 "fps": 30,
@@ -734,7 +730,7 @@ class TestConfigHandlers:
         mock_settings_obj = Mock()
         mock_settings_obj.model_dump.return_value = {}
         mock_settings.settings = mock_settings_obj
-        
+
         # Make model_validate raise actual ValidationError
         error_details: list[InitErrorDetails] = [
             {
@@ -744,9 +740,11 @@ class TestConfigHandlers:
                 "ctx": {"error": "Test error"},
             }
         ]
-        mock_settings.Settings.model_validate.side_effect = PydanticValidationError.from_exception_data(
-            "Settings",
-            error_details,
+        mock_settings.Settings.model_validate.side_effect = (
+            PydanticValidationError.from_exception_data(
+                "Settings",
+                error_details,
+            )
         )
 
         mock_gui._deep_merge_dicts = Mock(return_value={})

@@ -301,9 +301,7 @@ class TestPrepareOverviewHierarchyForWidget:
 class TestCheckLiveProjectCalibration:
     """Tests for check_live_project_calibration method."""
 
-    def test_check_live_project_calibration_not_live(
-        self, validation_manager, mock_controller
-    ):
+    def test_check_live_project_calibration_not_live(self, validation_manager, mock_controller):
         """Test that method returns early for non-live projects."""
         mock_controller.project_manager.get_project_type.return_value = "pre-recorded"
 
@@ -361,9 +359,7 @@ class TestCheckLiveProjectCalibration:
 class TestPrepareSingleVideoUIState:
     """Tests for prepare_single_video_ui_state method."""
 
-    def test_prepare_single_video_ui_state_no_zone_controls(
-        self, validation_manager, mock_gui
-    ):
+    def test_prepare_single_video_ui_state_no_zone_controls(self, validation_manager, mock_gui):
         """Test when zone_controls is None."""
         mock_gui.zone_controls = None
 
@@ -414,9 +410,7 @@ class TestPrepareSingleVideoUIState:
 class TestComposeSingleVideoRuntimeConfig:
     """Tests for compose_single_video_runtime_config method."""
 
-    def test_compose_single_video_runtime_config_no_pending(
-        self, validation_manager, mock_gui
-    ):
+    def test_compose_single_video_runtime_config_no_pending(self, validation_manager, mock_gui):
         """Test when no pending config."""
         mock_gui.pending_single_video_config = None
 
@@ -487,9 +481,7 @@ class TestComposeSingleVideoRuntimeConfig:
         assert result is None
         mock_gui.show_error.assert_called_once()
 
-    def test_compose_single_video_runtime_config_zero_interval(
-        self, validation_manager, mock_gui
-    ):
+    def test_compose_single_video_runtime_config_zero_interval(self, validation_manager, mock_gui):
         """Test with zero interval values."""
         mock_gui.pending_single_video_config = {"video_path": "/path/to/video.mp4"}
         mock_gui.analysis_interval_var.get = Mock(return_value="0")
@@ -529,9 +521,7 @@ class TestGetZoneDataForActiveContext:
         self, validation_manager, mock_controller, mock_zone_data
     ):
         """Test with active video."""
-        mock_controller.project_manager.get_active_zone_video.return_value = (
-            "/path/to/video.mp4"
-        )
+        mock_controller.project_manager.get_active_zone_video.return_value = "/path/to/video.mp4"
         mock_controller.project_manager.get_zone_data.return_value = mock_zone_data
 
         validation_manager.get_zone_data_for_active_context()
@@ -558,9 +548,7 @@ class TestGetZoneDataForActiveContext:
         self, validation_manager, mock_controller, mock_zone_data
     ):
         """Test exception handling."""
-        mock_controller.project_manager.get_active_zone_video.return_value = (
-            "/path/to/video.mp4"
-        )
+        mock_controller.project_manager.get_active_zone_video.return_value = "/path/to/video.mp4"
         mock_controller.project_manager.get_zone_data.side_effect = [
             Exception("Test error"),
             mock_zone_data,
@@ -632,9 +620,7 @@ class TestValidateRoiTemplateData:
         assert is_valid is False
         assert "Desenhe" in error
 
-    def test_validate_roi_template_data_with_polygon(
-        self, validation_manager, mock_zone_data
-    ):
+    def test_validate_roi_template_data_with_polygon(self, validation_manager, mock_zone_data):
         """Test with valid polygon."""
         is_valid, error = validation_manager.validate_roi_template_data(mock_zone_data)
 
@@ -787,9 +773,7 @@ class TestValidateActiveVideoSelection:
 
     def test_validate_active_video_selection_valid(self, validation_manager):
         """Test with valid video path."""
-        is_valid, error = validation_manager.validate_active_video_selection(
-            "/path/to/video.mp4"
-        )
+        is_valid, error = validation_manager.validate_active_video_selection("/path/to/video.mp4")
 
         assert is_valid is True
         assert error == ""
@@ -1451,9 +1435,7 @@ class TestEdgeCases:
         self, validation_manager, mock_controller
     ):
         """Test get_zone_data with empty zone data from active video."""
-        mock_controller.project_manager.get_active_zone_video.return_value = (
-            "/path/to/video.mp4"
-        )
+        mock_controller.project_manager.get_active_zone_video.return_value = "/path/to/video.mp4"
         empty_zone_data = ZoneData()
         global_zone_data = ZoneData()
         global_zone_data.polygon = [[100, 100], [200, 200]]

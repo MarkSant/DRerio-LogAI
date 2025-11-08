@@ -69,7 +69,7 @@ def test_recorder_schema():
     from zebtrack.io.recorder import Recorder
 
     # Schema deve ter colunas esperadas
-    expected_cols = ["timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"]
+    _expected_cols = ["timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"]
     # Recorder.SCHEMA é usado internamente, verificamos que existe
     assert hasattr(Recorder, "__init__")
 
@@ -144,7 +144,7 @@ def test_no_singleton_settings_import():
     base_dir = Path(__file__).parent.parent
     src_dir = base_dir / "src" / "zebtrack"
 
-    forbidden_pattern = re.compile(r"from\s+zebtrack\s+import\s+settings\b")
+    _forbidden_pattern = re.compile(r"from\s+zebtrack\s+import\s+settings\b")
 
     # Arquivos que não devem usar singleton
     critical_files = [

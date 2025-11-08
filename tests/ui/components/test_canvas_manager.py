@@ -78,7 +78,7 @@ def mock_zone_data():
     zone_data.polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
     zone_data.roi_polygons = [
         [[120, 120], [180, 120], [180, 180], [120, 180]],
-        [[220, 120], [280, 120], [280, 180], [220, 180]]
+        [[220, 120], [280, 120], [280, 180], [220, 180]],
     ]
     zone_data.roi_colors = [(0, 255, 0), (255, 0, 0)]  # BGR colors
     zone_data.roi_names = ["ROI_1", "ROI_2"]
@@ -515,8 +515,11 @@ class TestInteractivePolygonDrawing:
         assert len(vertices) == 3
 
         # Should create edges (n-1 edges for n points)
-        lines = [item for item in mock_gui.roi_canvas.find_withtag("drawing_aid")
-                 if mock_gui.roi_canvas.type(item) == "line"]
+        lines = [
+            item
+            for item in mock_gui.roi_canvas.find_withtag("drawing_aid")
+            if mock_gui.roi_canvas.type(item) == "line"
+        ]
         assert len(lines) == 2
 
 
@@ -672,7 +675,7 @@ class TestFrameDisplay:
         frame = np.zeros((600, 800, 3), dtype=np.uint8)
         mock_gui.analysis_active = True
 
-        with patch.object(canvas_manager, 'display_analysis_frame') as mock_display_analysis:
+        with patch.object(canvas_manager, "display_analysis_frame") as mock_display_analysis:
             canvas_manager.display_frame(frame)
             mock_display_analysis.assert_called_once_with(frame)
 
@@ -682,7 +685,7 @@ class TestFrameDisplay:
         frame = np.zeros((600, 800, 3), dtype=np.uint8)
         mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
 
-        with patch.object(canvas_manager, '_render_last_analysis_frame') as mock_render:
+        with patch.object(canvas_manager, "_render_last_analysis_frame") as mock_render:
             canvas_manager.display_analysis_frame(frame)
 
             # Verify frame was stored
@@ -729,7 +732,7 @@ class TestDetectionOverlay:
         frame = np.zeros((600, 800, 3), dtype=np.uint8)
         mock_gui._current_detections = [
             [100, 100, 200, 200, 0.95, 1, 0],  # x1, y1, x2, y2, conf, track_id, class_id
-            [300, 300, 400, 400, 0.87, 2, 0]
+            [300, 300, 400, 400, 0.87, 2, 0],
         ]
 
         # Mock cv2.getTextSize
@@ -749,7 +752,7 @@ class TestDetectionOverlay:
         frame = np.zeros((600, 800, 3), dtype=np.uint8)
         mock_gui._current_detections = [
             [100, 100, 200],  # Incomplete detection (less than 7 elements)
-            [100, 100, 200, 200, 0.95, 1, 0]  # Valid detection
+            [100, 100, 200, 200, 0.95, 1, 0],  # Valid detection
         ]
 
         mock_cv2.getTextSize.return_value = ((50, 10), 2)
@@ -774,7 +777,7 @@ class TestDetectionOverlay:
         mock_gui._current_detections = [[100, 100, 200, 200, 0.95, 1, 0]]
         mock_cv2.getTextSize.return_value = ((50, 10), 2)
 
-        with patch.object(canvas_manager, '_show_analysis_frame_image') as mock_show:
+        with patch.object(canvas_manager, "_show_analysis_frame_image") as mock_show:
             canvas_manager._render_last_analysis_frame()
 
             # Verify show was called
@@ -799,7 +802,7 @@ class TestDetectionOverlay:
         mock_gui.track_selector_var.get.return_value = "1"
         mock_gui._current_detections = [
             [100, 100, 200, 200, 0.95, 1, 0],
-            [300, 300, 400, 400, 0.87, 2, 0]
+            [300, 300, 400, 400, 0.87, 2, 0],
         ]
 
         canvas_manager._annotate_selected_tracks(frame)

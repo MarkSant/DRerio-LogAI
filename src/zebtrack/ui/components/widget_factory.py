@@ -107,9 +107,7 @@ class WidgetFactory:
             return "Sem Dia"
         return f"Dia {candidate_str}"
 
-    def build_processing_report_artifact_id(
-        self, parent_id: str, artifact_path: str
-    ) -> str:
+    def build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
         """
         Create a stable item id for report artifacts while avoiding duplicates.
 
@@ -254,9 +252,7 @@ class WidgetFactory:
         Args:
             parent: Parent frame to add buttons to
         """
-        project_actions_frame = ttk.LabelFrame(
-            parent, text="Ações do Projeto", padding=10
-        )
+        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
         project_actions_frame.pack(fill="x", pady=10, expand=True)
 
         ttk.Button(
@@ -287,9 +283,7 @@ class WidgetFactory:
         Args:
             parent: Parent frame to add labels to
         """
-        model_status_frame = ttk.LabelFrame(
-            parent, text="Estado do Modelo de Detecção", padding=10
-        )
+        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
         model_status_frame.pack(fill="x", pady=10, expand=True)
         ttk.Label(
             model_status_frame,
@@ -317,10 +311,7 @@ class WidgetFactory:
         if not getattr(self.gui, "zone_controls_frame", None):
             return
 
-        if (
-            self.gui.zone_summary_frame
-            and self.gui.zone_summary_frame.winfo_exists()
-        ):
+        if self.gui.zone_summary_frame and self.gui.zone_summary_frame.winfo_exists():
             try:
                 self.gui.zone_summary_frame.destroy()
             except Exception:
@@ -347,18 +338,14 @@ class WidgetFactory:
         ]
 
         for idx, (key, title) in enumerate(card_specs):
-            card = ttk.Frame(
-                cards_container, padding=10, relief="ridge", borderwidth=1
-            )
+            card = ttk.Frame(cards_container, padding=10, relief="ridge", borderwidth=1)
             card.grid(row=0, column=idx, padx=5, pady=5, sticky="nsew")
             cards_container.columnconfigure(idx, weight=1)
 
             value_var = StringVar(value="0")
             detail_var = StringVar(value="Nenhum vídeo listado")
 
-            ttk.Label(
-                card, text=title, font=("TkDefaultFont", 9, "bold")
-            ).pack(anchor="w")
+            ttk.Label(card, text=title, font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
             value_label = ttk.Label(
                 card, textvariable=value_var, font=("TkDefaultFont", 20, "bold")
             )
@@ -418,9 +405,7 @@ class WidgetFactory:
         redo_btn.pack(side="left", padx=2)
 
         # Position the frame in top-right corner of canvas
-        self.gui._drawing_buttons_frame.place(
-            relx=1.0, rely=0.0, anchor="ne", x=-10, y=10
-        )
+        self.gui._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
 
     def create_progress_grid_tab(self):
         """
@@ -429,9 +414,7 @@ class WidgetFactory:
         Used for live camera projects to show recording progress.
         """
         self.gui.progress_grid_frame = ttk.Frame(self.gui.notebook, padding="10")
-        self.gui.notebook.add(
-            self.gui.progress_grid_frame, text="Progresso do Experimento"
-        )
+        self.gui.notebook.add(self.gui.progress_grid_frame, text="Progresso do Experimento")
 
         # This frame will hold the actual grid of buttons, which is rendered later
         self.gui.grid_container = ttk.Frame(self.gui.progress_grid_frame)
@@ -456,9 +439,7 @@ class WidgetFactory:
         Args:
             event: Tkinter configure event
         """
-        self.gui.controls_canvas.configure(
-            scrollregion=self.gui.controls_canvas.bbox("all")
-        )
+        self.gui.controls_canvas.configure(scrollregion=self.gui.controls_canvas.bbox("all"))
 
     def on_canvas_configure_scroll(self, event=None):
         """
@@ -467,12 +448,8 @@ class WidgetFactory:
         Args:
             event: Tkinter configure event
         """
-        canvas_width = (
-            event.width if event else self.gui.controls_canvas.winfo_width()
-        )
-        self.gui.controls_canvas.itemconfig(
-            self.gui.controls_canvas_window, width=canvas_width
-        )
+        canvas_width = event.width if event else self.gui.controls_canvas.winfo_width()
+        self.gui.controls_canvas.itemconfig(self.gui.controls_canvas_window, width=canvas_width)
 
     def on_canvas_configure(self, event=None):
         """
@@ -527,9 +504,7 @@ class WidgetFactory:
         self.gui.fixed_button_frame = ttk.Frame(parent)
 
         # Configure canvas scrolling
-        self.gui.controls_canvas.configure(
-            yscrollcommand=self.gui.controls_scrollbar.set
-        )
+        self.gui.controls_canvas.configure(yscrollcommand=self.gui.controls_scrollbar.set)
 
         # Pack the scrollbar and canvas
         self.gui.controls_scrollbar.pack(side="right", fill="y")
@@ -542,12 +517,8 @@ class WidgetFactory:
         )
 
         # Bind events for proper scrolling behavior
-        self.gui.zone_controls_frame.bind(
-            "<Configure>", self.on_frame_configure
-        )
-        self.gui.controls_canvas.bind(
-            "<Configure>", self.on_canvas_configure_scroll
-        )
+        self.gui.zone_controls_frame.bind("<Configure>", self.on_frame_configure)
+        self.gui.controls_canvas.bind("<Configure>", self.on_canvas_configure_scroll)
         self.gui._bind_mousewheel()
 
     # ===========================================================================
@@ -573,16 +544,12 @@ class WidgetFactory:
         )
 
         # Add to notebook
-        self.gui.notebook.add(
-            self.gui.config_editor_widget, text="Config. Avançadas"
-        )
+        self.gui.notebook.add(self.gui.config_editor_widget, text="Config. Avançadas")
 
         # Connect events
         if self.gui.event_bus:
             self.gui._event_bus_handlers["config.save_requested"] = (
-                lambda data: self.gui._on_save_global_config_from_widget(
-                    data["values"]
-                )
+                lambda data: self.gui._on_save_global_config_from_widget(data["values"])
             )
             self.gui._event_bus_handlers["config.reset_requested"] = (
                 lambda data: self.gui._on_reset_global_config_form_widget()
@@ -615,9 +582,7 @@ class WidgetFactory:
         )
 
         # Add to notebook
-        self.gui.notebook.add(
-            self.gui.analysis_display_widget, text="Análise de Vídeo"
-        )
+        self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")
 
         # Connect widget events to GUI handlers
         if self.gui.event_bus:
@@ -634,19 +599,11 @@ class WidgetFactory:
         self.gui.video_label = self.gui.analysis_display_widget.video_label
         self.gui.progress_frame = self.gui.analysis_display_widget.progress_frame
         self.gui.progress_bar = self.gui.analysis_display_widget.progress_bar
-        self.gui.progress_labels = (
-            self.gui.analysis_display_widget.progress_labels
-        )
+        self.gui.progress_labels = self.gui.analysis_display_widget.progress_labels
         self.gui.cancel_proc_btn = self.gui.analysis_display_widget.cancel_btn
-        self.gui.track_selector_var = (
-            self.gui.analysis_display_widget.track_selector_var
-        )
-        self.gui.track_selector_widget = (
-            self.gui.analysis_display_widget.track_selector_widget
-        )
-        self.gui.social_summary_var = (
-            self.gui.analysis_display_widget.social_summary_var
-        )
+        self.gui.track_selector_var = self.gui.analysis_display_widget.track_selector_var
+        self.gui.track_selector_widget = self.gui.analysis_display_widget.track_selector_widget
+        self.gui.social_summary_var = self.gui.analysis_display_widget.social_summary_var
 
     def create_processing_reports_tab(self) -> None:
         """
@@ -669,9 +626,7 @@ class WidgetFactory:
                 pass
 
         # Create tab frame
-        self.gui.processing_reports_tab_frame = ttk.Frame(
-            self.gui.notebook, padding="10"
-        )
+        self.gui.processing_reports_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
         self.gui.notebook.add(
             self.gui.processing_reports_tab_frame, text="Processamento e Relatórios"
         )
@@ -710,10 +665,7 @@ class WidgetFactory:
         if not parent:
             return
 
-        if (
-            self.gui.project_overview_frame
-            and self.gui.project_overview_frame.winfo_exists()
-        ):
+        if self.gui.project_overview_frame and self.gui.project_overview_frame.winfo_exists():
             try:
                 self.gui.project_overview_frame.destroy()
             except Exception:
@@ -749,9 +701,7 @@ class WidgetFactory:
             )
 
         # Separator
-        ttk.Separator(
-            self.gui.project_overview_frame, orient="horizontal"
-        ).pack(fill="x", pady=10)
+        ttk.Separator(self.gui.project_overview_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Navigation button
         ttk.Button(
@@ -806,15 +756,11 @@ class WidgetFactory:
             self.gui.welcome_frame.destroy()
         reset_geometry_if_not_maximized(self.gui.root)
 
-        self.gui.notebook = ttk.Notebook(
-            self.gui.root, style="Zebtrack.TNotebook"
-        )
+        self.gui.notebook = ttk.Notebook(self.gui.root, style="Zebtrack.TNotebook")
         self.gui.notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
         # Bind tab change event to hide analysis overlay when switching tabs
-        self.gui.notebook.bind(
-            "<<NotebookTabChanged>>", self.gui._on_tab_changed
-        )
+        self.gui.notebook.bind("<<NotebookTabChanged>>", self.gui._on_tab_changed)
 
         # Create the tabs
         self.gui._create_main_controls_tab()
@@ -862,16 +808,12 @@ class WidgetFactory:
                 current = settings_module.load_settings()
                 settings_module.settings = current
             except Exception as exc:  # pragma: no cover - defensive UI feedback
-                self.gui.show_error(
-                    "Erro", f"Não foi possível carregar config.yaml: {exc}"
-                )
+                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
                 return
 
         values = {
             "video_processing": {
-                "fps": self.gui._extract_setting(
-                    current, ("video_processing", "fps"), 30
-                ),
+                "fps": self.gui._extract_setting(current, ("video_processing", "fps"), 30),
                 "processing_interval": self.gui._extract_setting(
                     current, ("video_processing", "processing_interval"), 10
                 ),
@@ -969,14 +911,10 @@ class WidgetFactory:
                 active_settings = settings_module.load_settings()
                 settings_module.settings = active_settings
             except Exception as exc:
-                self.gui.show_error(
-                    "Erro", f"Não foi possível carregar config.yaml: {exc}"
-                )
+                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
                 return
 
-        merged = self.gui._deep_merge_dicts(
-            active_settings.model_dump(), update_payload
-        )
+        merged = self.gui._deep_merge_dicts(active_settings.model_dump(), update_payload)
 
         try:
             validated = settings_module.Settings.model_validate(merged)
@@ -992,9 +930,7 @@ class WidgetFactory:
             else:
                 override_content = {}
 
-            merged_override = self.gui._deep_merge_dicts(
-                override_content, update_payload
-            )
+            merged_override = self.gui._deep_merge_dicts(override_content, update_payload)
             with open(override_path, "w", encoding="utf-8") as handle:
                 yaml.safe_dump(
                     merged_override,
@@ -1003,9 +939,7 @@ class WidgetFactory:
                     allow_unicode=True,
                 )
         except Exception as exc:
-            self.gui.show_error(
-                "Erro", f"Não foi possível salvar config.local.yaml: {exc}"
-            )
+            self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
 
         if settings_module.settings is None:
@@ -1618,9 +1552,7 @@ class WidgetFactory:
             log.error(
                 "gui.roi_templates.delete_failed", template_name=template_name, error=str(exc)
             )
-            self.gui.show_error(
-                "Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}"
-            )
+            self.gui.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
 
     def create_template_rois(self) -> None:
         """Opens a dialog to create ROIs from a template."""
@@ -1636,9 +1568,7 @@ class WidgetFactory:
         # Get the arena polygon bounds from the controller
         arena_data = self.gui.controller.get_arena_data(current_arena_id)
         if not arena_data or "polygon_px" not in arena_data:
-            self.gui.show_error(
-                "Erro", "Não foi possível obter os dados do polígono do aquário."
-            )
+            self.gui.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
             return
 
         poly_points = np.array(arena_data["polygon_px"])
@@ -1715,9 +1645,9 @@ class WidgetFactory:
         completed_sessions = pm.get_completed_sessions()
 
         # 3. Create headers
-        ttk.Label(
-            self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
-        ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        ttk.Label(self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
+            row=0, column=0, padx=5, pady=5, sticky="nsew"
+        )
         for j, group_name in enumerate(groups):
             ttk.Label(
                 self.gui.grid_container,

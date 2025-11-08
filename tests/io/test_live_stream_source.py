@@ -40,9 +40,7 @@ class TestLiveStreamSourceInit:
         mock_camera.actual_fps = 30.0
         mock_camera_class.return_value = mock_camera
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=300.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=300.0, settings_obj=mock_settings)
 
         assert stream.camera_index == 0
         assert stream.max_duration_s == 300.0
@@ -61,9 +59,7 @@ class TestLiveStreamSourceInit:
         mock_camera.actual_height = 720
         mock_camera_class.return_value = mock_camera
 
-        stream = LiveStreamSource(
-            camera_index=1, max_duration_s=120.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=1, max_duration_s=120.0, settings_obj=mock_settings)
 
         assert stream.estimated_frame_count == int(120.0 * 25.0)  # 3000 frames
 
@@ -85,9 +81,7 @@ class TestLiveStreamSourceGetFrame:
         # Mock time to simulate passage
         mock_time.time.side_effect = [100.0, 100.0, 101.0]  # start, get_frame, check
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         ret, frame = stream.get_frame()
 
@@ -109,9 +103,7 @@ class TestLiveStreamSourceGetFrame:
         # Mock time: start at 100, check at 115 (exceeds 10s limit)
         mock_time.time.side_effect = [100.0, 115.0]
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         ret, frame = stream.get_frame()
 
@@ -133,9 +125,7 @@ class TestLiveStreamSourceGetFrame:
         # Always return early time
         mock_time.time.return_value = 100.0
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         assert stream.frame_number == 0
 
@@ -161,9 +151,7 @@ class TestLiveStreamSourceProperties:
         mock_camera.actual_fps = 30.0
         mock_camera_class.return_value = mock_camera
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         stream.frame_number = 42
         result = stream.get_current_frame_number()
@@ -180,9 +168,7 @@ class TestLiveStreamSourceProperties:
         mock_camera.actual_fps = 60.0
         mock_camera_class.return_value = mock_camera
 
-        stream = LiveStreamSource(
-            camera_index=2, max_duration_s=600.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=2, max_duration_s=600.0, settings_obj=mock_settings)
 
         props = stream.get_properties()
 
@@ -206,9 +192,7 @@ class TestLiveStreamSourceProperties:
 
         mock_time.time.side_effect = [100.0, 105.0]  # start, check
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         elapsed = stream.get_elapsed_time()
         assert elapsed == 5.0
@@ -225,18 +209,14 @@ class TestLiveStreamSourceProperties:
 
         mock_time.time.side_effect = [100.0, 107.0]  # start, check (7s elapsed)
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         remaining = stream.get_remaining_time()
         assert remaining == 3.0
 
     @patch("zebtrack.io.live_stream_source.Camera")
     @patch("zebtrack.io.live_stream_source.time")
-    def test_get_remaining_time_never_negative(
-        self, mock_time, mock_camera_class, mock_settings
-    ):
+    def test_get_remaining_time_never_negative(self, mock_time, mock_camera_class, mock_settings):
         """Test that remaining time is never negative."""
         mock_camera = MagicMock()
         mock_camera.actual_width = 640
@@ -246,9 +226,7 @@ class TestLiveStreamSourceProperties:
 
         mock_time.time.side_effect = [100.0, 115.0]  # start, 15s elapsed (exceeds 10s)
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         remaining = stream.get_remaining_time()
         assert remaining == 0.0
@@ -269,9 +247,7 @@ class TestLiveStreamSourceRelease:
 
         mock_time.time.side_effect = [100.0, 105.0]  # start, release
 
-        stream = LiveStreamSource(
-            camera_index=0, max_duration_s=10.0, settings_obj=mock_settings
-        )
+        stream = LiveStreamSource(camera_index=0, max_duration_s=10.0, settings_obj=mock_settings)
 
         stream.frame_number = 42
         stream.release()

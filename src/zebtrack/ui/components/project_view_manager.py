@@ -550,10 +550,7 @@ class ProjectViewManager:
         Args:
             event: Tkinter event object
         """
-        if (
-            not self.gui.processing_reports_widget
-            or not self.gui.processing_reports_widget.tree
-        ):
+        if not self.gui.processing_reports_widget or not self.gui.processing_reports_widget.tree:
             return
 
         tree = self.gui.processing_reports_widget.tree
@@ -813,9 +810,7 @@ class ProjectViewManager:
             results_dir: Results directory path
             metadata_store: Metadata storage dictionary
         """
-        self.append_processing_reports_artifacts(
-            tree, parent_id, results_dir, metadata_store
-        )
+        self.append_processing_reports_artifacts(tree, parent_id, results_dir, metadata_store)
 
     # ===========================================================================
     # CATEGORIA 7: EVENT HANDLERS
@@ -1045,11 +1040,7 @@ class ProjectViewManager:
             summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
             report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
             excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
-            if (
-                summary_candidate.exists()
-                or report_candidate.exists()
-                or excel_candidate.exists()
-            ):
+            if summary_candidate.exists() or report_candidate.exists() or excel_candidate.exists():
                 has_results = True
 
         if not results_dir or not os.path.isdir(results_dir) or not has_results:

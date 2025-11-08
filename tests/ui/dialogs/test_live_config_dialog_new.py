@@ -1,6 +1,7 @@
 """
 Simplified test to verify LiveConfigDialog works with new camera dropdown.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -13,14 +14,30 @@ def test_live_config_dialog_with_camera_dropdown(tkinter_root):
     """Test that LiveConfigDialog works with the new combobox camera selection."""
 
     # Mock WizardService to return camera list
-    with patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras") as mock_detect:
+    with patch(
+        "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+    ) as mock_detect:
         mock_detect.return_value = [
-            {"index": 0, "width": 1920, "height": 1080, "fps": 30.0, "description": "720p HD Camera"},
-            {"index": 1, "width": 640, "height": 480, "fps": 30.0, "description": "Logi C270 HD WebCam"},
+            {
+                "index": 0,
+                "width": 1920,
+                "height": 1080,
+                "fps": 30.0,
+                "description": "720p HD Camera",
+            },
+            {
+                "index": 1,
+                "width": 640,
+                "height": 480,
+                "fps": 30.0,
+                "description": "Logi C270 HD WebCam",
+            },
         ]
 
         # Mock Arduino detection
-        with patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports") as mock_arduino:
+        with patch(
+            "zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports"
+        ) as mock_arduino:
             mock_arduino.return_value = ([], [])
 
             # Mock wait_window to prevent blocking
@@ -56,10 +73,14 @@ def test_live_config_dialog_refresh_cameras(tkinter_root):
         {"index": 1, "width": 640, "height": 480, "fps": 30.0, "description": "Logi C270"},
     ]
 
-    with patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras") as mock_detect:
+    with patch(
+        "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+    ) as mock_detect:
         mock_detect.return_value = initial_cameras
 
-        with patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports") as mock_arduino:
+        with patch(
+            "zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports"
+        ) as mock_arduino:
             mock_arduino.return_value = ([], [])
 
             with patch.object(LiveConfigDialog, "wait_window"):

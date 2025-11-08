@@ -147,9 +147,9 @@ class LiveAnalysisDialog(Dialog):
         ToolTip(duration_spinbox, "Duração máxima da análise em segundos (10-7200).")
 
         # Quick duration buttons
-        Button(
-            duration_row, text="1 min", command=lambda: self.duration_var.set(60), width=6
-        ).pack(side="left", padx=2)
+        Button(duration_row, text="1 min", command=lambda: self.duration_var.set(60), width=6).pack(
+            side="left", padx=2
+        )
         Button(
             duration_row, text="5 min", command=lambda: self.duration_var.set(300), width=6
         ).pack(side="left", padx=2)
@@ -325,14 +325,11 @@ class LiveAnalysisDialog(Dialog):
             if duration <= 0:
                 raise ValueError("Duração deve ser positiva")
 
-            max_duration = (
-                self.settings.live_analysis.max_duration_s if self.settings else 7200.0
-            )
+            max_duration = self.settings.live_analysis.max_duration_s if self.settings else 7200.0
             if duration > max_duration:
                 messagebox.showwarning(
                     "Duração Muito Longa",
-                    f"Duração máxima permitida: {max_duration}s\n"
-                    f"Ajustando para o máximo...",
+                    f"Duração máxima permitida: {max_duration}s\nAjustando para o máximo...",
                     parent=self,
                 )
                 self.duration_var.set(max_duration)

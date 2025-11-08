@@ -307,6 +307,7 @@ class CanvasManager:
 
             # Import the utility function
             from zebtrack.ui.utils import set_geometry_if_not_maximized
+
             set_geometry_if_not_maximized(self.gui.root, f"{win_w}x{win_h}")
             self.gui.root.update_idletasks()
 
@@ -1149,9 +1150,7 @@ class CanvasManager:
                 relief="solid",
                 padding=5,
             )
-            self.gui.drawing_instruction_label.pack(
-                pady=5, before=self.gui.zone_listbox.master
-            )
+            self.gui.drawing_instruction_label.pack(pady=5, before=self.gui.zone_listbox.master)
 
         # Create floating undo/redo buttons over canvas
         self.gui._create_drawing_buttons()
