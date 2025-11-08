@@ -3620,18 +3620,8 @@ class ApplicationGUI:
         self.status_var.set(text)
 
     def show_progress_bar(self):
-        """Shows the progress bar frame and cancel button."""
-        if self.progress_frame and not self.progress_frame.winfo_viewable():
-            # Pack progress_frame BEFORE video_container to ensure it stays visible
-            if hasattr(self, "video_container") and self.video_container:
-                self.progress_frame.pack(before=self.video_container, pady=5, fill="x", padx=10)
-                # Force layout recalculation after showing progress bar
-                self.root.update_idletasks()
-            else:
-                self.progress_frame.pack(pady=5, fill="x", padx=10)
-            self.progress_bar["value"] = 0
-        if self.cancel_proc_btn:
-            self.cancel_proc_btn.config(state="normal")
+        """Show progress bar. Delegates to DialogManager."""
+        return self.dialog_manager.show_progress_bar()
 
     def update_progress(self, value):
         """Updates the progress bar."""
@@ -3653,21 +3643,15 @@ class ApplicationGUI:
         elapsed=None,
         eta=None,
     ):
-        """Update textual statistics for file processing."""
-        if not self.progress_labels:
-            return
-        if total is not None:
-            self.progress_labels["total"].set(str(total))
-        if processed is not None:
-            self.progress_labels["processed"].set(str(processed))
-        if detected is not None:
-            self.progress_labels["detected"].set(str(detected))
-        if percent is not None:
-            self.progress_labels["percent"].set(f"{percent:.1f}%")
-        if elapsed is not None:
-            self.progress_labels["elapsed"].set(self._format_time(elapsed))
-        if eta is not None:
-            self.progress_labels["eta"].set(self._format_time(eta) if eta >= 0 else "-")
+        """Update progress stats. Delegates to AnalysisDisplay."""
+        return self.analysis_display.update_progress_stats(
+            total=total,
+            processed=processed,
+            detected=detected,
+            percent=percent,
+            elapsed=elapsed,
+            eta=eta,
+        )
 
     def hide_progress_bar(self):
         """Hides the progress bar and cancel button, and resets its value."""
