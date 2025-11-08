@@ -1,0 +1,464 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║        MAINVIEWMODEL CLASS - QUICK REFERENCE & EXTRACTION GUIDE                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+📊 STATISTICS
+═════════════════════════════════════════════════════════════════════════════════
+  Total Methods:      ~140 (including properties)
+  File Size:          5588 lines
+  Dependencies:       13+ services injected
+  Cyclomatic Complex: 2 methods with C901 warnings (process_pending_project_videos)
+
+🔌 INJECTED DEPENDENCIES (in __init__)
+═════════════════════════════════════════════════════════════════════════════════
+
+  FRAMEWORK
+  ─────────────────────────────────────────────────────────────────────────────
+  • root                          → Tkinter window
+  • event_bus (ui_event_bus)      → EventBus (publish/subscribe)
+  • state_manager                 → StateManager (observable, thread-safe)
+  • ui_coordinator                → UICoordinator (schedule UI updates)
+  • settings_obj                  → Settings (Pydantic v2 config)
+
+  SERVICE LAYER
+  ─────────────────────────────────────────────────────────────────────────────
+  • project_manager               → Project state, videos, zones
+  • project_workflow_service      → Project wizard flow
+  • weight_manager                → Model weights
+  • model_service                 → Model metadata
+  • detector_service              → AI detector initialization
+  • video_processing_service      → Frame processing
+
+  OPTIONAL/LAZY
+  ─────────────────────────────────────────────────────────────────────────────
+  • analysis_service              → Behavioral metrics (created if None)
+  • recording_service             → Parquet + MP4 output (initialized later)
+  • live_camera_service           → Live camera analysis sessions
+
+  INTERNAL INSTANCES
+  ─────────────────────────────────────────────────────────────────────────────
+  • project_service               → ProjectService() (created in __init__)
+  • recorder                       → Recorder (Parquet writer)
+  • arduino / arduino_manager     → Arduino hardware (optional)
+
+
+🎯 METHOD CATEGORIZATION & EXTRACTION ROADMAP
+═════════════════════════════════════════════════════════════════════════════════
+
+  1️⃣  STATE MANAGEMENT & LIFECYCLE                                    [KEEP]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  357, 527, 537, 430, 459, 470, 484, 505
+  Count:  8 methods
+  Status: Essential for observable state pattern
+  
+  • run()                              - Main event loop
+  • on_close()                         - Cleanup on exit
+  • join_threads()                     - Wait for workers
+  • _on_state_change_for_test()        - Test observer
+  • _on_project_state_changed()        - Project state listener
+  • _on_detector_state_changed()       - Detector state listener
+  • _on_recording_state_changed()      - Recording state listener
+  • _on_processing_state_changed()     - Processing state listener
+
+
+  2️⃣  EVENT BUS & EVENT HANDLING                                      [KEEP]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  361, 798, 762, 775, 825
+  Count:  5 methods
+  Status: Foundation - route UI→Controller events
+  
+  • bind_events()                      - Subscribe to UI events
+  • _register_event_handlers()         - Register generic dispatchers
+  • _create_event_dispatcher()         - Event dispatcher factory
+  • dispatcher(data)                   - Nested dispatcher function
+  • _handle_setup_zone_definition...() - Special handler
+
+
+  3️⃣  PROPERTIES & BASIC ACCESSORS                                    [KEEP]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  380, 385, 393, 403, 412, 421, 426, 517, 1570
+  Count:  9 items
+  Status: State exposure layer
+  
+  • is_recording (getter/setter)       - Recording state access
+  • detector (getter/setter/deleter)   - Detector instance access
+  • detector_initialized              - Check detector ready
+  • is_processing                      - Check processing active
+  • get_openvino_status()              - OpenVINO status text
+  • get_calibration_scope_info()       - Calibration context
+
+
+  4️⃣  HARDWARE SETUP & CONTROL                    [EXTRACT → HardwareCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  1226, 1306, 1260, 1254, 560, 565, 921, 927, 933, 917
+  Count:  10 methods
+  Status: High priority extraction
+  
+  DETECTOR
+  • setup_detector()                   - Initialize detector
+  • setup_detector_zones()             - Configure zones
+  
+  ARDUINO
+  • setup_arduino()                    - Setup Arduino connection
+  • _is_arduino_connected()            - Check connection status
+  • _get_arduino_manager()             - Create manager instance
+  • _shutdown_arduino_manager()        - Cleanup connection
+  • on_arduino_status_change()         - Handle connect/disconnect
+  • on_arduino_command_sent()          - Log command result
+  • on_arduino_event()                 - Handle zone triggers
+  • log_arduino_event()                - Event logging
+
+
+  5️⃣  RECORDING & LIVE CAMERA              [EXTRACT → RecordingCoordinator + LiveCameraCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  2459, 2654, 2672, 950, 963, 2588, 583, 604, 2768
+  Count:  9 methods
+  Status: High priority extraction
+  
+  RECORDING
+  • start_recording()                  - Begin recording
+  • stop_recording()                   - End recording
+  • _ensure_zones_before_recording()   - Validate zones
+  • trigger_recording()                - Arduino trigger
+  • _schedule_recording()              - Schedule with delay/duration
+  
+  LIVE CAMERA
+  • start_live_camera_analysis()       - Launch live analysis
+  • _setup_recording_service_callbacks() - Wire callbacks
+  • _init_recording_service()          - Initialize service
+  
+  LIFECYCLE
+  • cancel_current_analysis()          - Stop processing
+
+
+  6️⃣  WEIGHT & MODEL MANAGEMENT                  [EXTRACT → WeightCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  1341, 1360, 1368, 1372, 1393, 1412, 1433, 1437, 1476, 1490, 1532
+  Count:  12 methods
+  Status: Medium priority extraction
+  
+  WEIGHT MANAGEMENT
+  • _safe_get_default_weight()         - Get default weight
+  • get_all_weight_names()             - List weights
+  • classify_weight_type()             - Detect weight type
+  • add_new_weight()                   - Add weight + refresh UI
+  • delete_weight()                    - Delete weight + refresh UI
+  • set_active_weight()                - Activate weight
+  • manage_weights()                   - Open management dialog
+  • load_new_weight()                  - Request weight file
+  
+  OPENVINO
+  • set_openvino_usage()               - Toggle OpenVINO mode
+  • convert_active_weight_to_openvino() - Convert weight
+  • update_openvino_status()           - Update status text
+
+
+  7️⃣  MODEL SETTINGS & OVERRIDES                [EXTRACT → ModelSettingsCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  1540, 1543, 1549, 1556, 1564, 1570, 1622, 1636, 1650, 1684, 1710,
+          1733, 1758, 1767, 1823, 1847, 1868
+  Count:  15 methods
+  Status: Medium priority extraction
+  
+  GLOBAL SETTINGS
+  • get_global_model_defaults()        - Get global defaults
+  • _restore_global_model_defaults()   - Reset to global
+  
+  PROJECT OVERRIDES (Query)
+  • are_project_overrides_active()     - Check if active
+  • has_project_override_settings()    - Check if configured
+  • _get_project_data_dict()           - Get project data
+  • _ensure_project_overrides_record() - Ensure dict structure
+  
+  PROJECT OVERRIDES (Persistence)
+  • _persist_project_model_settings()  - Save to project_data
+  • copy_global_model_settings...()    - Copy global → project
+  • save_current_calibration...()      - Save calibration
+  
+  PROJECT OVERRIDES (Application)
+  • _apply_model_settings()            - Apply to detector
+  • resolve_project_model_settings()   - Which settings to use
+  • apply_project_model_overrides()    - Load + apply project
+  • save_project_model_overrides()     - Persist to disk
+  
+  DETECTOR PARAMETERS
+  • get_current_detector_parameters()  - Read active params
+  • get_factory_detector_parameters()  - Get defaults
+  • update_detector_parameters()       - Modify + persist
+
+
+  8️⃣  CALIBRATION SESSIONS              [EXTRACT → CalibrationCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  1875, 1888, 1899, 2359
+  Count:  4 methods
+  Status: Medium priority extraction
+  
+  • global_calibration_session()       - Global calibration
+  • project_calibration_session()      - Project calibration
+  • run_aquarium_detection()           - Auto-detect arena
+  • run_live_calibration()             - Live calibration
+
+
+  9️⃣  ROI (REGION OF INTEREST) MANAGEMENT        [EXTRACT → ArenaCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  2008, 2060, 2067, 2074, 2081, 2088, 2095, 2102, 2152, 2162, 2180,
+          2306, 2324
+  Count:  13 methods
+  Status: High priority extraction
+  
+  ROI TEMPLATES
+  • apply_roi_template()               - Load + apply template
+  • save_roi_template()                - Save as template
+  • import_and_apply_roi_template()    - Import + apply
+  
+  ROI EDITING
+  • rename_selected_roi()              - Rename ROI
+  • change_roi_color()                 - Change color
+  • remove_selected_roi()              - Delete ROI
+  • apply_roi_settings()               - Apply changes
+  
+  ARENA MANAGEMENT
+  • set_main_arena_polygon()           - Set arena
+  • save_manual_arena()                - Save drawn arena
+  • update_main_arena()                - Update arena
+  • add_roi_polygon()                  - Add new ROI
+  
+  ASSET MANAGEMENT
+  • can_remove_project_asset()         - Check if removable
+  • delete_project_asset()             - Delete asset
+
+
+  🔟  PROJECT WORKFLOW MANAGEMENT                [EXTRACT → ProjectCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  1001, 1154, 981, 1058, 1107, 1130, 1141, 880, 903
+  Count:  7 methods
+  Status: High priority extraction
+  
+  PROJECT LIFECYCLE
+  • create_project_workflow()          - Launch wizard
+  • open_project_workflow()            - Open project
+  • close_project()                    - Close project
+  
+  POST-CREATION
+  • _apply_wizard_detector_overrides()  - Apply wizard settings
+  • _show_post_creation_guide()        - Show guide
+  • _restore_detector_settings()       - Restore detector
+  • _setup_zones_from_project()        - Load zones
+  
+  UI
+  • refresh_project_views()            - Refresh UI
+  • _clear_external_trigger_wait()     - Clear Arduino wait
+
+
+  1️⃣1️⃣  SINGLE VIDEO WORKFLOW                      [Can stay - already delegated]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  2845, 2896
+  Count:  2 methods
+  Status: Keep as high-level entry points
+  
+  • start_single_video_workflow()      - Prepare UI
+  • start_single_video_processing()    - Execute processing
+
+
+  1️⃣2️⃣  PROCESSING MODE & CONFIG             [EXTRACT → ProcessingModeCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  832, 860, 3631, 3667, 3722, 3734, 3765, 3830
+  Count:  8 methods
+  Status: Medium priority extraction
+  
+  • _determine_processing_mode()       - Infer mode
+  • _publish_processing_mode()         - Notify GUI
+  • _resolve_single_animal_mode()      - Resolve setting
+  • _resolve_single_subject_tracker... - Determine tracker
+  • _configure_single_subject_tracker() - Enable/disable
+  • _determine_processing_intervals()  - Calculate intervals
+  • _temporary_single_animal_mode()    - Context manager
+  • _activate_analysis_view_mode()     - Switch UI mode
+
+
+  1️⃣3️⃣  BATCH VIDEO PROCESSING                [EXTRACT → BatchProcessingCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  3034, 3262, 3418, 4954, 3900, 3984, 4030, 4112, 4623, 3540, 3567,
+          3598, 3623, 4469, 4478, 4489, 4508, 4583, 4534, 4555, 3837, 3846,
+          4384, 4393, 4800, 4932, 3873, 4161, 4225, 4377, 4758, 4765, 4772,
+          4779, 4671
+  Count:  39+ methods
+  Status: VERY HIGH PRIORITY EXTRACTION (LARGEST GROUP)
+  
+  HIGH-LEVEL WORKFLOWS
+  • start_project_processing_workflow() - Validate + launch
+  • process_pending_project_videos()    - Main orchestrator (C901!)
+  • generate_parquet_summaries()        - Generate summaries
+  • _process_videos()                   - Delegate to worker
+  
+  VIDEO SELECTION & VALIDATION
+  • _gather_candidate_entries()         - List videos
+  • _classify_candidate_videos()        - Determine processing
+  • _select_eligible_videos()           - Filter videos
+  • _scan_and_validate_candidate...()   - Validate files
+  
+  PER-VIDEO PROCESSING
+  • _process_single_video()             - Execute detection
+  • _run_tracking_if_needed()           - Run conditionally
+  • _prepare_zone_data_for_tracking()   - Prepare zones
+  • _build_calibration_context()        - Load calibration
+  • _tracking_cancelled()               - Check cancellation
+  
+  PARAMETER COLLECTION
+  • _collect_params_from_single_video() - Extract config
+  • _collect_params_from_project()      - Extract config
+  • _collect_analysis_parameters()      - Merge params
+  • _prepare_calibration_context()      - Build dict
+  
+  ANALYSIS PIPELINE
+  • _run_analysis_pipeline()            - Execute analysis
+  • _generate_reports_for_video()       - Generate report
+  • _register_project_outputs()         - Record paths
+  
+  UI & CALLBACKS
+  • _prepare_processing_ui()            - Setup UI
+  • _finalize_processing()              - Complete UI
+  • _notify_task_status_start()         - Progress event
+  • _make_progress_callback()           - Progress factory
+  • _create_processing_callbacks()      - Create callbacks
+  • _create_processing_context()        - Create context
+  
+  RESULTS MANAGEMENT
+  • _build_metadata_context()           - Build metadata
+  • _generate_parquet_summaries_worker() - Worker thread
+  • _process_summary_video()            - Create summary
+  • _schedule_analysis_metadata...()    - Schedule UI refresh
+  • _prepare_results_directory()        - Create directory
+  • _snapshot_results_dir()             - Baseline snapshot
+  • _cleanup_cancelled_results()        - Cleanup on cancel
+  • _compose_analysis_view_metadata()   - Metadata for display
+  • apply_project_settings_to_batch()   - Apply settings
+
+
+  1️⃣4️⃣  ANALYSIS & REPORTING                   [EXTRACT → ReportingService]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  4980, 2823
+  Count:  2 methods
+  Status: Low priority extraction (new service)
+  
+  • generate_report()                  - Export report
+  • _show_cancel_feedback()            - Show message
+
+
+  1️⃣5️⃣  MODEL DIAGNOSTIC                       [EXTRACT → DiagnosticCoordinator]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  5070, 5172, 5246, 5283, 5356, 5224, 5241, 5444, 5482
+  Count:  9 methods (including nested)
+  Status: Low priority extraction
+  
+  • run_model_diagnostic()              - Launch diagnostic
+  • _diagnostic_processing_thread()     - Worker thread
+  • _initialize_diagnostic_yolo_model() - Load YOLO
+  • _initialize_diagnostic_openvino...() - Load OpenVINO
+  • _run_diagnostic_frame_loop()        - Process frames
+  • _update_diagnostic_progress()       - Update progress
+  • _finish_progress_dialog()           - Close dialog
+  • _finish_diagnostic_and_save...()    - Save results
+  • _format_diagnostic_report()         - Format output
+
+
+  1️⃣6️⃣  UTILITY & HELPERS                       [KEEP/EXTRACT SELECTIVELY]
+  ─────────────────────────────────────────────────────────────────────────────
+  Lines:  574, 2768, 2803
+  Count:  3+ methods
+  Status: Keep core utilities in MainViewModel
+  
+  • _schedule_on_ui()                  - Schedule on Tkinter
+  • cancel_current_analysis()          - Stop processing
+  • _await_shutdown()                  - Wait for threads
+
+
+═════════════════════════════════════════════════════════════════════════════════
+RECOMMENDED EXTRACTION PHASES
+═════════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: Extract Low-Risk Coordinators (2-3 weeks)
+──────────────────────────────────────────────────────────────────────────────
+  1. HardwareCoordinator         (10 methods)
+  2. ArenaCoordinator             (13 methods)
+  3. CalibrationCoordinator       (4 methods)
+  
+  ✓ Low complexity
+  ✓ Well-defined boundaries
+  ✓ Independent operation
+  ✓ Easy to test
+
+
+PHASE 2: Extract Complex Coordinators (3-4 weeks)
+──────────────────────────────────────────────────────────────────────────────
+  1. ModelCoordinator             (20 methods)
+  2. WeightCoordinator            (12 methods)
+  3. ProcessingModeCoordinator    (8 methods)
+  
+  ✓ Medium complexity
+  ✓ Clear dependencies
+  ✓ Some state management involved
+
+
+PHASE 3: Extract Largest Coordinator (4-6 weeks)
+──────────────────────────────────────────────────────────────────────────────
+  1. BatchProcessingCoordinator   (39+ methods)
+  
+  ⚠ Highest complexity (C901 warning)
+  ⚠ Many internal dependencies
+  ⚠ Critical path for analysis
+  → Requires careful state management
+  → Consider splitting into sub-coordinators
+
+
+PHASE 4: Extract Remaining (1-2 weeks)
+──────────────────────────────────────────────────────────────────────────────
+  1. RecordingCoordinator         (9 methods)
+  2. ProjectCoordinator           (7 methods)
+  3. DiagnosticCoordinator        (8 methods)
+  4. ReportingService             (2 methods)
+  
+  ✓ Once other phases complete
+  ✓ Depends on other coordinators
+
+
+PHASE 5: Thin Down MainViewModel (1 week)
+──────────────────────────────────────────────────────────────────────────────
+  Keep only:
+  • run(), on_close(), join_threads()
+  • State observers (_on_*_state_changed)
+  • Event routing (bind_events, _register_event_handlers)
+  • Properties (detector, is_recording, etc.)
+  • High-level entry point delegation
+
+
+═════════════════════════════════════════════════════════════════════════════════
+DEPENDENCY INJECTION PATTERN (for all new coordinators)
+═════════════════════════════════════════════════════════════════════════════════
+
+Template for each coordinator:
+
+    class MyCoordinator:
+        def __init__(
+            self,
+            state_manager: StateManager,
+            ui_event_bus: EventBus,
+            project_manager: ProjectManager,
+            # ... other injected deps
+        ):
+            self.state_manager = state_manager
+            self.ui_event_bus = ui_event_bus
+            self.project_manager = project_manager
+        
+        def do_something(self):
+            # Update state ONLY via state_manager
+            self.state_manager.update_processing_state(...)
+            
+            # Publish events via ui_event_bus
+            self.ui_event_bus.publish_event(Events.UI_SHOW_INFO, {...})
+        
+        def _some_internal_helper(self):
+            # Private helpers with leading underscore
+            pass
+
+═════════════════════════════════════════════════════════════════════════════════
