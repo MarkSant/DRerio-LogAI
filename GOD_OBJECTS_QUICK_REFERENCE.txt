@@ -33,7 +33,7 @@ Refactoring Plan:
   ├── CanvasManager (drawing - 29 methods)
   ├── TabManager (tab management - 5 methods)
   └── DialogManager (dialogs - 10 methods)
-  
+
   Result: Reduce ApplicationGUI from 322 to ~100 methods
 
 Effort: 25 days
@@ -83,7 +83,7 @@ Refactoring Plan:
   ├── DetectorCoordinator (20 methods) ...... EXTRACT
   ├── RecordingCoordinator (15 methods) .... EXTRACT
   └── HardwareCoordinator (10 methods) .... EXTRACT
-  
+
   Reduce MainViewModel to:
   • 70 methods
   • 5-6 dependencies
@@ -122,7 +122,7 @@ Refactoring Plan:
   ├── AnalysisProfileResolver (profile matching)
   ├── ParquetManager (import/validation)
   └── AssetManager (asset cleanup)
-  
+
   ProjectManager becomes facade delegating to these
 
 Effort: 20 days
@@ -160,7 +160,7 @@ Refactoring Plan:
   ├── _build_analysis_params
   ├── _build_recording_params
   └── _validate_parameters
-  
+
   Extract coordination to:
   ├── ProcessingParameterBuilder (parameter collection)
   ├── FrameSourceManager (frame handling)

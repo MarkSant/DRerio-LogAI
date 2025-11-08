@@ -51,9 +51,7 @@ def check_settings_documentation() -> list[str]:
 
     for class_name in config_classes:
         if class_name not in ref_content:
-            issues.append(
-                f"⚠️  Settings class '{class_name}' not documented in REFERENCE_GUIDE.md"
-            )
+            issues.append(f"⚠️  Settings class '{class_name}' not documented in REFERENCE_GUIDE.md")
 
     return issues
 
@@ -124,8 +122,8 @@ def check_context_file_freshness() -> list[str]:
     for key_file in key_files:
         if key_file.exists() and key_file.stat().st_mtime > context_mtime:
             issues.append(
-                f"⏰ .copilot-context.yaml outdated - run: "
-                f"poetry run python scripts/generate_copilot_context.py"
+                "⏰ .copilot-context.yaml outdated - run: "
+                "poetry run python scripts/generate_copilot_context.py"
             )
             break
 
