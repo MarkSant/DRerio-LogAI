@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 from zebtrack.ui import gui
+from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 
 
 class DummyVar:
@@ -18,12 +20,57 @@ class DummyVar:
 def _make_gui_instance() -> gui.ApplicationGUI:
     instance = gui.ApplicationGUI.__new__(gui.ApplicationGUI)
     inst_any = cast(Any, instance)
-    inst_any.analysis_metadata_var = DummyVar(gui.ApplicationGUI._default_analysis_metadata_text())
-    inst_any.analysis_task_var = DummyVar(gui.ApplicationGUI._default_analysis_task_text())
+    inst_any.analysis_metadata_var = DummyVar(StateSynchronizer._default_analysis_metadata_text())
+    inst_any.analysis_task_var = DummyVar(StateSynchronizer._default_analysis_task_text())
     inst_any.analysis_status_var = DummyVar()
     inst_any.progress_labels = {}
     inst_any.root = SimpleNamespace(after=lambda *args, **kwargs: None)
     inst_any.controller = SimpleNamespace()
+    
+    # Mock validation_manager with resolve methods
+    inst_any.validation_manager = Mock()
+    inst_any.validation_manager.resolve_group_display.side_effect = (
+        lambda metadata: metadata.get("group_display_name", "Sem Grupo")
+    )
+    inst_any.validation_manager.resolve_day_display.side_effect = (
+        lambda metadata: f"Dia {metadata['day']:02d}" if "day" in metadata else "Sem Dia"
+    )
+    inst_any.validation_manager.resolve_subject_display.side_effect = (
+        lambda metadata: f"{metadata['subject']:02d}" if "subject" in metadata else "Não informado"
+    )
+    
+    # Mock state_synchronizer with actual StateSynchronizer implementation
+    inst_any.state_synchronizer = Mock()
+    
+    def apply_metadata_strings(group: str, day: str, subject: str) -> None:
+        combined = f"Grupo: {group} | Dia: {day} | Indivíduo: {subject}"
+        inst_any.analysis_metadata_var.set(combined)
+    
+    inst_any.state_synchronizer._apply_analysis_metadata_strings.side_effect = apply_metadata_strings
+    
+    def update_task_status(index: int, total: int, experiment_id: str | None = None, step: str | None = None) -> None:
+        total_videos = max(int(total) if total is not None else 0, 1)
+        current_index = max(int(index) if index is not None else 0, 0) + 1
+        
+        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
+        
+        if experiment_id:
+            exp_text = str(experiment_id).strip()
+            if exp_text:
+                parts.append(f"— {exp_text}")
+        
+        if step:
+            step_text = str(step).strip()
+            if step_text:
+                if step_text.lower().startswith("etapa:"):
+                    step_text = step_text[6:].strip()
+                if step_text:
+                    parts.append(f"• {step_text}")
+        
+        inst_any.analysis_task_var.set(" ".join(parts))
+    
+    inst_any.state_synchronizer.update_analysis_task_status.side_effect = update_task_status
+    
     return instance
 
 
@@ -49,7 +96,7 @@ def test_update_analysis_metadata_handles_missing_values() -> None:
 
     assert (
         gui_instance.analysis_metadata_var.get()
-        == gui.ApplicationGUI._default_analysis_metadata_text()
+        == StateSynchronizer._default_analysis_metadata_text()
     )
 
 

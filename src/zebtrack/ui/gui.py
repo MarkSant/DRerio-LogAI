@@ -385,43 +385,6 @@ class ApplicationGUI:
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
         """Build status icon legend. Delegates to WidgetFactory."""
         return self.widget_factory.build_status_icon_legend_simple(include_summary=include_summary)
@@ -433,10 +396,6 @@ class ApplicationGUI:
             EventType.CALLABLE: self._handle_callable_event,
             EventType.NAMED: self._handle_named_event,
         }
-
-
-
-
 
     def _poll_event_bus(self) -> None:
         """Poll event bus. Delegates to EventDispatcher."""
@@ -460,7 +419,6 @@ class ApplicationGUI:
         from zebtrack.ui.components.validation_manager import ValidationManager
 
         return ValidationManager._deep_merge_dicts(base, override)
-
 
     def _get_zone_summary_helper_text(self) -> str:
         """Get zone summary helper text. Delegates to WidgetFactory."""
@@ -493,8 +451,6 @@ class ApplicationGUI:
         """
         return self.project_view_manager.update_window_title(project_name)
 
-
-
     def _display_welcome_logo(self):
         """Displays the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
         return self.widget_factory.display_welcome_logo()
@@ -511,10 +467,6 @@ class ApplicationGUI:
         self.state_synchronizer._reset_roi_and_visual_frames()
         self.state_synchronizer._destroy_notebook_and_main_controls()
         self.analysis_tab_frame = None
-
-
-
-
 
     def _build_project_actions(self, parent) -> None:
         """Create the project actions controls. Delegates to WidgetFactory."""
@@ -985,11 +937,6 @@ class ApplicationGUI:
                 item_id, event.x_root, event.y_root
             )
 
-
-
-
-
-
     def show_external_trigger_notice(self, session_label: str, **details):
         """Show external trigger notice. Delegates to DialogManager."""
         return self.dialog_manager.show_external_trigger_notice(session_label, **details)
@@ -1112,8 +1059,6 @@ class ApplicationGUI:
         """Subscribe to events emitted by ZoneControlsWidget. Delegates to EventDispatcher."""
         return self.event_dispatcher.subscribe_zone_component_events()
 
-
-
     def _on_canvas_configure(self, event=None):
         """Handle canvas configure. Delegates to CanvasManager."""
         return self.canvas_manager.on_canvas_configure(event)
@@ -1125,7 +1070,6 @@ class ApplicationGUI:
     def _create_zone_summary_cards_section(self) -> None:
         """Create zone summary cards. Delegates to WidgetFactory."""
         return self.widget_factory.create_zone_summary_cards_section()
-
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
         """Update zone summary cards. Delegates to ProjectViewManager."""
@@ -1346,7 +1290,6 @@ class ApplicationGUI:
         """Setup interactive polygon. Delegates to EventDispatcher."""
         return self.event_dispatcher.setup_interactive_polygon(polygon)
 
-
     def _on_handle_press(self, event, handle_index):
         """Records which handle is being dragged and initial offset."""
         self._dragged_handle_index = handle_index
@@ -1465,8 +1408,6 @@ class ApplicationGUI:
         self._dragged_handle_index = None
         self._drag_offset = (0, 0)
         self.current_editing_zone = None
-
-
 
     def _video_sort_key(self, value):
         """Get video sort key. Delegates to ProjectViewManager."""
@@ -1587,7 +1528,6 @@ class ApplicationGUI:
         """Callback para duplo clique no seletor de vídeos."""
         del event  # Evento não é utilizado diretamente
         self._load_selected_video_frame()
-
 
     def _create_processing_reports_tab(self) -> None:
         """Creates the processing reports tab. Delegates to WidgetFactory."""
@@ -1787,7 +1727,6 @@ class ApplicationGUI:
 
         self.set_status(f"Ponto restaurado. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
-
 
     def _on_vertex_drag_motion(self, event):
         """Handle mouse motion while dragging a vertex."""
@@ -2536,7 +2475,6 @@ class ApplicationGUI:
         )
         self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
-
     def _on_canvas_click(self, event):
         """Handles canvas clicks during polygon drawing. Delegates to CanvasManager."""
         return self.canvas_manager.handle_canvas_click(event)
@@ -2821,7 +2759,6 @@ class ApplicationGUI:
                 self.draw_roi_button.config(state="normal")
             else:
                 self.draw_roi_button.config(state="disabled")
-
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
@@ -3474,8 +3411,6 @@ class ApplicationGUI:
         if self.cancel_proc_btn and self.cancel_proc_btn.winfo_exists():
             self.cancel_proc_btn.config(state="disabled")
 
-
-
     def _toggle_canvas_view(self):
         """Toggle between zone drawing view and analysis progress view."""
         if not self.notebook or not self.analysis_tab_frame or not self.zone_tab_frame:
@@ -3541,8 +3476,6 @@ class ApplicationGUI:
         self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self._switch_to_zones_view()
-
-
 
     def update_detection_overlay(
         self,
@@ -3643,12 +3576,8 @@ class ApplicationGUI:
         ordered = sorted(observed, key=str)
         return ["Todos", *ordered]
 
-
     def _on_track_selection_changed(self, _event=None) -> None:
         self.canvas_manager._render_last_analysis_frame()
-
-
-
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
@@ -3700,14 +3629,6 @@ class ApplicationGUI:
         return self.state_synchronizer.update_analysis_task_status(
             index=index, total=total, experiment_id=experiment_id, step=step
         )
-
-    @staticmethod
-
-    @classmethod
-
-
-
-    @staticmethod
 
     def _resolve_group_display(self, metadata: dict) -> str:
         """Resolve group display. Delegates to ValidationManager."""
@@ -3771,7 +3692,6 @@ class ApplicationGUI:
     def ask_open_filenames(self, title, filetypes):
         """Shows a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
-
 
     def _on_zone_double_click(self, event):
         """Handle double-click on zone list - opens vertex editing mode."""

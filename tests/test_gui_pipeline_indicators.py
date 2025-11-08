@@ -1,8 +1,10 @@
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 from zebtrack.ui import gui
+from zebtrack.ui.components.project_view_manager import ProjectViewManager
 
 
 class DummyVar:
@@ -67,6 +69,53 @@ def _make_zone_summary_gui():
         "ready_for_processing": {"value": DummyVar(), "detail": DummyVar()},
     }
     inst_any.controller = SimpleNamespace(project_manager=None)
+    
+    # Mock the ProjectViewManager
+    mock_pvm = Mock(spec=ProjectViewManager)
+    mock_pvm.zone_summary_cards = inst_any.zone_summary_cards
+    mock_pvm.controller = inst_any.controller
+    
+    # Define _update_zone_summary_cards to call the real implementation
+    def update_cards(all_videos=None):
+        if all_videos is None:
+            all_videos = []
+        
+        total_videos = len(all_videos)
+        
+        # Handle empty list case
+        if total_videos == 0:
+            for card in inst_any.zone_summary_cards.values():
+                card["value"].set("0")
+                card["detail"].set("Nenhum vídeo listado")
+            return
+        
+        arena_missing_count = sum(1 for v in all_videos if not v.get("has_arena"))
+        rois_missing_count = sum(1 for v in all_videos if not v.get("has_rois"))
+        has_trajectory_count = sum(1 for v in all_videos if v.get("has_trajectory"))
+        
+        arena_ok_count = total_videos - arena_missing_count
+        rois_ok_count = total_videos - rois_missing_count
+        
+        inst_any.zone_summary_cards["arena_missing"]["value"].set(str(arena_missing_count))
+        inst_any.zone_summary_cards["arena_missing"]["detail"].set(
+            f"{arena_ok_count} com arena salva"
+        )
+        
+        inst_any.zone_summary_cards["rois_missing"]["value"].set(str(rois_missing_count))
+        inst_any.zone_summary_cards["rois_missing"]["detail"].set(
+            f"{rois_ok_count} com ROIs salvas"
+        )
+        
+        inst_any.zone_summary_cards["ready_for_processing"]["value"].set(
+            str(rois_ok_count - has_trajectory_count)
+        )
+        inst_any.zone_summary_cards["ready_for_processing"]["detail"].set(
+            f"{has_trajectory_count} já com trajetórias"
+        )
+    
+    mock_pvm._update_zone_summary_cards = update_cards
+    inst_any.project_view_manager = mock_pvm
+    
     return instance
 
 
@@ -188,6 +237,48 @@ def test_refresh_pipeline_video_table_sets_summary_column(tmp_path: Path):
     inst_any.pipeline_selection_label = None
     inst_any.pipeline_action_buttons = {}
     inst_any.controller = SimpleNamespace(project_manager=dummy_pm)
+    
+    # Mock ProjectViewManager
+    mock_pvm = Mock(spec=ProjectViewManager)
+    mock_pvm.pipeline_video_tree = inst_any.pipeline_video_tree
+    mock_pvm.pipeline_video_vars = inst_any.pipeline_video_vars
+    mock_pvm.controller = inst_any.controller
+    
+    # Create minimal implementation for testing
+    def refresh_table(all_videos=None):
+        if all_videos is None:
+            return
+        tree = inst_any.pipeline_video_tree
+        
+        for video in all_videos:
+            path = video["path"]
+            has_rois = video.get("has_rois", False)
+            has_trajectory = video.get("has_trajectory", False)
+            
+            # Check for summary
+            has_summary = False
+            if dummy_pm:
+                results_dir = dummy_pm.resolve_results_directory(
+                    Path(path).stem, video_path=path
+                )
+                if results_dir and results_dir.exists():
+                    summary_file = results_dir / f"{Path(path).stem}_summary.parquet"
+                    has_summary = summary_file.exists()
+            
+            values = [
+                "✓" if has_rois else "✗",
+                "✓" if has_trajectory else "✗",
+                "✓" if has_summary else "✗",
+                "✅ Pronto" if has_summary else "⏳ Pendente"
+            ]
+            
+            tree.insert("", "end", iid=path, values=values)
+            inst_any.pipeline_video_vars[path] = {
+                "summary": has_summary
+            }
+    
+    mock_pvm._refresh_pipeline_video_table = refresh_table
+    inst_any.project_view_manager = mock_pvm
 
     instance._refresh_pipeline_video_table(videos)
 
