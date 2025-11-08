@@ -442,45 +442,8 @@ class ApplicationGUI:
 
 
     def _poll_event_bus(self) -> None:
-        """Poll the event bus for pending events and dispatch them."""
-        self._event_bus_after_id = None
-        if self.event_bus is None:
-            log.warning("gui.event_bus.poll_no_bus")
-            return
-
-        queue_size = self.event_bus.size()
-        if queue_size > 0:
-            log.debug("gui.event_bus.poll_queue_size", size=queue_size)
-
-        events = self.event_bus.drain(max_items=50)
-        if events:
-            log.debug("gui.event_bus.polling", event_count=len(events))
-
-        processed = 0
-        for event in events:
-            # Use the EventType handlers to dispatch CALLABLE and NAMED events
-            handler = self._event_bus_handlers.get(event.type)
-            if handler is None:
-                log.warning(
-                    "gui.event_bus.unhandled_event_type",
-                    event_type=event.type.name,
-                )
-                continue
-            try:
-                handler(event.payload)
-                processed += 1
-            except Exception:
-                log.warning(
-                    "gui.event_bus.handler_error",
-                    event_type=event.type.name,
-                    exc_info=True,
-                )
-
-        if processed:
-            log.debug("gui.event_bus.processed", count=processed)
-
-        log.info("gui.event_bus.poll_complete", will_reschedule=True)
-        self.event_dispatcher.schedule_event_bus_poll()
+        """Poll event bus. Delegates to EventDispatcher."""
+        return self.event_dispatcher.poll_event_bus()
 
     @staticmethod
     def _extract_setting(root: Any, path: tuple[str, ...], default: Any) -> Any:
@@ -3694,49 +3657,8 @@ class ApplicationGUI:
         return self.state_synchronizer.prepare_single_video_ui_state(config)
 
     def _compose_single_video_runtime_config(self) -> dict | None:
-        """Collect the latest single-video settings before starting processing."""
-        if not self.pending_single_video_config:
-            return None
-
-        config = dict(self.pending_single_video_config)
-
-        # Prefer values from the new zone controls component when available
-        zone_controls = getattr(self, "zone_controls", None)
-        if zone_controls:
-            analysis_var = zone_controls.analysis_interval_var.get()
-            display_var = zone_controls.display_interval_var.get()
-            roi_choice = zone_controls.roi_choice_var.get()
-            stabilization_var = zone_controls.stabilization_frames_var.get()
-        else:
-            analysis_var = self.analysis_interval_var.get()
-            display_var = self.display_interval_var.get()
-            roi_choice = config.get("roi_choice", "none")
-            stabilization_var = self.stabilization_frames_var.get()
-
-        try:
-            analysis_interval = int(analysis_var)
-            display_interval = int(display_var)
-            if analysis_interval <= 0 or display_interval <= 0:
-                raise ValueError
-            stabilization_frames = int(stabilization_var)
-            if stabilization_frames <= 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            self.show_error(
-                "Erro",
-                (
-                    "Os intervalos devem ser números inteiros positivos "
-                    "(análise, exibição e estabilização)."
-                ),
-            )
-            return None
-
-        config["analysis_interval_frames"] = analysis_interval
-        config["display_interval_frames"] = display_interval
-        config["roi_choice"] = roi_choice
-        config["stabilization_frames"] = stabilization_frames
-
-        return config
+        """Collect single-video settings. Delegates to ValidationManager."""
+        return self.validation_manager.compose_single_video_runtime_config()
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
         """Handler for the auto-detect button."""
