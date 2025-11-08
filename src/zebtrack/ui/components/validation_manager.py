@@ -343,50 +343,6 @@ class ValidationManager:
             else:
                 log.info("ui.live_calibration.auto_declined")
 
-    def prepare_single_video_ui_state(self, config: dict | None) -> None:
-        """Ensure zone controls reflect the incoming single-video configuration.
-
-        Args:
-            config: Configuration dictionary with analysis parameters
-        """
-        zone_controls = getattr(self.gui, "zone_controls", None)
-        if not zone_controls:
-            return
-
-        try:
-            zone_controls.show_single_analysis_options()
-        except Exception:
-            pass
-
-        analysis_interval = None
-        display_interval = None
-        roi_choice = None
-        stabilization_frames = None
-
-        if config:
-            analysis_interval = config.get("analysis_interval_frames")
-            display_interval = config.get("display_interval_frames")
-            roi_choice = config.get("roi_choice")
-            stabilization_frames = config.get("stabilization_frames")
-
-        if analysis_interval is None:
-            analysis_interval = self.gui.analysis_interval_var.get()
-        if display_interval is None:
-            display_interval = self.gui.display_interval_var.get()
-        if stabilization_frames is None:
-            stabilization_frames = self.gui.stabilization_frames_var.get()
-
-        # Share the same StringVar instances so edits from either side stay in sync
-        self.gui.analysis_interval_var = zone_controls.analysis_interval_var
-        self.gui.display_interval_var = zone_controls.display_interval_var
-        self.gui.roi_choice_var = zone_controls.roi_choice_var
-        self.gui.stabilization_frames_var = zone_controls.stabilization_frames_var
-
-        self.gui.analysis_interval_var.set(str(analysis_interval or "10"))
-        self.gui.display_interval_var.set(str(display_interval or "10"))
-        self.gui.roi_choice_var.set(roi_choice or "none")
-        self.gui.stabilization_frames_var.set(str(stabilization_frames or "10"))
-
     def compose_single_video_runtime_config(self) -> dict | None:
         """Collect the latest single-video settings before starting processing.
 
