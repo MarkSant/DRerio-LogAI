@@ -60,7 +60,6 @@ from zebtrack.ui.dialogs import (
     CenterPeripheryDialog,
     ColorSelectionDialog,
     MissingMetadataDialog,
-    PendingVideosDialog,
     SaveROITemplateDialog,
     SingleVideoConfigDialog,
     StartRecordingDialog,
@@ -1662,35 +1661,8 @@ class ApplicationGUI:
         return self.project_view_manager.handle_processing_reports_item_double_click(event)
 
     def _on_processing_reports_generate_partial(self) -> None:
-        """Handle partial report generation from the unified tab."""
-        if not self.processing_reports_widget:
-            return
-
-        selection = self.processing_reports_widget.get_selection()
-        if not selection:
-            return
-
-        selected_videos = []
-        all_videos = self.controller.project_manager.get_all_videos()
-        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
-
-        for item_id in selection:
-            metadata = metadata_store.get(item_id)
-            if not metadata or metadata.get("type") != "video":
-                continue
-            video_path = metadata.get("video_path")
-            if not video_path:
-                continue
-            for video_data in all_videos:
-                if video_data["path"] == video_path:
-                    selected_videos.append(video_data)
-                    break
-
-        if selected_videos:
-            self.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
-            )
+        """Handle partial report generation. Delegates to ProjectViewManager."""
+        return self.project_view_manager.on_processing_reports_generate_partial()
 
     def _refresh_processing_reports_tab(self) -> None:
         """Refresh the processing reports tab. Delegates to ProjectViewManager."""
@@ -1773,36 +1745,8 @@ class ApplicationGUI:
             )
 
     def _generate_partial_report(self):
-        """
-        Gathers selected videos and tells the controller to generate a partial report.
-        """
-        selected_items = self.reports_tree.selection()
-        if not selected_items:
-            return
-
-        selected_videos = []
-        all_videos = self.controller.project_manager.get_all_videos()
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-
-        for item_id in selected_items:
-            if not self.reports_tree.exists(item_id):
-                continue
-            metadata = metadata_store.get(item_id)
-            if not metadata or metadata.get("type") != "video":
-                continue
-            video_path = metadata.get("video_path")
-            if not video_path:
-                continue
-            for video_data in all_videos:
-                if video_data["path"] == video_path:
-                    selected_videos.append(video_data)
-                    break
-
-        if selected_videos:
-            self.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
-            )
+        """Generate partial report. Delegates to ProjectViewManager."""
+        return self.project_view_manager.generate_partial_report()
 
     def _generate_unified_report(self):
         """Tells the controller to generate a unified report of all project videos."""

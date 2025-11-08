@@ -588,6 +588,41 @@ class ProjectViewManager:
                 {"videos": selected_videos, "report_type": "partial"},
             )
 
+    def generate_partial_report(self) -> None:
+        """Gather selected videos and generate a partial report from reports tree."""
+        from zebtrack.ui.events import Events
+
+        if not hasattr(self.gui, "reports_tree") or not self.gui.reports_tree:
+            return
+
+        selected_items = self.gui.reports_tree.selection()
+        if not selected_items:
+            return
+
+        selected_videos = []
+        all_videos = self.gui.controller.project_manager.get_all_videos()
+        metadata_store = getattr(self.gui, "_report_tree_metadata", {})
+
+        for item_id in selected_items:
+            if not self.gui.reports_tree.exists(item_id):
+                continue
+            metadata = metadata_store.get(item_id)
+            if not metadata or metadata.get("type") != "video":
+                continue
+            video_path = metadata.get("video_path")
+            if not video_path:
+                continue
+            for video_data in all_videos:
+                if video_data["path"] == video_path:
+                    selected_videos.append(video_data)
+                    break
+
+        if selected_videos:
+            self.gui.event_dispatcher.publish_event(
+                Events.REPORT_GENERATE,
+                {"videos": selected_videos, "report_type": "partial"},
+            )
+
     # ===========================================================================
     # CATEGORIA 6: REPORTS TREE MANAGEMENT
     # ===========================================================================
