@@ -1658,49 +1658,8 @@ class ApplicationGUI:
         return self.widget_factory.create_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
-        """Handle double-click on items in the Processing Reports tree."""
-        if not self.processing_reports_widget or not self.processing_reports_widget.tree:
-            return
-
-        tree = self.processing_reports_widget.tree
-
-        # Get item at click position
-        item_id = None
-        if event is not None:
-            item_id = tree.identify_row(event.y)
-        if not item_id:
-            selection = tree.selection()
-            if selection:
-                item_id = selection[0]
-        if not item_id:
-            return
-
-        metadata = self._processing_reports_tree_metadata.get(item_id)
-        if not metadata:
-            return
-
-        node_type = metadata.get("type")
-
-        # Handle file nodes (docx/xlsx) - open them
-        if node_type == "file":
-            self._handle_report_file_node(metadata)
-            return
-
-        # Handle video nodes - open results folder
-        if node_type == "video":
-            results_dir = metadata.get("results_dir")
-            if results_dir and os.path.exists(results_dir):
-                log.info("gui.open_results_folder", path=results_dir)
-                try:
-                    if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
-                    elif os.name == "posix":  # macOS, Linux
-                        import subprocess
-
-                        subprocess.Popen(["xdg-open", results_dir])
-                except Exception as e:
-                    log.error("gui.open_results_folder.failed", error=str(e))
-                    self.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+        """Handle processing reports item double click. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_processing_reports_item_double_click(event)
 
     def _on_processing_reports_generate_partial(self) -> None:
         """Handle partial report generation from the unified tab."""
@@ -3624,10 +3583,8 @@ class ApplicationGUI:
         return self.dialog_manager.show_progress_bar()
 
     def update_progress(self, value):
-        """Updates the progress bar."""
-        if self.progress_bar:
-            self.progress_bar["value"] = value * 100  # Convert fraction to percentage
-            self.update_idletasks()
+        """Update progress. Delegates to AnalysisDisplay."""
+        return self.analysis_display.update_progress(value)
 
     def update_idletasks(self):
         """Force the GUI to update, processing pending events."""
