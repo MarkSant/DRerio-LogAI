@@ -71,6 +71,10 @@ class HardwareCoordinator:
         # Pending external trigger context (for Arduino-triggered recording)
         self._pending_external_trigger = None
 
+        # Recording callbacks (set by MainViewModel)
+        self._trigger_recording_callback = None
+        self._stop_recording_callback = None
+
     # =============================================================================
     # DETECTOR SETUP & CONFIGURATION
     # =============================================================================
@@ -111,6 +115,12 @@ class HardwareCoordinator:
             )
             return False
 
+        log.info(
+            "hardware_coordinator.setup_detector.success",
+            method=temp_animal_method or "default",
+            openvino=use_openvino,
+            weight=active_weight_name or "default",
+        )
         return True
 
     def setup_detector_zones(self) -> None:
@@ -270,12 +280,13 @@ class HardwareCoordinator:
             Events.UI_SET_STATUS, {"message": f"Comando Arduino: {label_text}"}
         )
 
-    def on_arduino_event(self, event_code: int, recording_callback=None) -> None:
+    def on_arduino_event(self, event_code: int) -> None:
         """Handle Arduino event received.
+
+        Called by ArduinoManager when events are received from Arduino.
 
         Args:
             event_code: Event code from Arduino (0=stop, 1=start, etc.)
-            recording_callback: Callback to trigger recording (should accept event_code)
         """
         log.info("hardware_coordinator.arduino.event_received", code=event_code)
         self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
@@ -283,8 +294,8 @@ class HardwareCoordinator:
         if event_code == 1:
             if self._pending_external_trigger:
                 self.log_arduino_event("Sinal externo recebido. Iniciando gravação...")
-                if recording_callback:
-                    recording_callback(event_code)
+                if self._trigger_recording_callback:
+                    self._trigger_recording_callback(event_code)
             else:
                 log.warning("hardware_coordinator.arduino.event.unexpected_start")
         elif event_code == 0:
@@ -292,8 +303,8 @@ class HardwareCoordinator:
             is_recording = self.state_manager.get_recording_state().get("is_recording", False)
             if is_recording or self._pending_external_trigger:
                 self.log_arduino_event("Sinal externo solicitando parada.")
-                if recording_callback:
-                    recording_callback(event_code)
+                if self._stop_recording_callback:
+                    self._stop_recording_callback()
         else:
             log.info("hardware_coordinator.arduino.event.ignored", code=event_code)
 
@@ -318,3 +329,15 @@ class HardwareCoordinator:
         self._pending_external_trigger = None
         if self.ui_event_bus:
             self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
+
+    def set_recording_callbacks(
+        self, trigger_callback: callable, stop_callback: callable
+    ) -> None:
+        """Set callbacks for Arduino-triggered recording events.
+
+        Args:
+            trigger_callback: Function to call when Arduino triggers recording start
+            stop_callback: Function to call when Arduino triggers recording stop
+        """
+        self._trigger_recording_callback = trigger_callback
+        self._stop_recording_callback = stop_callback

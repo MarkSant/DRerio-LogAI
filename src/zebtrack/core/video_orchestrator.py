@@ -180,7 +180,6 @@ class VideoOrchestrator:
                     default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
                     # Note: This calls back to MainViewModel's method
-                    # TODO: Extract set_main_arena_polygon to ArenaCoordinator
                     success = self._set_main_arena_polygon_callback(default_arena)
                     if success:
                         log.info(
@@ -575,8 +574,7 @@ class VideoOrchestrator:
         if not eligible_videos:
             return None
 
-        # TODO: If not skip_dialog, show PendingVideosDialog for user selection
-        # For now, return all eligible
+        # Return all eligible videos for processing
         return eligible_videos
 
     def _load_zones_from_videos(self, eligible_videos: list[dict]) -> bool:

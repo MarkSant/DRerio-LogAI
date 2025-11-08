@@ -405,6 +405,10 @@ class MainViewModel:
         )
 
         # Set callbacks for coordinators that need to call back to MainViewModel
+        self.hardware_coordinator.set_recording_callbacks(
+            self.trigger_recording,
+            self.stop_recording
+        )
         self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
         self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
         self.video_orchestrator.set_refresh_callback(self.refresh_project_views)
