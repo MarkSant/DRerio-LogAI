@@ -428,3 +428,97 @@ class StateSynchronizer:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
             if normalized_tracks:
                 self._update_track_options(["Todos", *normalized_tracks])
+
+    # ========================================================================
+    # Processing Statistics Updates
+    # ========================================================================
+
+    def update_processing_stats(
+        self,
+        total_frames=None,
+        processed_frames=None,
+        detected_frames=None,
+        start_time=None,
+        current_frame=None,
+    ) -> None:
+        """Update processing statistics in real-time during video analysis."""
+        if not self.gui.progress_labels:
+            return
+
+        # Update frame counters in all label sets
+        labels = self.gui.progress_labels
+        if total_frames is not None:
+            labels["total"].set(str(total_frames))
+        if processed_frames is not None:
+            labels["processed"].set(str(processed_frames))
+        if detected_frames is not None:
+            labels["detected"].set(str(detected_frames))
+
+        # Calculate and update percentage based on actual frame position
+        if total_frames:
+            frame_for_percent = current_frame if current_frame is not None else processed_frames
+            if frame_for_percent is not None:
+                percent = (frame_for_percent / total_frames) * 100
+                labels["percent"].set(f"{percent:.1f}%")
+
+        # Calculate elapsed time and ETA
+        if start_time:
+            import time
+
+            elapsed = time.time() - start_time
+            labels["elapsed"].set(self._format_time(elapsed))
+
+            frame_for_eta = current_frame if current_frame is not None else processed_frames
+            if frame_for_eta and total_frames and frame_for_eta > 0:
+                rate = frame_for_eta / elapsed
+                remaining_frames = total_frames - frame_for_eta
+                if rate > 0:
+                    eta = remaining_frames / rate
+                    labels["eta"].set(self._format_time(eta))
+                else:
+                    labels["eta"].set("-")
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        """Format seconds into human-readable time string."""
+        if seconds is None or seconds < 0:
+            return "-"
+        m, s = divmod(int(seconds), 60)
+        h, m = divmod(m, 60)
+        if h:
+            return f"{h:d}h {m:02d}m {s:02d}s"
+        if m:
+            return f"{m:d}m {s:02d}s"
+        return f"{s:d}s"
+
+    def update_analysis_task_status(
+        self,
+        *,
+        index: int,
+        total: int,
+        experiment_id: str | None = None,
+        step: str | None = None,
+    ) -> None:
+        """Update the task summary indicating which video is being processed."""
+        if not hasattr(self.gui, "analysis_task_var") or self.gui.analysis_task_var is None:
+            return
+
+        total_videos = max(int(total) if total is not None else 0, 1)
+        current_index = max(int(index) if index is not None else 0, 0) + 1
+
+        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
+
+        if experiment_id:
+            exp_text = str(experiment_id).strip()
+            if exp_text:
+                parts.append(f"— {exp_text}")
+
+        if step:
+            step_text = str(step).strip()
+            if step_text:
+                if step_text.lower().startswith("etapa:"):
+                    step_text = step_text[6:].strip()
+                if step_text:
+                    parts.append(f"• {step_text}")
+
+        self.gui.analysis_task_var.set(" ".join(parts))
