@@ -33,6 +33,8 @@ from shapely.geometry import Polygon as ShapelyPolygon
 from zebtrack.analysis.behavior import BehaviorAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
+__all__ = ["VisualizationGenerator"]
+
 log = structlog.get_logger(__name__)
 
 

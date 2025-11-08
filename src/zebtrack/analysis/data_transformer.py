@@ -6,7 +6,10 @@ tidy dataframes suitable for export and reporting.
 Extracted from reporter.py as part of Phase 2 refactoring (Task 2.5).
 """
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import structlog
@@ -14,9 +17,17 @@ import structlog
 from zebtrack.analysis.behavior import BehaviorAnalyzer
 from zebtrack.analysis.roi import ROIAnalyzer
 
+__all__ = ["DataTransformer"]
+
 log = structlog.get_logger(__name__)
 
-# Column name mappings for standardization
+# Color matching threshold for RGB space (30² in RGB space, 0-255 range)
+# Note: Using Euclidean distance in RGB space is not perceptually uniform.
+# Small changes in blue are more noticeable than similar changes in green.
+# For better color matching, consider LAB or HSV color spaces in the future.
+RGB_COLOR_MATCH_THRESHOLD = 900
+
+# Column name mappings for Portuguese → English translation
 COLUMN_MAPPING = {
     "distancia_total_cm": "total_distance_cm",
     "velocidade_media_cm_s": "mean_speed_cm_s",
@@ -35,6 +46,7 @@ COLUMN_MAPPING = {
     "periodos_inatividade_limiar_cm_s": "inactivity_threshold_cm_s",
 }
 
+# Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
 DYNAMIC_PREFIX_MAPPINGS = (
     ("tempo_no_", "time_in_"),
     ("percentual_tempo_no_", "time_percentage_in_"),
@@ -48,8 +60,10 @@ DYNAMIC_PREFIX_MAPPINGS = (
     ("cor_roi_", "roi_color_"),
 )
 
+# Fallback keys to search for group ID in metadata when not explicitly provided
 GROUP_ID_FALLBACK_KEYS = ("group", "grupo", "grupo_id", "group_name")
 
+# Required columns that must be present in standardized tidy dataframes
 REQUIRED_COLUMNS = (
     "experiment_id",
     "group_id",
@@ -60,9 +74,19 @@ REQUIRED_COLUMNS = (
 
 
 def _rgb_to_color_name(rgb_tuple):
-    """
-    Convert RGB tuple to closest color name.
-    Returns a descriptive name for the color.
+    """Convert RGB tuple to closest color name.
+
+    Uses Euclidean distance in RGB space to find the closest named color.
+
+    Note: This method uses RGB color space which is not perceptually uniform.
+    Small changes in blue are more noticeable than similar changes in green.
+    For more accurate color matching, consider LAB or HSV color spaces.
+
+    Args:
+        rgb_tuple: RGB color as tuple/list of 3 values (0-255 range)
+
+    Returns:
+        str: Closest color name or RGB string if no close match found
     """
     if not isinstance(rgb_tuple, (tuple, list)) or len(rgb_tuple) != 3:
         return str(rgb_tuple)
@@ -95,8 +119,8 @@ def _rgb_to_color_name(rgb_tuple):
             min_distance = distance
             closest_name = name
 
-    # If very close match (within 30 units squared), use the name
-    return closest_name if min_distance < 900 else f"RGB({r},{g},{b})"
+    # If close match (within threshold), use the name; otherwise return RGB string
+    return closest_name if min_distance < RGB_COLOR_MATCH_THRESHOLD else f"RGB({r},{g},{b})"
 
 
 class DataTransformer:
@@ -123,19 +147,19 @@ class DataTransformer:
         ...     roi_colors={"roi1": (255, 0, 0)}
         ... )
         >>> standardized_df = transformer.standardize_tidy_dataframe(tidy_df, metadata)
-    """
 
-    def __init__(self):
-        """Initialize DataTransformer."""
-        pass
+    Note:
+        This class is stateless and does not require initialization.
+        All methods can be called on a fresh instance.
+    """
 
     def create_tidy_dataframe(
         self,
-        report: dict,
-        metadata: dict,
+        report: dict[str, Any],
+        metadata: dict[str, Any],
         b_analyzer: BehaviorAnalyzer,
         r_analyzer: ROIAnalyzer | None = None,
-        roi_colors: dict | None = None,
+        roi_colors: dict[str, tuple[int, int, int]] | None = None,
     ) -> pd.DataFrame:
         """Creates a flat, tidy DataFrame from the structured report dictionary.
 
@@ -189,11 +213,11 @@ class DataTransformer:
 
     def _collect_roi_metrics(
         self,
-        combined_data: dict,
-        report: dict,
+        combined_data: dict[str, Any],
+        report: dict[str, Any],
         r_analyzer: ROIAnalyzer,
-        roi_colors: dict,
-    ) -> dict:
+        roi_colors: dict[str, tuple[int, int, int]],
+    ) -> dict[str, Any]:
         """Collect ROI-specific metrics and append them to combined_data.
 
         This helper centralizes extraction from the report's ROI analysis
@@ -257,7 +281,7 @@ class DataTransformer:
         combined_data["total_entradas_roi"] = total_roi_entries
         return combined_data
 
-    def _resolve_group_id(self, combined_data: dict, metadata: dict) -> str:
+    def _resolve_group_id(self, combined_data: dict[str, Any], metadata: dict[str, Any]) -> str:
         """Ensures the summary dataframe includes a populated group_id column.
 
         Args:
@@ -298,7 +322,9 @@ class DataTransformer:
 
         return column_name
 
-    def standardize_tidy_dataframe(self, df: pd.DataFrame, metadata: dict) -> pd.DataFrame:
+    def standardize_tidy_dataframe(
+        self, df: pd.DataFrame, metadata: dict[str, Any]
+    ) -> pd.DataFrame:
         """Standardize tidy dataframe with English column names and validated schema.
 
         Args:
