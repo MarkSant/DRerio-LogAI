@@ -930,6 +930,55 @@ class ValidationManager:
             return "Sem Dia"
         return f"Dia {candidate_str}"
 
+    def resolve_group_display(self, metadata: dict) -> str:
+        """Resolve group display name from metadata fields.
+
+        Args:
+            metadata: Metadata dictionary containing group information
+
+        Returns:
+            Formatted group display name, or "Sem Grupo" if not found
+        """
+        for key in (
+            "group_display_name",
+            "group_label",
+            "group_name",
+            "group_id",
+            "group",
+        ):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text
+        return "Sem Grupo"
+
+    def resolve_day_display(self, metadata: dict) -> str:
+        """Resolve day display name from metadata fields.
+
+        Args:
+            metadata: Metadata dictionary containing day information
+
+        Returns:
+            Formatted day display name, or "Sem Dia" if not found
+        """
+        for key in ("day_label", "day_display_name"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text if text.lower().startswith("dia") else f"Dia {text}"
+
+        for key in ("day", "day_id", "dia"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                formatted = self._format_day_display(value)
+                if formatted.lower() == "sem dia":
+                    return "Sem Dia"
+                return f"Dia {formatted}"
+
+        return "Sem Dia"
+
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],

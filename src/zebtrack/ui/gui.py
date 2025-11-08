@@ -5,7 +5,6 @@ Este módulo define a interface gráfica principal (GUI) para a aplicação Zebt
 import hashlib
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -1579,26 +1578,10 @@ class ApplicationGUI:
 
     @staticmethod
     def _format_day_display(value):
-        if value in (None, ""):
-            return ""
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            try:
-                return f"{int(value):02d}"
-            except (TypeError, ValueError):
-                return str(value)
-        value_str = str(value).strip()
-        if not value_str:
-            return ""
-        lower_value = value_str.lower()
-        if lower_value == "sem dia":
-            return "Sem Dia"
-        match = re.search(r"(\d+)", value_str)
-        if match:
-            try:
-                return f"{int(match.group(1)):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+        """Format day display. Delegates to ValidationManager."""
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
+        return ValidationManager._format_day_display(value)
 
     def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
         """Build day title. Delegates to ProjectViewManager."""
@@ -4017,37 +4000,12 @@ class ApplicationGUI:
     @staticmethod
 
     def _resolve_group_display(self, metadata: dict) -> str:
-        for key in (
-            "group_display_name",
-            "group_label",
-            "group_name",
-            "group_id",
-            "group",
-        ):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                text = str(value).strip()
-                if text:
-                    return text
-        return "Sem Grupo"
+        """Resolve group display. Delegates to ValidationManager."""
+        return self.validation_manager.resolve_group_display(metadata)
 
     def _resolve_day_display(self, metadata: dict) -> str:
-        for key in ("day_label", "day_display_name"):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                text = str(value).strip()
-                if text:
-                    return text if text.lower().startswith("dia") else f"Dia {text}"
-
-        for key in ("day", "day_id", "dia"):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                formatted = self._format_day_display(value)
-                if formatted.lower() == "sem dia":
-                    return "Sem Dia"
-                return f"Dia {formatted}"
-
-        return "Sem Dia"
+        """Resolve day display. Delegates to ValidationManager."""
+        return self.validation_manager.resolve_day_display(metadata)
 
     def _resolve_subject_display(self, metadata: dict) -> str:
         """Resolve subject display name from metadata. Delegates to ValidationManager."""
