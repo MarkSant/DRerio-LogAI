@@ -81,9 +81,7 @@ class DialogManager:
         """
         return messagebox.askokcancel(title, message)
 
-    def ask_yes_no(
-        self, title: str, message: str, *, icon: str = "question"
-    ) -> bool:
+    def ask_yes_no(self, title: str, message: str, *, icon: str = "question") -> bool:
         """Shows a confirmation dialog with Yes/No buttons.
 
         Args:
@@ -96,9 +94,7 @@ class DialogManager:
         """
         return messagebox.askyesno(title, message, icon=icon)
 
-    def ask_yes_no_cancel(
-        self, title: str, message: str, *, icon: str = "question"
-    ) -> bool | None:
+    def ask_yes_no_cancel(self, title: str, message: str, *, icon: str = "question") -> bool | None:
         """Shows a confirmation dialog with Yes/No/Cancel buttons.
 
         Args:
@@ -184,9 +180,7 @@ class DialogManager:
         """
         return filedialog.asksaveasfilename(**options)
 
-    def ask_string(
-        self, title: str, prompt: str, initialvalue: str | None = None
-    ) -> str | None:
+    def ask_string(self, title: str, prompt: str, initialvalue: str | None = None) -> str | None:
         """Shows a dialog for string input.
 
         Args:
@@ -224,9 +218,7 @@ class DialogManager:
             CalibrationDialog(self.gui.root, self.gui.controller)
         self.gui.update_openvino_checkbox(self.gui.controller.use_openvino)
         self.gui.set_active_weight_in_dropdown(self.gui.controller.active_weight_name)
-        self.gui.update_openvino_status_display(
-            self.gui.controller.get_openvino_status()
-        )
+        self.gui.update_openvino_status_display(self.gui.controller.get_openvino_status())
 
     # =========================================================================
     # Custom Dialogs - ROI Templates
@@ -433,9 +425,7 @@ class DialogManager:
         Returns:
             Dialog result with video config, or None if cancelled
         """
-        dialog = SingleVideoConfigDialog(
-            self.gui.root, settings_obj=self.gui.controller.settings
-        )
+        dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=self.gui.controller.settings)
         return dialog.result if dialog.result else None
 
     # =========================================================================
@@ -511,17 +501,13 @@ class DialogManager:
 
     def open_project_workflow(self) -> None:
         """Handles the UI part of opening a project, then calls the controller."""
-        project_path = self.ask_directory(
-            title="Selecione uma Pasta de Projeto Existente"
-        )
+        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
 
         from zebtrack.ui.events import Events
 
-        self.gui.event_dispatcher.publish_event(
-            Events.PROJECT_OPEN, {"project_path": project_path}
-        )
+        self.gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     # =========================================================================
     # Confirmation Dialogs
@@ -580,35 +566,11 @@ class DialogManager:
             "Cancelar: Voltar para edição",
         )
 
-    def offer_zone_reuse(
-        self, current_video_name: str, source_video_name: str
-    ) -> bool:
-        """Prompts user to reuse zones from another video.
-
-        Args:
-            current_video_name: Name of the current video (without zones)
-            source_video_name: Name of the video with existing zones
-
-        Returns:
-            True if user wants to reuse zones, False otherwise
-        """
-        return self.ask_yes_no(
-            "Reutilizar zonas existentes?",
-            (
-                f'O vídeo "{current_video_name}" não possui arena ou ROIs salvas.\n\n'
-                f'Deseja reutilizar as zonas desenhadas para "{source_video_name}"?\n'
-                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
-            ),
-            icon="question",
-        )
-
     # =========================================================================
     # Notification Dialogs
     # =========================================================================
 
-    def show_external_trigger_notice(
-        self, session_label: str, **details
-    ) -> None:
+    def show_external_trigger_notice(self, session_label: str, **details) -> None:
         """Shows a notice that the system is waiting for external trigger.
 
         Args:
@@ -709,3 +671,140 @@ class DialogManager:
                     f"Caminho: {target_path}\n\nDetalhes: {exc}"
                 ),
             )
+
+    def offer_zone_reuse(self, video_path: str) -> None:
+        """Prompt user to reuse the last zones when the current video has none.
+
+        Args:
+            video_path: Path to the video that needs zone data
+        """
+        if not video_path:
+            return
+
+        if video_path in self.gui._zone_prompt_history:
+            return
+
+        pm = self.gui.controller.project_manager
+        if pm.has_zone_data(video_path):
+            return
+
+        last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
+        if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
+            return
+
+        self.gui._zone_prompt_history.add(video_path)
+
+        current_name = os.path.basename(video_path)
+        last_name = os.path.basename(last_video_with_zones)
+
+        reuse = messagebox.askyesno(
+            "Reutilizar zonas existentes?",
+            (
+                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
+                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
+                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
+            ),
+            icon="question",
+        )
+
+        if reuse:
+            cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
+            pm.save_zone_data(cloned_zone_data, video_path=video_path, persist=False)
+            copied_files = pm.copy_zone_parquet_files(
+                last_video_with_zones, video_path, persist=False
+            )
+            pm.save_project()
+            self.gui._refresh_zone_indicators()
+            self.gui._refresh_video_selector_tree()
+            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
+            self.gui.set_status(status_message)
+            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+            if not copied_files:
+                self.show_warning(
+                    "Arquivos Parquet Indisponíveis",
+                    (
+                        "As zonas foram copiadas, mas não encontramos os arquivos "
+                        "Parquet originais para duplicar. Caso necessário, redesenhe "
+                        "as zonas e salve-as manualmente para gerar novos arquivos."
+                    ),
+                )
+        else:
+            pm.clear_zone_data_for_video(video_path, persist=False)
+            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
+            self.gui.set_status(status_message)
+            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+            self.gui._refresh_video_selector_tree()
+
+    def change_roi_color(self):
+        """Changes the color of the selected ROI."""
+        from zebtrack.ui.dialogs import ColorSelectionDialog
+
+        selected = self.gui.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.gui.zone_listbox.item(selected[0])
+        old_name = item["values"][0].replace("📍 ", "")
+
+        # Use custom color dialog
+        color_dialog = ColorSelectionDialog(self.gui.root, "Mudar Cor da ROI")
+        if not color_dialog.result:
+            return
+
+        selected_color = color_dialog.result
+        new_color = selected_color["rgb"]
+        color_name = selected_color["name"]
+
+        # Update in project
+        zone_data = self.gui._get_zone_data_for_active_context()
+        try:
+            idx = zone_data.roi_names.index(old_name)
+            zone_data.roi_colors[idx] = new_color
+
+            # Persist color change
+            self.gui.controller.project_manager.save_zone_data(zone_data)
+
+            # Update visualization
+            self.gui.canvas_manager.redraw_zones_from_project_data()
+            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
+            status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
+            self.gui.set_status(status_message)
+            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+
+        except ValueError:
+            self.show_error("Erro", "ROI não encontrada")
+        except IndexError:
+            self.show_error("Erro", "Dados de cor da ROI não encontrados")
+
+    def rename_selected_roi(self):
+        """Renames the selected ROI."""
+        selected = self.gui.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.gui.zone_listbox.item(selected[0])
+        old_name = item["values"][0].replace("📍 ", "")
+
+        new_name = self.ask_string(
+            "Renomear ROI", f"Novo nome para '{old_name}':", initialvalue=old_name
+        )
+
+        if new_name and new_name != old_name:
+            # Update in project
+            zone_data = self.gui._get_zone_data_for_active_context()
+            try:
+                idx = zone_data.roi_names.index(old_name)
+                zone_data.roi_names[idx] = new_name
+
+                # Persist updated ROI name
+                self.gui.controller.project_manager.save_zone_data(zone_data)
+
+                # Update visualization
+                self.gui.canvas_manager.redraw_zones_from_project_data()
+                self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
+                status_message = f"ROI renomeada para '{new_name}'."
+                self.gui.set_status(status_message)
+                self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+
+            except ValueError:
+                self.show_error("Erro", "ROI não encontrada")

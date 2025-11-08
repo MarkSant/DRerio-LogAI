@@ -74,7 +74,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui.track_selector_var = Mock()
     gui.track_selector_widget = Mock()
     gui._available_track_options = ()
-    gui._active_processing_mode = ProcessingMode.MULTI_SUBJECT
+    gui._active_processing_mode = ProcessingMode.MULTI_TRACK
 
     # Progress and metadata
     gui.progress_labels = {}
@@ -159,21 +159,16 @@ class TestStateChangeSubscription:
 
         # Verify correct callbacks
         assert (
-            subscriptions[StateCategory.RECORDING]
-            == state_synchronizer._on_recording_state_changed
+            subscriptions[StateCategory.RECORDING] == state_synchronizer._on_recording_state_changed
         )
         assert (
             subscriptions[StateCategory.PROCESSING]
             == state_synchronizer._on_processing_state_changed
         )
         assert (
-            subscriptions[StateCategory.DETECTOR]
-            == state_synchronizer._on_detector_state_changed
+            subscriptions[StateCategory.DETECTOR] == state_synchronizer._on_detector_state_changed
         )
-        assert (
-            subscriptions[StateCategory.PROJECT]
-            == state_synchronizer._on_project_state_changed
-        )
+        assert subscriptions[StateCategory.PROJECT] == state_synchronizer._on_project_state_changed
 
 
 @pytest.mark.gui
@@ -182,9 +177,7 @@ class TestRecordingStateCallbacks:
 
     def test_on_recording_state_changed_is_recording(self, state_synchronizer, mock_gui):
         """Test callback when is_recording changes."""
-        state_synchronizer._on_recording_state_changed(
-            "RECORDING", "is_recording", False, True
-        )
+        state_synchronizer._on_recording_state_changed("RECORDING", "is_recording", False, True)
 
         # Verify root.after was called to schedule UI update
         mock_gui.root.after.assert_called_once()
@@ -208,9 +201,7 @@ class TestRecordingStateCallbacks:
 
     def test_on_recording_state_changed_other_key(self, state_synchronizer, mock_gui):
         """Test callback with unhandled key."""
-        state_synchronizer._on_recording_state_changed(
-            "RECORDING", "other_key", "old", "new"
-        )
+        state_synchronizer._on_recording_state_changed("RECORDING", "other_key", "old", "new")
 
         # Should not schedule any UI update
         mock_gui.root.after.assert_not_called()
@@ -250,9 +241,7 @@ class TestProcessingStateCallbacks:
 
     def test_on_processing_state_changed_is_processing(self, state_synchronizer, mock_gui):
         """Test callback when is_processing changes."""
-        state_synchronizer._on_processing_state_changed(
-            "PROCESSING", "is_processing", False, True
-        )
+        state_synchronizer._on_processing_state_changed("PROCESSING", "is_processing", False, True)
 
         # Verify root.after was called to schedule UI update
         mock_gui.root.after.assert_called_once()
@@ -263,9 +252,7 @@ class TestProcessingStateCallbacks:
 
     def test_on_processing_state_changed_other_key(self, state_synchronizer, mock_gui):
         """Test callback with unhandled key."""
-        state_synchronizer._on_processing_state_changed(
-            "PROCESSING", "other_key", "old", "new"
-        )
+        state_synchronizer._on_processing_state_changed("PROCESSING", "other_key", "old", "new")
 
         # Should not schedule any UI update
         mock_gui.root.after.assert_not_called()
@@ -311,9 +298,7 @@ class TestDetectorStateCallbacks:
 
     def test_on_detector_state_changed_other_key(self, state_synchronizer, mock_gui):
         """Test callback with unhandled key."""
-        state_synchronizer._on_detector_state_changed(
-            "DETECTOR", "other_key", "old", "new"
-        )
+        state_synchronizer._on_detector_state_changed("DETECTOR", "other_key", "old", "new")
 
         # Should not schedule any UI update
         mock_gui.root.after.assert_not_called()
@@ -338,9 +323,7 @@ class TestProjectStateCallbacks:
         from pathlib import Path
 
         project_path = Path("/path/to/project")
-        state_synchronizer._on_project_state_changed(
-            "PROJECT", "project_path", None, project_path
-        )
+        state_synchronizer._on_project_state_changed("PROJECT", "project_path", None, project_path)
 
         # Verify root.after was called to schedule UI update
         mock_gui.root.after.assert_called_once()
@@ -351,9 +334,7 @@ class TestProjectStateCallbacks:
 
     def test_on_project_state_changed_other_key(self, state_synchronizer, mock_gui):
         """Test callback with unhandled key."""
-        state_synchronizer._on_project_state_changed(
-            "PROJECT", "other_key", "old", "new"
-        )
+        state_synchronizer._on_project_state_changed("PROJECT", "other_key", "old", "new")
 
         # Should not schedule any UI update
         mock_gui.root.after.assert_not_called()
@@ -406,18 +387,13 @@ class TestResetAnalysisWidgets:
     def test_reset_analysis_widgets_calls_helpers(self, state_synchronizer, mock_gui):
         """Test that reset_analysis_widgets calls all helper methods."""
         with (
-            patch.object(state_synchronizer, '_reset_analysis_media') as mock_media,
+            patch.object(state_synchronizer, "_reset_analysis_media") as mock_media,
             patch.object(
-                state_synchronizer, '_reset_analysis_progress_and_metadata'
+                state_synchronizer, "_reset_analysis_progress_and_metadata"
             ) as mock_progress,
-            patch.object(
-                state_synchronizer, '_reset_roi_and_visual_frames'
-            ) as mock_roi,
-            patch.object(
-                state_synchronizer, '_destroy_notebook_and_main_controls'
-            ) as mock_destroy,
+            patch.object(state_synchronizer, "_reset_roi_and_visual_frames") as mock_roi,
+            patch.object(state_synchronizer, "_destroy_notebook_and_main_controls") as mock_destroy,
         ):
-
             state_synchronizer.reset_analysis_widgets()
 
             # Verify all helpers were called
@@ -649,7 +625,7 @@ class TestResetAnalysisControls:
 
     def test_reset_analysis_controls_updates_track_options(self, state_synchronizer, mock_gui):
         """Test that track options are updated."""
-        with patch.object(state_synchronizer, '_update_track_options') as mock_update:
+        with patch.object(state_synchronizer, "_update_track_options") as mock_update:
             state_synchronizer.reset_analysis_controls()
 
             mock_update.assert_called_once_with(["Todos"])
@@ -658,7 +634,7 @@ class TestResetAnalysisControls:
         self, state_synchronizer, mock_gui
     ):
         """Test widget state for multi-subject mode."""
-        mock_gui._active_processing_mode = ProcessingMode.MULTI_SUBJECT
+        mock_gui._active_processing_mode = ProcessingMode.MULTI_TRACK
 
         state_synchronizer.reset_analysis_controls()
 
@@ -734,9 +710,7 @@ class TestResetAnalysisControls:
 
         state_synchronizer._update_track_options(options)
 
-        mock_gui.track_selector_widget.configure.assert_called_once_with(
-            values=["Todos", "1", "2"]
-        )
+        mock_gui.track_selector_widget.configure.assert_called_once_with(values=["Todos", "1", "2"])
 
     def test_update_track_options_skips_update_if_unchanged(self, state_synchronizer, mock_gui):
         """Test that widget is not updated if options unchanged."""
@@ -832,10 +806,10 @@ class TestAnalysisMetadataHelpers:
     def test_apply_analysis_metadata_strings_uses_getattr(self, state_synchronizer, mock_gui):
         """Test that getattr is used safely."""
         # Remove attributes entirely
-        delattr(mock_gui, 'analysis_metadata_var')
-        delattr(mock_gui, 'analysis_group_var')
-        delattr(mock_gui, 'analysis_day_var')
-        delattr(mock_gui, 'analysis_subject_var')
+        delattr(mock_gui, "analysis_metadata_var")
+        delattr(mock_gui, "analysis_group_var")
+        delattr(mock_gui, "analysis_day_var")
+        delattr(mock_gui, "analysis_subject_var")
 
         # Should not crash
         state_synchronizer._apply_analysis_metadata_strings("Grupo A", "Dia 1", "Peixe 1")
@@ -853,9 +827,7 @@ class TestThreadSafety:
 
     def test_recording_callback_uses_root_after(self, state_synchronizer, mock_gui):
         """Test that recording callback schedules on main thread."""
-        state_synchronizer._on_recording_state_changed(
-            "RECORDING", "is_recording", False, True
-        )
+        state_synchronizer._on_recording_state_changed("RECORDING", "is_recording", False, True)
 
         # Verify root.after(0, ...) was used
         call_args = mock_gui.root.after.call_args
@@ -863,9 +835,7 @@ class TestThreadSafety:
 
     def test_processing_callback_uses_root_after(self, state_synchronizer, mock_gui):
         """Test that processing callback schedules on main thread."""
-        state_synchronizer._on_processing_state_changed(
-            "PROCESSING", "is_processing", False, True
-        )
+        state_synchronizer._on_processing_state_changed("PROCESSING", "is_processing", False, True)
 
         # Verify root.after(0, ...) was used
         call_args = mock_gui.root.after.call_args
@@ -938,9 +908,7 @@ class TestEdgeCases:
 
     def test_apply_metadata_with_special_characters(self, state_synchronizer, mock_gui):
         """Test metadata application with special characters."""
-        state_synchronizer._apply_analysis_metadata_strings(
-            "Grupo | A", "Dia & 1", "Peixe <1>"
-        )
+        state_synchronizer._apply_analysis_metadata_strings("Grupo | A", "Dia & 1", "Peixe <1>")
 
         # Should handle special characters without crashing
         expected = "Grupo: Grupo | A | Dia: Dia & 1 | Indivíduo: Peixe <1>"

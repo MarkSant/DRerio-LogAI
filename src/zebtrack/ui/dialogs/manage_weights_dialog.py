@@ -4,12 +4,13 @@ ManageWeightsDialog
 Extracted from gui.py for better modularity.
 """
 
+from collections.abc import Callable
 from tkinter import (
     messagebox,
     simpledialog,
     ttk,
 )
-from typing import Any, Callable
+from typing import Any
 
 from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import schedule_maximize

@@ -68,9 +68,7 @@ class TestNavegacaoWindowManagement:
         view_manager.update_window_title()
         mock_gui.root.title.assert_called_once_with("DRerio LogAI")
 
-    def test_navigate_to_processing_reports_tab_success(
-        self, view_manager, mock_gui
-    ):
+    def test_navigate_to_processing_reports_tab_success(self, view_manager, mock_gui):
         """Test navigating to processing reports tab successfully."""
         mock_gui.notebook.index.return_value = 3
         mock_gui.notebook.tab.side_effect = [
@@ -82,18 +80,14 @@ class TestNavegacaoWindowManagement:
 
         mock_gui.notebook.select.assert_called_once_with(1)
 
-    def test_navigate_to_processing_reports_tab_no_notebook(
-        self, view_manager, mock_gui
-    ):
+    def test_navigate_to_processing_reports_tab_no_notebook(self, view_manager, mock_gui):
         """Test navigating when notebook doesn't exist."""
         mock_gui.notebook = None
         view_manager.navigate_to_processing_reports_tab()
         # Should not raise exception
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_navigate_to_processing_reports_tab_not_found(
-        self, mock_log, view_manager, mock_gui
-    ):
+    def test_navigate_to_processing_reports_tab_not_found(self, mock_log, view_manager, mock_gui):
         """Test navigating when tab is not found."""
         mock_gui.notebook.index.return_value = 2
         mock_gui.notebook.tab.side_effect = ["Tab1", "Tab2"]
@@ -122,14 +116,15 @@ class TestProjectOverviewManagement:
         """Test forcing overview refresh."""
         view_manager._refresh_project_overview = Mock()
 
+        # Mock tree.get_children() to return empty list for iteration
+        mock_gui.processing_reports_widget.tree.get_children.return_value = []
+
         view_manager.request_overview_refresh(force=True)
 
         assert view_manager._overview_refresh_pending is False
         view_manager._refresh_project_overview.assert_called_once()
 
-    def test_request_overview_refresh_already_pending(
-        self, view_manager, mock_gui
-    ):
+    def test_request_overview_refresh_already_pending(self, view_manager, mock_gui):
         """Test requesting refresh when already pending."""
         view_manager._overview_refresh_pending = True
 
@@ -144,9 +139,7 @@ class TestProjectOverviewManagement:
         view_manager._refresh_pipeline_video_table = Mock()
         view_manager._refresh_processing_reports_tab = Mock()
 
-        mock_gui.controller.project_manager.get_project_type.return_value = (
-            "pre-recorded"
-        )
+        mock_gui.controller.project_manager.get_project_type.return_value = "pre-recorded"
 
         view_manager.refresh_project_views()
 
@@ -197,9 +190,7 @@ class TestProjectOverviewManagement:
 
         view_manager._update_project_overview_tree()
 
-        mock_gui.project_overview_widget.update_tree.assert_called_once_with(
-            hierarchy_data
-        )
+        mock_gui.project_overview_widget.update_tree.assert_called_once_with(hierarchy_data)
 
 
 # ==============================================================================
@@ -315,16 +306,12 @@ class TestPipelineVideoSelectorManagement:
     """Tests for pipeline and video selector management."""
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_refresh_pipeline_video_table_deprecated(
-        self, mock_log, view_manager
-    ):
+    def test_refresh_pipeline_video_table_deprecated(self, mock_log, view_manager):
         """Test deprecated pipeline video table refresh."""
         view_manager.refresh_pipeline_video_table()
         mock_log.warning.assert_called_once()
 
-    def test_resolve_processing_reports_video_paths(
-        self, view_manager, mock_gui
-    ):
+    def test_resolve_processing_reports_video_paths(self, view_manager, mock_gui):
         """Test resolving selected video paths."""
         tree = Mock()
         tree.selection.return_value = ["item1", "item2"]
@@ -339,9 +326,7 @@ class TestPipelineVideoSelectorManagement:
         assert "/video1.mp4" in result
         assert "/video2.mp4" in result
 
-    def test_resolve_processing_reports_video_paths_no_widget(
-        self, view_manager, mock_gui
-    ):
+    def test_resolve_processing_reports_video_paths_no_widget(self, view_manager, mock_gui):
         """Test resolving paths when widget doesn't exist."""
         del mock_gui.processing_reports_widget
 
@@ -350,25 +335,19 @@ class TestPipelineVideoSelectorManagement:
         assert result == []
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_update_pipeline_buttons_state_deprecated(
-        self, mock_log, view_manager
-    ):
+    def test_update_pipeline_buttons_state_deprecated(self, mock_log, view_manager):
         """Test deprecated pipeline buttons state update."""
         view_manager.update_pipeline_buttons_state()
         mock_log.warning.assert_called_once()
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_populate_video_selector_tree_deprecated(
-        self, mock_log, view_manager
-    ):
+    def test_populate_video_selector_tree_deprecated(self, mock_log, view_manager):
         """Test deprecated populate video selector tree."""
         view_manager.populate_video_selector_tree("search")
         mock_log.warning.assert_called_once()
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_refresh_video_selector_tree_deprecated(
-        self, mock_log, view_manager
-    ):
+    def test_refresh_video_selector_tree_deprecated(self, mock_log, view_manager):
         """Test deprecated refresh video selector tree."""
         view_manager.refresh_video_selector_tree()
         mock_log.warning.assert_called_once()
@@ -392,9 +371,7 @@ class TestProcessingReportsManagement:
 
         mock_gui.processing_reports_widget.tree.get_children.assert_called_once()
 
-    def test_refresh_processing_reports_tab_no_widget(
-        self, view_manager, mock_gui
-    ):
+    def test_refresh_processing_reports_tab_no_widget(self, view_manager, mock_gui):
         """Test refreshing when widget doesn't exist."""
         del mock_gui.processing_reports_widget
         view_manager.refresh_processing_reports_tab()
@@ -416,30 +393,22 @@ class TestProcessingReportsManagement:
             "id2",
         ]
 
-        view_manager.append_processing_reports_artifacts(
-            tree, "parent", "/results", metadata_store
-        )
+        view_manager.append_processing_reports_artifacts(tree, "parent", "/results", metadata_store)
 
         assert tree.insert.call_count == 2
         assert len(metadata_store) == 2
 
     @patch("zebtrack.ui.components.project_view_manager.os.path.exists")
-    def test_append_processing_reports_artifacts_no_dir(
-        self, mock_exists, view_manager
-    ):
+    def test_append_processing_reports_artifacts_no_dir(self, mock_exists, view_manager):
         """Test appending artifacts when directory doesn't exist."""
         mock_exists.return_value = False
 
         tree = Mock()
-        view_manager.append_processing_reports_artifacts(
-            tree, "parent", "/nonexistent", {}
-        )
+        view_manager.append_processing_reports_artifacts(tree, "parent", "/nonexistent", {})
 
         tree.insert.assert_not_called()
 
-    def test_on_processing_reports_item_double_click_file(
-        self, view_manager, mock_gui
-    ):
+    def test_on_processing_reports_item_double_click_file(self, view_manager, mock_gui):
         """Test double-click on file node."""
         tree = Mock()
         tree.identify_row.return_value = "item1"
@@ -484,9 +453,7 @@ class TestProcessingReportsManagement:
     @patch("zebtrack.ui.components.project_view_manager.os.path.exists")
     @patch("zebtrack.ui.components.project_view_manager.sys.platform", "darwin")
     @patch("zebtrack.ui.components.project_view_manager.subprocess")
-    def test_handle_report_file_node_macos(
-        self, mock_subprocess, mock_exists, view_manager
-    ):
+    def test_handle_report_file_node_macos(self, mock_subprocess, mock_exists, view_manager):
         """Test handling report file node on macOS."""
         mock_exists.return_value = True
         metadata = {"file_path": "/report.docx"}
@@ -495,16 +462,10 @@ class TestProcessingReportsManagement:
 
         mock_subprocess.Popen.assert_called_once_with(["open", "/report.docx"])
 
-    def test_on_processing_reports_generate_partial(
-        self, view_manager, mock_gui
-    ):
+    def test_on_processing_reports_generate_partial(self, view_manager, mock_gui):
         """Test generating partial report."""
-        mock_gui.processing_reports_widget.get_selection.return_value = [
-            "item1"
-        ]
-        mock_gui.controller.project_manager.get_all_videos.return_value = [
-            {"path": "/video1.mp4"}
-        ]
+        mock_gui.processing_reports_widget.get_selection.return_value = ["item1"]
+        mock_gui.controller.project_manager.get_all_videos.return_value = [{"path": "/video1.mp4"}]
         mock_gui._processing_reports_tree_metadata = {
             "item1": {"type": "video", "video_path": "/video1.mp4"}
         }
@@ -528,9 +489,7 @@ class TestReportsTreeManagement:
         view_manager.update_reports_tree()
         mock_log.warning.assert_called_once()
 
-    def test_populate_reports_tree_from_hierarchy(
-        self, view_manager, mock_gui
-    ):
+    def test_populate_reports_tree_from_hierarchy(self, view_manager, mock_gui):
         """Test populating reports tree from hierarchy."""
         tree = Mock()
         hierarchy = {
@@ -557,9 +516,7 @@ class TestReportsTreeManagement:
         metadata_store = {}
         view_manager.append_processing_reports_artifacts = Mock()
 
-        view_manager._populate_reports_tree_from_hierarchy(
-            tree, hierarchy, "", metadata_store
-        )
+        view_manager._populate_reports_tree_from_hierarchy(tree, hierarchy, "", metadata_store)
 
         # Should have created group, day, and video nodes
         assert tree.insert.call_count >= 3
@@ -590,25 +547,19 @@ class TestEventHandlers:
         mock_log.warning.assert_called_once()
 
     @patch("zebtrack.ui.components.project_view_manager.log")
-    def test_on_report_item_double_click_deprecated(
-        self, mock_log, view_manager
-    ):
+    def test_on_report_item_double_click_deprecated(self, mock_log, view_manager):
         """Test deprecated on report item double click."""
         view_manager.on_report_item_double_click()
         mock_log.warning.assert_called_once()
 
-    def test_on_project_overview_tree_double_click(
-        self, view_manager, mock_gui
-    ):
+    def test_on_project_overview_tree_double_click(self, view_manager, mock_gui):
         """Test double-click on project overview tree."""
         tree = Mock()
         tree.identify_row.return_value = "item1"
         tree.set.return_value = "/video1.mp4"
 
         mock_gui.project_overview_widget.tree = tree
-        mock_gui.controller.project_manager.get_video_results_dir.return_value = (
-            "/results"
-        )
+        mock_gui.controller.project_manager.get_video_results_dir.return_value = "/results"
 
         event = Mock()
         event.y = 100
@@ -632,9 +583,7 @@ class TestEventHandlers:
 
         mock_exists.return_value = True
         mock_gui.project_overview_widget.tree = tree
-        mock_gui.controller.project_manager.get_video_results_dir.return_value = (
-            "/results"
-        )
+        mock_gui.controller.project_manager.get_video_results_dir.return_value = "/results"
 
         event = Mock()
         event.y = 100
@@ -658,9 +607,7 @@ class TestEventHandlers:
         tree.selection_set.assert_called_once_with("item1")
         mock_gui.menu_manager.show_project_overview_context_menu.assert_called_once()
 
-    def test_update_delete_template_button_state_with_selection(
-        self, view_manager, mock_gui
-    ):
+    def test_update_delete_template_button_state_with_selection(self, view_manager, mock_gui):
         """Test updating delete template button state with selection."""
         mock_gui.roi_template_var.get.return_value = "template1"
 
@@ -668,9 +615,7 @@ class TestEventHandlers:
 
         mock_gui.delete_template_btn.config.assert_called_once_with(state="normal")
 
-    def test_update_delete_template_button_state_no_selection(
-        self, view_manager, mock_gui
-    ):
+    def test_update_delete_template_button_state_no_selection(self, view_manager, mock_gui):
         """Test updating delete template button state without selection."""
         mock_gui.roi_template_var.get.return_value = "Nenhum"
 

@@ -5,13 +5,18 @@ Handles field validation, form validation, requirement checks, pre-conditions,
 data preparation, and formatting helpers.
 """
 
+import copy
 import os
 import re
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import structlog
+import yaml
+from pydantic import ValidationError
 
+from zebtrack import settings as settings_module
 from zebtrack.core.detector import ZoneData
 
 log = structlog.get_logger()
@@ -47,6 +52,116 @@ class ValidationManager:
     # ========================================================================
     # Main Validation and Preparation Methods
     # ========================================================================
+
+    @staticmethod
+    def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+        """Deep merge two dictionaries.
+
+        Args:
+            base: Base dictionary
+            override: Override dictionary
+
+        Returns:
+            Merged dictionary
+        """
+        result = copy.deepcopy(base)
+        for key, value in override.items():
+            if isinstance(value, dict) and key in result and isinstance(result[key], dict):
+                result[key] = ValidationManager._deep_merge_dicts(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def save_global_config_from_widget(self, values: dict) -> None:
+        """Validate and save config from ConfigEditorWidget values.
+
+        Args:
+            values: Configuration values from widget
+        """
+        try:
+            # Extract values (already parsed by widget)
+            fps = values["video_processing"]["fps"]
+            processing_interval = values["video_processing"]["processing_interval"]
+            processing_offset = values["video_processing"]["processing_offset"]
+            flush_interval = values["recorder"]["flush_interval_seconds"]
+            flush_rows = values["recorder"]["flush_row_threshold"]
+            window_length = values["trajectory_smoothing"]["window_length"]
+            polyorder = values["trajectory_smoothing"]["polyorder"]
+
+            # Validate
+            if fps <= 0:
+                raise ValueError("FPS deve ser maior que 0.")
+            if processing_interval <= 0:
+                raise ValueError("O intervalo de processamento deve ser maior que 0.")
+            if processing_offset < 0:
+                raise ValueError("O offset deve ser maior ou igual a 0.")
+            if flush_interval < 0:
+                raise ValueError("O intervalo de flush deve ser >= 0.")
+            if flush_rows < 1:
+                raise ValueError("O limite de linhas para flush deve ser >= 1.")
+            if window_length < 3 or window_length % 2 == 0:
+                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+            if polyorder < 1:
+                raise ValueError("Polyorder deve ser pelo menos 1.")
+
+        except ValueError as exc:
+            self.gui.show_error("Erro de Validação", str(exc))
+            return
+
+        update_payload: dict[str, Any] = values
+
+        active_settings = settings_module.settings
+        if active_settings is None:
+            try:
+                active_settings = settings_module.load_settings()
+                settings_module.settings = active_settings
+            except Exception as exc:
+                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
+                return
+
+        merged = self._deep_merge_dicts(active_settings.model_dump(), update_payload)
+
+        try:
+            validated = settings_module.Settings.model_validate(merged)
+        except ValidationError as exc:
+            self.gui.show_error("Erro de Validação", str(exc))
+            return
+
+        override_path = Path("config.local.yaml")
+        try:
+            if override_path.exists():
+                with open(override_path, encoding="utf-8") as handle:
+                    override_content = yaml.safe_load(handle) or {}
+            else:
+                override_content = {}
+
+            merged_override = self._deep_merge_dicts(override_content, update_payload)
+            with open(override_path, "w", encoding="utf-8") as handle:
+                yaml.safe_dump(
+                    merged_override,
+                    handle,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+        except Exception as exc:
+            self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
+            return
+
+        if settings_module.settings is None:
+            settings_module.settings = validated
+        else:
+            for field_name in validated.model_fields:
+                setattr(
+                    settings_module.settings,
+                    field_name,
+                    getattr(validated, field_name),
+                )
+
+        self.gui._reload_config_editor_values_widget()
+        self.gui.show_info(
+            "Configurações salvas",
+            "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
+        )
 
     def compose_overview_status_line(self, total: int, counts: Counter) -> str:
         """Compose status line for project overview.
@@ -228,50 +343,6 @@ class ValidationManager:
             else:
                 log.info("ui.live_calibration.auto_declined")
 
-    def prepare_single_video_ui_state(self, config: dict | None) -> None:
-        """Ensure zone controls reflect the incoming single-video configuration.
-
-        Args:
-            config: Configuration dictionary with analysis parameters
-        """
-        zone_controls = getattr(self.gui, "zone_controls", None)
-        if not zone_controls:
-            return
-
-        try:
-            zone_controls.show_single_analysis_options()
-        except Exception:
-            pass
-
-        analysis_interval = None
-        display_interval = None
-        roi_choice = None
-        stabilization_frames = None
-
-        if config:
-            analysis_interval = config.get("analysis_interval_frames")
-            display_interval = config.get("display_interval_frames")
-            roi_choice = config.get("roi_choice")
-            stabilization_frames = config.get("stabilization_frames")
-
-        if analysis_interval is None:
-            analysis_interval = self.gui.analysis_interval_var.get()
-        if display_interval is None:
-            display_interval = self.gui.display_interval_var.get()
-        if stabilization_frames is None:
-            stabilization_frames = self.gui.stabilization_frames_var.get()
-
-        # Share the same StringVar instances so edits from either side stay in sync
-        self.gui.analysis_interval_var = zone_controls.analysis_interval_var
-        self.gui.display_interval_var = zone_controls.display_interval_var
-        self.gui.roi_choice_var = zone_controls.roi_choice_var
-        self.gui.stabilization_frames_var = zone_controls.stabilization_frames_var
-
-        self.gui.analysis_interval_var.set(str(analysis_interval or "10"))
-        self.gui.display_interval_var.set(str(display_interval or "10"))
-        self.gui.roi_choice_var.set(roi_choice or "none")
-        self.gui.stabilization_frames_var.set(str(stabilization_frames or "10"))
-
     def compose_single_video_runtime_config(self) -> dict | None:
         """Collect the latest single-video settings before starting processing.
 
@@ -420,9 +491,7 @@ class ValidationManager:
             return False, "Selecione um aquário ativo primeiro."
         return True, ""
 
-    def validate_arena_polygon_data(
-        self, arena_data: dict | None
-    ) -> tuple[bool, str, dict | None]:
+    def validate_arena_polygon_data(self, arena_data: dict | None) -> tuple[bool, str, dict | None]:
         """Validate that arena data contains polygon information.
 
         Args:
@@ -859,6 +928,55 @@ class ValidationManager:
             return "Sem Dia"
         return f"Dia {candidate_str}"
 
+    def resolve_group_display(self, metadata: dict) -> str:
+        """Resolve group display name from metadata fields.
+
+        Args:
+            metadata: Metadata dictionary containing group information
+
+        Returns:
+            Formatted group display name, or "Sem Grupo" if not found
+        """
+        for key in (
+            "group_display_name",
+            "group_label",
+            "group_name",
+            "group_id",
+            "group",
+        ):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text
+        return "Sem Grupo"
+
+    def resolve_day_display(self, metadata: dict) -> str:
+        """Resolve day display name from metadata fields.
+
+        Args:
+            metadata: Metadata dictionary containing day information
+
+        Returns:
+            Formatted day display name, or "Sem Dia" if not found
+        """
+        for key in ("day_label", "day_display_name"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                text = str(value).strip()
+                if text:
+                    return text if text.lower().startswith("dia") else f"Dia {text}"
+
+        for key in ("day", "day_id", "dia"):
+            value = metadata.get(key)
+            if value not in (None, "", "None"):
+                formatted = self._format_day_display(value)
+                if formatted.lower() == "sem dia":
+                    return "Sem Dia"
+                return f"Dia {formatted}"
+
+        return "Sem Dia"
+
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],
@@ -933,3 +1051,141 @@ class ValidationManager:
             days_dict.setdefault(day_id, []).append(video_entry)
 
         return hierarchy
+
+    def build_video_hierarchy_snapshot(self) -> list[dict]:
+        """Build hierarchical snapshot of videos for display."""
+        controller = getattr(self.gui, "controller", None)
+        if not controller or not controller.project_manager:
+            return []
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+        hierarchy = self._build_video_hierarchy_data(all_videos, "")
+
+        snapshot: list[dict] = []
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            group_entry = {
+                "label": f"🏷️ {group_data['display']} ({group_id})",
+                "status_label": "",
+                "filename_display": "",
+                "children": [],
+            }
+            for day_id, videos in sorted(
+                group_data["days"].items(),
+                key=lambda item: self._video_sort_key(item[0]),
+            ):
+                sample_metadata = videos[0].get("metadata") if videos else None
+                day_title = self._build_day_title(day_id, sample_metadata)
+                day_entry = {
+                    "label": f"📅 {day_title}",
+                    "status_label": "",
+                    "children": [],
+                }
+                for video_entry in sorted(
+                    videos,
+                    key=lambda entry: self._video_sort_key(entry.get("subject")),
+                ):
+                    subject_label = self.format_subject_label(video_entry.get("subject"))
+                    has_arena = video_entry.get("has_arena", False)
+                    has_rois = video_entry.get("has_rois", False)
+                    has_traj = video_entry.get("has_trajectory", False)
+                    status_tokens = " ".join(
+                        [
+                            self.format_status_token(has_arena, "arena"),
+                            self.format_status_token(has_rois, "rois"),
+                            self.format_status_token(has_traj, "trajectory"),
+                        ]
+                    )
+                    day_entry["children"].append(
+                        {
+                            "path": video_entry.get("path"),
+                            "label": f"🐟 Sujeito {subject_label}",
+                            "filename": video_entry.get("filename", ""),
+                            "status_label": status_tokens,
+                        }
+                    )
+                group_entry["children"].append(day_entry)
+            snapshot.append(group_entry)
+
+        return snapshot
+
+    def apply_roi_settings(self):
+        """Apply ROI inclusion rule settings to the global settings."""
+        try:
+            # Validate and convert parameters
+            buffer_radius = float(self.gui.roi_buffer_radius_var.get())
+            overlap_ratio = float(self.gui.roi_overlap_ratio_var.get())
+
+            # Validate ranges
+            if buffer_radius < 0:
+                raise ValueError("Raio de buffer deve ser >= 0")
+            if not (0 <= overlap_ratio <= 1):
+                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
+
+            # Update settings if available
+            if self.gui.controller.settings:
+                self.gui.controller.settings.roi_inclusion_rule = (
+                    self.gui.roi_inclusion_rule_var.get()
+                )
+                self.gui.controller.settings.roi_buffer_radius_value = buffer_radius
+                self.gui.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
+
+                # Save to project if available
+                if self.gui.controller.project_manager.project_path:
+                    self.gui.controller.project_manager._save_settings_snapshot()
+
+                self.gui.show_info(
+                    "Sucesso",
+                    f"Configurações de ROI aplicadas:\n"
+                    f"Regra: {self.gui.controller.settings.roi_inclusion_rule}\n"
+                    f"Raio buffer: {self.gui.controller.settings.roi_buffer_radius_value}\n"
+                    f"Sobreposição mínima: "
+                    f"{self.gui.controller.settings.roi_min_bbox_overlap_ratio}",
+                )
+            else:
+                self.gui.show_warning(
+                    "Aviso", "Settings não disponível. Configurações não foram salvas."
+                )
+
+        except ValueError as e:
+            self.gui.show_error("Erro de Validação", str(e))
+        except Exception as e:
+            self.gui.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+
+    def resolve_subject_display(self, metadata: dict) -> str:
+        """Resolve subject display name from various metadata fields."""
+        for key in (
+            "subject_label",
+            "subject_display_name",
+            "subject",
+            "subject_id",
+            "animal",
+            "animal_id",
+            "individual",
+            "individuo",
+            "cobaia",
+        ):
+            value = metadata.get(key)
+            if value in (None, "", "None"):
+                continue
+
+            if isinstance(value, bool):
+                text = str(value).strip()
+                if text:
+                    return text
+
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if float(value).is_integer():
+                    return f"{int(value):02d}"
+                return str(value)
+
+            text = str(value).strip()
+            if not text:
+                continue
+            if text.isdigit():
+                return f"{int(text):02d}"
+            return text
+
+        return "Não informado"

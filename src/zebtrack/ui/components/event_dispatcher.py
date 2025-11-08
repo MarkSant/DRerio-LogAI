@@ -105,12 +105,8 @@ class EventDispatcher:
         self.gui.event_bus.subscribe(
             "zone.draw_arena", lambda data: self.gui._start_main_arena_drawing()
         )
-        self.gui.event_bus.subscribe(
-            "zone.draw_roi", lambda data: self.gui._start_roi_drawing()
-        )
-        self.gui.event_bus.subscribe(
-            "zone.save_arena", lambda data: self.gui._on_save_arena()
-        )
+        self.gui.event_bus.subscribe("zone.draw_roi", lambda data: self.gui._start_roi_drawing())
+        self.gui.event_bus.subscribe("zone.save_arena", lambda data: self.gui._on_save_arena())
         self.gui.event_bus.subscribe(
             "zone.discard_arena", lambda data: self.gui._on_discard_arena()
         )
@@ -440,13 +436,12 @@ class EventDispatcher:
                 self.poll_event_bus,
             )
             log.debug(
-                "gui.event_bus.schedule_poll.scheduled",
-                after_id=self.gui._event_bus_after_id
+                "gui.event_bus.schedule_poll.scheduled", after_id=self.gui._event_bus_after_id
             )
         else:
             log.debug(
                 "gui.event_bus.schedule_poll.already_scheduled",
-                after_id=self.gui._event_bus_after_id
+                after_id=self.gui._event_bus_after_id,
             )
 
     def poll_event_bus(self) -> None:
@@ -508,6 +503,45 @@ class EventDispatcher:
                 self.gui._event_bus_after_id = None
 
     # =========================================================================
+    # Video Analysis Workflows
+    # =========================================================================
+
+    def handle_analyze_single_video_clicked(self) -> None:
+        """Handle the UI part of the single video workflow."""
+        from zebtrack.ui.dialogs import SingleVideoConfigDialog
+        from zebtrack.ui.events import Events
+
+        dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=self.gui.controller.settings)
+        if not dialog.result:
+            return  # User cancelled
+
+        source_type = dialog.result.get("source_type", "video")
+
+        if source_type == "camera":
+            # Camera analysis: use camera_index
+            camera_index = dialog.result.get("camera_index", 0)
+            self.gui.show_info(
+                "Análise de Câmera", f"Iniciando análise da câmera {camera_index}..."
+            )
+            # Trigger camera analysis via controller
+            self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
+            return
+
+        # Video file analysis: require video_path
+        video_path = dialog.result.get("video_path")
+        if not video_path:
+            return
+
+        # Pass both config and video path to the controller via event
+        self.publish_event(
+            Events.VIDEO_ANALYZE_SINGLE,
+            {
+                "video_path": video_path,
+                "config": dialog.result,
+            },
+        )
+
+    # =========================================================================
     # Helper Methods
     # =========================================================================
 
@@ -520,6 +554,7 @@ class EventDispatcher:
         Returns:
             MockEvent object with coordinate attributes
         """
+
         class MockEvent:
             def __init__(self, data, zone_listbox):
                 self.x_root = data.get("x", 0)

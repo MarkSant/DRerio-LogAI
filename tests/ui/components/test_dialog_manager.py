@@ -132,9 +132,7 @@ class TestMessageBoxWrappers:
         """Test show_warning displays warning message box."""
         dialog_manager.show_warning("Warning Title", "Warning message")
 
-        mock_messagebox.showwarning.assert_called_once_with(
-            "Warning Title", "Warning message"
-        )
+        mock_messagebox.showwarning.assert_called_once_with("Warning Title", "Warning message")
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_show_info(self, mock_messagebox, dialog_manager):
@@ -170,9 +168,7 @@ class TestMessageBoxWrappers:
         result = dialog_manager.ask_yes_no("Question", "Proceed?")
 
         assert result is True
-        mock_messagebox.askyesno.assert_called_once_with(
-            "Question", "Proceed?", icon="question"
-        )
+        mock_messagebox.askyesno.assert_called_once_with("Question", "Proceed?", icon="question")
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_ask_yes_no_returns_false(self, mock_messagebox, dialog_manager):
@@ -190,9 +186,7 @@ class TestMessageBoxWrappers:
 
         result = dialog_manager.ask_yes_no("Warning", "Delete?", icon="warning")
 
-        mock_messagebox.askyesno.assert_called_once_with(
-            "Warning", "Delete?", icon="warning"
-        )
+        mock_messagebox.askyesno.assert_called_once_with("Warning", "Delete?", icon="warning")
         assert result is True
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
@@ -232,9 +226,7 @@ class TestMessageBoxWrappers:
 
         dialog_manager.ask_yes_no_cancel("Exit?", "Exit app?", icon="warning")
 
-        mock_messagebox.askyesnocancel.assert_called_once_with(
-            "Exit?", "Exit app?", icon="warning"
-        )
+        mock_messagebox.askyesnocancel.assert_called_once_with("Exit?", "Exit app?", icon="warning")
 
 
 @pytest.mark.gui
@@ -265,9 +257,7 @@ class TestFileDialogs:
         """Test ask_directory with initial directory."""
         mock_filedialog.askdirectory.return_value = "/selected/path"
 
-        dialog_manager.ask_directory(
-            "Select Directory", initial_dir="/initial/path"
-        )
+        dialog_manager.ask_directory("Select Directory", initial_dir="/initial/path")
 
         mock_filedialog.askdirectory.assert_called_once_with(
             title="Select Directory", initialdir="/initial/path"
@@ -287,9 +277,7 @@ class TestFileDialogs:
         )
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_ask_open_filename_returns_empty_on_cancel(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_ask_open_filename_returns_empty_on_cancel(self, mock_filedialog, dialog_manager):
         """Test ask_open_filename returns empty string on cancel."""
         mock_filedialog.askopenfilename.return_value = ""
         filetypes = [("Text files", "*.txt")]
@@ -304,18 +292,14 @@ class TestFileDialogs:
         mock_filedialog.askopenfilename.return_value = "/path/to/file.txt"
         filetypes = [("Text files", "*.txt")]
 
-        dialog_manager.ask_open_filename(
-            "Select File", filetypes, initial_dir="/initial/dir"
-        )
+        dialog_manager.ask_open_filename("Select File", filetypes, initial_dir="/initial/dir")
 
         mock_filedialog.askopenfilename.assert_called_once_with(
             title="Select File", filetypes=filetypes, initialdir="/initial/dir"
         )
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_ask_open_filenames_returns_multiple_files(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_ask_open_filenames_returns_multiple_files(self, mock_filedialog, dialog_manager):
         """Test ask_open_filenames returns multiple selected files."""
         mock_filedialog.askopenfilenames.return_value = (
             "/path/to/file1.txt",
@@ -331,9 +315,7 @@ class TestFileDialogs:
         )
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_ask_open_filenames_returns_empty_on_cancel(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_ask_open_filenames_returns_empty_on_cancel(self, mock_filedialog, dialog_manager):
         """Test ask_open_filenames returns empty tuple on cancel."""
         mock_filedialog.askopenfilenames.return_value = ()
         filetypes = [("Text files", "*.txt")]
@@ -348,9 +330,7 @@ class TestFileDialogs:
         mock_filedialog.askopenfilenames.return_value = ("/path/to/file.txt",)
         filetypes = [("Text files", "*.txt")]
 
-        dialog_manager.ask_open_filenames(
-            "Select Files", filetypes, initial_dir="/initial/dir"
-        )
+        dialog_manager.ask_open_filenames("Select Files", filetypes, initial_dir="/initial/dir")
 
         mock_filedialog.askopenfilenames.assert_called_once_with(
             title="Select Files", filetypes=filetypes, initialdir="/initial/dir"
@@ -375,9 +355,7 @@ class TestFileDialogs:
         )
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_ask_save_filename_returns_empty_on_cancel(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_ask_save_filename_returns_empty_on_cancel(self, mock_filedialog, dialog_manager):
         """Test ask_save_filename returns empty string on cancel."""
         mock_filedialog.asksaveasfilename.return_value = ""
 
@@ -411,9 +389,7 @@ class TestFileDialogs:
         """Test ask_string with initial value."""
         mock_simpledialog.askstring.return_value = "Modified Value"
 
-        dialog_manager.ask_string(
-            "Enter Name", "Name:", initialvalue="Initial"
-        )
+        dialog_manager.ask_string("Enter Name", "Name:", initialvalue="Initial")
 
         mock_simpledialog.askstring.assert_called_once_with(
             "Enter Name", "Name:", initialvalue="Initial"
@@ -437,9 +413,7 @@ class TestCalibrationDialogs:
         dialog_manager.open_global_calibration_window()
 
         mock_controller.global_calibration_session.assert_called_once()
-        mock_calibration_dialog.assert_called_once_with(
-            dialog_manager.gui.root, mock_controller
-        )
+        mock_calibration_dialog.assert_called_once_with(dialog_manager.gui.root, mock_controller)
 
     @patch("zebtrack.ui.components.dialog_manager.CalibrationDialog")
     def test_open_project_calibration_window_no_project(
@@ -478,9 +452,7 @@ class TestROITemplateDialogs:
     """Tests for ROI template dialog methods."""
 
     @patch("zebtrack.ui.components.dialog_manager.SaveROITemplateDialog")
-    def test_show_template_save_dialog_returns_result(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_show_template_save_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test show_template_save_dialog returns dialog result."""
         mock_dialog = Mock()
         mock_dialog.result = {"name": "Template1", "save_arena": True}
@@ -527,9 +499,7 @@ class TestROITemplateDialogs:
         dialog_manager.gui.controller.project_manager.import_roi_template.assert_not_called()
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_import_roi_template_success(
-        self, mock_filedialog, dialog_manager, mock_gui
-    ):
+    def test_import_roi_template_success(self, mock_filedialog, dialog_manager, mock_gui):
         """Test successful ROI template import."""
         mock_filedialog.askopenfilename.return_value = "/path/to/template.json"
         metadata = {"name": "Imported Template", "includes_arena": True}
@@ -558,9 +528,7 @@ class TestROITemplateDialogs:
         mock_filedialog.askopenfilename.assert_not_called()
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_import_and_apply_roi_template_cancelled(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_import_and_apply_roi_template_cancelled(self, mock_filedialog, dialog_manager):
         """Test import_and_apply_roi_template when user cancels."""
         mock_filedialog.askopenfilename.return_value = ""
 
@@ -597,6 +565,7 @@ class TestROITemplateDialogs:
             "roi_colors": [[255, 0, 0]],
         }
         import json
+
         with open(template_file, "w") as f:
             json.dump(template_data, f)
 
@@ -622,9 +591,7 @@ class TestAnalysisDialogs:
     """Tests for analysis dialog methods."""
 
     @patch("zebtrack.ui.components.dialog_manager.CenterPeripheryDialog")
-    def test_open_center_periphery_dialog_returns_result(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_open_center_periphery_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test open_center_periphery_dialog returns dialog result."""
         mock_dialog = Mock()
         mock_dialog.result = {"method": "percentage", "value": 50}
@@ -649,9 +616,7 @@ class TestAnalysisDialogs:
         assert result is None
 
     @patch("zebtrack.ui.components.dialog_manager.TemplateDialog")
-    def test_open_template_rois_dialog_returns_result(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_open_template_rois_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test open_template_rois_dialog returns dialog result."""
         mock_dialog = Mock()
         mock_dialog.result = {"template_type": "grid", "rows": 3, "cols": 3}
@@ -802,9 +767,7 @@ class TestProjectAndRecordingDialogs:
         assert result is None
 
     @patch("zebtrack.ui.components.dialog_manager.MissingMetadataDialog")
-    def test_ask_missing_metadata_returns_result(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_ask_missing_metadata_returns_result(self, mock_dialog_class, dialog_manager):
         """Test ask_missing_metadata returns dialog result."""
         mock_dialog = Mock()
         mock_dialog.result = {"day": 2, "group": "G2", "subject": 3}
@@ -816,9 +779,7 @@ class TestProjectAndRecordingDialogs:
         mock_dialog_class.assert_called_once_with(dialog_manager.gui.root, "exp_123")
 
     @patch("zebtrack.ui.components.dialog_manager.MissingMetadataDialog")
-    def test_ask_missing_metadata_returns_none_on_cancel(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_ask_missing_metadata_returns_none_on_cancel(self, mock_dialog_class, dialog_manager):
         """Test ask_missing_metadata returns None when cancelled."""
         mock_dialog = Mock()
         mock_dialog.result = None
@@ -858,9 +819,7 @@ class TestConfirmationDialogs:
     """Tests for confirmation dialog methods."""
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_delete_roi_template_confirmed(
-        self, mock_messagebox, dialog_manager
-    ):
+    def test_confirm_delete_roi_template_confirmed(self, mock_messagebox, dialog_manager):
         """Test confirm_delete_roi_template when user confirms."""
         mock_messagebox.askyesno.return_value = True
 
@@ -909,9 +868,7 @@ class TestConfirmationDialogs:
         assert result is False
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_save_polygon_before_analysis_save(
-        self, mock_messagebox, dialog_manager
-    ):
+    def test_confirm_save_polygon_before_analysis_save(self, mock_messagebox, dialog_manager):
         """Test confirm_save_polygon_before_analysis when user chooses to save."""
         mock_messagebox.askyesnocancel.return_value = True
 
@@ -921,9 +878,7 @@ class TestConfirmationDialogs:
         mock_messagebox.askyesnocancel.assert_called_once()
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_save_polygon_before_analysis_discard(
-        self, mock_messagebox, dialog_manager
-    ):
+    def test_confirm_save_polygon_before_analysis_discard(self, mock_messagebox, dialog_manager):
         """Test confirm_save_polygon_before_analysis when user discards changes."""
         mock_messagebox.askyesnocancel.return_value = False
 
@@ -932,9 +887,7 @@ class TestConfirmationDialogs:
         assert result is False
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_save_polygon_before_analysis_cancel(
-        self, mock_messagebox, dialog_manager
-    ):
+    def test_confirm_save_polygon_before_analysis_cancel(self, mock_messagebox, dialog_manager):
         """Test confirm_save_polygon_before_analysis when user cancels."""
         mock_messagebox.askyesnocancel.return_value = None
 
@@ -1022,9 +975,7 @@ class TestNotificationDialogs:
         # Should not raise exception
         dialog_manager.clear_external_trigger_notice()
 
-    def test_clear_external_trigger_notice_restores_colors(
-        self, dialog_manager, mock_gui
-    ):
+    def test_clear_external_trigger_notice_restores_colors(self, dialog_manager, mock_gui):
         """Test clear_external_trigger_notice restores default colors."""
         dialog_manager.clear_external_trigger_notice()
 
@@ -1072,9 +1023,7 @@ class TestUtilityMethods:
         assert "before" not in pack_call[1]
 
     @patch("zebtrack.ui.components.dialog_manager.os.startfile")
-    def test_open_path_in_explorer_windows(
-        self, mock_startfile, dialog_manager, monkeypatch
-    ):
+    def test_open_path_in_explorer_windows(self, mock_startfile, dialog_manager, monkeypatch):
         """Test open_path_in_explorer on Windows."""
         monkeypatch.setattr(sys, "platform", "win32")
 
@@ -1119,9 +1068,7 @@ class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
     @patch("zebtrack.ui.components.dialog_manager.SaveROITemplateDialog")
-    def test_show_template_save_dialog_empty_result_dict(
-        self, mock_dialog_class, dialog_manager
-    ):
+    def test_show_template_save_dialog_empty_result_dict(self, mock_dialog_class, dialog_manager):
         """Test show_template_save_dialog with empty result dict."""
         mock_dialog = Mock()
         mock_dialog.result = {}
@@ -1134,9 +1081,7 @@ class TestEdgeCases:
         assert result == {}
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_import_roi_template_error_handling(
-        self, mock_filedialog, dialog_manager, mock_gui
-    ):
+    def test_import_roi_template_error_handling(self, mock_filedialog, dialog_manager, mock_gui):
         """Test import_roi_template handles import errors gracefully."""
         mock_filedialog.askopenfilename.return_value = "/path/to/template.json"
         mock_gui.controller.project_manager.import_roi_template.side_effect = Exception(
@@ -1163,6 +1108,7 @@ class TestEdgeCases:
 
         # Should still try to import even if activation fails
         import json
+
         template_data = {"polygon": [[0, 0], [1, 1]]}
 
         with patch("builtins.open", create=True) as mock_open:
@@ -1174,24 +1120,16 @@ class TestEdgeCases:
             with patch.object(dialog_manager, "show_warning"):
                 dialog_manager.import_and_apply_roi_template()
 
-    def test_show_external_trigger_notice_config_exception(
-        self, dialog_manager, mock_gui
-    ):
+    def test_show_external_trigger_notice_config_exception(self, dialog_manager, mock_gui):
         """Test show_external_trigger_notice handles config exceptions."""
-        mock_gui.external_trigger_notice_label.config.side_effect = Exception(
-            "Config failed"
-        )
+        mock_gui.external_trigger_notice_label.config.side_effect = Exception("Config failed")
 
         # Should not raise exception
         dialog_manager.show_external_trigger_notice("test")
 
-    def test_clear_external_trigger_notice_config_exception(
-        self, dialog_manager, mock_gui
-    ):
+    def test_clear_external_trigger_notice_config_exception(self, dialog_manager, mock_gui):
         """Test clear_external_trigger_notice handles config exceptions."""
-        mock_gui.external_trigger_notice_label.config.side_effect = Exception(
-            "Config failed"
-        )
+        mock_gui.external_trigger_notice_label.config.side_effect = Exception("Config failed")
 
         # Should not raise exception
         dialog_manager.clear_external_trigger_notice()
@@ -1211,9 +1149,7 @@ class TestEdgeCases:
         dialog_manager.show_progress_bar()
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
-    def test_ask_open_filename_with_all_parameters(
-        self, mock_filedialog, dialog_manager
-    ):
+    def test_ask_open_filename_with_all_parameters(self, mock_filedialog, dialog_manager):
         """Test ask_open_filename with all possible parameters."""
         mock_filedialog.askopenfilename.return_value = "/selected/file.json"
         filetypes = [("JSON files", "*.json"), ("All files", "*.*")]
@@ -1228,22 +1164,16 @@ class TestEdgeCases:
         )
 
     @patch("zebtrack.ui.components.dialog_manager.simpledialog")
-    def test_ask_string_with_empty_initial_value(
-        self, mock_simpledialog, dialog_manager
-    ):
+    def test_ask_string_with_empty_initial_value(self, mock_simpledialog, dialog_manager):
         """Test ask_string with empty initial value."""
         mock_simpledialog.askstring.return_value = "User Input"
 
         result = dialog_manager.ask_string("Title", "Prompt:", initialvalue="")
 
         assert result == "User Input"
-        mock_simpledialog.askstring.assert_called_once_with(
-            "Title", "Prompt:", initialvalue=""
-        )
+        mock_simpledialog.askstring.assert_called_once_with("Title", "Prompt:", initialvalue="")
 
-    def test_show_external_trigger_notice_partial_metadata(
-        self, dialog_manager, mock_gui
-    ):
+    def test_show_external_trigger_notice_partial_metadata(self, dialog_manager, mock_gui):
         """Test show_external_trigger_notice with partial metadata."""
         # Only day and group, no cobaia
         dialog_manager.show_external_trigger_notice("test", day=1, group="G1")

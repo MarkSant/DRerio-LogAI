@@ -320,6 +320,33 @@ class ProjectViewManager:
     # CATEGORIA 4: PIPELINE E VIDEO SELECTOR MANAGEMENT
     # ===========================================================================
 
+    def apply_pending_readiness_snapshot(
+        self,
+        *,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> None:
+        """Apply pending readiness snapshot based on video readiness states."""
+        mapping: dict[str, tuple[str, ...]] = {}
+
+        def _assign(entries: list[dict], *tags: str) -> None:
+            for info in entries or []:
+                path = info.get("path")
+                if path:
+                    mapping[path] = tuple(tags)
+
+        _assign(ready_with_trajectory, "ready_full")
+        _assign(ready_with_zones, "ready_partial")
+        _assign(arena_only, "ready_optional", "ready_partial")
+        _assign(without_arena, "ready_missing")
+
+        self.gui._pending_readiness_snapshot = mapping
+
+        if hasattr(self.gui, "video_selector_tree") and self.gui.video_selector_tree:
+            self.gui._populate_video_selector_tree(self.gui._video_selector_filter)
+
     def refresh_pipeline_video_table(self) -> None:
         """Refresh the pipeline video table in pre-recorded projects."""
         # Note: This method is called _refresh_pipeline_video_table in gui.py
@@ -334,6 +361,41 @@ class ProjectViewManager:
         )
         # This functionality has been moved to ProcessingReportsWidget
         # Kept here for backward compatibility
+
+    def trigger_batch_trajectory_processing(self, selection=None) -> None:
+        """Trigger batch trajectory processing for selected or all videos."""
+        from zebtrack.ui.events import Events
+
+        if selection is None:
+            selections = self.gui._get_selected_pipeline_video_paths()
+            if not selections:
+                pipeline_vars = getattr(self.gui, "pipeline_video_vars", {}) or {}
+                if not pipeline_vars:
+                    self.gui.show_info(
+                        "Processamento",
+                        "Nenhum vídeo elegível foi encontrado com arena válida.",
+                    )
+                    return
+                selections = list(pipeline_vars.keys())
+        else:
+            selections = self.gui._resolve_processing_reports_video_paths(selection)
+            if not selections:
+                self.gui.show_info(
+                    "Processamento",
+                    "Selecione vídeos com arena e ROIs definidas para gerar trajetórias.",
+                )
+                return
+
+        unique_paths = list(dict.fromkeys(selections))
+        if not unique_paths:
+            return
+
+        self.gui.event_dispatcher.publish_event(
+            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
+        )
+        self.gui._request_overview_refresh()
+        # Switch to analysis tab to show progress of the newly requested batch.
+        self.gui._switch_to_analysis_view()
 
     def resolve_processing_reports_video_paths(self) -> list[str]:
         """
@@ -488,10 +550,7 @@ class ProjectViewManager:
         Args:
             event: Tkinter event object
         """
-        if (
-            not self.gui.processing_reports_widget
-            or not self.gui.processing_reports_widget.tree
-        ):
+        if not self.gui.processing_reports_widget or not self.gui.processing_reports_widget.tree:
             return
 
         tree = self.gui.processing_reports_widget.tree
@@ -571,6 +630,41 @@ class ProjectViewManager:
         metadata_store = getattr(self.gui, "_processing_reports_tree_metadata", {})
 
         for item_id in selection:
+            metadata = metadata_store.get(item_id)
+            if not metadata or metadata.get("type") != "video":
+                continue
+            video_path = metadata.get("video_path")
+            if not video_path:
+                continue
+            for video_data in all_videos:
+                if video_data["path"] == video_path:
+                    selected_videos.append(video_data)
+                    break
+
+        if selected_videos:
+            self.gui.event_dispatcher.publish_event(
+                Events.REPORT_GENERATE,
+                {"videos": selected_videos, "report_type": "partial"},
+            )
+
+    def generate_partial_report(self) -> None:
+        """Gather selected videos and generate a partial report from reports tree."""
+        from zebtrack.ui.events import Events
+
+        if not hasattr(self.gui, "reports_tree") or not self.gui.reports_tree:
+            return
+
+        selected_items = self.gui.reports_tree.selection()
+        if not selected_items:
+            return
+
+        selected_videos = []
+        all_videos = self.gui.controller.project_manager.get_all_videos()
+        metadata_store = getattr(self.gui, "_report_tree_metadata", {})
+
+        for item_id in selected_items:
+            if not self.gui.reports_tree.exists(item_id):
+                continue
             metadata = metadata_store.get(item_id)
             if not metadata or metadata.get("type") != "video":
                 continue
@@ -716,9 +810,7 @@ class ProjectViewManager:
             results_dir: Results directory path
             metadata_store: Metadata storage dictionary
         """
-        self.append_processing_reports_artifacts(
-            tree, parent_id, results_dir, metadata_store
-        )
+        self.append_processing_reports_artifacts(tree, parent_id, results_dir, metadata_store)
 
     # ===========================================================================
     # CATEGORIA 7: EVENT HANDLERS
@@ -842,3 +934,165 @@ class ProjectViewManager:
 
         openvino_status = self.gui.controller.get_openvino_cache_status()
         self.gui._openvino_display_var.set(openvino_status)
+
+    def append_report_artifacts_from_entry(self, parent_id: str, entry: dict) -> None:
+        """Append report artifacts (docx, xlsx) from video entry to reports tree."""
+        from pathlib import Path
+
+        tree = getattr(self.gui, "reports_tree", None)
+        if not tree:
+            return
+
+        video_path = entry.get("path")
+        if not video_path:
+            return
+
+        results_dir = entry.get("results_dir") or ""
+        parquet_files = entry.get("parquet_files") or {}
+        experiment_id = Path(video_path).stem if video_path else None
+
+        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
+            if candidate and os.path.exists(candidate):
+                return candidate
+            if results_dir and experiment_id:
+                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
+                if guess_path.exists():
+                    return str(guess_path)
+            return None
+
+        docx_path = _resolve_artifact(
+            parquet_files.get("report_docx"),
+            "report.docx",
+        )
+        excel_path = _resolve_artifact(
+            parquet_files.get("summary_excel"),
+            "summary.xlsx",
+        )
+
+        artifacts: list[tuple[str, str, str]] = []
+        if docx_path:
+            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
+        if excel_path:
+            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
+
+        if not artifacts:
+            return
+
+        for _kind, artifact_path, label in artifacts:
+            child_id = tree.insert(
+                parent_id,
+                "end",
+                text=label,
+                values=("", "", "", "", "Abrir"),
+                tags=("report-file",),
+            )
+            self.gui._report_tree_metadata[child_id] = {
+                "type": "file",
+                "path": artifact_path,
+                "parent_video": video_path,
+            }
+
+        tree.item(parent_id, open=True)
+
+    def handle_report_video_node(self, metadata: dict) -> None:
+        """Handle double-click on report video node - opens results directory."""
+        import sys
+        from pathlib import Path
+
+        video_path = metadata.get("video_path")
+        if not video_path:
+            return
+
+        controller = getattr(self.gui, "controller", None)
+        pm = getattr(controller, "project_manager", None)
+        if not pm:
+            return
+
+        entry = pm.find_video_entry(path=video_path)
+        results_dir = metadata.get("results_dir") or ""
+        metadata_hint: dict = {}
+        has_results = False
+
+        if entry:
+            metadata_hint = dict(entry.get("metadata") or {})
+            if not results_dir:
+                results_dir = entry.get("results_dir") or ""
+            for key in ("group", "group_display_name", "day", "subject"):
+                if entry.get(key) is not None and key not in metadata_hint:
+                    metadata_hint[key] = entry[key]
+            parquet_files = entry.get("parquet_files") or {}
+            for key in ("summary", "summary_excel", "report_docx"):
+                candidate_path = parquet_files.get(key)
+                if candidate_path and os.path.exists(candidate_path):
+                    has_results = True
+                    break
+
+        experiment_id = Path(video_path).stem
+        if not results_dir:
+            results_path = pm.resolve_results_directory(
+                experiment_id,
+                video_path=video_path,
+                metadata=metadata_hint,
+            )
+            results_dir = str(results_path)
+
+        if not has_results and results_dir:
+            summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
+            report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
+            excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
+            if summary_candidate.exists() or report_candidate.exists() or excel_candidate.exists():
+                has_results = True
+
+        if not results_dir or not os.path.isdir(results_dir) or not has_results:
+            self.gui.show_warning(
+                "Relatórios indisponíveis",
+                ("Gere o relatório para este vídeo antes de abrir a pasta de resultados."),
+            )
+            return
+
+        # Open directory in file explorer
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(results_dir)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                os.system(f'open "{results_dir}"')
+            else:  # Linux and other Unix-like systems
+                os.system(f'xdg-open "{results_dir}"')
+        except Exception as exc:
+            log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
+            self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")
+
+    def handle_project_overview_double_click(self, item_id: str) -> None:
+        """Implementation of double-click logic on project overview tree."""
+        import os
+
+        if not self.gui.project_overview_tree:
+            return
+
+        tags = self.gui.project_overview_tree.item(item_id, "tags") or ()
+        if not tags:
+            return
+
+        video_path = tags[0]
+        if not video_path or video_path.startswith("status_"):
+            return
+
+        if not os.path.exists(video_path):
+            self.gui.show_warning(
+                "Arquivo não encontrado",
+                f"O vídeo selecionado não foi localizado:\n{video_path}",
+            )
+            return
+
+        success = self.gui.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
+        if success:
+            self.gui._maybe_offer_zone_reuse(video_path)
+            self.gui.canvas_manager.redraw_zones_from_project_data()
+            message = f"Frame carregado: {os.path.basename(video_path)}"
+            self.gui.set_status(message)
+            self.gui._request_overview_refresh(reason=message, append_summary=True)
+        else:
+            self.gui.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )

@@ -254,6 +254,7 @@ class MainViewModel:
 
         # Queues for live frame processing
         import queue
+
         self.frame_queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
         self.video_queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
         self.is_capturing_for_video = False  # Flag for video recording
@@ -280,6 +281,7 @@ class MainViewModel:
 
         # Exit event for threads (deprecated - now managed by live_camera_service)
         import threading
+
         self.program_exit_event = threading.Event()
 
         # Event bus configuration
@@ -2601,7 +2603,7 @@ class MainViewModel:
         # Get configuration from dialog or use defaults
         if camera_index is not None:
             # Use camera directly with default settings
-            if hasattr(self.settings, 'live_analysis'):
+            if hasattr(self.settings, "live_analysis"):
                 duration_s = self.settings.live_analysis.default_duration_s
             else:
                 duration_s = 300

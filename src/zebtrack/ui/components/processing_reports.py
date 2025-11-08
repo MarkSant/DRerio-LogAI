@@ -5,8 +5,8 @@ This widget consolidates functionality from the old "Trajectories and Summaries"
 "Reports" tabs into a single, cohesive interface.
 """
 
+from collections.abc import Callable
 from tkinter import StringVar, ttk
-from typing import Callable
 
 import structlog
 

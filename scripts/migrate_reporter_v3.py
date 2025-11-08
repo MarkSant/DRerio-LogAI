@@ -11,7 +11,6 @@ Limitations:
 import argparse
 import ast
 from pathlib import Path
-from typing import Optional
 
 
 class ReporterMigrator(ast.NodeVisitor):
@@ -48,7 +47,7 @@ class ReporterMigrator(ast.NodeVisitor):
         return params
 
 
-def migrate_file(file_path: Path, dry_run: bool = True) -> Optional[str]:
+def migrate_file(file_path: Path, dry_run: bool = True) -> str | None:
     """
     Migra um arquivo Python para usar Reporter.from_analysis().
 

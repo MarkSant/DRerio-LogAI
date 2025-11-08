@@ -374,7 +374,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             if not cameras:
                 messagebox.showinfo(
                     "Câmeras",
-                    "Nenhuma câmera detectada.\n\nVerifique se a câmera está conectada e não está sendo usada por outro aplicativo."
+                    (
+                        "Nenhuma câmera detectada.\n\n"
+                        "Verifique se a câmera está conectada e não está sendo "
+                        "usada por outro aplicativo."
+                    ),
                 )
                 self.camera_combo["values"] = []
                 self.camera_index_map.clear()
@@ -398,15 +402,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
             messagebox.showinfo(
                 "Câmeras Detectadas",
-                f"{len(cameras)} câmera(s) detectada(s).\n\nSelecione a câmera desejada na lista."
+                f"{len(cameras)} câmera(s) detectada(s).\n\nSelecione a câmera desejada na lista.",
             )
 
         except Exception as e:
             log.error("single_video_config.detect_cameras_error", error=str(e), exc_info=True)
-            messagebox.showerror(
-                "Erro",
-                f"Erro ao detectar câmeras:\n{e}"
-            )
+            messagebox.showerror("Erro", f"Erro ao detectar câmeras:\n{e}")
 
     def validate(self):
         # Check if source was selected
@@ -423,7 +424,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 messagebox.showerror(
                     "Erro",
                     "Por favor, detecte e selecione uma câmera antes de continuar.\n\n"
-                    "Clique em 'Detectar Câmeras' para ver as câmeras disponíveis."
+                    "Clique em 'Detectar Câmeras' para ver as câmeras disponíveis.",
                 )
                 return False
 

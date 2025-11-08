@@ -9,6 +9,7 @@ import os
 import cv2
 import numpy as np
 import structlog
+import ttkbootstrap as ttk
 from PIL import Image, ImageTk
 
 log = structlog.get_logger()
@@ -184,6 +185,36 @@ class CanvasManager:
             tags="background_image",
         )
 
+    def on_canvas_configure(self, event=None):
+        """Handle canvas resize events to properly scale and center the image."""
+        # Skip if this is not the main roi_canvas being resized
+        if event and hasattr(self.gui, "roi_canvas") and event.widget != self.gui.roi_canvas:
+            return
+
+        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
+            if hasattr(self, "_original_image") and self.gui._original_image:
+                self._raw_bg_image = self.gui._original_image
+            else:
+                return
+
+        # Get the current canvas dimensions
+        if not hasattr(self.gui, "roi_canvas"):
+            return
+        canvas_width = self.gui.roi_canvas.winfo_width()
+        canvas_height = self.gui.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+
+        # Re-scale and center the background image using the new method
+        try:
+            self._draw_bg_image_to_canvas()
+            # After updating the background, redraw any zones that exist
+            if hasattr(self.gui, "controller") and self.gui.controller:
+                self.redraw_zones_from_project_data()
+        except Exception as e:
+            log.warning("canvas_manager.canvas_configure_error", error=str(e))
+
     def _display_image_on_canvas(self):
         """Display the original image on the canvas with proper scaling.
 
@@ -276,6 +307,7 @@ class CanvasManager:
 
             # Import the utility function
             from zebtrack.ui.utils import set_geometry_if_not_maximized
+
             set_geometry_if_not_maximized(self.gui.root, f"{win_w}x{win_h}")
             self.gui.root.update_idletasks()
 
@@ -999,3 +1031,425 @@ class CanvasManager:
         if label is not None:
             label.configure(image=imgtk)
             label.image = imgtk
+
+    def update_zone_listbox(self, zone_data=None):
+        """Update zone listbox with visual color indicators."""
+        # Guard against missing zone_listbox
+        if not hasattr(self.gui, "zone_listbox") or self.gui.zone_listbox is None:
+            return
+
+        # Clear list
+        for item in self.gui.zone_listbox.get_children():
+            self.gui.zone_listbox.delete(item)
+
+        # Phase 4: Stop if zone_data is None (don't pull from controller)
+        if zone_data is None:
+            zone_data = self.gui._get_zone_data_for_active_context()
+            if zone_data is None:
+                log.warning("gui.update_zone_listbox.no_zone_data")
+                return
+
+        # Main arena with emoji and color
+        if zone_data.polygon:
+            self.gui.zone_listbox.insert(
+                "",
+                "end",
+                values=("🏠 Arena Principal", "Polígono", "Ciano"),
+                tags=("arena",),
+            )
+            # Configure text color for arena
+            self.gui.zone_listbox.tag_configure("arena", foreground="darkcyan")
+
+        # Enable/disable ROI button based on arena existence
+        self.gui._enable_roi_button_if_arena_exists(zone_data)
+
+        # Map BGR colors (OpenCV format) to names and hex
+        color_map = {
+            (0, 255, 0): ("Verde", "#00AA00"),
+            (255, 0, 0): ("Azul", "#0000AA"),  # BGR: (255, 0, 0) = Blue
+            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR: (0, 0, 255) = Red
+            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR: (0, 255, 255) = Yellow
+            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR: (255, 0, 255) = Magenta
+            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR: (255, 255, 0) = Cyan
+        }
+
+        # ROIs with emojis, colors and tags
+        for i, name in enumerate(zone_data.roi_names):
+            # Get ROI color if available
+            color_name = "Verde"
+            color_hex = "#00AA00"
+
+            if i < len(zone_data.roi_colors):
+                roi_color = tuple(zone_data.roi_colors[i])
+                color_info = color_map.get(roi_color, ("Verde", "#00AA00"))
+                color_name = color_info[0]
+                color_hex = color_info[1]
+
+            # Insert ROI with emoji
+            self.gui.zone_listbox.insert(
+                "",
+                "end",
+                values=(f"📍 {name}", "Área de Interesse", color_name),
+                tags=(f"roi_{i}",),
+            )
+
+            # Configure text color for ROI
+            try:
+                self.gui.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
+            except Exception:
+                pass  # Silent fallback if color not supported
+
+    def start_polygon_drawing(self):
+        """Activates polygon drawing mode."""
+        # Garante que há frame no canvas
+        if self.gui._canvas_bg_image is None:
+            self.gui.set_status("Carregando frame para desenho...")
+            if not self.load_video_frame_to_canvas():
+                self.gui.show_error(
+                    "Erro",
+                    "Não foi possível carregar um frame. "
+                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
+                    "primeiro.",
+                )
+                return False
+
+        # Preserve drawing type before cleaning
+        preserved_drawing_type = self.gui.current_drawing_type
+        self.gui._stop_drawing()  # Ensure clean state
+        self.gui.current_drawing_type = preserved_drawing_type  # Restore
+
+        self.gui.drawing_mode = "polygon"
+        self.gui.current_polygon_points = []
+        self.gui._poly_pts_canvas = []  # Canvas coordinates for UI
+        self.gui._poly_pts_video = []  # Video coordinates for saving
+        self.gui._drawing_history = []  # Reset history
+        self.gui._drawing_redo_stack = []  # Reset redo stack
+        self.gui._dragging_vertex_index = None  # Reset dragging state
+        self.gui._vertex_hover_index = None  # Reset hover state
+
+        self.gui.roi_canvas.config(cursor="crosshair")
+        self.gui.roi_canvas.bind("<Button-1>", self.gui._on_canvas_click)
+        self.gui.roi_canvas.bind("<B1-Motion>", self.gui._on_vertex_drag_motion)
+        self.gui.roi_canvas.bind("<ButtonRelease-1>", self.gui._on_vertex_drag_end)
+        self.gui.roi_canvas.bind("<Double-Button-1>", self.gui._on_canvas_double_click)
+        self.gui.roi_canvas.bind("<Motion>", self.gui._on_canvas_motion)
+
+        # Bind keyboard shortcuts for undo/redo
+        self.gui.roi_canvas.bind("<Control-z>", self.gui._on_drawing_undo)
+        self.gui.roi_canvas.bind("<Control-y>", self.gui._on_drawing_redo)
+        self.gui.roi_canvas.bind("<Control-Shift-Z>", self.gui._on_drawing_redo)  # Alternative
+        self.gui.roi_canvas.focus_set()  # Ensure canvas can receive keyboard events
+
+        # Add a persistent instruction label
+        if not self.gui.drawing_instruction_label:
+            self.gui.drawing_instruction_label = ttk.Label(
+                self.gui.zone_controls_frame,
+                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
+                "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
+                justify="center",
+                relief="solid",
+                padding=5,
+            )
+            self.gui.drawing_instruction_label.pack(pady=5, before=self.gui.zone_listbox.master)
+
+        # Create floating undo/redo buttons over canvas
+        self.gui._create_drawing_buttons()
+
+        self.gui.set_status(
+            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
+            "finalizar. Ctrl+Z para desfazer."
+        )
+
+    def handle_vertex_drag(self, event):
+        """Updates the polygon point and redraws as the handle is dragged."""
+        if self.gui._dragged_handle_index is None:
+            return
+
+        # Apply the drag offset to get the actual handle position
+        canvas_x = float(event.x) + self.gui._drag_offset[0]
+        canvas_y = float(event.y) + self.gui._drag_offset[1]
+
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
+
+        # If editing an ROI, clamp the point within the main arena
+        if (
+            isinstance(self.gui.current_editing_zone, tuple)
+            and self.gui.current_editing_zone[0] == "roi"
+        ):
+            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            if main_arena_poly:
+                # Convert main arena polygon from video coords to canvas coords
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    # Update to clamped position
+                    canvas_x, canvas_y = closest_point
+
+        # Clamp to canvas bounds for all zones (arena and ROI)
+        canvas_width = self.gui.roi_canvas.winfo_width() or 800
+        canvas_height = self.gui.roi_canvas.winfo_height() or 600
+        canvas_x = max(0, min(canvas_x, canvas_width))
+        canvas_y = max(0, min(canvas_y, canvas_height))
+
+        # Convert canvas coordinates to video coordinates before storing
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        self.gui.edited_polygon_points[self.gui._dragged_handle_index] = [
+            video_point[0],
+            video_point[1],
+        ]
+
+        # Redraw the entire interactive polygon and its handles
+        self._draw_interactive_polygon()
+
+    def handle_canvas_click(self, event):
+        """Handles single clicks on the canvas during polygon drawing."""
+        if self.gui.drawing_mode != "polygon":
+            return
+
+        # Get canvas coordinates directly from event
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+
+        # Check if clicking on an existing vertex (for dragging)
+        if self.gui.current_polygon_points:
+            for i, (vx, vy) in enumerate(self.gui.current_polygon_points):
+                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+                if dist <= self.gui._vertex_hover_tolerance:
+                    # Start dragging this vertex
+                    self.gui._dragging_vertex_index = i
+                    self.gui.roi_canvas.config(cursor="hand2")
+                    return  # Don't add new point
+
+        # Not over a vertex, proceed to add new point
+        # Apply snapping to nearby vertices or edges
+        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y)
+        if snapped_point:
+            canvas_x, canvas_y = snapped_point
+
+        # If drawing an ROI, clamp the point inside the main arena
+        if self.gui.current_drawing_type == "roi":
+            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            if main_arena_poly:
+                # Convert main arena polygon from video coords to canvas coords
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+
+                # Test if click point is inside arena
+                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+
+                # If outside arena (result < 0), clamp to nearest arena boundary
+                if result < 0:
+                    # Find the closest point on the arena boundary
+                    min_dist = float("inf")
+                    closest_point = (canvas_x, canvas_y)
+
+                    # Check distance to each edge of the arena
+                    for i in range(len(canvas_arena_poly)):
+                        p1 = canvas_arena_poly[i]
+                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
+
+                        edge_snap = self._point_to_segment_distance(
+                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                        )
+
+                        if edge_snap and edge_snap["distance"] < min_dist:
+                            min_dist = edge_snap["distance"]
+                            closest_point = (edge_snap["x"], edge_snap["y"])
+
+                    # Use the clamped point
+                    canvas_x, canvas_y = closest_point
+                    log.debug(
+                        "roi_click_clamped",
+                        original=(float(event.x), float(event.y)),
+                        clamped=(canvas_x, canvas_y),
+                    )
+
+        # Clear redo stack when adding a new point (standard undo/redo behavior)
+        self.gui._drawing_redo_stack = []
+
+        self.gui.current_polygon_points.append((canvas_x, canvas_y))
+
+        # Store both canvas and video coordinates
+        canvas_point = (canvas_x, canvas_y)
+        video_point = self._canvas_to_video(canvas_x, canvas_y)
+        self.gui._poly_pts_canvas.append(canvas_point)
+        self.gui._poly_pts_video.append(video_point)
+
+        # Draw a small circle to mark the vertex
+        self.gui.roi_canvas.create_oval(
+            canvas_x - 2,
+            canvas_y - 2,
+            canvas_x + 2,
+            canvas_y + 2,
+            fill="red",
+            outline="red",
+            tags=("temp_vertex", "drawing_aid"),
+        )
+        # Draw the fixed line segment if it's not the first point
+        if len(self.gui.current_polygon_points) > 1:
+            p1 = self.gui.current_polygon_points[-2]
+            p2 = self.gui.current_polygon_points[-1]
+            self.gui.roi_canvas.create_line(
+                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+            )
+
+    def edit_selected_zone_vertices(self):
+        """Enables interactive editing of the selected zone's vertices."""
+        selected = self.gui.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.gui.zone_listbox.item(selected[0])
+        zone_name = item["values"][0]
+
+        # Check if we are already in drawing mode
+        if self.gui.drawing_mode is not None:
+            self.gui.show_warning(
+                "Modo de Desenho Ativo",
+                "Finalize o desenho atual antes de editar vértices de outra zona.",
+            )
+            return
+
+        zone_data = self.gui._get_zone_data_for_active_context()
+
+        if "Arena Principal" in zone_name:
+            # Edit main arena
+            if not zone_data.polygon:
+                self.gui.show_warning("Erro", "Arena principal não encontrada.")
+                return
+
+            # Convert polygon to the format expected by setup_interactive_polygon
+            polygon_points = np.array(zone_data.polygon)
+            self.gui.setup_interactive_polygon(polygon_points)
+            self.gui.current_editing_zone = "arena"
+            self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
+
+        else:
+            # Edit ROI
+            roi_name = zone_name.replace("📍 ", "")
+            try:
+                roi_index = zone_data.roi_names.index(roi_name)
+                roi_polygon = zone_data.roi_polygons[roi_index]
+
+                # Convert polygon to the format expected by setup_interactive_polygon
+                polygon_points = np.array(roi_polygon)
+                self.gui.setup_interactive_polygon(polygon_points)
+                self.gui.current_editing_zone = ("roi", roi_index, roi_name)
+                self.gui.set_status(
+                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
+                )
+
+            except (ValueError, IndexError):
+                self.gui.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
+                return
+
+    def stop_drawing(self):
+        """Deactivates any drawing mode and unbinds all associated events."""
+        # Destroy the instruction label if it exists
+        if self.gui.drawing_instruction_label:
+            self.gui.drawing_instruction_label.destroy()
+            self.gui.drawing_instruction_label = None
+
+        # Destroy floating drawing buttons if they exist
+        if self.gui._drawing_buttons_frame:
+            self.gui._drawing_buttons_frame.destroy()
+            self.gui._drawing_buttons_frame = None
+
+        self.gui.drawing_mode = None
+        self.gui.current_drawing_type = None
+        self.gui.roi_canvas.config(cursor="")
+        # Unbind all possible drawing events
+        self.gui.roi_canvas.unbind("<Button-1>")
+        self.gui.roi_canvas.unbind("<Double-Button-1>")
+        self.gui.roi_canvas.unbind("<Motion>")
+        self.gui.roi_canvas.unbind("<ButtonPress-1>")
+        self.gui.roi_canvas.unbind("<B1-Motion>")
+        self.gui.roi_canvas.unbind("<ButtonRelease-1>")
+        # Unbind keyboard shortcuts
+        self.gui.roi_canvas.unbind("<Control-z>")
+        self.gui.roi_canvas.unbind("<Control-y>")
+        self.gui.roi_canvas.unbind("<Control-Shift-Z>")
+
+        self.gui.roi_canvas.delete("elastic_line")
+        self.gui.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+        self.gui.roi_canvas.delete("snap_indicator")  # Clear snap indicators
+
+        # Clear coordinate lists
+        self.gui.current_polygon_points = []
+        self.gui._poly_pts_canvas = []
+        self.gui._poly_pts_video = []
+
+        self.gui.set_status("Pronto.")
+
+    def load_selected_video_frame(self, event=None):
+        """Loads the frame from the selected video to the main canvas."""
+        import os
+
+        if not self.gui.video_selector_tree:
+            return
+
+        selection = self.gui.video_selector_tree.selection()
+        if not selection:
+            self.gui.show_warning(
+                "Nenhum Vídeo Selecionado",
+                "Por favor, selecione um vídeo da lista para carregar.",
+            )
+            return
+
+        item_id = selection[0]
+        tags = self.gui.video_selector_tree.item(item_id, "tags")
+
+        if not tags or not tags[0]:
+            self.gui.show_info(
+                "Selecione um Vídeo",
+                ("Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame."),
+            )
+            return
+
+        video_path = tags[0]
+        success = self.load_video_frame_to_canvas(video_path, frame_number=0)
+
+        if success:
+            self.gui._maybe_offer_zone_reuse(video_path)
+            self.redraw_zones_from_project_data()
+            filename = os.path.basename(video_path)
+            self.gui.set_status(f"✓ Frame carregado: {filename}")
+            log.info("gui.video_selector.frame_loaded", path=video_path)
+        else:
+            self.gui.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )

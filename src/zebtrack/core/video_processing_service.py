@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.io.frame_source import FrameSource
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
@@ -1312,7 +1313,7 @@ class VideoProcessingService:
     def process_frame_source(
         self,
         *,
-        frame_source: "FrameSource",
+        frame_source: FrameSource,
         output_dir: str,
         experiment_id: str,
         single_video_config: dict | None = None,
@@ -1338,7 +1339,6 @@ class VideoProcessingService:
         Returns:
             True if processing succeeded, False otherwise
         """
-        from zebtrack.io.frame_source import FrameSource
 
         log.info(
             "video_processing_service.process_frame_source.start",

@@ -2,11 +2,9 @@
 Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack.
 """
 
-import copy
 import hashlib
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -21,7 +19,6 @@ from tkinter import (
     Label,
     Menu,
     StringVar,
-    Toplevel,
     filedialog,
     messagebox,
     ttk,
@@ -32,9 +29,6 @@ from typing import Any
 import cv2
 import numpy as np
 import structlog
-import yaml
-from PIL import Image, ImageTk
-from pydantic import ValidationError
 
 try:
     import ttkbootstrap as ttkb
@@ -42,7 +36,6 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = None
 
 # Import custom modules
-import zebtrack.settings as settings_module
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.camera import Camera
@@ -67,12 +60,9 @@ from zebtrack.ui.dialogs import (
     CenterPeripheryDialog,
     ColorSelectionDialog,
     MissingMetadataDialog,
-    PendingVideosDialog,
     SaveROITemplateDialog,
-    SingleVideoConfigDialog,
     StartRecordingDialog,
     SubjectSelectionDialog,
-    TemplateDialog,
 )
 from zebtrack.ui.event_bus import EventBus, EventType
 from zebtrack.ui.events import Events
@@ -395,54 +385,9 @@ class ApplicationGUI:
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
-        """Compose a compact legend string for the status glyphs."""
-        legend_parts = [
-            f"{STATUS_SYMBOLS['arena']} ✓ Arena",
-            f"{STATUS_SYMBOLS['rois']} ✓ ROIs",
-            f"{STATUS_SYMBOLS['trajectory']} ✓ Trajetória",
-        ]
-        if include_summary:
-            legend_parts.append(f"{STATUS_SYMBOLS['summary']} ✓ Sumário")
-        legend_parts.append("✗ Ausente")
-        return "Legenda: " + " | ".join(legend_parts)
+        """Build status icon legend. Delegates to WidgetFactory."""
+        return self.widget_factory.build_status_icon_legend_simple(include_summary=include_summary)
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -452,50 +397,9 @@ class ApplicationGUI:
             EventType.NAMED: self._handle_named_event,
         }
 
-
-
-
-
     def _poll_event_bus(self) -> None:
-        """Poll the event bus for pending events and dispatch them."""
-        self._event_bus_after_id = None
-        if self.event_bus is None:
-            log.warning("gui.event_bus.poll_no_bus")
-            return
-
-        queue_size = self.event_bus.size()
-        if queue_size > 0:
-            log.debug("gui.event_bus.poll_queue_size", size=queue_size)
-
-        events = self.event_bus.drain(max_items=50)
-        if events:
-            log.debug("gui.event_bus.polling", event_count=len(events))
-
-        processed = 0
-        for event in events:
-            # Use the EventType handlers to dispatch CALLABLE and NAMED events
-            handler = self._event_bus_handlers.get(event.type)
-            if handler is None:
-                log.warning(
-                    "gui.event_bus.unhandled_event_type",
-                    event_type=event.type.name,
-                )
-                continue
-            try:
-                handler(event.payload)
-                processed += 1
-            except Exception:
-                log.warning(
-                    "gui.event_bus.handler_error",
-                    event_type=event.type.name,
-                    exc_info=True,
-                )
-
-        if processed:
-            log.debug("gui.event_bus.processed", count=processed)
-
-        log.info("gui.event_bus.poll_complete", will_reschedule=True)
-        self.event_dispatcher.schedule_event_bus_poll()
+        """Poll event bus. Delegates to EventDispatcher."""
+        return self.event_dispatcher.poll_event_bus()
 
     @staticmethod
     def _extract_setting(root: Any, path: tuple[str, ...], default: Any) -> Any:
@@ -511,22 +415,14 @@ class ApplicationGUI:
         base: dict[str, Any],
         override: dict[str, Any],
     ) -> dict[str, Any]:
-        result = copy.deepcopy(base)
-        for key, value in override.items():
-            if isinstance(value, dict) and key in result and isinstance(result[key], dict):
-                result[key] = ApplicationGUI._deep_merge_dicts(result[key], value)
-            else:
-                result[key] = value
-        return result
+        """Deep merge two dictionaries. Delegates to ValidationManager."""
+        from zebtrack.ui.components.validation_manager import ValidationManager
 
+        return ValidationManager._deep_merge_dicts(base, override)
 
-    @staticmethod
-    def _get_zone_summary_helper_text() -> str:
-        return (
-            f"{STATUS_SYMBOLS['summary']} indica vídeos prontos para gerar "
-            "trajetórias (arena e ROIs salvos). O valor mostra quantos ainda "
-            "aguardam processamento."
-        )
+    def _get_zone_summary_helper_text(self) -> str:
+        """Get zone summary helper text. Delegates to WidgetFactory."""
+        return self.widget_factory.get_zone_summary_helper_text()
 
     def _cleanup_single_analysis_button(self):
         """Destroys the single analysis button if it exists."""
@@ -555,73 +451,13 @@ class ApplicationGUI:
         """
         return self.project_view_manager.update_window_title(project_name)
 
-
-
     def _display_welcome_logo(self):
-        """Displays the DRerio LogAI logo in the welcome frame."""
-        try:
-            from pathlib import Path
-
-            # Try to load logo from assets
-            logo_path = Path(__file__).parent / "assets" / "logo_welcome.png"
-
-            if not logo_path.exists():
-                # Fallback for development environment
-                logo_path = Path("src/zebtrack/ui/assets/logo_welcome.png")
-
-            if logo_path.exists():
-                # Load and display logo
-                logo_pil = Image.open(logo_path)
-                self._welcome_logo_image = ImageTk.PhotoImage(logo_pil)
-
-                logo_label = ttk.Label(self.welcome_frame, image=self._welcome_logo_image)
-                logo_label.pack(pady=(10, 20))
-
-                log.debug("welcome.logo.displayed", path=str(logo_path))
-            else:
-                # Fallback to text if logo not found
-                ttk.Label(
-                    self.welcome_frame,
-                    text="Bem-vindo ao DRerio LogAI",
-                    font=("Helvetica", 16),
-                ).pack(pady=(0, 15))
-                log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
-
-        except Exception as e:
-            # Fallback to text on any error
-            ttk.Label(
-                self.welcome_frame,
-                text="Bem-vindo ao DRerio LogAI",
-                font=("Helvetica", 16),
-            ).pack(pady=(0, 15))
-            log.warning("welcome.logo.load_error", error=str(e))
+        """Displays the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
+        return self.widget_factory.display_welcome_logo()
 
     def _create_welcome_frame(self):
-        """Creates the initial UI for project selection and model configuration."""
-        # Reset title to default (no project)
-        self._update_window_title()
-
-        self._cleanup_single_analysis_button()
-        # CRITICAL: Force process all pending GUI events before cleanup
-        # This ensures all scheduled callbacks are executed
-        self.root.update_idletasks()
-
-        # Reset + destroy analysis-related widgets
-        self._reset_analysis_widgets()
-
-        # Force final GUI update before creating welcome frame
-        self.root.update_idletasks()
-
-        reset_geometry_if_not_maximized(self.root)
-        self.welcome_frame = ttk.Frame(self.root, padding="10")
-        self.welcome_frame.pack(expand=True, fill="both")
-
-        # --- Logo Image ---
-        self._display_welcome_logo()
-
-        # Project actions and model status widgets
-        self._build_project_actions(self.welcome_frame)
-        self._build_model_status(self.welcome_frame)
+        """Create welcome frame. Delegates to WidgetFactory."""
+        return self.widget_factory.create_welcome_frame()
 
     def _reset_analysis_widgets(self) -> None:
         """Encapsula a limpeza e destruição de widgets da aba de análise."""
@@ -631,10 +467,6 @@ class ApplicationGUI:
         self.state_synchronizer._reset_roi_and_visual_frames()
         self.state_synchronizer._destroy_notebook_and_main_controls()
         self.analysis_tab_frame = None
-
-
-
-
 
     def _build_project_actions(self, parent) -> None:
         """Create the project actions controls. Delegates to WidgetFactory."""
@@ -750,66 +582,8 @@ class ApplicationGUI:
             self._ttkbootstrap_theme = None
 
     def _configure_styles(self) -> None:
-        """Configura estilos personalizados para os componentes ttk usados pela GUI."""
-        style = ttk.Style(self.root)
-        self._style = style
-
-        try:
-            style.theme_use()
-        except Exception:  # pragma: no cover - defensive safeguard
-            style.theme_use("default")
-
-        base_background = (
-            style.lookup("TNotebook", "background", None)
-            or (
-                self._ttkbootstrap_style.lookup("TFrame", "background")
-                if self._ttkbootstrap_style is not None
-                else None
-            )
-            or "#f6f7fb"
-        )
-        accent_background = (
-            style.lookup("TNotebook.Tab", "background", None, ("selected",))
-            or style.lookup("TFrame", "background", None)
-            or "#ffffff"
-        )
-        tab_inactive = style.lookup("TNotebook.Tab", "background", None) or "#dce3ee"
-        border_color = (
-            style.lookup("TNotebook", "bordercolor", None)
-            or style.lookup("TNotebook", "lightcolor", None)
-            or "#c5ccd9"
-        )
-        text_active = style.lookup("TNotebook.Tab", "foreground", None, ("selected",)) or "#1d2733"
-        text_inactive = style.lookup("TNotebook.Tab", "foreground", None) or "#4a5568"
-
-        style.configure(
-            "Zebtrack.TNotebook",
-            background=base_background,
-            borderwidth=0,
-            tabmargins=(10, 6, 10, 0),
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            background=tab_inactive,
-            padding=(18, 10),
-            font=("Segoe UI", 10, "bold"),
-            foreground=text_inactive,
-            bordercolor=border_color,
-        )
-
-        style.map(
-            "Zebtrack.TNotebook.Tab",
-            background=[("selected", accent_background), ("!selected", tab_inactive)],
-            foreground=[("selected", text_active), ("!selected", text_inactive)],
-            bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            focuscolor="",
-        )
-        style.configure("Zebtrack.TNotebook", padding=(4, 4))
+        """Configure custom styles. Delegates to WidgetFactory."""
+        return self.widget_factory.configure_styles()
 
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():
@@ -897,55 +671,8 @@ class ApplicationGUI:
         return self.widget_factory.create_configuration_tab_widget()
 
     def _reload_config_editor_values_widget(self) -> None:
-        """Load current settings into ConfigEditorWidget."""
-        current = settings_module.settings
-        if current is None:
-            try:
-                current = settings_module.load_settings()
-                settings_module.settings = current
-            except Exception as exc:  # pragma: no cover - defensive UI feedback
-                self.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
-
-        values = {
-            "video_processing": {
-                "fps": self._extract_setting(current, ("video_processing", "fps"), 30),
-                "processing_interval": self._extract_setting(
-                    current, ("video_processing", "processing_interval"), 10
-                ),
-                "processing_offset": self._extract_setting(
-                    current, ("video_processing", "processing_offset"), 0
-                ),
-            },
-            "trajectory_smoothing": {
-                "window_length": self._extract_setting(
-                    current, ("trajectory_smoothing", "window_length"), 7
-                ),
-                "polyorder": self._extract_setting(
-                    current, ("trajectory_smoothing", "polyorder"), 3
-                ),
-            },
-            "recorder": {
-                "flush_interval_seconds": self._extract_setting(
-                    current, ("recorder", "flush_interval_seconds"), 5.0
-                ),
-                "flush_row_threshold": self._extract_setting(
-                    current, ("recorder", "flush_row_threshold"), 500
-                ),
-            },
-            "roi_inclusion_rule": self._extract_setting(
-                current, ("roi_inclusion_rule",), "centroid_in"
-            ),
-            "roi_buffer_radius_value": self._extract_setting(
-                current, ("roi_buffer_radius_value",), 0.0
-            ),
-            "roi_min_bbox_overlap_ratio": self._extract_setting(
-                current, ("roi_min_bbox_overlap_ratio",), 0.5
-            ),
-        }
-
-        if self.config_editor_widget:
-            self.config_editor_widget.set_values(values)
+        """Load current settings into ConfigEditorWidget. Delegates to WidgetFactory."""
+        return self.widget_factory.reload_config_editor_values()
 
     def _on_reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
@@ -956,91 +683,8 @@ class ApplicationGUI:
         )
 
     def _on_save_global_config_from_widget(self, values: dict) -> None:
-        """Validate and save config from ConfigEditorWidget values."""
-        try:
-            # Extract values (already parsed by widget)
-            fps = values["video_processing"]["fps"]
-            processing_interval = values["video_processing"]["processing_interval"]
-            processing_offset = values["video_processing"]["processing_offset"]
-            flush_interval = values["recorder"]["flush_interval_seconds"]
-            flush_rows = values["recorder"]["flush_row_threshold"]
-            window_length = values["trajectory_smoothing"]["window_length"]
-            polyorder = values["trajectory_smoothing"]["polyorder"]
-
-            # Validate
-            if fps <= 0:
-                raise ValueError("FPS deve ser maior que 0.")
-            if processing_interval <= 0:
-                raise ValueError("O intervalo de processamento deve ser maior que 0.")
-            if processing_offset < 0:
-                raise ValueError("O offset deve ser maior ou igual a 0.")
-            if flush_interval < 0:
-                raise ValueError("O intervalo de flush deve ser >= 0.")
-            if flush_rows < 1:
-                raise ValueError("O limite de linhas para flush deve ser >= 1.")
-            if window_length < 3 or window_length % 2 == 0:
-                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
-            if polyorder < 1:
-                raise ValueError("Polyorder deve ser pelo menos 1.")
-
-        except ValueError as exc:
-            self.show_error("Erro de Validação", str(exc))
-            return
-
-        update_payload: dict[str, Any] = values
-
-        active_settings = settings_module.settings
-        if active_settings is None:
-            try:
-                active_settings = settings_module.load_settings()
-                settings_module.settings = active_settings
-            except Exception as exc:
-                self.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
-
-        merged = self._deep_merge_dicts(active_settings.model_dump(), update_payload)
-
-        try:
-            validated = settings_module.Settings.model_validate(merged)
-        except ValidationError as exc:
-            self.show_error("Erro de Validação", str(exc))
-            return
-
-        override_path = Path("config.local.yaml")
-        try:
-            if override_path.exists():
-                with open(override_path, encoding="utf-8") as handle:
-                    override_content = yaml.safe_load(handle) or {}
-            else:
-                override_content = {}
-
-            merged_override = self._deep_merge_dicts(override_content, update_payload)
-            with open(override_path, "w", encoding="utf-8") as handle:
-                yaml.safe_dump(
-                    merged_override,
-                    handle,
-                    sort_keys=False,
-                    allow_unicode=True,
-                )
-        except Exception as exc:
-            self.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
-            return
-
-        if settings_module.settings is None:
-            settings_module.settings = validated
-        else:
-            for field_name in validated.model_fields:
-                setattr(
-                    settings_module.settings,
-                    field_name,
-                    getattr(validated, field_name),
-                )
-
-        self._reload_config_editor_values_widget()
-        self.show_info(
-            "Configurações salvas",
-            "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
-        )
+        """Validate and save config from ConfigEditorWidget. Delegates to ValidationManager."""
+        return self.validation_manager.save_global_config_from_widget(values)
 
     def _on_roi_rule_change_widget(self, rule: str) -> None:
         """Handle ROI rule change from ConfigEditorWidget."""
@@ -1167,55 +811,8 @@ class ApplicationGUI:
         self._request_overview_refresh()
 
     def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
-        """Create the project overview panel using ProjectOverviewWidget."""
-        if not parent:
-            return
-
-        if self.project_overview_frame and self.project_overview_frame.winfo_exists():
-            try:
-                self.project_overview_frame.destroy()
-            except Exception:
-                pass
-
-        self.project_overview_frame = ttk.LabelFrame(parent, text="Resumo do Projeto", padding=10)
-        self.project_overview_frame.pack(fill="both", expand=True, pady=(10, 10))
-
-        # Create the ProjectOverviewWidget
-        self.project_overview_widget = ProjectOverviewWidget(
-            self.project_overview_frame, event_bus=self.event_bus
-        )
-        self.project_overview_widget.pack(fill="both", expand=True)
-
-        # Subscribe to widget events
-        if self.event_bus:
-            self.event_bus.subscribe(
-                "project.refresh_requested", self._handle_project_refresh_requested
-            )
-            self.event_bus.subscribe(
-                "project.video_double_click", self._handle_project_video_double_click
-            )
-            self.event_bus.subscribe(
-                "project.video_right_click", self._handle_project_video_right_click
-            )
-
-        # Add separator
-        ttk.Separator(self.project_overview_frame, orient="horizontal").pack(fill="x", pady=(8, 8))
-
-        # Add help text and button to access full details
-        info_frame = ttk.Frame(self.project_overview_frame)
-        info_frame.pack(fill="x", pady=(5, 5))
-
-        ttk.Label(
-            info_frame,
-            text="Para visualizar a estrutura completa do projeto e realizar processamento:",
-            font=("TkDefaultFont", 9),
-        ).pack(anchor="w", pady=(0, 5))
-
-        ttk.Button(
-            info_frame,
-            text="Ver Detalhes Completos \u2192",
-            command=self._navigate_to_processing_reports_tab,
-        ).pack(anchor="w")
+        """Create the project overview panel. Delegates to WidgetFactory."""
+        return self.widget_factory.create_project_overview_panel(parent)
 
     def _navigate_to_processing_reports_tab(self) -> None:
         """Navigate to the Processing and Reports tab."""
@@ -1325,37 +922,8 @@ class ApplicationGUI:
             self._on_project_overview_tree_double_click_impl(item_id)
 
     def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
-        """Implementation of double-click logic (reusable)."""
-        if not self.project_overview_tree:
-            return
-
-        tags = self.project_overview_tree.item(item_id, "tags") or ()
-        if not tags:
-            return
-
-        video_path = tags[0]
-        if not video_path or video_path.startswith("status_"):
-            return
-
-        if not os.path.exists(video_path):
-            self.show_warning(
-                "Arquivo não encontrado",
-                f"O vídeo selecionado não foi localizado:\n{video_path}",
-            )
-            return
-
-        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
-        if success:
-            self._maybe_offer_zone_reuse(video_path)
-            self.canvas_manager.redraw_zones_from_project_data()
-            message = f"Frame carregado: {os.path.basename(video_path)}"
-            self.set_status(message)
-            self._request_overview_refresh(reason=message, append_summary=True)
-        else:
-            self.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
-            )
+        """Handle double-click on project overview tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_project_overview_double_click(item_id)
 
     def _on_project_overview_right_click(self, event) -> None:
         """Handle right-click events on the overview tree (legacy handler)."""
@@ -1369,63 +937,13 @@ class ApplicationGUI:
                 item_id, event.x_root, event.y_root
             )
 
-
-
-
-
-
     def show_external_trigger_notice(self, session_label: str, **details):
-        if not self.external_trigger_notice_label:
-            return
-
-        day = details.get("day")
-        group = details.get("group")
-        cobaia = details.get("cobaia")
-        port = details.get("port")
-
-        descriptors = []
-        if day is not None and group is not None and cobaia is not None:
-            day_display = self._format_day_display(day) or day
-            descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
-        if port:
-            descriptors.append(f"Porta {port}")
-
-        message = f"Aguardando sinal externo para iniciar {session_label}."
-        if descriptors:
-            message += f" ({' • '.join(descriptors)})"
-
-        self.external_trigger_notice_var.set(message)
-
-        highlight_bg = "#FFF7ED"
-        highlight_fg = "#92400e"
-        try:
-            self.external_trigger_notice_label.config(
-                background=highlight_bg,
-                foreground=highlight_fg,
-            )
-        except Exception:
-            pass
+        """Show external trigger notice. Delegates to DialogManager."""
+        return self.dialog_manager.show_external_trigger_notice(session_label, **details)
 
     def clear_external_trigger_notice(self):
-        if not self.external_trigger_notice_label:
-            return
-
-        self.external_trigger_notice_var.set("")
-
-        try:
-            bg = (
-                self._external_notice_default_bg
-                if self._external_notice_default_bg is not None
-                else self.external_trigger_notice_label.cget("background")
-            )
-            fg = (
-                self._external_notice_default_fg
-                if self._external_notice_default_fg is not None
-                else self.external_trigger_notice_label.cget("foreground")
-            )
-            self.external_trigger_notice_label.config(background=bg, foreground=fg)
-        except Exception:
-            pass
+        """Clear external trigger notice. Delegates to DialogManager."""
+        return self.dialog_manager.clear_external_trigger_notice()
 
     def _create_roi_analysis_tab(self):
         """Creates the tab for ROI and detection zone configuration."""
@@ -1538,657 +1056,20 @@ class ApplicationGUI:
         main_pane.after(200, _set_initial_sash)
 
     def _subscribe_zone_component_events(self):
-        """
-        Subscribe to events emitted by ZoneControlsWidget.
-
-        This method connects component events to existing ApplicationGUI handlers,
-        maintaining backward compatibility while using the new component architecture.
-        """
-        if not self.event_bus:
-            return
-
-        # Drawing action events
-        self.event_bus.subscribe("zone.toggle_view", lambda data: self._toggle_canvas_view())
-        self.event_bus.subscribe("zone.draw_arena", lambda data: self._start_main_arena_drawing())
-        self.event_bus.subscribe("zone.draw_roi", lambda data: self._start_roi_drawing())
-        self.event_bus.subscribe("zone.save_arena", lambda data: self._on_save_arena())
-        self.event_bus.subscribe("zone.discard_arena", lambda data: self._on_discard_arena())
-
-        # ROI template events
-        self.event_bus.subscribe("zone.template_apply", lambda data: self._on_apply_roi_template())
-        self.event_bus.subscribe("zone.template_save", lambda data: self._on_save_roi_template())
-        self.event_bus.subscribe(
-            "zone.template_import", lambda data: self._on_import_roi_template()
-        )
-
-        # Zone list interaction events
-        self.event_bus.subscribe(
-            "zone.list_item_double_click", lambda data: self._edit_selected_zone_vertices()
-        )
-        self.event_bus.subscribe(
-            "zone.list_item_right_click",
-            lambda data: self._on_zone_right_click(self.event_dispatcher._create_mock_event(data)),
-        )
-
-        # Video selector events
-        self.event_bus.subscribe(
-            "zone.video_double_click", lambda data: self._load_selected_video_frame()
-        )
-        self.event_bus.subscribe(
-            "zone.video_frame_load", lambda data: self._load_selected_video_frame()
-        )
-        self.event_bus.subscribe(
-            "zone.video_refresh", lambda data: self._refresh_video_selector_tree()
-        )
-        # Note: zone.video_search_changed is handled differently (continuous filtering),
-        # so it's not subscribed here - the component handles it internally
-
-        self.event_bus.subscribe("zone.auto_detect_clicked", self._handle_zone_auto_detect_event)
-
-
+        """Subscribe to events emitted by ZoneControlsWidget. Delegates to EventDispatcher."""
+        return self.event_dispatcher.subscribe_zone_component_events()
 
     def _on_canvas_configure(self, event=None):
-        """Handle canvas resize events to properly scale and center the image."""
-        # Skip if this is not the main roi_canvas being resized
-        if event and event.widget != self.roi_canvas:
-            return
-
-        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
-            if hasattr(self, "_original_image") and self._original_image:
-                self._raw_bg_image = self._original_image
-            else:
-                return
-
-        # Get the current canvas dimensions
-        canvas_width = self.roi_canvas.winfo_width()
-        canvas_height = self.roi_canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            return
-
-        # Re-scale and center the background image using the new method
-        try:
-            self.canvas_manager._draw_bg_image_to_canvas()
-            # After updating the background, redraw any zones that exist
-            if hasattr(self, "controller") and self.controller:
-                self.canvas_manager.redraw_zones_from_project_data()
-        except Exception as e:
-            log.warning("gui.canvas.configure_error", error=str(e))
+        """Handle canvas configure. Delegates to CanvasManager."""
+        return self.canvas_manager.on_canvas_configure(event)
 
     def _create_zone_control_widgets(self):
-        """Create all the zone control widgets in the scrollable frame."""
-        self._create_zone_summary_cards_section()
-
-        # --- Drawing Actions ---
-        actions_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Ações de Desenho", padding=10
-        )
-        actions_frame.pack(fill="x", pady=5)
-
-        # --- Single Analysis Options ---
-        self.single_analysis_options_frame = ttk.LabelFrame(
-            self.zone_controls_frame,
-            text="Opções de Análise de Vídeo Único",
-            padding=10,
-        )
-        # This frame is packed on demand by setup_zone_configuration_for_video
-
-        # ROI options
-        self.roi_choice_var = StringVar(value="none")
-        ttk.Label(self.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text="Não usar ROIs",
-            variable=self.roi_choice_var,
-            value="none",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text="Desenhar ROIs manualmente",
-            variable=self.roi_choice_var,
-            value="manual",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.single_analysis_options_frame,
-            text="Usar ROIs de template",
-            variable=self.roi_choice_var,
-            value="template",
-        ).pack(anchor="w", padx=10)
-
-        # Frame intervals for analysis and display
-        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Análise (frames):").pack(
-            anchor="w", pady=(10, 0)
-        )
-        ttk.Entry(
-            self.single_analysis_options_frame,
-            textvariable=self.analysis_interval_var,
-            width=10,
-        ).pack(anchor="w", padx=10)
-
-        ttk.Label(self.single_analysis_options_frame, text="Intervalo de Exibição (frames):").pack(
-            anchor="w", pady=(5, 0)
-        )
-        ttk.Entry(
-            self.single_analysis_options_frame,
-            textvariable=self.display_interval_var,
-            width=10,
-        ).pack(anchor="w", padx=10)
-
-        # Button for automatic detection
-        ttk.Button(
-            actions_frame,
-            text="Detectar Aquário (Auto)",
-            command=self._on_auto_detect_clicked,
-        ).pack(fill="x", pady=2)
-
-        # New Entry for stabilization frames
-        stabilization_frame = ttk.Frame(actions_frame)
-        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(side="left", padx=(0, 5))
-        ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(
-            side="left"
-        )
-        stabilization_frame.pack(fill="x", pady=2, anchor="w")
-
-        # Manual drawing buttons
-        ttk.Button(
-            actions_frame,
-            text="Desenhar Polígono Principal",
-            command=self._start_main_arena_drawing,
-        ).pack(fill="x", pady=2)
-
-        # ROI button - initially disabled until main arena is drawn
-        self.draw_roi_button = ttk.Button(
-            actions_frame,
-            text="Desenhar Área de Interesse",
-            command=self._start_roi_drawing,
-            state="disabled",
-        )
-        self.draw_roi_button.pack(fill="x", pady=2)
-
-        # View toggle button (initially hidden)
-        self.toggle_view_btn = ttk.Button(
-            actions_frame,
-            text="Ver Análise em Progresso",
-            command=self._toggle_canvas_view,
-            state="disabled",
-        )
-        self.toggle_view_btn.pack(fill="x", pady=2)
-
-        template_frame = ttk.LabelFrame(
-            self.zone_controls_frame,
-            text="Templates de ROI",
-            padding=10,
-        )
-        template_frame.pack(fill="x", pady=5)
-
-        template_selector = ttk.Frame(template_frame)
-        template_selector.pack(fill="x", pady=(0, 6))
-
-        ttk.Label(template_selector, text="Templates salvos:").pack(side="left", padx=(0, 5))
-        self.roi_template_combobox = ttk.Combobox(
-            template_selector,
-            state="readonly",
-            textvariable=self.roi_template_var,
-            values=[],
-            width=25,
-        )
-        self.roi_template_combobox.pack(side="left", fill="x", expand=True)
-        # Add binding to log selection changes
-        self.roi_template_combobox.bind("<<ComboboxSelected>>", self._on_template_combobox_changed)
-
-        ttk.Button(
-            template_selector,
-            text="Aplicar",
-            command=self._on_apply_roi_template,
-        ).pack(side="left", padx=4)
-
-        template_actions = ttk.Frame(template_frame)
-        template_actions.pack(fill="x")
-
-        log.info("gui.zone_tab.creating_template_buttons")
-
-        ttk.Button(
-            template_actions,
-            text="💾 Salvar Zonas Atuais",
-            command=self._on_save_roi_template,
-        ).pack(side="left", padx=(0, 4))
-
-        ttk.Button(
-            template_actions,
-            text="📂 Importar e Aplicar Arquivo...",
-            command=self._on_import_and_apply_roi_template,
-        ).pack(side="left", padx=(0, 4))
-
-        # Delete button - store reference to control state
-        self.delete_template_btn = ttk.Button(
-            template_actions,
-            text="🗑️ Deletar Template",
-            command=self._on_delete_roi_template,
-            state="disabled",  # Start disabled
-        )
-        self.delete_template_btn.pack(side="left")
-
-        log.info(
-            "gui.zone_tab.delete_button_created",
-            button_exists=self.delete_template_btn is not None,
-            button_state=self.delete_template_btn["state"] if self.delete_template_btn else None,
-        )
-
-        ttk.Label(
-            template_frame,
-            text=(
-                "Templates armazenam o polígono principal e todas as ROIs "
-                "para reutilizar em outros vídeos do projeto."
-            ),
-            wraplength=280,
-            style="Small.TLabel",
-        ).pack(anchor="w", pady=(6, 0))
-
-        self._refresh_roi_templates()
-
-        # --- Video Selector ---
-        video_selector_frame = ttk.LabelFrame(
-            self.zone_controls_frame,
-            text="📹 Selecionar Vídeo para Desenho",
-            padding=10,
-        )
-        video_selector_frame.pack(fill="both", pady=5)
-
-        search_frame = ttk.Frame(video_selector_frame)
-        search_frame.pack(fill="x", pady=(0, 5))
-
-        ttk.Label(search_frame, text="🔍 Buscar:").pack(side="left", padx=(0, 5))
-        self.video_search_var = StringVar()
-        self.video_search_var.trace_add("write", lambda *_: self._filter_video_tree())
-        ttk.Entry(
-            search_frame,
-            textvariable=self.video_search_var,
-            width=25,
-        ).pack(side="left", fill="x", expand=True, padx=(0, 5))
-        ttk.Button(
-            search_frame,
-            text="🔄",
-            width=3,
-            command=lambda: self._populate_video_selector_tree(),
-        ).pack(side="left")
-
-        tree_container = ttk.Frame(video_selector_frame)
-        tree_container.pack(fill="both", expand=True)
-
-        self.video_selector_tree = ttk.Treeview(
-            tree_container,
-            columns=("status", "filename"),
-            show="tree headings",
-            height=10,
-            selectmode="browse",
-        )
-        self.video_selector_tree.heading("#0", text="Hierarquia")
-        self.video_selector_tree.heading("status", text="Dados")
-        self.video_selector_tree.heading("filename", text="Arquivo")
-
-        self.video_selector_tree.column("#0", width=220, stretch=True)
-        self.video_selector_tree.column(
-            "status",
-            width=120,
-            anchor="center",
-            stretch=False,
-        )
-        self.video_selector_tree.column("filename", width=180, stretch=True)
-
-        scrollbar = ttk.Scrollbar(
-            tree_container,
-            orient="vertical",
-            command=self.video_selector_tree.yview,
-        )
-        self.video_selector_tree.configure(yscrollcommand=scrollbar.set)
-        self.video_selector_tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.video_selector_tree.bind(
-            "<Double-Button-1>",
-            self._on_video_tree_double_click,
-        )
-
-        ttk.Button(
-            video_selector_frame,
-            text="📹 Carregar Frame do Vídeo Selecionado",
-            command=self._load_selected_video_frame,
-        ).pack(pady=(5, 0))
-
-        legend_frame = ttk.Frame(video_selector_frame)
-        legend_frame.pack(fill="x", pady=(5, 0))
-        ttk.Label(
-            legend_frame,
-            text=self._build_status_icon_legend(),
-            font=("TkDefaultFont", 8),
-            foreground="gray",
-        ).pack(anchor="w")
-
-        self._populate_video_selector_tree()
-
-        # --- Zone List ---
-        zone_list_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Zonas Definidas", padding=10
-        )
-        zone_list_frame.pack(fill="x", pady=5)
-
-        from zebtrack.ui.window_utils import create_scrollbar
-
-        self.zone_listbox = ttk.Treeview(
-            zone_list_frame,
-            columns=("name", "type", "color"),
-            show="headings",
-            height=6,
-        )
-        self.zone_listbox.heading("name", text="Nome")
-        self.zone_listbox.heading("type", text="Tipo")
-        self.zone_listbox.heading("color", text="Cor")
-
-        # Configure column widths
-        self.zone_listbox.column("name", width=240, minwidth=160, stretch=True)
-        self.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
-        self.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
-
-        self.zone_listbox.pack(side="left", fill="both", expand=True)
-
-        # Scrollbar
-        scrollbar = create_scrollbar(
-            zone_list_frame, orient="vertical", command=self.zone_listbox.yview
-        )
-        self.zone_listbox.configure(yscrollcommand=scrollbar.set)
-
-        # Bind events
-        self.zone_listbox.bind("<Button-3>", self._on_zone_right_click)
-        self.zone_listbox.bind("<Double-Button-1>", self._on_zone_double_click)
-
-        # Menu de contexto para ROIs
-        self.roi_context_menu = None
-        self.menu_manager.create_roi_context_menu()
-
-        scrollbar.pack(side="right", fill="y")
-
-        # --- Interactive Buttons (initially hidden) ---
-        # Positioned right after zone list, before ROI Inclusion Rule Panel
-        self.interactive_buttons_frame = ttk.Frame(self.zone_controls_frame)
-        self.save_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="✅ Salvar Edição",
-            command=self._on_save_arena,
-        )
-        self.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        self.discard_arena_btn = ttk.Button(
-            self.interactive_buttons_frame,
-            text="❌ Descartar",
-            command=self._on_discard_arena,
-        )
-        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        # This frame is packed later when needed (via pack() in _enter_edit_mode)
-
-        # --- ROI Inclusion Rule Panel ---
-        self.roi_inclusion_frame = ttk.LabelFrame(
-            self.zone_controls_frame, text="Regra de Inclusão em ROI", padding=10
-        )
-        self.roi_inclusion_frame.pack(fill="x", pady=5)
-
-        # Rule selection combobox
-        rule_frame = ttk.Frame(self.roi_inclusion_frame)
-        rule_frame.pack(fill="x", pady=2)
-        ttk.Label(rule_frame, text="Regra:").pack(side="left", padx=(0, 5))
-        self.roi_rule_combo = ttk.Combobox(
-            rule_frame,
-            textvariable=self.roi_inclusion_rule_var,
-            values=[
-                "centroid_in",
-                "centroid_in_on_buffered_roi",
-                "bbox_intersects",
-                "seg_overlap",
-            ],
-            state="readonly",
-            width=30,
-        )
-        self.roi_rule_combo.pack(side="left", fill="x", expand=True)
-        self.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_change)
-
-        # Parameter fields (shown/hidden based on rule)
-        self.radius_frame = ttk.Frame(self.roi_inclusion_frame)
-        ttk.Label(self.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
-        self.radius_entry = ttk.Entry(
-            self.radius_frame, textvariable=self.roi_buffer_radius_var, width=10
-        )
-        self.radius_entry.pack(side="left", padx=(0, 10))
-        ttk.Label(
-            self.radius_frame,
-            text="Usado para dilatar a ROI. Interpretado em cm quando houver "
-            "calibração (px/cm); caso contrário, em pixels.",
-            font=("TkDefaultFont", 8),
-        ).pack(side="left")
-
-        self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
-        ttk.Label(self.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(
-            side="left", padx=(0, 5)
-        )
-        self.overlap_entry = ttk.Entry(
-            self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10
-        )
-        self.overlap_entry.pack(side="left", padx=(0, 10))
-        self.overlap_help_label = ttk.Label(
-            self.overlap_frame,
-            text="A detecção é considerada dentro da ROI quando a fração de "
-            "área do bbox contida na ROI atinge este valor.",
-            font=("TkDefaultFont", 8),
-        )
-        self.overlap_help_label.pack(side="left")
-
-        # Help text that changes based on rule
-        self.rule_help_label = ttk.Label(
-            self.roi_inclusion_frame,
-            text="",
-            font=("TkDefaultFont", 8),
-            wraplength=400,
-            justify="left",
-        )
-        self.rule_help_label.pack(fill="x", pady=(5, 0))
-
-        # Save settings button
-        save_settings_frame = ttk.Frame(self.roi_inclusion_frame)
-        save_settings_frame.pack(fill="x", pady=(5, 0))
-        ttk.Button(
-            save_settings_frame,
-            text="Aplicar Configurações",
-            command=self._on_apply_roi_settings,
-        ).pack(side="right")
-
-        # Initialize display based on current rule
-        self._on_roi_rule_change()
+        """Create all zone control widgets. Delegates to WidgetFactory."""
+        return self.widget_factory.create_zone_control_widgets()
 
     def _create_zone_summary_cards_section(self) -> None:
-        """Renderiza os cartões com indicadores numéricos da etapa de zonas."""
-        if not getattr(self, "zone_controls_frame", None):
-            return
-
-        if self.zone_summary_frame and self.zone_summary_frame.winfo_exists():
-            try:
-                self.zone_summary_frame.destroy()
-            except Exception:
-                pass
-
-        self.zone_summary_cards = {}
-        self.zone_summary_frame = ttk.LabelFrame(
-            self.zone_controls_frame,
-            text=f"{STATUS_SYMBOLS['summary']} Indicadores de Preparação",
-            padding=10,
-        )
-        self.zone_summary_frame.pack(fill="x", pady=(0, 5))
-
-        cards_container = ttk.Frame(self.zone_summary_frame)
-        cards_container.pack(fill="x")
-
-        card_specs = [
-            (
-                "arena_missing",
-                f"{STATUS_SYMBOLS['arena']} Arenas pendentes",
-            ),
-            (
-                "rois_missing",
-                f"{STATUS_SYMBOLS['rois']} ROIs pendentes",
-            ),
-            (
-                "ready_for_processing",
-                f"{STATUS_SYMBOLS['summary']} Prontos para trajetórias",
-            ),
-        ]
-
-        for idx, (key, title) in enumerate(card_specs):
-            card = ttk.Frame(cards_container, padding=10, relief="ridge", borderwidth=1)
-            card.grid(row=0, column=idx, padx=5, pady=5, sticky="nsew")
-            cards_container.columnconfigure(idx, weight=1)
-
-            value_var = StringVar(value="0")
-            detail_var = StringVar(value="Nenhum vídeo listado")
-
-            ttk.Label(card, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
-            ttk.Label(
-                card,
-                textvariable=value_var,
-                font=("Segoe UI", 22, "bold"),
-            ).pack(anchor="center", pady=(4, 0))
-            ttk.Label(
-                card,
-                textvariable=detail_var,
-                font=("Segoe UI", 8),
-                foreground="#555555",
-            ).pack(anchor="w", pady=(4, 0))
-
-            self.zone_summary_cards[key] = {
-                "value": value_var,
-                "detail": detail_var,
-            }
-
-        ttk.Label(
-            self.zone_summary_frame,
-            text=self._get_zone_summary_helper_text(),
-            font=("TkDefaultFont", 8),
-            foreground="#555555",
-            wraplength=520,
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
-
-        self._update_zone_summary_cards()
-
-    def _create_pipeline_processing_tab(self) -> None:
-        """
-        LEGACY: Replaced by _create_processing_reports_tab().
-
-        This method is no longer called but kept for reference.
-        """
-        if not self.notebook:
-            return
-
-        if self.pipeline_tab_frame and self.pipeline_tab_frame.winfo_exists():
-            try:
-                self.pipeline_tab_frame.destroy()
-            except Exception:
-                pass
-
-        self.pipeline_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.pipeline_tab_frame, text="Trajetórias e Sumários")
-
-        header = ttk.Label(
-            self.pipeline_tab_frame,
-            text=(
-                "Separe o desenho das zonas do processamento em lote. "
-                "Selecione os vídeos com arena válida para gerar "
-                "trajetórias completas ou apenas sumários parquet."
-            ),
-            wraplength=620,
-            justify="left",
-        )
-        header.pack(fill="x", pady=(0, 10))
-
-        listing_frame = ttk.LabelFrame(
-            self.pipeline_tab_frame,
-            text="Vídeos com arena válida",
-            padding=10,
-        )
-        listing_frame.pack(fill="both", expand=True)
-
-        columns = ("rois", "trajectory", "summary", "status")
-        tree_container = ttk.Frame(listing_frame)
-        tree_container.pack(fill="both", expand=True)
-
-        self.pipeline_video_tree = ttk.Treeview(
-            tree_container,
-            columns=columns,
-            show="tree headings",
-            height=12,
-            selectmode="extended",
-        )
-        self.pipeline_video_tree.heading("#0", text="Estrutura do Projeto")
-        self.pipeline_video_tree.heading("rois", text="📍 ROIs")
-        self.pipeline_video_tree.heading("trajectory", text="📈 Trajetória")
-        self.pipeline_video_tree.heading("summary", text="Σ Sumário")
-        self.pipeline_video_tree.heading("status", text="Status")
-
-        self.pipeline_video_tree.column("#0", width=320, stretch=True)
-        self.pipeline_video_tree.column("rois", width=100, anchor="center")
-        self.pipeline_video_tree.column("trajectory", width=120, anchor="center")
-        self.pipeline_video_tree.column("summary", width=130, anchor="center")
-        self.pipeline_video_tree.column("status", width=240, anchor="w")
-
-        tree_scroll = ttk.Scrollbar(
-            tree_container, orient="vertical", command=self.pipeline_video_tree.yview
-        )
-        self.pipeline_video_tree.configure(yscrollcommand=tree_scroll.set)
-        self.pipeline_video_tree.pack(side="left", fill="both", expand=True)
-        tree_scroll.pack(side="right", fill="y")
-
-        self.pipeline_legend_label = ttk.Label(
-            listing_frame,
-            text=self._build_status_icon_legend(include_summary=True),
-            font=("TkDefaultFont", 8),
-            foreground="#555555",
-            justify="left",
-            wraplength=520,
-        )
-        self.pipeline_legend_label.pack(fill="x", anchor="w", pady=(6, 0))
-
-        self.pipeline_video_tree.bind("<<TreeviewSelect>>", self._on_pipeline_selection_changed)
-
-        footer = ttk.Frame(self.pipeline_tab_frame, padding=(0, 10))
-        footer.pack(fill="x")
-
-        self.pipeline_selection_label = ttk.Label(
-            footer,
-            text="Nenhum vídeo elegível listado.",
-            justify="left",
-        )
-        self.pipeline_selection_label.pack(side="left")
-
-        actions_frame = ttk.Frame(footer)
-        actions_frame.pack(side="right")
-
-        traj_btn = ttk.Button(
-            actions_frame,
-            text="▶️ Gerar Trajetórias",
-            command=self._trigger_batch_trajectory_processing,
-            state="disabled",
-        )
-        traj_btn.pack(side="left", padx=(0, 6))
-
-        summary_btn = ttk.Button(
-            actions_frame,
-            text="Σ Exportar Sumários (Parquet)",
-            command=self._trigger_parquet_summaries,
-            state="disabled",
-        )
-        summary_btn.pack(side="left")
-
-        self.pipeline_action_buttons = {
-            "trajectories": traj_btn,
-            "summaries": summary_btn,
-        }
-
-        self._refresh_pipeline_video_table()
+        """Create zone summary cards. Delegates to WidgetFactory."""
+        return self.widget_factory.create_zone_summary_cards_section()
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
         """Update zone summary cards. Delegates to ProjectViewManager."""
@@ -2319,36 +1200,8 @@ class ApplicationGUI:
             )
 
     def _trigger_batch_trajectory_processing(self, selection: Iterable[str] | None = None) -> None:
-        if selection is None:
-            selections = self._get_selected_pipeline_video_paths()
-            if not selections:
-                pipeline_vars = getattr(self, "pipeline_video_vars", {}) or {}
-                if not pipeline_vars:
-                    self.show_info(
-                        "Processamento",
-                        "Nenhum vídeo elegível foi encontrado com arena válida.",
-                    )
-                    return
-                selections = list(pipeline_vars.keys())
-        else:
-            selections = self._resolve_processing_reports_video_paths(selection)
-            if not selections:
-                self.show_info(
-                    "Processamento",
-                    "Selecione vídeos com arena e ROIs definidas para gerar trajetórias.",
-                )
-                return
-
-        unique_paths = list(dict.fromkeys(selections))
-        if not unique_paths:
-            return
-
-        self.event_dispatcher.publish_event(
-            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
-        )
-        self._request_overview_refresh()
-        # Switch to analysis tab to show progress of the newly requested batch.
-        self._switch_to_analysis_view()
+        """Trigger batch trajectory processing. Delegates to ProjectViewManager."""
+        return self.project_view_manager.trigger_batch_trajectory_processing(selection)
 
     def _trigger_parquet_summaries(self) -> None:
         selections = self._get_selected_pipeline_video_paths()
@@ -2425,131 +1278,17 @@ class ApplicationGUI:
         )
 
     def _on_roi_rule_change(self, event=None):
-        """Handle ROI inclusion rule change and update UI accordingly."""
+        """Handle ROI inclusion rule change and update UI. Delegates to WidgetFactory."""
         rule = self.roi_inclusion_rule_var.get()
-
-        # Hide all parameter frames first (only if they exist)
-        if hasattr(self, "radius_frame") and self.radius_frame:
-            self.radius_frame.pack_forget()
-        if hasattr(self, "overlap_frame") and self.overlap_frame:
-            self.overlap_frame.pack_forget()
-
-        # Show appropriate parameters and help text based on rule
-        if rule == "centroid_in":
-            help_text = (
-                "Considera dentro quando o centróide do animal está dentro do "
-                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
-                "(ex.: cabeça entra primeiro)."
-            )
-
-        elif rule == "centroid_in_on_buffered_roi":
-            if hasattr(self, "radius_frame") and self.radius_frame:
-                self.radius_frame.pack(fill="x", pady=2)
-            help_text = (
-                "Igual ao centróide, porém com ROI dilatada por r para capturar "
-                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
-                "senão em px."
-            )
-
-        elif rule == "bbox_intersects":
-            if hasattr(self, "overlap_frame") and self.overlap_frame:
-                self.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
-                self.overlap_help_label.config(
-                    text="A detecção é considerada dentro da ROI quando a fração de "
-                    "área do bbox contida na ROI atinge este valor."
-                )
-            help_text = (
-                "Considera dentro quando o retângulo do animal (bbox) sobrepõe a "
-                "ROI ao menos pela fração definida. Captura entradas parciais; "
-                "pode superestimar em bordas."
-            )
-
-        elif rule == "seg_overlap":
-            if hasattr(self, "overlap_frame") and self.overlap_frame:
-                self.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self, "overlap_help_label") and self.overlap_help_label:
-                self.overlap_help_label.config(
-                    text="Requer dados de máscara. Se não houver, selecione outra regra."
-                )
-            help_text = (
-                "Considera dentro com base na sobreposição da máscara do animal com "
-                "a ROI. Requer segmentação; mais preciso e mais custoso."
-            )
-
-        else:
-            help_text = ""
-
-        if hasattr(self, "rule_help_label") and self.rule_help_label:
-            self.rule_help_label.config(text=help_text)
+        return self.widget_factory.update_roi_rule_ui(rule)
 
     def _on_apply_roi_settings(self):
-        """Apply ROI inclusion rule settings to the global settings."""
-        try:
-            # Validate and convert parameters
-            buffer_radius = float(self.roi_buffer_radius_var.get())
-            overlap_ratio = float(self.roi_overlap_ratio_var.get())
-
-            # Validate ranges
-            if buffer_radius < 0:
-                raise ValueError("Raio de buffer deve ser >= 0")
-            if not (0 <= overlap_ratio <= 1):
-                raise ValueError("Fração de sobreposição deve estar entre 0 e 1")
-
-            # Update settings if available
-            if self.controller.settings:
-                self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-                self.controller.settings.roi_buffer_radius_value = buffer_radius
-                self.controller.settings.roi_min_bbox_overlap_ratio = overlap_ratio
-
-                # Save to project if available
-                if self.controller.project_manager.project_path:
-                    self.controller.project_manager._save_settings_snapshot()
-
-                self.show_info(
-                    "Sucesso",
-                    f"Configurações de ROI aplicadas:\n"
-                    f"Regra: {self.controller.settings.roi_inclusion_rule}\n"
-                    f"Raio buffer: {self.controller.settings.roi_buffer_radius_value}\n"
-                    f"Sobreposição mínima: {self.controller.settings.roi_min_bbox_overlap_ratio}",
-                )
-            else:
-                self.show_warning(
-                    "Aviso", "Settings não disponível. Configurações não foram salvas."
-                )
-
-        except ValueError as e:
-            self.show_error("Erro de Validação", str(e))
-        except Exception as e:
-            self.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+        """Apply ROI inclusion rule settings. Delegates to ValidationManager."""
+        return self.validation_manager.apply_roi_settings()
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Draws a suggested polygon that the user can interactively edit."""
-        # Garante que há frame no canvas antes de desenhar
-        if self._canvas_bg_image is None:
-            if not self.canvas_manager.load_video_frame_to_canvas():
-                self.show_error(
-                    "Erro",
-                    "Não foi possível carregar um frame para mostrar o polígono detectado.",
-                )
-                return
-
-        self._clear_interactive_polygon()  # Clear any previous one
-        self.edited_polygon_points = [list(p) for p in polygon]
-
-        self.canvas_manager._draw_interactive_polygon()
-
-        # Show the save/discard buttons using component method
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            self.zone_controls.show_interactive_buttons()
-        elif self.interactive_buttons_frame:
-            # Fallback for legacy code
-            self.interactive_buttons_frame.pack(
-                fill="x", padx=5, pady=5, before=self.roi_inclusion_frame
-            )
-
-        self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
-
+        """Setup interactive polygon. Delegates to EventDispatcher."""
+        return self.event_dispatcher.setup_interactive_polygon(polygon)
 
     def _on_handle_press(self, event, handle_index):
         """Records which handle is being dragged and initial offset."""
@@ -2573,71 +1312,8 @@ class ApplicationGUI:
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
 
     def _on_handle_drag(self, event):
-        """Updates the polygon point and redraws as the handle is dragged."""
-        if self._dragged_handle_index is None:
-            return
-
-        # Apply the drag offset to get the actual handle position
-        canvas_x = float(event.x) + self._drag_offset[0]
-        canvas_y = float(event.y) + self._drag_offset[1]
-
-        # Apply snapping to nearby vertices or edges
-        snapped_point = self._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
-        if snapped_point:
-            canvas_x, canvas_y = snapped_point
-
-        # If editing an ROI, clamp the point within the main arena
-        if isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                # Convert main arena polygon from video coords to canvas coords
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-
-                # Test if point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (canvas_x, canvas_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self.canvas_manager._point_to_segment_distance(
-                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Update to clamped position
-                    canvas_x, canvas_y = closest_point
-
-        # Clamp to canvas bounds for all zones (arena and ROI)
-        canvas_width = self.roi_canvas.winfo_width() or 800
-        canvas_height = self.roi_canvas.winfo_height() or 600
-        canvas_x = max(0, min(canvas_x, canvas_width))
-        canvas_y = max(0, min(canvas_y, canvas_height))
-
-        # Convert canvas coordinates to video coordinates before storing
-        video_point = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
-        self.edited_polygon_points[self._dragged_handle_index] = [
-            video_point[0],
-            video_point[1],
-        ]
-
-        # Redraw the entire interactive polygon and its handles
-        self.canvas_manager._draw_interactive_polygon()
+        """Updates polygon point and redraws. Delegates to CanvasManager."""
+        return self.canvas_manager.handle_vertex_drag(event)
 
     def _on_handle_drag_global(self, event):
         """Global drag handler for canvas-wide dragging."""
@@ -2733,8 +1409,6 @@ class ApplicationGUI:
         self._drag_offset = (0, 0)
         self.current_editing_zone = None
 
-
-
     def _video_sort_key(self, value):
         """Get video sort key. Delegates to ProjectViewManager."""
         return self.project_view_manager._video_sort_key(value)
@@ -2745,26 +1419,10 @@ class ApplicationGUI:
 
     @staticmethod
     def _format_day_display(value):
-        if value in (None, ""):
-            return ""
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            try:
-                return f"{int(value):02d}"
-            except (TypeError, ValueError):
-                return str(value)
-        value_str = str(value).strip()
-        if not value_str:
-            return ""
-        lower_value = value_str.lower()
-        if lower_value == "sem dia":
-            return "Sem Dia"
-        match = re.search(r"(\d+)", value_str)
-        if match:
-            try:
-                return f"{int(match.group(1)):02d}"
-            except ValueError:
-                return value_str
-        return value_str
+        """Format day display. Delegates to ValidationManager."""
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
+        return ValidationManager._format_day_display(value)
 
     def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
         """Build day title. Delegates to ProjectViewManager."""
@@ -2779,62 +1437,8 @@ class ApplicationGUI:
         return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
 
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            return []
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos() or []
-        hierarchy = self._build_video_hierarchy_data(all_videos, "")
-
-        snapshot: list[dict] = []
-        for group_id, group_data in sorted(
-            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
-        ):
-            group_entry = {
-                "label": f"🏷️ {group_data['display']} ({group_id})",
-                "status_label": "",
-                "filename_display": "",
-                "children": [],
-            }
-            for day_id, videos in sorted(
-                group_data["days"].items(),
-                key=lambda item: self._video_sort_key(item[0]),
-            ):
-                sample_metadata = videos[0].get("metadata") if videos else None
-                day_title = self._build_day_title(day_id, sample_metadata)
-                day_entry = {
-                    "label": f"📅 {day_title}",
-                    "status_label": "",
-                    "children": [],
-                }
-                for video_entry in sorted(
-                    videos,
-                    key=lambda entry: self._video_sort_key(entry.get("subject")),
-                ):
-                    subject_label = self._format_subject_label(video_entry.get("subject"))
-                    has_arena = video_entry.get("has_arena", False)
-                    has_rois = video_entry.get("has_rois", False)
-                    has_traj = video_entry.get("has_trajectory", False)
-                    status_tokens = " ".join(
-                        [
-                            self._format_status_token(has_arena, "arena"),
-                            self._format_status_token(has_rois, "rois"),
-                            self._format_status_token(has_traj, "trajectory"),
-                        ]
-                    )
-                    day_entry["children"].append(
-                        {
-                            "path": video_entry.get("path"),
-                            "label": f"🐟 Sujeito {subject_label}",
-                            "filename": video_entry.get("filename", ""),
-                            "status_label": status_tokens,
-                        }
-                    )
-                group_entry["children"].append(day_entry)
-            snapshot.append(group_entry)
-
-        return snapshot
+        """Build video hierarchy snapshot. Delegates to ValidationManager."""
+        return self.validation_manager.build_video_hierarchy_snapshot()
 
     def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
         """Format status token. Delegates to ValidationManager."""
@@ -2904,272 +1508,38 @@ class ApplicationGUI:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> None:
-        mapping: dict[str, tuple[str, ...]] = {}
-
-        def _assign(entries: list[dict], *tags: str) -> None:
-            for info in entries or []:
-                path = info.get("path")
-                if path:
-                    mapping[path] = tuple(tags)
-
-        _assign(ready_with_trajectory, "ready_full")
-        _assign(ready_with_zones, "ready_partial")
-        _assign(arena_only, "ready_optional", "ready_partial")
-        _assign(without_arena, "ready_missing")
-
-        self._pending_readiness_snapshot = mapping
-
-        if self.video_selector_tree:
-            self._populate_video_selector_tree(self._video_selector_filter)
-
-    def _load_selected_video_frame(self, event=None):
-        """Carrega o frame do vídeo selecionado no canvas principal."""
-
-        if not self.video_selector_tree:
-            return
-
-        selection = self.video_selector_tree.selection()
-        if not selection:
-            self.show_warning(
-                "Nenhum Vídeo Selecionado",
-                "Por favor, selecione um vídeo da lista para carregar.",
-            )
-            return
-
-        item_id = selection[0]
-        tags = self.video_selector_tree.item(item_id, "tags")
-
-        if not tags or not tags[0]:
-            self.show_info(
-                "Selecione um Vídeo",
-                ("Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame."),
-            )
-            return
-
-        video_path = tags[0]
-        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
-
-        if success:
-            self._maybe_offer_zone_reuse(video_path)
-            self.canvas_manager.redraw_zones_from_project_data()
-            filename = os.path.basename(video_path)
-            self.set_status(f"✓ Frame carregado: {filename}")
-            log.info("gui.video_selector.frame_loaded", path=video_path)
-        else:
-            self.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
-            )
-
-    def _maybe_offer_zone_reuse(self, video_path: str) -> None:
-        """Prompt user to reuse the last zones when the current video has none."""
-
-        if not video_path:
-            return
-
-        if video_path in self._zone_prompt_history:
-            return
-
-        pm = self.controller.project_manager
-        if pm.has_zone_data(video_path):
-            return
-
-        last_video_with_zones = pm.get_last_zone_video(exclude=video_path)
-        if not last_video_with_zones or not pm.has_zone_data(last_video_with_zones):
-            return
-
-        self._zone_prompt_history.add(video_path)
-
-        current_name = os.path.basename(video_path)
-        last_name = os.path.basename(last_video_with_zones)
-
-        reuse = messagebox.askyesno(
-            "Reutilizar zonas existentes?",
-            (
-                f'O vídeo "{current_name}" não possui arena ou ROIs salvas.\n\n'
-                f'Deseja reutilizar as zonas desenhadas para "{last_name}"?\n'
-                'Escolha "Sim" para reutilizar ou "Não" para começar do zero.'
-            ),
-            icon="question",
+        """Apply readiness snapshot. Delegates to ProjectViewManager."""
+        return self.project_view_manager.apply_pending_readiness_snapshot(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
         )
 
-        if reuse:
-            cloned_zone_data = pm.clone_zone_data_from_video(last_video_with_zones)
-            pm.save_zone_data(cloned_zone_data, video_path=video_path, persist=False)
-            copied_files = pm.copy_zone_parquet_files(
-                last_video_with_zones, video_path, persist=False
-            )
-            pm.save_project()
-            self._refresh_zone_indicators()
-            self._refresh_video_selector_tree()
-            status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-            if not copied_files:
-                self.show_warning(
-                    "Arquivos Parquet Indisponíveis",
-                    (
-                        "As zonas foram copiadas, mas não encontramos os arquivos "
-                        "Parquet originais para duplicar. Caso necessário, redesenhe "
-                        "as zonas e salve-as manualmente para gerar novos arquivos."
-                    ),
-                )
-        else:
-            pm.clear_zone_data_for_video(video_path, persist=False)
-            status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-            self._refresh_video_selector_tree()
+    def _load_selected_video_frame(self, event=None):
+        """Loads frame from selected video to canvas. Delegates to CanvasManager."""
+        return self.canvas_manager.load_selected_video_frame(event)
+
+    def _maybe_offer_zone_reuse(self, video_path: str) -> None:
+        """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
+        return self.dialog_manager.offer_zone_reuse(video_path)
 
     def _on_video_tree_double_click(self, event):
         """Callback para duplo clique no seletor de vídeos."""
         del event  # Evento não é utilizado diretamente
         self._load_selected_video_frame()
 
-    def _create_reports_tab(self):
-        """
-        LEGACY: Replaced by _create_processing_reports_tab().
-
-        This method is no longer called but kept for reference.
-        """
-        reports_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(reports_tab_frame, text="Relatórios")
-
-        # --- Estrutura Hierárquica do Experimento ---
-        list_frame = ttk.LabelFrame(reports_tab_frame, text="Estrutura do Experimento", padding=10)
-        list_frame.pack(fill="both", expand=True, pady=5)
-
-        self.reports_tree = ttk.Treeview(
-            list_frame,
-            columns=("arena", "rois", "trajectory", "summary", "status"),
-            show="tree headings",
-        )
-
-        # Cabeçalhos
-        self.reports_tree.heading("#0", text="Nome")
-        self.reports_tree.heading("arena", text="🏛️ Arena")
-        self.reports_tree.heading("rois", text="📍 ROIs")
-        self.reports_tree.heading("trajectory", text="📈 Trajetória")
-        self.reports_tree.heading("summary", text=f"{STATUS_SYMBOLS['summary']} Sumário")
-        self.reports_tree.heading("status", text="Status")
-
-        # Larguras e alinhamentos
-        self.reports_tree.column("#0", width=300, stretch=True)
-        self.reports_tree.column("arena", width=80, anchor="center")
-        self.reports_tree.column("rois", width=80, anchor="center")
-        self.reports_tree.column("trajectory", width=100, anchor="center")
-        self.reports_tree.column("summary", width=90, anchor="center")
-        self.reports_tree.column("status", width=120, anchor="center")
-
-        self.reports_tree.pack(side="left", fill="both", expand=True)
-
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.reports_tree.yview)
-        self.reports_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-
-        self.reports_tree.bind("<<TreeviewSelect>>", self._on_report_item_select)
-        self.reports_tree.bind("<Double-1>", self._on_report_item_double_click)
-
-        self._report_tree_metadata: dict[str, dict] = {}
-
-        # --- Actions Panel ---
-        actions_frame = ttk.LabelFrame(reports_tab_frame, text="Ações", padding=10)
-        actions_frame.pack(fill="x", pady=5)
-
-        self.generate_partial_report_btn = ttk.Button(
-            actions_frame,
-            text="Gerar Relatório para Selecionados",
-            command=self._generate_partial_report,
-            state="disabled",
-        )
-        self.generate_partial_report_btn.pack(side="left", padx=10)
-
-        self.generate_unified_report_btn = ttk.Button(
-            actions_frame,
-            text="Gerar Relatório Unificado (Todos)",
-            command=self._generate_unified_report,
-        )
-        self.generate_unified_report_btn.pack(side="left", padx=10)
-
     def _create_processing_reports_tab(self) -> None:
         """Creates the processing reports tab. Delegates to WidgetFactory."""
         return self.widget_factory.create_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
-        """Handle double-click on items in the Processing Reports tree."""
-        if not self.processing_reports_widget or not self.processing_reports_widget.tree:
-            return
-
-        tree = self.processing_reports_widget.tree
-
-        # Get item at click position
-        item_id = None
-        if event is not None:
-            item_id = tree.identify_row(event.y)
-        if not item_id:
-            selection = tree.selection()
-            if selection:
-                item_id = selection[0]
-        if not item_id:
-            return
-
-        metadata = self._processing_reports_tree_metadata.get(item_id)
-        if not metadata:
-            return
-
-        node_type = metadata.get("type")
-
-        # Handle file nodes (docx/xlsx) - open them
-        if node_type == "file":
-            self._handle_report_file_node(metadata)
-            return
-
-        # Handle video nodes - open results folder
-        if node_type == "video":
-            results_dir = metadata.get("results_dir")
-            if results_dir and os.path.exists(results_dir):
-                log.info("gui.open_results_folder", path=results_dir)
-                try:
-                    if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
-                    elif os.name == "posix":  # macOS, Linux
-                        import subprocess
-
-                        subprocess.Popen(["xdg-open", results_dir])
-                except Exception as e:
-                    log.error("gui.open_results_folder.failed", error=str(e))
-                    self.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+        """Handle processing reports item double click. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_processing_reports_item_double_click(event)
 
     def _on_processing_reports_generate_partial(self) -> None:
-        """Handle partial report generation from the unified tab."""
-        if not self.processing_reports_widget:
-            return
-
-        selection = self.processing_reports_widget.get_selection()
-        if not selection:
-            return
-
-        selected_videos = []
-        all_videos = self.controller.project_manager.get_all_videos()
-        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
-
-        for item_id in selection:
-            metadata = metadata_store.get(item_id)
-            if not metadata or metadata.get("type") != "video":
-                continue
-            video_path = metadata.get("video_path")
-            if not video_path:
-                continue
-            for video_data in all_videos:
-                if video_data["path"] == video_path:
-                    selected_videos.append(video_data)
-                    break
-
-        if selected_videos:
-            self.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
-            )
+        """Handle partial report generation. Delegates to ProjectViewManager."""
+        return self.project_view_manager.on_processing_reports_generate_partial()
 
     def _refresh_processing_reports_tab(self) -> None:
         """Refresh the processing reports tab. Delegates to ProjectViewManager."""
@@ -3184,122 +1554,6 @@ class ApplicationGUI:
         digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
         digest = hashlib.sha1(digest_source).hexdigest()[:16]
         return f"file_{digest}"
-
-    def _append_processing_reports_artifacts(
-        self, widget, parent_id: str, entry: dict, video_path: str
-    ) -> None:
-        """
-        Append report artifacts (docx, xlsx) as children of a video node.
-
-        Args:
-            widget: The ProcessingReportsWidget instance
-            parent_id: Parent tree node ID
-            entry: Video entry dictionary
-            video_path: Path to the video file
-        """
-        results_dir = entry.get("results_dir") or ""
-        parquet_files = entry.get("parquet_files") or {}
-        experiment_id = Path(video_path).stem if video_path else None
-
-        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
-            if candidate and os.path.exists(candidate):
-                return candidate
-            if results_dir and experiment_id:
-                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
-                if guess_path.exists():
-                    return str(guess_path)
-            return None
-
-        docx_path = _resolve_artifact(
-            parquet_files.get("report_docx"),
-            "report.docx",
-        )
-        excel_path = _resolve_artifact(
-            parquet_files.get("summary_excel"),
-            "summary.xlsx",
-        )
-
-        artifacts: list[tuple[str, str, str]] = []
-        if docx_path:
-            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
-        if excel_path:
-            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
-
-        if not artifacts:
-            return
-
-        tree = widget.tree
-
-        for _kind, artifact_path, label in artifacts:
-            child_id = self._build_processing_report_artifact_id(parent_id, artifact_path)
-            if tree and tree.exists(child_id):
-                continue
-
-            widget.add_tree_item(
-                item_id=child_id,
-                text=label,
-                parent=parent_id,
-                values=("", "", "", "", "Abrir"),
-                tags=("report-file",),
-            )
-            self._processing_reports_tree_metadata[child_id] = {
-                "type": "file",
-                "path": artifact_path,
-                "parent_video": video_path,
-            }
-
-        # Expand video node to show report files
-        widget.expand_tree_item(parent_id)
-
-    def update_reports_tree(self):
-        """
-        LEGACY: Replaced by _refresh_processing_reports_tab().
-
-        This method is kept for backward compatibility.
-        """
-        if not hasattr(self, "reports_tree") or self.reports_tree is None:
-            log.debug("gui.update_reports.legacy_tree_missing")
-            return
-
-        # Clear existing tree
-        for item in self.reports_tree.get_children():
-            self.reports_tree.delete(item)
-
-        # Reset metadata store
-        if not hasattr(self, "_report_tree_metadata"):
-            self._report_tree_metadata = {}
-        else:
-            self._report_tree_metadata.clear()
-
-        controller = getattr(self, "controller", None)
-        if not controller or not controller.project_manager:
-            log.debug("gui.update_reports.no_controller_or_pm")
-            return
-
-        pm = controller.project_manager
-        all_videos = pm.get_all_videos()
-
-        log.debug(
-            "gui.update_reports.start",
-            video_count=len(all_videos) if all_videos else 0,
-            has_project_path=bool(pm.project_path),
-        )
-
-        if not all_videos:
-            log.debug("gui.update_reports.no_videos")
-            return
-
-        hierarchy = self._build_report_hierarchy(all_videos, pm)
-        self._populate_reports_tree_from_hierarchy(hierarchy, pm)
-
-        log.info(
-            "gui.reports_tree.updated",
-            groups=len(hierarchy),
-            total_videos=len(all_videos),
-        )
-
-        # Keep selector synced
-        self._populate_video_selector_tree()
 
     def _sort_key_for_reports(self, value):
         """Sort key for reports. Delegates to ProjectViewManager."""
@@ -3318,60 +1572,8 @@ class ApplicationGUI:
         return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
 
     def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
-        tree = getattr(self, "reports_tree", None)
-        if not tree:
-            return
-
-        video_path = entry.get("path")
-        if not video_path:
-            return
-
-        results_dir = entry.get("results_dir") or ""
-        parquet_files = entry.get("parquet_files") or {}
-        experiment_id = Path(video_path).stem if video_path else None
-
-        def _resolve_artifact(candidate: str | None, suffix: str) -> str | None:
-            if candidate and os.path.exists(candidate):
-                return candidate
-            if results_dir and experiment_id:
-                guess_path = Path(results_dir) / f"{experiment_id}_{suffix}"
-                if guess_path.exists():
-                    return str(guess_path)
-            return None
-
-        docx_path = _resolve_artifact(
-            parquet_files.get("report_docx"),
-            "report.docx",
-        )
-        excel_path = _resolve_artifact(
-            parquet_files.get("summary_excel"),
-            "summary.xlsx",
-        )
-
-        artifacts: list[tuple[str, str, str]] = []
-        if docx_path:
-            artifacts.append(("file", docx_path, "📝 Word: " + Path(docx_path).name))
-        if excel_path:
-            artifacts.append(("file", excel_path, "📊 Excel: " + Path(excel_path).name))
-
-        if not artifacts:
-            return
-
-        for _kind, artifact_path, label in artifacts:
-            child_id = tree.insert(
-                parent_id,
-                "end",
-                text=label,
-                values=("", "", "", "", "Abrir"),
-                tags=("report-file",),
-            )
-            self._report_tree_metadata[child_id] = {
-                "type": "file",
-                "path": artifact_path,
-                "parent_video": video_path,
-            }
-
-        tree.item(parent_id, open=True)
+        """Append report artifacts to tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
 
     def _on_report_item_select(self, event=None):
         """Enables or disables the partial report button based on selection."""
@@ -3390,103 +1592,16 @@ class ApplicationGUI:
             self.generate_partial_report_btn.config(state="disabled")
 
     def _on_report_item_double_click(self, event=None):
-        """Open the results folder for the selected video when reports exist."""
-        tree = getattr(self, "reports_tree", None)
-        if not tree:
-            return
-
-        item_id = None
-        if event is not None:
-            item_id = tree.identify_row(event.y)
-        if not item_id:
-            selection = tree.selection()
-            if selection:
-                item_id = selection[0]
-        if not item_id:
-            return
-
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-        metadata = metadata_store.get(item_id)
-        if not metadata:
-            return
-
-        node_type = metadata.get("type")
-
-        if node_type == "file":
-            self._handle_report_file_node(metadata)
-            return
-
-        if node_type != "video":
-            return
-
-        self._handle_report_video_node(metadata)
+        """Handle report item double click. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_report_item_double_click(event)
 
     def _handle_report_file_node(self, metadata: dict) -> None:
-        artifact_path = metadata.get("path")
-        if artifact_path and os.path.exists(artifact_path):
-            self._open_path_in_explorer(artifact_path)
-        else:
-            self.show_warning(
-                "Arquivo não encontrado",
-                (
-                    "O relatório selecionado não foi localizado no disco. Gere "
-                    "novamente o relatório para restaurar o arquivo."
-                ),
-            )
+        """Handle report file node. Delegates to ProjectViewManager."""
+        return self.project_view_manager._handle_report_file_node(metadata)
 
     def _handle_report_video_node(self, metadata: dict) -> None:
-        video_path = metadata.get("video_path")
-        if not video_path:
-            return
-
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        if not pm:
-            return
-
-        entry = pm.find_video_entry(path=video_path)
-        results_dir = metadata.get("results_dir") or ""
-        metadata_hint: dict = {}
-        has_results = False
-
-        if entry:
-            metadata_hint = dict(entry.get("metadata") or {})
-            if not results_dir:
-                results_dir = entry.get("results_dir") or ""
-            for key in ("group", "group_display_name", "day", "subject"):
-                if entry.get(key) is not None and key not in metadata_hint:
-                    metadata_hint[key] = entry[key]
-            parquet_files = entry.get("parquet_files") or {}
-            for key in ("summary", "summary_excel", "report_docx"):
-                candidate_path = parquet_files.get(key)
-                if candidate_path and os.path.exists(candidate_path):
-                    has_results = True
-                    break
-
-        experiment_id = Path(video_path).stem
-        if not results_dir:
-            results_path = pm.resolve_results_directory(
-                experiment_id,
-                video_path=video_path,
-                metadata=metadata_hint,
-            )
-            results_dir = str(results_path)
-
-        if not has_results and results_dir:
-            summary_candidate = Path(results_dir) / f"{experiment_id}_summary.parquet"
-            report_candidate = Path(results_dir) / f"{experiment_id}_report.docx"
-            excel_candidate = Path(results_dir) / f"{experiment_id}_summary.xlsx"
-            if summary_candidate.exists() or report_candidate.exists() or excel_candidate.exists():
-                has_results = True
-
-        if not results_dir or not os.path.isdir(results_dir) or not has_results:
-            self.show_warning(
-                "Relatórios indisponíveis",
-                ("Gere o relatório para este vídeo antes de abrir a pasta de resultados."),
-            )
-            return
-
-        self._open_path_in_explorer(results_dir)
+        """Handle report video node. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_report_video_node(metadata)
 
     def _open_path_in_explorer(self, target_path: str) -> None:
         """Open the given directory in the user's file explorer."""
@@ -3507,36 +1622,8 @@ class ApplicationGUI:
             )
 
     def _generate_partial_report(self):
-        """
-        Gathers selected videos and tells the controller to generate a partial report.
-        """
-        selected_items = self.reports_tree.selection()
-        if not selected_items:
-            return
-
-        selected_videos = []
-        all_videos = self.controller.project_manager.get_all_videos()
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-
-        for item_id in selected_items:
-            if not self.reports_tree.exists(item_id):
-                continue
-            metadata = metadata_store.get(item_id)
-            if not metadata or metadata.get("type") != "video":
-                continue
-            video_path = metadata.get("video_path")
-            if not video_path:
-                continue
-            for video_data in all_videos:
-                if video_data["path"] == video_path:
-                    selected_videos.append(video_data)
-                    break
-
-        if selected_videos:
-            self.event_dispatcher.publish_event(
-                Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
-            )
+        """Generate partial report. Delegates to ProjectViewManager."""
+        return self.project_view_manager.generate_partial_report()
 
     def _generate_unified_report(self):
         """Tells the controller to generate a unified report of all project videos."""
@@ -3588,132 +1675,16 @@ class ApplicationGUI:
         self._start_polygon_drawing()
 
     def _start_polygon_drawing(self):
-        """Activates polygon drawing mode."""
-        # Garante que há frame no canvas
-        if self._canvas_bg_image is None:
-            self.set_status("Carregando frame para desenho...")
-            if not self.canvas_manager.load_video_frame_to_canvas():
-                self.show_error(
-                    "Erro",
-                    "Não foi possível carregar um frame. "
-                    "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
-                    "primeiro.",
-                )
-                return False
-
-        # Preserve drawing type before cleaning
-        preserved_drawing_type = self.current_drawing_type
-        self._stop_drawing()  # Ensure clean state
-        self.current_drawing_type = preserved_drawing_type  # Restore
-
-        self.drawing_mode = "polygon"
-        self.current_polygon_points = []
-        self._poly_pts_canvas = []  # Canvas coordinates for UI
-        self._poly_pts_video = []  # Video coordinates for saving
-        self._drawing_history = []  # Reset history
-        self._drawing_redo_stack = []  # Reset redo stack
-        self._dragging_vertex_index = None  # Reset dragging state
-        self._vertex_hover_index = None  # Reset hover state
-
-        self.roi_canvas.config(cursor="crosshair")
-        self.roi_canvas.bind("<Button-1>", self._on_canvas_click)
-        self.roi_canvas.bind("<B1-Motion>", self._on_vertex_drag_motion)
-        self.roi_canvas.bind("<ButtonRelease-1>", self._on_vertex_drag_end)
-        self.roi_canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
-        self.roi_canvas.bind("<Motion>", self._on_canvas_motion)
-
-        # Bind keyboard shortcuts for undo/redo
-        self.roi_canvas.bind("<Control-z>", self._on_drawing_undo)
-        self.roi_canvas.bind("<Control-y>", self._on_drawing_redo)
-        self.roi_canvas.bind("<Control-Shift-Z>", self._on_drawing_redo)  # Alternative redo
-        self.roi_canvas.focus_set()  # Ensure canvas can receive keyboard events
-
-        # Add a persistent instruction label
-        if not self.drawing_instruction_label:
-            self.drawing_instruction_label = ttk.Label(
-                self.zone_controls_frame,
-                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
-                "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
-                justify="center",
-                relief="solid",
-                padding=5,
-            )
-            self.drawing_instruction_label.pack(pady=5, before=self.zone_listbox.master)
-
-        # Create floating undo/redo buttons over canvas
-        self._create_drawing_buttons()
-
-        self.set_status(
-            "Modo de Desenho (Polígono): Clique para adicionar pontos, clique duplo para "
-            "finalizar. Ctrl+Z para desfazer."
-        )
+        """Activates polygon drawing mode. Delegates to CanvasManager."""
+        return self.canvas_manager.start_polygon_drawing()
 
     def _stop_drawing(self):
-        """Deactivates any drawing mode and unbinds all associated events."""
-        # Destroy the instruction label if it exists
-        if self.drawing_instruction_label:
-            self.drawing_instruction_label.destroy()
-            self.drawing_instruction_label = None
-
-        # Destroy floating drawing buttons if they exist
-        if self._drawing_buttons_frame:
-            self._drawing_buttons_frame.destroy()
-            self._drawing_buttons_frame = None
-
-        self.drawing_mode = None
-        self.current_drawing_type = None
-        self.roi_canvas.config(cursor="")
-        # Unbind all possible drawing events
-        self.roi_canvas.unbind("<Button-1>")
-        self.roi_canvas.unbind("<Double-Button-1>")
-        self.roi_canvas.unbind("<Motion>")
-        self.roi_canvas.unbind("<ButtonPress-1>")
-        self.roi_canvas.unbind("<B1-Motion>")
-        self.roi_canvas.unbind("<ButtonRelease-1>")
-        # Unbind keyboard shortcuts
-        self.roi_canvas.unbind("<Control-z>")
-        self.roi_canvas.unbind("<Control-y>")
-        self.roi_canvas.unbind("<Control-Shift-Z>")
-
-        self.roi_canvas.delete("elastic_line")
-        self.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
-        self.roi_canvas.delete("snap_indicator")  # Clear snap indicators
-
-        # Clear coordinate lists
-        self.current_polygon_points = []
-        self._poly_pts_canvas = []
-        self._poly_pts_video = []
-
-        self.set_status("Pronto.")
+        """Deactivates drawing mode and unbinds events. Delegates to CanvasManager."""
+        return self.canvas_manager.stop_drawing()
 
     def _create_drawing_buttons(self):
-        """Creates floating undo/redo buttons over the canvas."""
-        if self._drawing_buttons_frame:
-            self._drawing_buttons_frame.destroy()
-
-        # Create a frame that floats over the canvas (top-right corner)
-        self._drawing_buttons_frame = ttk.Frame(self.viz_frame, relief="raised", borderwidth=2)
-
-        # Undo button
-        undo_btn = ttk.Button(
-            self._drawing_buttons_frame,
-            text="↶ Desfazer (Ctrl+Z)",
-            command=lambda: self._on_drawing_undo(None),
-            width=20,
-        )
-        undo_btn.pack(side="left", padx=2)
-
-        # Redo button
-        redo_btn = ttk.Button(
-            self._drawing_buttons_frame,
-            text="↷ Refazer (Ctrl+Y)",
-            command=lambda: self._on_drawing_redo(None),
-            width=20,
-        )
-        redo_btn.pack(side="left", padx=2)
-
-        # Position the frame in top-right corner of canvas
-        self._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+        """Creates floating undo/redo buttons over the canvas. Delegates to WidgetFactory."""
+        return self.widget_factory.create_drawing_buttons()
 
     def _on_drawing_undo(self, event):
         """Undo last point added to polygon."""
@@ -3756,7 +1727,6 @@ class ApplicationGUI:
 
         self.set_status(f"Ponto restaurado. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
-
 
     def _on_vertex_drag_motion(self, event):
         """Handle mouse motion while dragging a vertex."""
@@ -4111,139 +2081,20 @@ class ApplicationGUI:
         self._update_delete_template_button_state()
 
     def _on_save_roi_template(self) -> None:
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        zone_data = pm.get_zone_data()
-        if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
-            self.show_warning(
-                "Template incompleto",
-                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
-            )
-            return
-
-        allow_project = bool(getattr(pm, "project_path", None))
-        selected_template = self._get_selected_roi_template()
-        if selected_template:
-            initial_name = selected_template.get("name", "")
-        else:
-            initial_name = self.roi_template_var.get() or ""
-        dialog_result = self._show_template_save_dialog(
-            has_arena=bool(zone_data.polygon),
-            has_rois=bool(zone_data.roi_polygons),
-            allow_project=allow_project,
-            initial_name=initial_name,
-        )
-
-        if not dialog_result:
-            return
-
-        try:
-            metadata = pm.save_roi_template(
-                dialog_result["name"],
-                zone_data,
-                save_arena=dialog_result["save_arena"],
-                save_rois=dialog_result["save_rois"],
-                save_location=dialog_result["save_location"],
-                custom_path=dialog_result.get("custom_path"),
-                persist=dialog_result["save_location"] == "project",
-            )
-        except ValueError as exc:
-            self.show_warning("Template inválido", str(exc))
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.save_failed", error=str(exc))
-            self.show_error("Erro ao salvar", str(exc))
-            return
-
-        self._refresh_roi_templates()
-        self._select_roi_template(metadata)
-        self.show_info(
-            "Template salvo",
-            (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
-        )
+        """Save ROI template. Delegates to WidgetFactory."""
+        return self.widget_factory.save_roi_template()
 
     def _format_roi_template_display(self, template: dict[str, Any]) -> str:
-        base_name = template.get("name", "")
-        location = template.get("location", "project")
-
-        content_parts: list[str] = []
-        if template.get("includes_arena"):
-            content_parts.append("Arena")
-        if template.get("includes_rois"):
-            content_parts.append("ROIs")
-
-        if not content_parts:
-            content_label = "Sem dados"
-        elif len(content_parts) == 2:
-            content_label = "Arena + ROIs"
-        else:
-            content_label = content_parts[0]
-
-        location_label: str | None = None
-        if location == "global":
-            location_label = "Global"
-        elif location not in {"project", "global", None}:
-            location_label = str(location)
-
-        suffix_parts = [content_label] if content_label else []
-        if location_label:
-            suffix_parts.append(location_label)
-
-        suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
-
-        if base_name:
-            return f"{base_name}{suffix}"
-
-        return suffix.lstrip() or "Template"
+        """Format ROI template display. Delegates to WidgetFactory."""
+        return self.widget_factory.format_roi_template_display(template)
 
     def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
-        location = template.get("location", "project")
-        slug = template.get("slug") or ""
-        file_ref = template.get("file") or ""
-
-        if location == "project" and slug:
-            return f"{location}:{slug}"
-
-        if file_ref:
-            return f"{location}:{file_ref}"
-
-        return f"{location}:{template.get('name', '')}"
+        """Build ROI template identifier. Delegates to WidgetFactory."""
+        return self.widget_factory.build_roi_template_identifier(template)
 
     def _get_selected_roi_template(self) -> dict[str, Any] | None:
-        """Get the currently selected template from the dropdown."""
-        if not self._roi_templates_cache:
-            log.debug("gui.get_selected_roi_template.empty_cache")
-            return None
-
-        current_display = self.roi_template_var.get().strip()
-        if not current_display:
-            log.debug("gui.get_selected_roi_template.no_selection")
-            return None
-
-        log.debug(
-            "gui.get_selected_roi_template.searching",
-            current_display=current_display,
-            cache_size=len(self._roi_templates_cache),
-            available_names=[e.get("display_name") for e in self._roi_templates_cache],
-        )
-
-        for entry in self._roi_templates_cache:
-            if entry.get("display_name") == current_display:
-                log.info(
-                    "gui.get_selected_roi_template.found",
-                    display_name=current_display,
-                    template_name=entry.get("name"),
-                )
-                return entry
-
-        log.warning(
-            "gui.get_selected_roi_template.not_found",
-            current_display=current_display,
-            cache_entries=[e.get("display_name") for e in self._roi_templates_cache],
-        )
-        return None
+        """Get selected template. Delegates to WidgetFactory."""
+        return self.widget_factory.get_selected_roi_template()
 
     def _get_zone_data_for_active_context(self) -> ZoneData:
         pm = getattr(self.controller, "project_manager", None)
@@ -4270,66 +2121,8 @@ class ApplicationGUI:
         return pm.get_zone_data()
 
     def _select_roi_template(self, metadata: dict[str, Any]) -> None:
-        """Select a template in the dropdown by matching metadata."""
-        if not self._roi_templates_cache:
-            log.warning("gui.select_roi_template.no_cache", metadata_name=metadata.get("name"))
-            return
-
-        identifier = self._build_roi_template_identifier(metadata)
-
-        # First try: exact identifier match
-        for entry in self._roi_templates_cache:
-            if entry.get("identifier") == identifier:
-                display_name = entry.get("display_name", "")
-                if display_name:
-                    self.roi_template_var.set(display_name)
-                    log.info(
-                        "gui.select_roi_template.success_by_identifier",
-                        display_name=display_name,
-                        identifier=identifier,
-                    )
-                    return
-
-        # Second try: match by name
-        fallback_name = metadata.get("name", "")
-        if fallback_name:
-            for entry in self._roi_templates_cache:
-                if entry.get("name") == fallback_name:
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_name",
-                            display_name=display_name,
-                            name=fallback_name,
-                        )
-                        return
-
-        # Third try: match by slug or file reference
-        slug = metadata.get("slug", "")
-        file_ref = metadata.get("file", "")
-        if slug or file_ref:
-            for entry in self._roi_templates_cache:
-                if (slug and entry.get("slug") == slug) or (
-                    file_ref and entry.get("file") == file_ref
-                ):
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_slug_or_file",
-                            display_name=display_name,
-                        )
-                        return
-
-        # Failed to find template
-        log.warning(
-            "gui.select_roi_template.not_found",
-            metadata_name=fallback_name,
-            identifier=identifier,
-            cache_size=len(self._roi_templates_cache),
-        )
-        self.roi_template_var.set("")
+        """Select a template in the dropdown. Delegates to WidgetFactory."""
+        return self.widget_factory.select_roi_template(metadata)
 
     def _show_template_save_dialog(
         self,
@@ -4353,97 +2146,12 @@ class ApplicationGUI:
         return dialog.result
 
     def _on_delete_roi_template(self) -> None:
-        """Delete the currently selected template."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        selected_template = self._get_selected_roi_template()
-        if not selected_template:
-            self.show_warning(
-                "Nenhum template selecionado",
-                "Por favor, selecione um template na lista para deletar.",
-            )
-            return
-
-        template_name = selected_template.get("name", "Template")
-        template_file = selected_template.get("file")
-        template_location = selected_template.get("location", "unknown")
-
-        # Confirm deletion
-        from tkinter import messagebox
-
-        response = messagebox.askyesno(
-            "Confirmar Deleção",
-            f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
-            f"Localização: {template_location}\n"
-            f"Arquivo: {template_file}\n\n"
-            f"Esta ação não pode ser desfeita.",
-            icon="warning",
-        )
-
-        if not response:
-            return
-
-        try:
-            from pathlib import Path
-
-            # Delete the file
-            if template_file:
-                file_path = Path(template_file)
-                if file_path.exists():
-                    file_path.unlink()
-                    log.info(
-                        "gui.roi_templates.deleted", template_name=template_name, file=template_file
-                    )
-                else:
-                    log.warning(
-                        "gui.roi_templates.delete_file_not_found",
-                        template_name=template_name,
-                        file=template_file,
-                    )
-
-            # Refresh the template list
-            self._refresh_roi_templates(clear_selection=True)
-
-            self.show_info(
-                "Template Deletado", f"O template '{template_name}' foi removido com sucesso."
-            )
-
-        except Exception as exc:
-            log.error(
-                "gui.roi_templates.delete_failed", template_name=template_name, error=str(exc)
-            )
-            self.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
+        """Delete the currently selected template. Delegates to WidgetFactory."""
+        return self.widget_factory.delete_roi_template()
 
     def _on_import_roi_template(self) -> None:
-        """Import a template file into the library (does not apply it)."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        file_path = filedialog.askopenfilename(
-            title="Importar Template de ROI para Biblioteca",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
-        )
-        if not file_path:
-            return
-
-        try:
-            metadata = pm.import_roi_template(file_path)
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
-            self.show_error("Erro ao importar", str(exc))
-            return
-
-        self._refresh_roi_templates()
-        self._select_roi_template(metadata)
-        template_name = metadata.get("name", Path(file_path).stem)
-        message = (
-            f"Template '{template_name}' adicionado à biblioteca.\n\n"
-            "Use o botão 'Aplicar' para usar este template."
-        )
-        self.show_info("Template importado", message)
+        """Import a template file into the library. Delegates to WidgetFactory."""
+        return self.widget_factory.import_roi_template()
 
     def _on_import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video."""
@@ -4767,102 +2475,9 @@ class ApplicationGUI:
         )
         self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
-
     def _on_canvas_click(self, event):
-        """Handles single clicks on the canvas during polygon drawing."""
-        if self.drawing_mode != "polygon":
-            return
-
-        # Get canvas coordinates directly from event
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-
-        # Check if clicking on an existing vertex (for dragging)
-        if self.current_polygon_points:
-            for i, (vx, vy) in enumerate(self.current_polygon_points):
-                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-                if dist <= self._vertex_hover_tolerance:
-                    # Start dragging this vertex
-                    self._dragging_vertex_index = i
-                    self.roi_canvas.config(cursor="hand2")
-                    return  # Don't add new point
-
-        # Not over a vertex, proceed to add new point
-        # Apply snapping to nearby vertices or edges
-        snapped_point = self._apply_snapping(canvas_x, canvas_y)
-        if snapped_point:
-            canvas_x, canvas_y = snapped_point
-
-        # If drawing an ROI, clamp the point inside the main arena
-        if self.current_drawing_type == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                # Convert main arena polygon from video coords to canvas coords
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-
-                # Test if click point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (canvas_x, canvas_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self.canvas_manager._point_to_segment_distance(
-                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Use the clamped point
-                    canvas_x, canvas_y = closest_point
-                    log.debug(
-                        "roi_click_clamped",
-                        original=(float(event.x), float(event.y)),
-                        clamped=(canvas_x, canvas_y),
-                    )
-
-        # Clear redo stack when adding a new point (standard undo/redo behavior)
-        self._drawing_redo_stack = []
-
-        self.current_polygon_points.append((canvas_x, canvas_y))
-
-        # Store both canvas and video coordinates
-        canvas_point = (canvas_x, canvas_y)
-        video_point = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
-        self._poly_pts_canvas.append(canvas_point)
-        self._poly_pts_video.append(video_point)
-
-        # Draw a small circle to mark the vertex
-        self.roi_canvas.create_oval(
-            canvas_x - 2,
-            canvas_y - 2,
-            canvas_x + 2,
-            canvas_y + 2,
-            fill="red",
-            outline="red",
-            tags=("temp_vertex", "drawing_aid"),
-        )
-        # Draw the fixed line segment if it's not the first point
-        if len(self.current_polygon_points) > 1:
-            p1 = self.current_polygon_points[-2]
-            p2 = self.current_polygon_points[-1]
-            self.roi_canvas.create_line(
-                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
-            )
+        """Handles canvas clicks during polygon drawing. Delegates to CanvasManager."""
+        return self.canvas_manager.handle_canvas_click(event)
 
     def _on_canvas_motion(self, event):
         """Handles mouse movement for drawing elastic lines."""
@@ -5126,71 +2741,8 @@ class ApplicationGUI:
             self.current_polygon_points = []
 
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
-        """Atualiza lista com indicadores visuais de cor."""
-        # Guard against missing zone_listbox
-        if not hasattr(self, "zone_listbox") or self.zone_listbox is None:
-            return
-
-        # Limpa lista
-        for item in self.zone_listbox.get_children():
-            self.zone_listbox.delete(item)
-
-        # Phase 4: Stop if zone_data is None (don't pull from controller)
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
-            if zone_data is None:
-                log.warning("gui.update_zone_listbox.no_zone_data")
-                return
-
-        # Arena principal com emoji e cor
-        if zone_data.polygon:
-            self.zone_listbox.insert(
-                "",
-                "end",
-                values=("🏠 Arena Principal", "Polígono", "Ciano"),
-                tags=("arena",),
-            )
-            # Configura cor do texto para arena
-            self.zone_listbox.tag_configure("arena", foreground="darkcyan")
-
-        # Enable/disable ROI button based on arena existence
-        self._enable_roi_button_if_arena_exists(zone_data)
-
-        # Mapear cores BGR (formato OpenCV) para nomes e hex
-        color_map = {
-            (0, 255, 0): ("Verde", "#00AA00"),
-            (255, 0, 0): ("Azul", "#0000AA"),  # BGR: (255, 0, 0) = Blue
-            (0, 0, 255): ("Vermelho", "#AA0000"),  # BGR: (0, 0, 255) = Red
-            (0, 255, 255): ("Amarelo", "#AAAA00"),  # BGR: (0, 255, 255) = Yellow
-            (255, 0, 255): ("Magenta", "#AA00AA"),  # BGR: (255, 0, 255) = Magenta
-            (255, 255, 0): ("Ciano", "#00AAAA"),  # BGR: (255, 255, 0) = Cyan
-        }
-
-        # ROIs com emojis, cores e tags
-        for i, name in enumerate(zone_data.roi_names):
-            # Obter cor da ROI se disponível
-            color_name = "Verde"
-            color_hex = "#00AA00"
-
-            if i < len(zone_data.roi_colors):
-                roi_color = tuple(zone_data.roi_colors[i])
-                color_info = color_map.get(roi_color, ("Verde", "#00AA00"))
-                color_name = color_info[0]
-                color_hex = color_info[1]
-
-            # Insere ROI com emoji
-            self.zone_listbox.insert(
-                "",
-                "end",
-                values=(f"📍 {name}", "Área de Interesse", color_name),
-                tags=(f"roi_{i}",),
-            )
-
-            # Configura cor do texto para ROI
-            try:
-                self.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
-            except Exception:
-                pass  # Fallback silencioso se a cor não for suportada
+        """Update zone listbox. Delegates to CanvasManager."""
+        return self.canvas_manager.update_zone_listbox(zone_data)
 
     def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
         """Habilita o botão de desenhar ROI se a arena principal existir."""
@@ -5207,7 +2759,6 @@ class ApplicationGUI:
                 self.draw_roi_button.config(state="normal")
             else:
                 self.draw_roi_button.config(state="disabled")
-
 
     def _remove_selected_roi(self):
         """Removes the ROI selected in the listbox."""
@@ -5250,66 +2801,8 @@ class ApplicationGUI:
         )
 
     def _create_template_rois(self):
-        """Opens a dialog to create ROIs from a template."""
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Selecione um aquário ativo primeiro.")
-            return
-
-        # Get the arena polygon bounds from the controller
-        arena_data = self.controller.get_arena_data(current_arena_id)
-        if not arena_data or "polygon_px" not in arena_data:
-            self.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
-            return
-
-        import numpy as np
-
-        poly_points = np.array(arena_data["polygon_px"])
-        x_min, y_min = poly_points.min(axis=0)
-        x_max, y_max = poly_points.max(axis=0)
-        width = x_max - x_min
-        height = y_max - y_min
-
-        dialog = TemplateDialog(self.root)
-        if not dialog.result:
-            return
-
-        rois_to_add = []
-        template = dialog.result
-        if template["type"] == "vertical":
-            lane_width = width / template["lanes"]
-            for i in range(template["lanes"]):
-                x1 = x_min + i * lane_width
-                x2 = x1 + lane_width
-                coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
-                rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
-        elif template["type"] == "horizontal":
-            lane_height = height / template["lanes"]
-            for i in range(template["lanes"]):
-                y1 = y_min + i * lane_height
-                y2 = y1 + lane_height
-                coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
-                rois_to_add.append({"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords})
-        elif template["type"] == "grid":
-            col_width = width / template["cols"]
-            row_height = height / template["rows"]
-            for r in range(template["rows"]):
-                for c in range(template["cols"]):
-                    x1 = x_min + c * col_width
-                    y1 = y_min + r * row_height
-                    x2 = x1 + col_width
-                    y2 = y1 + row_height
-                    coords = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-                    rois_to_add.append(
-                        {
-                            "name": f"Grid_{r + 1}-{c + 1}",
-                            "type": "polygon",
-                            "coords": coords,
-                        }
-                    )
-
-        self.roi_data.setdefault(current_arena_id, []).extend(rois_to_add)
-        self._on_arena_select()
+        """Opens a dialog to create ROIs from a template. Delegates to WidgetFactory."""
+        return self.widget_factory.create_template_rois()
 
     def _start_circle_drawing(self):
         """Activates circle drawing mode."""
@@ -5494,114 +2987,12 @@ class ApplicationGUI:
         return self.widget_factory.create_progress_grid_tab()
 
     def _check_live_project_calibration(self):
-        """Checks if Live project needs calibration and prompts user automatically."""
-        if self.controller.project_manager.get_project_type() != "live":
-            return
-
-        zone_data = self._get_zone_data_for_active_context()
-        if not zone_data or not zone_data.polygon:
-            log.info("ui.live_calibration.auto_prompt")
-
-            response = self.ask_ok_cancel(
-                "Calibração Automática",
-                "Nenhuma arena principal foi definida para este projeto ao vivo.\n\n"
-                "Deseja configurar a calibração automaticamente agora?\n\n"
-                "• Será aberta a aba de Configuração de Zonas\n"
-                "• Você pode usar 'Detectar Aquário (Auto)' ou desenhar manualmente\n"
-                "• A configuração será salva automaticamente",
-            )
-
-            if response:
-                log.info("ui.live_calibration.auto_accepted")
-                # Switch to zone configuration tab
-                if hasattr(self, "notebook") and hasattr(self, "zone_tab_frame"):
-                    self.notebook.select(self.zone_tab_frame)
-
-                # Show guidance message
-                self.show_info(
-                    "Configuração de Arena Principal",
-                    "Configure a arena principal usando:\n\n"
-                    "1. 'Detectar Aquário (Auto)' - Para detecção automática\n"
-                    "2. 'Desenhar Polígono Principal' - Para desenho manual\n\n"
-                    "A configuração será salva automaticamente.",
-                )
-            else:
-                log.info("ui.live_calibration.auto_declined")
+        """Checks if Live project needs calibration. Delegates to ValidationManager."""
+        return self.validation_manager.check_live_project_calibration()
 
     def _render_progress_grid(self):
-        """Clears and redraws the experimental progress grid based on project data."""
-        # 1. Clear existing widgets
-        for widget in self.grid_container.winfo_children():
-            widget.destroy()
-
-        # 2. Get project data from controller/project_manager
-        pm = self.controller.project_manager
-        if not pm or pm.get_project_type() != "live":
-            return
-
-        days = pm.project_data.get("experiment_days", 0)
-        groups = pm.project_data.get("groups", [])
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
-
-        if not all([days, groups, subjects_per_group]):
-            ttk.Label(
-                self.grid_container,
-                text="O design experimental não está totalmente configurado.",
-            ).pack()
-            return
-
-        completed_sessions = pm.get_completed_sessions()
-
-        # 3. Create headers
-        ttk.Label(self.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
-            row=0, column=0, padx=5, pady=5, sticky="nsew"
-        )
-        for j, group_name in enumerate(groups):
-            ttk.Label(
-                self.grid_container,
-                text=group_name,
-                font=("Helvetica", 10, "bold"),
-                anchor="center",
-            ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
-
-        # 4. Create grid cells
-        for i in range(days):
-            day = i + 1
-            day_title = self._build_day_title(day)
-            ttk.Label(
-                self.grid_container,
-                text=day_title,
-                font=("Helvetica", 10, "bold"),
-            ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
-
-            for j, group_name in enumerate(groups):
-                completed_count = sum(
-                    1 for (d, g, s) in completed_sessions if d == day and g == group_name
-                )
-
-                status_text = f"{completed_count}/{subjects_per_group}"
-
-                if completed_count == 0:
-                    color = "#E0E0E0"  # Grey - Pending
-                elif completed_count < subjects_per_group:
-                    color = "#FFFACD"  # LemonChiffon - In progress
-                else:
-                    color = "#90EE90"  # LightGreen - Completed
-
-                cell_btn = Button(
-                    self.grid_container,
-                    text=status_text,
-                    background=color,
-                    width=15,
-                    height=3,
-                    command=lambda d=day, g=group_name: self._on_grid_cell_clicked(d, g),
-                )
-                cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
-
-        for col_index in range(len(groups) + 1):
-            self.grid_container.columnconfigure(col_index, weight=1)
-        for row_index in range(days + 1):
-            self.grid_container.rowconfigure(row_index, weight=1)
+        """Clears and redraws progress grid. Delegates to WidgetFactory."""
+        return self.widget_factory.render_progress_grid()
 
     def _on_grid_cell_clicked(self, day, group_name):
         pm = self.controller.project_manager
@@ -5702,59 +3093,8 @@ class ApplicationGUI:
         log.info("gui.live_processing_loop.finished")
 
     def _prompt_for_weight_type(self):
-        """Prompts user to select weight type when it cannot be determined
-        from filename."""
-        from tkinter import Radiobutton
-
-        dialog = Toplevel(self.root)
-        dialog.title("Tipo de Peso")
-        dialog.geometry("300x150")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-
-        # Center dialog
-        self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() // 2) - (300 // 2)
-        y = (self.root.winfo_screenheight() // 2) - (150 // 2)
-        dialog.geometry(f"+{x}+{y}")
-
-        Label(dialog, text="Selecione o tipo de modelo:").pack(pady=10)
-
-        weight_type_var = StringVar(value="seg")
-
-        Radiobutton(
-            dialog,
-            text="Segmentação (para máscaras e bordas precisas)",
-            variable=weight_type_var,
-            value="seg",
-        ).pack(anchor="w", padx=20)
-
-        Radiobutton(
-            dialog,
-            text="Detecção (para caixas delimitadoras rápidas)",
-            variable=weight_type_var,
-            value="det",
-        ).pack(anchor="w", padx=20)
-
-        result = [None]  # Use list to allow modification in nested function
-
-        def on_ok():
-            result[0] = weight_type_var.get()
-            dialog.destroy()
-
-        def on_cancel():
-            result[0] = None
-            dialog.destroy()
-
-        button_frame = Frame(dialog)
-        button_frame.pack(pady=20)
-
-        Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        Button(button_frame, text="Cancelar", command=on_cancel).pack(side="left", padx=5)
-
-        dialog.wait_window()
-        return result[0]
+        """Prompts user to select weight type. Delegates to WidgetFactory."""
+        return self.widget_factory.prompt_for_weight_type()
 
     def _manage_weights_clicked(self):
         """Opens the weight management dialog."""
@@ -5863,37 +3203,8 @@ class ApplicationGUI:
         self.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     def _on_analyze_single_video_clicked(self):
-        """Handles the UI part of the single video workflow."""
-        dialog = SingleVideoConfigDialog(self.root, settings_obj=self.controller.settings)
-        if not dialog.result:
-            return  # User cancelled
-
-        source_type = dialog.result.get("source_type", "video")
-
-        if source_type == "camera":
-            # Camera analysis: use camera_index
-            camera_index = dialog.result.get("camera_index", 0)
-            self.show_info(
-                "Análise de Câmera",
-                f"Iniciando análise da câmera {camera_index}..."
-            )
-            # Trigger camera analysis via controller
-            self.controller.start_live_camera_analysis(camera_index=camera_index)
-            return
-
-        # Video file analysis: require video_path
-        video_path = dialog.result.get("video_path")
-        if not video_path:
-            return
-
-        # Pass both config and video path to the controller via event
-        self.event_dispatcher.publish_event(
-            Events.VIDEO_ANALYZE_SINGLE,
-            {
-                "video_path": video_path,
-                "config": dialog.result,
-            },
-        )
+        """Handle single video analysis. Delegates to EventDispatcher."""
+        return self.event_dispatcher.handle_analyze_single_video_clicked()
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
@@ -5945,89 +3256,12 @@ class ApplicationGUI:
         self._prepare_single_video_ui_state(config)
 
     def _prepare_single_video_ui_state(self, config: dict | None) -> None:
-        """Ensure zone controls reflect the incoming single-video configuration."""
-        zone_controls = getattr(self, "zone_controls", None)
-        if not zone_controls:
-            return
-
-        try:
-            zone_controls.show_single_analysis_options()
-        except Exception:
-            pass
-
-        analysis_interval = None
-        display_interval = None
-        roi_choice = None
-        stabilization_frames = None
-
-        if config:
-            analysis_interval = config.get("analysis_interval_frames")
-            display_interval = config.get("display_interval_frames")
-            roi_choice = config.get("roi_choice")
-            stabilization_frames = config.get("stabilization_frames")
-
-        if analysis_interval is None:
-            analysis_interval = self.analysis_interval_var.get()
-        if display_interval is None:
-            display_interval = self.display_interval_var.get()
-        if stabilization_frames is None:
-            stabilization_frames = self.stabilization_frames_var.get()
-
-        # Share the same StringVar instances so edits from either side stay in sync
-        self.analysis_interval_var = zone_controls.analysis_interval_var
-        self.display_interval_var = zone_controls.display_interval_var
-        self.roi_choice_var = zone_controls.roi_choice_var
-        self.stabilization_frames_var = zone_controls.stabilization_frames_var
-
-        self.analysis_interval_var.set(str(analysis_interval or "10"))
-        self.display_interval_var.set(str(display_interval or "10"))
-        self.roi_choice_var.set(roi_choice or "none")
-        self.stabilization_frames_var.set(str(stabilization_frames or "10"))
+        """Ensure zone controls reflect single-video config. Delegates to StateSynchronizer."""
+        return self.state_synchronizer.prepare_single_video_ui_state(config)
 
     def _compose_single_video_runtime_config(self) -> dict | None:
-        """Collect the latest single-video settings before starting processing."""
-        if not self.pending_single_video_config:
-            return None
-
-        config = dict(self.pending_single_video_config)
-
-        # Prefer values from the new zone controls component when available
-        zone_controls = getattr(self, "zone_controls", None)
-        if zone_controls:
-            analysis_var = zone_controls.analysis_interval_var.get()
-            display_var = zone_controls.display_interval_var.get()
-            roi_choice = zone_controls.roi_choice_var.get()
-            stabilization_var = zone_controls.stabilization_frames_var.get()
-        else:
-            analysis_var = self.analysis_interval_var.get()
-            display_var = self.display_interval_var.get()
-            roi_choice = config.get("roi_choice", "none")
-            stabilization_var = self.stabilization_frames_var.get()
-
-        try:
-            analysis_interval = int(analysis_var)
-            display_interval = int(display_var)
-            if analysis_interval <= 0 or display_interval <= 0:
-                raise ValueError
-            stabilization_frames = int(stabilization_var)
-            if stabilization_frames <= 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            self.show_error(
-                "Erro",
-                (
-                    "Os intervalos devem ser números inteiros positivos "
-                    "(análise, exibição e estabilização)."
-                ),
-            )
-            return None
-
-        config["analysis_interval_frames"] = analysis_interval
-        config["display_interval_frames"] = display_interval
-        config["roi_choice"] = roi_choice
-        config["stabilization_frames"] = stabilization_frames
-
-        return config
+        """Collect single-video settings. Delegates to ValidationManager."""
+        return self.validation_manager.compose_single_video_runtime_config()
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
         """Handler for the auto-detect button."""
@@ -6134,24 +3368,12 @@ class ApplicationGUI:
         self.status_var.set(text)
 
     def show_progress_bar(self):
-        """Shows the progress bar frame and cancel button."""
-        if self.progress_frame and not self.progress_frame.winfo_viewable():
-            # Pack progress_frame BEFORE video_container to ensure it stays visible
-            if hasattr(self, "video_container") and self.video_container:
-                self.progress_frame.pack(before=self.video_container, pady=5, fill="x", padx=10)
-                # Force layout recalculation after showing progress bar
-                self.root.update_idletasks()
-            else:
-                self.progress_frame.pack(pady=5, fill="x", padx=10)
-            self.progress_bar["value"] = 0
-        if self.cancel_proc_btn:
-            self.cancel_proc_btn.config(state="normal")
+        """Show progress bar. Delegates to DialogManager."""
+        return self.dialog_manager.show_progress_bar()
 
     def update_progress(self, value):
-        """Updates the progress bar."""
-        if self.progress_bar:
-            self.progress_bar["value"] = value * 100  # Convert fraction to percentage
-            self.update_idletasks()
+        """Update progress. Delegates to AnalysisDisplay."""
+        return self.analysis_display.update_progress(value)
 
     def update_idletasks(self):
         """Force the GUI to update, processing pending events."""
@@ -6167,21 +3389,15 @@ class ApplicationGUI:
         elapsed=None,
         eta=None,
     ):
-        """Update textual statistics for file processing."""
-        if not self.progress_labels:
-            return
-        if total is not None:
-            self.progress_labels["total"].set(str(total))
-        if processed is not None:
-            self.progress_labels["processed"].set(str(processed))
-        if detected is not None:
-            self.progress_labels["detected"].set(str(detected))
-        if percent is not None:
-            self.progress_labels["percent"].set(f"{percent:.1f}%")
-        if elapsed is not None:
-            self.progress_labels["elapsed"].set(self._format_time(elapsed))
-        if eta is not None:
-            self.progress_labels["eta"].set(self._format_time(eta) if eta >= 0 else "-")
+        """Update progress stats. Delegates to AnalysisDisplay."""
+        return self.analysis_display.update_progress_stats(
+            total=total,
+            processed=processed,
+            detected=detected,
+            percent=percent,
+            elapsed=elapsed,
+            eta=eta,
+        )
 
     def hide_progress_bar(self):
         """Hides the progress bar and cancel button, and resets its value."""
@@ -6194,8 +3410,6 @@ class ApplicationGUI:
             self.progress_bar["value"] = 0
         if self.cancel_proc_btn and self.cancel_proc_btn.winfo_exists():
             self.cancel_proc_btn.config(state="disabled")
-
-
 
     def _toggle_canvas_view(self):
         """Toggle between zone drawing view and analysis progress view."""
@@ -6263,8 +3477,6 @@ class ApplicationGUI:
         self._reset_analysis_controls()
         self._switch_to_zones_view()
 
-
-
     def update_detection_overlay(
         self,
         detections: list[tuple],
@@ -6329,32 +3541,10 @@ class ApplicationGUI:
         stats: dict | None,
         tracks: list[str] | None,
     ) -> None:
-        """Display aggregated social proximity statistics for the active video."""
-        if stats and isinstance(stats, dict):
-            percentages = stats.get("social_time_percentage") or {}
-            if isinstance(percentages, dict) and percentages:
-                formatted = []
-                for key, value in sorted(
-                    percentages.items(),
-                    key=lambda item: str(item[0]),
-                ):
-                    if isinstance(value, (int, float)):
-                        formatted.append(f"ID {key}: {value:.1f}%")
-                if formatted:
-                    self.social_summary_var.set("Interações sociais: " + ", ".join(formatted))
-                else:
-                    self.social_summary_var.set(
-                        "Interações sociais: nenhum agrupamento registrado."
-                    )
-            else:
-                self.social_summary_var.set("Interações sociais: nenhum agrupamento registrado.")
-        else:
-            self.social_summary_var.set("Interações sociais: aguardando dados.")
-
-        if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
-            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
-            if normalized_tracks:
-                self.state_synchronizer._update_track_options(["Todos", *normalized_tracks])
+        """Display social proximity statistics. Delegates to StateSynchronizer."""
+        return self.state_synchronizer.update_social_summary(
+            profile=profile, stats=stats, tracks=tracks
+        )
 
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""
@@ -6386,12 +3576,8 @@ class ApplicationGUI:
         ordered = sorted(observed, key=str)
         return ["Todos", *ordered]
 
-
     def _on_track_selection_changed(self, _event=None) -> None:
         self.canvas_manager._render_last_analysis_frame()
-
-
-
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
@@ -6409,42 +3595,14 @@ class ApplicationGUI:
         start_time=None,
         current_frame=None,
     ):
-        """Update processing statistics in real-time during video analysis."""
-        if not self.progress_labels:
-            return
-
-        # Update frame counters in all label sets
-        labels = self.progress_labels
-        if total_frames is not None:
-            labels["total"].set(str(total_frames))
-        if processed_frames is not None:
-            labels["processed"].set(str(processed_frames))
-        if detected_frames is not None:
-            labels["detected"].set(str(detected_frames))
-
-        # Calculate and update percentage based on actual frame position
-        if total_frames:
-            frame_for_percent = current_frame if current_frame is not None else processed_frames
-            if frame_for_percent is not None:
-                percent = (frame_for_percent / total_frames) * 100
-                labels["percent"].set(f"{percent:.1f}%")
-
-        # Calculate elapsed time and ETA
-        if start_time:
-            import time
-
-            elapsed = time.time() - start_time
-            labels["elapsed"].set(self._format_time(elapsed))
-
-            frame_for_eta = current_frame if current_frame is not None else processed_frames
-            if frame_for_eta and total_frames and frame_for_eta > 0:
-                rate = frame_for_eta / elapsed
-                remaining_frames = total_frames - frame_for_eta
-                if rate > 0:
-                    eta = remaining_frames / rate
-                    labels["eta"].set(self._format_time(eta))
-                else:
-                    labels["eta"].set("-")
+        """Update processing statistics. Delegates to StateSynchronizer."""
+        return self.state_synchronizer.update_processing_stats(
+            total_frames=total_frames,
+            processed_frames=processed_frames,
+            detected_frames=detected_frames,
+            start_time=start_time,
+            current_frame=current_frame,
+        )
 
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
@@ -6467,117 +3625,29 @@ class ApplicationGUI:
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
-        """Update the task summary indicating which video is being processed."""
-        if not hasattr(self, "analysis_task_var") or self.analysis_task_var is None:
-            return
-
-        total_videos = max(int(total) if total is not None else 0, 1)
-        current_index = max(int(index) if index is not None else 0, 0) + 1
-
-        parts: list[str] = [f"Vídeo {current_index} de {total_videos}"]
-
-        if experiment_id:
-            exp_text = str(experiment_id).strip()
-            if exp_text:
-                parts.append(f"— {exp_text}")
-
-        if step:
-            step_text = str(step).strip()
-            if step_text:
-                if step_text.lower().startswith("etapa:"):
-                    step_text = step_text[6:].strip()
-                if step_text:
-                    parts.append(f"• {step_text}")
-
-        self.analysis_task_var.set(" ".join(parts))
-
-    @staticmethod
-
-    @classmethod
-
-
-
-    @staticmethod
+        """Update task status. Delegates to StateSynchronizer."""
+        return self.state_synchronizer.update_analysis_task_status(
+            index=index, total=total, experiment_id=experiment_id, step=step
+        )
 
     def _resolve_group_display(self, metadata: dict) -> str:
-        for key in (
-            "group_display_name",
-            "group_label",
-            "group_name",
-            "group_id",
-            "group",
-        ):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                text = str(value).strip()
-                if text:
-                    return text
-        return "Sem Grupo"
+        """Resolve group display. Delegates to ValidationManager."""
+        return self.validation_manager.resolve_group_display(metadata)
 
     def _resolve_day_display(self, metadata: dict) -> str:
-        for key in ("day_label", "day_display_name"):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                text = str(value).strip()
-                if text:
-                    return text if text.lower().startswith("dia") else f"Dia {text}"
-
-        for key in ("day", "day_id", "dia"):
-            value = metadata.get(key)
-            if value not in (None, "", "None"):
-                formatted = self._format_day_display(value)
-                if formatted.lower() == "sem dia":
-                    return "Sem Dia"
-                return f"Dia {formatted}"
-
-        return "Sem Dia"
+        """Resolve day display. Delegates to ValidationManager."""
+        return self.validation_manager.resolve_day_display(metadata)
 
     def _resolve_subject_display(self, metadata: dict) -> str:
-        for key in (
-            "subject_label",
-            "subject_display_name",
-            "subject",
-            "subject_id",
-            "animal",
-            "animal_id",
-            "individual",
-            "individuo",
-            "cobaia",
-        ):
-            value = metadata.get(key)
-            if value in (None, "", "None"):
-                continue
-
-            if isinstance(value, bool):
-                text = str(value).strip()
-                if text:
-                    return text
-
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                if float(value).is_integer():
-                    return f"{int(value):02d}"
-                return str(value)
-
-            text = str(value).strip()
-            if not text:
-                continue
-            if text.isdigit():
-                return f"{int(text):02d}"
-            return text
-
-        return "Não informado"
+        """Resolve subject display name from metadata. Delegates to ValidationManager."""
+        return self.validation_manager.resolve_subject_display(metadata)
 
     @staticmethod
     def _format_time(seconds: float) -> str:
-        if seconds is None or seconds < 0:
-            return "-"
-        m, s = divmod(int(seconds), 60)
-        h, m = divmod(m, 60)
-        if h:
-            return f"{h:d}h {m:02d}m {s:02d}s"
-        if m:
-            return f"{m:d}m {s:02d}s"
-        return f"{s:d}s"
+        """Format time. Delegates to StateSynchronizer."""
+        from zebtrack.ui.components.state_synchronizer import StateSynchronizer
+
+        return StateSynchronizer._format_time(seconds)
 
     def show_error(self, title, message):
         """Shows an error message box. Delegates to DialogManager."""
@@ -6599,25 +3669,13 @@ class ApplicationGUI:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> dict | None:
-        """Exibe o diálogo hierárquico de vídeos pendentes."""
-
-        self.apply_pending_readiness_snapshot(
+        """Show pending videos dialog. Delegates to DialogManager."""
+        return self.dialog_manager.show_pending_videos_dialog(
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
             without_arena=without_arena,
         )
-
-        dialog = PendingVideosDialog(
-            self.root,
-            hierarchy_builder=self._build_video_hierarchy_snapshot,
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
-
-        return dialog.result
 
     def ask_ok_cancel(self, title, message):
         """Shows a confirmation dialog. Delegates to DialogManager."""
@@ -6634,7 +3692,6 @@ class ApplicationGUI:
     def ask_open_filenames(self, title, filetypes):
         """Shows a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
-
 
     def _on_zone_double_click(self, event):
         """Handle double-click on zone list - opens vertex editing mode."""
@@ -6663,126 +3720,16 @@ class ApplicationGUI:
                 arena_menu.post(event.x_root, event.y_root)
 
     def _edit_selected_zone_vertices(self):
-        """Enables interactive editing of the selected zone's vertices."""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        zone_name = item["values"][0]
-
-        # Check if we are already in drawing mode
-        if self.drawing_mode is not None:
-            self.show_warning(
-                "Modo de Desenho Ativo",
-                "Finalize o desenho atual antes de editar vértices de outra zona.",
-            )
-            return
-
-        zone_data = self._get_zone_data_for_active_context()
-
-        if "Arena Principal" in zone_name:
-            # Edit main arena
-            if not zone_data.polygon:
-                self.show_warning("Erro", "Arena principal não encontrada.")
-                return
-
-            # Convert polygon to the format expected by setup_interactive_polygon
-            polygon_points = np.array(zone_data.polygon)
-            self.setup_interactive_polygon(polygon_points)
-            self.current_editing_zone = "arena"
-            self.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
-
-        else:
-            # Edit ROI
-            roi_name = zone_name.replace("📍 ", "")
-            try:
-                roi_index = zone_data.roi_names.index(roi_name)
-                roi_polygon = zone_data.roi_polygons[roi_index]
-
-                # Convert polygon to the format expected by setup_interactive_polygon
-                polygon_points = np.array(roi_polygon)
-                self.setup_interactive_polygon(polygon_points)
-                self.current_editing_zone = ("roi", roi_index, roi_name)
-                self.set_status(
-                    f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
-                )
-
-            except (ValueError, IndexError):
-                self.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
-                return
+        """Enables interactive editing of selected zone vertices. Delegates to CanvasManager."""
+        return self.canvas_manager.edit_selected_zone_vertices()
 
     def _rename_selected_roi(self):
-        """Renomeia ROI selecionada"""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        old_name = item["values"][0].replace("📍 ", "")
-
-        new_name = self.ask_string(
-            "Renomear ROI", f"Novo nome para '{old_name}':", initialvalue=old_name
-        )
-
-        if new_name and new_name != old_name:
-            # Atualiza no projeto
-            zone_data = self._get_zone_data_for_active_context()
-            try:
-                idx = zone_data.roi_names.index(old_name)
-                zone_data.roi_names[idx] = new_name
-
-                # Persist updated ROI name
-                self.controller.project_manager.save_zone_data(zone_data)
-
-                # Atualiza visualização
-                self.canvas_manager.redraw_zones_from_project_data()
-                self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
-                status_message = f"ROI renomeada para '{new_name}'."
-                self.set_status(status_message)
-                self._request_overview_refresh(reason=status_message, append_summary=True)
-
-            except ValueError:
-                self.show_error("Erro", "ROI não encontrada")
+        """Renames the selected ROI. Delegates to DialogManager."""
+        return self.dialog_manager.rename_selected_roi()
 
     def _change_roi_color(self):
-        """Muda cor da ROI selecionada"""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        old_name = item["values"][0].replace("📍 ", "")
-
-        # Usa o diálogo de cores personalizado
-        color_dialog = ColorSelectionDialog(self.root, "Mudar Cor da ROI")
-        if not color_dialog.result:
-            return
-
-        selected_color = color_dialog.result
-        new_color = selected_color["rgb"]
-        color_name = selected_color["name"]
-
-        # Atualiza no projeto
-        zone_data = self._get_zone_data_for_active_context()
-        try:
-            idx = zone_data.roi_names.index(old_name)
-            zone_data.roi_colors[idx] = new_color
-
-            # Persist color change
-            self.controller.project_manager.save_zone_data(zone_data)
-
-            # Atualiza visualização
-            self.canvas_manager.redraw_zones_from_project_data()
-            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
-            status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-
-        except ValueError:
-            self.show_error("Erro", "ROI não encontrada")
-        except IndexError:
-            self.show_error("Erro", "Dados de cor da ROI não encontrados")
+        """Changes the color of the selected ROI. Delegates to DialogManager."""
+        return self.dialog_manager.change_roi_color()
 
     def _remove_selected_roi_confirm(self):
         """Remove ROI selecionada com confirmação"""
