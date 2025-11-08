@@ -19,6 +19,7 @@ from zebtrack.core.asset_manager import AssetManager
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.state_manager import StateManager
+from zebtrack.core.types import AssetType
 from zebtrack.core.video_manager import VideoManager
 from zebtrack.core.zone_manager import ZoneManager
 from zebtrack.utils import IntegrityError, calculate_sha256
@@ -66,8 +67,6 @@ SETTINGS_SNAPSHOT_FILE_NAME = "config_snapshot.yaml"
 ROI_TEMPLATE_VERSION = 1
 
 log = structlog.get_logger()
-
-AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class ProjectManager:
@@ -142,45 +141,12 @@ class ProjectManager:
         return ZoneManager.normalize_video_path(path)
 
     def _resolve_zone_entry(self, video_path: Path | str | None) -> tuple[str | None, dict | None]:
-        """Locate a stored zone entry matching the provided video path."""
-
-        if not video_path:
-            return None, None
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-
-        self._ensure_zone_structures()
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized = self._normalize_video_path(video_path)
-
-        if normalized and normalized in zones_map:
-            return normalized, zones_map[normalized]
-
-        if video_path in zones_map:
-            return video_path, zones_map[video_path]
-
-        if normalized:
-            for key, value in zones_map.items():
-                if self._normalize_video_path(key) == normalized:
-                    return key, value
-
-        return normalized or video_path, None
+        """Locate a stored zone entry matching the provided video path. Delegates to ZoneManager."""
+        return self.zone_manager.resolve_zone_entry(self.project_data, video_path)
 
     def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
-        """Remove duplicate zone entries that resolve to the same canonical path."""
-
-        if not preferred_key:
-            return
-
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized = self._normalize_video_path(preferred_key)
-        if not normalized:
-            return
-
-        for key in list(zones_map.keys()):
-            if key == preferred_key:
-                continue
-            if self._normalize_video_path(key) == normalized:
-                del zones_map[key]
+        """Remove duplicate zone entries that resolve to the same canonical path. Delegates to ZoneManager."""
+        ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
 
     def _ensure_roi_template_dir(self) -> Path:
         if not self.project_path:
@@ -466,54 +432,12 @@ class ProjectManager:
         video_path: Path | str,
         zone_data: ZoneData | None,
     ) -> None:
-        """Update has_arena/has_rois flags for a given video entry."""
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-
-        if not self.project_data or not video_path:
-            return
-
-        has_arena = bool(zone_data and zone_data.polygon)
-        has_rois = bool(zone_data and zone_data.roi_polygons)
-        normalized_target = self._normalize_video_path(video_path)
-
-        for batch in self.project_data.get("batches", []):
-            for video in batch.get("videos", []):
-                candidate_path = video.get("path")
-                if not candidate_path:
-                    continue
-                if self._normalize_video_path(candidate_path) == normalized_target:
-                    video["has_arena"] = has_arena
-                    video["has_rois"] = has_rois
-                    video["zones_finalized"] = False
-                    return
+        """Update has_arena/has_rois flags for a given video entry. Delegates to ZoneManager."""
+        ZoneManager.update_video_zone_flags(self.project_data, video_path, zone_data)
 
     def _refresh_last_zone_source(self, removed_path: Path | str | None = None) -> None:
-        """Refresh cache for last zone source video when data changes."""
-
-        if removed_path is not None:
-            removed_path = Path(removed_path) if isinstance(removed_path, str) else removed_path
-        zones_map = self.project_data.get("zones_by_video", {})
-
-        if removed_path and self._last_zone_source_video:
-            normalized_removed = self._normalize_video_path(removed_path)
-            if normalized_removed:
-                current_normalized = self._normalize_video_path(self._last_zone_source_video)
-                if current_normalized == normalized_removed:
-                    self._last_zone_source_video = None
-
-        if self._last_zone_source_video:
-            normalized_last = self._normalize_video_path(self._last_zone_source_video)
-            for key in zones_map.keys():
-                if self._normalize_video_path(key) == normalized_last:
-                    self._last_zone_source_video = key
-                    return
-            self._last_zone_source_video = None
-
-        # Pick the most recently inserted entry in zones_by_video
-        if zones_map:
-            self._last_zone_source_video = next(reversed(zones_map.keys()))
-        else:
-            self._last_zone_source_video = None
+        """Refresh cache for last zone source video when data changes. Delegates to ZoneManager."""
+        self.zone_manager.refresh_last_zone_source(self.project_data, removed_path)
 
     # ------------------------------------------------------------------
     # Public helpers for zone lifecycle
@@ -528,23 +452,8 @@ class ProjectManager:
         return self.zone_manager.get_active_zone_video()
 
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
-        """Return the last video that had zones saved, excluding optional target."""
-
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized_exclude = self._normalize_video_path(exclude) if exclude else None
-
-        if self._last_zone_source_video:
-            normalized_last = self._normalize_video_path(self._last_zone_source_video)
-            if normalized_last and normalized_last != normalized_exclude:
-                for key in zones_map.keys():
-                    if self._normalize_video_path(key) == normalized_last:
-                        return key
-
-        for path in reversed(list(zones_map.keys())):
-            if self._normalize_video_path(path) != normalized_exclude:
-                return path
-
-        return None
+        """Return the last video that had zones saved, excluding optional target. Delegates to ZoneManager."""
+        return self.zone_manager.get_last_zone_video(self.project_data, exclude)
 
     def has_zone_data(self, video_path: Path | str | None) -> bool:
         """Check whether the given video currently stores arena or ROI data. Delegates to ZoneManager."""
@@ -1820,8 +1729,8 @@ class ProjectManager:
         return VideoManager.iter_project_videos(self.project_data)
 
     def _video_has_asset(self, video_entry: dict, asset: AssetType) -> bool:
-        """Check if video has asset. Delegates to VideoManager (or AssetManager for consistency)."""
-        return VideoManager.video_has_asset(video_entry, asset)
+        """Check if video has asset. Delegates to AssetManager."""
+        return AssetManager.video_has_asset(video_entry, asset)
 
     @staticmethod
     def _refresh_complete_flag(video_entry: dict) -> None:

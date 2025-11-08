@@ -17,15 +17,14 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import structlog
 
+from zebtrack.core.types import AssetType
 from zebtrack.utils import calculate_sha256
 
 log = structlog.get_logger()
-
-AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class VideoManager:
@@ -40,9 +39,16 @@ class VideoManager:
 
     This class is stateless regarding project data - it operates on
     project_data dictionaries passed to its methods.
+
+    Cache Behavior:
+    - Uses class-level cache shared across all VideoManager instances
+    - Cache is intentional for performance in multi-project scenarios
+    - TTL of 30 seconds prevents stale data
+    - Use clear_scan_cache() to manually invalidate cache if needed
     """
 
     # Cache for video scanning operations (30s TTL)
+    # NOTE: Class-level cache is shared across all instances for performance
     _SCAN_CACHE_TTL_SECONDS: ClassVar[float] = 30.0
     _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
 
@@ -464,40 +470,6 @@ class VideoManager:
             videos = batch.get("videos", [])
             for video in videos:
                 yield batch, video
-
-    @staticmethod
-    def video_has_asset(video_entry: dict, asset: AssetType) -> bool:
-        """Check if a video entry has a specific asset type.
-
-        Args:
-            video_entry: Video entry dictionary
-            asset: Asset type to check for
-
-        Returns:
-            bool: True if asset exists, False otherwise
-
-        Raises:
-            ValueError: If asset type is unknown
-        """
-        parquet_files = video_entry.get("parquet_files") or {}
-
-        if asset == "arena":
-            return bool(video_entry.get("has_arena") or parquet_files.get("arena"))
-        if asset == "rois":
-            return bool(video_entry.get("has_rois") or parquet_files.get("rois"))
-        if asset == "trajectory":
-            return bool(video_entry.get("has_trajectory") or parquet_files.get("trajectory"))
-        if asset == "summary":
-            return bool(
-                video_entry.get("has_summary")
-                or parquet_files.get("summary")
-                or parquet_files.get("summary_excel")
-                or parquet_files.get("report_docx")
-            )
-        if asset == "video":
-            return bool(video_entry.get("path"))
-
-        raise ValueError(f"Asset type '{asset}' desconhecido.")
 
     @staticmethod
     def refresh_complete_flag(video_entry: dict) -> None:

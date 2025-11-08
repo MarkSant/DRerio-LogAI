@@ -24,10 +24,9 @@ import structlog
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.roi_template_manager import ROITemplateManager
+from zebtrack.core.types import AssetType
 
 log = structlog.get_logger()
-
-AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
 
 
 class AssetManager:
