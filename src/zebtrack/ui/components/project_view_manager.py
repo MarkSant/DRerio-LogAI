@@ -973,3 +973,38 @@ class ProjectViewManager:
         except Exception as exc:
             log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
             self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")
+
+    def handle_project_overview_double_click(self, item_id: str) -> None:
+        """Implementation of double-click logic on project overview tree."""
+        import os
+
+        if not self.gui.project_overview_tree:
+            return
+
+        tags = self.gui.project_overview_tree.item(item_id, "tags") or ()
+        if not tags:
+            return
+
+        video_path = tags[0]
+        if not video_path or video_path.startswith("status_"):
+            return
+
+        if not os.path.exists(video_path):
+            self.gui.show_warning(
+                "Arquivo não encontrado",
+                f"O vídeo selecionado não foi localizado:\n{video_path}",
+            )
+            return
+
+        success = self.gui.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
+        if success:
+            self.gui._maybe_offer_zone_reuse(video_path)
+            self.gui.canvas_manager.redraw_zones_from_project_data()
+            message = f"Frame carregado: {os.path.basename(video_path)}"
+            self.gui.set_status(message)
+            self.gui._request_overview_refresh(reason=message, append_summary=True)
+        else:
+            self.gui.show_error(
+                "Erro ao Carregar",
+                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
+            )

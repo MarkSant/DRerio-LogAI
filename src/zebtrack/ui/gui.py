@@ -1033,37 +1033,8 @@ class ApplicationGUI:
             self._on_project_overview_tree_double_click_impl(item_id)
 
     def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
-        """Implementation of double-click logic (reusable)."""
-        if not self.project_overview_tree:
-            return
-
-        tags = self.project_overview_tree.item(item_id, "tags") or ()
-        if not tags:
-            return
-
-        video_path = tags[0]
-        if not video_path or video_path.startswith("status_"):
-            return
-
-        if not os.path.exists(video_path):
-            self.show_warning(
-                "Arquivo não encontrado",
-                f"O vídeo selecionado não foi localizado:\n{video_path}",
-            )
-            return
-
-        success = self.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
-        if success:
-            self._maybe_offer_zone_reuse(video_path)
-            self.canvas_manager.redraw_zones_from_project_data()
-            message = f"Frame carregado: {os.path.basename(video_path)}"
-            self.set_status(message)
-            self._request_overview_refresh(reason=message, append_summary=True)
-        else:
-            self.show_error(
-                "Erro ao Carregar",
-                f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
-            )
+        """Handle double-click on project overview tree. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_project_overview_double_click(item_id)
 
     def _on_project_overview_right_click(self, event) -> None:
         """Handle right-click events on the overview tree (legacy handler)."""
@@ -4067,32 +4038,10 @@ class ApplicationGUI:
         stats: dict | None,
         tracks: list[str] | None,
     ) -> None:
-        """Display aggregated social proximity statistics for the active video."""
-        if stats and isinstance(stats, dict):
-            percentages = stats.get("social_time_percentage") or {}
-            if isinstance(percentages, dict) and percentages:
-                formatted = []
-                for key, value in sorted(
-                    percentages.items(),
-                    key=lambda item: str(item[0]),
-                ):
-                    if isinstance(value, (int, float)):
-                        formatted.append(f"ID {key}: {value:.1f}%")
-                if formatted:
-                    self.social_summary_var.set("Interações sociais: " + ", ".join(formatted))
-                else:
-                    self.social_summary_var.set(
-                        "Interações sociais: nenhum agrupamento registrado."
-                    )
-            else:
-                self.social_summary_var.set("Interações sociais: nenhum agrupamento registrado.")
-        else:
-            self.social_summary_var.set("Interações sociais: aguardando dados.")
-
-        if tracks and self._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
-            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
-            if normalized_tracks:
-                self.state_synchronizer._update_track_options(["Todos", *normalized_tracks])
+        """Display social proximity statistics. Delegates to StateSynchronizer."""
+        return self.state_synchronizer.update_social_summary(
+            profile=profile, stats=stats, tracks=tracks
+        )
 
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""

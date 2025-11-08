@@ -390,3 +390,41 @@ class StateSynchronizer:
         self.gui.display_interval_var.set(str(display_interval or "10"))
         self.gui.roi_choice_var.set(roi_choice or "none")
         self.gui.stabilization_frames_var.set(str(stabilization_frames or "10"))
+
+    def update_social_summary(
+        self,
+        *,
+        profile: str,
+        stats: dict | None,
+        tracks: list[str] | None,
+    ) -> None:
+        """Display aggregated social proximity statistics for the active video."""
+        from zebtrack.core.processing_mode import ProcessingMode
+
+        if stats and isinstance(stats, dict):
+            percentages = stats.get("social_time_percentage") or {}
+            if isinstance(percentages, dict) and percentages:
+                formatted = []
+                for key, value in sorted(
+                    percentages.items(),
+                    key=lambda item: str(item[0]),
+                ):
+                    if isinstance(value, (int, float)):
+                        formatted.append(f"ID {key}: {value:.1f}%")
+                if formatted:
+                    self.gui.social_summary_var.set("Interações sociais: " + ", ".join(formatted))
+                else:
+                    self.gui.social_summary_var.set(
+                        "Interações sociais: nenhum agrupamento registrado."
+                    )
+            else:
+                self.gui.social_summary_var.set(
+                    "Interações sociais: nenhum agrupamento registrado."
+                )
+        else:
+            self.gui.social_summary_var.set("Interações sociais: aguardando dados.")
+
+        if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
+            normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
+            if normalized_tracks:
+                self._update_track_options(["Todos", *normalized_tracks])
