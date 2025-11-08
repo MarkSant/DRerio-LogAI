@@ -1116,32 +1116,8 @@ class ApplicationGUI:
 
 
     def _on_canvas_configure(self, event=None):
-        """Handle canvas resize events to properly scale and center the image."""
-        # Skip if this is not the main roi_canvas being resized
-        if event and event.widget != self.roi_canvas:
-            return
-
-        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
-            if hasattr(self, "_original_image") and self._original_image:
-                self._raw_bg_image = self._original_image
-            else:
-                return
-
-        # Get the current canvas dimensions
-        canvas_width = self.roi_canvas.winfo_width()
-        canvas_height = self.roi_canvas.winfo_height()
-
-        if canvas_width <= 1 or canvas_height <= 1:
-            return
-
-        # Re-scale and center the background image using the new method
-        try:
-            self.canvas_manager._draw_bg_image_to_canvas()
-            # After updating the background, redraw any zones that exist
-            if hasattr(self, "controller") and self.controller:
-                self.canvas_manager.redraw_zones_from_project_data()
-        except Exception as e:
-            log.warning("gui.canvas.configure_error", error=str(e))
+        """Handle canvas configure. Delegates to CanvasManager."""
+        return self.canvas_manager.on_canvas_configure(event)
 
     def _create_zone_control_widgets(self):
         """Create all zone control widgets. Delegates to WidgetFactory."""

@@ -185,6 +185,36 @@ class CanvasManager:
             tags="background_image",
         )
 
+    def on_canvas_configure(self, event=None):
+        """Handle canvas resize events to properly scale and center the image."""
+        # Skip if this is not the main roi_canvas being resized
+        if event and hasattr(self.gui, "roi_canvas") and event.widget != self.gui.roi_canvas:
+            return
+
+        if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
+            if hasattr(self, "_original_image") and self.gui._original_image:
+                self._raw_bg_image = self.gui._original_image
+            else:
+                return
+
+        # Get the current canvas dimensions
+        if not hasattr(self.gui, "roi_canvas"):
+            return
+        canvas_width = self.gui.roi_canvas.winfo_width()
+        canvas_height = self.gui.roi_canvas.winfo_height()
+
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+
+        # Re-scale and center the background image using the new method
+        try:
+            self._draw_bg_image_to_canvas()
+            # After updating the background, redraw any zones that exist
+            if hasattr(self.gui, "controller") and self.gui.controller:
+                self.redraw_zones_from_project_data()
+        except Exception as e:
+            log.warning("canvas_manager.canvas_configure_error", error=str(e))
+
     def _display_image_on_canvas(self):
         """Display the original image on the canvas with proper scaling.
 
