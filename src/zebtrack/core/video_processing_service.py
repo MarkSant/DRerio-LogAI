@@ -239,7 +239,14 @@ class VideoProcessingService:
         results_dir: str,
         experiment_id: str,
         calibration_data: dict | None,
-    ) -> tuple[cv2.VideoCapture | None, any, ZoneData, list, Calibration | None, tuple | None]:
+    ) -> tuple[
+        cv2.VideoCapture | None,
+        Recorder,
+        ZoneData,
+        list,
+        Calibration | None,
+        tuple | None,
+    ]:
         """Setup tracking session: open video, prepare recorder, zones, and calibration.
 
         Args:
@@ -302,8 +309,8 @@ class VideoProcessingService:
         frame_num: int,
         analysis_interval_frames: int,
         cap: cv2.VideoCapture,
-        recorder: any,
-    ) -> tuple[list, int]:
+        recorder: Recorder,
+    ) -> tuple[list, int, bool]:
         """Process a single frame for tracking.
 
         Args:
@@ -314,7 +321,7 @@ class VideoProcessingService:
             recorder: Recorder instance
 
         Returns:
-            Tuple of (detections, detected_count_increment)
+            Tuple of (detections, detected_count_increment, should_process)
         """
         should_process = frame_num % analysis_interval_frames == 0
         detections = []
@@ -328,7 +335,7 @@ class VideoProcessingService:
             if detections:
                 detected_count_increment = 1
 
-        return detections, detected_count_increment
+        return detections, detected_count_increment, should_process
 
     def _calculate_tracking_progress_stats(
         self,
@@ -587,7 +594,7 @@ class VideoProcessingService:
                     break
 
                 # Process frame
-                detections, detected_increment = self._process_tracking_frame(
+                detections, detected_increment, was_processed = self._process_tracking_frame(
                     frame=frame,
                     frame_num=frame_num,
                     analysis_interval_frames=analysis_interval_frames,
@@ -595,7 +602,7 @@ class VideoProcessingService:
                     recorder=recorder,
                 )
 
-                if frame_num % analysis_interval_frames == 0:
+                if was_processed:
                     processed_frames_count += 1
                     detected_frames_count += detected_increment
 
@@ -606,7 +613,7 @@ class VideoProcessingService:
                     break
 
                 # Update progress
-                if progress_callback and frame_num % analysis_interval_frames == 0:
+                if progress_callback and was_processed:
                     progress_fraction, stats = self._calculate_tracking_progress_stats(
                         frame_num=frame_num,
                         processed_frames_count=processed_frames_count,
