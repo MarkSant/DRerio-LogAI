@@ -502,31 +502,8 @@ class ApplicationGUI:
         return self.widget_factory.display_welcome_logo()
 
     def _create_welcome_frame(self):
-        """Creates the initial UI for project selection and model configuration."""
-        # Reset title to default (no project)
-        self._update_window_title()
-
-        self._cleanup_single_analysis_button()
-        # CRITICAL: Force process all pending GUI events before cleanup
-        # This ensures all scheduled callbacks are executed
-        self.root.update_idletasks()
-
-        # Reset + destroy analysis-related widgets
-        self._reset_analysis_widgets()
-
-        # Force final GUI update before creating welcome frame
-        self.root.update_idletasks()
-
-        reset_geometry_if_not_maximized(self.root)
-        self.welcome_frame = ttk.Frame(self.root, padding="10")
-        self.welcome_frame.pack(expand=True, fill="both")
-
-        # --- Logo Image ---
-        self._display_welcome_logo()
-
-        # Project actions and model status widgets
-        self._build_project_actions(self.welcome_frame)
-        self._build_model_status(self.welcome_frame)
+        """Create welcome frame. Delegates to WidgetFactory."""
+        return self.widget_factory.create_welcome_frame()
 
     def _reset_analysis_widgets(self) -> None:
         """Encapsula a limpeza e destruição de widgets da aba de análise."""
@@ -1420,31 +1397,8 @@ class ApplicationGUI:
         return self.validation_manager.apply_roi_settings()
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Draws a suggested polygon that the user can interactively edit."""
-        # Garante que há frame no canvas antes de desenhar
-        if self._canvas_bg_image is None:
-            if not self.canvas_manager.load_video_frame_to_canvas():
-                self.show_error(
-                    "Erro",
-                    "Não foi possível carregar um frame para mostrar o polígono detectado.",
-                )
-                return
-
-        self._clear_interactive_polygon()  # Clear any previous one
-        self.edited_polygon_points = [list(p) for p in polygon]
-
-        self.canvas_manager._draw_interactive_polygon()
-
-        # Show the save/discard buttons using component method
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            self.zone_controls.show_interactive_buttons()
-        elif self.interactive_buttons_frame:
-            # Fallback for legacy code
-            self.interactive_buttons_frame.pack(
-                fill="x", padx=5, pady=5, before=self.roi_inclusion_frame
-            )
-
-        self.set_status("Ajuste o polígono arrastando os vértices. Salve ou descarte.")
+        """Setup interactive polygon. Delegates to EventDispatcher."""
+        return self.event_dispatcher.setup_interactive_polygon(polygon)
 
 
     def _on_handle_press(self, event, handle_index):
