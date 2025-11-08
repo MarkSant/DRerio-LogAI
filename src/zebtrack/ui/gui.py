@@ -1017,57 +1017,12 @@ class ApplicationGUI:
 
 
     def show_external_trigger_notice(self, session_label: str, **details):
-        if not self.external_trigger_notice_label:
-            return
-
-        day = details.get("day")
-        group = details.get("group")
-        cobaia = details.get("cobaia")
-        port = details.get("port")
-
-        descriptors = []
-        if day is not None and group is not None and cobaia is not None:
-            day_display = self._format_day_display(day) or day
-            descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
-        if port:
-            descriptors.append(f"Porta {port}")
-
-        message = f"Aguardando sinal externo para iniciar {session_label}."
-        if descriptors:
-            message += f" ({' • '.join(descriptors)})"
-
-        self.external_trigger_notice_var.set(message)
-
-        highlight_bg = "#FFF7ED"
-        highlight_fg = "#92400e"
-        try:
-            self.external_trigger_notice_label.config(
-                background=highlight_bg,
-                foreground=highlight_fg,
-            )
-        except Exception:
-            pass
+        """Show external trigger notice. Delegates to DialogManager."""
+        return self.dialog_manager.show_external_trigger_notice(session_label, **details)
 
     def clear_external_trigger_notice(self):
-        if not self.external_trigger_notice_label:
-            return
-
-        self.external_trigger_notice_var.set("")
-
-        try:
-            bg = (
-                self._external_notice_default_bg
-                if self._external_notice_default_bg is not None
-                else self.external_trigger_notice_label.cget("background")
-            )
-            fg = (
-                self._external_notice_default_fg
-                if self._external_notice_default_fg is not None
-                else self.external_trigger_notice_label.cget("foreground")
-            )
-            self.external_trigger_notice_label.config(background=bg, foreground=fg)
-        except Exception:
-            pass
+        """Clear external trigger notice. Delegates to DialogManager."""
+        return self.dialog_manager.clear_external_trigger_notice()
 
     def _create_roi_analysis_tab(self):
         """Creates the tab for ROI and detection zone configuration."""
