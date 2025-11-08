@@ -1106,3 +1106,39 @@ class ValidationManager:
             self.gui.show_error("Erro de Validação", str(e))
         except Exception as e:
             self.gui.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
+
+    def resolve_subject_display(self, metadata: dict) -> str:
+        """Resolve subject display name from various metadata fields."""
+        for key in (
+            "subject_label",
+            "subject_display_name",
+            "subject",
+            "subject_id",
+            "animal",
+            "animal_id",
+            "individual",
+            "individuo",
+            "cobaia",
+        ):
+            value = metadata.get(key)
+            if value in (None, "", "None"):
+                continue
+
+            if isinstance(value, bool):
+                text = str(value).strip()
+                if text:
+                    return text
+
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if float(value).is_integer():
+                    return f"{int(value):02d}"
+                return str(value)
+
+            text = str(value).strip()
+            if not text:
+                continue
+            if text.isdigit():
+                return f"{int(text):02d}"
+            return text
+
+        return "Não informado"
