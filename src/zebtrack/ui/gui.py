@@ -1830,49 +1830,12 @@ class ApplicationGUI:
             self.generate_partial_report_btn.config(state="disabled")
 
     def _on_report_item_double_click(self, event=None):
-        """Open the results folder for the selected video when reports exist."""
-        tree = getattr(self, "reports_tree", None)
-        if not tree:
-            return
-
-        item_id = None
-        if event is not None:
-            item_id = tree.identify_row(event.y)
-        if not item_id:
-            selection = tree.selection()
-            if selection:
-                item_id = selection[0]
-        if not item_id:
-            return
-
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-        metadata = metadata_store.get(item_id)
-        if not metadata:
-            return
-
-        node_type = metadata.get("type")
-
-        if node_type == "file":
-            self._handle_report_file_node(metadata)
-            return
-
-        if node_type != "video":
-            return
-
-        self._handle_report_video_node(metadata)
+        """Handle report item double click. Delegates to ProjectViewManager."""
+        return self.project_view_manager.handle_report_item_double_click(event)
 
     def _handle_report_file_node(self, metadata: dict) -> None:
-        artifact_path = metadata.get("path")
-        if artifact_path and os.path.exists(artifact_path):
-            self._open_path_in_explorer(artifact_path)
-        else:
-            self.show_warning(
-                "Arquivo não encontrado",
-                (
-                    "O relatório selecionado não foi localizado no disco. Gere "
-                    "novamente o relatório para restaurar o arquivo."
-                ),
-            )
+        """Handle report file node. Delegates to ProjectViewManager."""
+        return self.project_view_manager._handle_report_file_node(metadata)
 
     def _handle_report_video_node(self, metadata: dict) -> None:
         """Handle report video node. Delegates to ProjectViewManager."""
@@ -4038,25 +4001,13 @@ class ApplicationGUI:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> dict | None:
-        """Exibe o diálogo hierárquico de vídeos pendentes."""
-
-        self.apply_pending_readiness_snapshot(
+        """Show pending videos dialog. Delegates to DialogManager."""
+        return self.dialog_manager.show_pending_videos_dialog(
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
             without_arena=without_arena,
         )
-
-        dialog = PendingVideosDialog(
-            self.root,
-            hierarchy_builder=self._build_video_hierarchy_snapshot,
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
-
-        return dialog.result
 
     def ask_ok_cancel(self, title, message):
         """Shows a confirmation dialog. Delegates to DialogManager."""
