@@ -158,10 +158,10 @@ class TestArduinoManagement(unittest.TestCase):
         self.mock_arduino_manager_cls = Mock()
         self.mock_arduino_manager = Mock()
         self.mock_arduino_manager_cls.return_value = self.mock_arduino_manager
-        
+
         self.mock_settings = Mock()
         self.mock_settings.arduino.baud_rate = 9600
-        
+
         self.mock_project_manager = Mock()
         self.mock_state_manager = Mock()
 
@@ -281,20 +281,20 @@ class TestArduinoShutdown(unittest.TestCase):
 
         # Should not raise exception - error is logged
         self.coordinator.shutdown_arduino()
-        
+
         # Manager should be cleared even on error
         assert self.coordinator.arduino_manager is None
 
     def test_is_arduino_connected_when_connected(self):
         """Test is_arduino_connected when Arduino is connected."""
         self.mock_arduino_manager.is_connected.return_value = True
-        
+
         assert self.coordinator.is_arduino_connected() is True
 
     def test_is_arduino_connected_when_not_connected(self):
         """Test is_arduino_connected when Arduino is not connected."""
         self.coordinator.arduino_manager = None
-        
+
         assert self.coordinator.is_arduino_connected() is False
 
 
