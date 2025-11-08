@@ -362,6 +362,41 @@ class ProjectViewManager:
         # This functionality has been moved to ProcessingReportsWidget
         # Kept here for backward compatibility
 
+    def trigger_batch_trajectory_processing(self, selection=None) -> None:
+        """Trigger batch trajectory processing for selected or all videos."""
+        from zebtrack.ui.events import Events
+
+        if selection is None:
+            selections = self.gui._get_selected_pipeline_video_paths()
+            if not selections:
+                pipeline_vars = getattr(self.gui, "pipeline_video_vars", {}) or {}
+                if not pipeline_vars:
+                    self.gui.show_info(
+                        "Processamento",
+                        "Nenhum vídeo elegível foi encontrado com arena válida.",
+                    )
+                    return
+                selections = list(pipeline_vars.keys())
+        else:
+            selections = self.gui._resolve_processing_reports_video_paths(selection)
+            if not selections:
+                self.gui.show_info(
+                    "Processamento",
+                    "Selecione vídeos com arena e ROIs definidas para gerar trajetórias.",
+                )
+                return
+
+        unique_paths = list(dict.fromkeys(selections))
+        if not unique_paths:
+            return
+
+        self.gui.event_dispatcher.publish_event(
+            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
+        )
+        self.gui._request_overview_refresh()
+        # Switch to analysis tab to show progress of the newly requested batch.
+        self.gui._switch_to_analysis_view()
+
     def resolve_processing_reports_video_paths(self) -> list[str]:
         """
         Resolve selected video paths from processing reports tree.

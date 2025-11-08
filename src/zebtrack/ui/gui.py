@@ -61,7 +61,6 @@ from zebtrack.ui.dialogs import (
     ColorSelectionDialog,
     MissingMetadataDialog,
     SaveROITemplateDialog,
-    SingleVideoConfigDialog,
     StartRecordingDialog,
     SubjectSelectionDialog,
 )
@@ -1257,36 +1256,8 @@ class ApplicationGUI:
             )
 
     def _trigger_batch_trajectory_processing(self, selection: Iterable[str] | None = None) -> None:
-        if selection is None:
-            selections = self._get_selected_pipeline_video_paths()
-            if not selections:
-                pipeline_vars = getattr(self, "pipeline_video_vars", {}) or {}
-                if not pipeline_vars:
-                    self.show_info(
-                        "Processamento",
-                        "Nenhum vídeo elegível foi encontrado com arena válida.",
-                    )
-                    return
-                selections = list(pipeline_vars.keys())
-        else:
-            selections = self._resolve_processing_reports_video_paths(selection)
-            if not selections:
-                self.show_info(
-                    "Processamento",
-                    "Selecione vídeos com arena e ROIs definidas para gerar trajetórias.",
-                )
-                return
-
-        unique_paths = list(dict.fromkeys(selections))
-        if not unique_paths:
-            return
-
-        self.event_dispatcher.publish_event(
-            Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
-        )
-        self._request_overview_refresh()
-        # Switch to analysis tab to show progress of the newly requested batch.
-        self._switch_to_analysis_view()
+        """Trigger batch trajectory processing. Delegates to ProjectViewManager."""
+        return self.project_view_manager.trigger_batch_trajectory_processing(selection)
 
     def _trigger_parquet_summaries(self) -> None:
         selections = self._get_selected_pipeline_video_paths()
@@ -3295,37 +3266,8 @@ class ApplicationGUI:
         self.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
     def _on_analyze_single_video_clicked(self):
-        """Handles the UI part of the single video workflow."""
-        dialog = SingleVideoConfigDialog(self.root, settings_obj=self.controller.settings)
-        if not dialog.result:
-            return  # User cancelled
-
-        source_type = dialog.result.get("source_type", "video")
-
-        if source_type == "camera":
-            # Camera analysis: use camera_index
-            camera_index = dialog.result.get("camera_index", 0)
-            self.show_info(
-                "Análise de Câmera",
-                f"Iniciando análise da câmera {camera_index}..."
-            )
-            # Trigger camera analysis via controller
-            self.controller.start_live_camera_analysis(camera_index=camera_index)
-            return
-
-        # Video file analysis: require video_path
-        video_path = dialog.result.get("video_path")
-        if not video_path:
-            return
-
-        # Pass both config and video path to the controller via event
-        self.event_dispatcher.publish_event(
-            Events.VIDEO_ANALYZE_SINGLE,
-            {
-                "video_path": video_path,
-                "config": dialog.result,
-            },
-        )
+        """Handle single video analysis. Delegates to EventDispatcher."""
+        return self.event_dispatcher.handle_analyze_single_video_clicked()
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepares and displays the zone configuration tab for a single video."""
