@@ -1620,23 +1620,13 @@ class ApplicationGUI:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> None:
-        mapping: dict[str, tuple[str, ...]] = {}
-
-        def _assign(entries: list[dict], *tags: str) -> None:
-            for info in entries or []:
-                path = info.get("path")
-                if path:
-                    mapping[path] = tuple(tags)
-
-        _assign(ready_with_trajectory, "ready_full")
-        _assign(ready_with_zones, "ready_partial")
-        _assign(arena_only, "ready_optional", "ready_partial")
-        _assign(without_arena, "ready_missing")
-
-        self._pending_readiness_snapshot = mapping
-
-        if self.video_selector_tree:
-            self._populate_video_selector_tree(self._video_selector_filter)
+        """Apply readiness snapshot. Delegates to ProjectViewManager."""
+        return self.project_view_manager.apply_pending_readiness_snapshot(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
 
     def _load_selected_video_frame(self, event=None):
         """Loads frame from selected video to canvas. Delegates to CanvasManager."""

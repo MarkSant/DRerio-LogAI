@@ -320,6 +320,33 @@ class ProjectViewManager:
     # CATEGORIA 4: PIPELINE E VIDEO SELECTOR MANAGEMENT
     # ===========================================================================
 
+    def apply_pending_readiness_snapshot(
+        self,
+        *,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> None:
+        """Apply pending readiness snapshot based on video readiness states."""
+        mapping: dict[str, tuple[str, ...]] = {}
+
+        def _assign(entries: list[dict], *tags: str) -> None:
+            for info in entries or []:
+                path = info.get("path")
+                if path:
+                    mapping[path] = tuple(tags)
+
+        _assign(ready_with_trajectory, "ready_full")
+        _assign(ready_with_zones, "ready_partial")
+        _assign(arena_only, "ready_optional", "ready_partial")
+        _assign(without_arena, "ready_missing")
+
+        self.gui._pending_readiness_snapshot = mapping
+
+        if hasattr(self.gui, "video_selector_tree") and self.gui.video_selector_tree:
+            self.gui._populate_video_selector_tree(self.gui._video_selector_filter)
+
     def refresh_pipeline_video_table(self) -> None:
         """Refresh the pipeline video table in pre-recorded projects."""
         # Note: This method is called _refresh_pipeline_video_table in gui.py
