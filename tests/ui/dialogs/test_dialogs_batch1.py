@@ -341,7 +341,7 @@ class TestCreateProjectDialog:
             video2 = os.path.join(tmpdir, "video2.mp4")
             open(video1, 'a').close()  # Create empty files
             open(video2, 'a').close()
-            
+
             test_files = (video1, video2)
             with patch("tkinter.filedialog.askopenfilenames", return_value=test_files):
                 dialog._select_video_files()

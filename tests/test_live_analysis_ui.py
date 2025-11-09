@@ -102,7 +102,7 @@ class TestLiveAnalysisDialog:
             mock_detect.return_value = mock_cameras
 
             dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
-            
+
             # Process the after() callback that calls _detect_cameras
             for _ in range(10):
                 tkinter_root.update()

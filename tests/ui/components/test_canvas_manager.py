@@ -873,10 +873,10 @@ class TestDetectionOverlay:
     ):
         """Test showing analysis frame image."""
         frame = np.zeros((600, 800, 3), dtype=np.uint8)
-        
+
         # Replace analysis_video_label with a fresh Mock
         mock_gui.analysis_video_label = Mock()
-        
+
         # Replace winfo_height methods with fresh Mocks returning integers
         mock_gui.analysis_task_label.winfo_height = Mock(return_value=20)
         mock_gui.analysis_group_label.winfo_height = Mock(return_value=20)

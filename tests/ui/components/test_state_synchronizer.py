@@ -510,7 +510,7 @@ class TestResetAnalysisWidgets:
         """Test that viz_frame is destroyed."""
         # Capture the mock before it's set to None
         viz_frame_mock = mock_gui.viz_frame
-        
+
         state_synchronizer._reset_roi_and_visual_frames()
 
         viz_frame_mock.destroy.assert_called_once()
@@ -546,7 +546,7 @@ class TestResetAnalysisWidgets:
         """Test that notebook is destroyed."""
         # Capture the mock before it's set to None
         notebook_mock = mock_gui.notebook
-        
+
         state_synchronizer._destroy_notebook_and_main_controls()
 
         notebook_mock.destroy.assert_called_once()
@@ -558,7 +558,7 @@ class TestResetAnalysisWidgets:
         """Test that main_controls_frame is destroyed."""
         # Capture the mock before it's set to None
         main_controls_mock = mock_gui.main_controls_frame
-        
+
         state_synchronizer._destroy_notebook_and_main_controls()
 
         main_controls_mock.destroy.assert_called_once()

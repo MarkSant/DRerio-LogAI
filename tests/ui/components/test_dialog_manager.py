@@ -911,7 +911,7 @@ class TestConfirmationDialogs:
     def test_offer_zone_reuse_accepted(self, mock_messagebox, dialog_manager, mock_gui):
         """Test offer_zone_reuse when user accepts."""
         mock_messagebox.askyesno.return_value = True
-        
+
         # Mock ProjectManager methods - need to return different values for different videos
         def has_zone_data_side_effect(video_path):
             if video_path == "video1.mp4":
@@ -919,14 +919,14 @@ class TestConfirmationDialogs:
             elif video_path == "video2.mp4":
                 return True  # Last video HAS zones
             return False
-        
+
         mock_gui.controller.project_manager.has_zone_data.side_effect = has_zone_data_side_effect
         mock_gui.controller.project_manager.get_last_zone_video.return_value = "video2.mp4"
         mock_gui.controller.project_manager.clone_zone_data_from_video.return_value = {}
         mock_gui.controller.project_manager.save_zone_data.return_value = None
         mock_gui.controller.project_manager.copy_zone_parquet_files.return_value = []
         mock_gui._zone_prompt_history = set()
-        
+
         dialog_manager.offer_zone_reuse("video1.mp4")
 
         mock_messagebox.askyesno.assert_called_once()
@@ -939,7 +939,7 @@ class TestConfirmationDialogs:
     def test_offer_zone_reuse_declined(self, mock_messagebox, dialog_manager, mock_gui):
         """Test offer_zone_reuse when user declines."""
         mock_messagebox.askyesno.return_value = False
-        
+
         # Mock ProjectManager methods - same logic as accepted test
         def has_zone_data_side_effect(video_path):
             if video_path == "video1.mp4":
@@ -947,7 +947,7 @@ class TestConfirmationDialogs:
             elif video_path == "video2.mp4":
                 return True  # Last video HAS zones
             return False
-        
+
         mock_gui.controller.project_manager.has_zone_data.side_effect = has_zone_data_side_effect
         mock_gui.controller.project_manager.get_last_zone_video.return_value = "video2.mp4"
         mock_gui._zone_prompt_history = set()
