@@ -263,7 +263,8 @@ class ProjectManager:
             del self.project_data["zones_by_video"][key]
 
         normalized_target = self._normalize_video_path(video_path)
-        if self._active_zone_video and normalized_target == self._active_zone_video:
+        active_zone_video = self.get_active_zone_video()
+        if active_zone_video and normalized_target == active_zone_video:
             self.project_data["detection_zones"] = self._zone_data_to_dict(ZoneData())
 
         self._update_video_zone_flags(video_path, None)
@@ -900,7 +901,7 @@ class ProjectManager:
             },
             "detection_zones": {},
             "zones_by_video": {},
-            "analysis_profiles": [self._default_analysis_profile()],
+            "analysis_profiles": [self.asset_manager._default_analysis_profile()],
             "roi_templates": [],
         }
 
@@ -1041,7 +1042,7 @@ class ProjectManager:
             migrated_fields.append("display_interval_frames")
 
         if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
-            loaded_data["analysis_profiles"] = [self._default_analysis_profile()]
+            loaded_data["analysis_profiles"] = [self.asset_manager._default_analysis_profile()]
             migration_applied = True
             migrated_fields.append("analysis_profiles")
 

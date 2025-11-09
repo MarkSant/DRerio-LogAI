@@ -84,6 +84,8 @@ class VideoOrchestrator:
         self.recorder = recorder
 
         # Callbacks for MainViewModel (set later)
+        self._set_main_arena_polygon_callback = None
+        self._activate_analysis_view_mode_callback = None
         self._refresh_project_views_callback = None
         self._publish_processing_mode_callback = None
 
