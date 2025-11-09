@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import threading
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -107,8 +107,13 @@ class AnalysisCoordinator:
                     error=str(exception),
                     exc_info=exception,
                 )
+        except CancelledError:
+            log.warning("analysis_coordinator.worker.cancelled")
+        except FutureTimeoutError as exc:
+            log.error("analysis_coordinator.worker.timeout", error=str(exc))
         except Exception as exc:
-            log.error("analysis_coordinator.worker.callback_error", error=str(exc))
+            # Last resort for unexpected errors in callback
+            log.error("analysis_coordinator.worker.callback_error", error=str(exc), exc_info=True)
 
     # =============================================================================
     # REPORT GENERATION
