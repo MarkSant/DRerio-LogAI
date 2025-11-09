@@ -607,12 +607,12 @@ class ZoneManager:
                         # Generate default colors if not provided
                         # (actual colors are not stored in parquet, using defaults)
                         default_colors = [
-                            (0, 255, 0),  # Green
-                            (255, 0, 0),  # Blue
-                            (0, 0, 255),  # Red
-                            (255, 255, 0),  # Cyan
+                            (0, 255, 0),    # Green
+                            (255, 0, 0),    # Red
+                            (0, 0, 255),    # Blue
+                            (255, 255, 0),  # Yellow
                             (255, 0, 255),  # Magenta
-                            (0, 255, 255),  # Yellow
+                            (0, 255, 255),  # Cyan
                         ]
                         zone_data.roi_colors = [
                             default_colors[i % len(default_colors)] for i in range(len(roi_names))
