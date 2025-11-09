@@ -39,7 +39,7 @@ Leia cuidadosamente:
 1. **PLANO_REFATORACAO_PARALELA_PARTE1.md**
    - Seção: "P1-T3: Settings Injection (Agent-3)"
    - Linhas: ~400-500
-   
+
 2. **docs/DEPENDENCY_INJECTION_GUIDE.md**
    - Padrões de injeção
    - Exemplos completos
@@ -108,7 +108,7 @@ from zebtrack.io.live_camera import LiveCameraService
 def test_live_camera_service_requires_settings():
     """LiveCameraService requires settings_obj parameter."""
     settings = Settings()
-    
+
     # Should work with settings
     service = LiveCameraService(settings_obj=settings, camera_id=0)
     assert service._settings is settings
@@ -118,13 +118,13 @@ def test_live_camera_service_uses_injected_settings():
     """LiveCameraService uses injected settings, not singleton."""
     settings1 = Settings()
     settings1.camera.backend = "DSHOW"
-    
+
     settings2 = Settings()
     settings2.camera.backend = "MSMF"
-    
+
     service1 = LiveCameraService(settings_obj=settings1)
     service2 = LiveCameraService(settings_obj=settings2)
-    
+
     assert service1.backend == "DSHOW"
     assert service2.backend == "MSMF"
 ```
@@ -320,7 +320,7 @@ def test_fast_test_performance():
     start = time.time()
     result = sum(range(1000))
     elapsed = time.time() - start
-    
+
     assert result > 0
     assert elapsed < 1.0  # Less than 1 second
 ```
@@ -423,7 +423,7 @@ Commits:
 
 Branch: refactor/phase-1-critical-fixes
 
-Próximo Passo: 
+Próximo Passo:
 Aguardar conclusão de Agent-5 (P1-T5) para desbloquear Grupo 3
 ```
 

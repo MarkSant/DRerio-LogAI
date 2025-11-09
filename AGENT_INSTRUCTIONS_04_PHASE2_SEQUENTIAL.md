@@ -77,57 +77,57 @@ logger = structlog.get_logger(__name__)
 class DialogManager:
     """
     Manages all application dialogs and user interactions.
-    
+
     Extracted from MainViewModel (P2-T1) to reduce coupling and
     improve testability of dialog flows.
-    
+
     Args:
         root: Tkinter root window
         settings_obj: Application settings
     """
-    
+
     def __init__(self, root: tk.Tk, settings_obj):
         self._root = root
         self._settings = settings_obj
         logger.info("dialog_manager.initialized")
-    
+
     def show_error(self, title: str, message: str) -> None:
         """Show error message dialog."""
         logger.warning("dialog.error.shown", title=title, message=message)
         messagebox.showerror(title, message, parent=self._root)
-    
+
     def show_info(self, title: str, message: str) -> None:
         """Show information dialog."""
         logger.info("dialog.info.shown", title=title)
         messagebox.showinfo(title, message, parent=self._root)
-    
+
     def show_warning(self, title: str, message: str) -> None:
         """Show warning dialog."""
         logger.warning("dialog.warning.shown", title=title)
         messagebox.showwarning(title, message, parent=self._root)
-    
+
     def ask_yes_no(self, title: str, message: str) -> bool:
         """
         Ask yes/no question.
-        
+
         Returns:
             True if user clicked Yes, False otherwise
         """
         result = messagebox.askyesno(title, message, parent=self._root)
         logger.info("dialog.yes_no.answered", title=title, result=result)
         return result
-    
+
     def ask_ok_cancel(self, title: str, message: str) -> bool:
         """
         Ask OK/Cancel question.
-        
+
         Returns:
             True if user clicked OK, False otherwise
         """
         result = messagebox.askokcancel(title, message, parent=self._root)
         logger.info("dialog.ok_cancel.answered", title=title, result=result)
         return result
-    
+
     def select_file(
         self,
         title: str = "Select File",
@@ -136,36 +136,36 @@ class DialogManager:
     ) -> Optional[Path]:
         """
         Show file selection dialog.
-        
+
         Args:
             title: Dialog title
             filetypes: List of (description, pattern) tuples
             initial_dir: Initial directory
-            
+
         Returns:
             Selected file path or None if cancelled
         """
         if filetypes is None:
             filetypes = [("All files", "*.*")]
-        
+
         if initial_dir is None:
             initial_dir = str(Path.home())
-        
+
         filepath = filedialog.askopenfilename(
             title=title,
             filetypes=filetypes,
             initialdir=initial_dir,
             parent=self._root
         )
-        
+
         if filepath:
             path = Path(filepath)
             logger.info("dialog.file_selected", path=str(path))
             return path
-        
+
         logger.info("dialog.file_selection_cancelled")
         return None
-    
+
     def select_directory(
         self,
         title: str = "Select Directory",
@@ -173,31 +173,31 @@ class DialogManager:
     ) -> Optional[Path]:
         """
         Show directory selection dialog.
-        
+
         Args:
             title: Dialog title
             initial_dir: Initial directory
-            
+
         Returns:
             Selected directory path or None if cancelled
         """
         if initial_dir is None:
             initial_dir = str(Path.home())
-        
+
         dirpath = filedialog.askdirectory(
             title=title,
             initialdir=initial_dir,
             parent=self._root
         )
-        
+
         if dirpath:
             path = Path(dirpath)
             logger.info("dialog.directory_selected", path=str(path))
             return path
-        
+
         logger.info("dialog.directory_selection_cancelled")
         return None
-    
+
     def select_save_file(
         self,
         title: str = "Save File",
@@ -207,22 +207,22 @@ class DialogManager:
     ) -> Optional[Path]:
         """
         Show save file dialog.
-        
+
         Args:
             title: Dialog title
             default_extension: Default file extension
             filetypes: List of (description, pattern) tuples
             initial_dir: Initial directory
-            
+
         Returns:
             Save file path or None if cancelled
         """
         if filetypes is None:
             filetypes = [("All files", "*.*")]
-        
+
         if initial_dir is None:
             initial_dir = str(Path.home())
-        
+
         filepath = filedialog.asksaveasfilename(
             title=title,
             defaultextension=default_extension,
@@ -230,12 +230,12 @@ class DialogManager:
             initialdir=initial_dir,
             parent=self._root
         )
-        
+
         if filepath:
             path = Path(filepath)
             logger.info("dialog.save_file_selected", path=str(path))
             return path
-        
+
         logger.info("dialog.save_file_cancelled")
         return None
 ```
@@ -253,10 +253,10 @@ class MainViewModel:
         # ... outros parametros ...
     ):
         # ... código existente ...
-        
+
         # Injetar DialogManager
         self.dialog_manager = DialogManager(root, settings_obj)
-        
+
         logger.info("main_view_model.initialized")
 ```
 
@@ -286,20 +286,20 @@ from zebtrack.ui.dialog_manager import DialogManager
 
 class TestDialogManager:
     """Test dialog manager functionality."""
-    
+
     @pytest.fixture
     def dialog_manager(self):
         """Create DialogManager instance."""
         root = Mock()
         settings = Mock()
         return DialogManager(root, settings)
-    
+
     def test_show_error(self, dialog_manager):
         """show_error displays error dialog."""
         with patch('tkinter.messagebox.showerror') as mock_error:
             dialog_manager.show_error("Test Error", "Error message")
             mock_error.assert_called_once()
-    
+
     def test_ask_yes_no_returns_bool(self, dialog_manager):
         """ask_yes_no returns boolean result."""
         with patch('tkinter.messagebox.askyesno', return_value=True):

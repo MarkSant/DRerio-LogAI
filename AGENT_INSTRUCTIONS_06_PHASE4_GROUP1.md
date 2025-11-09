@@ -73,10 +73,10 @@ def profile_detection():
     """Profile detection pipeline."""
     settings = Settings()
     detector = DetectorService(settings_obj=settings)
-    
+
     # Load test frame
     frame = cv2.imread("test_scenarios/sample_frame.jpg")
-    
+
     # Profile 100 frames
     for _ in range(100):
         detections = detector.detect(frame)
@@ -86,16 +86,16 @@ if __name__ == "__main__":
     # Profile with cProfile
     profiler = cProfile.Profile()
     profiler.enable()
-    
+
     profile_detection()
-    
+
     profiler.disable()
-    
+
     # Print stats
     stats = pstats.Stats(profiler)
     stats.sort_stats(SortKey.CUMULATIVE)
     stats.print_stats(20)  # Top 20 functions
-    
+
     # Save to file
     stats.dump_stats("performance_profile.prof")
 ```
@@ -199,7 +199,7 @@ graph TB
     VM --> DS[DetectorService]
     VM --> PM[ProjectManager]
     VM --> SM[StateManager]
-    
+
     DS --> Plugins[YOLO/ByteTrack]
     AC --> AS[AnalysisService]
     PWA --> WS[WizardService]

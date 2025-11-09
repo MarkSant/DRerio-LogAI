@@ -115,20 +115,20 @@ Usage Example:
 class ZebTrackError(Exception):
     """
     Base exception for all ZebTrack-AI custom exceptions.
-    
+
     All custom exceptions should inherit from this class to allow
     catching all application-specific errors with a single except clause.
-    
+
     Attributes:
         message: Human-readable error message
         details: Optional dict with additional error context
     """
-    
+
     def __init__(self, message: str, details: dict | None = None):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
-    
+
     def __str__(self) -> str:
         if self.details:
             details_str = ", ".join(f"{k}={v}" for k, v in self.details.items())
@@ -335,27 +335,27 @@ from zebtrack.core.exceptions import (
 
 class TestExceptionHierarchy:
     """Test exception inheritance hierarchy."""
-    
+
     def test_base_exception(self):
         """ZebTrackError is base for all custom exceptions."""
         err = ZebTrackError("test error")
         assert str(err) == "test error"
         assert err.message == "test error"
         assert err.details == {}
-    
+
     def test_exception_with_details(self):
         """ZebTrackError can include additional details."""
         err = ZebTrackError("test error", {"camera_id": 0, "attempt": 3})
         assert "test error" in str(err)
         assert "camera_id=0" in str(err)
         assert "attempt=3" in str(err)
-    
+
     def test_configuration_hierarchy(self):
         """Configuration exceptions inherit correctly."""
         assert issubclass(ConfigurationError, ZebTrackError)
         assert issubclass(InvalidSettingsError, ConfigurationError)
         assert issubclass(MissingConfigError, ConfigurationError)
-    
+
     def test_resource_hierarchy(self):
         """Resource exceptions inherit correctly."""
         assert issubclass(ResourceError, ZebTrackError)
@@ -368,27 +368,27 @@ class TestExceptionHierarchy:
         assert issubclass(FileError, ResourceError)
         assert issubclass(FileNotFoundError, FileError)
         assert issubclass(FileWriteError, FileError)
-    
+
     def test_processing_hierarchy(self):
         """Processing exceptions inherit correctly."""
         assert issubclass(ProcessingError, ZebTrackError)
         assert issubclass(DetectionError, ProcessingError)
         assert issubclass(TrackingError, ProcessingError)
         assert issubclass(AnalysisError, ProcessingError)
-    
+
     def test_project_hierarchy(self):
         """Project exceptions inherit correctly."""
         assert issubclass(ProjectError, ZebTrackError)
         assert issubclass(ProjectNotFoundError, ProjectError)
         assert issubclass(ProjectLoadError, ProjectError)
         assert issubclass(ProjectSaveError, ProjectError)
-    
+
     def test_validation_hierarchy(self):
         """Validation exceptions inherit correctly."""
         assert issubclass(ZebTrackValidationError, ZebTrackError)
         assert issubclass(ROIValidationError, ZebTrackValidationError)
         assert issubclass(IntervalValidationError, ZebTrackValidationError)
-    
+
     def test_catch_all_exceptions(self):
         """Can catch all custom exceptions with base class."""
         exceptions_to_test = [
@@ -399,24 +399,24 @@ class TestExceptionHierarchy:
             ProjectLoadError("test"),
             ROIValidationError("test"),
         ]
-        
+
         for exc in exceptions_to_test:
             with pytest.raises(ZebTrackError):
                 raise exc
-    
+
     def test_catch_specific_category(self):
         """Can catch exceptions by category."""
         # Test camera errors
         with pytest.raises(CameraError):
             raise CameraNotFoundError("Camera 0 not found")
-        
+
         with pytest.raises(CameraError):
             raise CameraAccessError("Permission denied")
-        
+
         # Test video errors
         with pytest.raises(VideoError):
             raise VideoNotFoundError("video.mp4")
-        
+
         # Test processing errors
         with pytest.raises(ProcessingError):
             raise DetectionError("YOLO failed")
@@ -424,12 +424,12 @@ class TestExceptionHierarchy:
 
 class TestExceptionMessages:
     """Test exception message formatting."""
-    
+
     def test_simple_message(self):
         """Simple error message works."""
         err = CameraNotFoundError("Camera ID 0 not available")
         assert str(err) == "Camera ID 0 not available"
-    
+
     def test_message_with_details(self):
         """Error with details includes both message and context."""
         err = CameraAccessError(
@@ -441,7 +441,7 @@ class TestExceptionMessages:
         assert "camera_id=0" in msg
         assert "backend=DSHOW" in msg
         assert "attempts=3" in msg
-    
+
     def test_details_attribute(self):
         """Details are accessible as attribute."""
         err = VideoReadError("Corrupted frame", {"frame": 150, "codec": "h264"})

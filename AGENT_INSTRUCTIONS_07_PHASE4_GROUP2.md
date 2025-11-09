@@ -356,7 +356,7 @@ Crie `docs/INDEX.md`:
 ```markdown
 # ZebTrack-AI Documentation Index
 
-**Last Updated**: November 2025  
+**Last Updated**: November 2025
 **Version**: 2.1.0
 
 ## 📚 Overview
@@ -438,7 +438,7 @@ These documents are kept for historical context but may be outdated:
 
 ## 🔄 Maintenance
 
-This index is maintained by Agent-15 (P4-T4) as part of documentation curation.  
+This index is maintained by Agent-15 (P4-T4) as part of documentation curation.
 **Update frequency**: After each major release or refactoring phase.
 
 **Missing documentation?** [Open an issue](https://github.com/MarkSant/ZebTrack-AI/issues/new)

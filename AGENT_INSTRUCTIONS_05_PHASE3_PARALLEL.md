@@ -69,7 +69,7 @@ class TestAnalysisService:
         metrics = analysis_service.compute_roi_metrics(sample_tracks)
         assert "time_in_roi" in metrics
         assert metrics["time_in_roi"] >= 0
-    
+
     def test_generate_heatmap(self, analysis_service, sample_tracks):
         """Generate heatmap from tracking data."""
         heatmap = analysis_service.generate_heatmap(sample_tracks)
@@ -202,16 +202,16 @@ poetry run pydocstyle src/zebtrack/core/
 def process_frame(self, frame: np.ndarray) -> list[Detection]:
     """
     Process single frame through detection pipeline.
-    
+
     Args:
         frame: Input frame as numpy array (H, W, C) in BGR format
-        
+
     Returns:
         List of Detection objects with bounding boxes and confidence scores
-        
+
     Raises:
         DetectionError: If detection fails
-        
+
     Example:
         >>> detections = detector.process_frame(frame)
         >>> for det in detections:

@@ -145,7 +145,7 @@ try:
             f"Video file not found: {self.video_path}",
             {"path": self.video_path}
         )
-    
+
     cap = cv2.VideoCapture(self.video_path)
     if not cap.isOpened():
         raise VideoReadError(
@@ -191,7 +191,7 @@ try:
             f"Project file not found: {project_path}",
             {"path": project_path}
         )
-    
+
     with open(project_path, 'r') as f:
         data = json.load(f)
 except FileNotFoundError as e:
@@ -234,39 +234,39 @@ from zebtrack.core.project_manager import ProjectManager
 
 class TestCameraExceptions:
     """Test camera-specific exception handling."""
-    
+
     def test_camera_not_found_raises_specific_exception(self, settings_obj):
         """Invalid camera ID raises CameraNotFoundError."""
         with pytest.raises(CameraNotFoundError) as exc_info:
             service = LiveCameraService(settings_obj, camera_id=9999)
             service.start()
-        
+
         assert "9999" in str(exc_info.value)
         assert exc_info.value.details.get("camera_id") == 9999
 
 
 class TestVideoExceptions:
     """Test video-specific exception handling."""
-    
+
     def test_video_not_found_raises_specific_exception(self):
         """Non-existent video raises VideoNotFoundError."""
         with pytest.raises(VideoNotFoundError) as exc_info:
             source = VideoSource("nonexistent.mp4")
-        
+
         assert "nonexistent.mp4" in str(exc_info.value)
         assert "nonexistent.mp4" in exc_info.value.details.get("path", "")
 
 
 class TestProjectExceptions:
     """Test project-specific exception handling."""
-    
+
     def test_project_not_found_raises_specific_exception(self):
         """Non-existent project raises ProjectNotFoundError."""
         manager = ProjectManager()
-        
+
         with pytest.raises(ProjectNotFoundError) as exc_info:
             manager.load_project("nonexistent.json")
-        
+
         assert "nonexistent.json" in str(exc_info.value)
 ```
 
@@ -372,19 +372,19 @@ from zebtrack.core.exceptions import CameraError
 class LiveCameraService:
     """
     Service for managing live camera capture.
-    
+
     Supports context manager protocol for automatic resource cleanup.
-    
+
     Example:
         with LiveCameraService(settings_obj, camera_id=0) as camera:
             frame = camera.read_frame()
     """
-    
+
     def __enter__(self) -> 'LiveCameraService':
         """Enter context manager - start camera."""
         self.start()
         return self
-    
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
@@ -393,12 +393,12 @@ class LiveCameraService:
     ) -> bool:
         """
         Exit context manager - cleanup camera resources.
-        
+
         Args:
             exc_type: Exception type if raised
             exc_val: Exception value if raised
             exc_tb: Exception traceback if raised
-            
+
         Returns:
             False to propagate exceptions
         """
@@ -407,7 +407,7 @@ class LiveCameraService:
         except Exception as e:
             logger.warning("camera.cleanup.failed", error=str(e))
         return False  # Don't suppress exceptions
-    
+
     def stop(self) -> None:
         """Stop camera and release resources."""
         if hasattr(self, 'cap') and self.cap is not None:
@@ -430,19 +430,19 @@ from types import TracebackType
 class Recorder:
     """
     Records tracking data and video output.
-    
+
     Supports context manager for automatic file closure.
-    
+
     Example:
         with Recorder(output_dir, settings_obj) as recorder:
             recorder.write_frame(frame, detections)
     """
-    
+
     def __enter__(self) -> 'Recorder':
         """Enter context manager."""
         # Resources opened in __init__ or start()
         return self
-    
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
@@ -452,7 +452,7 @@ class Recorder:
         """Exit context manager - close all files."""
         self.close()
         return False
-    
+
     def close(self) -> None:
         """Close all open file handles and release resources."""
         # Close Parquet writer
@@ -464,7 +464,7 @@ class Recorder:
                 logger.error("recorder.parquet.close.failed", error=str(e))
             finally:
                 self._parquet_writer = None
-        
+
         # Close video writer
         if hasattr(self, '_video_writer') and self._video_writer is not None:
             try:
@@ -512,47 +512,47 @@ from zebtrack.io.recorder import Recorder
 
 class TestLiveCameraContextManager:
     """Test LiveCameraService context manager."""
-    
+
     def test_context_manager_starts_and_stops(self, settings_obj):
         """Context manager automatically starts and stops camera."""
         with patch('cv2.VideoCapture') as mock_capture:
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
             mock_capture.return_value = mock_cap
-            
+
             with LiveCameraService(settings_obj, camera_id=0) as camera:
                 assert camera.cap is not None
                 mock_cap.isOpened.assert_called()
-            
+
             # After exit, cap is released
             mock_cap.release.assert_called_once()
-    
+
     def test_context_manager_cleans_up_on_exception(self, settings_obj):
         """Context manager cleans up even if exception raised."""
         with patch('cv2.VideoCapture') as mock_capture:
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
             mock_capture.return_value = mock_cap
-            
+
             with pytest.raises(RuntimeError):
                 with LiveCameraService(settings_obj, camera_id=0) as camera:
                     raise RuntimeError("Test error")
-            
+
             # Still cleaned up
             mock_cap.release.assert_called_once()
 
 
 class TestRecorderContextManager:
     """Test Recorder context manager."""
-    
+
     def test_context_manager_closes_files(self, tmp_path, settings_obj):
         """Context manager automatically closes files."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        
+
         with Recorder(str(output_dir), settings_obj) as recorder:
             assert recorder is not None
-        
+
         # Files closed after exit
         # (Verify by checking if files can be opened again)
 ```
