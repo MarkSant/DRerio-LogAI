@@ -926,6 +926,9 @@ class ValidationManager:
             candidate_str = "Sem Dia"
         if candidate_str.lower() == "sem dia":
             return "Sem Dia"
+        # If candidate already has "Dia " prefix, don't add it again
+        if candidate_str.lower().startswith("dia "):
+            return candidate_str
         return f"Dia {candidate_str}"
 
     def resolve_group_display(self, metadata: dict) -> str:

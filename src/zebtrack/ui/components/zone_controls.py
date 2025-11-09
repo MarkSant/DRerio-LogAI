@@ -2,6 +2,7 @@
 Zone controls widget component - zone drawing and management UI.
 """
 
+import tkinter as tk
 from tkinter import StringVar, ttk
 
 import structlog
@@ -672,9 +673,18 @@ class ZoneControlsWidget(BaseWidget):
     def show_single_analysis_options(self) -> None:
         """Show the single analysis options frame."""
         if hasattr(self, "single_analysis_options_frame"):
-            self.single_analysis_options_frame.pack(
-                fill="x", pady=5, before=self.zone_controls_frame.winfo_children()[1]
-            )
+            try:
+                if self.zone_controls_frame.winfo_exists():
+                    children = self.zone_controls_frame.winfo_children()
+                    if len(children) > 1:
+                        self.single_analysis_options_frame.pack(
+                            fill="x", pady=5, before=children[1]
+                        )
+                    else:
+                        self.single_analysis_options_frame.pack(fill="x", pady=5)
+            except (tk.TclError, IndexError):
+                # Frame destroyed or invalid state
+                pass
 
     def hide_single_analysis_options(self) -> None:
         """Hide the single analysis options frame."""

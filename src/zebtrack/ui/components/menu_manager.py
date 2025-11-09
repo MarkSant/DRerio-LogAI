@@ -91,7 +91,7 @@ class MenuManager:
             log.warning("about.logo.load_error", error=str(e))
 
         # Application name
-        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("-size", 18, "bold"))
+        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("TkDefaultFont", 18, "bold"))
         name_label.pack(pady=(10, 5))
 
         # Version (from pyproject.toml)
@@ -110,7 +110,7 @@ class MenuManager:
         except Exception:
             version = "Unknown"
 
-        version_label = ttk.Label(about_window, text=f"Versão {version}", font=("-size", 10))
+        version_label = ttk.Label(about_window, text=f"Versão {version}", font=("TkDefaultFont", 10))
         version_label.pack(pady=(0, 15))
 
         # Description
@@ -120,18 +120,18 @@ class MenuManager:
             "Integração de visão computacional (YOLO/OpenVINO),\n"
             "análise comportamental e geração de relatórios científicos"
         )
-        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("-size", 9))
+        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("TkDefaultFont", 9))
         desc_label.pack(pady=(0, 15))
 
         # Repository link
         repo_frame = ttk.Frame(about_window)
         repo_frame.pack(pady=(0, 10))
 
-        ttk.Label(repo_frame, text="Repositório:", font=("-size", 9, "bold")).pack()
+        ttk.Label(repo_frame, text="Repositório:", font=("TkDefaultFont", 9, "bold")).pack()
         repo_link = ttk.Label(
             repo_frame,
             text="github.com/YOUR_USERNAME/ZebTrack-AI",
-            font=("-size", 9),
+            font=("TkDefaultFont", 9),
             foreground="blue",
             cursor="hand2",
         )
@@ -145,7 +145,7 @@ class MenuManager:
         repo_link.bind("<Button-1>", open_repo)
 
         # License
-        license_label = ttk.Label(about_window, text="Licença: MIT", font=("-size", 9))
+        license_label = ttk.Label(about_window, text="Licença: MIT", font=("TkDefaultFont", 9))
         license_label.pack(pady=(10, 15))
 
         # Close button

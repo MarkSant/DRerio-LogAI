@@ -22,6 +22,20 @@ from zebtrack.ui.dialogs import (
 )
 
 
+@pytest.fixture(autouse=True)
+def prevent_dialog_blocking():
+    """Prevent dialogs from blocking by patching wait_window and all messageboxes."""
+    with patch('tkinter.simpledialog.Dialog.wait_window'), \
+         patch('tkinter.Toplevel.withdraw'), \
+         patch("tkinter.messagebox.showerror"), \
+         patch("tkinter.messagebox.showwarning"), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False), \
+         patch("tkinter.messagebox.askokcancel", return_value=False), \
+         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+        yield
+
+
 @pytest.mark.gui
 class TestTemplateDialog:
     """Testes para TemplateDialog - criação de templates de ROI."""

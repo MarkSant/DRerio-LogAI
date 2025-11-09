@@ -3,6 +3,9 @@ Testes de Thread Safety para LiveCameraService.
 
 Testa cenários de concorrência, race conditions, e thread lifecycle
 para garantir operação segura em ambientes multi-threaded.
+
+IMPORTANTE: Estes testes causam travamento do sistema em Windows.
+Marcados como 'slow' para execução controlada.
 """
 
 from __future__ import annotations
@@ -16,6 +19,9 @@ import numpy as np
 import pytest
 
 from zebtrack.core.live_camera_service import LiveCameraService
+
+
+pytestmark = pytest.mark.slow  # Marca TODOS os testes deste arquivo como slow
 
 
 @pytest.fixture

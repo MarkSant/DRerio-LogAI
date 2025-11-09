@@ -10,6 +10,18 @@ from zebtrack.ui.event_bus import CallableEvent, EventBus, EventType, NamedEvent
 from zebtrack.ui.events import Events
 
 
+@pytest.fixture(autouse=True)
+def block_all_dialogs():
+    """Automatically block ALL dialog windows for all tests in this file."""
+    with patch("tkinter.messagebox.showerror"), \
+         patch("tkinter.messagebox.showwarning"), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False), \
+         patch("tkinter.messagebox.askokcancel", return_value=False), \
+         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+        yield
+
+
 @pytest.fixture
 def mock_event_bus():
     """Create a mock EventBus instance."""
@@ -28,6 +40,9 @@ def mock_gui(tkinter_root, mock_event_bus):
     """Create a mock ApplicationGUI instance."""
     gui = Mock()
     gui.root = tkinter_root
+    # Mock the Tkinter after() method to prevent real callbacks
+    gui.root.after = Mock(return_value="after#0")
+    gui.root.after_cancel = Mock()
     gui.event_bus = mock_event_bus
     gui.controller = Mock()
     gui._event_bus_after_id = None

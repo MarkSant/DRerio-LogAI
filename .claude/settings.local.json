@@ -21,7 +21,8 @@
       "Bash(Select-String -Pattern \"passed|failed\")",
       "Bash(Select-Object -Last 1)",
       "Bash(gh pr view:*)",
-      "Bash(pr_241_comments_raw.json)"
+      "Bash(pr_241_comments_raw.json)",
+      "Bash(Select-Object -First 300)"
     ],
     "deny": [],
     "ask": []
