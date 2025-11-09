@@ -1,32 +1,36 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Safe Test Runner - Executes tests in small batches with memory management
 to prevent system freezes on Windows.
 """
+
+import gc
 import subprocess
 import sys
 import time
-import gc
 from pathlib import Path
 
 # Fix console encoding for Windows
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 
 def run_test_batch(test_files, batch_num, total_batches):
     """Run a single batch of tests with memory cleanup."""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"BATCH {batch_num}/{total_batches}: Running {len(test_files)} test files")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     for test_file in test_files:
         print(f"\n--- Testing: {test_file.name} ---")
 
         cmd = [
-            "poetry", "run", "pytest",
+            "poetry",
+            "run",
+            "pytest",
             str(test_file),
             "-v",
             "--tb=short",
@@ -55,21 +59,21 @@ def run_test_batch(test_files, batch_num, total_batches):
 
     return True
 
+
 def main():
     """Main test runner."""
     tests_dir = Path("tests")
 
     # Get all test files, excluding manual tests
-    test_files = sorted([
-        f for f in tests_dir.glob("test_*.py")
-        if f.is_file() and "manual" not in str(f)
-    ])
+    test_files = sorted(
+        [f for f in tests_dir.glob("test_*.py") if f.is_file() and "manual" not in str(f)]
+    )
 
     print(f"Found {len(test_files)} test files")
 
     # Split into batches of 3 files each
     batch_size = 3
-    batches = [test_files[i:i+batch_size] for i in range(0, len(test_files), batch_size)]
+    batches = [test_files[i : i + batch_size] for i in range(0, len(test_files), batch_size)]
 
     total_batches = len(batches)
     print(f"Splitting into {total_batches} batches of up to {batch_size} files each\n")
@@ -85,9 +89,9 @@ def main():
             time.sleep(3)  # Extra pause after failure
 
     # Summary
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("TEST RUN SUMMARY")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Total batches: {total_batches}")
     print(f"Failed batches: {len(failed_batches)}")
 
@@ -97,6 +101,7 @@ def main():
     else:
         print("[OK] All batches passed!")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

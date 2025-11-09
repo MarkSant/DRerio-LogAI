@@ -688,9 +688,7 @@ class TestRecordingServiceArduinoFailures:
             3, source="manual-start"
         )
 
-    def test_start_session_arduino_raises_exception(
-        self, recording_service, mock_controller
-    ):
+    def test_start_session_arduino_raises_exception(self, recording_service, mock_controller):
         """Test start_session when Arduino raises exception."""
         context = {
             "folder_name": "test_session",
@@ -782,13 +780,9 @@ class TestRecordingServiceStateManagerFailures:
         with pytest.raises(RuntimeError):
             recording_service.start_session(context, project_data, "manual")
 
-    def test_stop_session_state_get_raises_exception(
-        self, recording_service, mock_state_manager
-    ):
+    def test_stop_session_state_get_raises_exception(self, recording_service, mock_state_manager):
         """Test stop_session when get_recording_state raises exception."""
-        mock_state_manager.get_recording_state = Mock(
-            side_effect=RuntimeError("State read failed")
-        )
+        mock_state_manager.get_recording_state = Mock(side_effect=RuntimeError("State read failed"))
 
         # Execute - should propagate exception
         with pytest.raises(RuntimeError):

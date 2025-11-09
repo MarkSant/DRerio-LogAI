@@ -35,7 +35,9 @@ def get_video_dimensions(path: str) -> tuple[int, int] | None:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         if width <= 0 or height <= 0:
-            log.warning("video.get_dimensions.invalid_dimensions", path=path, width=width, height=height)
+            log.warning(
+                "video.get_dimensions.invalid_dimensions", path=path, width=width, height=height
+            )
             return None
 
         return width, height

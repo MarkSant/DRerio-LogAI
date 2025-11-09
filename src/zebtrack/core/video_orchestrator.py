@@ -375,7 +375,9 @@ class VideoOrchestrator:
         if len(display_names) > 5:
             preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
 
-        message = f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
+        message = (
+            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
+        )
         if preview_lines:
             message += "\n\nFila:\n" + "\n".join(preview_lines)
 
@@ -675,6 +677,7 @@ class VideoOrchestrator:
         Returns:
             ProcessingCallbacks instance with all necessary callbacks
         """
+
         def on_started():
             """Called when processing starts."""
             self.ui_coordinator.show_progress_bar(self.view)
@@ -730,7 +733,9 @@ class VideoOrchestrator:
 
         def on_error(error: Exception, context: str):
             """Called when an error occurs."""
-            log.error("video_orchestrator.processing.worker_error", context=context, error=str(error))
+            log.error(
+                "video_orchestrator.processing.worker_error", context=context, error=str(error)
+            )
             self.root.after(
                 0,
                 lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),

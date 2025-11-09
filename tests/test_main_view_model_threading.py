@@ -96,6 +96,7 @@ def main_view_model(
     monkeypatch,
 ):
     """Create a MainViewModel instance with mocked dependencies."""
+
     class DummyGUI:
         def __init__(self, *args, **kwargs):
             pass
@@ -149,9 +150,13 @@ def main_view_model(
             pass
 
     monkeypatch.setattr("zebtrack.core.main_view_model.ApplicationGUI", DummyGUI)
-    monkeypatch.setattr("zebtrack.core.main_view_model.HardwareCoordinator", DummyHardwareCoordinator)
+    monkeypatch.setattr(
+        "zebtrack.core.main_view_model.HardwareCoordinator", DummyHardwareCoordinator
+    )
     monkeypatch.setattr("zebtrack.core.main_view_model.VideoOrchestrator", DummyVideoOrchestrator)
-    monkeypatch.setattr("zebtrack.core.main_view_model.AnalysisCoordinator", DummyAnalysisCoordinator)
+    monkeypatch.setattr(
+        "zebtrack.core.main_view_model.AnalysisCoordinator", DummyAnalysisCoordinator
+    )
 
     project_workflow_service = Mock()
     project_workflow_service.set_global_model_defaults.return_value = None
@@ -202,9 +207,7 @@ class TestMainViewModelThreadLifecycle:
             while not main_view_model.cancel_event.is_set():
                 time.sleep(0.05)
 
-        main_view_model.processing_thread = threading.Thread(
-            target=processing_worker, daemon=False
-        )
+        main_view_model.processing_thread = threading.Thread(target=processing_worker, daemon=False)
         main_view_model.processing_thread.start()
 
         # Verify thread is running
@@ -455,9 +458,7 @@ class TestMainViewModelErrorHandling:
 
         def worker_with_error_handling():
             try:
-                main_view_model.detector_service.detector.detect(
-                    np.zeros((480, 640, 3)), "test"
-                )
+                main_view_model.detector_service.detector.detect(np.zeros((480, 640, 3)), "test")
             except RuntimeError as e:
                 exceptions_caught.append(str(e))
 

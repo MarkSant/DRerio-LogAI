@@ -15,11 +15,11 @@
 poetry install                    # First time
 poetry run zebtrack               # Run app
 
-# Testing (fast by default, 712 tests)
-poetry run pytest                 # Fast tests only (excludes GUI/slow)
-poetry run pytest -m gui -n0      # GUI tests (sequential)
-poetry run pytest -m slow         # Slow tests only
-poetry run pytest -m "" -n0       # All tests
+# Testing (fast by default, 2568 tests total)
+poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~1586 tests
+poetry run pytest -m gui -n0      # GUI tests (sequential) - ~949 tests
+poetry run pytest -m slow         # Slow tests only - ~35 tests
+poetry run pytest -m "" -n0       # All tests - ~2568 tests (6-7 min)
 
 # Code Quality
 poetry run ruff check .           # Lint
@@ -119,6 +119,28 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - **LiveStreamSource** (`io/live_stream_source.py`): Time-limited Camera wrapper (FrameSource compatible)
 - **Access**: Menu File → "Analisar Câmera ao Vivo..." or `controller.start_live_camera_analysis()`
 - **Output**: `live_analysis_sessions/{experiment_id}_{timestamp}/` with standard Parquet + optional video
+
+### Phase 7: Critical Pytest Fixes (Nov 2025) ⚠️ BREAKING FIX
+**PROBLEM RESOLVED**: Tests completed successfully but pytest hung indefinitely, causing VSCode and system freezes requiring manual restart.
+
+**ROOT CAUSES**:
+1. Non-daemon threads in `LiveCameraService` and `GUI` blocked Python shutdown
+2. Tkinter `root.after()` callbacks persisted after `root.destroy()` (30+ locations)
+3. No pytest sessionfinish hook to force cleanup
+
+**SOLUTION** (commit 2372a4e):
+- ✅ Changed 4 worker threads to `daemon=True` (allows Python to exit)
+- ✅ Added `pytest_sessionfinish` hook with forced cleanup (5s timeout, cancels Tkinter callbacks)
+- ✅ Enhanced fixture cleanup: `tkinter_session_root`, `tkinter_root`, `cleanup_threads` (autouse)
+- ✅ Added `pytest-timeout` plugin (300s per test, thread-based)
+
+**VALIDATION**:
+- ✅ 2568 tests pass (8 skip, 1 xfail) in 6min40s - **no hang**
+- ✅ Coverage: 61% measured successfully
+- ✅ Works in terminal and VSCode Test Explorer
+- ✅ System remains responsive
+
+**FILES MODIFIED**: `tests/conftest.py`, `src/zebtrack/core/live_camera_service.py`, `src/zebtrack/ui/gui.py`, `pyproject.toml`
 
 **Full Details**: `docs/WIZARD_LIVE_IMPROVEMENTS.md`, `docs/archive/LIVE_*.md` (historical context)
 
@@ -223,7 +245,8 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Version History (Quick Reference)
 
-- **v2.0 (Oct 2025)**: WizardService, dialog extraction, hardware caching, E2E tests
+- **v2.1 (Nov 2025)**: ⚠️ **CRITICAL PYTEST FIXES** - Resolved system-freezing test hangs, daemon threads, Tkinter cleanup hooks
+- **v2.0 (Oct 2025)**: WizardService, dialog extraction, hardware caching, E2E tests, LiveCameraService
 - **v1.8**: StateManager (observable, thread-safe)
 - **v1.7**: Pydantic v2 settings, in-app config editor
 - **v1.6**: 5-step wizard flow

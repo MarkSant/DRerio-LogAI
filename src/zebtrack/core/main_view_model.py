@@ -32,10 +32,14 @@ except ImportError:
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
+
+# Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
+from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.model_service import ModelService
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.processing_worker import (
@@ -49,13 +53,9 @@ from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.video_orchestrator import VideoOrchestrator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import OpenVINOExportError, WeightManager
-
-# Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.core.hardware_coordinator import HardwareCoordinator
-from zebtrack.core.video_orchestrator import VideoOrchestrator
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
@@ -409,8 +409,7 @@ class MainViewModel:
 
         # Set callbacks for coordinators that need to call back to MainViewModel
         self.hardware_coordinator.set_recording_callbacks(
-            self.trigger_recording,
-            self.stop_recording
+            self.trigger_recording, self.stop_recording
         )
         self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
         self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
@@ -3412,8 +3411,7 @@ class MainViewModel:
         Task 2.2: Delegates to AnalysisCoordinator.
         """
         self.analysis_coordinator.generate_parquet_summaries(
-            video_paths,
-            processing_thread_ref=self.processing_thread
+            video_paths, processing_thread_ref=self.processing_thread
         )
 
     def _run_tracking_if_needed(

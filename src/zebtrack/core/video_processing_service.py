@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_coordinator import UICoordinator
-    from zebtrack.io.frame_source import FrameSource
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
@@ -268,13 +267,9 @@ class VideoProcessingService:
 
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
-            frame_width, frame_height
-        )
+        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(frame_width, frame_height)
 
-        cal, pixel_per_cm_ratio = self._build_calibration_context(
-            arena_polygon, calibration_data
-        )
+        cal, pixel_per_cm_ratio = self._build_calibration_context(arena_polygon, calibration_data)
 
         recorder.start_recording(
             output_folder=results_dir,

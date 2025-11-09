@@ -19,15 +19,17 @@ from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
 @pytest.fixture(autouse=True)
 def prevent_dialog_blocking():
     """Prevent dialogs from blocking by patching wait_window and withdraw."""
-    with patch('tkinter.simpledialog.Dialog.wait_window'), \
-         patch('tkinter.Toplevel.withdraw'), \
-         patch('tkinter.Toplevel.deiconify'), \
-         patch('tkinter.Toplevel.wait_window'), \
-         patch('tkinter.messagebox.showinfo'), \
-         patch('tkinter.messagebox.showwarning'), \
-         patch('tkinter.messagebox.showerror'), \
-         patch('tkinter.messagebox.askyesno', return_value=True), \
-         patch('tkinter.messagebox.askokcancel', return_value=True):
+    with (
+        patch("tkinter.simpledialog.Dialog.wait_window"),
+        patch("tkinter.Toplevel.withdraw"),
+        patch("tkinter.Toplevel.deiconify"),
+        patch("tkinter.Toplevel.wait_window"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.askyesno", return_value=True),
+        patch("tkinter.messagebox.askokcancel", return_value=True),
+    ):
         yield
 
 

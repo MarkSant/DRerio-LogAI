@@ -18,14 +18,16 @@ from zebtrack.ui.dialogs.live_config_dialog import LiveConfigDialog
 @pytest.fixture(autouse=True)
 def prevent_dialog_blocking():
     """Prevent ALL dialogs from blocking by patching wait_window and messageboxes."""
-    with patch('tkinter.simpledialog.Dialog.wait_window'), \
-         patch('tkinter.Toplevel.withdraw'), \
-         patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.simpledialog.Dialog.wait_window"),
+        patch("tkinter.Toplevel.withdraw"),
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 
@@ -371,7 +373,9 @@ class TestLiveConfigDialog:
 
     # --- Error Handling Tests ---
 
-    @pytest.mark.skip(reason="Exception handling in WizardService.detect_available_cameras needs refactoring")
+    @pytest.mark.skip(
+        reason="Exception handling in WizardService.detect_available_cameras needs refactoring"
+    )
     @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_camera_detection_with_exception(
@@ -428,7 +432,9 @@ class TestLiveConfigDialog:
 
     # --- Performance Tests ---
 
-    @pytest.mark.skip(reason="Camera detection now uses WizardService - performance tests need update")
+    @pytest.mark.skip(
+        reason="Camera detection now uses WizardService - performance tests need update"
+    )
     @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_camera_detection_early_stopping(
@@ -454,7 +460,9 @@ class TestLiveConfigDialog:
         # Should check exactly 10 indices
         assert call_count == 10
 
-    @pytest.mark.skip(reason="Camera detection now uses WizardService - performance tests need update")
+    @pytest.mark.skip(
+        reason="Camera detection now uses WizardService - performance tests need update"
+    )
     @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_camera_detection_performance_with_cameras(
@@ -468,7 +476,7 @@ class TestLiveConfigDialog:
             call_count += 1
             cap = MagicMock()
             # Cameras 0, 1, 2 available, then 3 consecutive failures
-            cap.isOpened.return_value = (index is not None and index < 3)
+            cap.isOpened.return_value = index is not None and index < 3
             cap.release = MagicMock()
             return cap
 
@@ -486,7 +494,9 @@ class TestLiveConfigDialog:
 
     # --- Integration Tests ---
 
-    @pytest.mark.skip(reason="Integration test needs update for WizardService-based camera detection")
+    @pytest.mark.skip(
+        reason="Integration test needs update for WizardService-based camera detection"
+    )
     @patch("zebtrack.core.wizard_service.WizardService.detect_available_cameras")
     @patch("zebtrack.ui.dialogs.live_config_dialog.Arduino.scan_available_ports")
     def test_complete_dialog_workflow(self, mock_scan_ports, mock_detect_cameras, tkinter_root):

@@ -167,8 +167,7 @@ class AssetManager:
 
     @staticmethod
     def _resolve_roi_template_entry(
-        project_data: dict,
-        name: str
+        project_data: dict, name: str
     ) -> tuple[int, dict[str, Any]] | tuple[None, None]:
         """Find a ROI template entry by name in project data.
 
@@ -249,8 +248,7 @@ class AssetManager:
                 project_data["roi_templates"] = []
 
             existing_index, existing_entry = self._resolve_roi_template_entry(
-                project_data,
-                normalized_name
+                project_data, normalized_name
             )
             if existing_entry and not overwrite:
                 raise ValueError(f"Template '{normalized_name}' já existe.")
@@ -430,9 +428,7 @@ class AssetManager:
                     raise ValueError("Arquivo do template não registrado no projeto.")
 
                 template_path = (
-                    Path(project_path) / relative_file
-                    if project_path
-                    else Path(relative_file)
+                    Path(project_path) / relative_file if project_path else Path(relative_file)
                 )
                 if not template_path.exists():
                     raise FileNotFoundError(str(template_path))

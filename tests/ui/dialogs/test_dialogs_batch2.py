@@ -25,14 +25,16 @@ from zebtrack.ui.dialogs import (
 @pytest.fixture(autouse=True)
 def prevent_dialog_blocking():
     """Prevent dialogs from blocking by patching wait_window and all messageboxes."""
-    with patch('tkinter.simpledialog.Dialog.wait_window'), \
-         patch('tkinter.Toplevel.withdraw'), \
-         patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.simpledialog.Dialog.wait_window"),
+        patch("tkinter.Toplevel.withdraw"),
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 
@@ -58,10 +60,10 @@ class TestTemplateDialog:
         dialog.withdraw()
 
         # Verificar que variáveis foram criadas
-        assert hasattr(dialog, 'template_type')
-        assert hasattr(dialog, 'num_lanes')
-        assert hasattr(dialog, 'num_rows')
-        assert hasattr(dialog, 'num_cols')
+        assert hasattr(dialog, "template_type")
+        assert hasattr(dialog, "num_lanes")
+        assert hasattr(dialog, "num_rows")
+        assert hasattr(dialog, "num_cols")
 
         dialog.destroy()
 
@@ -225,8 +227,8 @@ class TestPendingVideosDialog:
         )
         dialog.withdraw()
 
-        assert hasattr(dialog, 'tree')
-        assert dialog.tree.cget('columns') == ("status", "arquivo")
+        assert hasattr(dialog, "tree")
+        assert dialog.tree.cget("columns") == ("status", "arquivo")
 
         dialog.destroy()
 
@@ -380,8 +382,8 @@ class TestCenterPeripheryDialog:
         dialog = CenterPeripheryDialog(tkinter_root)
         dialog.withdraw()
 
-        assert hasattr(dialog, 'method')
-        assert hasattr(dialog, 'value')
+        assert hasattr(dialog, "method")
+        assert hasattr(dialog, "value")
 
         dialog.destroy()
 
@@ -598,9 +600,9 @@ class TestMissingMetadataDialog:
         dialog = MissingMetadataDialog(tkinter_root, "EXP123")
         dialog.withdraw()
 
-        assert hasattr(dialog, 'day_var')
-        assert hasattr(dialog, 'group_var')
-        assert hasattr(dialog, 'cobaia_var')
+        assert hasattr(dialog, "day_var")
+        assert hasattr(dialog, "group_var")
+        assert hasattr(dialog, "cobaia_var")
 
         dialog.destroy()
 

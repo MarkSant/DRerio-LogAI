@@ -35,14 +35,16 @@ from zebtrack.ui.dialogs import (
 @pytest.fixture(autouse=True)
 def prevent_dialog_blocking():
     """Prevent dialogs from blocking by patching wait_window and all messageboxes."""
-    with patch('tkinter.simpledialog.Dialog.wait_window'), \
-         patch('tkinter.Toplevel.withdraw'), \
-         patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.simpledialog.Dialog.wait_window"),
+        patch("tkinter.Toplevel.withdraw"),
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 
@@ -81,9 +83,7 @@ def mock_controller():
     controller.get_global_model_defaults = Mock(
         return_value={"active_weight": "weight1.pt", "use_openvino": False}
     )
-    controller.resolve_project_model_settings = Mock(
-        return_value=("weight1.pt", False)
-    )
+    controller.resolve_project_model_settings = Mock(return_value=("weight1.pt", False))
     return controller
 
 
@@ -267,9 +267,7 @@ class TestCalibrationDialog:
 
         with patch("tkinter.messagebox.showinfo"):
             dialog._save_project_preferences()
-            mock_controller.save_project_model_overrides.assert_called_once_with(
-                "weight2.pt", True
-            )
+            mock_controller.save_project_model_overrides.assert_called_once_with("weight2.pt", True)
 
     def test_project_preferences_restore(self, tkinter_root, mock_controller):
         """Test restoring project preferences from saved state."""
@@ -339,8 +337,8 @@ class TestCreateProjectDialog:
         with tempfile.TemporaryDirectory() as tmpdir:
             video1 = os.path.join(tmpdir, "video1.mp4")
             video2 = os.path.join(tmpdir, "video2.mp4")
-            open(video1, 'a').close()  # Create empty files
-            open(video2, 'a').close()
+            open(video1, "a").close()  # Create empty files
+            open(video2, "a").close()
 
             test_files = (video1, video2)
             with patch("tkinter.filedialog.askopenfilenames", return_value=test_files):

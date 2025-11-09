@@ -91,7 +91,9 @@ class MenuManager:
             log.warning("about.logo.load_error", error=str(e))
 
         # Application name
-        name_label = ttk.Label(about_window, text="DRerio LogAI", font=("TkDefaultFont", 18, "bold"))
+        name_label = ttk.Label(
+            about_window, text="DRerio LogAI", font=("TkDefaultFont", 18, "bold")
+        )
         name_label.pack(pady=(10, 5))
 
         # Version (from pyproject.toml)
@@ -110,7 +112,9 @@ class MenuManager:
         except Exception:
             version = "Unknown"
 
-        version_label = ttk.Label(about_window, text=f"Versão {version}", font=("TkDefaultFont", 10))
+        version_label = ttk.Label(
+            about_window, text=f"Versão {version}", font=("TkDefaultFont", 10)
+        )
         version_label.pack(pady=(0, 15))
 
         # Description
@@ -120,7 +124,9 @@ class MenuManager:
             "Integração de visão computacional (YOLO/OpenVINO),\n"
             "análise comportamental e geração de relatórios científicos"
         )
-        desc_label = ttk.Label(about_window, text=desc_text, justify="center", font=("TkDefaultFont", 9))
+        desc_label = ttk.Label(
+            about_window, text=desc_text, justify="center", font=("TkDefaultFont", 9)
+        )
         desc_label.pack(pady=(0, 15))
 
         # Repository link

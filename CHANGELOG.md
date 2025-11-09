@@ -7,7 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - YYYY-MM-DD
+## [2.1.0] - 2025-11-09
+
+### 🚨 **CRITICAL BUG FIX** - Pytest Hang on Windows
+
+**PROBLEM RESOLVED**: Tests completed successfully (100% pass) but pytest hung indefinitely, causing VSCode and system to freeze and require manual restart. This critical issue blocked all development, testing, and coverage measurement.
+
+### Fixed
+
+- **Non-daemon threads blocking Python shutdown** ([#CRITICAL](https://github.com/MarkSant/ZebTrack-AI/commit/2372a4e))
+  - Changed 4 worker threads to `daemon=True` in `LiveCameraService` and `GUI`
+  - Allows Python to exit even if threads are running
+  - Prevents indefinite hangs waiting for threads to terminate
+
+- **Tkinter callbacks persisting after window destruction**
+  - Added `pytest_sessionfinish` hook to force cleanup before exit
+  - Cancels ALL pending `root.after()` callbacks (30+ locations in code)
+  - Enhanced fixture cleanup in `tests/conftest.py`:
+    - `tkinter_session_root`: Cancel callbacks before destroy
+    - `tkinter_root`: Cancel Toplevel callbacks before destroy
+    - `cleanup_threads`: New autouse fixture for thread leak detection
+
+- **Added pytest-timeout plugin**
+  - 300s (5 min) timeout per test
+  - Thread-based method (safer on Windows)
+  - Prevents infinite hangs in future
+
+### Validation
+
+- ✅ **2568 tests pass** (8 skip, 1 xfail) in **6min40s** - no hang
+- ✅ **Coverage: 61%** measured successfully
+- ✅ Works in terminal and VSCode Test Explorer
+- ✅ System remains responsive throughout test execution
+
+### Changed
+
+- **Code quality improvements**
+  - Ran `ruff check --fix` and `ruff format` on entire codebase
+  - Fixed 37 auto-fixable linting issues
+  - Reformatted 35 files for consistency
+
+### Files Modified
+
+- `tests/conftest.py` - Added hooks and enhanced fixtures
+- `src/zebtrack/core/live_camera_service.py` - `daemon=True` for 2 threads
+- `src/zebtrack/ui/gui.py` - `daemon=True` for 2 threads
+- `pyproject.toml` - pytest-timeout configuration
+- `poetry.lock` - Added pytest-timeout 2.4.0
+
+---
+
+## [2.0.0] - 2025-10-XX
 
 ### ⚠️ Breaking Changes
 

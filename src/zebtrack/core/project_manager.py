@@ -4,12 +4,10 @@ import json
 import os
 import re
 import shutil
-import time
 import unicodedata
-from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 import pandas as pd
 import structlog
@@ -125,7 +123,9 @@ class ProjectManager:
         include_global: bool = True,
     ) -> list[dict[str, Any]]:
         """List all ROI templates. Delegates to AssetManager."""
-        return self.asset_manager.list_roi_templates(self.project_data, include_global=include_global)
+        return self.asset_manager.list_roi_templates(
+            self.project_data, include_global=include_global
+        )
 
     def save_roi_template(
         self,
@@ -241,10 +241,7 @@ class ProjectManager:
         """Persist zone data for the active video and project defaults. Delegates to ZoneManager."""
         persist_callback = self.save_project if persist else None
         self.zone_manager.save_zone_data(
-            self.project_data,
-            zone_data,
-            video_path=video_path,
-            persist_callback=persist_callback
+            self.project_data, zone_data, video_path=video_path, persist_callback=persist_callback
         )
 
     def clear_zone_data_for_video(
@@ -1487,9 +1484,7 @@ class ProjectManager:
     ) -> dict | None:
         """Return the project entry for a given video path or experiment id. Delegates to VideoManager."""
         return VideoManager.find_video_entry(
-            self.project_data,
-            path=path,
-            experiment_id=experiment_id
+            self.project_data, path=path, experiment_id=experiment_id
         )
 
     def derive_processing_metadata(
@@ -1806,17 +1801,13 @@ class ProjectManager:
     ) -> ZoneData:
         """Retrieve zone data for a specific video or fallback to project defaults. Delegates to ZoneManager."""
         return self.zone_manager.get_zone_data(
-            self.project_data,
-            video_path=video_path,
-            fallback_to_global=fallback_to_global
+            self.project_data, video_path=video_path, fallback_to_global=fallback_to_global
         )
 
     def update_main_polygon(self, points: list):
         """Atualiza ou define o polígono principal nos dados do projeto. Delegates to ZoneManager."""
         self.zone_manager.update_main_polygon(
-            self.project_data,
-            points,
-            persist_callback=self.save_project
+            self.project_data, points, persist_callback=self.save_project
         )
 
     def load_metadata(self):

@@ -72,8 +72,8 @@ def pytest_sessionfinish(session, exitstatus):
     - Cancel ALL pending Tkinter after() callbacks
     - Log remaining threads for debugging
     """
-    import threading
     import gc
+    import threading
     import time
 
     # 1. Force garbage collection
@@ -85,8 +85,7 @@ def pytest_sessionfinish(session, exitstatus):
 
     print("\n=== PYTEST SESSION CLEANUP ===")
     non_daemon_threads = [
-        t for t in threading.enumerate()
-        if not t.daemon and t is not threading.current_thread()
+        t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()
     ]
 
     if non_daemon_threads:
@@ -107,11 +106,12 @@ def pytest_sessionfinish(session, exitstatus):
     # 3. Cleanup Tkinter if exists
     try:
         import tkinter as tk
+
         root = tk._default_root
         if root:
             # Cancel ALL pending after() callbacks
             try:
-                after_ids = root.tk.call('after', 'info')
+                after_ids = root.tk.call("after", "info")
                 if after_ids:
                     print(f"Canceling {len(after_ids)} pending Tkinter after() callback(s)")
                     for after_id in after_ids:
@@ -193,9 +193,11 @@ def tkinter_session_root():
         # This prevents Tkinter callbacks from persisting after root.destroy()
         # which can cause pytest to hang on Windows
         try:
-            after_ids = root.tk.call('after', 'info')
+            after_ids = root.tk.call("after", "info")
             if after_ids:
-                print(f"[tkinter_session_root] Canceling {len(after_ids)} pending after() callback(s)")
+                print(
+                    f"[tkinter_session_root] Canceling {len(after_ids)} pending after() callback(s)"
+                )
                 for after_id in after_ids:
                     try:
                         root.after_cancel(after_id)
@@ -213,6 +215,7 @@ def tkinter_session_root():
     except Exception as e:
         print(f"[tkinter_session_root] ERROR in cleanup: {e}")
         import traceback
+
         traceback.print_exc()
 
     if display is not None:
@@ -288,10 +291,11 @@ def cleanup_threads():
 
         if thread.is_alive():
             import warnings
+
             warnings.warn(
                 f"Thread {thread.name} still alive after test cleanup (timeout=2.0s)",
                 ResourceWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
 
@@ -316,7 +320,7 @@ def tkinter_root(tkinter_session_root):
         # This prevents Toplevel callbacks from persisting which can cause
         # pytest to hang on Windows
         try:
-            after_ids = test_window.tk.call('after', 'info')
+            after_ids = test_window.tk.call("after", "info")
             if after_ids:
                 for after_id in after_ids:
                     try:

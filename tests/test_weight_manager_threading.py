@@ -157,7 +157,7 @@ class TestWeightManagerConcurrentAccess:
         def path_getter(thread_id):
             for i in range(5):
                 # Mock the method to return a path
-                with patch.object(weight_manager, 'get_weight_path_by_method') as mock_method:
+                with patch.object(weight_manager, "get_weight_path_by_method") as mock_method:
                     mock_method.return_value = "/path/to/weight.pt"
                     path = weight_manager.get_weight_path_by_method("botsort", "seg")
                     if path:

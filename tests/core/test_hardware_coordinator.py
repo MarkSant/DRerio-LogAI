@@ -6,15 +6,14 @@ and callback integration.
 """
 
 import unittest
-from unittest.mock import MagicMock, Mock, patch, call
+from unittest.mock import Mock
 
-from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.ui.event_bus import EventBus
-from zebtrack.ui.events import Events
 
 
 class TestHardwareCoordinatorInitialization(unittest.TestCase):
@@ -107,16 +106,12 @@ class TestSetupDetector(unittest.TestCase):
         self.mock_detector_service.initialize_detector.return_value = (True, None)
 
         result = self.coordinator.setup_detector(
-            temp_animal_method="det",
-            use_openvino=False,
-            active_weight_name="best.pt"
+            temp_animal_method="det", use_openvino=False, active_weight_name="best.pt"
         )
 
         assert result is True
         self.mock_detector_service.initialize_detector.assert_called_once_with(
-            animal_method="det",
-            use_openvino=False,
-            active_weight_name="best.pt"
+            animal_method="det", use_openvino=False, active_weight_name="best.pt"
         )
 
     def test_setup_detector_with_default_params(self):
@@ -127,9 +122,7 @@ class TestSetupDetector(unittest.TestCase):
 
         assert result is True
         self.mock_detector_service.initialize_detector.assert_called_once_with(
-            animal_method=None,
-            use_openvino=False,
-            active_weight_name=""
+            animal_method=None, use_openvino=False, active_weight_name=""
         )
 
     def test_setup_detector_failure(self):
@@ -176,10 +169,7 @@ class TestArduinoManagement(unittest.TestCase):
 
     def test_setup_arduino_creates_manager(self):
         """Test that setup_arduino creates ArduinoManager when needed."""
-        self.mock_project_manager.project_data = {
-            "use_arduino": True,
-            "arduino_port": "COM3"
-        }
+        self.mock_project_manager.project_data = {"use_arduino": True, "arduino_port": "COM3"}
         self.mock_arduino_manager.is_connected.return_value = False
         self.mock_arduino_manager.connect.return_value = True
 
@@ -199,20 +189,14 @@ class TestArduinoManagement(unittest.TestCase):
     def test_on_arduino_status_change_connected(self):
         """Test Arduino status change when connected."""
         mock_view = Mock()
-        self.coordinator.on_arduino_status_change(
-            connected=True,
-            port="COM3"
-        )
+        self.coordinator.on_arduino_status_change(connected=True, port="COM3")
 
         # Should log the event
         # No assertion needed as this is just state update
 
     def test_on_arduino_status_change_disconnected(self):
         """Test Arduino status change when disconnected."""
-        self.coordinator.on_arduino_status_change(
-            connected=False,
-            port=None
-        )
+        self.coordinator.on_arduino_status_change(connected=False, port=None)
 
         # Should log the event
         # No assertion needed as this is just state update
@@ -224,22 +208,14 @@ class TestArduinoManagement(unittest.TestCase):
 
     def test_on_arduino_command_sent_success(self):
         """Test Arduino command sent callback with success."""
-        self.coordinator.on_arduino_command_sent(
-            command=1,
-            success=True,
-            source="test"
-        )
+        self.coordinator.on_arduino_command_sent(command=1, success=True, source="test")
 
         # Should log the event
         # No assertion needed as this is just logging
 
     def test_on_arduino_command_sent_failure(self):
         """Test Arduino command sent callback with failure."""
-        self.coordinator.on_arduino_command_sent(
-            command=1,
-            success=False,
-            source="test"
-        )
+        self.coordinator.on_arduino_command_sent(command=1, success=False, source="test")
 
         # Should log the failure
         # No assertion needed as this is just logging

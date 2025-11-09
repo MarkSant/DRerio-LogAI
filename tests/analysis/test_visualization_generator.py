@@ -202,7 +202,7 @@ def test_generate_trajectory_plot_with_video_background(mock_video_capture, mock
     """Test trajectory plot generation with video background."""
     # Mock Path.exists to return True
     mock_exists.return_value = True
-    
+
     # Mock video capture
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True

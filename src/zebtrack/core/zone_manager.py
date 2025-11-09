@@ -136,9 +136,7 @@ class ZoneManager:
         )
 
     def resolve_zone_entry(
-        self,
-        project_data: dict,
-        video_path: Path | str | None
+        self, project_data: dict, video_path: Path | str | None
     ) -> tuple[str | None, dict | None]:
         """Locate a stored zone entry matching the provided video path.
 
@@ -228,9 +226,7 @@ class ZoneManager:
                     return
 
     def refresh_last_zone_source(
-        self,
-        project_data: dict,
-        removed_path: Path | str | None = None
+        self, project_data: dict, removed_path: Path | str | None = None
     ) -> None:
         """Refresh cache for last zone source video when data changes.
 
@@ -263,11 +259,7 @@ class ZoneManager:
         else:
             self._last_zone_source_video = None
 
-    def set_active_zone_video(
-        self,
-        project_data: dict,
-        video_path: Path | str | None
-    ) -> None:
+    def set_active_zone_video(self, project_data: dict, video_path: Path | str | None) -> None:
         """Set the video whose zones should be considered active in memory.
 
         Args:
@@ -433,11 +425,7 @@ class ZoneManager:
         if persist_callback:
             persist_callback()
 
-    def clone_zone_data_from_video(
-        self,
-        project_data: dict,
-        video_path: Path | str
-    ) -> ZoneData:
+    def clone_zone_data_from_video(self, project_data: dict, video_path: Path | str) -> ZoneData:
         """Return a deep copy of zone data stored for another video.
 
         Args:
@@ -485,10 +473,7 @@ class ZoneManager:
         return self.zone_data_from_dict(project_data.get("detection_zones"))
 
     def update_main_polygon(
-        self,
-        project_data: dict,
-        points: list,
-        persist_callback: callable | None = None
+        self, project_data: dict, points: list, persist_callback: callable | None = None
     ) -> None:
         """Update or define the main polygon in project data.
 
@@ -607,9 +592,9 @@ class ZoneManager:
                         # Generate default colors if not provided
                         # (actual colors are not stored in parquet, using defaults)
                         default_colors = [
-                            (0, 255, 0),    # Green
-                            (255, 0, 0),    # Red
-                            (0, 0, 255),    # Blue
+                            (0, 255, 0),  # Green
+                            (255, 0, 0),  # Red
+                            (0, 0, 255),  # Blue
                             (255, 255, 0),  # Yellow
                             (255, 0, 255),  # Magenta
                             (0, 255, 255),  # Cyan
@@ -652,7 +637,7 @@ class ZoneManager:
         project_data: dict,
         video_entry: dict,
         video_path: Path | str,
-        zone_manager_instance: ZoneManager
+        zone_manager_instance: ZoneManager,
     ) -> None:
         """Update has_arena/has_rois flags from zone data when missing for a video entry.
 
@@ -664,9 +649,7 @@ class ZoneManager:
         """
         video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
         zone_data = zone_manager_instance.get_zone_data(
-            project_data,
-            video_path_str,
-            fallback_to_global=False
+            project_data, video_path_str, fallback_to_global=False
         )
         if not zone_data:
             return

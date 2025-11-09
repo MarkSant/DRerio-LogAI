@@ -11,12 +11,14 @@ from zebtrack.ui.components.dialog_manager import DialogManager
 @pytest.fixture(autouse=True)
 def block_all_dialogs():
     """Automatically block ALL dialog windows for all tests in this file."""
-    with patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 

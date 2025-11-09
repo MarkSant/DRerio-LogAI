@@ -276,9 +276,7 @@ class VideoManager:
 
     @staticmethod
     def add_video_batch(
-        project_data: dict,
-        video_files: list[dict],
-        save_callback: callable | None = None
+        project_data: dict, video_files: list[dict], save_callback: callable | None = None
     ) -> int:
         """
         Adds a new batch of videos to the project data.
@@ -379,7 +377,7 @@ class VideoManager:
         project_data: dict,
         video_path: Path | str,
         new_status: str,
-        save_callback: callable | None = None
+        save_callback: callable | None = None,
     ) -> bool:
         """
         Updates the status of a specific video across all batches.
@@ -412,9 +410,7 @@ class VideoManager:
 
     @staticmethod
     def reset_all_video_statuses(
-        project_data: dict,
-        to_status: str = "pending",
-        save_callback: callable | None = None
+        project_data: dict, to_status: str = "pending", save_callback: callable | None = None
     ) -> bool:
         """Reset every video status to a given value (default 'pending').
 

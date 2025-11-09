@@ -9,7 +9,7 @@ from appearing during automated testing.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,14 +23,16 @@ from zebtrack.ui.dialogs import (
 @pytest.fixture(autouse=True)
 def prevent_dialog_blocking():
     """Prevent ALL dialogs from blocking by patching wait_window and messageboxes."""
-    with patch('tkinter.simpledialog.Dialog.wait_window'), \
-         patch('tkinter.Toplevel.withdraw'), \
-         patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.simpledialog.Dialog.wait_window"),
+        patch("tkinter.Toplevel.withdraw"),
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 
@@ -80,7 +82,9 @@ class TestSubjectSelectionDialog:
 
     def test_dialog_title_with_no_day(self, tkinter_root):
         """Test dialog title formats 'sem dia' correctly."""
-        with patch("zebtrack.ui.dialogs.subject_selection_dialog.format_day_display") as mock_format:
+        with patch(
+            "zebtrack.ui.dialogs.subject_selection_dialog.format_day_display"
+        ) as mock_format:
             mock_format.return_value = "Sem Dia"
             dialog = SubjectSelectionDialog(
                 tkinter_root,
@@ -461,7 +465,6 @@ class TestSaveROITemplateDialog:
         dialog.apply()
 
         # Verify path is constructed correctly (normalize for cross-platform compatibility)
-        from pathlib import Path
         result_path = Path(dialog.result["custom_path"])
         expected_path = Path("/path/to/template.json")
         assert result_path == expected_path

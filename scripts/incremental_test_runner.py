@@ -3,68 +3,79 @@
 Incremental Test Runner - Executes tests one file at a time with progress tracking
 to identify exactly which test causes system freezes.
 """
+
+import json
 import subprocess
 import sys
 import time
-import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 PROGRESS_FILE = Path("test_progress.json")
 LOG_FILE = Path("test_execution.log")
 
+
 def load_progress():
     """Load progress from file."""
     if PROGRESS_FILE.exists():
-        with open(PROGRESS_FILE, 'r') as f:
+        with open(PROGRESS_FILE) as f:
             return json.load(f)
     return {"completed": [], "failed": [], "last_file": None, "started_at": None}
 
+
 def save_progress(progress):
     """Save progress to file."""
-    with open(PROGRESS_FILE, 'w') as f:
+    with open(PROGRESS_FILE, "w") as f:
         json.dump(progress, f, indent=2)
+
 
 def log(message):
     """Log message to both console and file."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_msg = f"[{timestamp}] {message}"
     print(log_msg)
-    with open(LOG_FILE, 'a', encoding='utf-8') as f:
-        f.write(log_msg + '\n')
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(log_msg + "\n")
+
 
 def get_test_files():
     """Get all non-GUI test files."""
     # Known problematic files that cause system freeze
     SKIP_FILES = {
-        'test_live_camera_service_threading.py',
+        "test_live_camera_service_threading.py",
     }
 
     tests_dir = Path("tests")
-    all_files = sorted([
-        str(f) for f in tests_dir.glob("test_*.py")
-        if f.is_file() and "manual" not in str(f) and f.name not in SKIP_FILES
-    ])
+    all_files = sorted(
+        [
+            str(f)
+            for f in tests_dir.glob("test_*.py")
+            if f.is_file() and "manual" not in str(f) and f.name not in SKIP_FILES
+        ]
+    )
 
     # Filter out GUI tests by checking file content
     non_gui_files = []
     for file_path in all_files:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read(500)  # Check first 500 chars
             # Skip if it's explicitly marked as GUI or in ui/ subdirectory
-            if '@pytest.mark.gui' not in content and '/ui/' not in file_path:
+            if "@pytest.mark.gui" not in content and "/ui/" not in file_path:
                 non_gui_files.append(file_path)
 
     return non_gui_files
 
+
 def run_single_test_file(test_file, file_num, total_files):
     """Run a single test file with timeout and monitoring."""
-    log(f"\n{'='*80}")
+    log(f"\n{'=' * 80}")
     log(f"TEST FILE {file_num}/{total_files}: {test_file}")
-    log(f"{'='*80}")
+    log(f"{'=' * 80}")
 
     cmd = [
-        "poetry", "run", "pytest",
+        "poetry",
+        "run",
+        "pytest",
         test_file,
         "-v",
         "--tb=short",
@@ -82,8 +93,8 @@ def run_single_test_file(test_file, file_num, total_files):
             capture_output=True,
             text=True,
             timeout=120,  # 120 second timeout per file
-            encoding='utf-8',
-            errors='replace'  # Replace non-UTF-8 characters to handle test output with special chars
+            encoding="utf-8",
+            errors="replace",  # Replace non-UTF-8 characters to handle test output with special chars
         )
 
         elapsed = time.time() - start_time
@@ -99,18 +110,19 @@ def run_single_test_file(test_file, file_num, total_files):
 
     except subprocess.TimeoutExpired:
         log(f"[TIMEOUT] {test_file} (exceeded 120 seconds)")
-        log(f"WARNING: This file may cause system freeze!")
+        log("WARNING: This file may cause system freeze!")
         return "timeout", "Test exceeded 120 second timeout"
 
     except Exception as e:
-        log(f"[ERROR] {test_file} - {str(e)}")
+        log(f"[ERROR] {test_file} - {e!s}")
         return "error", str(e)
+
 
 def main():
     """Main test runner with incremental progress tracking."""
-    log("\n" + "="*80)
+    log("\n" + "=" * 80)
     log("INCREMENTAL TEST RUNNER - Starting")
-    log("="*80)
+    log("=" * 80)
 
     # Load previous progress
     progress = load_progress()
@@ -152,12 +164,14 @@ def main():
         if status == "passed":
             progress["completed"].append(test_file)
         elif status in ["failed", "error", "timeout"]:
-            progress["failed"].append({
-                "file": test_file,
-                "status": status,
-                "error": error,
-                "timestamp": datetime.now().isoformat()
-            })
+            progress["failed"].append(
+                {
+                    "file": test_file,
+                    "status": status,
+                    "error": error,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
         # Save progress after each test
         save_progress(progress)
@@ -172,24 +186,25 @@ def main():
             log("Continuing with next file...\n")
 
     # Final summary
-    log("\n" + "="*80)
+    log("\n" + "=" * 80)
     log("TEST RUN SUMMARY")
-    log("="*80)
+    log("=" * 80)
     log(f"Total files: {len(all_test_files)}")
     log(f"Completed: {len(progress['completed'])}")
     log(f"Failed: {len(progress['failed'])}")
 
-    if progress['failed']:
+    if progress["failed"]:
         log("\nFailed/Timeout files:")
-        for failure in progress['failed']:
+        for failure in progress["failed"]:
             log(f"  [{failure['status']}] {failure['file']}")
 
-    if len(progress['completed']) == len(all_test_files):
+    if len(progress["completed"]) == len(all_test_files):
         log("\n[SUCCESS] All tests completed successfully!")
         sys.exit(0)
     else:
         log(f"\nSome tests failed or timed out. Check {LOG_FILE} for details.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     try:

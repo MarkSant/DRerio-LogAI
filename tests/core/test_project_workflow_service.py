@@ -935,12 +935,12 @@ class TestProjectWorkflowServiceConcurrentOperations(unittest.TestCase):
 
         # Apply multiple overrides in sequence
         for i in range(3):
-            overrides = {"active_weight": f"weight{i+1}.pt"}
+            overrides = {"active_weight": f"weight{i + 1}.pt"}
             weight, _openvino = self.service.apply_project_model_overrides(
                 overrides=overrides,
                 active_weight_setter=Mock(),
             )
-            assert weight == f"weight{i+1}.pt"
+            assert weight == f"weight{i + 1}.pt"
 
 
 class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):

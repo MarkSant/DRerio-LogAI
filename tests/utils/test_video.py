@@ -5,7 +5,7 @@ Tests for get_video_dimensions and related utilities.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import cv2
 

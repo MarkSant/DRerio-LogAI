@@ -278,7 +278,6 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         assert "ausente" in msg
 
 
-
 class TestAnalysisCoordinatorSummariesWorker(unittest.TestCase):
     """Test suite for _generate_parquet_summaries_worker method."""
 

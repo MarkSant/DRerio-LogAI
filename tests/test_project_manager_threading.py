@@ -152,9 +152,7 @@ class TestProjectManagerConcurrentUpdates:
         # Start multiple status updater threads for different videos
         updaters = []
         for i in range(3):
-            updater = threading.Thread(
-                target=status_updater, args=(i, i), daemon=False
-            )
+            updater = threading.Thread(target=status_updater, args=(i, i), daemon=False)
             updater.start()
             updaters.append(updater)
 
@@ -171,10 +169,12 @@ class TestProjectManagerConcurrentUpdates:
         import pandas as pd
 
         # Setup metadata
-        project_manager.metadata = pd.DataFrame({
-            "video": ["video1.mp4", "video2.mp4"],
-            "duration": [120, 180],
-        })
+        project_manager.metadata = pd.DataFrame(
+            {
+                "video": ["video1.mp4", "video2.mp4"],
+                "duration": [120, 180],
+            }
+        )
 
         metadata_reads = []
 

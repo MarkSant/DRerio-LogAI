@@ -11,12 +11,14 @@ from zebtrack.ui.components.menu_manager import MenuManager
 @pytest.fixture(autouse=True)
 def block_all_dialogs():
     """Automatically block ALL dialog windows for all tests in this file."""
-    with patch("tkinter.messagebox.showerror"), \
-         patch("tkinter.messagebox.showwarning"), \
-         patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False), \
-         patch("tkinter.messagebox.askokcancel", return_value=False), \
-         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+    with (
+        patch("tkinter.messagebox.showerror"),
+        patch("tkinter.messagebox.showwarning"),
+        patch("tkinter.messagebox.showinfo"),
+        patch("tkinter.messagebox.askyesno", return_value=False),
+        patch("tkinter.messagebox.askokcancel", return_value=False),
+        patch("tkinter.messagebox.askyesnocancel", return_value=None),
+    ):
         yield
 
 
@@ -120,9 +122,7 @@ class TestAboutDialog:
     """Tests for About dialog."""
 
     @patch("zebtrack.ui.icon_utils.set_window_icon")
-    def test_show_about_dialog_creates_window(
-        self, mock_set_icon, menu_manager, tkinter_root
-    ):
+    def test_show_about_dialog_creates_window(self, mock_set_icon, menu_manager, tkinter_root):
         """Test that show_about_dialog creates a Toplevel window."""
         menu_manager.gui.root = tkinter_root
 
@@ -134,9 +134,7 @@ class TestAboutDialog:
         mock_set_icon.assert_called_once()
 
     @patch("zebtrack.ui.icon_utils.set_window_icon")
-    def test_show_about_dialog_sets_geometry(
-        self, mock_set_icon, menu_manager, tkinter_root
-    ):
+    def test_show_about_dialog_sets_geometry(self, mock_set_icon, menu_manager, tkinter_root):
         """Test that dialog geometry is configured."""
         menu_manager.gui.root = tkinter_root
 
@@ -162,8 +160,7 @@ class TestAboutDialog:
         mock_tk_image = Mock()
         mock_imagetk.PhotoImage.return_value = mock_tk_image
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("tkinter.Toplevel.withdraw"):
+        with patch("pathlib.Path.exists", return_value=True), patch("tkinter.Toplevel.withdraw"):
             menu_manager.show_about_dialog()
 
         mock_image.open.assert_called_once()
@@ -178,8 +175,7 @@ class TestAboutDialog:
         """Test that missing logo is handled gracefully."""
         menu_manager.gui.root = tkinter_root
 
-        with patch("pathlib.Path.exists", return_value=False), \
-             patch("tkinter.Toplevel.withdraw"):
+        with patch("pathlib.Path.exists", return_value=False), patch("tkinter.Toplevel.withdraw"):
             menu_manager.show_about_dialog()
 
         mock_image.open.assert_not_called()

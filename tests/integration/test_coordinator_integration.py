@@ -7,7 +7,7 @@ are properly integrated with MainViewModel and work together correctly.
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 from zebtrack.core.hardware_coordinator import HardwareCoordinator

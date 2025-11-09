@@ -51,17 +51,13 @@ def sample_frame():
 @pytest.fixture
 def sample_polygon_large():
     """Polígono válido cobrindo ~50% do frame (640x480)."""
-    return np.array(
-        [[100, 100], [540, 100], [540, 380], [100, 380]], dtype=np.int32
-    )
+    return np.array([[100, 100], [540, 100], [540, 380], [100, 380]], dtype=np.int32)
 
 
 @pytest.fixture
 def sample_polygon_small():
     """Polígono pequeno (<10% do frame)."""
-    return np.array(
-        [[200, 200], [250, 200], [250, 250], [200, 250]], dtype=np.int32
-    )
+    return np.array([[200, 200], [250, 200], [250, 250], [200, 250]], dtype=np.int32)
 
 
 @pytest.fixture
@@ -724,10 +720,12 @@ class TestAquariumDetectorStabilization:
         """Mock de VideoSource para testes de consenso."""
         mock = MagicMock()
         mock._cap = MagicMock()
-        mock._cap.get = MagicMock(side_effect=lambda prop: {
-            cv2.CAP_PROP_FRAME_WIDTH: 640,
-            cv2.CAP_PROP_FRAME_HEIGHT: 480
-        }.get(prop, 0))
+        mock._cap.get = MagicMock(
+            side_effect=lambda prop: {
+                cv2.CAP_PROP_FRAME_WIDTH: 640,
+                cv2.CAP_PROP_FRAME_HEIGHT: 480,
+            }.get(prop, 0)
+        )
         return mock
 
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")

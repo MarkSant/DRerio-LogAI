@@ -7,16 +7,15 @@ Handles analysis pipeline orchestration, report generation, and summary generati
 from __future__ import annotations
 
 import os
-import threading
 from collections.abc import Callable
-from concurrent.futures import CancelledError, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import CancelledError, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.gui import ApplicationGUI
 
-import cv2
 import numpy as np
 import pandas as pd
 import structlog
@@ -167,13 +166,13 @@ class AnalysisCoordinator:
                         "analysis_coordinator.report.parquet_load_failed",
                         path=str(summary_path),
                         error=str(exc),
-                        exc_info=True
+                        exc_info=True,
                     )
                 except Exception as exc:  # pragma: no cover - unexpected errors
                     log.exception(
                         "analysis_coordinator.report.unexpected_load_error",
                         path=str(summary_path),
-                        error=str(exc)
+                        error=str(exc),
                     )
             else:
                 log.warning("analysis_coordinator.report.not_found", path=str(summary_path))
@@ -238,7 +237,9 @@ class AnalysisCoordinator:
     # PARQUET SUMMARY GENERATION
     # =============================================================================
 
-    def generate_parquet_summaries(self, video_paths: list[str], processing_thread_ref=None) -> None:
+    def generate_parquet_summaries(
+        self, video_paths: list[str], processing_thread_ref=None
+    ) -> None:
         """Regenerate Parquet summary files for selected videos.
 
         Args:
@@ -475,14 +476,14 @@ class AnalysisCoordinator:
                     "analysis_coordinator.process_summaries.video_processing_failed",
                     video=video.get("path"),
                     error=str(exc),
-                    exc_info=True
+                    exc_info=True,
                 )
                 state, info_msg, _ppath, changed = "failed", str(exc), None, False
             except Exception as exc:  # pragma: no cover - unexpected errors
                 log.exception(
                     "analysis_coordinator.process_summaries.unexpected_error",
                     video=video.get("path"),
-                    error=str(exc)
+                    error=str(exc),
                 )
                 state, info_msg, _ppath, changed = "failed", str(exc), None, False
 
@@ -586,7 +587,7 @@ class AnalysisCoordinator:
                 "analysis_coordinator.process_summary.parquet_read_failed",
                 path=trajectory_path,
                 error=str(exc),
-                exc_info=True
+                exc_info=True,
             )
             return (
                 "skipped",
@@ -598,7 +599,7 @@ class AnalysisCoordinator:
             log.exception(
                 "analysis_coordinator.process_summary.unexpected_error",
                 path=trajectory_path,
-                error=str(exc)
+                error=str(exc),
             )
             return (
                 "skipped",

@@ -5,9 +5,8 @@ Task 2.2: REFACTOR-VIEWMODEL-001
 Tests for batch video processing, workflows, and project orchestration.
 """
 
-import os
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from zebtrack.core.video_orchestrator import VideoOrchestrator
 

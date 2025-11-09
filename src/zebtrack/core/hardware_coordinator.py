@@ -228,14 +228,11 @@ class HardwareCoordinator:
                 self.arduino_manager.shutdown()
             except OSError as exc:
                 log.error(
-                    "hardware_coordinator.arduino.shutdown_io_failed",
-                    error=str(exc),
-                    exc_info=True
+                    "hardware_coordinator.arduino.shutdown_io_failed", error=str(exc), exc_info=True
                 )
             except Exception as exc:  # pragma: no cover - unexpected errors
                 log.exception(
-                    "hardware_coordinator.arduino.shutdown_unexpected_error",
-                    error=str(exc)
+                    "hardware_coordinator.arduino.shutdown_unexpected_error", error=str(exc)
                 )
             self.arduino_manager = None
         self.arduino = None
