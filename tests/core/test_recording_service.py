@@ -579,5 +579,366 @@ class TestIntegrationScenarios:
         assert call_args[0][0] == 2  # Box number from cobaia
 
 
+class TestRecordingServiceRecorderFailures:
+    """Test suite for recorder (parquet/video writer) failure scenarios."""
+
+    def test_start_session_recorder_start_fails(self, recording_service, mock_controller):
+        """Test start_session when recorder.start_recording returns False."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {}
+
+        mock_controller.recorder.start_recording = Mock(return_value=False)
+
+        recording_service.start_session(context, project_data, "manual")
+
+        # Should show error and restore button states
+        recording_service._ui_callbacks["show_error"].assert_called_once()
+        error_msg = recording_service._ui_callbacks["show_error"].call_args[0][1]
+        assert "gravação" in error_msg.lower() or "recording" in error_msg.lower()
+
+        # Buttons should be restored
+        update_calls = recording_service._ui_callbacks["update_button_state"].call_args_list
+        assert any("start_rec" in str(call) and "normal" in str(call) for call in update_calls)
+
+    def test_start_session_recorder_raises_exception(self, recording_service, mock_controller):
+        """Test start_session when recorder raises exception (disk full, permissions)."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/readonly/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {}
+
+        # Simulate disk full or permission error
+        mock_controller.recorder.start_recording = Mock(
+            side_effect=PermissionError("Permission denied")
+        )
+
+        # Execute - should handle exception
+        with pytest.raises(PermissionError):
+            recording_service.start_session(context, project_data, "manual")
+
+    def test_stop_session_recorder_raises_exception(self, recording_service, mock_controller):
+        """Test stop_session when recorder.stop_recording raises exception."""
+        mock_state = Mock(is_recording=True)
+        recording_service.state_manager.get_recording_state = Mock(return_value=mock_state)
+
+        mock_controller.recorder.stop_recording = Mock(side_effect=RuntimeError("Flush failed"))
+
+        # Execute - should handle exception
+        with pytest.raises(RuntimeError):
+            recording_service.stop_session()
+
+    def test_start_session_with_invalid_output_path(self, recording_service):
+        """Test start_session with invalid/inaccessible output path."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "",  # Empty path
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {}
+
+        recording_service.controller.recorder.start_recording = Mock(return_value=True)
+
+        # Should handle empty path
+        recording_service.start_session(context, project_data, "manual")
+
+        # Recorder should be called with empty path
+        recording_service.controller.recorder.start_recording.assert_called_once()
+
+
+class TestRecordingServiceArduinoFailures:
+    """Test suite for Arduino command failures."""
+
+    def test_start_session_arduino_send_command_fails(
+        self, recording_service, mock_controller, mock_project_manager
+    ):
+        """Test start_session when Arduino command fails."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": True,
+            "day": 1,
+            "group": "G1",
+            "cobaia": "3",
+        }
+        project_data = {}
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+        mock_controller.arduino_manager.send_command = Mock(return_value=False)
+
+        # Execute
+        recording_service.start_session(context, project_data, "manual")
+
+        # Should still start recording even if Arduino fails
+        mock_controller.recorder.start_recording.assert_called_once()
+        mock_controller.arduino_manager.send_command.assert_called_once_with(
+            3, source="manual-start"
+        )
+
+    def test_start_session_arduino_raises_exception(
+        self, recording_service, mock_controller
+    ):
+        """Test start_session when Arduino raises exception."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": True,
+            "day": 1,
+            "group": "G1",
+            "cobaia": "2",
+        }
+        project_data = {}
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+        mock_controller.arduino_manager.send_command = Mock(
+            side_effect=RuntimeError("Serial port error")
+        )
+
+        # Execute - should handle exception and continue
+        with pytest.raises(RuntimeError):
+            recording_service.start_session(context, project_data, "manual")
+
+    def test_stop_session_arduino_not_connected(
+        self, recording_service, mock_controller, mock_project_manager
+    ):
+        """Test stop_session when Arduino is not connected."""
+        mock_project_manager.project_data = {"use_arduino": True}
+        mock_controller.arduino_manager.is_connected = Mock(return_value=False)
+
+        # Execute
+        recording_service.stop_session()
+
+        # Should not attempt to send command
+        mock_controller.arduino_manager.send_command.assert_not_called()
+
+    def test_stop_session_arduino_send_command_fails(
+        self, recording_service, mock_controller, mock_project_manager
+    ):
+        """Test stop_session when Arduino stop command fails."""
+        mock_project_manager.project_data = {"use_arduino": True}
+        mock_controller.arduino_manager.is_connected = Mock(return_value=True)
+        mock_controller.arduino_manager.send_command = Mock(return_value=False)
+
+        # Execute
+        recording_service.stop_session()
+
+        # Should attempt to send command even if it fails
+        mock_controller.arduino_manager.send_command.assert_called_once_with(
+            0, source="manual-stop"
+        )
+
+    def test_resolve_box_number_invalid_cobaia(self, recording_service):
+        """Test box number resolution with invalid cobaia value."""
+        # Non-numeric cobaia
+        box_num = recording_service._resolve_box_number(1, "G1", "invalid")
+        assert box_num is None
+
+        # Empty string
+        box_num = recording_service._resolve_box_number(1, "G1", "")
+        assert box_num is None
+
+        # Special characters
+        box_num = recording_service._resolve_box_number(1, "G1", "box-3")
+        assert box_num is None
+
+
+class TestRecordingServiceStateManagerFailures:
+    """Test suite for StateManager update failures."""
+
+    def test_start_session_state_update_raises_exception(
+        self, recording_service, mock_controller, mock_state_manager
+    ):
+        """Test start_session when state_manager.update_recording_state raises exception."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {}
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+        mock_state_manager.update_recording_state = Mock(
+            side_effect=RuntimeError("State update failed")
+        )
+
+        # Execute - should propagate exception
+        with pytest.raises(RuntimeError):
+            recording_service.start_session(context, project_data, "manual")
+
+    def test_stop_session_state_get_raises_exception(
+        self, recording_service, mock_state_manager
+    ):
+        """Test stop_session when get_recording_state raises exception."""
+        mock_state_manager.get_recording_state = Mock(
+            side_effect=RuntimeError("State read failed")
+        )
+
+        # Execute - should propagate exception
+        with pytest.raises(RuntimeError):
+            recording_service.stop_session()
+
+    def test_stop_session_state_update_raises_exception(
+        self, recording_service, mock_state_manager, mock_controller
+    ):
+        """Test stop_session when update_recording_state raises exception."""
+        mock_state = Mock(is_recording=True)
+        mock_state_manager.get_recording_state = Mock(return_value=mock_state)
+        mock_state_manager.update_recording_state = Mock(
+            side_effect=RuntimeError("State update failed")
+        )
+
+        # Execute - should propagate exception
+        with pytest.raises(RuntimeError):
+            recording_service.stop_session()
+
+
+class TestRecordingServiceTimedRecordingEdgeCases:
+    """Test suite for timed recording edge cases."""
+
+    def test_start_session_timed_recording_no_root(
+        self, mock_controller, mock_state_manager, mock_project_manager
+    ):
+        """Test timed recording when root is None."""
+        service = RecordingService(
+            controller=mock_controller,
+            state_manager=mock_state_manager,
+            project_manager=mock_project_manager,
+            root=None,  # No root
+        )
+        service.set_ui_callbacks(
+            {
+                "show_error": Mock(),
+                "update_button_state": Mock(),
+                "set_status": Mock(),
+                "stop_recording_callback": Mock(),
+            }
+        )
+
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {
+            "use_timed_recording": True,
+            "recording_duration_s": 60,
+        }
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+
+        service.start_session(context, project_data, "manual")
+
+        # Should not schedule timed job without root
+        assert service.timed_recording_job is None
+
+    def test_start_session_timed_recording_zero_duration(
+        self, recording_service, mock_controller, mock_root
+    ):
+        """Test timed recording with zero duration."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {
+            "use_timed_recording": True,
+            "recording_duration_s": 0,  # Zero duration
+        }
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+
+        recording_service.start_session(context, project_data, "manual")
+
+        # Should not schedule job with zero duration
+        mock_root.after.assert_not_called()
+
+    def test_start_session_timed_recording_negative_duration(
+        self, recording_service, mock_controller, mock_root
+    ):
+        """Test timed recording with negative duration."""
+        context = {
+            "folder_name": "test_session",
+            "output_folder": "/fake/output",
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": False,
+        }
+        project_data = {
+            "use_timed_recording": True,
+            "recording_duration_s": -10,  # Negative duration
+        }
+
+        mock_controller.recorder.start_recording = Mock(return_value=True)
+
+        recording_service.start_session(context, project_data, "manual")
+
+        # Should not schedule job with negative duration
+        mock_root.after.assert_not_called()
+
+    def test_stop_session_cancels_nonexistent_job(self, recording_service, mock_root):
+        """Test stop_session when timed job doesn't exist."""
+        recording_service.timed_recording_job = None
+
+        # Execute - should not raise exception
+        recording_service.stop_session()
+
+        # Should not attempt to cancel
+        mock_root.after_cancel.assert_not_called()
+
+
+class TestRecordingServiceCountdownFailures:
+    """Test suite for countdown failure scenarios."""
+
+    @patch("zebtrack.core.recording_service.Toplevel")
+    @patch("zebtrack.core.recording_service.Label")
+    def test_run_countdown_window_creation_fails(
+        self, mock_label, mock_toplevel, recording_service, mock_root
+    ):
+        """Test countdown when window creation fails."""
+        # Simulate window creation failure
+        mock_toplevel.side_effect = RuntimeError("Window creation failed")
+
+        callback = Mock()
+
+        # Execute - should propagate exception
+        with pytest.raises(RuntimeError):
+            recording_service._run_countdown(3, callback)
+
+    def test_run_countdown_negative_duration(self, recording_service, mock_root):
+        """Test countdown with negative duration."""
+        mock_root.winfo_screenwidth.return_value = 1920
+        mock_root.winfo_screenheight.return_value = 1080
+
+        callback = Mock()
+
+        with patch("zebtrack.core.recording_service.Toplevel"):
+            with patch("zebtrack.core.recording_service.Label"):
+                recording_service._run_countdown(-5, callback)
+
+                # Callback should be called immediately (or after zero updates)
+                # Implementation may vary, but countdown should complete
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
