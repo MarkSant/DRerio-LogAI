@@ -20,6 +20,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.settings = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
@@ -31,6 +32,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -51,6 +53,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -69,6 +72,7 @@ class TestAnalysisCoordinatorCallbacks(unittest.TestCase):
             root=Mock(),
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=Mock(),
             analysis_service=Mock(),
@@ -90,6 +94,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
 
@@ -97,6 +102,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -154,6 +160,7 @@ class TestAnalysisCoordinatorGenerateParquetSummaries(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
 
@@ -161,6 +168,7 @@ class TestAnalysisCoordinatorGenerateParquetSummaries(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -221,6 +229,7 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
             root=self.root,
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -314,6 +323,7 @@ class TestAnalysisCoordinatorSummariesWorker(unittest.TestCase):
             root=self.root,
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=Mock(),
@@ -401,12 +411,14 @@ class TestAnalysisCoordinatorGenerateReportWorker(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.analysis_service = Mock()
 
         self.coordinator = AnalysisCoordinator(
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=Mock(),
             analysis_service=self.analysis_service,
@@ -441,6 +453,96 @@ class TestAnalysisCoordinatorGenerateReportWorker(unittest.TestCase):
 
         # Should schedule finalize
         assert self.root.after.called
+
+
+class TestAnalysisCoordinatorWorkerCallbacks(unittest.TestCase):
+    """Test suite for worker completion callbacks."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.coordinator = AnalysisCoordinator(
+            root=Mock(),
+            view=Mock(),
+            ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
+            settings_obj=Mock(),
+            project_manager=Mock(),
+            analysis_service=Mock(),
+            video_processing_service=Mock(),
+        )
+
+    @patch("zebtrack.core.analysis_coordinator.log")
+    def test_on_worker_complete_with_exception(self, mock_log):
+        """Test callback when worker raises an exception."""
+        mock_future = Mock()
+        test_exception = ValueError("Test error")
+        mock_future.exception.return_value = test_exception
+
+        self.coordinator._on_worker_complete(mock_future)
+
+        mock_log.error.assert_called_once()
+        call_args = mock_log.error.call_args
+        assert call_args[0][0] == "analysis_coordinator.worker.exception"
+        assert call_args[1]["error"] == "Test error"
+        assert call_args[1]["exc_info"] == test_exception
+
+    @patch("zebtrack.core.analysis_coordinator.log")
+    def test_on_worker_complete_with_no_exception(self, mock_log):
+        """Test callback when worker completes successfully."""
+        mock_future = Mock()
+        mock_future.exception.return_value = None
+
+        self.coordinator._on_worker_complete(mock_future)
+
+        mock_log.error.assert_not_called()
+
+    @patch("zebtrack.core.analysis_coordinator.log")
+    def test_on_worker_complete_with_cancelled_error(self, mock_log):
+        """Test callback when future is cancelled."""
+        from concurrent.futures import CancelledError
+
+        mock_future = Mock()
+        mock_future.exception.side_effect = CancelledError()
+
+        self.coordinator._on_worker_complete(mock_future)
+
+        mock_log.warning.assert_called_once_with("analysis_coordinator.worker.cancelled")
+
+    @patch("zebtrack.core.analysis_coordinator.log")
+    def test_on_worker_complete_with_timeout_error(self, mock_log):
+        """Test callback when future times out."""
+        from concurrent.futures import TimeoutError as FutureTimeoutError
+
+        mock_future = Mock()
+        mock_future.exception.side_effect = FutureTimeoutError()
+
+        self.coordinator._on_worker_complete(mock_future)
+
+        mock_log.error.assert_called_once()
+        call_args = mock_log.error.call_args
+        assert call_args[0][0] == "analysis_coordinator.worker.timeout"
+
+    @patch("zebtrack.core.analysis_coordinator.log")
+    def test_on_worker_complete_with_unexpected_error(self, mock_log):
+        """Test callback with unexpected error in callback logic."""
+        mock_future = Mock()
+        mock_future.exception.side_effect = RuntimeError("Unexpected error")
+
+        self.coordinator._on_worker_complete(mock_future)
+
+        mock_log.error.assert_called_once()
+        call_args = mock_log.error.call_args
+        assert call_args[0][0] == "analysis_coordinator.worker.callback_error"
+        assert call_args[1]["exc_info"] is True
+
+    def test_shutdown_closes_executor(self):
+        """Test that shutdown properly closes the thread pool executor."""
+        mock_executor = Mock()
+        self.coordinator._executor = mock_executor
+
+        self.coordinator.shutdown()
+
+        mock_executor.shutdown.assert_called_once_with(wait=True)
 
 
 if __name__ == "__main__":
