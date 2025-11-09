@@ -70,35 +70,6 @@ log = structlog.get_logger()
 
 
 class ProjectManager:
-    _SCAN_CACHE_TTL_SECONDS: ClassVar[float] = 30.0
-    _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
-
-    _PROFILE_SYNONYMS: ClassVar[dict[str, tuple[str, ...]]] = {
-        "group": (
-            "group",
-            "group_id",
-            "group_name",
-            "group_display_name",
-        ),
-        "day": (
-            "day",
-            "day_id",
-            "day_label",
-            "day_display_name",
-        ),
-        "subject": (
-            "subject",
-            "subject_id",
-            "subject_label",
-            "individual",
-            "individuo",
-            "animal",
-            "animal_id",
-            "cobaia",
-        ),
-        "experiment_id": ("experiment_id", "video_name"),
-    }
-
     def __init__(self, state_manager: StateManager | None = None, settings_obj=None):
         """Initialize ProjectManager with dependency injection.
 
@@ -148,74 +119,13 @@ class ProjectManager:
         """Remove duplicate zone entries that resolve to the same canonical path. Delegates to ZoneManager."""
         ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
 
-    def _ensure_roi_template_dir(self) -> Path:
-        if not self.project_path:
-            raise ValueError("Projeto não inicializado para salvar templates de ROI.")
-        target = Path(self.project_path) / "roi_templates"
-        target.mkdir(parents=True, exist_ok=True)
-        return target
-
-    @staticmethod
-    def _slugify(value: str) -> str:
-        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
-        normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
-        return normalized.lower() or "template"
-
     def list_roi_templates(
         self,
         *,
         include_global: bool = True,
     ) -> list[dict[str, Any]]:
-        self._ensure_zone_structures()
-        aggregated: list[dict[str, Any]] = []
-
-        for item in self.project_data.get("roi_templates", []):
-            if not isinstance(item, dict):
-                continue
-
-            entry = deepcopy(item)
-            entry.setdefault("location", "project")
-            entry.setdefault("includes_arena", True)
-            entry.setdefault("includes_rois", True)
-            aggregated.append(entry)
-
-        if include_global:
-            try:
-                global_entries = self.roi_template_manager.list_global_templates()
-            except Exception as exc:  # pragma: no cover - defensive telemetry
-                log.warning(
-                    "project_manager.roi_templates.global_list_failed",
-                    error=str(exc),
-                )
-                global_entries = []
-
-            for item in global_entries:
-                if not isinstance(item, dict):
-                    continue
-                entry = dict(item)
-                entry.setdefault("location", "global")
-                entry.setdefault("includes_arena", True)
-                entry.setdefault("includes_rois", True)
-                aggregated.append(entry)
-
-        def _sort_key(template: dict[str, Any]) -> tuple[int, str]:
-            location = template.get("location", "project")
-            priority = 0 if location == "project" else 1
-            name = str(template.get("name", "")).lower()
-            return priority, name
-
-        return sorted(aggregated, key=_sort_key)
-
-    def _resolve_roi_template_entry(
-        self, name: str
-    ) -> tuple[int, dict[str, Any]] | tuple[None, None]:
-        templates = self.project_data.get("roi_templates", [])
-        for idx, entry in enumerate(templates):
-            if not isinstance(entry, dict):
-                continue
-            if entry.get("name") == name:
-                return idx, entry
-        return None, None
+        """List all ROI templates. Delegates to AssetManager."""
+        return self.asset_manager.list_roi_templates(self.project_data, include_global=include_global)
 
     def save_roi_template(
         self,
@@ -229,108 +139,21 @@ class ProjectManager:
         overwrite: bool = True,
         persist: bool = True,
     ) -> dict[str, Any]:
-        normalized_name = (name or "").strip()
-        if not normalized_name:
-            raise ValueError("O nome do template não pode ficar vazio.")
-
-        if zone_data is None:
-            raise ValueError("Dados de zona inválidos para salvar o template.")
-
-        if not save_arena and not save_rois:
-            raise ValueError("Selecione ao menos arena ou ROIs para salvar.")
-
-        target_location: Literal["project", "global", "custom"]
-        target_location = save_location or "project"
-
-        if target_location == "project":
-            if not self.project_path:
-                raise ValueError(
-                    "Não é possível salvar o template no projeto atual: projeto não carregado."
-                )
-
-            self._ensure_zone_structures()
-
-            existing_index, existing_entry = self._resolve_roi_template_entry(normalized_name)
-            if existing_entry and not overwrite:
-                raise ValueError(f"Template '{normalized_name}' já existe.")
-
-            if existing_entry:
-                slug = existing_entry.get("slug") or self._slugify(normalized_name)
-            else:
-                slug = self._slugify(normalized_name)
-                collision = any(
-                    entry.get("slug") == slug
-                    for entry in self.project_data.get("roi_templates", [])
-                    if isinstance(entry, dict)
-                )
-                counter = 2
-                base_slug = slug
-                while collision:
-                    slug = f"{base_slug}-{counter}"
-                    collision = any(
-                        entry.get("slug") == slug
-                        for entry in self.project_data.get("roi_templates", [])
-                        if isinstance(entry, dict)
-                    )
-                    counter += 1
-
-            metadata = self.roi_template_manager.save_template(
-                normalized_name,
-                zone_data,
-                slug=slug,
-                save_arena=save_arena,
-                save_rois=save_rois,
-                save_location="project",
-                project_path=self.project_path,
-                overwrite=overwrite,
-            )
-
-            project_path = Path(self.project_path)
-            metadata["file"] = os.path.relpath(metadata["file"], project_path)
-            metadata["location"] = "project"
-            metadata.setdefault("includes_arena", save_arena)
-            metadata.setdefault("includes_rois", save_rois)
-
-            if existing_entry:
-                metadata["created_at"] = existing_entry.get(
-                    "created_at", metadata.get("created_at")
-                )
-
-            stored_metadata = {
-                "name": metadata.get("name", normalized_name),
-                "slug": metadata.get("slug"),
-                "file": metadata.get("file"),
-                "roi_count": metadata.get("roi_count", 0),
-                "updated_at": metadata.get("updated_at"),
-                "created_at": metadata.get("created_at"),
-                "location": metadata.get("location", "project"),
-                "includes_arena": metadata.get("includes_arena", True),
-                "includes_rois": metadata.get("includes_rois", True),
-            }
-
-            templates = self.project_data.setdefault("roi_templates", [])
-            if existing_index is not None:
-                templates[existing_index] = stored_metadata
-            else:
-                templates.append(stored_metadata)
-
-            if persist:
-                self.save_project()
-
-            return deepcopy(stored_metadata)
-
-        metadata = self.roi_template_manager.save_template(
-            normalized_name,
-            zone_data,
+        """Save an ROI template. Delegates to AssetManager."""
+        persist_callback = self.save_project if persist else None
+        return self.asset_manager.save_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            name=name,
+            zone_data=zone_data,
+            zone_data_to_dict_fn=self._zone_data_to_dict,
             save_arena=save_arena,
             save_rois=save_rois,
-            save_location=target_location,
-            project_path=self.project_path,
+            save_location=save_location,
             custom_path=custom_path,
             overwrite=overwrite,
+            persist_callback=persist_callback,
         )
-        metadata["location"] = target_location
-        return metadata
 
     def import_roi_template(
         self,
@@ -339,34 +162,15 @@ class ProjectManager:
         name: str | None = None,
         persist: bool = True,
     ) -> dict[str, Any]:
-        file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        if not file_path.exists():
-            raise FileNotFoundError(str(file_path))
-
-        with open(file_path, encoding="utf-8") as handle:
-            payload = json.load(handle)
-
-        data_block = payload.get("data") if isinstance(payload, dict) else None
-        if not isinstance(data_block, dict):
-            raise ValueError("Arquivo de template inválido: bloco 'data' ausente.")
-
-        zone_data = self._zone_data_from_dict(data_block)
-        template_name = name or payload.get("name") or file_path.stem
-
-        has_arena = bool(zone_data.polygon)
-        has_rois = bool(zone_data.roi_polygons)
-
-        project_available = bool(self.project_path)
-        target_location: Literal["project", "global"] = "project" if project_available else "global"
-        effective_persist = persist and project_available
-
-        return self.save_roi_template(
-            template_name,
-            zone_data,
-            save_arena=has_arena,
-            save_rois=has_rois,
-            save_location=target_location,
-            persist=effective_persist,
+        """Import an ROI template from file. Delegates to AssetManager."""
+        persist_callback = self.save_project if persist and self.project_path else None
+        return self.asset_manager.import_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            file_path=file_path,
+            zone_data_from_dict_fn=self._zone_data_from_dict,
+            name=name,
+            persist_callback=persist_callback,
         )
 
     def load_roi_template(
@@ -376,48 +180,15 @@ class ProjectManager:
         location: Literal["project", "global", "custom"] | None = None,
         file_path: str | Path | None = None,
     ) -> ZoneData:
-        if location in (None, "project"):
-            self._ensure_zone_structures()
-            _, entry = self._resolve_roi_template_entry(name)
-            if entry:
-                relative_file = entry.get("file")
-                if not relative_file:
-                    raise ValueError("Arquivo do template não registrado no projeto.")
-
-                template_path = (
-                    Path(self.project_path) / relative_file
-                    if self.project_path
-                    else Path(relative_file)
-                )
-                if not template_path.exists():
-                    raise FileNotFoundError(str(template_path))
-
-                with open(template_path, encoding="utf-8") as handle:
-                    payload = json.load(handle)
-
-                data_block = payload.get("data") if isinstance(payload, dict) else None
-                if not isinstance(data_block, dict):
-                    raise ValueError("Conteúdo do template inválido.")
-
-                return self._zone_data_from_dict(data_block)
-
-            if location == "project":
-                raise ValueError(f"Template de ROI '{name}' não encontrado no projeto.")
-
-        template_path = Path(file_path) if file_path else None
-
-        if template_path is None and location in (None, "global"):
-            for entry in self.roi_template_manager.list_global_templates():
-                if entry.get("name") == name:
-                    file_candidate = entry.get("file")
-                    if file_candidate:
-                        template_path = Path(file_candidate)
-                        break
-
-        if template_path is None:
-            raise ValueError(f"Template de ROI '{name}' não encontrado para o contexto solicitado.")
-
-        return self.roi_template_manager.load_template(template_path)
+        """Load an ROI template. Delegates to AssetManager."""
+        return self.asset_manager.load_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            name=name,
+            zone_data_from_dict_fn=self._zone_data_from_dict,
+            location=location,
+            file_path=file_path,
+        )
 
     def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
         """Serialize ZoneData into a JSON-friendly dictionary. Delegates to ZoneManager."""
@@ -630,194 +401,13 @@ class ProjectManager:
 
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict]:
-        """
-        Scans a list of input paths (files or directories) and identifies video files.
-        For each video, it checks if corresponding parquet files exist and identifies
-        their types (arena, ROIs, trajectory).
-
-        Args:
-            paths: A list of file or directory paths.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a video and
-            contains detailed information about existing parquet files.
-
-            Example::
-
-                [{
-                    'path': 'path/to/video.mp4',
-                    'has_arena': True,
-                    'has_rois': True,
-                    'has_trajectory': True,
-                    'has_complete_data': True,
-                    'has_data': True,
-                    'parquet_files': {
-                        'arena': 'path/to/1_ProcessingArea_video.parquet',
-                        'rois': 'path/to/2_AreasOfInterest_video.parquet',
-                        'trajectory': 'path/to/3_CoordMovimento_video.parquet'
-                    }
-                }, ...]
-        """
-        video_files: set[Path] = set()
-        video_extensions = {".mp4", ".avi", ".mov"}
-
-        for p_str in paths:
-            p = Path(p_str)
-            if not p.exists():
-                log.debug(
-                    "project_manager.scan_input_paths.missing_path",
-                    path=str(p),
-                )
-                continue
-
-            if p.is_dir():
-                video_files.update(ProjectManager._scan_directory_for_videos(p, video_extensions))
-            elif p.is_file() and p.suffix.lower() in video_extensions:
-                video_files.update(ProjectManager._scan_file_entry(p, video_extensions))
-
-        results = []
-        for video_path in sorted(video_files):
-            parent_dir = video_path.parent
-            base_name = video_path.stem
-
-            # Check for specific parquet file types
-            arena_pattern = f"1_ProcessingArea_{base_name}.parquet"
-            rois_pattern = f"2_AreasOfInterest_{base_name}.parquet"
-            trajectory_pattern = f"3_CoordMovimento_{base_name}.parquet"
-
-            # Search in parent directory and potential _results subdirectory
-            search_dirs = [parent_dir, parent_dir / f"{base_name}_results"]
-
-            arena_path = None
-            rois_path = None
-            trajectory_path = None
-
-            for search_dir in search_dirs:
-                if search_dir.exists():
-                    if not arena_path:
-                        arena_candidates = list(search_dir.glob(arena_pattern))
-                        if arena_candidates:
-                            arena_path = str(arena_candidates[0])
-
-                    if not rois_path:
-                        rois_candidates = list(search_dir.glob(rois_pattern))
-                        if rois_candidates:
-                            rois_path = str(rois_candidates[0])
-
-                    if not trajectory_path:
-                        trajectory_candidates = list(search_dir.glob(trajectory_pattern))
-                        if trajectory_candidates:
-                            trajectory_path = str(trajectory_candidates[0])
-
-            has_arena = arena_path is not None
-            has_rois = rois_path is not None
-            has_trajectory = trajectory_path is not None
-            has_complete_data = has_arena and has_rois and has_trajectory
-
-            # Backward compatibility: has_data is True if trajectory exists or complete
-            has_data = has_trajectory or has_complete_data
-
-            result = {
-                "path": str(video_path),
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete_data,
-                "has_data": has_data,  # Backward compatibility
-                "parquet_files": {
-                    "arena": arena_path,
-                    "rois": rois_path,
-                    "trajectory": trajectory_path,
-                },
-            }
-
-            results.append(result)
-
-        return results
-
-    @classmethod
-    def _scan_directory_for_videos(
-        cls, directory: Path | str, video_extensions: set[str]
-    ) -> list[Path]:
-        directory = Path(directory) if isinstance(directory, str) else directory
-        cache_key = str(directory.resolve())
-        signature = cls._compute_path_signature(directory)
-        now = time.time()
-
-        cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
-
-        videos: list[Path] = []
-        try:
-            for video_path in directory.rglob("*"):
-                if video_path.suffix.lower() in video_extensions:
-                    videos.append(video_path)
-        except (OSError, PermissionError) as exc:
-            log.warning(
-                "project_manager.scan_input_paths.directory_error",
-                directory=str(directory),
-                error=str(exc),
-            )
-
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(video) for video in videos],
-        }
-        return videos
-
-    @classmethod
-    def _scan_file_entry(cls, file_path: Path | str, video_extensions: set[str]) -> list[Path]:
-        file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        if file_path.suffix.lower() not in video_extensions:
-            return []
-
-        cache_key = str(file_path.resolve())
-        signature = cls._compute_path_signature(file_path)
-        now = time.time()
-
-        cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
-
-        videos = [file_path]
-
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(file_path)],
-        }
-        return videos
-
-    @staticmethod
-    def _compute_path_signature(path: Path | str) -> tuple[str, int]:
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            stat_result = path.stat()
-        except FileNotFoundError:
-            return ("missing", 0)
-
-        return (str(stat_result.st_mtime_ns), stat_result.st_size)
+        """Scan input paths for videos. Delegates to VideoManager."""
+        return VideoManager.scan_input_paths(paths)
 
     @classmethod
     def clear_scan_cache(cls, target_path: Path | str | None = None) -> None:
-        if target_path is None:
-            cls._scan_cache.clear()
-            return
-
-        target_path = Path(target_path) if isinstance(target_path, str) else target_path
-        resolved = str(target_path.resolve())
-        cls._scan_cache.pop(resolved, None)
-        cls._scan_cache.pop(target_path, None)
+        """Clear video scan cache. Delegates to VideoManager."""
+        VideoManager.clear_scan_cache(target_path)
 
     @staticmethod
     def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
@@ -1614,76 +1204,13 @@ class ProjectManager:
                 cause=e,
             ) from e
 
-    def _default_analysis_profile(self) -> dict:
-        return {
-            "name": "default",
-            "criteria": {},
-            "track_ids": [],
-            "social": {"enabled": False, "radius_cm": 5.0},
-        }
-
     def get_analysis_profiles(self) -> list[dict]:
-        profiles = self.project_data.get("analysis_profiles")
-        if not profiles:
-            profiles = [self._default_analysis_profile()]
-            self.project_data["analysis_profiles"] = profiles
-        return deepcopy(profiles)
+        """Get analysis profiles. Delegates to AssetManager."""
+        return self.asset_manager.get_analysis_profiles(self.project_data)
 
     def resolve_analysis_profile(self, metadata: dict | None) -> dict:
-        metadata = metadata or {}
-        profiles = self.get_analysis_profiles()
-
-        fallback = profiles[0] if profiles else self._default_analysis_profile()
-        for profile in profiles:
-            criteria = profile.get("criteria") or {}
-            if not criteria:
-                fallback = profile
-                continue
-            if self._profile_matches(criteria, metadata):
-                return profile
-
-        return fallback
-
-    def _profile_matches(self, criteria: dict, metadata: dict) -> bool:
-        for key, expected_values in criteria.items():
-            if expected_values in (None, [], ()):  # pragma: no cover - defensive
-                continue
-
-            expected_set = {
-                str(value).strip().lower()
-                for value in (
-                    expected_values
-                    if isinstance(expected_values, (list, tuple, set))
-                    else [expected_values]
-                )
-                if value not in (None, "")
-            }
-            if not expected_set:
-                continue
-
-            keys_to_check = [key]
-            if key in self._PROFILE_SYNONYMS:
-                keys_to_check.extend(self._PROFILE_SYNONYMS[key])
-
-            match_found = False
-            for metadata_key in keys_to_check:
-                if metadata_key not in metadata:
-                    continue
-                value = metadata.get(metadata_key)
-                if value in (None, ""):
-                    continue
-                if isinstance(value, (list, tuple, set)):
-                    candidates = [str(item).strip().lower() for item in value]
-                else:
-                    candidates = [str(value).strip().lower()]
-                if any(candidate in expected_set for candidate in candidates):
-                    match_found = True
-                    break
-
-            if not match_found:
-                return False
-
-        return True
+        """Resolve analysis profile for metadata. Delegates to AssetManager."""
+        return self.asset_manager.resolve_analysis_profile(self.project_data, metadata)
 
     def update_video_status(self, video_path: Path | str, new_status) -> bool:
         """
