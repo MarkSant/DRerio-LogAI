@@ -149,7 +149,7 @@ class LiveCameraService:
             self.detector_service.configure_zones(
                 zone_data=zone_data,
                 width=self.camera.actual_width,
-                height=self.camera.actual_height
+                height=self.camera.actual_height,
             )
 
         # Create preview window
@@ -189,9 +189,11 @@ class LiveCameraService:
             self._on_session_complete(output_dir)
 
         # Register UI callbacks for timed recording completion
-        self.recording_service.set_ui_callbacks({
-            "stop_recording_callback": on_complete,
-        })
+        self.recording_service.set_ui_callbacks(
+            {
+                "stop_recording_callback": on_complete,
+            }
+        )
 
         # Start recording session
         self.recording_service.start_session(

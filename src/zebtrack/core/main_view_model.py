@@ -51,6 +51,11 @@ from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import OpenVINOExportError, WeightManager
+
+# Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
+from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+from zebtrack.core.hardware_coordinator import HardwareCoordinator
+from zebtrack.core.video_orchestrator import VideoOrchestrator
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
@@ -254,6 +259,7 @@ class MainViewModel:
 
         # Queues for live frame processing
         import queue
+
         self.frame_queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
         self.video_queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
         self.is_capturing_for_video = False  # Flag for video recording
@@ -280,6 +286,7 @@ class MainViewModel:
 
         # Exit event for threads (deprecated - now managed by live_camera_service)
         import threading
+
         self.program_exit_event = threading.Event()
 
         # Event bus configuration
@@ -353,6 +360,65 @@ class MainViewModel:
 
         # NOTE: bind_events() foi movido para __main__.py na FASE 1
         # NÃO chamar self.bind_events() aqui para evitar dupla inscrição
+
+        # Task 2.2: Initialize coordinators (REFACTOR-VIEWMODEL-001)
+        self._init_coordinators()
+
+    def _init_coordinators(self) -> None:
+        """Initialize coordinators for hardware, video, and analysis.
+
+        Task 2.2: REFACTOR-VIEWMODEL-001
+        Creates internal coordinators to delegate responsibilities and reduce
+        MainViewModel complexity.
+        """
+        # Hardware coordinator (detector, Arduino, zones)
+        self.hardware_coordinator = HardwareCoordinator(
+            state_manager=self.state_manager,
+            ui_event_bus=self.ui_event_bus,
+            settings_obj=self.settings,
+            project_manager=self.project_manager,
+            detector_service=self.detector_service,
+            arduino_manager_cls=self._arduino_manager_cls,
+        )
+
+        # Video orchestrator (batch processing, video workflows)
+        self.video_orchestrator = VideoOrchestrator(
+            root=self.root,
+            view=self.view,
+            state_manager=self.state_manager,
+            ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
+            settings_obj=self.settings,
+            project_manager=self.project_manager,
+            video_processing_service=self.video_processing_service,
+            analysis_service=self.analysis_service,
+            recorder=self.recorder,
+        )
+
+        # Analysis coordinator (reports, summaries, analysis pipeline)
+        self.analysis_coordinator = AnalysisCoordinator(
+            root=self.root,
+            view=self.view,
+            ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
+            settings_obj=self.settings,
+            project_manager=self.project_manager,
+            analysis_service=self.analysis_service,
+            video_processing_service=self.video_processing_service,
+        )
+
+        # Set callbacks for coordinators that need to call back to MainViewModel
+        self.hardware_coordinator.set_recording_callbacks(
+            self.trigger_recording,
+            self.stop_recording
+        )
+        self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
+        self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
+        self.video_orchestrator.set_refresh_callback(self.refresh_project_views)
+        self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
+        self.analysis_coordinator.set_refresh_callback(self.refresh_project_views)
+
+        log.info("main_view_model.coordinators_initialized")
 
     def run(self):
         # The GUI is now responsible for populating its own widgets when created.
@@ -915,20 +981,16 @@ class MainViewModel:
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def log_arduino_event(self, message: str):
-        log.info("controller.arduino.log", message=message)
-        self.ui_event_bus.publish_event(Events.UI_APPEND_ARDUINO_LOG, {"message": message})
+        """Task 2.2: Delegates to HardwareCoordinator."""
+        self.hardware_coordinator.log_arduino_event(message)
 
     def on_arduino_status_change(self, connected: bool, port: str | None):
-        log.info("controller.arduino.status", connected=connected, port=port)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_ARDUINO_STATUS, {"connected": connected, "port": port}
-        )
+        """Task 2.2: Delegates to HardwareCoordinator."""
+        self.hardware_coordinator.on_arduino_status_change(connected, port)
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str):
-        label_text = str(command) if success else f"{command} (falha)"
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS, {"message": f"Comando Arduino: {label_text}"}
-        )
+        """Task 2.2: Delegates to HardwareCoordinator."""
+        self.hardware_coordinator.on_arduino_command_sent(command, success, source)
 
     def on_arduino_event(self, event_code: int):
         log.info("controller.arduino.event_received", code=event_code)
@@ -1227,114 +1289,43 @@ class MainViewModel:
         """
         Initializes the detector instance based on the animal method selection.
 
-        Phase 6: Delegates to DetectorService.
+        Task 2.2: Delegates to HardwareCoordinator.
 
         Args:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        success, error = self.detector_service.initialize_detector(
-            animal_method=temp_animal_method,
+        return self.hardware_coordinator.setup_detector(
+            temp_animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
         )
 
-        if not success:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de Detector",
-                    "message": error or "Falha ao inicializar o detector",
-                },
-            )
-            return False
-
-        return True
-
     def _is_arduino_connected(self) -> bool:
-        """Checks whether there is an active Arduino connection."""
-        if not self.arduino_manager:
-            return False
-        return self.arduino_manager.is_connected()
+        """Checks whether there is an active Arduino connection.
+
+        Task 2.2: Delegates to HardwareCoordinator.
+        """
+        return self.hardware_coordinator.is_arduino_connected()
 
     def setup_arduino(self) -> bool:
-        """Ensures the Arduino connection is ready when the project requests it."""
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        use_arduino = bool(project_data.get("use_arduino"))
-        if not use_arduino:
-            log.debug("controller.arduino.disabled")
-            if self.arduino_manager:
-                self.arduino_manager.disconnect()
-                # Update StateManager: Arduino disconnected
-                self.state_manager.update_recording_state(
-                    source="controller.setup_arduino",
-                    arduino_connected=False,
-                    arduino_port=None,
-                )
-            return False
+        """Ensures the Arduino connection is ready when the project requests it.
 
-        port = (project_data.get("arduino_port") or "").strip()
-        if not port:
-            log.warning("controller.arduino.no_port_configured")
-            return False
-
-        manager = self._get_arduino_manager()
-        if manager.is_connected() and manager.current_port() == port:
-            log.debug("controller.arduino.already_connected", port=port)
-            self.arduino = manager.arduino
-            return True
-
-        baud_rate = self.settings.arduino.baud_rate
-        if manager.connect(port, baud_rate):
-            self.arduino = manager.arduino
-            # Update StateManager: Arduino connected
-            self.state_manager.update_recording_state(
-                source="controller.setup_arduino",
-                arduino_connected=True,
-                arduino_port=port,
-            )
-            return True
-
-        # Update StateManager: Arduino connection failed
-        self.state_manager.update_recording_state(
-            source="controller.setup_arduino",
-            arduino_connected=False,
-            arduino_port=None,
-        )
-        return False
+        Task 2.2: Delegates to HardwareCoordinator.
+        """
+        success = self.hardware_coordinator.setup_arduino()
+        # Sync arduino references
+        self.arduino = self.hardware_coordinator.arduino
+        self.arduino_manager = self.hardware_coordinator.arduino_manager
+        return success
 
     def setup_detector_zones(self):
         """
         Loads zone data from project and sets it on the detector instance.
 
-        Phase 6: Delegates zone configuration to DetectorService.
+        Task 2.2: Delegates to HardwareCoordinator.
         """
-        # Delegate zone configuration to service
-        success = self.detector_service.configure_zones()
-
-        if not success:
-            log.warning("controller.setup_zones.failed")
-            return
-
-        # UI logic remains in controller
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data.polygon:
-            if self.project_manager.get_project_type() == "pre-recorded":
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
-                    )
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Necessária",
-                        "message": "Erro: A área de processamento principal (aquário) não foi "
-                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
-                        "antes de continuar.",
-                    },
-                )
+        self.hardware_coordinator.setup_detector_zones()
 
     # --- New Methods for Weight Management ---
 
@@ -2601,7 +2592,7 @@ class MainViewModel:
         # Get configuration from dialog or use defaults
         if camera_index is not None:
             # Use camera directly with default settings
-            if hasattr(self.settings, 'live_analysis'):
+            if hasattr(self.settings, "live_analysis"):
                 duration_s = self.settings.live_analysis.default_duration_s
             else:
                 duration_s = 300
@@ -3416,126 +3407,14 @@ class MainViewModel:
         )
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
-        """Regera arquivos de sumário em Parquet para os vídeos selecionados."""
-        log.info(
-            "workflow.summaries.generate_requested",
-            requested=len(video_paths or []),
+        """Regera arquivos de sumário em Parquet para os vídeos selecionados.
+
+        Task 2.2: Delegates to AnalysisCoordinator.
+        """
+        self.analysis_coordinator.generate_parquet_summaries(
+            video_paths,
+            processing_thread_ref=self.processing_thread
         )
-
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Processamento em andamento",
-                    "message": "Aguarde a conclusão do processamento atual antes de gerar os sumários.",  # noqa: E501
-                },
-            )
-            return
-
-        if not video_paths:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Sumários",
-                    "message": "Nenhum vídeo selecionado para geração de sumários.",
-                },
-            )
-            return
-
-        if not self.project_manager.project_path:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Projeto ausente",
-                    "message": "Abra um projeto antes de gerar sumários parquet.",
-                },
-            )
-            return
-
-        all_videos = self.project_manager.get_all_videos() or []
-        if not all_videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Sumários",
-                    "message": "Nenhum vídeo cadastrado no projeto atualmente.",
-                },
-            )
-            return
-
-        normalized_targets: set[str] = set()
-        raw_lookup: dict[str, str] = {}
-        for raw_path in video_paths:
-            if not isinstance(raw_path, str) or not raw_path:
-                continue
-            norm_path = os.path.normpath(raw_path)
-            normalized_targets.add(norm_path)
-            raw_lookup.setdefault(norm_path, raw_path)
-
-        if not normalized_targets:
-            self.view.show_info(
-                "Sumários",
-                "Nenhum vídeo selecionado para geração de sumários.",
-            )
-            return
-
-        videos_by_norm = {
-            os.path.normpath(video.get("path") or ""): video
-            for video in all_videos
-            if isinstance(video.get("path"), str) and video.get("path")
-        }
-
-        selected_videos = [
-            videos_by_norm[norm_path]
-            for norm_path in normalized_targets
-            if norm_path in videos_by_norm
-        ]
-
-        missing_targets = [
-            norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
-        ]
-        if missing_targets:
-            sample = [os.path.basename(raw_lookup[norm]) for norm in list(missing_targets)[:5]]
-            if len(missing_targets) > 5:
-                sample.append(f"... (+{len(missing_targets) - 5})")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeos fora do projeto",
-                    "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                    + "\n".join(sample),
-                },
-            )
-
-        if not selected_videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Sumários",
-                    "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                },
-            )
-            return
-
-        eligible_videos = [video for video in selected_videos if video.get("has_trajectory")]
-        if not eligible_videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Sumários",
-                    "message": "Nenhum dos vídeos selecionados possui trajetória gerada.",
-                },
-            )
-            return
-
-        settings_obj = self.settings
-        # Offload the heavy per-video processing to a dedicated worker method.
-        self.processing_thread = threading.Thread(
-            target=self._generate_parquet_summaries_worker,
-            args=(eligible_videos, settings_obj),
-            daemon=True,
-        )
-        self.processing_thread.start()
 
     def _run_tracking_if_needed(
         self,
@@ -4978,94 +4857,11 @@ class MainViewModel:
             )
 
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
+        """Generates a report from a list of processed videos.
+
+        Task 2.2: Delegates to AnalysisCoordinator.
         """
-        Generates a report from a list of processed videos.
-        """
-        log.info("reports.generate.start", count=len(videos), type=report_type)
-        if not videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {"title": "Nenhum Vídeo", "message": "Nenhum vídeo selecionado para o relatório."},
-            )
-            return
-
-        all_tidy_data = []
-
-        for video_info in videos:
-            video_path = video_info.get("path")
-            if not isinstance(video_path, str) or not video_path:
-                log.warning(
-                    "reports.load.invalid_path",
-                    video_info=video_info,
-                )
-                continue
-            experiment_id = os.path.splitext(os.path.basename(video_path))[0]
-            metadata_hint = dict(video_info.get("metadata") or {})
-            results_path = self.project_manager.resolve_results_directory(
-                experiment_id,
-                video_path=video_path,
-                metadata=metadata_hint,
-            )
-            summary_path = results_path / f"{experiment_id}_summary.parquet"
-
-            if summary_path.exists():
-                try:
-                    df = pd.read_parquet(summary_path)
-                    all_tidy_data.append(df)
-                except Exception as e:
-                    log.warning("reports.load.error", path=str(summary_path), error=e)
-            else:
-                log.warning("reports.load.not_found", path=str(summary_path))
-
-        if not all_tidy_data:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro no Relatório",
-                    "message": "Não foi possível encontrar dados de resumo para os vídeos selecionados.",  # noqa: E501
-                },
-            )
-            return
-
-        aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
-        save_path = self.view.ask_save_filename(
-            title=f"Salvar Relatório {report_type.capitalize()}",
-            defaultextension=".xlsx",
-            initialfile=f"{report_type}_report.xlsx",
-            filetypes=[
-                ("Pasta de Trabalho do Excel", "*.xlsx"),
-                ("Arquivo CSV", "*.csv"),
-                ("Arquivo Parquet", "*.parquet"),
-                ("Todos os arquivos", "*.*"),
-            ],
-        )
-        if not save_path:
-            return
-
-        # Determine format from extension and export data
-        file_extension = os.path.splitext(save_path)[1].lower()
-        if file_extension == ".xlsx":
-            aggregated_df.to_excel(save_path, index=False)
-        elif file_extension == ".csv":
-            aggregated_df.to_csv(save_path, index=False)
-        elif file_extension == ".parquet":
-            aggregated_df.to_parquet(save_path, index=False)
-        else:
-            # Default to Excel if extension is unknown or missing
-            if not file_extension:
-                save_path += ".xlsx"
-            aggregated_df.to_excel(save_path, index=False)
-
-        # Also generate the visual .docx report, except for parquet
-        if file_extension != ".parquet":
-            docx_path = os.path.splitext(save_path)[0] + "_report.docx"
-            Reporter.export_project_report(aggregated_df, docx_path)
-
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {"title": "Relatório Gerado", "message": f"Relatório salvo em:\n{save_path}"},
-            )
+        self.analysis_coordinator.generate_report(videos, report_type)
 
     def run_model_diagnostic(self, config: dict):
         """

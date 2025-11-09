@@ -219,7 +219,9 @@ class TestFrameSourceFactoryIntegration:
 
     @patch("zebtrack.io.frame_source_factory.VideoFileSource")
     @patch("zebtrack.io.frame_source_factory.LiveStreamSource")
-    def test_create_multiple_types(self, mock_live_class, mock_video_class, tmp_path, mock_settings):
+    def test_create_multiple_types(
+        self, mock_live_class, mock_video_class, tmp_path, mock_settings
+    ):
         """Test creating different source types in sequence."""
         # Setup mocks
         video_file = tmp_path / "video.mp4"

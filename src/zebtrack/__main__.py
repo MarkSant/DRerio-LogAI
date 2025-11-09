@@ -219,7 +219,9 @@ def main():
         from zebtrack.core.project_manager import ProjectManager
         from zebtrack.core.project_workflow_service import ProjectWorkflowService
 
-        log.info("timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         _t0 = time.perf_counter()
         project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
@@ -233,7 +235,9 @@ def main():
             ui_coordinator=ui_coordinator,
             settings_obj=settings_obj,
         )
-        log.info("timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         # Detector service
         _t0 = time.perf_counter()
@@ -276,7 +280,9 @@ def main():
             cancel_event=cancel_event,
             settings_obj=settings_obj,
         )
-        log.info("timing.video_processing_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        log.info(
+            "timing.video_processing_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
+        )
 
         # Analysis service
         _t0 = time.perf_counter()

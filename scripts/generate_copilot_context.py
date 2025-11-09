@@ -162,9 +162,7 @@ def scan_key_files() -> dict[str, Any]:
             file_index[key] = {
                 "path": str(rel_path),
                 "classes": [c["name"] for c in analysis["classes"]],
-                "key_methods": [
-                    m for c in analysis["classes"] for m in c.get("methods", [])
-                ],
+                "key_methods": [m for c in analysis["classes"] for m in c.get("methods", [])],
             }
 
     return file_index
@@ -173,7 +171,7 @@ def scan_key_files() -> dict[str, Any]:
 def generate_yaml_context() -> str:
     """Gera contexto em formato YAML otimizado."""
     architecture = build_architecture_map()
-    decisions = build_decision_trees()
+    _ = build_decision_trees()  # Reserved for future use
     file_index = scan_key_files()
 
     yaml_content = f"""# ZebTrack-AI Copilot Context Map (Auto-generated)
@@ -187,19 +185,19 @@ launch: "poetry run zebtrack OR poetry run python -m zebtrack"
 
 # === ARCHITECTURE PATTERN ===
 pattern: "MVVM with Dependency Injection"
-composition_root: "{architecture['entry_points']['main']}"
+composition_root: "{architecture["entry_points"]["main"]}"
 settings_injection: "Constructor injection ONLY, never singleton"
 
 # === KEY FILE INDEX ===
 # Direct paths to critical files - use these to minimize searches
 files:
-  main_entry: "{file_index.get('composition_root', {}).get('path', 'N/A')}"
-  main_viewmodel: "{file_index.get('main_viewmodel', {}).get('path', 'N/A')}"
-  settings: "{file_index.get('settings', {}).get('path', 'N/A')}"
-  detector_service: "{file_index.get('detector_service', {}).get('path', 'N/A')}"
-  project_manager: "{file_index.get('project_manager', {}).get('path', 'N/A')}"
-  state_manager: "{file_index.get('state_manager', {}).get('path', 'N/A')}"
-  recorder: "{file_index.get('recorder', {}).get('path', 'N/A')}"
+  main_entry: "{file_index.get("composition_root", {}).get("path", "N/A")}"
+  main_viewmodel: "{file_index.get("main_viewmodel", {}).get("path", "N/A")}"
+  settings: "{file_index.get("settings", {}).get("path", "N/A")}"
+  detector_service: "{file_index.get("detector_service", {}).get("path", "N/A")}"
+  project_manager: "{file_index.get("project_manager", {}).get("path", "N/A")}"
+  state_manager: "{file_index.get("state_manager", {}).get("path", "N/A")}"
+  recorder: "{file_index.get("recorder", {}).get("path", "N/A")}"
 
 # === DECISION TREES ===
 # Fast decision paths for common tasks - follow these instead of searching

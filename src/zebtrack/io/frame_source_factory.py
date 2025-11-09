@@ -151,8 +151,7 @@ class FrameSourceFactory:
 
             else:
                 raise ValueError(
-                    f"Invalid source type in dict: '{source_type}'. "
-                    f"Must be 'camera' or 'file'"
+                    f"Invalid source type in dict: '{source_type}'. Must be 'camera' or 'file'"
                 )
 
         # Handle camera index (integer)
@@ -163,14 +162,11 @@ class FrameSourceFactory:
 
         # Handle file path (string or Path)
         elif isinstance(source, (str, Path)):
-            return FrameSourceFactory.create_from_path(
-                video_path=source, settings_obj=settings_obj
-            )
+            return FrameSourceFactory.create_from_path(video_path=source, settings_obj=settings_obj)
 
         else:
             raise ValueError(
-                f"Invalid source type: {type(source).__name__}. "
-                f"Expected str, Path, int, or dict"
+                f"Invalid source type: {type(source).__name__}. Expected str, Path, int, or dict"
             )
 
 
@@ -187,7 +183,8 @@ if __name__ == "__main__":
     try:
         settings = load_settings()
         camera_source = FrameSourceFactory.create(
-            source=0, settings_obj=settings  # Camera index 0
+            source=0,
+            settings_obj=settings,  # Camera index 0
         )
         print(f"   Created: {type(camera_source).__name__}")
         print(f"   Properties: {camera_source.get_properties()}")

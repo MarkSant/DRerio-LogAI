@@ -19,7 +19,9 @@
       "Bash(git checkout:*)",
       "Bash(Select-Object -Last 3)",
       "Bash(Select-String -Pattern \"passed|failed\")",
-      "Bash(Select-Object -Last 1)"
+      "Bash(Select-Object -Last 1)",
+      "Bash(gh pr view:*)",
+      "Bash(pr_241_comments_raw.json)"
     ],
     "deny": [],
     "ask": []

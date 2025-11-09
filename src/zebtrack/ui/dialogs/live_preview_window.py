@@ -142,9 +142,7 @@ class LivePreviewWindow:
         self.detections_label = ttk.Label(stats_grid, text="0")
         self.detections_label.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Label(stats_grid, text="FPS:").grid(
-            row=2, column=0, sticky=tk.W, padx=5, pady=2
-        )
+        ttk.Label(stats_grid, text="FPS:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
         self.fps_label = ttk.Label(stats_grid, text="0.0")
         self.fps_label.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
 
