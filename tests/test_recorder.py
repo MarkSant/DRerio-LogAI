@@ -324,3 +324,255 @@ def test_start_recording_with_invalid_calibration_raises_error(recorder_setup):
 
     # Ensure no recording files were created due to the failure
     assert not os.path.exists(os.path.join(output_folder, "3_CoordMovimento.parquet"))
+
+
+# === Edge Cases and Boundary Conditions ===
+
+
+class TestRecorderEdgeCases:
+    """Test edge cases and boundary conditions for Recorder."""
+
+    def test_empty_detection_list(self, recorder_setup):
+        """Test recording with empty detection list for multiple frames."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Write multiple frames with no detections
+        for frame_num in range(10):
+            recorder.write_detection_data(frame_num * 0.033, frame_num, [])
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        # Verify parquet file was created
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        assert os.path.exists(parquet_path)
+
+        # Verify it's empty
+        df = pd.read_parquet(parquet_path)
+        assert len(df) == 0
+
+    def test_single_frame_recording(self, recorder_setup):
+        """Test recording with only a single frame."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Write exactly one frame with one detection
+        recorder.write_detection_data(0.0, 0, [(10, 10, 20, 20, 0.95, 1)])
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        # Verify parquet file exists and has 1 row
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        assert os.path.exists(parquet_path)
+
+        df = pd.read_parquet(parquet_path)
+        assert len(df) == 1
+        assert df.iloc[0]["track_id"] == 1
+
+    def test_very_large_detection_count(self, recorder_setup):
+        """Test recording with very large number of detections per frame (1000+)."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Create 1200 detections in a single frame
+        large_detection_list = []
+        for i in range(1200):
+            x1 = (i % 100) * 10
+            y1 = (i // 100) * 10
+            x2 = x1 + 5
+            y2 = y1 + 5
+            large_detection_list.append((x1, y1, x2, y2, 0.9, i))
+
+        recorder.write_detection_data(0.0, 0, large_detection_list)
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.2)
+
+        # Verify all detections were saved
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        assert os.path.exists(parquet_path)
+
+        df = pd.read_parquet(parquet_path)
+        assert len(df) == 1200
+
+    def test_calibration_columns_with_valid_data(self, recorder_setup):
+        """Test that calibration columns are correctly calculated with valid pixel_per_cm_ratio."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        pixel_ratio = (5.0, 5.0)  # 5 pixels per cm
+
+        recorder.start_recording(
+            output_folder,
+            frame_width,
+            frame_height,
+            zones=ZoneData(),
+            pixel_per_cm_ratio=pixel_ratio,
+        )
+
+        # Write detection at center of frame
+        recorder.write_detection_data(0.0, 0, [(40, 40, 60, 60, 0.9, 1)])
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        df = pd.read_parquet(parquet_path)
+
+        # Check calibration columns exist and are valid
+        assert "x_cm" in df.columns
+        assert "y_cm" in df.columns
+        assert not pd.isna(df.iloc[0]["x_cm"])
+        assert not pd.isna(df.iloc[0]["y_cm"])
+
+        # Center should be (50, 50) in pixels -> (10, 10) in cm
+        assert df.iloc[0]["x_cm"] == pytest.approx(10.0, abs=0.1)
+        assert df.iloc[0]["y_cm"] == pytest.approx(10.0, abs=0.1)
+
+    def test_timestamp_discontinuities(self, recorder_setup):
+        """Test handling of timestamp discontinuities (out of order, duplicates, large gaps)."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Write timestamps with discontinuities
+        # 1. Normal progression
+        recorder.write_detection_data(0.0, 0, [(10, 10, 20, 20, 0.9, 1)])
+        recorder.write_detection_data(0.033, 1, [(11, 11, 21, 21, 0.9, 1)])
+
+        # 2. Large gap (5 seconds)
+        recorder.write_detection_data(5.033, 152, [(12, 12, 22, 22, 0.9, 1)])
+
+        # 3. Duplicate timestamp
+        recorder.write_detection_data(5.033, 153, [(13, 13, 23, 23, 0.9, 2)])
+
+        # 4. Out of order (earlier timestamp after later ones)
+        recorder.write_detection_data(2.5, 75, [(14, 14, 24, 24, 0.9, 3)])
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        # Verify all frames were saved despite discontinuities
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        df = pd.read_parquet(parquet_path)
+
+        assert len(df) == 5  # All 5 detections should be present
+        # Verify the data integrity
+        assert set(df["track_id"].tolist()) == {1, 2, 3}
+
+    def test_zero_dimension_frame(self, recorder_setup):
+        """Test error handling with zero or negative frame dimensions."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, _, _ = recorder_setup
+
+        # Test with zero width
+        with pytest.raises((ValueError, RuntimeError)):
+            recorder.start_recording(output_folder, 0, 100, zones=ZoneData())
+
+        # Test with zero height
+        with pytest.raises((ValueError, RuntimeError)):
+            recorder.start_recording(output_folder, 100, 0, zones=ZoneData())
+
+    def test_extreme_confidence_values(self, recorder_setup):
+        """Test handling of extreme confidence values (0.0, 1.0, >1.0)."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Write detections with extreme confidence values
+        recorder.write_detection_data(
+            0.0,
+            0,
+            [
+                (10, 10, 20, 20, 0.0, 1),  # Zero confidence
+                (20, 20, 30, 30, 1.0, 2),  # Perfect confidence
+                (30, 30, 40, 40, 1.5, 3),  # Over 1.0 (should still save)
+            ],
+        )
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        df = pd.read_parquet(parquet_path)
+
+        # All should be saved
+        assert len(df) == 3
+        assert df.iloc[0]["confidence"] == pytest.approx(0.0)
+        assert df.iloc[1]["confidence"] == pytest.approx(1.0)
+        assert df.iloc[2]["confidence"] == pytest.approx(1.5)
+
+    def test_negative_coordinates(self, recorder_setup):
+        """Test handling of negative bounding box coordinates."""
+        from zebtrack.core.detector import ZoneData
+
+        recorder, output_folder, frame_width, frame_height = recorder_setup
+        recorder.start_recording(output_folder, frame_width, frame_height, zones=ZoneData())
+
+        # Write detections with negative coordinates
+        recorder.write_detection_data(
+            0.0,
+            0,
+            [
+                (-10, -10, 10, 10, 0.9, 1),  # Partially out of frame (top-left)
+                (90, 90, 110, 110, 0.9, 2),  # Partially out of frame (bottom-right)
+            ],
+        )
+
+        recorder.stop_recording()
+
+        # Give Windows time to flush
+        import time
+
+        time.sleep(0.1)
+
+        base_name = os.path.basename(output_folder)
+        parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        df = pd.read_parquet(parquet_path)
+
+        # Should still be saved
+        assert len(df) == 2
+        # Center calculation should still work
+        assert df.iloc[0]["x_center_px"] == pytest.approx(0.0)
+        assert df.iloc[0]["y_center_px"] == pytest.approx(0.0)

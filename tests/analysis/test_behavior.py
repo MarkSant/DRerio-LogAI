@@ -575,3 +575,388 @@ class TestPropertiesAndDataAccess:
 
         assert isinstance(arena, Polygon)
         assert arena.is_valid
+
+
+# === Edge Cases and Boundary Conditions ===
+
+
+class TestBehaviorEdgeCases:
+    """Test edge cases and boundary conditions for behavioral analysis."""
+
+    def test_zero_velocity_trajectory(self, arena_polygon_80x72):
+        """Test analysis with stationary subject (zero velocity)."""
+        # Create trajectory where subject doesn't move
+        n_frames = 100
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+        # All positions identical with tiny noise
+        x_positions_cm = np.full(n_frames, 20.0) + np.random.normal(0, 0.01, n_frames)
+        y_positions_cm = np.full(n_frames, 20.0) + np.random.normal(0, 0.01, n_frames)
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Total distance should be near zero
+        distance = analyzer.calculate_total_distance()
+        assert distance < 1.0  # Less than 1 cm total movement
+
+        # Velocity stats should be near zero
+        stats = analyzer.get_velocity_stats()
+        assert stats["mean"] < 0.5  # cm/s
+        assert stats["median"] < 0.5
+
+        # Should detect as freezing/inactivity
+        freezing = analyzer.detect_freezing_episodes(
+            min_duration=0.5, vel_threshold=0.5, threshold_method="absolute"
+        )
+        assert len(freezing) > 0  # Should detect at least one freezing episode
+
+    def test_negative_displacement(self, arena_polygon_80x72):
+        """Test trajectory with negative displacement (ends before start position)."""
+        n_frames = 100
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+
+        # Start at (50, 50), move to (10, 10) - negative displacement in both axes
+        x_positions_cm = np.linspace(50, 10, n_frames)
+        y_positions_cm = np.linspace(50, 10, n_frames)
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Should still calculate positive distance traveled
+        distance = analyzer.calculate_total_distance()
+        # Diagonal distance from (50,50) to (10,10) ≈ 56.57 cm
+        expected = np.sqrt((50 - 10) ** 2 + (50 - 10) ** 2)
+        assert abs(distance - expected) / expected < 0.1
+
+        # Tortuosity should work
+        tortuosity = analyzer.get_tortuosity()
+        assert isinstance(tortuosity, float)
+        assert not np.isnan(tortuosity)
+
+    def test_very_short_trajectory(self, arena_polygon_80x72):
+        """Test analysis with very short trajectory (<1 second, <30 frames)."""
+        # Only 20 frames at 30 fps = 0.67 seconds
+        n_frames = 20
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+        x_positions_cm = np.linspace(10, 30, n_frames)
+        y_positions_cm = np.full(n_frames, 20.0)
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Should still calculate distance
+        distance = analyzer.calculate_total_distance()
+        assert 18 <= distance <= 22  # ~20 cm expected
+
+        # Velocity calculation should work
+        velocity_df = analyzer.calculate_velocity_timeseries()
+        assert len(velocity_df) == n_frames
+        assert velocity_df["v_mag"].notna().sum() > 0
+
+    def test_noisy_position_data(self, arena_polygon_80x72):
+        """Test analysis with noisy/jittery position data."""
+        n_frames = 100
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+
+        # Linear movement with heavy noise
+        x_base = np.linspace(10, 60, n_frames)
+        y_base = np.linspace(10, 30, n_frames)
+
+        # Add significant Gaussian noise (±2 cm)
+        x_positions_cm = x_base + np.random.normal(0, 2.0, n_frames)
+        y_positions_cm = y_base + np.random.normal(0, 2.0, n_frames)
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Smoothing should help - distance shouldn't be wildly off
+        distance = analyzer.calculate_total_distance()
+        # Base distance is sqrt(50^2 + 20^2) ≈ 53.85 cm
+        # With noise, expect some increase but not excessive
+        assert 40 <= distance <= 100
+
+        # Velocity calculation should not crash
+        velocity_df = analyzer.calculate_velocity_timeseries()
+        assert len(velocity_df) == n_frames
+
+        # Standard deviation should be higher due to noise
+        stats = analyzer.get_velocity_stats()
+        assert stats["std_dev"] > 0
+
+    def test_trajectory_with_outliers(self, arena_polygon_80x72):
+        """Test analysis with position outliers (detection errors)."""
+        n_frames = 100
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+        x_positions_cm = np.linspace(20, 40, n_frames)
+        y_positions_cm = np.full(n_frames, 30.0)
+
+        # Insert outliers at specific frames (detection jumps)
+        x_positions_cm[25] = 5.0  # Jump far left
+        x_positions_cm[50] = 70.0  # Jump far right
+        y_positions_cm[75] = 5.0  # Jump up
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Should still complete analysis without crashing
+        distance = analyzer.calculate_total_distance()
+        assert distance > 0  # Some distance calculated
+
+        # Velocity calculation should handle outliers
+        velocity_df = analyzer.calculate_velocity_timeseries()
+        assert len(velocity_df) == n_frames
+
+        # Outliers might create speed bursts
+        bursts = analyzer.calculate_speed_bursts(threshold_cm_s=50.0, min_duration=0.05)
+        assert isinstance(bursts, dict)
+
+    def test_single_point_trajectory(self, arena_polygon_80x72):
+        """Test analysis with only 1 data point."""
+        fps = 30.0
+        pixelcm = 10.0
+
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_timedelta([0.0], unit="s"),
+                "x_center_px": [200.0],
+                "y_center_px": [360.0],
+                "x1": [190.0],
+                "y1": [350.0],
+                "x2": [210.0],
+                "y2": [370.0],
+                "confidence": [0.9],
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Distance should be zero
+        distance = analyzer.calculate_total_distance()
+        assert distance == 0.0
+
+        # Velocity should be empty or zero
+        velocity_df = analyzer.calculate_velocity_timeseries()
+        assert len(velocity_df) > 0  # Should return at least the one point
+
+    def test_extreme_speed_trajectory(self, arena_polygon_80x72):
+        """Test analysis with unrealistically high speeds."""
+        # 30 frames at 30 fps = 1 second, moving 200 cm = 200 cm/s
+        n_frames = 30
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+        x_positions_cm = np.linspace(10, 210, n_frames)  # 200 cm in 1 second
+        y_positions_cm = np.full(n_frames, 40.0)
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Should calculate high velocity
+        stats = analyzer.get_velocity_stats()
+        assert stats["mean"] > 100  # cm/s
+
+        # Should detect as speed burst
+        bursts = analyzer.calculate_speed_bursts(threshold_cm_s=50.0, min_duration=0.1)
+        assert bursts["count"] > 0
+
+    def test_boundary_position_at_arena_edge(self, arena_polygon_80x72):
+        """Test analysis when subject is at arena boundary."""
+        n_frames = 50
+        fps = 30.0
+        pixelcm = 10.0
+
+        timestamps = pd.to_timedelta(np.arange(n_frames) / fps, unit="s")
+
+        # Move along the edge of arena (x=0, y varying)
+        x_positions_cm = np.full(n_frames, 1.0)  # Near left edge
+        y_positions_cm = np.linspace(1, 71, n_frames)  # Bottom to top
+
+        x_center_px = x_positions_cm * pixelcm
+        y_center_px = 360 - (y_positions_cm * pixelcm)
+
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "x_center_px": x_center_px,
+                "y_center_px": y_center_px,
+                "x1": x_center_px - 10,
+                "y1": y_center_px - 10,
+                "x2": x_center_px + 10,
+                "y2": y_center_px + 10,
+                "confidence": 0.9,
+            }
+        )
+
+        analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=pixelcm,
+            pixelcm_y=pixelcm,
+            video_height_px=720,
+            arena_polygon_px=arena_polygon_80x72,
+            fps=fps,
+        )
+
+        # Thigmotaxis should be very high (close to wall)
+        thigmo_index = analyzer.calculate_thigmotaxis_index(
+            method="time_near_wall", distance_threshold=5.0
+        )
+        assert thigmo_index > 80  # Should be >80% near wall
+
+        # Average distance thigmotaxis should be small
+        avg_dist = analyzer.calculate_thigmotaxis_index(method="average_distance")
+        assert avg_dist < 10  # Less than 10 cm from wall on average
