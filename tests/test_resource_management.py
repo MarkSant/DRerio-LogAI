@@ -56,7 +56,6 @@ class TestCameraContextManager:
             with pytest.raises(RuntimeError):
                 with Camera(settings_obj=settings_obj):
                     raise RuntimeError("Test error")
-
             # Still cleaned up
             mock_cap.release.assert_called()
 
@@ -144,7 +143,6 @@ class TestRecorderContextManager:
                         is_video_file=False,
                     )
                     raise RuntimeError("Test error")
-
             # Recording should be stopped (force stop)
             assert not recorder.is_recording
             mock_writer.release.assert_called()
@@ -217,7 +215,6 @@ class TestLiveCameraServiceContextManager:
             with pytest.raises(RuntimeError):
                 with service:
                     raise RuntimeError("Test error")
-
             # stop_session should still be called
             mock_stop.assert_called_once()
 
@@ -256,9 +253,6 @@ class TestResourceCleanupIntegration:
     @pytest.mark.integration
     def test_nested_context_managers(self, tmp_path, settings_obj):
         """Test nested context managers clean up properly."""
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-
         with patch('cv2.VideoCapture') as mock_capture_class, \
              patch('cv2.VideoWriter') as mock_writer_class:
             # Setup camera mock
@@ -290,9 +284,6 @@ class TestResourceCleanupIntegration:
     @pytest.mark.integration
     def test_exception_in_nested_contexts(self, tmp_path, settings_obj):
         """Test exception handling in nested context managers."""
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-
         with patch('cv2.VideoCapture') as mock_capture_class, \
              patch('cv2.VideoWriter') as mock_writer_class:
             # Setup camera mock
@@ -316,6 +307,5 @@ class TestResourceCleanupIntegration:
                 with Camera(settings_obj=settings_obj):
                     with Recorder(settings_obj=settings_obj):
                         raise RuntimeError("Test error")
-
             # Both resources still cleaned up
             mock_cap.release.assert_called()
