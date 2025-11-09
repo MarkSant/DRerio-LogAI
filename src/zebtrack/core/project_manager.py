@@ -1206,6 +1206,10 @@ class ProjectManager:
                 cause=e,
             ) from e
 
+    def _default_analysis_profile(self) -> dict:
+        """Return the default analysis profile. Delegates to AssetManager."""
+        return self.asset_manager._default_analysis_profile()
+
     def get_analysis_profiles(self) -> list[dict]:
         """Get analysis profiles. Delegates to AssetManager."""
         return self.asset_manager.get_analysis_profiles(self.project_data)
