@@ -22,8 +22,8 @@ Exception Hierarchy:
     │   └── FrameProcessingError
     ├── AnalysisError
     ├── HardwareError
-    │   ├── ArduinoError
-    │   └── ArduinoConnectionError
+    │   └── ArduinoError
+    │       └── ArduinoConnectionError
     ├── UIError
     │   ├── ValidationError
     │   └── WizardError
