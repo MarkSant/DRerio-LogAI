@@ -15,10 +15,13 @@ import pandas as pd
 import structlog
 import yaml
 
+from zebtrack.core.asset_manager import AssetManager
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.project_service import ProjectService
-from zebtrack.core.roi_template_manager import ROITemplateManager
 from zebtrack.core.state_manager import StateManager
+from zebtrack.core.types import AssetType
+from zebtrack.core.video_manager import VideoManager
+from zebtrack.core.zone_manager import ZoneManager
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 
@@ -65,39 +68,8 @@ ROI_TEMPLATE_VERSION = 1
 
 log = structlog.get_logger()
 
-AssetType = Literal["arena", "rois", "trajectory", "summary", "video"]
-
 
 class ProjectManager:
-    _SCAN_CACHE_TTL_SECONDS: ClassVar[float] = 30.0
-    _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
-
-    _PROFILE_SYNONYMS: ClassVar[dict[str, tuple[str, ...]]] = {
-        "group": (
-            "group",
-            "group_id",
-            "group_name",
-            "group_display_name",
-        ),
-        "day": (
-            "day",
-            "day_id",
-            "day_label",
-            "day_display_name",
-        ),
-        "subject": (
-            "subject",
-            "subject_id",
-            "subject_label",
-            "individual",
-            "individuo",
-            "animal",
-            "animal_id",
-            "cobaia",
-        ),
-        "experiment_id": ("experiment_id", "video_name"),
-    }
-
     def __init__(self, state_manager: StateManager | None = None, settings_obj=None):
         """Initialize ProjectManager with dependency injection.
 
@@ -114,150 +86,46 @@ class ProjectManager:
         # Settings dependency (injected)
         self.settings = settings_obj
 
+        # Phase 2 Task 2.3: Specialized managers for different responsibilities
+        self.video_manager = VideoManager()
+        self.zone_manager = ZoneManager()
+        self.asset_manager = AssetManager()
+
         # In-memory project state
         self.project_path = None
         self.project_data = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
-        self._active_zone_video: str | None = None
-        self._last_zone_source_video: str | None = None
-        self.roi_template_manager = ROITemplateManager()
+        # Compatibility: keep roi_template_manager reference for legacy code
+        self.roi_template_manager = self.asset_manager.roi_template_manager
 
     # ------------------------------------------------------------------
     # Internal helpers for zone management
     # ------------------------------------------------------------------
 
     def _ensure_zone_structures(self) -> None:
-        """Ensure zone-related structures exist in project data."""
-
-        if "detection_zones" not in self.project_data:
-            self.project_data["detection_zones"] = {}
-        if "zones_by_video" not in self.project_data:
-            self.project_data["zones_by_video"] = {}
-        if "roi_templates" not in self.project_data or not isinstance(
-            self.project_data.get("roi_templates"), list
-        ):
-            self.project_data["roi_templates"] = []
+        """Ensure zone-related structures exist in project data. Delegates to ZoneManager."""
+        ZoneManager.ensure_zone_structures(self.project_data)
 
     @staticmethod
     def _normalize_video_path(path: Path | str | None) -> str | None:
-        if not path:
-            return None
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            resolved = path.resolve(strict=False)
-        except Exception:
-            resolved = path
-        return resolved.as_posix()
+        """Delegate to ZoneManager for path normalization."""
+        return ZoneManager.normalize_video_path(path)
 
     def _resolve_zone_entry(self, video_path: Path | str | None) -> tuple[str | None, dict | None]:
-        """Locate a stored zone entry matching the provided video path."""
-
-        if not video_path:
-            return None, None
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-
-        self._ensure_zone_structures()
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized = self._normalize_video_path(video_path)
-
-        if normalized and normalized in zones_map:
-            return normalized, zones_map[normalized]
-
-        if video_path in zones_map:
-            return video_path, zones_map[video_path]
-
-        if normalized:
-            for key, value in zones_map.items():
-                if self._normalize_video_path(key) == normalized:
-                    return key, value
-
-        return normalized or video_path, None
+        """Locate a stored zone entry matching the provided video path. Delegates to ZoneManager."""
+        return self.zone_manager.resolve_zone_entry(self.project_data, video_path)
 
     def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
-        """Remove duplicate zone entries that resolve to the same canonical path."""
-
-        if not preferred_key:
-            return
-
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized = self._normalize_video_path(preferred_key)
-        if not normalized:
-            return
-
-        for key in list(zones_map.keys()):
-            if key == preferred_key:
-                continue
-            if self._normalize_video_path(key) == normalized:
-                del zones_map[key]
-
-    def _ensure_roi_template_dir(self) -> Path:
-        if not self.project_path:
-            raise ValueError("Projeto não inicializado para salvar templates de ROI.")
-        target = Path(self.project_path) / "roi_templates"
-        target.mkdir(parents=True, exist_ok=True)
-        return target
-
-    @staticmethod
-    def _slugify(value: str) -> str:
-        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
-        normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
-        return normalized.lower() or "template"
+        """Remove duplicate zone entries that resolve to the same canonical path. Delegates to ZoneManager."""
+        ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
 
     def list_roi_templates(
         self,
         *,
         include_global: bool = True,
     ) -> list[dict[str, Any]]:
-        self._ensure_zone_structures()
-        aggregated: list[dict[str, Any]] = []
-
-        for item in self.project_data.get("roi_templates", []):
-            if not isinstance(item, dict):
-                continue
-
-            entry = deepcopy(item)
-            entry.setdefault("location", "project")
-            entry.setdefault("includes_arena", True)
-            entry.setdefault("includes_rois", True)
-            aggregated.append(entry)
-
-        if include_global:
-            try:
-                global_entries = self.roi_template_manager.list_global_templates()
-            except Exception as exc:  # pragma: no cover - defensive telemetry
-                log.warning(
-                    "project_manager.roi_templates.global_list_failed",
-                    error=str(exc),
-                )
-                global_entries = []
-
-            for item in global_entries:
-                if not isinstance(item, dict):
-                    continue
-                entry = dict(item)
-                entry.setdefault("location", "global")
-                entry.setdefault("includes_arena", True)
-                entry.setdefault("includes_rois", True)
-                aggregated.append(entry)
-
-        def _sort_key(template: dict[str, Any]) -> tuple[int, str]:
-            location = template.get("location", "project")
-            priority = 0 if location == "project" else 1
-            name = str(template.get("name", "")).lower()
-            return priority, name
-
-        return sorted(aggregated, key=_sort_key)
-
-    def _resolve_roi_template_entry(
-        self, name: str
-    ) -> tuple[int, dict[str, Any]] | tuple[None, None]:
-        templates = self.project_data.get("roi_templates", [])
-        for idx, entry in enumerate(templates):
-            if not isinstance(entry, dict):
-                continue
-            if entry.get("name") == name:
-                return idx, entry
-        return None, None
+        """List all ROI templates. Delegates to AssetManager."""
+        return self.asset_manager.list_roi_templates(self.project_data, include_global=include_global)
 
     def save_roi_template(
         self,
@@ -271,108 +139,21 @@ class ProjectManager:
         overwrite: bool = True,
         persist: bool = True,
     ) -> dict[str, Any]:
-        normalized_name = (name or "").strip()
-        if not normalized_name:
-            raise ValueError("O nome do template não pode ficar vazio.")
-
-        if zone_data is None:
-            raise ValueError("Dados de zona inválidos para salvar o template.")
-
-        if not save_arena and not save_rois:
-            raise ValueError("Selecione ao menos arena ou ROIs para salvar.")
-
-        target_location: Literal["project", "global", "custom"]
-        target_location = save_location or "project"
-
-        if target_location == "project":
-            if not self.project_path:
-                raise ValueError(
-                    "Não é possível salvar o template no projeto atual: projeto não carregado."
-                )
-
-            self._ensure_zone_structures()
-
-            existing_index, existing_entry = self._resolve_roi_template_entry(normalized_name)
-            if existing_entry and not overwrite:
-                raise ValueError(f"Template '{normalized_name}' já existe.")
-
-            if existing_entry:
-                slug = existing_entry.get("slug") or self._slugify(normalized_name)
-            else:
-                slug = self._slugify(normalized_name)
-                collision = any(
-                    entry.get("slug") == slug
-                    for entry in self.project_data.get("roi_templates", [])
-                    if isinstance(entry, dict)
-                )
-                counter = 2
-                base_slug = slug
-                while collision:
-                    slug = f"{base_slug}-{counter}"
-                    collision = any(
-                        entry.get("slug") == slug
-                        for entry in self.project_data.get("roi_templates", [])
-                        if isinstance(entry, dict)
-                    )
-                    counter += 1
-
-            metadata = self.roi_template_manager.save_template(
-                normalized_name,
-                zone_data,
-                slug=slug,
-                save_arena=save_arena,
-                save_rois=save_rois,
-                save_location="project",
-                project_path=self.project_path,
-                overwrite=overwrite,
-            )
-
-            project_path = Path(self.project_path)
-            metadata["file"] = os.path.relpath(metadata["file"], project_path)
-            metadata["location"] = "project"
-            metadata.setdefault("includes_arena", save_arena)
-            metadata.setdefault("includes_rois", save_rois)
-
-            if existing_entry:
-                metadata["created_at"] = existing_entry.get(
-                    "created_at", metadata.get("created_at")
-                )
-
-            stored_metadata = {
-                "name": metadata.get("name", normalized_name),
-                "slug": metadata.get("slug"),
-                "file": metadata.get("file"),
-                "roi_count": metadata.get("roi_count", 0),
-                "updated_at": metadata.get("updated_at"),
-                "created_at": metadata.get("created_at"),
-                "location": metadata.get("location", "project"),
-                "includes_arena": metadata.get("includes_arena", True),
-                "includes_rois": metadata.get("includes_rois", True),
-            }
-
-            templates = self.project_data.setdefault("roi_templates", [])
-            if existing_index is not None:
-                templates[existing_index] = stored_metadata
-            else:
-                templates.append(stored_metadata)
-
-            if persist:
-                self.save_project()
-
-            return deepcopy(stored_metadata)
-
-        metadata = self.roi_template_manager.save_template(
-            normalized_name,
-            zone_data,
+        """Save an ROI template. Delegates to AssetManager."""
+        persist_callback = self.save_project if persist else None
+        return self.asset_manager.save_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            name=name,
+            zone_data=zone_data,
+            zone_data_to_dict_fn=self._zone_data_to_dict,
             save_arena=save_arena,
             save_rois=save_rois,
-            save_location=target_location,
-            project_path=self.project_path,
+            save_location=save_location,
             custom_path=custom_path,
             overwrite=overwrite,
+            persist_callback=persist_callback,
         )
-        metadata["location"] = target_location
-        return metadata
 
     def import_roi_template(
         self,
@@ -381,34 +162,16 @@ class ProjectManager:
         name: str | None = None,
         persist: bool = True,
     ) -> dict[str, Any]:
-        file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        if not file_path.exists():
-            raise FileNotFoundError(str(file_path))
-
-        with open(file_path, encoding="utf-8") as handle:
-            payload = json.load(handle)
-
-        data_block = payload.get("data") if isinstance(payload, dict) else None
-        if not isinstance(data_block, dict):
-            raise ValueError("Arquivo de template inválido: bloco 'data' ausente.")
-
-        zone_data = self._zone_data_from_dict(data_block)
-        template_name = name or payload.get("name") or file_path.stem
-
-        has_arena = bool(zone_data.polygon)
-        has_rois = bool(zone_data.roi_polygons)
-
-        project_available = bool(self.project_path)
-        target_location: Literal["project", "global"] = "project" if project_available else "global"
-        effective_persist = persist and project_available
-
-        return self.save_roi_template(
-            template_name,
-            zone_data,
-            save_arena=has_arena,
-            save_rois=has_rois,
-            save_location=target_location,
-            persist=effective_persist,
+        """Import an ROI template from file. Delegates to AssetManager."""
+        persist_callback = self.save_project if persist and self.project_path else None
+        return self.asset_manager.import_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            file_path=file_path,
+            zone_data_from_dict_fn=self._zone_data_from_dict,
+            zone_data_to_dict_fn=self._zone_data_to_dict,
+            name=name,
+            persist_callback=persist_callback,
         )
 
     def load_roi_template(
@@ -418,221 +181,55 @@ class ProjectManager:
         location: Literal["project", "global", "custom"] | None = None,
         file_path: str | Path | None = None,
     ) -> ZoneData:
-        if location in (None, "project"):
-            self._ensure_zone_structures()
-            _, entry = self._resolve_roi_template_entry(name)
-            if entry:
-                relative_file = entry.get("file")
-                if not relative_file:
-                    raise ValueError("Arquivo do template não registrado no projeto.")
-
-                template_path = (
-                    Path(self.project_path) / relative_file
-                    if self.project_path
-                    else Path(relative_file)
-                )
-                if not template_path.exists():
-                    raise FileNotFoundError(str(template_path))
-
-                with open(template_path, encoding="utf-8") as handle:
-                    payload = json.load(handle)
-
-                data_block = payload.get("data") if isinstance(payload, dict) else None
-                if not isinstance(data_block, dict):
-                    raise ValueError("Conteúdo do template inválido.")
-
-                return self._zone_data_from_dict(data_block)
-
-            if location == "project":
-                raise ValueError(f"Template de ROI '{name}' não encontrado no projeto.")
-
-        template_path = Path(file_path) if file_path else None
-
-        if template_path is None and location in (None, "global"):
-            for entry in self.roi_template_manager.list_global_templates():
-                if entry.get("name") == name:
-                    file_candidate = entry.get("file")
-                    if file_candidate:
-                        template_path = Path(file_candidate)
-                        break
-
-        if template_path is None:
-            raise ValueError(f"Template de ROI '{name}' não encontrado para o contexto solicitado.")
-
-        return self.roi_template_manager.load_template(template_path)
+        """Load an ROI template. Delegates to AssetManager."""
+        return self.asset_manager.load_roi_template(
+            project_data=self.project_data,
+            project_path=self.project_path,
+            name=name,
+            zone_data_from_dict_fn=self._zone_data_from_dict,
+            location=location,
+            file_path=file_path,
+        )
 
     def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
-        """Serialize ZoneData into a JSON-friendly dictionary."""
-
-        if not zone_data:
-            return {
-                "polygon": [],
-                "roi_polygons": [],
-                "roi_names": [],
-                "roi_colors": [],
-            }
-
-        serialized = {
-            "polygon": [list(point) for point in (zone_data.polygon or [])],
-            "roi_polygons": [
-                [list(point) for point in polygon] for polygon in (zone_data.roi_polygons or [])
-            ],
-            "roi_names": list(zone_data.roi_names or []),
-            "roi_colors": [list(color) for color in (zone_data.roi_colors or [])],
-        }
-        return serialized
+        """Serialize ZoneData into a JSON-friendly dictionary. Delegates to ZoneManager."""
+        return ZoneManager.zone_data_to_dict(zone_data)
 
     def _zone_data_from_dict(self, data: dict | None) -> ZoneData:
-        """Deserialize zone data stored in JSON back into ZoneData."""
-
-        if not data:
-            return ZoneData()
-
-        polygon = [list(point) for point in data.get("polygon", [])]
-        roi_polygons = []
-        for polygon_points in data.get("roi_polygons", []):
-            roi_polygons.append([list(point) for point in polygon_points])
-
-        roi_names = list(data.get("roi_names", []))
-        roi_colors = [tuple(color) for color in data.get("roi_colors", [])]
-
-        return ZoneData(
-            polygon=polygon,
-            roi_polygons=roi_polygons,
-            roi_names=roi_names,
-            roi_colors=roi_colors,
-        )
+        """Deserialize zone data stored in JSON back into ZoneData. Delegates to ZoneManager."""
+        return ZoneManager.zone_data_from_dict(data)
 
     def _update_video_zone_flags(
         self,
         video_path: Path | str,
         zone_data: ZoneData | None,
     ) -> None:
-        """Update has_arena/has_rois flags for a given video entry."""
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-
-        if not self.project_data or not video_path:
-            return
-
-        has_arena = bool(zone_data and zone_data.polygon)
-        has_rois = bool(zone_data and zone_data.roi_polygons)
-        normalized_target = self._normalize_video_path(video_path)
-
-        for batch in self.project_data.get("batches", []):
-            for video in batch.get("videos", []):
-                candidate_path = video.get("path")
-                if not candidate_path:
-                    continue
-                if self._normalize_video_path(candidate_path) == normalized_target:
-                    video["has_arena"] = has_arena
-                    video["has_rois"] = has_rois
-                    video["zones_finalized"] = False
-                    return
+        """Update has_arena/has_rois flags for a given video entry. Delegates to ZoneManager."""
+        ZoneManager.update_video_zone_flags(self.project_data, video_path, zone_data)
 
     def _refresh_last_zone_source(self, removed_path: Path | str | None = None) -> None:
-        """Refresh cache for last zone source video when data changes."""
-
-        if removed_path is not None:
-            removed_path = Path(removed_path) if isinstance(removed_path, str) else removed_path
-        zones_map = self.project_data.get("zones_by_video", {})
-
-        if removed_path and self._last_zone_source_video:
-            normalized_removed = self._normalize_video_path(removed_path)
-            if normalized_removed:
-                current_normalized = self._normalize_video_path(self._last_zone_source_video)
-                if current_normalized == normalized_removed:
-                    self._last_zone_source_video = None
-
-        if self._last_zone_source_video:
-            normalized_last = self._normalize_video_path(self._last_zone_source_video)
-            for key in zones_map.keys():
-                if self._normalize_video_path(key) == normalized_last:
-                    self._last_zone_source_video = key
-                    return
-            self._last_zone_source_video = None
-
-        # Pick the most recently inserted entry in zones_by_video
-        if zones_map:
-            self._last_zone_source_video = next(reversed(zones_map.keys()))
-        else:
-            self._last_zone_source_video = None
+        """Refresh cache for last zone source video when data changes. Delegates to ZoneManager."""
+        self.zone_manager.refresh_last_zone_source(self.project_data, removed_path)
 
     # ------------------------------------------------------------------
     # Public helpers for zone lifecycle
     # ------------------------------------------------------------------
 
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
-        """Set the video whose zones should be considered active in memory."""
-
-        self._ensure_zone_structures()
-
-        if video_path is None:
-            self._active_zone_video = None
-            return
-
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        normalized_path = self._normalize_video_path(video_path)
-        key, stored = self._resolve_zone_entry(video_path)
-        zones_map = self.project_data.get("zones_by_video", {})
-        preferred_key = normalized_path or key or video_path
-
-        if stored:
-            zone_copy = self._zone_data_from_dict(stored)
-            self.project_data["detection_zones"] = self._zone_data_to_dict(zone_copy)
-
-            if key and key != preferred_key:
-                zones_map[preferred_key] = stored
-                del zones_map[key]
-            elif preferred_key not in zones_map:
-                zones_map[preferred_key] = stored
-
-            self._deduplicate_zone_keys(preferred_key)
-            self._last_zone_source_video = preferred_key
-        else:
-            self.project_data["detection_zones"] = self._zone_data_to_dict(ZoneData())
-            self._deduplicate_zone_keys(preferred_key)
-
-        self._active_zone_video = preferred_key
+        """Set the video whose zones should be considered active in memory. Delegates to ZoneManager."""
+        self.zone_manager.set_active_zone_video(self.project_data, video_path)
 
     def get_active_zone_video(self) -> str | None:
-        """Return the currently active video for zone operations."""
-
-        return self._active_zone_video
+        """Return the currently active video for zone operations. Delegates to ZoneManager."""
+        return self.zone_manager.get_active_zone_video()
 
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
-        """Return the last video that had zones saved, excluding optional target."""
-
-        zones_map = self.project_data.get("zones_by_video", {})
-        normalized_exclude = self._normalize_video_path(exclude) if exclude else None
-
-        if self._last_zone_source_video:
-            normalized_last = self._normalize_video_path(self._last_zone_source_video)
-            if normalized_last and normalized_last != normalized_exclude:
-                for key in zones_map.keys():
-                    if self._normalize_video_path(key) == normalized_last:
-                        return key
-
-        for path in reversed(list(zones_map.keys())):
-            if self._normalize_video_path(path) != normalized_exclude:
-                return path
-
-        return None
+        """Return the last video that had zones saved, excluding optional target. Delegates to ZoneManager."""
+        return self.zone_manager.get_last_zone_video(self.project_data, exclude)
 
     def has_zone_data(self, video_path: Path | str | None) -> bool:
-        """Check whether the given video currently stores arena or ROI data."""
-
-        if not video_path:
-            return False
-
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        self._ensure_zone_structures()
-        _, stored = self._resolve_zone_entry(video_path)
-
-        if not stored:
-            return False
-
-        zone_data = self._zone_data_from_dict(stored)
-        return bool(zone_data.polygon or zone_data.roi_polygons)
+        """Check whether the given video currently stores arena or ROI data. Delegates to ZoneManager."""
+        return self.zone_manager.has_zone_data(self.project_data, video_path)
 
     def save_zone_data(
         self,
@@ -641,31 +238,14 @@ class ProjectManager:
         *,
         persist: bool = True,
     ) -> None:
-        """Persist zone data for the active video and project defaults."""
-
-        if video_path is not None:
-            video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        self._ensure_zone_structures()
-
-        target_video = video_path if video_path is not None else self._active_zone_video
-
-        serialized = self._zone_data_to_dict(zone_data)
-        self.project_data["detection_zones"] = serialized
-
-        if target_video:
-            normalized = self._normalize_video_path(target_video)
-            existing_key, _ = self._resolve_zone_entry(target_video)
-            # Ensure store_key is always a string (not Path object) for JSON serialization
-            store_key = normalized or existing_key or str(Path(target_video).as_posix())
-
-            self.project_data["zones_by_video"][store_key] = serialized
-            self._deduplicate_zone_keys(store_key)
-
-            self._last_zone_source_video = store_key
-            self._update_video_zone_flags(target_video, zone_data)
-
-        if persist:
-            self.save_project()
+        """Persist zone data for the active video and project defaults. Delegates to ZoneManager."""
+        persist_callback = self.save_project if persist else None
+        self.zone_manager.save_zone_data(
+            self.project_data,
+            zone_data,
+            video_path=video_path,
+            persist_callback=persist_callback
+        )
 
     def clear_zone_data_for_video(
         self,
@@ -822,194 +402,13 @@ class ProjectManager:
 
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict]:
-        """
-        Scans a list of input paths (files or directories) and identifies video files.
-        For each video, it checks if corresponding parquet files exist and identifies
-        their types (arena, ROIs, trajectory).
-
-        Args:
-            paths: A list of file or directory paths.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a video and
-            contains detailed information about existing parquet files.
-
-            Example::
-
-                [{
-                    'path': 'path/to/video.mp4',
-                    'has_arena': True,
-                    'has_rois': True,
-                    'has_trajectory': True,
-                    'has_complete_data': True,
-                    'has_data': True,
-                    'parquet_files': {
-                        'arena': 'path/to/1_ProcessingArea_video.parquet',
-                        'rois': 'path/to/2_AreasOfInterest_video.parquet',
-                        'trajectory': 'path/to/3_CoordMovimento_video.parquet'
-                    }
-                }, ...]
-        """
-        video_files: set[Path] = set()
-        video_extensions = {".mp4", ".avi", ".mov"}
-
-        for p_str in paths:
-            p = Path(p_str)
-            if not p.exists():
-                log.debug(
-                    "project_manager.scan_input_paths.missing_path",
-                    path=str(p),
-                )
-                continue
-
-            if p.is_dir():
-                video_files.update(ProjectManager._scan_directory_for_videos(p, video_extensions))
-            elif p.is_file() and p.suffix.lower() in video_extensions:
-                video_files.update(ProjectManager._scan_file_entry(p, video_extensions))
-
-        results = []
-        for video_path in sorted(video_files):
-            parent_dir = video_path.parent
-            base_name = video_path.stem
-
-            # Check for specific parquet file types
-            arena_pattern = f"1_ProcessingArea_{base_name}.parquet"
-            rois_pattern = f"2_AreasOfInterest_{base_name}.parquet"
-            trajectory_pattern = f"3_CoordMovimento_{base_name}.parquet"
-
-            # Search in parent directory and potential _results subdirectory
-            search_dirs = [parent_dir, parent_dir / f"{base_name}_results"]
-
-            arena_path = None
-            rois_path = None
-            trajectory_path = None
-
-            for search_dir in search_dirs:
-                if search_dir.exists():
-                    if not arena_path:
-                        arena_candidates = list(search_dir.glob(arena_pattern))
-                        if arena_candidates:
-                            arena_path = str(arena_candidates[0])
-
-                    if not rois_path:
-                        rois_candidates = list(search_dir.glob(rois_pattern))
-                        if rois_candidates:
-                            rois_path = str(rois_candidates[0])
-
-                    if not trajectory_path:
-                        trajectory_candidates = list(search_dir.glob(trajectory_pattern))
-                        if trajectory_candidates:
-                            trajectory_path = str(trajectory_candidates[0])
-
-            has_arena = arena_path is not None
-            has_rois = rois_path is not None
-            has_trajectory = trajectory_path is not None
-            has_complete_data = has_arena and has_rois and has_trajectory
-
-            # Backward compatibility: has_data is True if trajectory exists or complete
-            has_data = has_trajectory or has_complete_data
-
-            result = {
-                "path": str(video_path),
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete_data,
-                "has_data": has_data,  # Backward compatibility
-                "parquet_files": {
-                    "arena": arena_path,
-                    "rois": rois_path,
-                    "trajectory": trajectory_path,
-                },
-            }
-
-            results.append(result)
-
-        return results
-
-    @classmethod
-    def _scan_directory_for_videos(
-        cls, directory: Path | str, video_extensions: set[str]
-    ) -> list[Path]:
-        directory = Path(directory) if isinstance(directory, str) else directory
-        cache_key = str(directory.resolve())
-        signature = cls._compute_path_signature(directory)
-        now = time.time()
-
-        cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
-
-        videos: list[Path] = []
-        try:
-            for video_path in directory.rglob("*"):
-                if video_path.suffix.lower() in video_extensions:
-                    videos.append(video_path)
-        except (OSError, PermissionError) as exc:
-            log.warning(
-                "project_manager.scan_input_paths.directory_error",
-                directory=str(directory),
-                error=str(exc),
-            )
-
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(video) for video in videos],
-        }
-        return videos
-
-    @classmethod
-    def _scan_file_entry(cls, file_path: Path | str, video_extensions: set[str]) -> list[Path]:
-        file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        if file_path.suffix.lower() not in video_extensions:
-            return []
-
-        cache_key = str(file_path.resolve())
-        signature = cls._compute_path_signature(file_path)
-        now = time.time()
-
-        cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
-
-        videos = [file_path]
-
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(file_path)],
-        }
-        return videos
-
-    @staticmethod
-    def _compute_path_signature(path: Path | str) -> tuple[str, int]:
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            stat_result = path.stat()
-        except FileNotFoundError:
-            return ("missing", 0)
-
-        return (str(stat_result.st_mtime_ns), stat_result.st_size)
+        """Scan input paths for videos. Delegates to VideoManager."""
+        return VideoManager.scan_input_paths(paths)
 
     @classmethod
     def clear_scan_cache(cls, target_path: Path | str | None = None) -> None:
-        if target_path is None:
-            cls._scan_cache.clear()
-            return
-
-        target_path = Path(target_path) if isinstance(target_path, str) else target_path
-        resolved = str(target_path.resolve())
-        cls._scan_cache.pop(resolved, None)
-        cls._scan_cache.pop(target_path, None)
+        """Clear video scan cache. Delegates to VideoManager."""
+        VideoManager.clear_scan_cache(target_path)
 
     @staticmethod
     def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
@@ -1806,76 +1205,13 @@ class ProjectManager:
                 cause=e,
             ) from e
 
-    def _default_analysis_profile(self) -> dict:
-        return {
-            "name": "default",
-            "criteria": {},
-            "track_ids": [],
-            "social": {"enabled": False, "radius_cm": 5.0},
-        }
-
     def get_analysis_profiles(self) -> list[dict]:
-        profiles = self.project_data.get("analysis_profiles")
-        if not profiles:
-            profiles = [self._default_analysis_profile()]
-            self.project_data["analysis_profiles"] = profiles
-        return deepcopy(profiles)
+        """Get analysis profiles. Delegates to AssetManager."""
+        return self.asset_manager.get_analysis_profiles(self.project_data)
 
     def resolve_analysis_profile(self, metadata: dict | None) -> dict:
-        metadata = metadata or {}
-        profiles = self.get_analysis_profiles()
-
-        fallback = profiles[0] if profiles else self._default_analysis_profile()
-        for profile in profiles:
-            criteria = profile.get("criteria") or {}
-            if not criteria:
-                fallback = profile
-                continue
-            if self._profile_matches(criteria, metadata):
-                return profile
-
-        return fallback
-
-    def _profile_matches(self, criteria: dict, metadata: dict) -> bool:
-        for key, expected_values in criteria.items():
-            if expected_values in (None, [], ()):  # pragma: no cover - defensive
-                continue
-
-            expected_set = {
-                str(value).strip().lower()
-                for value in (
-                    expected_values
-                    if isinstance(expected_values, (list, tuple, set))
-                    else [expected_values]
-                )
-                if value not in (None, "")
-            }
-            if not expected_set:
-                continue
-
-            keys_to_check = [key]
-            if key in self._PROFILE_SYNONYMS:
-                keys_to_check.extend(self._PROFILE_SYNONYMS[key])
-
-            match_found = False
-            for metadata_key in keys_to_check:
-                if metadata_key not in metadata:
-                    continue
-                value = metadata.get(metadata_key)
-                if value in (None, ""):
-                    continue
-                if isinstance(value, (list, tuple, set)):
-                    candidates = [str(item).strip().lower() for item in value]
-                else:
-                    candidates = [str(value).strip().lower()]
-                if any(candidate in expected_set for candidate in candidates):
-                    match_found = True
-                    break
-
-            if not match_found:
-                return False
-
-        return True
+        """Resolve analysis profile for metadata. Delegates to AssetManager."""
+        return self.asset_manager.resolve_analysis_profile(self.project_data, metadata)
 
     def update_video_status(self, video_path: Path | str, new_status) -> bool:
         """
@@ -1913,68 +1249,25 @@ class ProjectManager:
         return changed
 
     def get_all_videos(self) -> list[dict]:
-        """Returns a flat list of all videos from all batches."""
-        all_vids = []
-        for batch in self.project_data.get("batches", []):
-            all_vids.extend(batch.get("videos", []))
-        return all_vids
+        """Returns a flat list of all videos from all batches. Delegates to VideoManager."""
+        return VideoManager.get_all_videos(self.project_data)
 
     def _iter_project_videos(self):
-        """Yield (batch_dict, video_dict) pairs for every registered video."""
-
-        for batch in self.project_data.get("batches", []):
-            videos = batch.get("videos", [])
-            for video in videos:
-                yield batch, video
+        """Yield (batch_dict, video_dict) pairs for every registered video. Delegates to VideoManager."""
+        return VideoManager.iter_project_videos(self.project_data)
 
     def _video_has_asset(self, video_entry: dict, asset: AssetType) -> bool:
-        parquet_files = video_entry.get("parquet_files") or {}
-
-        if asset == "arena":
-            return bool(video_entry.get("has_arena") or parquet_files.get("arena"))
-        if asset == "rois":
-            return bool(video_entry.get("has_rois") or parquet_files.get("rois"))
-        if asset == "trajectory":
-            return bool(video_entry.get("has_trajectory") or parquet_files.get("trajectory"))
-        if asset == "summary":
-            return bool(
-                video_entry.get("has_summary")
-                or parquet_files.get("summary")
-                or parquet_files.get("summary_excel")
-                or parquet_files.get("report_docx")
-            )
-        if asset == "video":
-            return bool(video_entry.get("path"))
-
-        raise ValueError(f"Asset type '{asset}' desconhecido.")
+        """Check if video has asset. Delegates to AssetManager."""
+        return AssetManager.video_has_asset(video_entry, asset)
 
     @staticmethod
     def _refresh_complete_flag(video_entry: dict) -> None:
-        video_entry["has_complete_data"] = bool(
-            video_entry.get("has_arena")
-            and video_entry.get("has_rois")
-            and video_entry.get("has_trajectory")
-        )
+        """Refresh complete data flag. Delegates to VideoManager."""
+        VideoManager.refresh_complete_flag(video_entry)
 
     def _delete_file_if_exists(self, path: Path | str | None) -> bool:
-        if not path:
-            return False
-
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            os.remove(path)
-            log.info("project_manager.asset.file_deleted", path=path)
-            return True
-        except FileNotFoundError:
-            log.debug("project_manager.asset.file_missing", path=path)
-            return False
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.warning(
-                "project_manager.asset.file_delete_failed",
-                path=path,
-                error=str(exc),
-            )
-            return False
+        """Delete file if exists. Delegates to AssetManager."""
+        return AssetManager.delete_file_if_exists(path)
 
     def can_remove_asset(self, video_path: Path | str, asset: AssetType) -> tuple[bool, str | None]:
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
@@ -2187,29 +1480,12 @@ class ProjectManager:
         path: str | None = None,
         experiment_id: str | None = None,
     ) -> dict | None:
-        """Return the project entry for a given video path or experiment id."""
-
-        if not self.project_data:
-            return None
-
-        normalized_target = None
-        if path:
-            normalized_target = os.path.normcase(os.path.normpath(path))
-
-        for _batch, video in self._iter_project_videos():
-            candidate_path = video.get("path")
-            if candidate_path and normalized_target:
-                candidate_norm = os.path.normcase(os.path.normpath(candidate_path))
-                if candidate_norm == normalized_target:
-                    return video
-
-            if experiment_id:
-                candidate_name = os.path.basename(candidate_path or "")
-                candidate_id = os.path.splitext(candidate_name)[0]
-                if candidate_id == experiment_id:
-                    return video
-
-        return None
+        """Return the project entry for a given video path or experiment id. Delegates to VideoManager."""
+        return VideoManager.find_video_entry(
+            self.project_data,
+            path=path,
+            experiment_id=experiment_id
+        )
 
     def derive_processing_metadata(
         self,
@@ -2507,12 +1783,9 @@ class ProjectManager:
 
     def get_next_video(self):
         """
-        Returns the path of the next video with 'pending' status from all batches.
+        Returns the path of the next video with 'pending' status from all batches. Delegates to VideoManager.
         """
-        for video in self.get_all_videos():
-            if video["status"] == "pending":
-                return video["path"]
-        return None
+        return VideoManager.get_next_video(self.project_data)
 
     def get_project_name(self):
         return self.project_data.get("project_name", "N/A")
@@ -2526,74 +1799,20 @@ class ProjectManager:
         *,
         fallback_to_global: bool = True,
     ) -> ZoneData:
-        """Retrieve zone data for a specific video or fallback to project defaults."""
-
-        if video_path is not None:
-            video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        self._ensure_zone_structures()
-
-        target_video = video_path if video_path is not None else self._active_zone_video
-        key, stored = self._resolve_zone_entry(target_video)
-
-        if stored:
-            return self._zone_data_from_dict(stored)
-
-        if target_video and not fallback_to_global:
-            return ZoneData()
-
-        return self._zone_data_from_dict(self.project_data.get("detection_zones"))
-
-    def update_main_polygon(self, points: list):
-        """Atualiza ou define o polígono principal nos dados do projeto."""
-
-        log.info(
-            "project_manager.polygon.updating",
-            points_count=len(points),
-            project_path=self.project_path,
-            has_project_data=bool(self.project_data),
+        """Retrieve zone data for a specific video or fallback to project defaults. Delegates to ZoneManager."""
+        return self.zone_manager.get_zone_data(
+            self.project_data,
+            video_path=video_path,
+            fallback_to_global=fallback_to_global
         )
 
-        try:
-            # Validação de estado interno
-            if not self.project_data:
-                log.error("project_manager.polygon.no_project_data")
-                raise ValueError("Dados do projeto não inicializados")
-
-            # Obter dados de zona atual
-            zone_data = self.get_zone_data()
-            log.debug(
-                "project_manager.polygon.zone_data_loaded",
-                current_polygon_exists=bool(zone_data.polygon),
-                current_roi_count=len(zone_data.roi_polygons),
-            )
-
-            # Atualizar polígono
-            old_polygon = zone_data.polygon
-            zone_data.polygon = points
-            log.info(
-                "project_manager.polygon.polygon_updated",
-                old_points=len(old_polygon) if old_polygon else 0,
-                new_points=len(points),
-            )
-
-            # Persistir alterações
-            self.save_zone_data(zone_data)
-            log.debug("project_manager.polygon.data_structure_updated")
-
-            log.info(
-                "project_manager.polygon.saved_successfully",
-                project_file=f"{self.project_path}/project.json"
-                if self.project_path
-                else "unknown",
-            )
-
-        except Exception as e:
-            log.error(
-                "project_manager.polygon.update_failed",
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            raise
+    def update_main_polygon(self, points: list):
+        """Atualiza ou define o polígono principal nos dados do projeto. Delegates to ZoneManager."""
+        self.zone_manager.update_main_polygon(
+            self.project_data,
+            points,
+            persist_callback=self.save_project
+        )
 
     def load_metadata(self):
         """Loads the metadata.csv file from the project root into a pandas DataFrame."""
