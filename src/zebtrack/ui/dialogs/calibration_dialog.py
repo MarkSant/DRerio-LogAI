@@ -5,6 +5,7 @@ Extracted from gui.py for better modularity.
 """
 
 import os
+import tkinter as tk
 from tkinter import (
     BooleanVar,
     StringVar,
@@ -127,8 +128,14 @@ class CalibrationDialog(simpledialog.Dialog):
 
     @staticmethod
     def _clear_frame(frame: ttk.Frame) -> None:
-        for child in frame.winfo_children():
-            child.destroy()
+        try:
+            if not frame.winfo_exists():
+                return
+            for child in frame.winfo_children():
+                child.destroy()
+        except tk.TclError:
+            # Frame already destroyed
+            pass
 
     def _build_calibration_section(self) -> None:
         if not self.calibration_section:

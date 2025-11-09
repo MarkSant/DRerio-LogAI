@@ -20,6 +20,20 @@ from zebtrack.ui.dialogs import (
 )
 
 
+@pytest.fixture(autouse=True)
+def prevent_dialog_blocking():
+    """Prevent ALL dialogs from blocking by patching wait_window and messageboxes."""
+    with patch('tkinter.simpledialog.Dialog.wait_window'), \
+         patch('tkinter.Toplevel.withdraw'), \
+         patch("tkinter.messagebox.showerror"), \
+         patch("tkinter.messagebox.showwarning"), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False), \
+         patch("tkinter.messagebox.askokcancel", return_value=False), \
+         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+        yield
+
+
 @pytest.mark.gui
 class TestSubjectSelectionDialog:
     """Test suite for SubjectSelectionDialog component."""
@@ -62,7 +76,7 @@ class TestSubjectSelectionDialog:
         tkinter_root.update_idletasks()
 
         # Title should contain "Dia 5" or "Dia 05" depending on format_day_display
-        assert "Grupo B" in dialog.title
+        assert "Grupo B" in dialog.wm_title()
 
     def test_dialog_title_with_no_day(self, tkinter_root):
         """Test dialog title formats 'sem dia' correctly."""
@@ -77,7 +91,7 @@ class TestSubjectSelectionDialog:
             )
             tkinter_root.update_idletasks()
 
-            assert "Sem Dia" in dialog.title
+            assert "Sem Dia" in dialog.wm_title()
 
     # --- Body Tests ---
 
@@ -446,7 +460,11 @@ class TestSaveROITemplateDialog:
 
         dialog.apply()
 
-        assert dialog.result["custom_path"] == "/path/to/template.json"
+        # Verify path is constructed correctly (normalize for cross-platform compatibility)
+        from pathlib import Path
+        result_path = Path(dialog.result["custom_path"])
+        expected_path = Path("/path/to/template.json")
+        assert result_path == expected_path
 
     # --- UI Interaction Tests ---
 
@@ -464,8 +482,8 @@ class TestSaveROITemplateDialog:
         dialog.location_var.set("custom")
         dialog._update_custom_state()
 
-        assert dialog.custom_path_entry.cget("state") == "normal"
-        assert dialog.browse_button.cget("state") == "normal"
+        assert str(dialog.custom_path_entry.cget("state")) == "normal"
+        assert str(dialog.browse_button.cget("state")) == "normal"
 
     def test_update_custom_state_disables_when_not_custom(self, tkinter_root):
         """Test custom path entry is disabled when other location selected."""
@@ -481,8 +499,8 @@ class TestSaveROITemplateDialog:
         dialog.location_var.set("project")
         dialog._update_custom_state()
 
-        assert dialog.custom_path_entry.cget("state") == "disabled"
-        assert dialog.browse_button.cget("state") == "disabled"
+        assert str(dialog.custom_path_entry.cget("state")) == "disabled"
+        assert str(dialog.browse_button.cget("state")) == "disabled"
 
     @patch("zebtrack.ui.dialogs.save_roi_template_dialog.filedialog.asksaveasfilename")
     def test_browse_custom_path_sets_path(self, mock_filedialog, tkinter_root):
@@ -575,14 +593,14 @@ class TestColorSelectionDialog:
 
         assert dialog is not None
         assert dialog.result is None
-        assert dialog.title == "Selecionar Cor da Área"
+        assert dialog.wm_title() == "Selecionar Cor da Área"
 
     def test_dialog_initialization_custom_title(self, tkinter_root):
         """Test dialog initializes with custom title."""
         dialog = ColorSelectionDialog(tkinter_root, title="Escolher Cor")
         tkinter_root.update_idletasks()
 
-        assert dialog.title == "Escolher Cor"
+        assert dialog.wm_title() == "Escolher Cor"
 
     def test_body_creates_color_options(self, tkinter_root):
         """Test body creates all color options."""
@@ -591,7 +609,8 @@ class TestColorSelectionDialog:
 
         # Should have 6 colors
         assert len(dialog.colors) == 6
-        assert dialog.selected_color.get() == "green"
+        # Default is verde (Portuguese for green)
+        assert dialog.selected_color.get() == "verde"
 
     def test_body_has_all_expected_colors(self, tkinter_root):
         """Test body includes all expected colors."""

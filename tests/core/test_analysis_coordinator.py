@@ -5,11 +5,8 @@ Task 2.2: REFACTOR-VIEWMODEL-001
 Tests for analysis pipeline, report generation, and parquet summaries.
 """
 
-import os
 import unittest
-from unittest.mock import MagicMock, Mock, patch, call
-
-import pytest
+from unittest.mock import Mock, patch
 
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 
@@ -135,11 +132,14 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
     @patch("pandas.DataFrame.to_excel")
     @patch("pathlib.Path.exists")
     @patch("pandas.read_parquet")
-    def test_generate_report_success(self, mock_read_parquet, mock_exists, mock_to_excel, mock_export):
+    def test_generate_report_success(
+        self, mock_read_parquet, mock_exists, mock_to_excel, mock_export
+    ):
         """Test successful report generation."""
         from pathlib import Path
+
         import pandas as pd
-        
+
         # Setup project with videos
         videos = [
             {"path": "/path/to/video1.mp4", "has_trajectory": True},
@@ -147,10 +147,10 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         ]
         self.project_manager.project_data = {"videos": videos}
         self.project_manager.resolve_results_directory.return_value = Path("/path/to/results")
-        
+
         # Mock Path.exists to return True (parquet files exist)
         mock_exists.return_value = True
-        
+
         # Mock read_parquet to return DataFrame
         mock_df = pd.DataFrame({"timestamp": [1, 2], "x": [0, 1], "y": [0, 1]})
         mock_read_parquet.return_value = mock_df
@@ -163,7 +163,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
 
         # Verify to_excel was called
         mock_to_excel.assert_called_once()
-        
+
         # Verify docx report was also generated
         mock_export.assert_called_once()
 
@@ -272,61 +272,11 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         self.project_manager.resolve_results_directory.return_value = "/path/to/results"
 
         with patch("os.path.exists", return_value=False):
-            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+            state, msg, _path, _changed = self.coordinator._process_summary_video(video, settings)
 
         assert state == "skipped"
         assert "ausente" in msg
 
-    @pytest.mark.skip(reason="Needs complete refactoring to mock all dependencies (get_zone_data, project_data, calibration, etc)")
-    @patch("os.path.exists", return_value=True)
-    @patch("pandas.read_parquet")
-    @patch("cv2.VideoCapture")
-    @patch("zebtrack.core.analysis_coordinator.Reporter")
-    def test_process_video_success(
-        self, mock_reporter_class, mock_video_capture, mock_read_parquet, mock_exists
-    ):
-        """Test successful video processing."""
-        # Setup video data
-        video = {
-            "path": "/path/to/video.mp4",
-            "parquet_files": {"trajectory": "/path/to/trajectory.parquet"},
-            "metadata": {},
-        }
-        settings = Mock()
-        settings.analysis.interval_frames = 10
-
-        # Mock project manager
-        self.project_manager.resolve_results_directory.return_value = "/path/to/results"
-        self.project_manager.get_zone_data.return_value = {
-            "arena_polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
-            "arena_width_cm": 10.0,
-            "arena_height_cm": 10.0,
-            "rois": [],
-        }
-
-        # Mock pandas DataFrame
-        mock_df = Mock()
-        mock_df.empty = False
-        mock_read_parquet.return_value = mock_df
-
-        # Mock VideoCapture
-        mock_cap = Mock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.get.side_effect = lambda prop: 30.0 if prop == 5 else 1000  # fps and frame count
-        mock_video_capture.return_value = mock_cap
-
-        # Mock Reporter
-        mock_reporter = Mock()
-        mock_reporter.export_summary_data.return_value = None
-        mock_reporter_class.return_value = mock_reporter
-
-        # Execute
-        state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
-
-        # Verify
-        assert state == "completed"
-        assert changed is True
-        mock_reporter.export_summary_data.assert_called_once()
 
 
 class TestAnalysisCoordinatorSummariesWorker(unittest.TestCase):
@@ -419,60 +369,6 @@ class TestAnalysisCoordinatorSummariesWorker(unittest.TestCase):
         except Exception:
             # If exception propagates, test fails
             self.fail("Worker should handle exceptions gracefully")
-
-
-class TestAnalysisCoordinatorGenerateReportWorker(unittest.TestCase):
-    """Test suite for _generate_report_worker method."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.root = Mock()
-        self.view = Mock()
-        self.ui_event_bus = Mock()
-        self.ui_coordinator = Mock()
-        self.analysis_service = Mock()
-
-        self.coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=Mock(),
-            project_manager=Mock(),
-            analysis_service=self.analysis_service,
-            video_processing_service=Mock(),
-        )
-
-    @pytest.mark.skip(reason="Method _generate_report_worker removed from AnalysisCoordinator")
-    @patch("os.path.exists", return_value=True)
-    def test_report_worker_success(self, mock_exists):
-        """Test successful report generation in worker."""
-        videos = [{"path": "/path/to/video1.mp4", "parquet_files": {"trajectory": "/traj.parquet"}}]
-        settings = Mock()
-        settings.analysis.default_output_format = "docx"
-
-        # Mock analysis service
-        self.analysis_service.generate_reports.return_value = ["/path/to/report.docx"]
-
-        # Execute
-        self.coordinator._generate_report_worker(videos, settings)
-
-        # Verify analysis service was called
-        self.analysis_service.generate_reports.assert_called_once()
-
-        # Verify UI updates were scheduled
-        assert self.root.after.called
-
-    @pytest.mark.skip(reason="Method _generate_report_worker removed from AnalysisCoordinator")
-    def test_report_worker_with_empty_videos(self):
-        """Test report worker with no videos."""
-        settings = Mock()
-
-        # Execute
-        self.coordinator._generate_report_worker([], settings)
-
-        # Should schedule finalize
-        assert self.root.after.called
 
 
 class TestAnalysisCoordinatorWorkerCallbacks(unittest.TestCase):

@@ -1,0 +1,97 @@
+{
+  "completed": [
+    "tests\\test_analysis_metadata_display.py",
+    "tests\\test_analysis_view_toggle.py",
+    "tests\\test_aquarium_detector.py",
+    "tests\\test_arduino.py",
+    "tests\\test_calibration.py",
+    "tests\\test_detection_enforcement.py",
+    "tests\\test_detector.py",
+    "tests\\test_detector_service_integration.py",
+    "tests\\test_event_bus_phase1.py",
+    "tests\\test_geometry.py",
+    "tests\\test_gui_pipeline_indicators.py",
+    "tests\\test_gui_state_observer.py",
+    "tests\\test_gui_ttkbootstrap_fallback.py",
+    "tests\\test_gui_zone_config_fixes.py",
+    "tests\\test_integration.py",
+    "tests\\test_interactive_buttons_position.py",
+    "tests\\test_interval_frames_config.py",
+    "tests\\test_logging_advanced.py",
+    "tests\\test_logging_config.py",
+    "tests\\test_openvino_context.py",
+    "tests\\test_openvino_fallback.py",
+    "tests\\test_overlay_integration.py",
+    "tests\\test_parquet_import.py",
+    "tests\\test_path_consistency.py",
+    "tests\\test_processing_worker.py",
+    "tests\\test_project_manager.py",
+    "tests\\test_recorder.py",
+    "tests\\test_recorder_schema_validation.py",
+    "tests\\test_roi_snap_indicator_arena_clamp.py",
+    "tests\\test_roi_template_manager.py",
+    "tests\\test_settings.py",
+    "tests\\test_single_subject_tracker.py",
+    "tests\\test_single_video_display_fix.py",
+    "tests\\test_single_video_workflow.py",
+    "tests\\test_single_video_zones_display.py",
+    "tests\\test_smoke.py",
+    "tests\\test_sources.py",
+    "tests\\test_state_manager.py",
+    "tests\\test_state_manager_immutability.py",
+    "tests\\test_state_manager_integration.py",
+    "tests\\test_state_manager_observer_pattern.py",
+    "tests\\test_state_manager_observer_timeout.py",
+    "tests\\test_ultralytics_tracker_config.py",
+    "tests\\test_utils.py",
+    "tests\\test_video_frame_display_fix.py",
+    "tests\\test_wizard_service_caching.py",
+    "tests\\test_workflow_orchestration.py"
+  ],
+  "failed": [
+    {
+      "file": "tests\\test_live_analysis_ui.py",
+      "status": "failed",
+      "error": "che\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 31 items / 31 deselected / 0 selected\n\n=========================== 31 deselected in 0.42s ============================\n",
+      "timestamp": "2025-11-09T09:28:59.612982"
+    },
+    {
+      "file": "tests\\test_live_analysis_ui.py",
+      "status": "failed",
+      "error": "che\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 31 items / 31 deselected / 0 selected\n\n=========================== 31 deselected in 0.29s ============================\n",
+      "timestamp": "2025-11-09T09:36:52.696212"
+    },
+    {
+      "file": "tests\\test_state_manager_stress.py",
+      "status": "failed",
+      "error": "cache\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 5 items / 5 deselected / 0 selected\n\n============================ 5 deselected in 0.08s ============================\n",
+      "timestamp": "2025-11-09T09:40:32.422980"
+    },
+    {
+      "file": "tests\\test_wizard_experimental_design.py",
+      "status": "failed",
+      "error": "che\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 12 items / 12 deselected / 0 selected\n\n=========================== 12 deselected in 0.35s ============================\n",
+      "timestamp": "2025-11-09T09:41:13.025217"
+    },
+    {
+      "file": "tests\\test_live_analysis_ui.py",
+      "status": "failed",
+      "error": "che\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 31 items / 31 deselected / 0 selected\n\n=========================== 31 deselected in 0.37s ============================\n",
+      "timestamp": "2025-11-09T09:55:41.836480"
+    },
+    {
+      "file": "tests\\test_state_manager_stress.py",
+      "status": "failed",
+      "error": "cache\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 5 items / 5 deselected / 0 selected\n\n============================ 5 deselected in 0.07s ============================\n",
+      "timestamp": "2025-11-09T09:55:45.655173"
+    },
+    {
+      "file": "tests\\test_wizard_experimental_design.py",
+      "status": "failed",
+      "error": "che\nbenchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\nconfigfile: pytest.ini\nplugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, xdist-3.8.0\ncollecting ... collected 12 items / 12 deselected / 0 selected\n\n=========================== 12 deselected in 0.24s ============================\n",
+      "timestamp": "2025-11-09T09:55:49.430081"
+    }
+  ],
+  "last_file": "tests\\test_wizard_experimental_design.py",
+  "started_at": "2025-11-09T09:25:38.522126"
+}

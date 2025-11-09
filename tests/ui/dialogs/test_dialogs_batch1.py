@@ -32,6 +32,20 @@ from zebtrack.ui.dialogs import (
 )
 
 
+@pytest.fixture(autouse=True)
+def prevent_dialog_blocking():
+    """Prevent dialogs from blocking by patching wait_window and all messageboxes."""
+    with patch('tkinter.simpledialog.Dialog.wait_window'), \
+         patch('tkinter.Toplevel.withdraw'), \
+         patch("tkinter.messagebox.showerror"), \
+         patch("tkinter.messagebox.showwarning"), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False), \
+         patch("tkinter.messagebox.askokcancel", return_value=False), \
+         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+        yield
+
+
 @pytest.fixture
 def mock_controller():
     """Create a mock controller with common methods."""
@@ -39,6 +53,9 @@ def mock_controller():
     controller.project_manager = Mock()
     controller.project_manager.project_data = {}
     controller.weight_manager = Mock()
+    controller.weight_manager.get_default_seg_weight = Mock(return_value=("weight1.pt", None))
+    controller.weight_manager.get_default_det_weight = Mock(return_value=("weight2.pt", None))
+    controller.weight_manager.get_weight_details = Mock(return_value={"type": "seg"})
     controller.ui_event_bus = Mock()
     controller.ui_event_bus.publish_event = Mock()
     controller.get_calibration_scope_info = Mock(
@@ -318,12 +335,19 @@ class TestCreateProjectDialog:
         """Test video file selection."""
         dialog = CreateProjectDialog(tkinter_root)
 
-        test_files = ("/path/to/video1.mp4", "/path/to/video2.mp4")
-        with patch("tkinter.filedialog.askopenfilenames", return_value=test_files):
-            dialog._select_video_files()
+        # Create temporary video files
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video1 = os.path.join(tmpdir, "video1.mp4")
+            video2 = os.path.join(tmpdir, "video2.mp4")
+            open(video1, 'a').close()  # Create empty files
+            open(video2, 'a').close()
 
-        assert len(dialog.video_paths) == 2
-        assert "2 arquivo(s)" in dialog.video_list_var.get()
+            test_files = (video1, video2)
+            with patch("tkinter.filedialog.askopenfilenames", return_value=test_files):
+                dialog._select_video_files()
+
+            assert len(dialog.video_paths) == 2
+            assert "2 arquivo(s)" in dialog.video_list_var.get()
 
     def test_select_video_folder(self, tkinter_root):
         """Test video folder selection."""

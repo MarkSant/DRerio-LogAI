@@ -21,7 +21,8 @@ class ColorSelectionDialog(simpledialog.Dialog):
 
     def body(self, master):
         """Cria o corpo do diálogo com opções de cores."""
-        self.selected_color = StringVar(value="green")
+        # Default to first color (Verde)
+        self.selected_color = StringVar(value="verde")
 
         # Cores disponíveis: (nome, valor_bgr para OpenCV, cor_hex para visualização)
         self.colors = [

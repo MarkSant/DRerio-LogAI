@@ -15,6 +15,7 @@ Categories:
 """
 
 import hashlib
+import tkinter as tk
 from pathlib import Path
 from tkinter import Canvas, Frame, Label, StringVar, ttk
 from typing import Any
@@ -1623,8 +1624,13 @@ class WidgetFactory:
         from tkinter import Button
 
         # 1. Clear existing widgets
-        for widget in self.gui.grid_container.winfo_children():
-            widget.destroy()
+        try:
+            if self.gui.grid_container.winfo_exists():
+                for widget in self.gui.grid_container.winfo_children():
+                    widget.destroy()
+        except tk.TclError:
+            # Container already destroyed
+            return
 
         # 2. Get project data from controller/project_manager
         pm = self.gui.controller.project_manager

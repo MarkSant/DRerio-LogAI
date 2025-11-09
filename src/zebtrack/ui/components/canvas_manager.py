@@ -45,8 +45,14 @@ class CanvasManager:
         Returns:
             tuple: (video_x, video_y) in video frame coordinates
         """
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
-            # Fallback: return canvas coordinates if scaling info not available
+        if (
+            not hasattr(self, "_bg_scale")
+            or not hasattr(self, "_bg_offset")
+            or self._bg_scale is None
+            or self._bg_offset is None
+            or self._bg_scale == 0
+        ):
+            # Fallback: return canvas coordinates if scaling info not available or scale is zero
             return (float(canvas_x), float(canvas_y))
 
         scale = self._bg_scale
@@ -68,7 +74,12 @@ class CanvasManager:
         Returns:
             tuple: (canvas_x, canvas_y) in canvas coordinates
         """
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
+        if (
+            not hasattr(self, "_bg_scale")
+            or not hasattr(self, "_bg_offset")
+            or self._bg_scale is None
+            or self._bg_offset is None
+        ):
             # Fallback: return video coordinates if scaling info not available
             return (float(video_x), float(video_y))
 
@@ -843,7 +854,8 @@ class CanvasManager:
         for det in self.gui._current_detections:
             if len(det) < 6:
                 continue
-            x1, y1, x2, y2, _, track_id = det
+            # Only the first 6 elements are used for annotation; any extra elements are ignored.
+            x1, y1, x2, y2, conf, track_id = det[:6]
             if track_id is None or str(track_id).strip() != selected:
                 continue
             try:

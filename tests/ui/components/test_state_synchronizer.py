@@ -8,6 +8,18 @@ from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 
 
+@pytest.fixture(autouse=True)
+def block_all_dialogs():
+    """Automatically block ALL dialog windows for all tests in this file."""
+    with patch("tkinter.messagebox.showerror"), \
+         patch("tkinter.messagebox.showwarning"), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False), \
+         patch("tkinter.messagebox.askokcancel", return_value=False), \
+         patch("tkinter.messagebox.askyesnocancel", return_value=None):
+        yield
+
+
 @pytest.fixture
 def mock_state_manager():
     """Create a mock StateManager instance."""
@@ -29,6 +41,9 @@ def mock_gui(tkinter_root, mock_controller):
     """Create a mock ApplicationGUI instance."""
     gui = Mock()
     gui.root = tkinter_root
+    # Mock Tkinter methods to prevent AttributeError
+    gui.root.after = Mock(return_value="after#0")
+    gui.root.after_cancel = Mock()
     gui.controller = mock_controller
     gui.state_manager = mock_controller.state_manager
 
@@ -493,9 +508,12 @@ class TestResetAnalysisWidgets:
 
     def test_reset_roi_and_visual_frames_destroys_viz_frame(self, state_synchronizer, mock_gui):
         """Test that viz_frame is destroyed."""
+        # Capture the mock before it's set to None
+        viz_frame_mock = mock_gui.viz_frame
+
         state_synchronizer._reset_roi_and_visual_frames()
 
-        mock_gui.viz_frame.destroy.assert_called_once()
+        viz_frame_mock.destroy.assert_called_once()
         assert mock_gui.viz_frame is None
 
     def test_reset_roi_and_visual_frames_destroys_zone_tab_frame(
@@ -526,18 +544,24 @@ class TestResetAnalysisWidgets:
         self, state_synchronizer, mock_gui
     ):
         """Test that notebook is destroyed."""
+        # Capture the mock before it's set to None
+        notebook_mock = mock_gui.notebook
+
         state_synchronizer._destroy_notebook_and_main_controls()
 
-        mock_gui.notebook.destroy.assert_called_once()
+        notebook_mock.destroy.assert_called_once()
         assert mock_gui.notebook is None
 
     def test_destroy_notebook_and_main_controls_destroys_main_controls(
         self, state_synchronizer, mock_gui
     ):
         """Test that main_controls_frame is destroyed."""
+        # Capture the mock before it's set to None
+        main_controls_mock = mock_gui.main_controls_frame
+
         state_synchronizer._destroy_notebook_and_main_controls()
 
-        mock_gui.main_controls_frame.destroy.assert_called_once()
+        main_controls_mock.destroy.assert_called_once()
         assert mock_gui.main_controls_frame is None
 
     def test_destroy_notebook_and_main_controls_clears_arduino_widgets(
@@ -638,7 +662,8 @@ class TestResetAnalysisControls:
 
         state_synchronizer.reset_analysis_controls()
 
-        mock_gui.track_selector_widget.configure.assert_called_once_with(state="readonly")
+        # configure() is called twice: once for values, once for state
+        mock_gui.track_selector_widget.configure.assert_any_call(state="readonly")
 
     def test_reset_analysis_controls_sets_widget_state_single_subject(
         self, state_synchronizer, mock_gui
@@ -648,7 +673,8 @@ class TestResetAnalysisControls:
 
         state_synchronizer.reset_analysis_controls()
 
-        mock_gui.track_selector_widget.configure.assert_called_once_with(state="disabled")
+        # configure() is called twice: once for values, once for state
+        mock_gui.track_selector_widget.configure.assert_any_call(state="disabled")
 
     def test_reset_analysis_controls_no_widget(self, state_synchronizer, mock_gui):
         """Test reset when widget is None."""

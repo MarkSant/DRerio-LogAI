@@ -37,8 +37,11 @@ class PendingVideosDialog(simpledialog.Dialog):
         self.arena_only = arena_only or []
         self.without_arena = without_arena or []
         self.include_arena_only_var = BooleanVar(value=False)
-        self.result = {"confirmed": False, "include_arena_only": False}
+        # Must call super().__init__ before setting result, as Dialog base sets it to None
         super().__init__(parent, "Processar Vídeos Pendentes")
+        # Set default result after Dialog initialization
+        if self.result is None:
+            self.result = {"confirmed": False, "include_arena_only": False}
 
     def body(self, master):
         master.columnconfigure(0, weight=1)
