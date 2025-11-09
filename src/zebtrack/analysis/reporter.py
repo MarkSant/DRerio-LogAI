@@ -16,6 +16,7 @@ from docxtpl import DocxTemplate
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.models import AnalysisResult
+from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
 
 log = structlog.get_logger(__name__)
@@ -123,7 +124,7 @@ class Reporter:
         pixelcm_y: float | None = None,
         video_height_px: int | None = None,
         arena_polygon_px: list[tuple[float, float]] | None = None,
-        rois: list | None = None,
+        rois: list[ROI] | None = None,
         fps: float | None = None,
         # Optional params
         roi_colors: dict | None = None,

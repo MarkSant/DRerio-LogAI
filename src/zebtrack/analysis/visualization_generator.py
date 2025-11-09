@@ -37,6 +37,10 @@ __all__ = ["VisualizationGenerator"]
 
 log = structlog.get_logger(__name__)
 
+# Default timeout for individual plot generation (in seconds)
+# This prevents hanging on complex plots or matplotlib issues
+PLOT_GENERATION_TIMEOUT_SECONDS = 60
+
 
 def _normalize_color_for_matplotlib(color):
     """
@@ -619,17 +623,33 @@ class VisualizationGenerator:
     def generate_plots_parallel(
         self, plot_configs: list[tuple[Callable, str]]
     ) -> list[tuple[io.BytesIO, str]]:
-        """
-        Generate multiple plots in parallel using ThreadPoolExecutor (Phase 8).
+        """Generate multiple plots in parallel using ThreadPoolExecutor.
 
         This method leverages parallel execution for I/O-bound matplotlib operations,
         significantly reducing report generation time.
+
+        Thread Safety:
+            - VisualizationGenerator is stateless and thread-safe for read operations
+            - Each plot is generated in an isolated matplotlib figure context
+            - Thread pooling is beneficial despite Python's GIL because:
+              * Matplotlib operations are I/O-bound (file/buffer writing)
+              * Figure rendering releases GIL during C-level operations
+              * Parallel execution reduces total wall-clock time
+
+        Performance:
+            - Respects settings.performance.max_parallel_plots (default: 3)
+            - Each plot has PLOT_GENERATION_TIMEOUT_SECONDS timeout
+            - Failed plots return empty buffers to avoid blocking report generation
 
         Args:
             plot_configs: List of (plot_function, name) tuples
 
         Returns:
             list: List of (BytesIO buffer, name) tuples in original order
+
+        Note:
+            This method is safe to call from the main thread. Do not nest
+            ThreadPoolExecutor calls to avoid thread exhaustion.
         """
         # Get configured max parallel plots from settings (use injected or default)
         max_workers = 3  # Default
@@ -652,7 +672,7 @@ class VisualizationGenerator:
             for future in as_completed(future_to_index):
                 index = future_to_index[future]
                 try:
-                    result = future.result(timeout=60)  # 60s timeout per plot
+                    result = future.result(timeout=PLOT_GENERATION_TIMEOUT_SECONDS)
                     indexed_results[index] = result
                 except Exception as e:
                     name = plot_configs[index][1]
