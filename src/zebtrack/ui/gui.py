@@ -201,10 +201,10 @@ class ApplicationGUI:
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
 
-        # Phase 2 components
-        self.validation_manager = ValidationManager(self)
+        # Phase 2 components (with dependency injection)
+        self.validation_manager = ValidationManager(self, settings_obj=self.settings)
         self.dialog_manager = DialogManager(self)
-        self.widget_factory = WidgetFactory(self)
+        self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.project_view_manager = ProjectViewManager(self)
 
         # Create menu bar

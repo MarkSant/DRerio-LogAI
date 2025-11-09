@@ -24,7 +24,7 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
-import zebtrack.settings as settings_module
+from zebtrack.settings import Settings
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 log = structlog.get_logger()
@@ -48,14 +48,16 @@ class WidgetFactory:
     Thread-safety: All UI updates must use gui.root.after(0, ...) pattern.
     """
 
-    def __init__(self, gui):
+    def __init__(self, gui, settings_obj: Settings | None = None):
         """
         Initialize WidgetFactory with reference to parent GUI.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            settings_obj: Settings instance for dependency injection
         """
         self.gui = gui
+        self._settings = settings_obj
 
     # ===========================================================================
     # CATEGORIA 1: UTILITÁRIOS SIMPLES
@@ -801,16 +803,13 @@ class WidgetFactory:
         """
         Load current settings into ConfigEditorWidget.
 
-        Reads from zebtrack.settings and populates the config editor form.
+        Uses injected settings object to populate the config editor form.
         """
-        current = settings_module.settings
-        if current is None:
-            try:
-                current = settings_module.load_settings()
-                settings_module.settings = current
-            except Exception as exc:  # pragma: no cover - defensive UI feedback
-                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
+        if self._settings is None:
+            self.gui.show_error("Erro", "Settings não disponível. Não foi possível carregar.")
+            return
+
+        current = self._settings
 
         values = {
             "video_processing": {
@@ -906,19 +905,15 @@ class WidgetFactory:
 
         update_payload: dict[str, Any] = values
 
-        active_settings = settings_module.settings
-        if active_settings is None:
-            try:
-                active_settings = settings_module.load_settings()
-                settings_module.settings = active_settings
-            except Exception as exc:
-                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
+        # Use injected settings object
+        if self._settings is None:
+            self.gui.show_error("Erro", "Settings não disponível. Não foi possível salvar.")
+            return
 
-        merged = self.gui._deep_merge_dicts(active_settings.model_dump(), update_payload)
+        merged = self.gui._deep_merge_dicts(self._settings.model_dump(), update_payload)
 
         try:
-            validated = settings_module.Settings.model_validate(merged)
+            validated = Settings.model_validate(merged)
         except ValidationError as exc:
             self.gui.show_error("Erro de Validação", str(exc))
             return
@@ -943,15 +938,13 @@ class WidgetFactory:
             self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
 
-        if settings_module.settings is None:
-            settings_module.settings = validated
-        else:
-            for field_name in validated.model_fields:
-                setattr(
-                    settings_module.settings,
-                    field_name,
-                    getattr(validated, field_name),
-                )
+        # Update injected settings object with validated values
+        for field_name in validated.model_fields:
+            setattr(
+                self._settings,
+                field_name,
+                getattr(validated, field_name),
+            )
 
         self.reload_config_editor_values_widget()
         self.gui.show_info(
@@ -1758,16 +1751,11 @@ class WidgetFactory:
 
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""
-        from zebtrack import settings as settings_module
+        if self._settings is None:
+            self.gui.show_error("Erro", "Settings não disponível. Não foi possível carregar.")
+            return
 
-        current = settings_module.settings
-        if current is None:
-            try:
-                current = settings_module.load_settings()
-                settings_module.settings = current
-            except Exception as exc:  # pragma: no cover - defensive UI feedback
-                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
+        current = self._settings
 
         values = {
             "video_processing": {
