@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
@@ -20,17 +21,23 @@ from zebtrack.core.main_view_model import MainViewModel
 @pytest.fixture
 def mock_settings():
     """Create mock settings."""
-    settings = Mock()
-    settings.video_processing.fps = 30.0
-    settings.video_processing.analysis_interval_frames = 10
-    settings.video_processing.display_interval_frames = 10
-    settings.camera.index = 0
-    settings.camera.desired_width = 640
-    settings.camera.desired_height = 480
-    settings.performance.max_parallel_videos = 2
-    settings.detector.default_backend = "opencv"
-    settings.detector.track_threshold = 0.25
-    settings.detector.match_threshold = 0.15
+    settings = SimpleNamespace()
+    settings.video_processing = SimpleNamespace(
+        fps=30.0,
+        analysis_interval_frames=10,
+        display_interval_frames=10,
+    )
+    settings.camera = SimpleNamespace(index=0, desired_width=640, desired_height=480)
+    settings.performance = SimpleNamespace(max_parallel_videos=2, parquet_compression="snappy")
+    settings.recorder = SimpleNamespace(flush_interval_seconds=5.0, flush_row_threshold=500)
+    settings.detector = SimpleNamespace(
+        default_backend="opencv",
+        track_threshold=0.25,
+        match_threshold=0.15,
+    )
+    settings.weights = SimpleNamespace(seg_filename=None, det_filename=None)
+    settings.yolo_model = SimpleNamespace(path=None)
+    settings.ui_features = SimpleNamespace(enable_event_queue=False)
     return settings
 
 
@@ -40,6 +47,12 @@ def mock_state_manager():
     state_manager = Mock()
     state_manager.update_processing_state.return_value = None
     state_manager.update_detection_state.return_value = None
+    state_manager.update_recording_state.return_value = None
+    state_manager.subscribe.return_value = None
+    state_manager.subscribe_all.return_value = None
+    state_manager.get_recording_state.return_value = SimpleNamespace(is_recording=False)
+    state_manager.get_detector_state.return_value = SimpleNamespace(detector_initialized=False)
+    state_manager.get_processing_state.return_value = SimpleNamespace(is_processing=False)
     return state_manager
 
 
@@ -80,15 +93,97 @@ def main_view_model(
     mock_project_manager,
     mock_detector_service,
     mock_ui_coordinator,
+    monkeypatch,
 ):
     """Create a MainViewModel instance with mocked dependencies."""
+    class DummyGUI:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def update_gpu_hardware_display(self, *_args, **_kwargs):
+            pass
+
+        def update_openvino_status_display(self, *_args, **_kwargs):
+            pass
+
+    class DummyHardwareCoordinator:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_recording_callbacks(self, *_args, **_kwargs):
+            pass
+
+        def setup_detector_zones(self, *_args, **_kwargs):
+            pass
+
+        def shutdown(self):
+            pass
+
+    class DummyVideoOrchestrator:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_arena_callback(self, *_args, **_kwargs):
+            pass
+
+        def set_analysis_view_mode_callback(self, *_args, **_kwargs):
+            pass
+
+        def set_refresh_callback(self, *_args, **_kwargs):
+            pass
+
+        def set_publish_processing_mode_callback(self, *_args, **_kwargs):
+            pass
+
+        def shutdown(self):
+            pass
+
+    class DummyAnalysisCoordinator:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_refresh_callback(self, *_args, **_kwargs):
+            pass
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr("zebtrack.core.main_view_model.ApplicationGUI", DummyGUI)
+    monkeypatch.setattr("zebtrack.core.main_view_model.HardwareCoordinator", DummyHardwareCoordinator)
+    monkeypatch.setattr("zebtrack.core.main_view_model.VideoOrchestrator", DummyVideoOrchestrator)
+    monkeypatch.setattr("zebtrack.core.main_view_model.AnalysisCoordinator", DummyAnalysisCoordinator)
+
+    project_workflow_service = Mock()
+    project_workflow_service.set_global_model_defaults.return_value = None
+
+    weight_manager = Mock()
+    weight_manager.get_default_weight.return_value = (None, None)
+    weight_manager.get_weight_details.return_value = {}
+    weight_manager._classify_weight_type.return_value = None
+
+    model_service = Mock()
+    model_service.get_all_weight_names.return_value = []
+
+    video_processing_service = Mock()
+    video_processing_service.cancel_event = threading.Event()
+
+    analysis_service = Mock()
+    recording_service = Mock()
+
     view_model = MainViewModel(
-        view=Mock(),
-        settings_obj=mock_settings,
+        root=Mock(),
+        event_bus=None,
         state_manager=mock_state_manager,
-        project_manager=mock_project_manager,
-        detector_service=mock_detector_service,
         ui_coordinator=mock_ui_coordinator,
+        settings_obj=mock_settings,
+        project_manager=mock_project_manager,
+        project_workflow_service=project_workflow_service,
+        weight_manager=weight_manager,
+        model_service=model_service,
+        detector_service=mock_detector_service,
+        video_processing_service=video_processing_service,
+        analysis_service=analysis_service,
+        recording_service=recording_service,
     )
     return view_model
 

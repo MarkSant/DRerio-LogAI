@@ -191,59 +191,67 @@ class DetectionStep(WizardStep):
             self._show_error("Nenhum vídeo selecionado.")
             return
 
-        # 1. Scan files using ProjectManager
-        log.info("wizard.detection.scan_started", path_count=len(video_paths))
-        self.scanned_videos = ProjectManager.scan_input_paths(video_paths)
+        try:
+            # 1. Scan files using ProjectManager
+            log.info("wizard.detection.scan_started", path_count=len(video_paths))
+            self.scanned_videos = ProjectManager.scan_input_paths(video_paths)
 
-        # 2. Auto-detect design (only for experimental projects)
-        project_type = self.wizard_data.get("project_type")
-        if project_type == ProjectType.EXPERIMENTAL.value:
-            log.info("wizard.detection.design_detection_started")
-            # CRITICAL FIX: Use scanned video paths instead of folder inputs
-            scanned_video_paths = [v["path"] for v in self.scanned_videos]
-            self.detected_design = self._detect_design(scanned_video_paths)
-            if self.detected_design:
-                log.info(
-                    "wizard.detection.design_detected",
-                    pattern=self.detected_design.get("pattern_used"),
-                    confidence=self.detected_design.get("confidence"),
-                )
-                self._ensure_group_display_names()
-                if self.wizard_data.get("auto_confirm_design"):
-                    self.design_editor_confirmed = True
-                    log.info("wizard.design.auto_confirmed")
+            # 2. Auto-detect design (only for experimental projects)
+            project_type = self.wizard_data.get("project_type")
+            if project_type == ProjectType.EXPERIMENTAL.value:
+                log.info("wizard.detection.design_detection_started")
+                # CRITICAL FIX: Use scanned video paths instead of folder inputs
+                scanned_video_paths = [v["path"] for v in self.scanned_videos]
+                self.detected_design = self._detect_design(scanned_video_paths)
+                if self.detected_design:
+                    log.info(
+                        "wizard.detection.design_detected",
+                        pattern=self.detected_design.get("pattern_used"),
+                        confidence=self.detected_design.get("confidence"),
+                    )
+                    self._ensure_group_display_names()
+                    if self.wizard_data.get("auto_confirm_design"):
+                        self.design_editor_confirmed = True
+                        log.info("wizard.design.auto_confirmed")
+                    else:
+                        self.design_editor_confirmed = False
+                        self._open_design_editor_for_confirmation(auto_invoked=True)
                 else:
-                    self.design_editor_confirmed = False
-                    self._open_design_editor_for_confirmation(auto_invoked=True)
+                    log.warning(
+                        "wizard.detection.design_not_detected",
+                        reason="No pattern matched",
+                    )
+                    self.design_editor_confirmed = True
             else:
-                log.warning(
-                    "wizard.detection.design_not_detected",
-                    reason="No pattern matched",
+                self.detected_design = None
+                log.info(
+                    "wizard.detection.design_skipped",
+                    reason=f"Project type is {project_type}, not experimental",
                 )
                 self.design_editor_confirmed = True
-        else:
-            self.detected_design = None
+
+            # 3. Calculate parquet summary
+            parquet_summary = self._calculate_parquet_summary()
+
+            # 4. Update UI
+            self._display_results(parquet_summary)
+
+            # Enable edit button (available for both detected and non-detected designs)
+            self.edit_design_btn.config(state="normal")
+
+            self.status_var.set("Análise concluída!")
             log.info(
-                "wizard.detection.design_skipped",
-                reason=f"Project type is {project_type}, not experimental",
+                "wizard.detection.completed",
+                video_count=len(self.scanned_videos),
+                design_detected=self.detected_design is not None,
             )
-            self.design_editor_confirmed = True
-
-        # 3. Calculate parquet summary
-        parquet_summary = self._calculate_parquet_summary()
-
-        # 4. Update UI
-        self._display_results(parquet_summary)
-
-        # Enable edit button (available for both detected and non-detected designs)
-        self.edit_design_btn.config(state="normal")
-
-        self.status_var.set("Análise concluída!")
-        log.info(
-            "wizard.detection.completed",
-            video_count=len(self.scanned_videos),
-            design_detected=self.detected_design is not None,
-        )
+        except Exception as exc:
+            log.exception("wizard.detection.run_failed", error=str(exc))
+            self.scanned_videos = self.scanned_videos if self.scanned_videos else []
+            self.detected_design = None
+            self.design_editor_confirmed = False
+            self.edit_design_btn.config(state="disabled")
+            self._show_error(f"Falha ao concluir a detecção: {exc}")
 
     def _ensure_group_display_names(self) -> None:
         """Ensure detected design carries a friendly-name mapping."""
@@ -528,9 +536,15 @@ class DetectionStep(WizardStep):
             group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
         }
 
-        # Calculate confidence
-        coverage = len([p for p in paths if any(str(p).find(g) >= 0 for g in groups)]) / len(paths)
-        confidence = coverage * 0.8  # Base confidence
+        # Calculate confidence with penalty when no group shows repetition
+        total_grouped_videos = sum(len(group_candidates[g]) for g in groups)
+        coverage = total_grouped_videos / len(paths)
+
+        group_sizes = [len(group_candidates[g]) for g in groups]
+        max_group_size = max(group_sizes) if group_sizes else 0
+        repetition_factor = 1.0 if max_group_size >= 2 else 0.5
+
+        confidence = coverage * 0.8 * repetition_factor  # Base confidence scaled by repetition
 
         return {
             "groups": sorted(groups),

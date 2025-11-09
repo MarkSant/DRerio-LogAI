@@ -11,9 +11,10 @@ Responsabilidades:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
+from shapely.geometry import Polygon
 
 if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
@@ -84,12 +85,16 @@ class ZoneManagementFacade:
             True if saved successfully
         """
         try:
-            # Validate polygon
+            # Validate polygon structure
             if len(polygon) < 3:
                 raise ValueError("Arena must have at least 3 points")
 
+            polygon_geom = Polygon(polygon)
+            if not polygon_geom.is_valid or polygon_geom.area <= 0:
+                raise ValueError("Arena polygon must be valid and enclose non-zero area")
+
             # Save to project
-            self.project_manager.set_arena_for_video(
+            self.project_manager.set_arena_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
                 polygon=polygon,
             )
@@ -122,10 +127,12 @@ class ZoneManagementFacade:
             Template data dict
         """
         try:
-            template_data = self.project_manager.roi_template_manager.load_template(template_name)
+            template_data = self.project_manager.roi_template_manager.load_template(  # type: ignore[attr-defined]
+                template_name
+            )
 
             log.info("zone_facade.template.loaded", name=template_name)
-            return template_data
+            return cast(dict[str, Any], template_data)
 
         except Exception as e:
             log.error("zone_facade.load_template.failed", error=str(e), exc_info=True)
@@ -155,7 +162,7 @@ class ZoneManagementFacade:
                 raise ValueError(f"Template '{template_name}' not found")
 
             # Get arena for scaling
-            arena = self.project_manager.get_arena_for_video(str(video_path))
+            arena = self.project_manager.get_arena_for_video(str(video_path))  # type: ignore[attr-defined]
 
             # Scale ROIs if needed
             if scale_to_arena and arena:
@@ -167,7 +174,7 @@ class ZoneManagementFacade:
                 scaled_rois = template.get("roi_polygons", [])
 
             # Save to project
-            self.project_manager.set_rois_for_video(
+            self.project_manager.set_rois_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
                 roi_polygons=scaled_rois,
                 roi_names=template.get("roi_names", []),
@@ -197,7 +204,7 @@ class ZoneManagementFacade:
             Arena polygon or None if not set
         """
         try:
-            arena = self.project_manager.get_arena_for_video(str(video_path))
+            arena = self.project_manager.get_arena_for_video(str(video_path))  # type: ignore[attr-defined]
             return arena
         except Exception as e:
             log.error("zone_facade.get_arena.failed", error=str(e), exc_info=True)
@@ -214,7 +221,7 @@ class ZoneManagementFacade:
             Dict with roi_polygons, roi_names, roi_colors
         """
         try:
-            rois = self.project_manager.get_rois_for_video(str(video_path))
+            rois = self.project_manager.get_rois_for_video(str(video_path))  # type: ignore[attr-defined]
             return rois if rois else {}
         except Exception as e:
             log.error("zone_facade.get_rois.failed", error=str(e), exc_info=True)
@@ -231,7 +238,7 @@ class ZoneManagementFacade:
             True if cleared successfully
         """
         try:
-            self.project_manager.set_arena_for_video(
+            self.project_manager.set_arena_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
                 polygon=None,
             )
@@ -252,7 +259,7 @@ class ZoneManagementFacade:
             True if cleared successfully
         """
         try:
-            self.project_manager.set_rois_for_video(
+            self.project_manager.set_rois_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
                 roi_polygons=[],
                 roi_names=[],
@@ -272,7 +279,7 @@ class ZoneManagementFacade:
             List of template names
         """
         try:
-            templates = self.project_manager.roi_template_manager.list_templates()
+            templates = self.project_manager.roi_template_manager.list_templates()  # type: ignore[attr-defined]
             return templates
         except Exception as e:
             log.error("zone_facade.list_templates.failed", error=str(e), exc_info=True)

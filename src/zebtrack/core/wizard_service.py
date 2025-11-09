@@ -591,8 +591,8 @@ class WizardService:
 
         # Animals per aquarium validation
         animals = data.get("animals_per_aquarium")
-        if not isinstance(animals, int) or animals < 1 or animals > 20:
-            return (False, "Número de animais por aquário deve estar entre 1 e 20")
+        if not isinstance(animals, int) or animals < 1 or animals > 100:
+            return (False, "Número de animais por aquário deve estar entre 1 e 100")
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
@@ -663,8 +663,8 @@ class WizardService:
         if not isinstance(animals, int) or animals < 1:
             return (False, "O número de animais por aquário deve ser pelo menos 1")
 
-        if animals > 20:
-            return (False, "O número de animais por aquário não pode exceder 20")
+        if animals > 100:
+            return (False, "O número de animais por aquário não pode exceder 100")
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")

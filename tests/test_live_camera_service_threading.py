@@ -58,6 +58,12 @@ def mock_recording_service():
     recording_service = Mock()
     recording_service.start_session.return_value = True
     recording_service.stop_session.return_value = None
+    recording_service._ui_callbacks = {}
+
+    def set_ui_callbacks(callbacks):
+        recording_service._ui_callbacks = callbacks.copy()
+
+    recording_service.set_ui_callbacks.side_effect = set_ui_callbacks
     return recording_service
 
 
@@ -342,7 +348,7 @@ class TestLiveCameraServiceRaceConditions:
     def test_concurrent_start_stop_calls(self, live_camera_service, mock_camera):
         """Test concurrent start_session and stop_session calls."""
         with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
-            "zebtrack.ui.dialogs.live_preview_window.LivePreviewWindow"
+            "zebtrack.ui.dialogs.LivePreviewWindow"
         ):
             live_camera_service.camera = mock_camera
 
@@ -662,7 +668,7 @@ class TestLiveCameraServiceRecordingIntegration:
     def test_timed_session_expiration(self, live_camera_service, mock_camera):
         """Test timed session expiration handling."""
         with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
-            "zebtrack.ui.dialogs.live_preview_window.LivePreviewWindow"
+            "zebtrack.ui.dialogs.LivePreviewWindow"
         ), patch("zebtrack.core.live_camera_service.Path.mkdir"):
             # Mock completion callback
             completion_called = [False]
@@ -705,7 +711,7 @@ class TestLiveCameraServiceRecordingIntegration:
     def test_manual_stop_during_recording(self, live_camera_service, mock_camera):
         """Test manual stop during active recording."""
         with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
-            "zebtrack.ui.dialogs.live_preview_window.LivePreviewWindow"
+            "zebtrack.ui.dialogs.LivePreviewWindow"
         ):
             live_camera_service.camera = mock_camera
 
@@ -724,7 +730,7 @@ class TestLiveCameraServiceRecordingIntegration:
     def test_callback_registration_and_execution(self, live_camera_service, mock_camera):
         """Test callback registration with RecordingService."""
         with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
-            "zebtrack.ui.dialogs.live_preview_window.LivePreviewWindow"
+            "zebtrack.ui.dialogs.LivePreviewWindow"
         ), patch("zebtrack.core.live_camera_service.Path.mkdir"):
             # Track callback registration
             registered_callbacks = {}
@@ -751,7 +757,7 @@ class TestLiveCameraServiceRecordingIntegration:
     def test_output_directory_creation(self, live_camera_service, mock_camera):
         """Test that output directory is created correctly."""
         with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
-            "zebtrack.ui.dialogs.live_preview_window.LivePreviewWindow"
+            "zebtrack.ui.dialogs.LivePreviewWindow"
         ):
             mock_mkdir = Mock()
 

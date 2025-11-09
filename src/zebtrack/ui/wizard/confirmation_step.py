@@ -5,6 +5,7 @@ Shows final summary of all wizard steps and allows project name/location configu
 Validates all settings before enabling project creation.
 """
 
+import copy
 import os
 import re
 from pathlib import Path
@@ -469,11 +470,11 @@ class ConfirmationStep(WizardStep):
         aquarium_method = model_selection.get("aquarium_method")
         animal_method = model_selection.get("animal_method")
         if aquarium_method or animal_method:
-            aquarium_label = method_labels.get(aquarium_method, aquarium_method)
-            animal_label = method_labels.get(animal_method, animal_method)
-            if aquarium_label:
+            if aquarium_method:
+                aquarium_label = method_labels.get(aquarium_method, aquarium_method)
                 lines.append(f"  • Método aquário: {aquarium_label}")
-            if animal_label:
+            if animal_method:
+                animal_label = method_labels.get(animal_method, animal_method)
                 lines.append(f"  • Método animais: {animal_label}")
 
         if weight_assignments:
@@ -761,7 +762,20 @@ class ConfirmationStep(WizardStep):
         # Check if project directory already exists
         project_path = Path(location) / project_name
         if project_path.exists():
-            return (False, f"Já existe um projeto com esse nome em: {location}")
+            if project_path.is_file():
+                return (False, f"Já existe um arquivo com esse nome em: {location}")
+
+            # Allow reusing an empty directory so long as it has no content
+            try:
+                has_contents = any(project_path.iterdir())
+            except OSError:
+                has_contents = True
+
+            if has_contents:
+                return (
+                    False,
+                    f"Já existe um projeto com esse nome em: {location}",
+                )
 
         # Validate sources: prerecorded projects require selected videos;
         # live projects require camera config
@@ -793,10 +807,19 @@ class ConfirmationStep(WizardStep):
         location = self.project_location_var.get().strip()
         project_path = str(Path(location) / project_name)
 
-        return {
-            "project_name": project_name,
-            "project_path": project_path,
-        }
+        base_data: dict = {}
+        if isinstance(self.wizard_data, dict):
+            base_data = copy.deepcopy(self.wizard_data)
+
+        base_data.update(
+            {
+                "project_name": project_name,
+                "project_path": project_path,
+                "project_location": location,
+            }
+        )
+
+        return base_data
 
     def set_data(self, data: dict):
         """

@@ -98,7 +98,7 @@ class CalibrationData(BaseModel):
     """Calibration step data with validation."""
 
     num_aquariums: int = Field(ge=1, le=100, description="Number of aquariums/arenas")
-    animals_per_aquarium: int = Field(ge=1, le=20, description="Number of animals per aquarium")
+    animals_per_aquarium: int = Field(ge=1, le=100, description="Number of animals per aquarium")
     aquarium_width_cm: float = Field(gt=0, description="Aquarium width in centimeters")
     aquarium_height_cm: float = Field(gt=0, description="Aquarium height in centimeters")
     analysis_interval_frames: int = Field(

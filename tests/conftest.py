@@ -25,11 +25,7 @@ def suppress_tk_variable_finalizer_errors():
             raise
 
     tk.Variable.__del__ = safe_del
-    try:
-        yield
-    finally:
-        if original_del:
-            tk.Variable.__del__ = original_del
+    yield
 
 
 def pytest_configure(config):
