@@ -72,6 +72,12 @@ def mock_root():
     """Create a mock Tkinter root."""
     root = Mock()
     root.after = Mock(side_effect=lambda delay, func, *args: func(*args))
+    # Add Tkinter-specific attributes to avoid errors in LivePreviewWindow
+    root._last_child_ids = {}
+    root._w = '.'
+    root.children = {}
+    root.tk = Mock()
+    root.tk.call = Mock(return_value='')
     return root
 
 
