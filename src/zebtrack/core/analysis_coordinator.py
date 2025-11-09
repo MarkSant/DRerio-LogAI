@@ -46,7 +46,7 @@ class AnalysisCoordinator:
     - Result aggregation and export
 
     Phase: Task 2.2 (REFACTOR-VIEWMODEL-001)
-    Extracted from: MainViewModel (analysis and reporting methods, ~600 lines)
+    Extracted from: MainViewModel (analysis and reporting methods, ~719 lines)
     """
 
     def __init__(

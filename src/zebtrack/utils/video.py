@@ -24,6 +24,7 @@ def get_video_dimensions(path: str) -> tuple[int, int] | None:
         >>>     width, height = dimensions
         >>>     print(f"Video is {width}x{height}")
     """
+    cap = None
     try:
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
@@ -32,13 +33,15 @@ def get_video_dimensions(path: str) -> tuple[int, int] | None:
 
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
 
         if width <= 0 or height <= 0:
             log.warning("video.get_dimensions.invalid_dimensions", path=path, width=width, height=height)
             return None
 
         return width, height
-    except Exception as exc:
-        log.error("video.get_dimensions.error", path=path, error=str(exc))
+    except (cv2.error, OSError, ValueError) as exc:
+        log.error("video.get_dimensions.error", path=path, error=str(exc), exc_info=True)
         return None
+    finally:
+        if cap is not None:
+            cap.release()

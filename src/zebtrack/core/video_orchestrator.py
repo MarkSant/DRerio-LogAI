@@ -42,7 +42,7 @@ class VideoOrchestrator:
     - Analysis pipeline orchestration
 
     Phase: Task 2.2 (REFACTOR-VIEWMODEL-001)
-    Extracted from: MainViewModel (video processing methods, ~800 lines)
+    Extracted from: MainViewModel (video processing methods, ~859 lines)
     """
 
     def __init__(
