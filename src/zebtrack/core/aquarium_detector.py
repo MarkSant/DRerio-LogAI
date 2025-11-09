@@ -101,7 +101,14 @@ class AquariumDetector:
         best_conf = confidences[best_idx]
 
         # Convert box to polygon (rectangle)
-        x1, y1, x2, y2 = best_box.xyxy[0].cpu().numpy()
+        # Handle both PyTorch tensors and numpy arrays
+        xyxy_data = best_box.xyxy[0]
+        if hasattr(xyxy_data, "cpu"):
+            # PyTorch tensor
+            x1, y1, x2, y2 = xyxy_data.cpu().numpy()
+        else:
+            # Already numpy array
+            x1, y1, x2, y2 = xyxy_data
 
         # Create rectangular polygon from bounding box
         polygon = np.array(

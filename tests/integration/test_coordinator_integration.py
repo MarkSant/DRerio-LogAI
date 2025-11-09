@@ -418,6 +418,7 @@ class TestCoordinatorMethodDelegation(unittest.TestCase):
             root=Mock(),
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=Mock(),
             analysis_service=Mock(),

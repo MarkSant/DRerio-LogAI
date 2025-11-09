@@ -901,7 +901,7 @@ class ProjectManager:
             },
             "detection_zones": {},
             "zones_by_video": {},
-            "analysis_profiles": [self._default_analysis_profile()],
+            "analysis_profiles": [self.asset_manager._default_analysis_profile()],
             "roi_templates": [],
         }
 
@@ -1042,7 +1042,7 @@ class ProjectManager:
             migrated_fields.append("display_interval_frames")
 
         if "analysis_profiles" not in loaded_data or not loaded_data.get("analysis_profiles"):
-            loaded_data["analysis_profiles"] = [self._default_analysis_profile()]
+            loaded_data["analysis_profiles"] = [self.asset_manager._default_analysis_profile()]
             migration_applied = True
             migrated_fields.append("analysis_profiles")
 
