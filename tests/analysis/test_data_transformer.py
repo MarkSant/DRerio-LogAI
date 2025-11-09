@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
-from zebtrack.analysis.behavior import BehaviorAnalyzer
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.data_transformer import (
     RGB_COLOR_MATCH_THRESHOLD,
     DataTransformer,
@@ -78,35 +78,25 @@ def sample_rois():
 @pytest.fixture
 def behavior_analyzer(sample_trajectory_df, mock_settings):
     """Create BehaviorAnalyzer instance with test data."""
-    arena_polygon_px = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
-    analyzer = BehaviorAnalyzer(
+    arena_polygon_px = [(0, 0), (100, 0), (100, 100), (0, 100)]
+    analyzer = ConcreteBehavioralAnalyzer(
         trajectory_df=sample_trajectory_df,
         arena_polygon_px=arena_polygon_px,
         pixelcm_x=10.0,
         pixelcm_y=10.0,
         video_height_px=100,
         fps=10.0,
-        settings_obj=mock_settings,
     )
-    analyzer.prepare()
     return analyzer
 
 
 @pytest.fixture
-def roi_analyzer(sample_trajectory_df, sample_rois, mock_settings):
+def roi_analyzer(sample_trajectory_df, sample_rois, mock_settings, behavior_analyzer):
     """Create ROIAnalyzer instance with test data."""
-    arena_polygon_px = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
     analyzer = ROIAnalyzer(
-        trajectory_df=sample_trajectory_df,
-        rois={roi.name: roi for roi in sample_rois},
-        arena_polygon_px=arena_polygon_px,
-        pixelcm_x=10.0,
-        pixelcm_y=10.0,
-        video_height_px=100,
-        fps=10.0,
-        settings_obj=mock_settings,
+        behavior_analyzer=behavior_analyzer,
+        rois=sample_rois,
     )
-    analyzer.prepare()
     return analyzer
 
 

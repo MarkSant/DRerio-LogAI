@@ -30,7 +30,7 @@ from shapely import affinity
 from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from zebtrack.analysis.behavior import BehaviorAnalyzer
+from zebtrack.analysis.behavior import BehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
 __all__ = ["VisualizationGenerator"]
@@ -94,7 +94,7 @@ class VisualizationGenerator:
 
     def __init__(
         self,
-        b_analyzer: BehaviorAnalyzer,
+        b_analyzer: BehavioralAnalyzer,
         metadata: dict,
         r_analyzer: ROIAnalyzer | None = None,
         roi_colors: dict | None = None,
@@ -108,7 +108,7 @@ class VisualizationGenerator:
         """Initialize VisualizationGenerator.
 
         Args:
-            b_analyzer: BehaviorAnalyzer instance with trajectory data
+            b_analyzer: BehavioralAnalyzer instance with trajectory data
             metadata: Experiment metadata
             r_analyzer: ROIAnalyzer instance (optional)
             roi_colors: Dictionary mapping ROI names to RGB tuples (optional)
