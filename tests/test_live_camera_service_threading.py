@@ -113,7 +113,7 @@ class TestLiveCameraServiceThreadLifecycle:
 
     def test_thread_start_stop_lifecycle(self, live_camera_service, mock_camera):
         """Test basic thread start and stop lifecycle."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             # Manually setup camera and threads
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
@@ -139,7 +139,7 @@ class TestLiveCameraServiceThreadLifecycle:
 
     def test_rapid_start_stop_cycles(self, live_camera_service, mock_camera):
         """Test rapid start/stop cycles to detect race conditions."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
 
             for i in range(3):
@@ -163,7 +163,7 @@ class TestLiveCameraServiceThreadLifecycle:
 
     def test_thread_join_timeout_handling(self, live_camera_service, mock_camera):
         """Test that join timeout is handled correctly."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -189,7 +189,7 @@ class TestLiveCameraServiceThreadLifecycle:
 
     def test_graceful_shutdown_with_queue_full(self, live_camera_service, mock_camera):
         """Test graceful shutdown when queue is full."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -214,7 +214,7 @@ class TestLiveCameraServiceQueueOperations:
 
     def test_frame_queue_overflow_handling(self, live_camera_service, mock_camera):
         """Test that frame queue overflow is handled without blocking."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -264,7 +264,7 @@ class TestLiveCameraServiceQueueOperations:
 
     def test_multiple_producers_consumers(self, live_camera_service, mock_camera):
         """Test queue with multiple concurrent producers and consumers."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -307,7 +307,7 @@ class TestLiveCameraServiceQueueOperations:
 
     def test_queue_cleanup_on_stop(self, live_camera_service, mock_camera):
         """Test that queues are properly cleaned up on stop."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             # Add items to queues
             for i in range(10):
                 live_camera_service.frame_queue.put((i, np.zeros((480, 640, 3))))
@@ -329,7 +329,7 @@ class TestLiveCameraServiceRaceConditions:
 
     def test_concurrent_start_stop_calls(self, live_camera_service, mock_camera):
         """Test concurrent start_session and stop_session calls."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera), patch(
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
             "zebtrack.core.live_camera_service.LivePreviewWindow"
         ):
             live_camera_service.camera = mock_camera
@@ -359,7 +359,7 @@ class TestLiveCameraServiceRaceConditions:
 
     def test_detector_access_during_processing(self, live_camera_service, mock_camera):
         """Test detector access during concurrent processing."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -390,7 +390,7 @@ class TestLiveCameraServiceRaceConditions:
 
     def test_preview_update_during_session_stop(self, live_camera_service, mock_camera):
         """Test preview window update during session stop."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.preview_window = Mock()
             live_camera_service.exit_event.clear()
@@ -417,7 +417,7 @@ class TestLiveCameraServiceRaceConditions:
 
     def test_state_manager_concurrent_updates(self, live_camera_service, mock_camera):
         """Test concurrent state manager updates."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
 
             def update_worker():
@@ -449,7 +449,7 @@ class TestLiveCameraServiceErrorHandling:
 
     def test_camera_disconnect_during_capture(self, live_camera_service, mock_camera):
         """Test camera disconnect during capture loop."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -542,7 +542,7 @@ class TestLiveCameraServiceErrorHandling:
 
     def test_thread_crash_recovery(self, live_camera_service, mock_camera):
         """Test system state after thread crash."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -575,7 +575,7 @@ class TestLiveCameraServiceMemoryPressure:
 
     def test_frame_queue_limit_enforcement(self, live_camera_service, mock_camera):
         """Test that frame queue limit is enforced."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -598,7 +598,7 @@ class TestLiveCameraServiceMemoryPressure:
 
     def test_frame_drop_scenarios(self, live_camera_service, mock_camera):
         """Test frame drop when queue is full."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             live_camera_service.camera = mock_camera
             live_camera_service.exit_event.clear()
 
@@ -625,7 +625,7 @@ class TestLiveCameraServiceMemoryPressure:
 
     def test_memory_leak_detection_repeated_sessions(self, live_camera_service, mock_camera):
         """Test for memory leaks in repeated sessions."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera):
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera):
             initial_queue_size = live_camera_service.frame_queue.qsize()
 
             for i in range(3):
@@ -649,7 +649,7 @@ class TestLiveCameraServiceRecordingIntegration:
 
     def test_timed_session_expiration(self, live_camera_service, mock_camera):
         """Test timed session expiration handling."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera), patch(
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
             "zebtrack.core.live_camera_service.LivePreviewWindow"
         ), patch("zebtrack.core.live_camera_service.Path.mkdir"):
             # Mock completion callback
@@ -692,7 +692,7 @@ class TestLiveCameraServiceRecordingIntegration:
 
     def test_manual_stop_during_recording(self, live_camera_service, mock_camera):
         """Test manual stop during active recording."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera), patch(
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
             "zebtrack.core.live_camera_service.LivePreviewWindow"
         ):
             live_camera_service.camera = mock_camera
@@ -711,7 +711,7 @@ class TestLiveCameraServiceRecordingIntegration:
 
     def test_callback_registration_and_execution(self, live_camera_service, mock_camera):
         """Test callback registration with RecordingService."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera), patch(
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
             "zebtrack.core.live_camera_service.LivePreviewWindow"
         ), patch("zebtrack.core.live_camera_service.Path.mkdir"):
             # Track callback registration
@@ -757,3 +757,4 @@ class TestLiveCameraServiceRecordingIntegration:
 
                 # Cleanup
                 live_camera_service.stop_session()
+
