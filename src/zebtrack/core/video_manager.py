@@ -21,7 +21,6 @@ from typing import Any, ClassVar
 
 import structlog
 
-from zebtrack.core.types import AssetType
 from zebtrack.utils import calculate_sha256
 
 log = structlog.get_logger()
