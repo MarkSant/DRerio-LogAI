@@ -460,10 +460,11 @@ class TestSaveROITemplateDialog:
 
         dialog.apply()
 
-        # On Windows, path separator is backslash
-        result_path = dialog.result["custom_path"]
-        assert result_path.endswith("template.json")
-        assert "path" in result_path and "to" in result_path
+        # Verify path is constructed correctly (normalize for cross-platform compatibility)
+        from pathlib import Path
+        result_path = Path(dialog.result["custom_path"])
+        expected_path = Path("/path/to/template.json")
+        assert result_path == expected_path
 
     # --- UI Interaction Tests ---
 

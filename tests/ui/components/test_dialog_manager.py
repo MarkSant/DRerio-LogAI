@@ -1109,7 +1109,7 @@ class TestEdgeCases:
     def test_show_template_save_dialog_empty_result_dict(self, mock_dialog_class, dialog_manager):
         """Test show_template_save_dialog with empty result dict returns None."""
         mock_dialog = Mock()
-        mock_dialog.result = {}  # Empty dict is falsy
+        mock_dialog.result = {}  # Empty result dict is treated as cancellation (returns None)
         mock_dialog_class.return_value = mock_dialog
 
         result = dialog_manager.show_template_save_dialog(

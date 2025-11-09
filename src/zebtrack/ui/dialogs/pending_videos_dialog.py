@@ -40,7 +40,7 @@ class PendingVideosDialog(simpledialog.Dialog):
         # Must call super().__init__ before setting result, as Dialog base sets it to None
         super().__init__(parent, "Processar Vídeos Pendentes")
         # Set default result after Dialog initialization
-        if not hasattr(self, "result") or self.result is None:
+        if self.result is None:
             self.result = {"confirmed": False, "include_arena_only": False}
 
     def body(self, master):
