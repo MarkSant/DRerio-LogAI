@@ -370,60 +370,6 @@ class TestCheckLiveProjectCalibration:
 
 
 @pytest.mark.gui
-class TestPrepareSingleVideoUIState:
-    """Tests for prepare_single_video_ui_state method."""
-
-    @pytest.mark.skip(reason="Method prepare_single_video_ui_state was removed in refactoring")
-    def test_prepare_single_video_ui_state_no_zone_controls(self, validation_manager, mock_gui):
-        """Test when zone_controls is None."""
-        mock_gui.zone_controls = None
-
-        # Should return without error
-        validation_manager.prepare_single_video_ui_state(None)
-
-    @pytest.mark.skip(reason="Method prepare_single_video_ui_state was removed in refactoring")
-    def test_prepare_single_video_ui_state_with_config(self, validation_manager, mock_gui):
-        """Test UI state preparation with configuration."""
-        mock_zone_controls = Mock()
-        mock_zone_controls.analysis_interval_var = Mock()
-        mock_zone_controls.display_interval_var = Mock()
-        mock_zone_controls.roi_choice_var = Mock()
-        mock_zone_controls.stabilization_frames_var = Mock()
-        mock_gui.zone_controls = mock_zone_controls
-
-        config = {
-            "analysis_interval_frames": 20,
-            "display_interval_frames": 15,
-            "roi_choice": "template",
-            "stabilization_frames": 5,
-        }
-
-        validation_manager.prepare_single_video_ui_state(config)
-
-        # Verify vars were updated
-        mock_gui.analysis_interval_var.set.assert_called_with("20")
-        mock_gui.display_interval_var.set.assert_called_with("15")
-        mock_gui.roi_choice_var.set.assert_called_with("template")
-        mock_gui.stabilization_frames_var.set.assert_called_with("5")
-
-    @pytest.mark.skip(reason="Method prepare_single_video_ui_state was removed in refactoring")
-    def test_prepare_single_video_ui_state_no_config(self, validation_manager, mock_gui):
-        """Test UI state preparation without configuration."""
-        mock_zone_controls = Mock()
-        mock_zone_controls.analysis_interval_var = Mock()
-        mock_zone_controls.display_interval_var = Mock()
-        mock_zone_controls.roi_choice_var = Mock()
-        mock_zone_controls.stabilization_frames_var = Mock()
-        mock_gui.zone_controls = mock_zone_controls
-
-        validation_manager.prepare_single_video_ui_state(None)
-
-        # Should use default values from gui vars
-        mock_gui.analysis_interval_var.set.assert_called()
-        mock_gui.display_interval_var.set.assert_called()
-
-
-@pytest.mark.gui
 class TestComposeSingleVideoRuntimeConfig:
     """Tests for compose_single_video_runtime_config method."""
 

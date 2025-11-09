@@ -188,7 +188,6 @@ class TestArduinoManagement(unittest.TestCase):
 
     def test_on_arduino_status_change_connected(self):
         """Test Arduino status change when connected."""
-        mock_view = Mock()
         self.coordinator.on_arduino_status_change(connected=True, port="COM3")
 
         # Should log the event

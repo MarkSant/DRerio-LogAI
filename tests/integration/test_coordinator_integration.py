@@ -220,7 +220,8 @@ class TestCoordinatorIntegrationWithMainViewModel(unittest.TestCase):
             recorder=self.recorder,
         )
 
-        analysis_coordinator = AnalysisCoordinator(
+        # Create AnalysisCoordinator (test instantiation)
+        _analysis_coordinator = AnalysisCoordinator(
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,

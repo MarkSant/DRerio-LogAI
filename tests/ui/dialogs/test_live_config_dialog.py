@@ -267,7 +267,9 @@ class TestLiveConfigDialog:
         dialog.camera_var.set("Câmera 0")
         dialog.use_arduino_var.set(True)
         # Set the full key from available_ports dict
-        port_key = list(dialog.available_ports.keys())[0] if dialog.available_ports else "COM5"
+        port_key = (
+            next(iter(dialog.available_ports.keys())) if dialog.available_ports else "COM5"
+        )
         dialog.arduino_port_var.set(port_key)
         tkinter_root.update_idletasks()
 
@@ -520,7 +522,7 @@ class TestLiveConfigDialog:
         # Configure settings
         dialog.camera_var.set("Câmera 0")
         dialog.use_arduino_var.set(True)
-        port_key = list(dialog.available_ports.keys())[0]
+        port_key = next(iter(dialog.available_ports.keys()))
         dialog.arduino_port_var.set(port_key)
 
         # Validate
