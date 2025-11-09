@@ -241,8 +241,6 @@ class TestBackgroundImageDrawing:
             assert canvas_manager._bg_scale is not None
             assert canvas_manager._bg_offset is not None
             assert canvas_manager._bg_img_size == (1920, 1080)
-            assert canvas_manager._bg_offset is not None
-            assert canvas_manager._bg_img_size == (1920, 1080)
 
     def test_draw_bg_image_to_canvas_canvas_not_ready(self, canvas_manager, mock_gui):
         """Test drawing when canvas dimensions are not ready."""

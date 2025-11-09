@@ -7,7 +7,6 @@ import subprocess
 import sys
 import time
 import gc
-from pathlib import Path
 
 def run_single_gui_test(test_name, test_num, total_tests):
     """Run a single GUI test with maximum safety."""

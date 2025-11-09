@@ -417,9 +417,6 @@ class TestLiveAnalysisDialog:
                 assert dialog.result is not None
                 assert dialog.result["experiment_id"] == custom_id
 
-                # Verify custom ID preserved
-                assert dialog.result["experiment_id"] == custom_id
-
     def test_ok_button_result_assembly(self, tkinter_root, test_settings):
         """Test OK button assembles result dictionary correctly."""
         mock_cameras = [{"index": 1, "name": "Test Camera", "resolution": "1920x1080"}]

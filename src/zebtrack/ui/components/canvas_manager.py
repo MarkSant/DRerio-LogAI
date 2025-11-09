@@ -854,7 +854,7 @@ class CanvasManager:
         for det in self.gui._current_detections:
             if len(det) < 6:
                 continue
-            # Handle both 6 and 7+ element detections
+            # Only the first 6 elements are used for annotation; any extra elements are ignored.
             x1, y1, x2, y2, conf, track_id = det[:6]
             if track_id is None or str(track_id).strip() != selected:
                 continue
