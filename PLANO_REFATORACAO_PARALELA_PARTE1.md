@@ -342,19 +342,19 @@ tests/io/test_recorder.py
 
 class Camera:
     """Camera wrapper with context manager support."""
-    
+
     def __init__(self, index: int = 0, settings_obj: Settings | None = None):
         self.index = index
         self.settings = settings_obj
         self.cap: cv2.VideoCapture | None = None
         self._is_opened = False
-        
+
     def open(self):
         """Open camera."""
         if self._is_opened:
             log.warning("camera.already_open", index=self.index)
             return
-            
+
         try:
             self.cap = cv2.VideoCapture(self.index)
             if not self.cap.isOpened():
@@ -364,12 +364,12 @@ class Camera:
         except Exception as e:
             log.error("camera.open.failed", index=self.index, error=str(e))
             raise CameraError(f"Camera {self.index} open failed") from e
-            
+
     def release(self):
         """Release camera resources."""
         if not self._is_opened:
             return
-            
+
         try:
             if self.cap:
                 self.cap.release()
@@ -379,12 +379,12 @@ class Camera:
             log.error("camera.release.failed", index=self.index, error=str(e))
         finally:
             self.cap = None
-            
+
     def __enter__(self):
         """Context manager entry."""
         self.open()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - always releases camera."""
         self.release()
@@ -398,20 +398,20 @@ class Camera:
 
 class Recorder:
     """Video and data recorder with context manager support."""
-    
+
     def __init__(self, output_path: str, settings_obj: Settings):
         self.output_path = Path(output_path)
         self.settings = settings_obj
         self.video_writer: cv2.VideoWriter | None = None
         self.parquet_writer: ParquetWriter | None = None
         self._is_recording = False
-        
+
     def start(self):
         """Start recording."""
         if self._is_recording:
             log.warning("recorder.already_started")
             return
-            
+
         try:
             # Initialize video writer
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -421,44 +421,44 @@ class Recorder:
                 30.0,
                 (640, 480)
             )
-            
+
             # Initialize Parquet writer
             self.parquet_writer = ParquetWriter(self.output_path / "tracks.parquet")
-            
+
             self._is_recording = True
             log.info("recorder.start.success", path=str(self.output_path))
-            
+
         except Exception as e:
             log.error("recorder.start.failed", error=str(e))
             self.stop()  # Cleanup partial initialization
             raise RecorderError(f"Failed to start recorder: {e}") from e
-            
+
     def stop(self):
         """Stop recording and release resources."""
         if not self._is_recording:
             return
-            
+
         try:
             if self.video_writer:
                 self.video_writer.release()
-                
+
             if self.parquet_writer:
                 self.parquet_writer.close()
-                
+
             self._is_recording = False
             log.info("recorder.stop.success")
-            
+
         except Exception as e:
             log.error("recorder.stop.failed", error=str(e))
         finally:
             self.video_writer = None
             self.parquet_writer = None
-            
+
     def __enter__(self):
         """Context manager entry."""
         self.start()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - always stops recording."""
         self.stop()
@@ -495,11 +495,11 @@ def test_camera_context_manager(mock_cv2):
     """Test camera context manager releases resources."""
     with Camera(index=0) as camera:
         assert camera._is_opened
-        
+
     # After context exit, should be released
     assert not camera._is_opened
     assert camera.cap is None
-    
+
 def test_camera_context_manager_with_exception(mock_cv2):
     """Test camera releases even on exception."""
     try:
@@ -508,20 +508,20 @@ def test_camera_context_manager_with_exception(mock_cv2):
             raise ValueError("Test exception")
     except ValueError:
         pass
-        
+
     # Should still be released
     assert not camera._is_opened
-    
+
 # tests/io/test_recorder.py
 
 def test_recorder_context_manager(tmp_path):
     """Test recorder context manager cleanup."""
     output_path = tmp_path / "output"
-    
+
     with Recorder(output_path, settings_obj=Mock()) as recorder:
         assert recorder._is_recording
         recorder.write_frame(np.zeros((480, 640, 3), dtype=np.uint8))
-        
+
     # After context, should be stopped
     assert not recorder._is_recording
     assert recorder.video_writer is None
@@ -596,7 +596,7 @@ class CameraStep:
         self.parent = parent
         self.wizard_data = wizard_data
         self.settings = settings_obj  # ✅ USAR
-        
+
         # ... resto do código permanece igual
         # Trocar todas as referências de 'settings.camera.X' para 'self.settings.camera.X'
 ```
@@ -618,7 +618,7 @@ class ArenaStep:
         self.parent = parent
         self.wizard_data = wizard_data
         self.settings = settings_obj  # ✅ USAR
-        
+
         # Trocar 'settings.arena.X' para 'self.settings.arena.X'
 ```
 
@@ -632,7 +632,7 @@ class WizardDialog:
         self.parent = parent
         self.settings = settings_obj
         self.wizard_data = {}
-        
+
         # Criar steps passando settings_obj
         self.steps = [
             ProjectStep(self, self.wizard_data, self.settings),
@@ -722,7 +722,7 @@ sed -n '80,90p' .github/workflows/ci.yml
 
 # DEPOIS:
   -run: poetry run pytest
-  
+
 # OU (se o problema for diferente, ajustar conforme necessário)
 ```
 
@@ -1003,47 +1003,47 @@ from zebtrack.exceptions import (
 
 class TestExceptionHierarchy:
     """Test exception inheritance."""
-    
+
     def test_all_inherit_from_zebtrack_error(self):
         """Test all exceptions inherit from ZebTrackError."""
         assert issubclass(VideoSourceError, ZebTrackError)
         assert issubclass(CameraError, ZebTrackError)
         assert issubclass(DetectorError, ZebTrackError)
         assert issubclass(UIError, ZebTrackError)
-        
+
     def test_specific_inheritance(self):
         """Test specific inheritance chains."""
         assert issubclass(CameraError, FileOperationError)
         assert issubclass(ModelLoadError, DetectorError)
         assert issubclass(ValidationError, UIError)
-        
+
     def test_exception_instantiation(self):
         """Test exceptions can be instantiated with message."""
         exc = VideoSourceError("Test message")
         assert str(exc) == "Test message"
-        
+
     def test_exception_raising(self):
         """Test exceptions can be raised and caught."""
         with pytest.raises(VideoSourceError):
             raise VideoSourceError("Test")
-            
+
         with pytest.raises(ZebTrackError):
             raise VideoSourceError("Caught by base class")
 
 
 class TestSpecificExceptions:
     """Test specific exception behaviors."""
-    
+
     def test_camera_connection_error(self):
         """Test CameraConnectionError."""
         with pytest.raises(CameraConnectionError):
             raise CameraConnectionError("Camera not found")
-            
+
     def test_model_load_error(self):
         """Test ModelLoadError."""
         with pytest.raises(ModelLoadError):
             raise ModelLoadError("Model file missing")
-            
+
     def test_validation_error(self):
         """Test ValidationError."""
         with pytest.raises(ValidationError):

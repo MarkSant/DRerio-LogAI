@@ -225,7 +225,7 @@ git add src/zebtrack/io/camera.py src/zebtrack/io/recorder.py tests/
 git commit -m "feat(p1-t2): Add context managers for resource cleanup
 
 - Implemented __enter__/__exit__ for Camera class
-- Implemented __enter__/__exit__ for Recorder class  
+- Implemented __enter__/__exit__ for Recorder class
 - Updated usage patterns across codebase
 - Added comprehensive tests for context manager behavior
 - Ensures resources always cleaned up, even on exceptions
@@ -685,7 +685,7 @@ poetry run pytest --cov=zebtrack --cov-report=term
 git commit -m "test(p3-t2): Increase test coverage to 80%
 
 - Added edge case tests
-- Added error path tests  
+- Added error path tests
 - Increased coverage: 70% → 80%+
 - Updated pyproject.toml: --cov-fail-under=80
 
@@ -836,7 +836,7 @@ git commit -m "perf(p4-t1): Performance optimizations
 
 - Profiled hot paths
 - Optimized color map operations
-- Optimized tree clearing  
+- Optimized tree clearing
 - Documented benchmarks
 
 Refs: #phase-4"

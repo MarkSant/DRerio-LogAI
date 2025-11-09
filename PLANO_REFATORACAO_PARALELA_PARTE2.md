@@ -91,10 +91,10 @@ log = structlog.get_logger()
 class HardwareCoordinator:
     """
     Coordinates camera and Arduino hardware setup and lifecycle.
-    
+
     Extracted from MainViewModel to reduce god object complexity.
     """
-    
+
     def __init__(
         self,
         settings_obj: Settings,
@@ -104,19 +104,19 @@ class HardwareCoordinator:
         self.settings = settings_obj
         self.state_manager = state_manager
         self.ui_coordinator = ui_coordinator
-        
+
         self.camera: Camera | None = None
         self.arduino_manager: ArduinoManager | None = None
         self._camera_initialized = False
         self._arduino_initialized = False
-        
+
     # Camera Management
     def setup_camera(self) -> Camera:
         """Setup camera with configured settings."""
         if self._camera_initialized and self.camera:
             log.warning("hardware.camera.already_initialized")
             return self.camera
-            
+
         try:
             log.info("hardware.camera.setup.start")
             self.camera = Camera(
@@ -124,23 +124,23 @@ class HardwareCoordinator:
                 settings_obj=self.settings
             )
             self.camera.open()
-            
+
             self._camera_initialized = True
             self.state_manager.update_hardware_state(camera_connected=True)
-            
+
             log.info("hardware.camera.setup.success", index=self.settings.camera.index)
             return self.camera
-            
+
         except Exception as e:
             log.error("hardware.camera.setup.failed", error=str(e), exc_info=True)
             self._camera_initialized = False
             raise CameraConnectionError(f"Camera setup failed: {e}") from e
-            
+
     def release_camera(self):
         """Release camera resources gracefully."""
         if not self.camera:
             return
-            
+
         try:
             log.info("hardware.camera.release.start")
             self.camera.release()
@@ -151,14 +151,14 @@ class HardwareCoordinator:
             log.error("hardware.camera.release.failed", error=str(e))
         finally:
             self.camera = None
-            
+
     # Arduino Management
     def setup_arduino(self, port: str | None = None):
         """Setup Arduino connection."""
         if self._arduino_initialized and self.arduino_manager:
             log.warning("hardware.arduino.already_initialized")
             return self.arduino_manager.arduino
-            
+
         try:
             log.info("hardware.arduino.setup.start", port=port)
             self.arduino_manager = ArduinoManager(
@@ -174,13 +174,13 @@ class HardwareCoordinator:
             log.error("hardware.arduino.setup.failed", error=str(e))
             self._arduino_initialized = False
             raise ArduinoConnectionError(f"Arduino setup failed: {e}") from e
-            
+
     def send_arduino_command(self, command: str) -> str | None:
         """Send command to Arduino."""
         if not self.arduino_manager or not self._arduino_initialized:
             raise ArduinoConnectionError("Arduino not connected")
         return self.arduino_manager.send_command(command)
-        
+
     def shutdown_arduino(self):
         """Shutdown Arduino connection."""
         if self.arduino_manager:
@@ -193,7 +193,7 @@ class HardwareCoordinator:
                 self.arduino_manager = None
                 self._arduino_initialized = False
                 self.state_manager.update_hardware_state(arduino_connected=False)
-                
+
     def run_hardware_diagnostic(self) -> dict:
         """Run comprehensive hardware diagnostic."""
         from zebtrack.utils.hardware_detection import (
@@ -209,17 +209,17 @@ class HardwareCoordinator:
         }
         log.info("hardware.diagnostic.complete", results=results)
         return results
-        
+
     def shutdown_all(self):
         """Shutdown all hardware."""
         log.info("hardware.shutdown_all.start")
         self.release_camera()
         self.shutdown_arduino()
         log.info("hardware.shutdown_all.complete")
-        
+
     def __enter__(self):
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.shutdown_all()
         return False
@@ -251,7 +251,7 @@ def test_setup_camera_success(coordinator):
         camera = coordinator.setup_camera()
         assert coordinator._camera_initialized
         mock_camera.assert_called_once()
-        
+
 
 def test_setup_camera_failure(coordinator):
     """Test camera setup failure."""
@@ -275,7 +275,7 @@ def test_setup_arduino_success(coordinator):
     with patch('zebtrack.core.hardware_coordinator.ArduinoManager') as mock_mgr:
         coordinator.setup_arduino()
         assert coordinator._arduino_initialized
-        
+
 
 def test_send_arduino_command_not_connected(coordinator):
     """Test sending command when not connected."""
@@ -303,7 +303,7 @@ class MainViewModel:
     ):
         # ... existing init
         self.hardware_coordinator = hardware_coordinator
-        
+
     # REMOVER métodos:
     # - setup_camera() → delegar para hardware_coordinator.setup_camera()
     # - release_camera()
@@ -311,7 +311,7 @@ class MainViewModel:
     # - send_arduino_command()
     # - shutdown_arduino()
     # - run_hardware_diagnostic()
-    
+
     # Se necessário manter interface pública, criar delegações:
     def setup_camera(self):
         """Delegate to HardwareCoordinator."""
@@ -423,10 +423,10 @@ log = structlog.get_logger()
 class AnalysisCoordinator:
     """
     Coordinates batch video analysis workflows.
-    
+
     Extracted from MainViewModel to reduce god object complexity.
     """
-    
+
     def __init__(
         self,
         settings_obj: Settings,
@@ -440,7 +440,7 @@ class AnalysisCoordinator:
         self.state_manager = state_manager
         self._is_analyzing = False
         self._cancel_requested = False
-        
+
     def run_batch_analysis(
         self,
         videos: list[str],
@@ -450,36 +450,36 @@ class AnalysisCoordinator:
         """Run analysis on batch of videos."""
         if self._is_analyzing:
             raise RuntimeError("Analysis already in progress")
-            
+
         log.info("analysis.batch.start", video_count=len(videos))
         self._is_analyzing = True
         self._cancel_requested = False
         results = []
-        
+
         try:
             for idx, video_path in enumerate(videos):
                 if self._cancel_requested:
                     log.warning("analysis.batch.cancelled", completed=idx)
                     break
-                    
+
                 progress = (idx + 1) / len(videos)
                 if on_progress:
                     on_progress(progress, f"Analyzing {idx+1}/{len(videos)}")
-                    
+
                 try:
                     video_results = self._analyze_single_video(video_path)
                     results.append(video_results)
                 except Exception as e:
                     log.error("analysis.video.failed", video=video_path, error=str(e))
                     raise
-                    
+
             log.info("analysis.batch.complete", successful=len(results))
             if on_complete:
                 on_complete(results)
             return results
         finally:
             self._is_analyzing = False
-            
+
     def _analyze_single_video(self, video_path: str) -> dict:
         """Analyze single video."""
         project_data = self.project_manager.get_project_data()
@@ -488,20 +488,20 @@ class AnalysisCoordinator:
             project_data=project_data,
             settings_obj=self.settings,
         )
-        
+
     def cancel_analysis(self):
         """Request cancellation."""
         if self._is_analyzing:
             log.info("analysis.cancel.requested")
             self._cancel_requested = True
-            
+
     def prepare_results_directory(self, video_path: str) -> Path:
         """Prepare results directory."""
         video_name = Path(video_path).stem
         results_dir = Path(video_path).parent / f"{video_name}_results"
         results_dir.mkdir(parents=True, exist_ok=True)
         return results_dir
-        
+
     @property
     def is_analyzing(self) -> bool:
         return self._is_analyzing
@@ -550,13 +550,13 @@ Integrar os coordinators extraídos e finalizar refatoração do MainViewModel p
 class MainViewModel:
     """
     Main view model - refactored to delegate hardware and analysis concerns.
-    
+
     Now focuses on:
     - UI state coordination
     - Wizard workflow
     - Project lifecycle
     """
-    
+
     def __init__(
         self,
         settings_obj: Settings,
@@ -575,18 +575,18 @@ class MainViewModel:
         self.hardware = hardware_coordinator
         self.analysis = analysis_coordinator
         self.event_bus = event_bus
-        
+
     # Delegações para hardware
     def setup_camera(self):
         return self.hardware.setup_camera()
-        
+
     def send_arduino_command(self, cmd: str):
         return self.hardware.send_arduino_command(cmd)
-        
+
     # Delegações para análise
     def run_batch_analysis(self, videos: list[str], **kwargs):
         return self.analysis.run_batch_analysis(videos, **kwargs)
-        
+
     # ... métodos de UI e wizard permanecem aqui
 ```
 
@@ -718,7 +718,7 @@ def test_complete_wizard_workflow(tmp_path):
     # Run wizard
     # Verify project created
     # Verify all steps completed
-    
+
 # tests/integration/test_video_processing.py
 
 def test_complete_video_processing_pipeline(sample_video):
@@ -763,7 +763,7 @@ if width == 640 and height == 480:
 class VideoConfig:
     DEFAULT_WIDTH = 640
     DEFAULT_HEIGHT = 480
-    
+
 if width == VideoConfig.DEFAULT_WIDTH:
     ...
 ```
