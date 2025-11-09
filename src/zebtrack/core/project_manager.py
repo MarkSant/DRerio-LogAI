@@ -391,13 +391,14 @@ class ProjectManager:
                         destination=dest_file_path,
                     )
                     updated_video_entry = True
-                except Exception as exc:  # pragma: no cover - defensive
+                except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
                     log.error(
                         "project_manager.zones.copy_failed",
                         source=source_file_path,
                         destination=dest_file_path,
                         error=str(exc),
                     )
+                    # Non-fatal: continue processing other files
 
         if updated_video_entry and copied:
             video_entry = target_video_entry or self.find_video_entry(path=target_video_path)
@@ -518,11 +519,29 @@ class ProjectManager:
 
             return zone_data
 
-        except Exception as e:
+        except OSError as e:
             log.error(
-                "project_manager.load_zones.error",
+                "project_manager.load_zones.io_error",
                 video=video_info.get("path"),
                 error=str(e),
+                exc_info=True,
+            )
+            return None
+        except (ValueError, KeyError) as e:
+            log.error(
+                "project_manager.load_zones.data_error",
+                video=video_info.get("path"),
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+        except Exception as e:
+            # Catch pandas parquet errors and other unforeseen issues
+            log.error(
+                "project_manager.load_zones.unexpected_error",
+                video=video_info.get("path"),
+                error=str(e),
+                error_type=type(e).__name__,
                 exc_info=True,
             )
             return None
@@ -609,10 +628,26 @@ class ProjectManager:
             )
             return True
 
-        except Exception as e:
+        except ProjectInvalidError as e:
             log.error(
-                "project_manager.import_parquets.error",
+                "project_manager.import_parquets.save_error",
                 error=str(e),
+                exc_info=True,
+            )
+            return False
+        except (OSError, ValueError, KeyError) as e:
+            log.error(
+                "project_manager.import_parquets.data_error",
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+        except Exception as e:
+            # Catch pandas parquet errors and other unforeseen issues
+            log.error(
+                "project_manager.import_parquets.unexpected_error",
+                error=str(e),
+                error_type=type(e).__name__,
                 exc_info=True,
             )
             return False
@@ -1206,10 +1241,36 @@ class ProjectManager:
             self.project_service.save_project_config(self.project_path, self.project_data)
 
             log.info("project.save.success", path=self.project_path)
-        except Exception as e:
-            log.error("project.save.error", path=self.project_path, exc_info=e)
+        except PermissionError as e:
+            log.error("project.save.permission_denied", path=self.project_path, exc_info=e)
             raise ProjectInvalidError(
-                message=f"Falha ao salvar o arquivo de configuração do projeto: "
+                message=(
+                    f"Permissão negada ao salvar o projeto: {self.project_path}\n\n"
+                    f"Verifique se você tem permissão de escrita na pasta.\n\nErro: {e}"
+                ),
+                path=self.project_path,
+                cause=e,
+            ) from e
+        except OSError as e:
+            log.error("project.save.io_error", path=self.project_path, exc_info=e)
+            raise ProjectInvalidError(
+                message=f"Erro de I/O ao salvar o projeto: "
+                f"{self.project_path}\n\nVerifique o espaço em disco e permissões.\n\nErro: {e}",
+                path=self.project_path,
+                cause=e,
+            ) from e
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            log.error("project.save.serialization_error", path=self.project_path, exc_info=e)
+            raise ProjectInvalidError(
+                message=f"Erro ao serializar dados do projeto: "
+                f"{self.project_path}\n\nDados do projeto podem estar corrompidos.\n\nErro: {e}",
+                path=self.project_path,
+                cause=e,
+            ) from e
+        except Exception as e:
+            log.error("project.save.unexpected_error", path=self.project_path, exc_info=e)
+            raise ProjectInvalidError(
+                message=f"Erro inesperado ao salvar o projeto: "
                 f"{self.project_path}\n\nPor favor, verifique as permissões da pasta.\n\nErro: {e}",
                 path=self.project_path,
                 cause=e,
@@ -1845,12 +1906,28 @@ class ProjectManager:
             try:
                 self.metadata = pd.read_csv(metadata_path)
                 log.info("project.metadata.loaded", path=metadata_path)
-            except Exception as e:
+            except OSError as e:
                 self.metadata = None
                 log.error(
-                    "project.metadata.load_error",
+                    "project.metadata.io_error",
                     path=metadata_path,
                     error=str(e),
+                )
+            except (UnicodeDecodeError, ValueError) as e:
+                self.metadata = None
+                log.error(
+                    "project.metadata.parse_error",
+                    path=metadata_path,
+                    error=str(e),
+                )
+            except Exception as e:
+                # Catch pandas-specific errors and other unforeseen issues
+                self.metadata = None
+                log.error(
+                    "project.metadata.unexpected_error",
+                    path=metadata_path,
+                    error=str(e),
+                    error_type=type(e).__name__,
                 )
         else:
             self.metadata = None

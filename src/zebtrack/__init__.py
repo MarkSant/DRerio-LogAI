@@ -1,12 +1,14 @@
 """ZebTrack-AI: Zebrafish behavioral tracking and analysis system."""
 
 # Import and export custom exceptions for easy access
-from zebtrack.exceptions import (
+from zebtrack.core.exceptions import (
     AnalysisError,
     ArduinoConnectionError,
     ArduinoError,
+    CameraAccessError,
     CameraConnectionError,
     CameraError,
+    CameraNotFoundError,
     ConfigurationError,
     DetectorError,
     FileOperationError,
@@ -17,11 +19,16 @@ from zebtrack.exceptions import (
     ParquetError,
     ProcessingError,
     ProjectError,
+    ProjectLoadError,
+    ProjectNotFoundError,
+    ProjectSaveError,
     RecorderError,
     SettingsError,
     TrackingError,
     UIError,
     ValidationError,
+    VideoNotFoundError,
+    VideoReadError,
     VideoSourceError,
     VideoWriteError,
     WizardError,
@@ -35,8 +42,10 @@ __all__ = [
     "AnalysisError",
     "ArduinoConnectionError",
     "ArduinoError",
+    "CameraAccessError",
     "CameraConnectionError",
     "CameraError",
+    "CameraNotFoundError",
     # Configuration
     "ConfigurationError",
     # Detection and Tracking
@@ -52,12 +61,17 @@ __all__ = [
     # Processing and Analysis
     "ProcessingError",
     "ProjectError",
+    "ProjectLoadError",
+    "ProjectNotFoundError",
+    "ProjectSaveError",
     "RecorderError",
     "SettingsError",
     "TrackingError",
     # UI and User Input
     "UIError",
     "ValidationError",
+    "VideoNotFoundError",
+    "VideoReadError",
     "VideoSourceError",
     "VideoWriteError",
     "WizardError",
