@@ -1,6 +1,7 @@
 import threading
 import time
 from collections import deque
+from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -16,6 +17,18 @@ log = structlog.get_logger()
 
 
 class Camera(FrameSource):
+    """
+    Camera resource manager with automatic cleanup support.
+
+    Supports context manager protocol for automatic resource cleanup.
+
+    Example:
+        with Camera(settings_obj=settings) as camera:
+            ret, frame = camera.get_frame()
+            # Process frame...
+        # Camera automatically released on exit
+    """
+
     def __init__(self, settings_obj: "Settings | None" = None):
         """Initialize Camera with settings dependency injection.
 
@@ -209,6 +222,33 @@ class Camera(FrameSource):
         if self.cap.isOpened():
             self.cap.release()
             log.info("camera.released")
+
+    def __enter__(self) -> "Camera":
+        """Enter context manager - camera is already initialized."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
+        """
+        Exit context manager - cleanup camera resources.
+
+        Args:
+            exc_type: Exception type if raised
+            exc_val: Exception value if raised
+            exc_tb: Exception traceback if raised
+
+        Returns:
+            False to propagate exceptions
+        """
+        try:
+            self.release()
+        except Exception as e:
+            log.warning("camera.cleanup.failed", error=str(e))
+        return False  # Don't suppress exceptions
 
     def get_properties(self) -> dict[str, Any]:
         """
