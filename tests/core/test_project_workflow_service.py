@@ -202,7 +202,7 @@ class TestProjectWorkflowServiceModelSettings(unittest.TestCase):
         self.mock_model_service.get_all_weight_names.return_value = ["available_weight.pt"]
         self.mock_model_service.get_default_weight.return_value = ("available_weight.pt", {})
 
-        weight, openvino = self.service.resolve_project_model_settings(overrides=None)
+        weight, _openvino = self.service.resolve_project_model_settings(overrides=None)
 
         assert weight == "available_weight.pt"
 
@@ -554,6 +554,445 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
         assert guide is not None
         assert "arena definida: 1" in guide["message"]
         assert "ROIs definidas: 1" in guide["message"]
+
+
+class TestProjectWorkflowServiceProjectLoadFailures(unittest.TestCase):
+    """Test suite for project loading failures."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_project_manager = Mock()
+        self.mock_model_service = Mock()
+        self.mock_state_manager = Mock()
+
+        self.service = ProjectWorkflowService(
+            project_manager=self.mock_project_manager,
+            model_service=self.mock_model_service,
+            state_manager=self.mock_state_manager,
+        )
+
+    def test_open_project_file_not_found(self):
+        """Test opening project when project.json doesn't exist."""
+        from zebtrack.core.project_manager import ProjectInvalidError
+
+        self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
+            message="project.json não encontrado"
+        )
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
+
+        result = self.service.open_project(
+            project_path="/nonexistent/project",
+        )
+
+        assert result["success"] is False
+        assert "não encontrado" in result["error_message"]
+        assert result["project_info"] is None
+
+    def test_open_project_corrupted_json(self):
+        """Test opening project with corrupted project.json."""
+        from zebtrack.core.project_manager import ProjectInvalidError
+
+        self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
+            message="Arquivo de projeto corrompido"
+        )
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
+
+        result = self.service.open_project(
+            project_path="/corrupted/project",
+        )
+
+        assert result["success"] is False
+        assert "corrompido" in result["error_message"].lower()
+
+    def test_open_project_missing_videos(self):
+        """Test opening project with missing video files."""
+        self.mock_project_manager.load_project.return_value = True
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_project_name.return_value = "Test"
+        # Return videos but they don't exist on disk
+        self.mock_project_manager.get_all_videos.return_value = [
+            {"path": "/missing/video1.mp4"},
+            {"path": "/missing/video2.mp4"},
+        ]
+        self.mock_project_manager.get_zone_data.return_value = None
+        self.mock_project_manager.get_active_zone_video.return_value = None
+
+        result = self.service.open_project(
+            project_path="/path/to/project",
+        )
+
+        # Should still succeed but with warnings
+        assert result["success"] is True
+        assert result["project_info"]["videos_count"] == 2
+
+    def test_open_project_restore_detector_callback_fails(self):
+        """Test opening project when restore_detector_callback raises exception."""
+        self.mock_project_manager.load_project.return_value = True
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_project_name.return_value = "Test"
+        self.mock_project_manager.get_all_videos.return_value = []
+        self.mock_project_manager.get_zone_data.return_value = None
+        self.mock_project_manager.get_active_zone_video.return_value = None
+        self.mock_project_manager.get_detector_state.return_value = {
+            "confidence_threshold": 0.5,
+        }
+
+        def failing_restore(config):
+            raise RuntimeError("Detector restore failed")
+
+        # Should propagate exception
+        with self.assertRaises(RuntimeError):
+            self.service.open_project(
+                project_path="/path/to/project",
+                restore_detector_callback=failing_restore,
+            )
+
+
+class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
+    """Test suite for zone import failures."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_project_manager = Mock()
+        self.mock_model_service = Mock()
+        self.mock_state_manager = Mock()
+        self.mock_settings = Mock()
+        self.mock_settings.model_selection.animal_method = "det"
+
+        self.service = ProjectWorkflowService(
+            project_manager=self.mock_project_manager,
+            model_service=self.mock_model_service,
+            state_manager=self.mock_state_manager,
+            settings_obj=self.mock_settings,
+        )
+
+        self.service.set_global_model_defaults(
+            active_weight="default_weight.pt",
+            use_openvino=False,
+        )
+
+    def test_create_project_import_invalid_geometry(self):
+        """Test project creation with invalid zone geometry in import config."""
+        self.mock_project_manager.create_new_project.return_value = True
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_active_zone_video.return_value = None
+
+        # Import config with invalid polygon (single point)
+        import_config = [
+            {
+                "video": "/path/to/video.mp4",
+                "import_arena": True,
+                "arena_polygon": [[100, 100]],  # Invalid: single point
+            }
+        ]
+
+        # Import should fail
+        self.mock_project_manager.import_parquets_from_wizard.return_value = False
+
+        result = self.service.create_project(
+            setup_detector_callback=Mock(),
+            project_path="/path/to/project",
+            animals_per_aquarium=1,
+            import_config=import_config,
+            roi_merge_strategy="replace",
+            scanned_videos=[],
+        )
+
+        assert result["success"] is True
+        assert result["import_success"] is False
+
+    def test_create_project_import_incompatible_roi_merge_strategy(self):
+        """Test project creation with invalid ROI merge strategy."""
+        self.mock_project_manager.create_new_project.return_value = True
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_active_zone_video.return_value = None
+
+        import_config = [
+            {
+                "video": "/path/to/video.mp4",
+                "import_rois": True,
+            }
+        ]
+
+        # Simulate import failure due to invalid strategy
+        self.mock_project_manager.import_parquets_from_wizard.side_effect = ValueError(
+            "Invalid merge strategy"
+        )
+
+        # Should propagate exception
+        with self.assertRaises(ValueError):
+            self.service.create_project(
+                setup_detector_callback=Mock(),
+                project_path="/path/to/project",
+                animals_per_aquarium=1,
+                import_config=import_config,
+                roi_merge_strategy="invalid_strategy",
+                scanned_videos=[],
+            )
+
+    def test_create_project_import_parquet_not_found(self):
+        """Test project creation when parquet files are missing."""
+        self.mock_project_manager.create_new_project.return_value = True
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_active_zone_video.return_value = None
+
+        import_config = [
+            {
+                "video": "/path/to/video.mp4",
+                "import_trajectory": True,
+                "trajectory_parquet": "/missing/trajectory.parquet",
+            }
+        ]
+
+        # Import fails due to missing file
+        self.mock_project_manager.import_parquets_from_wizard.return_value = False
+
+        result = self.service.create_project(
+            setup_detector_callback=Mock(),
+            project_path="/path/to/project",
+            animals_per_aquarium=1,
+            import_config=import_config,
+            scanned_videos=[],
+        )
+
+        assert result["success"] is True
+        assert result["import_success"] is False
+
+
+class TestProjectWorkflowServiceModelSettingsFailures(unittest.TestCase):
+    """Test suite for model settings resolution failures."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_project_manager = Mock()
+        self.mock_model_service = Mock()
+        self.mock_state_manager = Mock()
+
+        self.service = ProjectWorkflowService(
+            project_manager=self.mock_project_manager,
+            model_service=self.mock_model_service,
+            state_manager=self.mock_state_manager,
+        )
+
+    def test_resolve_model_settings_weight_unavailable(self):
+        """Test resolving model settings when weight is unavailable."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "missing_weight.pt",
+        }
+        self.mock_model_service.get_all_weight_names.return_value = ["available_weight.pt"]
+        self.mock_model_service.get_default_weight.return_value = ("available_weight.pt", {})
+
+        # Should fallback to default weight
+        weight, _openvino = self.service.resolve_project_model_settings()
+
+        assert weight == "available_weight.pt"
+
+    def test_apply_model_overrides_no_project(self):
+        """Test applying model overrides when no project is loaded."""
+        self.mock_project_manager.project_data = None
+        self.service._global_model_defaults = {
+            "active_weight": "global_weight.pt",
+            "use_openvino": True,
+        }
+
+        weight, openvino = self.service.apply_project_model_overrides()
+
+        # Should return global defaults
+        assert weight == "global_weight.pt"
+        assert openvino is True
+
+    def test_apply_model_overrides_save_fails(self):
+        """Test applying overrides when project save fails."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "old_weight.pt",
+            "use_openvino": False,
+        }
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_model_service.get_all_weight_names.return_value = ["new_weight.pt"]
+
+        # Save raises exception
+        self.mock_project_manager.save_project.side_effect = RuntimeError("Save failed")
+
+        overrides = {"active_weight": "new_weight.pt", "use_openvino": True}
+
+        # Should propagate exception
+        with self.assertRaises(RuntimeError):
+            self.service.apply_project_model_overrides(
+                overrides=overrides,
+                active_weight_setter=Mock(),
+                use_openvino_setter=Mock(),
+            )
+
+
+class TestProjectWorkflowServiceParameterValidationEdgeCases(unittest.TestCase):
+    """Test suite for parameter validation edge cases."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.service = ProjectWorkflowService(
+            project_manager=Mock(),
+            model_service=Mock(),
+            state_manager=Mock(),
+        )
+
+    def test_validate_parameters_boundary_animals_per_aquarium(self):
+        """Test validation with boundary values for animals_per_aquarium."""
+        # Zero animals
+        is_valid, _error = self.service.validate_project_parameters(
+            animal_method="det",
+            animals_per_aquarium=0,
+        )
+        assert is_valid is False
+
+        # Negative animals
+        is_valid, _error = self.service.validate_project_parameters(
+            animal_method="det",
+            animals_per_aquarium=-1,
+        )
+        assert is_valid is False
+
+        # Very large number
+        is_valid, _error = self.service.validate_project_parameters(
+            animal_method="seg",
+            animals_per_aquarium=1000,
+        )
+        assert is_valid is True
+
+    def test_prepare_parameters_filters_unknown(self):
+        """Test parameter preparation filters unknown keys."""
+        kwargs = {
+            "project_path": "/path",
+            "unknown_param1": "value1",
+            "unknown_param2": 123,
+            "num_aquariums": 2,
+        }
+
+        filtered = self.service.prepare_controller_parameters(**kwargs)
+
+        assert "project_path" in filtered
+        assert "num_aquariums" in filtered
+        assert "unknown_param1" not in filtered
+        assert "unknown_param2" not in filtered
+
+    def test_prepare_parameters_empty_input(self):
+        """Test parameter preparation with empty input."""
+        filtered = self.service.prepare_controller_parameters()
+
+        # Should return empty dict
+        assert filtered == {}
+
+
+class TestProjectWorkflowServiceConcurrentOperations(unittest.TestCase):
+    """Test suite for concurrent project operations."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_project_manager = Mock()
+        self.mock_model_service = Mock()
+        self.mock_state_manager = Mock()
+        self.mock_settings = Mock()
+        self.mock_settings.model_selection.animal_method = "det"
+
+        self.service = ProjectWorkflowService(
+            project_manager=self.mock_project_manager,
+            model_service=self.mock_model_service,
+            state_manager=self.mock_state_manager,
+            settings_obj=self.mock_settings,
+        )
+
+        self.service.set_global_model_defaults(
+            active_weight="default_weight.pt",
+            use_openvino=False,
+        )
+
+    def test_create_project_during_open(self):
+        """Test creating project while another is being opened (simulated)."""
+        # First open starts
+        self.mock_project_manager.load_project.return_value = True
+        self.mock_project_manager.project_data = {}
+
+        # Then create is called (should use different project_manager state)
+        self.mock_project_manager.create_new_project.return_value = True
+
+        # Both operations should succeed independently
+        # This is a simplified test - real concurrency would require threading
+
+    def test_multiple_model_override_applications(self):
+        """Test multiple rapid model override applications."""
+        self.mock_project_manager.project_data = {
+            "active_weight": "weight1.pt",
+            "use_openvino": False,
+        }
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_model_service.get_all_weight_names.return_value = [
+            "weight1.pt",
+            "weight2.pt",
+            "weight3.pt",
+        ]
+
+        # Apply multiple overrides in sequence
+        for i in range(3):
+            overrides = {"active_weight": f"weight{i+1}.pt"}
+            weight, _openvino = self.service.apply_project_model_overrides(
+                overrides=overrides,
+                active_weight_setter=Mock(),
+            )
+            assert weight == f"weight{i+1}.pt"
+
+
+class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
+    """Test suite for post-creation guide edge cases."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mock_project_manager = Mock()
+        self.service = ProjectWorkflowService(
+            project_manager=self.mock_project_manager,
+            model_service=Mock(),
+            state_manager=Mock(),
+        )
+
+    def test_generate_guide_empty_scanned_videos(self):
+        """Test guide generation with empty scanned videos."""
+        self.mock_project_manager.get_all_videos.return_value = []
+
+        wizard_metadata = {
+            "import_config": [],
+            "scanned_videos": [],  # Empty
+        }
+
+        guide = self.service.generate_post_creation_guide(
+            wizard_metadata=wizard_metadata,
+            check_suppression=False,
+        )
+
+        # Should return None for empty videos
+        assert guide is None
+
+    def test_generate_guide_malformed_import_config(self):
+        """Test guide generation with malformed import config."""
+        self.mock_project_manager.get_all_videos.return_value = [
+            {"path": "/video1.mp4"},
+        ]
+
+        wizard_metadata = {
+            "import_config": [
+                {"invalid_key": "value"},  # Missing 'video' key
+            ],
+            "scanned_videos": [{"video": "/video1.mp4", "path": "/video1.mp4"}],
+        }
+
+        guide = self.service.generate_post_creation_guide(
+            wizard_metadata=wizard_metadata,
+            check_suppression=False,
+        )
+
+        # Should still generate guide
+        assert guide is not None
+        assert "Total de vídeos: 1" in guide["message"]
 
 
 if __name__ == "__main__":

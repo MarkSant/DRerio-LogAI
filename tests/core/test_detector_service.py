@@ -533,5 +533,326 @@ class TestDetectorService(unittest.TestCase):
         self.assertTrue(pref)
 
 
+class TestDetectorServiceZoneErrorHandling(unittest.TestCase):
+    """Test suite for zone configuration error handling."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = MagicMock()
+        self.project_manager = MagicMock()
+        self.weight_manager = MagicMock()
+        self.model_service = MagicMock()
+        self.settings = MagicMock()
+
+        self.service = DetectorService(
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+            settings_obj=self.settings,
+        )
+
+    def test_configure_zones_with_invalid_polygon_empty(self):
+        """Test configure zones with empty polygon."""
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+
+        mock_detector = MagicMock()
+        self.service.detector = mock_detector
+
+        # Zone data with empty polygon
+        zone_data = ZoneData(polygon=[], roi_polygons=[])
+
+        # Execute
+        result = self.service.configure_zones(zone_data, 1280, 720)
+
+        # Should still succeed but with empty polygon
+        self.assertTrue(result)
+        mock_detector.set_zones.assert_called_once_with(zone_data, 1280, 720)
+
+    def test_configure_zones_with_malformed_polygon(self):
+        """Test configure zones with malformed polygon (single point)."""
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+
+        mock_detector = MagicMock()
+        self.service.detector = mock_detector
+
+        # Zone data with single point (invalid polygon)
+        zone_data = ZoneData(polygon=[[100, 100]])
+
+        # Execute - should handle gracefully
+        result = self.service.configure_zones(zone_data, 1280, 720)
+
+        # Should succeed and pass to detector for validation
+        self.assertTrue(result)
+        mock_detector.set_zones.assert_called_once()
+
+    def test_configure_zones_with_invalid_dimensions(self):
+        """Test configure zones with zero/negative dimensions."""
+        self.settings.camera.desired_width = 0  # Invalid
+        self.settings.camera.desired_height = -100  # Invalid
+
+        mock_detector = MagicMock()
+        self.service.detector = mock_detector
+
+        zone_data = ZoneData(polygon=[[0, 0], [100, 100]])
+
+        # Execute - should handle gracefully
+        result = self.service.configure_zones(zone_data)
+
+        # Should still call set_zones with invalid dimensions
+        self.assertTrue(result)
+        mock_detector.set_zones.assert_called_once()
+
+
+class TestDetectorServiceModelCorruption(unittest.TestCase):
+    """Test suite for model corruption and file integrity errors."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = MagicMock()
+        self.project_manager = MagicMock()
+        self.weight_manager = MagicMock()
+        self.model_service = MagicMock()
+        self.settings = MagicMock()
+
+        self.service = DetectorService(
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+            settings_obj=self.settings,
+        )
+
+        self.mock_plugins = {
+            "YOLO (Ultralytics)": MockDetectorPlugin,
+            "OpenVINO": MockDetectorPlugin,
+        }
+
+    @patch("zebtrack.core.detector_service.Detector")
+    def test_initialize_detector_model_file_corrupted(self, mock_detector_class):
+        """Test detector initialization with corrupted model file."""
+        self.settings.model_selection.animal_method = "det"
+        self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
+        self.model_service.find_weight_by_path.return_value = (
+            "test_weight",
+            {"path": "/path/to/model.pt"},
+        )
+
+        # Simulate IntegrityError on detector creation
+        from zebtrack.utils import IntegrityError
+
+        mock_detector_class.side_effect = IntegrityError("Model file corrupted")
+
+        # Execute
+        with patch("os.path.exists", return_value=True):
+            success, error = self.service.initialize_detector(
+                animal_method="det",
+                use_openvino=False,
+                detector_plugins=self.mock_plugins,
+            )
+
+        # Verify
+        self.assertFalse(success)
+        self.assertIsNotNone(error)
+        self.assertIn("corrupted", error.lower())
+
+    def test_initialize_detector_model_path_disappears(self):
+        """Test detector initialization when model file disappears after lookup."""
+        self.settings.model_selection.animal_method = "det"
+        self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
+        self.model_service.find_weight_by_path.return_value = (
+            "test_weight",
+            {"path": "/path/to/model.pt"},
+        )
+
+        # File doesn't exist
+        with patch("os.path.exists", return_value=False):
+            success, error = self.service.initialize_detector(
+                animal_method="det",
+                use_openvino=False,
+                detector_plugins=self.mock_plugins,
+            )
+
+        # Verify
+        self.assertFalse(success)
+        self.assertIsNotNone(error)
+
+    @patch("zebtrack.core.detector_service.Detector")
+    def test_initialize_detector_openvino_hash_mismatch(self, mock_detector_class):
+        """Test detector initialization with OpenVINO hash mismatch."""
+        self.settings.model_selection.animal_method = "det"
+        self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
+        self.model_service.find_weight_by_path.return_value = (
+            "test_weight",
+            {"path": "/path/to/model.pt", "openvino_hash": "abc123"},
+        )
+        self.model_service.get_model_path_for_inference.return_value = (
+            "/path/to/openvino",
+            {"openvino_hash": "abc123"},
+        )
+
+        # Simulate integrity error on OpenVINO plugin instantiation
+        from zebtrack.utils import IntegrityError
+
+        def plugin_side_effect(*args, **kwargs):
+            if kwargs.get("expected_hash"):
+                raise IntegrityError("Hash mismatch")
+            return MockDetectorPlugin(*args, **kwargs)
+
+        mock_plugin_class = MagicMock(side_effect=plugin_side_effect)
+        plugins = {"OpenVINO": mock_plugin_class}
+
+        # Execute
+        success, error = self.service.initialize_detector(
+            animal_method="det",
+            use_openvino=True,
+            detector_plugins=plugins,
+        )
+
+        # Verify
+        self.assertFalse(success)
+        self.assertIsNotNone(error)
+
+
+class TestDetectorServiceTrackingParameterConflicts(unittest.TestCase):
+    """Test suite for tracking parameter conflicts and edge cases."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = MagicMock()
+        self.project_manager = MagicMock()
+        self.weight_manager = MagicMock()
+        self.model_service = MagicMock()
+        self.settings = MagicMock()
+
+        # Setup settings defaults
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
+        mock_bytetrack = MagicMock()
+        mock_bytetrack.track_threshold = 0.25
+        mock_bytetrack.match_threshold = 0.15
+        self.settings.bytetrack = mock_bytetrack
+
+        self.service = DetectorService(
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+            settings_obj=self.settings,
+        )
+
+    def test_update_tracking_parameters_scope_conflict(self):
+        """Test parameter update with conflicting scope."""
+        # Execute with invalid scope
+        with self.assertRaises(ValueError) as ctx:
+            self.service.update_tracking_parameters(
+                conf_threshold=0.5,
+                scope="invalid_scope",
+            )
+
+        self.assertIn("Unsupported", str(ctx.exception))
+
+    def test_update_tracking_parameters_clear_project_overrides(self):
+        """Test clearing project overrides returns to global defaults."""
+        # Setup project with overrides
+        self.project_manager.project_data = {
+            "detector_state": {
+                "conf_threshold": 0.7,
+                "track_threshold": 0.5,
+            }
+        }
+
+        mock_detector = MagicMock()
+        mock_plugin = MockDetectorPlugin("/path/to/model.pt")
+        mock_plugin.conf_threshold = 0.7
+        mock_plugin.track_threshold = 0.5
+        mock_detector.plugin = mock_plugin
+        self.service.detector = mock_detector
+
+        # Clear project overrides
+        result = self.service.update_tracking_parameters(
+            reset_overrides=True,
+            scope="project",
+        )
+
+        # Should succeed and reset to defaults
+        self.assertTrue(result)
+
+    def test_update_tracking_parameters_multiple_threshold_errors(self):
+        """Test updating multiple invalid thresholds raises ValueError."""
+        # Test each invalid value separately
+        invalid_values = [
+            ("conf_threshold", 1.5),
+            ("conf_threshold", -0.1),
+            ("nms_threshold", 2.0),
+            ("track_threshold", -1.0),
+            ("match_threshold", 1.1),
+        ]
+
+        for param_name, value in invalid_values:
+            with self.assertRaises(ValueError):
+                self.service.update_tracking_parameters(**{param_name: value})
+
+    def test_update_tracking_parameters_no_detector_persists_to_project(self):
+        """Test parameter update without detector persists to project."""
+        self.project_manager.project_data = {}
+        self.project_manager.save_detector_state.return_value = True
+
+        # Update without detector
+        result = self.service.update_tracking_parameters(
+            params={"conf_threshold": 0.6, "track_threshold": 0.4},
+            scope="project",
+        )
+
+        # Should succeed even without detector
+        self.assertTrue(result)
+
+
+class TestDetectorServiceResetTrackingFailure(unittest.TestCase):
+    """Test suite for tracking state reset failures."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = MagicMock()
+        self.project_manager = MagicMock()
+        self.weight_manager = MagicMock()
+        self.model_service = MagicMock()
+        self.settings = MagicMock()
+
+        self.service = DetectorService(
+            state_manager=self.state_manager,
+            project_manager=self.project_manager,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+            settings_obj=self.settings,
+        )
+
+    def test_reset_tracking_state_detector_error(self):
+        """Test reset tracking state when detector raises exception."""
+        mock_detector = MagicMock()
+        mock_detector.reset_tracking_state.side_effect = RuntimeError("Tracking reset failed")
+        self.service.detector = mock_detector
+
+        # Execute - should not raise, only log warning
+        self.service.reset_tracking_state()
+
+        # Verify method was called
+        mock_detector.reset_tracking_state.assert_called_once()
+
+    def test_set_single_subject_mode_plugin_missing_method(self):
+        """Test single subject mode when plugin doesn't support it."""
+        mock_detector = MagicMock()
+        # Remove set_single_subject_mode method
+        del mock_detector.set_single_subject_mode
+        self.service.detector = mock_detector
+
+        # Execute - should handle AttributeError gracefully
+        self.service.set_single_subject_mode(True)
+
+        # Should not raise exception
+
+
 if __name__ == "__main__":
     unittest.main()
