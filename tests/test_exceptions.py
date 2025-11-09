@@ -55,6 +55,30 @@ class TestBaseException:
         """Test that ZebTrackError inherits from Exception."""
         assert issubclass(ZebTrackError, Exception)
 
+    def test_base_exception_with_details(self):
+        """Test that ZebTrackError supports details dictionary."""
+        details = {"frame": 42, "camera_id": 0}
+        exc = ZebTrackError("Error with context", details=details)
+        assert str(exc) == "Error with context"
+        assert exc.details == details
+
+    def test_base_exception_without_details(self):
+        """Test that details defaults to empty dict when not provided."""
+        exc = ZebTrackError("Error without details")
+        assert exc.details == {}
+
+    def test_base_exception_positional_args(self):
+        """Test that ZebTrackError accepts multiple positional arguments."""
+        exc = ZebTrackError("Error", "Additional info")
+        assert "Error" in str(exc)
+
+    def test_child_exception_with_details(self):
+        """Test that child exceptions inherit details support."""
+        details = {"path": "/tmp/video.mp4", "errno": 2}
+        exc = VideoNotFoundError("File not found", details=details)
+        assert str(exc) == "File not found"
+        assert exc.details == details
+
 
 class TestExceptionHierarchy:
     """Test exception inheritance structure."""
