@@ -263,7 +263,8 @@ class ProjectManager:
             del self.project_data["zones_by_video"][key]
 
         normalized_target = self._normalize_video_path(video_path)
-        if self._active_zone_video and normalized_target == self._active_zone_video:
+        active_zone_video = self.get_active_zone_video()
+        if active_zone_video and normalized_target == active_zone_video:
             self.project_data["detection_zones"] = self._zone_data_to_dict(ZoneData())
 
         self._update_video_zone_flags(video_path, None)
@@ -1204,6 +1205,10 @@ class ProjectManager:
                 path=self.project_path,
                 cause=e,
             ) from e
+
+    def _default_analysis_profile(self) -> dict:
+        """Return the default analysis profile. Delegates to AssetManager."""
+        return self.asset_manager._default_analysis_profile()
 
     def get_analysis_profiles(self) -> list[dict]:
         """Get analysis profiles. Delegates to AssetManager."""

@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 import structlog
 
-from zebtrack.analysis.behavior import BehaviorAnalyzer
+from zebtrack.analysis.behavior import BehavioralAnalyzer
 from zebtrack.analysis.roi import ROIAnalyzer
 
 __all__ = ["DataTransformer"]
@@ -157,7 +157,7 @@ class DataTransformer:
         self,
         report: dict[str, Any],
         metadata: dict[str, Any],
-        b_analyzer: BehaviorAnalyzer,
+        b_analyzer: BehavioralAnalyzer,
         r_analyzer: ROIAnalyzer | None = None,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
     ) -> pd.DataFrame:
@@ -166,7 +166,7 @@ class DataTransformer:
         Args:
             report: Structured analysis report dictionary
             metadata: Experiment metadata
-            b_analyzer: BehaviorAnalyzer instance with trajectory data
+            b_analyzer: BehavioralAnalyzer instance with trajectory data
             r_analyzer: ROIAnalyzer instance (optional)
             roi_colors: Dictionary mapping ROI names to RGB tuples (optional)
 

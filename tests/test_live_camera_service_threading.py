@@ -738,7 +738,7 @@ class TestLiveCameraServiceRecordingIntegration:
 
     def test_output_directory_creation(self, live_camera_service, mock_camera):
         """Test that output directory is created correctly."""
-        with patch("zebtrack.core.live_camera_service.Camera", return_value=mock_camera), patch(
+        with patch("zebtrack.io.camera.Camera", return_value=mock_camera), patch(
             "zebtrack.core.live_camera_service.LivePreviewWindow"
         ):
             mock_mkdir = Mock()
