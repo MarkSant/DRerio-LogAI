@@ -169,6 +169,7 @@ class ProjectManager:
             project_path=self.project_path,
             file_path=file_path,
             zone_data_from_dict_fn=self._zone_data_from_dict,
+            zone_data_to_dict_fn=self._zone_data_to_dict,
             name=name,
             persist_callback=persist_callback,
         )
