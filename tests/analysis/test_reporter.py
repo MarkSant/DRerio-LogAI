@@ -6,7 +6,7 @@ Tests export_summary_data, plot generation, DOCX report creation,
 and data validation.
 """
 
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd

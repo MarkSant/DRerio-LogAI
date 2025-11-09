@@ -5,11 +5,8 @@ Task 2.2: REFACTOR-VIEWMODEL-001
 Tests for analysis pipeline, report generation, and parquet summaries.
 """
 
-import os
 import unittest
-from unittest.mock import MagicMock, Mock, patch, call
-
-import pytest
+from unittest.mock import Mock, patch
 
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 
@@ -135,11 +132,14 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
     @patch("pandas.DataFrame.to_excel")
     @patch("pathlib.Path.exists")
     @patch("pandas.read_parquet")
-    def test_generate_report_success(self, mock_read_parquet, mock_exists, mock_to_excel, mock_export):
+    def test_generate_report_success(
+        self, mock_read_parquet, mock_exists, mock_to_excel, mock_export
+    ):
         """Test successful report generation."""
         from pathlib import Path
+
         import pandas as pd
-        
+
         # Setup project with videos
         videos = [
             {"path": "/path/to/video1.mp4", "has_trajectory": True},
@@ -147,10 +147,10 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         ]
         self.project_manager.project_data = {"videos": videos}
         self.project_manager.resolve_results_directory.return_value = Path("/path/to/results")
-        
+
         # Mock Path.exists to return True (parquet files exist)
         mock_exists.return_value = True
-        
+
         # Mock read_parquet to return DataFrame
         mock_df = pd.DataFrame({"timestamp": [1, 2], "x": [0, 1], "y": [0, 1]})
         mock_read_parquet.return_value = mock_df
@@ -163,7 +163,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
 
         # Verify to_excel was called
         mock_to_excel.assert_called_once()
-        
+
         # Verify docx report was also generated
         mock_export.assert_called_once()
 
@@ -272,7 +272,7 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         self.project_manager.resolve_results_directory.return_value = "/path/to/results"
 
         with patch("os.path.exists", return_value=False):
-            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+            state, msg, _path, _changed = self.coordinator._process_summary_video(video, settings)
 
         assert state == "skipped"
         assert "ausente" in msg
