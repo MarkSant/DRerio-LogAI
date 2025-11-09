@@ -131,10 +131,11 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         # Should show warning message
         self.ui_event_bus.publish_event.assert_called_once()
 
-    @patch("threading.Thread")
+    @patch("zebtrack.core.analysis_coordinator.Reporter.export_project_report")
+    @patch("pandas.DataFrame.to_excel")
     @patch("pathlib.Path.exists")
     @patch("pandas.read_parquet")
-    def test_generate_report_success(self, mock_read_parquet, mock_exists, mock_thread):
+    def test_generate_report_success(self, mock_read_parquet, mock_exists, mock_to_excel, mock_export):
         """Test successful report generation."""
         from pathlib import Path
         import pandas as pd
@@ -157,16 +158,14 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         # Mock ask_save_filename
         self.view.ask_save_filename.return_value = "/path/to/output.xlsx"
 
-        # Mock thread
-        mock_thread_instance = Mock()
-        mock_thread.return_value = mock_thread_instance
-
         # Execute
         self.coordinator.generate_report(videos=videos)
 
-        # Verify thread was created and started
-        mock_thread.assert_called_once()
-        mock_thread_instance.start.assert_called_once()
+        # Verify to_excel was called
+        mock_to_excel.assert_called_once()
+        
+        # Verify docx report was also generated
+        mock_export.assert_called_once()
 
 
 class TestAnalysisCoordinatorGenerateParquetSummaries(unittest.TestCase):

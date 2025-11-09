@@ -196,9 +196,13 @@ def test_generate_trajectory_plot_with_custom_axes(generator):
     plt.close(fig)
 
 
+@patch("pathlib.Path.exists")
 @patch("cv2.VideoCapture")
-def test_generate_trajectory_plot_with_video_background(mock_video_capture, generator):
+def test_generate_trajectory_plot_with_video_background(mock_video_capture, mock_exists, generator):
     """Test trajectory plot generation with video background."""
+    # Mock Path.exists to return True
+    mock_exists.return_value = True
+    
     # Mock video capture
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True
@@ -320,7 +324,7 @@ def test_generate_angular_velocity_plot_insufficient_data(behavior_analyzer, moc
     # Create minimal trajectory (insufficient for angular velocity)
     minimal_df = pd.DataFrame(
         {
-            "timestamp": pd.date_range("2025-01-01", periods=2, freq="100ms"),
+            "timestamp": pd.to_timedelta([0, 100], unit="ms"),
             "frame": [0, 1],
             "track_id": [1, 1],
             "x1": [10.0, 11.0],
@@ -331,7 +335,7 @@ def test_generate_angular_velocity_plot_insufficient_data(behavior_analyzer, moc
             "x_center_px": [20.0, 21.0],
             "y_center_px": [30.0, 31.0],
         }
-    ).set_index("timestamp")
+    )
 
     arena_polygon_px = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
     minimal_analyzer = ConcreteBehavioralAnalyzer(
