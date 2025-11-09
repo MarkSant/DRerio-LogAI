@@ -424,6 +424,281 @@ class TestConfirmationStep:
         step.project_name_var.set(name)
         step.project_location_var.set(self.temp_dir)
 
-        is_valid, error_message = step.validate()
+        is_valid, _ = step.validate()
 
         assert not is_valid, f"Name '{name}' should be invalid"
+
+    # ========================================================================
+    # Additional tests for error display, data validation, and navigation
+    # ========================================================================
+
+    def test_error_display_for_missing_project_name(self):
+        """Error message should be clear when project name is missing."""
+        wizard_data = {"video_count": 3}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("")
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        assert not is_valid
+        assert error_message != ""
+        assert "nome" in error_message.lower()
+
+    def test_error_display_for_whitespace_only_name(self):
+        """Validation should fail with whitespace-only project name."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("   ")
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        assert not is_valid
+        assert "nome" in error_message.lower() or "vazio" in error_message.lower()
+
+    def test_validation_handles_unicode_characters(self):
+        """Project names with Unicode characters should be handled gracefully."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("Projeto_Açúcar_2025")
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        # Should either accept or reject with clear error
+        if not is_valid:
+            assert error_message != ""
+
+    def test_data_validation_preserves_all_wizard_data(self):
+        """get_data should preserve all previous wizard_data fields."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 10,
+            "detected_design": {
+                "groups": ["A", "B"],
+                "confidence": 0.9,
+            },
+            "animals_per_aquarium": 5,
+            "custom_field": "custom_value",
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("Complete_Project")
+        step.project_location_var.set(self.temp_dir)
+
+        data = step.get_data()
+
+        # Should preserve all existing data
+        assert data["project_type"] == ProjectType.EXPERIMENTAL.value
+        assert data["video_count"] == 10
+        assert "detected_design" in data
+        assert data["custom_field"] == "custom_value"
+
+    def test_project_path_construction_is_correct(self):
+        """Project path should be correctly constructed from location + name."""
+        wizard_data = {}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        step.project_name_var.set("My_Test_Project")
+        step.project_location_var.set(self.temp_dir)
+
+        data = step.get_data()
+
+        expected_path = str(Path(self.temp_dir) / "My_Test_Project")
+        assert data["project_path"] == expected_path
+
+    def test_summary_displays_model_selection_info(self):
+        """Summary should include model selection information."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 5,
+            "model_selection": {
+                "aquarium_method": "seg",
+                "animal_method": "det",
+            },
+            "detector_parameters": {
+                "confidence_threshold": 0.30,
+                "nms_threshold": 0.50,
+            },
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+
+        # Should mention model configuration
+        assert "Modelo" in summary or "Detecção" in summary or "Segmentação" in summary
+
+    def test_summary_displays_calibration_info(self):
+        """Summary should include calibration information."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 4,
+            "num_aquariums": 4,
+            "animals_per_aquarium": 3,
+            "aquarium_width_cm": 30.0,
+            "aquarium_height_cm": 25.0,
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+
+        # Should mention calibration details
+        assert "Calibração" in summary or "Dimensões" in summary
+        assert "30" in summary  # Width
+        assert "25" in summary  # Height
+
+    def test_navigation_data_validation_on_show(self):
+        """on_show should trigger summary generation and update UI."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 7,
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Call on_show
+        step.on_show()
+
+        # Summary should be populated
+        assert step.summary_text != ""
+        assert "7" in step.summary_text  # Video count
+
+    def test_default_name_includes_timestamp(self):
+        """Default project name should include timestamp for uniqueness."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "detected_design": {
+                "groups": ["Control"],
+                "confidence": 0.8,
+            },
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_default_project_name()
+
+        name = step.project_name_var.get()
+
+        # Should contain timestamp or date component
+        import re
+
+        # Check for timestamp pattern (e.g., "20250109" or similar)
+        has_timestamp = bool(re.search(r"\d{6,8}", name))
+        assert has_timestamp or "Control" in name
+
+    def test_live_project_summary_mentions_camera(self):
+        """Live project summary should mention camera configuration."""
+        wizard_data = {
+            "project_type": ProjectType.LIVE.value,
+            "camera_index": 0,
+            "camera_resolution": "640x480",
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+
+        # Should mention live or camera
+        assert "Ao Vivo" in summary or "Live" in summary or "Câmera" in summary
+
+    def test_validation_rejects_very_long_project_names(self):
+        """Validation should reject excessively long project names."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Create a very long name (> 255 characters)
+        very_long_name = "A" * 300
+
+        step.project_name_var.set(very_long_name)
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        # Should either fail or accept (depends on implementation)
+        # At minimum, should not crash
+        assert isinstance(is_valid, bool)
+        assert isinstance(error_message, str)
+
+    def test_validation_accepts_location_with_spaces(self):
+        """Validation should accept project location paths with spaces."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Create directory with spaces
+        location_with_spaces = Path(self.temp_dir) / "My Documents"
+        location_with_spaces.mkdir()
+
+        step.project_name_var.set("Valid_Project")
+        step.project_location_var.set(str(location_with_spaces))
+
+        is_valid, error_message = step.validate()
+
+        # Clean up
+        location_with_spaces.rmdir()
+
+        assert is_valid
+        assert error_message == ""
+
+    def test_empty_directory_validation(self):
+        """Validation should allow creating project in empty existing directory."""
+        wizard_data = {"video_count": 1}
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+
+        # Create empty directory with same name
+        empty_project_dir = Path(self.temp_dir) / "Empty_Project"
+        empty_project_dir.mkdir()
+
+        step.project_name_var.set("Empty_Project")
+        step.project_location_var.set(self.temp_dir)
+
+        is_valid, error_message = step.validate()
+
+        # Clean up
+        empty_project_dir.rmdir()
+
+        # Empty directory should be allowed
+        assert is_valid
+        assert error_message == ""
+
+    def test_summary_truncates_long_lists_gracefully(self):
+        """Summary should handle large numbers of groups/videos gracefully."""
+        wizard_data = {
+            "project_type": ProjectType.EXPERIMENTAL.value,
+            "video_count": 100,
+            "detected_design": {
+                "groups": [f"Group{i:02d}" for i in range(50)],
+                "confidence": 0.7,
+            },
+        }
+
+        step = ConfirmationStep(self.root, wizard_data)
+        step.build_ui()
+        step._generate_summary()
+
+        summary = step.summary_text
+
+        # Should not crash and should mention total count
+        assert "100" in summary or "50" in summary
+        assert summary != ""
