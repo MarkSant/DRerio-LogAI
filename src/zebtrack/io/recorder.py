@@ -109,6 +109,14 @@ class Recorder:
             bool: True if recording started successfully, False otherwise.
         """
         validate_calibration(pixel_per_cm_ratio)
+        if frame_width <= 0 or frame_height <= 0:
+            log.error(
+                "recorder.start.invalid_dimensions",
+                frame_width=frame_width,
+                frame_height=frame_height,
+            )
+            raise ValueError("frame_width and frame_height must be positive numbers")
+
         self.pixel_per_cm_ratio = pixel_per_cm_ratio
         self.calibration = calibration
         if self.is_recording:
@@ -215,12 +223,12 @@ class Recorder:
                 "confidence": confidence,
             }
             # Calculate center point and add cm conversion if ratio is available
+            x_center = (x1 + x2) / 2
+            y_center = (y1 + y2) / 2
+            data_point["x_center_px"] = x_center
+            data_point["y_center_px"] = y_center
             if self.pixel_per_cm_ratio:
-                x_center = (x1 + x2) / 2
-                y_center = (y1 + y2) / 2
-                data_point["x_center_px"] = x_center
-                data_point["y_center_px"] = y_center
-                # Convert warped pixels to cm using the correct ratio
+                # Convert warped pixels to cm using the configured ratio
                 data_point["x_cm"] = x_center / self.pixel_per_cm_ratio[0]
                 data_point["y_cm"] = y_center / self.pixel_per_cm_ratio[1]
 
@@ -266,12 +274,12 @@ class Recorder:
             "x2",
             "y2",
             "confidence",
+            "x_center_px",
+            "y_center_px",
         ]
         if self.pixel_per_cm_ratio:
             columns.extend(
                 [
-                    "x_center_px",
-                    "y_center_px",
                     "x_cm",
                     "y_cm",
                 ]
@@ -376,7 +384,31 @@ class Recorder:
     def _save_detection_data(self):
         """Saves the collected detection data to a Parquet file."""
         if not self.detection_data and self._parquet_writer is None:
-            log.info("recorder.save_parquet.no_data")
+            if not self._parquet_filename:
+                log.info("recorder.save_parquet.no_data")
+                return
+
+            # Create an empty Parquet file so downstream consumers find the expected schema
+            empty_columns = self._parquet_columns or self._determine_parquet_columns()
+            empty_df = pd.DataFrame(columns=empty_columns)
+            try:
+                table = pa.Table.from_pandas(empty_df, preserve_index=False)
+                pq.write_table(table, self._parquet_filename, compression=self._parquet_compression)
+                log.info(
+                    "recorder.save_parquet.empty",
+                    path=self._parquet_filename,
+                )
+            except Exception as e:
+                log.error(
+                    "recorder.save_parquet.error",
+                    path=self._parquet_filename,
+                    exc_info=e,
+                )
+            finally:
+                self.detection_data.clear()
+                self._parquet_columns = []
+                self._parquet_schema = None
+                self._parquet_filename = ""
             return
 
         self._flush_detection_data(force=True)

@@ -105,7 +105,18 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
     assert len(coords_table) == 100, f"Expected 100 rows, got {len(coords_table)}"
 
     # Verify schema
-    expected_columns = {"timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"}
+    expected_columns = {
+        "timestamp",
+        "frame",
+        "track_id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "confidence",
+        "x_center_px",
+        "y_center_px",
+    }
     actual_columns = set(coords_table.schema.names)
     assert expected_columns == actual_columns
 

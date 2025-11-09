@@ -9,6 +9,29 @@ os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def suppress_tk_variable_finalizer_errors():
+    """Prevent noisy Tkinter RuntimeError when Variable objects are GC'd post-tests."""
+    original_del = getattr(tk.Variable, "__del__", None)
+
+    def safe_del(self, *args, **kwargs):
+        if not original_del:
+            return
+        try:
+            original_del(self, *args, **kwargs)
+        except RuntimeError as exc:
+            if "main thread is not in main loop" in str(exc):
+                return
+            raise
+
+    tk.Variable.__del__ = safe_del
+    try:
+        yield
+    finally:
+        if original_del:
+            tk.Variable.__del__ = original_del
+
+
 def pytest_configure(config):
     """
     Pytest hook to configure warnings and test execution settings.
@@ -66,7 +89,7 @@ def tkinter_session_root():
     # Only use virtual display on Linux/Unix systems
     if platform.system() == "Linux":
         try:
-            from pyvirtualdisplay import Display
+            from pyvirtualdisplay import Display  # type: ignore[attr-defined]
 
             display = Display(visible=False, size=(800, 600))
             display.start()

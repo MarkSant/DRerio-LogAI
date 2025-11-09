@@ -194,18 +194,39 @@ class WeightManager:
         self.weights = {}
 
         # Check for both seg and det weights from settings
-        potential_weights = []
+        potential_weights: list[tuple[str, str]] = []
+
+        def _coerce_path(candidate, *, source: str) -> str | None:
+            """Convert candidate to filesystem path if possible, otherwise log and skip."""
+            if not candidate:
+                return None
+            try:
+                coerced = os.fspath(candidate)
+            except TypeError:
+                log.debug(
+                    "weights.config.invalid_path_value",
+                    source=source,
+                    value_type=type(candidate).__name__,
+                )
+                return None
+            return coerced
 
         # Add weights from the new settings - register them even if files don't
         # exist yet. This allows the weight management system to be configured
         # before files are available.
-        if self.settings.weights.seg_filename:
-            potential_weights.append(("seg", self.settings.weights.seg_filename))
-        if self.settings.weights.det_filename:
-            potential_weights.append(("det", self.settings.weights.det_filename))
+        seg_candidate = getattr(getattr(self.settings, "weights", None), "seg_filename", None)
+        seg_path = _coerce_path(seg_candidate, source="seg_filename")
+        if seg_path:
+            potential_weights.append(("seg", seg_path))
+
+        det_candidate = getattr(getattr(self.settings, "weights", None), "det_filename", None)
+        det_path = _coerce_path(det_candidate, source="det_filename")
+        if det_path:
+            potential_weights.append(("det", det_path))
 
         # Check the legacy yolo_model.path for backward compatibility
-        legacy_path = self.settings.yolo_model.path
+        legacy_candidate = getattr(getattr(self.settings, "yolo_model", None), "path", None)
+        legacy_path = _coerce_path(legacy_candidate, source="legacy_path")
         if legacy_path:
             legacy_name = os.path.basename(legacy_path)
             legacy_type = self._classify_weight_type(legacy_name)
@@ -282,6 +303,13 @@ class WeightManager:
         for name, details in self.weights.items():
             if details.get("is_default"):
                 return name, details
+        # Gracefully fall back to type-specific defaults when legacy data lacks `is_default`
+        name, details = self.get_default_seg_weight()
+        if name and details:
+            return name, details
+        name, details = self.get_default_det_weight()
+        if name and details:
+            return name, details
         return None, None
 
     def get_default_weight_by_type(self, weight_type: str) -> tuple[str, dict] | tuple[None, None]:

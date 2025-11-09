@@ -269,7 +269,18 @@ def test_schema_validation_prevents_corruption(
         integration_recorder.write_detection_data(timestamp, 6, detections)
 
     # Verify schema remained unchanged (no calibration columns added)
-    expected_columns = {"timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"}
+    expected_columns = {
+        "timestamp",
+        "frame",
+        "track_id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "confidence",
+        "x_center_px",
+        "y_center_px",
+    }
     verify_parquet_schema(coords_file, expected_columns)
 
     # Verify data integrity (still 5 rows, not 6 - new row wasn't added due to error)
