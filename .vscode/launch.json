@@ -1,4 +1,6 @@
 {
+    // ZebTrack-AI Debug Configurations (v2.1 optimized)
+    // Updated for pytest-timeout and daemon threading fixes
     "version": "0.2.0",
     "configurations": [
         {
@@ -10,7 +12,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder}/src"
             }
         },
         {
@@ -21,47 +23,102 @@
             "args": ["--config", "config.local.yaml"],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "ZebTrack: Debug Tests (Fast)",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["-q", "-v"],
+            "args": [
+                "-v",
+                "--override-ini=addopts=",
+                "--no-cov",
+                "-m", "not (gui or slow)"
+            ],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "ZebTrack: Debug GUI Tests",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["-m", "gui", "-n0", "-v"],
+            "args": [
+                "-m", "gui",
+                "-n0",
+                "-v",
+                "--override-ini=addopts=",
+                "--no-cov"
+            ],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
+        {
+            "name": "ZebTrack: Debug All Tests (with timeout)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-m", "",
+                "-n0",
+                "-v",
+                "--timeout=300",
+                "--timeout-method=thread"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "ZebTrack: Debug Current Test File",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["${file}", "-v", "-s"],
+            "args": [
+                "${file}",
+                "-v",
+                "-s",
+                "--override-ini=addopts="
+            ],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "ZebTrack: Debug Specific Test",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["${file}::${input:testName}", "-v", "-s"],
+            "args": [
+                "${file}::${input:testName}",
+                "-v",
+                "-s",
+                "--override-ini=addopts="
+            ],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "ZebTrack: Debug Wizard Flow",
@@ -72,7 +129,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}",
+                "PYTHONPATH": "${workspaceFolder}/src",
                 "ZEBTRACK_DEBUG_WIZARD": "1"
             }
         },
@@ -85,7 +142,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}",
+                "PYTHONPATH": "${workspaceFolder}/src",
                 "ZEBTRACK_DEBUG_PROCESSING": "1"
             }
         },
@@ -94,10 +151,17 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["-m", "smoke", "-v"],
+            "args": [
+                "-m", "smoke",
+                "-v",
+                "--override-ini=addopts="
+            ],
             "justMyCode": false,
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ],
     "inputs": [
