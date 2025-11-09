@@ -1,6 +1,7 @@
 import os
 import time
 from pathlib import Path
+from types import TracebackType
 from typing import TYPE_CHECKING, Any, FrozenSet  # noqa: UP035
 
 import cv2
@@ -22,6 +23,15 @@ log = structlog.get_logger()
 class Recorder:
     """
     Manages the recording of analysis data, including video and Parquet files.
+
+    Supports context manager protocol for automatic file closure.
+
+    Example:
+        recorder = Recorder(settings_obj=settings)
+        with recorder:
+            recorder.start_recording(...)
+            recorder.write_detection_data(timestamp, frame_num, detections)
+        # Files automatically closed and saved on exit
     """
 
     def __init__(self, settings_obj: "Settings | None" = None):
@@ -495,6 +505,40 @@ class Recorder:
             )
 
         log.info("recorder.area_definitions.saved", path=folder_path)
+
+    def __enter__(self) -> "Recorder":
+        """Enter context manager."""
+        # Resources are managed by start_recording/stop_recording
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
+        """
+        Exit context manager - close all files and save data.
+
+        Args:
+            exc_type: Exception type if raised
+            exc_val: Exception value if raised
+            exc_tb: Exception traceback if raised
+
+        Returns:
+            False to propagate exceptions
+        """
+        try:
+            if self.is_recording:
+                # If exception occurred, force stop without saving
+                if exc_type is not None:
+                    self.stop_recording(force_stop=True, reason=f"Exception: {exc_val}")
+                else:
+                    # Normal cleanup
+                    self.stop_recording()
+        except Exception as e:
+            log.error("recorder.cleanup.failed", error=str(e))
+        return False  # Don't suppress exceptions
 
 
 if __name__ == "__main__":

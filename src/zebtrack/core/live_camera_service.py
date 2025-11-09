@@ -17,6 +17,7 @@ import queue
 import threading
 import time
 from pathlib import Path
+from types import TracebackType
 from typing import TYPE_CHECKING
 
 import cv2
@@ -42,6 +43,13 @@ class LiveCameraService:
 
     Coordinates camera capture, detection processing, and preview display
     through dedicated threads, following the service layer pattern.
+
+    Supports context manager protocol for automatic session cleanup.
+
+    Example:
+        with LiveCameraService(...) as service:
+            service.start_session(...)
+        # Session automatically stopped and cleaned up on exit
     """
 
     def __init__(
@@ -465,3 +473,30 @@ class LiveCameraService:
                 self.video_queue.get_nowait()
             except queue.Empty:
                 break
+
+    def __enter__(self) -> LiveCameraService:
+        """Enter context manager - service is ready for session start."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
+        """
+        Exit context manager - cleanup session resources.
+
+        Args:
+            exc_type: Exception type if raised
+            exc_val: Exception value if raised
+            exc_tb: Exception traceback if raised
+
+        Returns:
+            False to propagate exceptions
+        """
+        try:
+            self.stop_session()
+        except Exception as e:
+            log.warning("live_camera_service.cleanup.failed", error=str(e))
+        return False  # Don't suppress exceptions
