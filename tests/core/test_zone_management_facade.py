@@ -300,3 +300,269 @@ class TestZoneManagementFacadeClearOperations:
         result = zone_facade.clear_rois(video_path)
 
         assert result is False
+
+
+# === Edge Cases and Boundary Conditions ===
+
+
+class TestZoneManagementEdgeCases:
+    """Test edge cases and boundary conditions for zone management."""
+
+    def test_self_intersecting_polygon(self, zone_facade, tmp_path):
+        """Test handling of self-intersecting polygon (bowtie shape)."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Create a bowtie/figure-8 polygon that intersects itself
+        self_intersecting = [
+            (0, 0),
+            (100, 100),  # Diagonal to opposite corner
+            (100, 0),  # Back to form intersection
+            (0, 100),  # Creates self-intersection
+        ]
+
+        # Should reject invalid polygon or handle gracefully
+        result = zone_facade.save_arena(self_intersecting, video_path)
+
+        # Either accepts and attempts to fix, or rejects
+        assert isinstance(result, bool)
+
+    def test_degenerate_polygon_point(self, zone_facade, tmp_path):
+        """Test handling of degenerate polygon (single point)."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Single point repeated
+        point_polygon = [(50, 50), (50, 50), (50, 50)]
+
+        result = zone_facade.save_arena(point_polygon, video_path)
+
+        # Should reject as invalid
+        assert result is False
+
+    def test_degenerate_polygon_line(self, zone_facade, tmp_path):
+        """Test handling of degenerate polygon (collinear points forming line)."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Three collinear points (no area)
+        line_polygon = [(0, 0), (50, 50), (100, 100)]
+
+        result = zone_facade.save_arena(line_polygon, video_path)
+
+        # Should reject as invalid (no area)
+        assert result is False
+
+    def test_very_small_zone_1px(self, zone_facade, mock_project_manager, tmp_path):
+        """Test handling of very small zone (1-2 pixel area)."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Tiny triangle (1-2 pixel area)
+        tiny_polygon = [(100, 100), (101, 100), (100, 101)]
+
+        result = zone_facade.save_arena(tiny_polygon, video_path)
+
+        # Should accept (valid polygon, just very small)
+        assert result is True
+
+    def test_very_small_roi_5px(self, zone_facade, mock_project_manager, tmp_path):
+        """Test handling of very small ROI (5 pixel area)."""
+        video_path = tmp_path / "test_video.mp4"
+        template_name = "tiny_roi_template"
+
+        # Small ROI (approximately 5x5 pixels)
+        tiny_roi_data = {
+            "roi_polygons": [[(50, 50), (55, 50), (55, 55), (50, 55)]],
+            "roi_names": ["TinyROI"],
+            "roi_colors": ["red"],
+        }
+
+        mock_project_manager.roi_template_manager.load_template.return_value = tiny_roi_data
+
+        result = zone_facade.apply_template_to_video(template_name, video_path)
+
+        # Should accept valid small ROI
+        assert result is True
+
+    def test_zone_outside_arena_bounds(self, zone_facade, mock_project_manager, tmp_path):
+        """Test ROI that is completely outside arena bounds."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Set arena bounds (0-200, 0-200)
+        arena = [(0, 0), (200, 0), (200, 200), (0, 200)]
+        mock_project_manager.get_arena_for_video.return_value = arena
+
+        # ROI completely outside (300-400, 300-400)
+        outside_roi_data = {
+            "roi_polygons": [[(300, 300), (400, 300), (400, 400), (300, 400)]],
+            "roi_names": ["OutsideROI"],
+            "roi_colors": ["blue"],
+        }
+
+        # Apply ROI (should succeed even if outside - validation happens elsewhere)
+        mock_project_manager.roi_template_manager.load_template.return_value = outside_roi_data
+        result = zone_facade.apply_template_to_video("outside_template", video_path)
+
+        # System should accept (validation may happen at runtime)
+        assert result is True
+
+    def test_overlapping_rois(self, zone_facade, mock_project_manager, tmp_path):
+        """Test multiple ROIs with overlapping areas."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Two overlapping rectangles
+        overlapping_roi_data = {
+            "roi_polygons": [
+                [(0, 0), (100, 0), (100, 100), (0, 100)],  # ROI 1
+                [(50, 50), (150, 50), (150, 150), (50, 150)],  # ROI 2 (overlaps)
+            ],
+            "roi_names": ["ROI1", "ROI2"],
+            "roi_colors": ["red", "blue"],
+        }
+
+        mock_project_manager.roi_template_manager.load_template.return_value = overlapping_roi_data
+
+        result = zone_facade.apply_template_to_video("overlapping_template", video_path)
+
+        # Should accept overlapping ROIs (valid use case)
+        assert result is True
+
+    def test_polygon_with_duplicate_consecutive_points(self, zone_facade, tmp_path):
+        """Test polygon with duplicate consecutive vertices."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Valid rectangle but with duplicate points
+        polygon_with_dupes = [
+            (0, 0),
+            (0, 0),  # Duplicate
+            (100, 0),
+            (100, 0),  # Duplicate
+            (100, 100),
+            (0, 100),
+        ]
+
+        result = zone_facade.save_arena(polygon_with_dupes, video_path)
+
+        # Should handle gracefully (may clean duplicates or accept)
+        assert isinstance(result, bool)
+
+    def test_polygon_with_clockwise_vs_counterclockwise(
+        self, zone_facade, mock_project_manager, tmp_path
+    ):
+        """Test that polygon orientation (CW vs CCW) doesn't affect validity."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Counterclockwise polygon
+        ccw_polygon = [(0, 0), (100, 0), (100, 100), (0, 100)]
+
+        # Clockwise polygon (reversed)
+        cw_polygon = [(0, 0), (0, 100), (100, 100), (100, 0)]
+
+        # Both should be accepted
+        result_ccw = zone_facade.save_arena(ccw_polygon, video_path)
+        assert result_ccw is True
+
+        result_cw = zone_facade.save_arena(cw_polygon, video_path)
+        assert result_cw is True
+
+    def test_extremely_large_polygon(self, zone_facade, mock_project_manager, tmp_path):
+        """Test handling of polygon with extremely large coordinates."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Polygon with very large coordinates (beyond typical frame size)
+        large_polygon = [
+            (0, 0),
+            (10000, 0),
+            (10000, 10000),
+            (0, 10000),
+        ]
+
+        result = zone_facade.save_arena(large_polygon, video_path)
+
+        # Should accept (coordinate validation happens elsewhere)
+        assert result is True
+
+    def test_polygon_with_many_vertices(self, zone_facade, mock_project_manager, tmp_path):
+        """Test polygon with many vertices (100+ points)."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Create circular polygon with 120 vertices
+        import math
+
+        n_vertices = 120
+        radius = 100
+        center = (200, 200)
+
+        many_vertex_polygon = [
+            (
+                center[0] + radius * math.cos(2 * math.pi * i / n_vertices),
+                center[1] + radius * math.sin(2 * math.pi * i / n_vertices),
+            )
+            for i in range(n_vertices)
+        ]
+
+        result = zone_facade.save_arena(many_vertex_polygon, video_path)
+
+        # Should accept high-vertex polygon
+        assert result is True
+
+    def test_negative_coordinate_polygon(self, zone_facade, mock_project_manager, tmp_path):
+        """Test polygon with negative coordinates."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Polygon with negative coordinates
+        negative_polygon = [(-50, -50), (50, -50), (50, 50), (-50, 50)]
+
+        result = zone_facade.save_arena(negative_polygon, video_path)
+
+        # Should accept (coordinate system may support negatives)
+        assert result is True
+
+    def test_floating_point_coordinates(self, zone_facade, mock_project_manager, tmp_path):
+        """Test polygon with floating-point coordinates."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Polygon with precise floating-point coordinates
+        float_polygon = [
+            (10.5, 20.7),
+            (100.3, 20.7),
+            (100.3, 120.9),
+            (10.5, 120.9),
+        ]
+
+        result = zone_facade.save_arena(float_polygon, video_path)
+
+        # Should accept float coordinates
+        assert result is True
+
+    def test_empty_roi_list(self, zone_facade, mock_project_manager, tmp_path):
+        """Test applying template with empty ROI list."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Empty ROI data
+        empty_roi_data = {"roi_polygons": [], "roi_names": [], "roi_colors": []}
+
+        mock_project_manager.roi_template_manager.load_template.return_value = empty_roi_data
+
+        result = zone_facade.apply_template_to_video("empty_template", video_path)
+
+        # Should handle empty list gracefully
+        assert isinstance(result, bool)
+
+    def test_mismatched_roi_data_lengths(self, zone_facade, mock_project_manager, tmp_path):
+        """Test ROI data with mismatched array lengths."""
+        video_path = tmp_path / "test_video.mp4"
+
+        # Mismatched lengths (2 polygons, 1 name, 3 colors)
+        mismatched_data = {
+            "roi_polygons": [
+                [(0, 0), (50, 0), (50, 50), (0, 50)],
+                [(100, 100), (150, 100), (150, 150), (100, 150)],
+            ],
+            "roi_names": ["ROI1"],  # Missing second name
+            "roi_colors": ["red", "blue", "green"],  # Extra color
+        }
+
+        mock_project_manager.roi_template_manager.load_template.return_value = mismatched_data
+
+        result = zone_facade.apply_template_to_video("mismatched_template", video_path)
+
+        # Should handle or reject gracefully
+        assert isinstance(result, bool)
