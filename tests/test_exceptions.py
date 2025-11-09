@@ -2,12 +2,14 @@
 
 import pytest
 
-from zebtrack.exceptions import (
+from zebtrack.core.exceptions import (
     AnalysisError,
     ArduinoConnectionError,
     ArduinoError,
+    CameraAccessError,
     CameraConnectionError,
     CameraError,
+    CameraNotFoundError,
     ConfigurationError,
     DetectorError,
     FileOperationError,
@@ -18,11 +20,16 @@ from zebtrack.exceptions import (
     ParquetError,
     ProcessingError,
     ProjectError,
+    ProjectLoadError,
+    ProjectNotFoundError,
+    ProjectSaveError,
     RecorderError,
     SettingsError,
     TrackingError,
     UIError,
     ValidationError,
+    VideoNotFoundError,
+    VideoReadError,
     VideoSourceError,
     VideoWriteError,
     WizardError,
@@ -74,8 +81,12 @@ class TestExceptionHierarchy:
     def test_file_operation_exceptions_hierarchy(self):
         """Test I/O exception inheritance."""
         assert issubclass(VideoSourceError, FileOperationError)
+        assert issubclass(VideoNotFoundError, FileOperationError)
+        assert issubclass(VideoReadError, FileOperationError)
         assert issubclass(VideoWriteError, FileOperationError)
         assert issubclass(CameraError, FileOperationError)
+        assert issubclass(CameraNotFoundError, CameraError)
+        assert issubclass(CameraAccessError, CameraError)
         assert issubclass(CameraConnectionError, CameraError)
         assert issubclass(CameraConnectionError, FileOperationError)
         assert issubclass(RecorderError, FileOperationError)
@@ -105,6 +116,9 @@ class TestExceptionHierarchy:
         """Test configuration exception inheritance."""
         assert issubclass(SettingsError, ConfigurationError)
         assert issubclass(ProjectError, ConfigurationError)
+        assert issubclass(ProjectNotFoundError, ProjectError)
+        assert issubclass(ProjectLoadError, ProjectError)
+        assert issubclass(ProjectSaveError, ProjectError)
 
     def test_all_exceptions_inherit_from_zebtrack_error(self):
         """Test that ALL exceptions ultimately inherit from ZebTrackError."""
@@ -112,8 +126,12 @@ class TestExceptionHierarchy:
             # I/O
             FileOperationError,
             VideoSourceError,
+            VideoNotFoundError,
+            VideoReadError,
             VideoWriteError,
             CameraError,
+            CameraNotFoundError,
+            CameraAccessError,
             CameraConnectionError,
             RecorderError,
             ParquetError,
@@ -139,6 +157,9 @@ class TestExceptionHierarchy:
             ConfigurationError,
             SettingsError,
             ProjectError,
+            ProjectNotFoundError,
+            ProjectLoadError,
+            ProjectSaveError,
         ]
 
         for exc_class in all_exceptions:
@@ -376,8 +397,12 @@ class TestExceptionDocstrings:
             ZebTrackError,
             FileOperationError,
             VideoSourceError,
+            VideoNotFoundError,
+            VideoReadError,
             VideoWriteError,
             CameraError,
+            CameraNotFoundError,
+            CameraAccessError,
             CameraConnectionError,
             RecorderError,
             ParquetError,
@@ -398,6 +423,9 @@ class TestExceptionDocstrings:
             ConfigurationError,
             SettingsError,
             ProjectError,
+            ProjectNotFoundError,
+            ProjectLoadError,
+            ProjectSaveError,
         ]
 
         for exc_class in exceptions:
