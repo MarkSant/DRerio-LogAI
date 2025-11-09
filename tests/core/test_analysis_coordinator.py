@@ -20,6 +20,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.settings = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
@@ -31,6 +32,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -51,6 +53,7 @@ class TestAnalysisCoordinatorInitialization(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=self.settings,
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -69,6 +72,7 @@ class TestAnalysisCoordinatorCallbacks(unittest.TestCase):
             root=Mock(),
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=Mock(),
             analysis_service=Mock(),
@@ -90,6 +94,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
 
@@ -97,6 +102,7 @@ class TestAnalysisCoordinatorGenerateReport(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -154,6 +160,7 @@ class TestAnalysisCoordinatorGenerateParquetSummaries(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.project_manager = Mock()
         self.analysis_service = Mock()
 
@@ -161,6 +168,7 @@ class TestAnalysisCoordinatorGenerateParquetSummaries(unittest.TestCase):
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -221,6 +229,7 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
             root=self.root,
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
@@ -314,6 +323,7 @@ class TestAnalysisCoordinatorSummariesWorker(unittest.TestCase):
             root=self.root,
             view=Mock(),
             ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=self.project_manager,
             analysis_service=Mock(),
@@ -401,12 +411,14 @@ class TestAnalysisCoordinatorGenerateReportWorker(unittest.TestCase):
         self.root = Mock()
         self.view = Mock()
         self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
         self.analysis_service = Mock()
 
         self.coordinator = AnalysisCoordinator(
             root=self.root,
             view=self.view,
             ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
             settings_obj=Mock(),
             project_manager=Mock(),
             analysis_service=self.analysis_service,
