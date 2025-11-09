@@ -22,7 +22,14 @@
       "Bash(Select-Object -Last 1)",
       "Bash(gh pr view:*)",
       "Bash(pr_241_comments_raw.json)",
-      "Bash(Select-Object -First 300)"
+      "Bash(Select-Object -First 300)",
+      "Bash(poetry run pytest-benchmark:*)",
+      "Bash(poetry add:*)",
+      "Bash(Select-Object -First 50)",
+      "Bash(cat:*)",
+      "Bash(poetry run coverage:*)",
+      "Bash(test:*)",
+      "Bash(git tag:*)"
     ],
     "deny": [],
     "ask": []

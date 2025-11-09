@@ -114,7 +114,10 @@ class ProjectManager:
         return self.zone_manager.resolve_zone_entry(self.project_data, video_path)
 
     def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
-        """Remove duplicate zone entries that resolve to the same canonical path. Delegates to ZoneManager."""
+        """
+        Remove duplicate zone entries that resolve to the same canonical path.
+        Delegates to ZoneManager.
+        """
         ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
 
     def list_roi_templates(
@@ -216,7 +219,10 @@ class ProjectManager:
     # ------------------------------------------------------------------
 
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
-        """Set the video whose zones should be considered active in memory. Delegates to ZoneManager."""
+        """
+        Set the video whose zones should be considered active in memory.
+        Delegates to ZoneManager.
+        """
         self.zone_manager.set_active_zone_video(self.project_data, video_path)
 
     def get_active_zone_video(self) -> str | None:
@@ -224,11 +230,17 @@ class ProjectManager:
         return self.zone_manager.get_active_zone_video()
 
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
-        """Return the last video that had zones saved, excluding optional target. Delegates to ZoneManager."""
+        """
+        Return the last video that had zones saved, excluding optional target.
+        Delegates to ZoneManager.
+        """
         return self.zone_manager.get_last_zone_video(self.project_data, exclude)
 
     def has_zone_data(self, video_path: Path | str | None) -> bool:
-        """Check whether the given video currently stores arena or ROI data. Delegates to ZoneManager."""
+        """
+        Check whether the given video currently stores arena or ROI data.
+        Delegates to ZoneManager.
+        """
         return self.zone_manager.has_zone_data(self.project_data, video_path)
 
     def save_zone_data(
@@ -1255,7 +1267,10 @@ class ProjectManager:
         return VideoManager.get_all_videos(self.project_data)
 
     def _iter_project_videos(self):
-        """Yield (batch_dict, video_dict) pairs for every registered video. Delegates to VideoManager."""
+        """
+        Yield (batch_dict, video_dict) pairs for every registered video.
+        Delegates to VideoManager.
+        """
         return VideoManager.iter_project_videos(self.project_data)
 
     def _video_has_asset(self, video_entry: dict, asset: AssetType) -> bool:
@@ -1482,7 +1497,10 @@ class ProjectManager:
         path: str | None = None,
         experiment_id: str | None = None,
     ) -> dict | None:
-        """Return the project entry for a given video path or experiment id. Delegates to VideoManager."""
+        """
+        Return the project entry for a given video path or experiment id.
+        Delegates to VideoManager.
+        """
         return VideoManager.find_video_entry(
             self.project_data, path=path, experiment_id=experiment_id
         )
@@ -1783,7 +1801,8 @@ class ProjectManager:
 
     def get_next_video(self):
         """
-        Returns the path of the next video with 'pending' status from all batches. Delegates to VideoManager.
+        Returns the path of the next video with 'pending' status from all batches.
+        Delegates to VideoManager.
         """
         return VideoManager.get_next_video(self.project_data)
 
@@ -1799,13 +1818,19 @@ class ProjectManager:
         *,
         fallback_to_global: bool = True,
     ) -> ZoneData:
-        """Retrieve zone data for a specific video or fallback to project defaults. Delegates to ZoneManager."""
+        """
+        Retrieve zone data for a specific video or fallback to project defaults.
+        Delegates to ZoneManager.
+        """
         return self.zone_manager.get_zone_data(
             self.project_data, video_path=video_path, fallback_to_global=fallback_to_global
         )
 
     def update_main_polygon(self, points: list):
-        """Atualiza ou define o polígono principal nos dados do projeto. Delegates to ZoneManager."""
+        """
+        Atualiza ou define o polígono principal nos dados do projeto.
+        Delegates to ZoneManager.
+        """
         self.zone_manager.update_main_polygon(
             self.project_data, points, persist_callback=self.save_project
         )

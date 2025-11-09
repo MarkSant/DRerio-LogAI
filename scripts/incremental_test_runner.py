@@ -94,7 +94,8 @@ def run_single_test_file(test_file, file_num, total_files):
             text=True,
             timeout=120,  # 120 second timeout per file
             encoding="utf-8",
-            errors="replace",  # Replace non-UTF-8 characters to handle test output with special chars
+            # Replace non-UTF-8 characters to handle test output with special chars
+            errors="replace",
         )
 
         elapsed = time.time() - start_time

@@ -127,7 +127,9 @@ class TestOverlayIntegration(unittest.TestCase):
                 tracking_section = tracking_section.split("\n    def ")[0]
 
             # Verify processing order:
-            # 1. detect frames (via _process_tracking_frame) -> 2. draw overlay -> 3. send to callback
+            # 1. detect frames (via _process_tracking_frame)
+            # 2. draw overlay
+            # 3. send to callback
             assert "_process_tracking_frame" in tracking_section, (
                 "Should call _process_tracking_frame to detect objects"
             )

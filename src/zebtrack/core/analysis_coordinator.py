@@ -182,7 +182,10 @@ class AnalysisCoordinator:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro no Relatório",
-                    "message": "Não foi possível encontrar dados de resumo para os vídeos selecionados.",
+                    "message": (
+                        "Não foi possível encontrar dados de resumo "
+                        "para os vídeos selecionados."
+                    ),
                 },
             )
             return
@@ -257,7 +260,10 @@ class AnalysisCoordinator:
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Processamento em andamento",
-                    "message": "Aguarde a conclusão do processamento atual antes de gerar os sumários.",
+                    "message": (
+                        "Aguarde a conclusão do processamento atual "
+                        "antes de gerar os sumários."
+                    ),
                 },
             )
             return

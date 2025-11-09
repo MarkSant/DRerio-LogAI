@@ -130,10 +130,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (v2.1: pytest-timeout configured)
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=30
-        timeout-minutes: 20
+          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=70 --timeout=300 --timeout-method=thread
+        timeout-minutes: 10
 
       - name: Archive coverage results
         uses: actions/upload-artifact@v4

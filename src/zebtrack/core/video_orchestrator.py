@@ -309,7 +309,10 @@ class VideoOrchestrator:
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
-                    "message": "Nenhum vídeo elegível foi encontrado com dados suficientes para análise.",
+                    "message": (
+                        "Nenhum vídeo elegível foi encontrado com "
+                        "dados suficientes para análise."
+                    ),
                 },
             )
             return
@@ -513,7 +516,10 @@ class VideoOrchestrator:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
+                    "message": (
+                        "Não foi possível localizar caminhos válidos "
+                        "para os vídeos selecionados."
+                    ),
                 },
             )
             return None, None, None
@@ -560,7 +566,8 @@ class VideoOrchestrator:
         - without_arena: Videos without arena configuration
 
         Returns:
-            Tuple of (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed)
+            Tuple of (ready_with_trajectory, ready_with_zones, arena_only,
+                      without_arena, data_changed)
         """
         ready_with_trajectory: list[dict] = []
         ready_with_zones: list[dict] = []
