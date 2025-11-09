@@ -16,8 +16,8 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
-from zebtrack import settings as settings_module
 from zebtrack.core.detector import ZoneData
+from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 
@@ -41,13 +41,15 @@ PROJECT_STATUS_META: dict[str, tuple[str, str]] = {
 class ValidationManager:
     """Manages validation logic for ApplicationGUI."""
 
-    def __init__(self, gui):
+    def __init__(self, gui, settings_obj: Settings | None = None):
         """Initialize ValidationManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            settings_obj: Settings instance for dependency injection
         """
         self.gui = gui
+        self._settings = settings_obj
 
     # ========================================================================
     # Main Validation and Preparation Methods
@@ -110,19 +112,15 @@ class ValidationManager:
 
         update_payload: dict[str, Any] = values
 
-        active_settings = settings_module.settings
-        if active_settings is None:
-            try:
-                active_settings = settings_module.load_settings()
-                settings_module.settings = active_settings
-            except Exception as exc:
-                self.gui.show_error("Erro", f"Não foi possível carregar config.yaml: {exc}")
-                return
+        # Use injected settings object
+        if self._settings is None:
+            self.gui.show_error("Erro", "Settings não disponível. Não foi possível salvar.")
+            return
 
-        merged = self._deep_merge_dicts(active_settings.model_dump(), update_payload)
+        merged = self._deep_merge_dicts(self._settings.model_dump(), update_payload)
 
         try:
-            validated = settings_module.Settings.model_validate(merged)
+            validated = Settings.model_validate(merged)
         except ValidationError as exc:
             self.gui.show_error("Erro de Validação", str(exc))
             return
@@ -147,15 +145,13 @@ class ValidationManager:
             self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
 
-        if settings_module.settings is None:
-            settings_module.settings = validated
-        else:
-            for field_name in validated.model_fields:
-                setattr(
-                    settings_module.settings,
-                    field_name,
-                    getattr(validated, field_name),
-                )
+        # Update injected settings object with validated values
+        for field_name in validated.model_fields:
+            setattr(
+                self._settings,
+                field_name,
+                getattr(validated, field_name),
+            )
 
         self.gui._reload_config_editor_values_widget()
         self.gui.show_info(
