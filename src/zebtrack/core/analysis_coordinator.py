@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import threading
 from collections.abc import Callable
+from concurrent.futures import CancelledError, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -45,7 +46,7 @@ class AnalysisCoordinator:
     - Result aggregation and export
 
     Phase: Task 2.2 (REFACTOR-VIEWMODEL-001)
-    Extracted from: MainViewModel (analysis and reporting methods, ~600 lines)
+    Extracted from: MainViewModel (analysis and reporting methods, ~719 lines)
     """
 
     def __init__(
@@ -82,6 +83,37 @@ class AnalysisCoordinator:
 
         # Callback for refreshing project views (set by MainViewModel)
         self._refresh_project_views_callback = None
+
+        # Thread pool executor for background tasks
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="analysis_worker")
+
+    def shutdown(self) -> None:
+        """Gracefully shutdown the coordinator and its thread pool."""
+        if self._executor:
+            self._executor.shutdown(wait=True)
+
+    def _on_worker_complete(self, future) -> None:
+        """Callback when worker thread completes.
+
+        Args:
+            future: Future object from ThreadPoolExecutor
+        """
+        try:
+            # Check if there was an exception
+            exception = future.exception()
+            if exception:
+                log.error(
+                    "analysis_coordinator.worker.exception",
+                    error=str(exception),
+                    exc_info=exception,
+                )
+        except CancelledError:
+            log.warning("analysis_coordinator.worker.cancelled")
+        except FutureTimeoutError as exc:
+            log.error("analysis_coordinator.worker.timeout", error=str(exc))
+        except Exception as exc:
+            # Last resort for unexpected errors in callback
+            log.error("analysis_coordinator.worker.callback_error", error=str(exc), exc_info=True)
 
     # =============================================================================
     # REPORT GENERATION
@@ -333,12 +365,14 @@ class AnalysisCoordinator:
             count=len(eligible_videos),
         )
 
-        worker_thread = threading.Thread(
-            target=self._generate_parquet_summaries_worker,
-            args=(eligible_videos, self.settings),
-            daemon=True,
+        # Submit to thread pool executor for proper tracking and cleanup
+        future = self._executor.submit(
+            self._generate_parquet_summaries_worker,
+            eligible_videos,
+            self.settings,
         )
-        worker_thread.start()
+        # Optional: add error callback to handle exceptions
+        future.add_done_callback(self._on_worker_complete)
 
     # =============================================================================
     # ANALYSIS PIPELINE ORCHESTRATION
@@ -590,17 +624,17 @@ class AnalysisCoordinator:
 
             # Create default arena if not defined
             if not arena_polygon_px:
-                cap = cv2.VideoCapture(path)
-                if not cap.isOpened():
+                from zebtrack.utils.video import get_video_dimensions
+
+                dimensions = get_video_dimensions(path)
+                if not dimensions:
                     return (
                         "skipped",
                         f"{experiment_id}: não foi possível abrir o vídeo.",
                         None,
                         False,
                     )
-                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                cap.release()
+                frame_width, frame_height = dimensions
                 arena_polygon_px = [
                     [0, 0],
                     [frame_width, 0],

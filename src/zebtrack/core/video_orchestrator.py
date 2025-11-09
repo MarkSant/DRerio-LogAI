@@ -42,7 +42,7 @@ class VideoOrchestrator:
     - Analysis pipeline orchestration
 
     Phase: Task 2.2 (REFACTOR-VIEWMODEL-001)
-    Extracted from: MainViewModel (video processing methods, ~800 lines)
+    Extracted from: MainViewModel (video processing methods, ~859 lines)
     """
 
     def __init__(
@@ -171,40 +171,14 @@ class VideoOrchestrator:
                 # Create default arena based on first video
                 first_video = self.project_manager.get_next_video()
                 if first_video:
-                    import cv2
+                    from zebtrack.utils.video import get_video_dimensions
 
-                    try:
-                        cap = cv2.VideoCapture(first_video)
-                        if not cap.isOpened():
-                            log.error(
-                                "video_orchestrator.create_default_arena.failed_to_open",
-                                video=first_video
-                            )
-                            return
-
-                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-                        if width <= 0 or height <= 0:
-                            log.error(
-                                "video_orchestrator.create_default_arena.invalid_dimensions",
-                                width=width,
-                                height=height,
-                                video=first_video
-                            )
-                            cap.release()
-                            return
-
-                        cap.release()
-                    except (cv2.error, Exception) as exc:
-                        log.error(
-                            "video_orchestrator.create_default_arena.exception",
-                            video=first_video,
-                            error=str(exc),
-                            exc_info=True
-                        )
+                    dimensions = get_video_dimensions(first_video)
+                    if not dimensions:
+                        log.error("video_orchestrator.project_workflow.failed_to_get_dimensions")
                         return
 
+                    width, height = dimensions
                     default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
                     # Note: This calls back to MainViewModel's method
