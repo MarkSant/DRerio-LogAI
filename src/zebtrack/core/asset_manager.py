@@ -339,6 +339,7 @@ class AssetManager:
         project_path: Path | str | None,
         file_path: Path | str,
         zone_data_from_dict_fn: callable,
+        zone_data_to_dict_fn: callable,
         *,
         name: str | None = None,
         persist_callback: callable | None = None,
@@ -350,6 +351,7 @@ class AssetManager:
             project_path: Path to the project directory (None if no project loaded)
             file_path: Path to the template JSON file
             zone_data_from_dict_fn: Function to deserialize ZoneData
+            zone_data_to_dict_fn: Function to serialize ZoneData
             name: Optional custom name for imported template
             persist_callback: Optional callback to persist project after import
 
@@ -386,7 +388,7 @@ class AssetManager:
             project_path=project_path or "",
             name=template_name,
             zone_data=zone_data,
-            zone_data_to_dict_fn=lambda zd: zd.__dict__,  # Placeholder - will be overridden
+            zone_data_to_dict_fn=zone_data_to_dict_fn,
             save_arena=has_arena,
             save_rois=has_rois,
             save_location=target_location,
