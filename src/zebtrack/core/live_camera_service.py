@@ -306,7 +306,7 @@ class LiveCameraService:
             self.capture_thread = threading.Thread(
                 target=self._capture_loop,
                 name="LiveCameraCaptureThread",
-                daemon=False,
+                daemon=True,  # Daemon thread allows Python to exit even if thread is running
             )
             self.capture_thread.start()
             log.info("live_camera_service.capture_thread_started")
@@ -315,7 +315,7 @@ class LiveCameraService:
             self.processing_thread = threading.Thread(
                 target=self._processing_loop,
                 name="LiveCameraProcessingThread",
-                daemon=False,
+                daemon=True,  # Daemon thread allows Python to exit even if thread is running
             )
             self.processing_thread.start()
             log.info("live_camera_service.processing_thread_started")

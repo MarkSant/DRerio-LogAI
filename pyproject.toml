@@ -51,6 +51,7 @@ sphinx-rtd-theme = "^3.0.2"
 sphinx-autodoc-typehints = "^3.5.2"
 myst-parser = "^4.0.1"
 pytest-benchmark = "^5.2.0"
+pytest-timeout = "^2.4.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -99,6 +100,9 @@ addopts = [
   "--cov-report=html",
   "--cov-report=xml",
   "--cov-fail-under=70",
+  # Timeout configuration (CRITICAL for Windows to prevent hangs)
+  "--timeout=300",  # 5 minute timeout per test
+  "--timeout-method=thread",  # Thread-based timeout (safer on Windows)
   # Parallel execution with pytest-xdist, but exclude problematic tests by default
   # GUI tests use Tkinter which doesn't work well with multiprocessing
   # ttkbootstrap_singleton tests have Style cleanup issues in full suite

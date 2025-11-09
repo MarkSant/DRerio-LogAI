@@ -2971,10 +2971,10 @@ class ApplicationGUI:
 
         if project_type == "live":
             self.controller.capture_thread = threading.Thread(
-                target=self._live_frame_capture_loop, name="CaptureThread", daemon=False
+                target=self._live_frame_capture_loop, name="CaptureThread", daemon=True
             )
             self.controller.processing_thread = threading.Thread(
-                target=self._live_processing_loop, name="ProcessingThread", daemon=False
+                target=self._live_processing_loop, name="ProcessingThread", daemon=True
             )
             self.controller.capture_thread.start()
             self.controller.processing_thread.start()
