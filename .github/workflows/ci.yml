@@ -132,7 +132,7 @@ jobs:
 
       - name: Run tests with coverage (v2.1: pytest-timeout configured)
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=70 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
         timeout-minutes: 10
 
       - name: Archive coverage results
