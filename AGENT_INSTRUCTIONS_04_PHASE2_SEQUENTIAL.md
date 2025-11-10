@@ -49,8 +49,8 @@ poetry shell
    - Seção: "P2-T1: Extract DialogManager (Agent-6)"
    - Linhas: ~50-200
 
-2. **docs/DIALOG_MANAGER_EXTRACTION.md**
-   - Template completo para extração
+2. **docs/archive/DIALOG_MANAGER_EXTRACTION.md** (archived - completed migration)
+   - Template completo para extração (historical reference)
 
 ### 🛠️ Implementação
 
