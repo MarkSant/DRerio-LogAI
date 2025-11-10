@@ -1070,7 +1070,7 @@ class MainViewModel:
         Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
         """
         # Delegate to adapter which handles all UI coordination
-        self.project_workflow_adapter.create_project_workflow(
+        return self.project_workflow_adapter.create_project_workflow(
             setup_detector_callback=self.setup_detector,
             set_active_weight_callback=self.set_active_weight,
             set_openvino_usage_callback=self.set_openvino_usage,
