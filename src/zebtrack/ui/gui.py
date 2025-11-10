@@ -19,8 +19,6 @@ from tkinter import (
     Label,
     Menu,
     StringVar,
-    filedialog,
-    messagebox,
     ttk,
 )
 from tkinter import font as tkfont
@@ -2154,115 +2152,11 @@ class ApplicationGUI:
         return self.widget_factory.import_roi_template()
 
     def _on_import_and_apply_roi_template(self) -> None:
-        """Import a template file and immediately apply it to current video."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
+        """Import a template file and immediately apply it to current video.
 
-        file_path = filedialog.askopenfilename(
-            title="Importar e Aplicar Template de ROI",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
-        )
-        if not file_path:
-            return
-
-        # Get active video context
-        active_video = pm.get_active_zone_video()
-        if not active_video:
-            pending_video = getattr(self, "pending_single_video_path", None)
-            if pending_video:
-                try:
-                    pm.set_active_zone_video(pending_video)
-                except Exception as exc:  # pragma: no cover - defensive
-                    log.warning(
-                        "gui.roi_templates.activate_pending_failed",
-                        error=str(exc),
-                        video=pending_video,
-                    )
-                active_video = pm.get_active_zone_video() or pending_video
-
-        if not active_video:
-            self.show_warning(
-                "Vídeo não selecionado",
-                "Selecione um vídeo antes de aplicar o template.",
-            )
-            return
-
-        try:
-            # Load template directly from file
-            import json
-
-            with open(file_path, encoding="utf-8") as f:
-                template_data = json.load(f)
-
-            # Convert to ZoneData
-            from zebtrack.core.detector import ZoneData
-
-            template_zone = ZoneData(
-                polygon=template_data.get("polygon"),
-                roi_polygons=template_data.get("roi_polygons", []),
-                roi_names=template_data.get("roi_names", []),
-                roi_colors=template_data.get("roi_colors", []),
-            )
-
-            # Save to project
-            pm.save_zone_data(
-                template_zone,
-                video_path=active_video,
-                persist=bool(pm.project_path),
-            )
-
-            if active_video:
-                pm.set_active_zone_video(active_video)
-
-            self.controller.setup_detector_zones()
-
-            log.info(
-                "gui.roi_templates.imported_and_applied",
-                video=active_video,
-                file=file_path,
-                polygon_points=len(template_zone.polygon or []),
-                roi_count=len(template_zone.roi_polygons or []),
-            )
-
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error(
-                "gui.roi_templates.import_and_apply_failed",
-                error=str(exc),
-                file=file_path,
-            )
-            self.show_error("Erro ao importar e aplicar", str(exc))
-            return
-
-        # Refresh UI
-        self.canvas_manager.redraw_zones_from_project_data()
-        self.update_zone_listbox()
-        self._refresh_zone_indicators()
-        self._enable_roi_button_if_arena_exists()
-
-        # Import to library and update dropdown
-        template_name = Path(file_path).stem
-        try:
-            metadata = pm.import_roi_template(file_path)
-            self._refresh_roi_templates()
-            self._select_roi_template(metadata)
-            template_name = metadata.get("name", template_name)
-            log.info(
-                "gui.roi_templates.import_and_apply.library_updated", template_name=template_name
-            )
-        except Exception as exc:  # pragma: no cover - if import fails, we still applied
-            log.warning(
-                "gui.roi_templates.import_and_apply.library_import_failed",
-                error=str(exc),
-                template_name=template_name,
-            )
-            # Still refresh templates to update display
-            self._refresh_roi_templates()
-
-        self.show_info(
-            "Template aplicado",
-            f"As zonas foram atualizadas com o template '{template_name}'.",
-        )
+        Delegates to DialogManager.
+        """
+        self.dialog_manager.import_and_apply_roi_template()
 
     def _update_delete_template_button_state(self) -> None:
         """Update the delete template button state based on selection."""
@@ -3310,14 +3204,7 @@ class ApplicationGUI:
         """Handler for the 'Start Analysis' button in the single video flow."""
         # If the user was editing a polygon, prompt for confirmation before saving.
         if self.edited_polygon_points:
-            response = messagebox.askyesnocancel(
-                "Salvar Polígono?",
-                "Você deseja salvar as alterações no polígono antes de iniciar a "
-                "análise?\n\n"
-                "Sim: Salvar e iniciar análise\n"
-                "Não: Descartar alterações e iniciar análise\n"
-                "Cancelar: Voltar para edição",
-            )
+            response = self.dialog_manager.confirm_save_polygon_before_analysis()
             if response is None:
                 # Cancel pressed, abort analysis
                 return
@@ -3741,14 +3628,7 @@ class ApplicationGUI:
         roi_name = item["values"][0].replace("📍 ", "")
 
         # Confirmação
-        from tkinter import messagebox
-
-        confirm = messagebox.askyesno(
-            "Confirmar Remoção",
-            f"Tem certeza que deseja remover a ROI '{roi_name}'?\n\n"
-            "Esta ação não pode ser desfeita.",
-            icon="warning",
-        )
+        confirm = self.dialog_manager.confirm_remove_roi(roi_name)
 
         if confirm:
             # Remove do projeto
@@ -3781,8 +3661,8 @@ class ApplicationGUI:
                 self.show_error("Erro", "ROI não encontrada")
 
     def ask_save_filename(self, **options):
-        """Shows a dialog to select a save file path."""
-        return filedialog.asksaveasfilename(**options)
+        """Shows a dialog to select a save file path. Delegates to DialogManager."""
+        return self.dialog_manager.ask_save_filename(**options)
 
     def update_button_state(self, button_name, state):
         """Updates the state of a button ('normal' or 'disabled')."""
