@@ -199,11 +199,13 @@ def start_recording(self):
 
 ### 2.2. Padrão Coordinator & Adapter (Phase 2+)
 
+> **Nota sobre numeração de fases**: "Phase 2+" refere-se às fases de implementação/refatoração do código (Phase 1-3: migração DI, Phase 2+: introdução de coordinators). A documentação atual faz parte da Phase 4 (documentação pós-refatoração).
+
 A partir da **Phase 2** do refactoring, foram introduzidos **Coordinators** e **Adapters** (🎯) para orquestrar workflows complexos de alto nível, reduzindo drasticamente a complexidade do `MainViewModel`.
 
 **Benefícios dos Coordinators & Adapters:**
 
-- **Redução de complexidade**: `MainViewModel` reduzido de ~5383 linhas para ~3400 linhas (-37%)
+- **Redução de complexidade**: `MainViewModel` permanece em ~5442 linhas; coordinators/adapters extraem responsabilidades de orquestração complexas para componentes dedicados
 - **Separação de responsabilidades**: Cada coordinator/adapter gerencia um domínio específico
 - **Orquestração UI-aware**: Coordenam serviços e publicam eventos UI de forma centralizada
 - **Testabilidade**: Workflows complexos podem ser testados isoladamente
@@ -269,7 +271,7 @@ A UI foi refatorada de uma classe monolítica para uma **arquitetura baseada em 
 
 | Componente | Responsabilidade principal |
 |---|---|
-| `MainViewModel` | Orquestra o fluxo da aplicação. Inscreve-se em eventos do `EventBus` para executar a lógica de negócio correspondente (ex: iniciar o desenho de uma zona). Atualiza o `StateManager` com o novo estado da aplicação. **Reduzido de ~5383 para ~3400 linhas (-37%) com a introdução de Coordinators/Adapters na Phase 2+**. |
+| `MainViewModel` | Orquestra o fluxo da aplicação. Inscreve-se em eventos do `EventBus` para executar a lógica de negócio correspondente (ex: iniciar o desenho de uma zona). Atualiza o `StateManager` com o novo estado da aplicação. **Atualmente ~5442 linhas; Coordinators/Adapters (Phase 2+) extraem orquestração complexa de workflows para componentes dedicados**. |
 | `StateManager` | **Fonte única de verdade** para o estado da aplicação. Implementa um padrão observável thread-safe com 5 categorias de estado (Project, Detector, Recording, Processing, UI). A UI observa o `StateManager` e reage a mudanças. |
 | `ProjectWorkflowAdapter` 🆕 | **Novo (Phase 2+)**: Orquestra workflows de ciclo de vida de projetos (create/open/close). Coordena UI events, detector setup, zone setup, e aplicação de wizard overrides. Delega lógica de negócio para `ProjectWorkflowService`. |
 | `AnalysisCoordinator` 🆕 | **Novo (Phase 2+)**: Coordena pipeline de análise comportamental e geração de relatórios. Gerencia report generation (Excel/CSV/Word), parquet summary regeneration, e result aggregation. Executa análise em worker threads e publica UI events. |

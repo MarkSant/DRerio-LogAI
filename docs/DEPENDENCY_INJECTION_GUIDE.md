@@ -315,10 +315,10 @@ class DialogManager:
 ✅ **Phase 3**: UI layer (ApplicationGUI, WizardDialog, all dialogs)
 ✅ **Phase 2+ Refactoring**: Coordinators/Adapters (ProjectWorkflowAdapter, AnalysisCoordinator, DialogManager)
 ✅ **Singleton Removed**: No global `settings` object exists
-✅ **MainViewModel Reduction**: ~5383 → ~3400 lines (-37%) via coordinator extraction
+✅ **MainViewModel Status**: Currently ~5442 lines; coordinators/adapters extract complex orchestration responsibilities to dedicated components
 
 ## References
 
-- Composition Root: `src/zebtrack/__main__.py:140-280`
+- Composition Root: `src/zebtrack/__main__.py:140-362` (settings load through MainViewModel instantiation)
 - Settings Model: `src/zebtrack/settings.py`
 - Test Migration Guide: `TEST_MIGRATION_TODO.md`
