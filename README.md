@@ -231,10 +231,24 @@ Relatórios consolidados (`.xlsx`, `.csv`, `.parquet`) podem ser gerados pela ab
 
 ## Documentação estendida
 
+### 📖 Para Usuários
+
+A Wiki do projeto contém guias completos para usuários finais:
+
+- **[Guia de Introdução](docs/wiki/user-guide/GETTING_STARTED.md)** - Tutorial completo do primeiro projeto, desde instalação até análise de resultados
+- **[Perguntas Frequentes (FAQ)](docs/wiki/user-guide/FAQ.md)** - Respostas para mais de 50 perguntas comuns sobre instalação, uso e análise
+- **[Guia de Resolução de Problemas](docs/wiki/user-guide/TROUBLESHOOTING.md)** - Soluções detalhadas para problemas comuns (câmera, detecção, performance, GPU, etc.)
+
+### 🔧 Para Desenvolvedores
+
+Documentação técnica detalhada para contribuidores:
+
 - **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**: A documentação técnica central. Contém a visão de componentes, fluxos de dados, decisões arquiteturais e o padrão MVVM.
-- **[`docs/wiki/`](docs/wiki)**: A Wiki do projeto, com guias de usuário detalhados, tutoriais e FAQs.
 - [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): Guia de referência para métricas, fórmulas e integrações.
 - [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): Detalhes sobre transformações de coordenadas e calibração.
+- [`docs/DEPENDENCY_INJECTION_GUIDE.md`](docs/DEPENDENCY_INJECTION_GUIDE.md): Padrões de injeção de dependência e arquitetura MVVM-S.
+- [`docs/STATE_MANAGER_GUIDE.md`](docs/STATE_MANAGER_GUIDE.md): Gerenciamento de estado centralizado e observável.
+- [`docs/DEVELOPER_GUIDE_WIZARD.md`](docs/DEVELOPER_GUIDE_WIZARD.md): Desenvolvimento e extensão do wizard de projetos.
 
 ## Contribuindo
 
