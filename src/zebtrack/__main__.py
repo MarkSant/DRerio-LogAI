@@ -291,6 +291,50 @@ def main():
         analysis_service = AnalysisService(settings_obj=settings_obj)
         log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
+        # ===== COORDINATORS (Phase 2 Refactoring) =====
+        # Create coordinators to encapsulate hardware and analysis logic
+
+        _t0 = time.perf_counter()
+        from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+        from zebtrack.core.hardware_coordinator import HardwareCoordinator
+        from zebtrack.core.video_orchestrator import VideoOrchestrator
+
+        # Hardware coordinator (detector, Arduino, zones)
+        hardware_coordinator = HardwareCoordinator(
+            state_manager=state_manager,
+            ui_event_bus=event_bus,
+            settings_obj=settings_obj,
+            project_manager=project_manager,
+            detector_service=detector_service,
+        )
+
+        # Analysis coordinator (reports, summaries, analysis pipeline)
+        # Note: view will be set after ApplicationGUI is created in MainViewModel
+        analysis_coordinator = AnalysisCoordinator(
+            root=root,
+            ui_event_bus=event_bus,
+            ui_coordinator=ui_coordinator,
+            settings_obj=settings_obj,
+            project_manager=project_manager,
+            analysis_service=analysis_service,
+            video_processing_service=video_processing_service,
+        )
+
+        # Video orchestrator (batch processing, video workflows)
+        # Note: view will be set after ApplicationGUI is created in MainViewModel
+        video_orchestrator = VideoOrchestrator(
+            root=root,
+            state_manager=state_manager,
+            ui_event_bus=event_bus,
+            ui_coordinator=ui_coordinator,
+            settings_obj=settings_obj,
+            project_manager=project_manager,
+            video_processing_service=video_processing_service,
+            analysis_service=analysis_service,
+            recorder=recorder,
+        )
+        log.info("timing.coordinators_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
         from zebtrack.core.main_view_model import MainViewModel
@@ -312,6 +356,9 @@ def main():
             video_processing_service=video_processing_service,
             analysis_service=analysis_service,
             recording_service=None,  # Will be created by MainViewModel for now
+            hardware_coordinator=hardware_coordinator,  # Phase 2: Injected coordinator
+            analysis_coordinator=analysis_coordinator,  # Phase 2: Injected coordinator
+            video_orchestrator=video_orchestrator,  # Phase 2: Injected coordinator
         )
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 

@@ -51,25 +51,25 @@ class AnalysisCoordinator:
     def __init__(
         self,
         root,
-        view: ApplicationGUI,
         ui_event_bus: EventBus,
         ui_coordinator: UICoordinator,
         settings_obj: Settings,
         project_manager: ProjectManager,
         analysis_service: AnalysisService,
         video_processing_service: VideoProcessingService,
+        view: ApplicationGUI | None = None,
     ):
         """Initialize AnalysisCoordinator with dependency injection.
 
         Args:
             root: Tkinter root window
-            view: Application GUI instance
             ui_event_bus: Event bus for UI events
             ui_coordinator: UI coordinator for thread-safe UI operations
             settings_obj: Settings instance (injected)
             project_manager: Project manager
             analysis_service: Analysis service
             video_processing_service: Video processing service
+            view: Application GUI instance (optional, can be set later via set_view())
         """
         self.root = root
         self.view = view
@@ -85,6 +85,14 @@ class AnalysisCoordinator:
 
         # Thread pool executor for background tasks
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="analysis_worker")
+
+    def set_view(self, view: ApplicationGUI) -> None:
+        """Set the view reference after initialization.
+
+        Args:
+            view: Application GUI instance
+        """
+        self.view = view
 
     def shutdown(self) -> None:
         """Gracefully shutdown the coordinator and its thread pool."""

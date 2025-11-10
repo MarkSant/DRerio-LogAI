@@ -48,7 +48,6 @@ class VideoOrchestrator:
     def __init__(
         self,
         root,
-        view: ApplicationGUI,
         state_manager: StateManager,
         ui_event_bus: EventBus,
         ui_coordinator: UICoordinator,
@@ -57,12 +56,12 @@ class VideoOrchestrator:
         video_processing_service: VideoProcessingService,
         analysis_service: AnalysisService,
         recorder: Recorder,
+        view: ApplicationGUI | None = None,
     ):
         """Initialize VideoOrchestrator with dependency injection.
 
         Args:
             root: Tkinter root window
-            view: Application GUI instance
             state_manager: Centralized state manager
             ui_event_bus: Event bus for UI events
             ui_coordinator: UI coordinator for scheduling UI updates
@@ -71,6 +70,7 @@ class VideoOrchestrator:
             video_processing_service: Video processing service
             analysis_service: Analysis service
             recorder: Recorder for Parquet output
+            view: Application GUI instance (optional, can be set later via set_view())
         """
         self.root = root
         self.view = view
@@ -94,6 +94,14 @@ class VideoOrchestrator:
         self.processing_worker: ProcessingWorker | None = None
         self.cancel_event = threading.Event()
         self._cancel_feedback_displayed = False
+
+    def set_view(self, view: ApplicationGUI) -> None:
+        """Set the view reference after initialization.
+
+        Args:
+            view: Application GUI instance
+        """
+        self.view = view
 
     # =============================================================================
     # PROJECT-BASED WORKFLOW (Main Entry Point)

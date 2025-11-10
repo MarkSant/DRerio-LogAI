@@ -135,6 +135,9 @@ class MainViewModel:
         analysis_service: AnalysisService | None = None,
         recording_service: RecordingService | None = None,
         live_camera_service=None,
+        hardware_coordinator: HardwareCoordinator | None = None,
+        analysis_coordinator: AnalysisCoordinator | None = None,
+        video_orchestrator: VideoOrchestrator | None = None,
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -153,6 +156,10 @@ class MainViewModel:
             video_processing_service: Video processing service
             analysis_service: Analysis service (optional, will be created if None)
             recording_service: Recording service (optional, will be created later)
+            live_camera_service: Live camera service (optional)
+            hardware_coordinator: Hardware coordinator (Phase 2, optional - created if None)
+            analysis_coordinator: Analysis coordinator (Phase 2, optional - created if None)
+            video_orchestrator: Video orchestrator (Phase 2, optional - created if None)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -362,51 +369,83 @@ class MainViewModel:
         # NOTE: bind_events() foi movido para __main__.py na FASE 1
         # NÃO chamar self.bind_events() aqui para evitar dupla inscrição
 
-        # Task 2.2: Initialize coordinators (REFACTOR-VIEWMODEL-001)
-        self._init_coordinators()
+        # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
+        self._init_coordinators(
+            hardware_coordinator=hardware_coordinator,
+            analysis_coordinator=analysis_coordinator,
+            video_orchestrator=video_orchestrator,
+        )
 
-    def _init_coordinators(self) -> None:
+    def _init_coordinators(
+        self,
+        hardware_coordinator: HardwareCoordinator | None,
+        analysis_coordinator: AnalysisCoordinator | None,
+        video_orchestrator: VideoOrchestrator | None,
+    ) -> None:
         """Initialize coordinators for hardware, video, and analysis.
 
         Task 2.2: REFACTOR-VIEWMODEL-001
-        Creates internal coordinators to delegate responsibilities and reduce
-        MainViewModel complexity.
+        Task 2.3: Accept injected coordinators or create them for backward compatibility
+
+        Args:
+            hardware_coordinator: Injected hardware coordinator (or None to create)
+            analysis_coordinator: Injected analysis coordinator (or None to create)
+            video_orchestrator: Injected video orchestrator (or None to create)
         """
         # Hardware coordinator (detector, Arduino, zones)
-        self.hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            detector_service=self.detector_service,
-            arduino_manager_cls=self._arduino_manager_cls,
-        )
+        if hardware_coordinator is not None:
+            self.hardware_coordinator = hardware_coordinator
+            log.info("main_view_model.hardware_coordinator.injected")
+        else:
+            self.hardware_coordinator = HardwareCoordinator(
+                state_manager=self.state_manager,
+                ui_event_bus=self.ui_event_bus,
+                settings_obj=self.settings,
+                project_manager=self.project_manager,
+                detector_service=self.detector_service,
+                arduino_manager_cls=self._arduino_manager_cls,
+            )
+            log.info("main_view_model.hardware_coordinator.created_internally")
 
         # Video orchestrator (batch processing, video workflows)
-        self.video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
+        if video_orchestrator is not None:
+            self.video_orchestrator = video_orchestrator
+            log.info("main_view_model.video_orchestrator.injected")
+        else:
+            self.video_orchestrator = VideoOrchestrator(
+                root=self.root,
+                state_manager=self.state_manager,
+                ui_event_bus=self.ui_event_bus,
+                ui_coordinator=self.ui_coordinator,
+                settings_obj=self.settings,
+                project_manager=self.project_manager,
+                video_processing_service=self.video_processing_service,
+                analysis_service=self.analysis_service,
+                recorder=self.recorder,
+            )
+            log.info("main_view_model.video_orchestrator.created_internally")
+
+        # Set view on coordinator (both injected and internally created)
+        self.video_orchestrator.set_view(self.view)
 
         # Analysis coordinator (reports, summaries, analysis pipeline)
-        self.analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
+        if analysis_coordinator is not None:
+            self.analysis_coordinator = analysis_coordinator
+            log.info("main_view_model.analysis_coordinator.injected")
+        else:
+            self.analysis_coordinator = AnalysisCoordinator(
+                root=self.root,
+                ui_event_bus=self.ui_event_bus,
+                ui_coordinator=self.ui_coordinator,
+                settings_obj=self.settings,
+                project_manager=self.project_manager,
+                analysis_service=self.analysis_service,
+                video_processing_service=self.video_processing_service,
+            )
+            log.info("main_view_model.analysis_coordinator.created_internally")
+
+        # Set view on coordinator (both injected and internally created)
+        self.analysis_coordinator.set_view(self.view)
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
