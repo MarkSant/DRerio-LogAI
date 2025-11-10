@@ -211,7 +211,10 @@ class TestCreateProjectWorkflow:
             }
         )
 
-        with patch.object(main_view_model, "_show_post_creation_guide") as mock_guide:
+        # Mock the adapter's _show_post_creation_guide method
+        with patch.object(
+            main_view_model.project_workflow_adapter, "_show_post_creation_guide"
+        ) as mock_guide:
             main_view_model.create_project_workflow(**wizard_data)
 
             # Should show guide
@@ -316,14 +319,17 @@ class TestCloseProject:
 
     def test_close_project_clears_project_manager_state(self, main_view_model):
         """Test close_project recreates ProjectManager with clean state."""
-        with patch("zebtrack.core.main_view_model.ProjectManager") as mock_pm_class:
+        # Mock the adapter's close_project to return a new ProjectManager
+        mock_new_pm = Mock()
+        with patch.object(
+            main_view_model.project_workflow_adapter, "close_project", return_value=mock_new_pm
+        ):
             main_view_model.close_project()
 
-            # Should recreate ProjectManager
-            mock_pm_class.assert_called_once()
-            call_kwargs = mock_pm_class.call_args.kwargs
-            assert "state_manager" in call_kwargs
-            assert "settings_obj" in call_kwargs
+            # Should call adapter's close_project
+            main_view_model.project_workflow_adapter.close_project.assert_called_once()
+            # Should update the project_manager reference
+            assert main_view_model.project_manager == mock_new_pm
 
     def test_close_project_updates_state_manager(self, main_view_model):
         """Test close_project updates StateManager to clear project state."""

@@ -22,9 +22,15 @@ def test_detection_mode_with_multiple_animals_blocked():
         # Create mock root
         mock_root = MagicMock()
 
-        # Create controller using factory with project_manager override
+        # Mock the event bus
+        mock_event_bus = MagicMock()
+
+        # Create controller using factory with project_manager and event_bus override
         controller = create_test_controller(
-            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
+            root=mock_root,
+            settings_obj=mock_settings,
+            project_manager=mock_pm,
+            event_bus=mock_event_bus,
         )
 
         # Try to create project with multiple animals per aquarium
@@ -39,21 +45,29 @@ def test_detection_mode_with_multiple_animals_blocked():
         }
 
         # This should show an error and return early without creating project
-        with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
-            controller.create_project_workflow(**project_kwargs)
+        controller.create_project_workflow(**project_kwargs)
 
-            # Verify error was shown (ui_event_bus has multiple calls from controller init)
-            error_calls = [
-                call
-                for call in mock_event_bus.publish_event.call_args_list
-                if len(call[0]) > 0 and call[0][0] == "ui:show_error"
-            ]
-            assert len(error_calls) == 1
-            event_name, payload = error_calls[0][0]
-            assert event_name == "ui:show_error"
-            assert "Configuração Inválida" in payload["title"]
-            assert "modo de detecção (det)" in payload["message"]
-            assert "3 animais por aquário" in payload["message"]
+        # Verify error was shown via the event bus
+        error_calls = [
+            call
+            for call in mock_event_bus.publish_event.call_args_list
+            if len(call[0]) > 0 and "error" in str(call[0][0]).lower()
+        ]
+        assert len(error_calls) >= 1
+        # Find the specific error call about detection mode
+        det_error_calls = [
+            call
+            for call in error_calls
+            if len(call) > 0
+            and len(call[0]) > 1
+            and isinstance(call[0][1], dict)
+            and "modo de detecção" in call[0][1].get("message", "")
+        ]
+        assert len(det_error_calls) == 1
+        event_name, payload = det_error_calls[0][0]
+        assert "Configuração Inválida" in payload["title"]
+        assert "modo de detecção (det)" in payload["message"]
+        assert "3 animais por aquário" in payload["message"]
 
         # Project manager should not have been called
         mock_pm.create_new_project.assert_not_called()

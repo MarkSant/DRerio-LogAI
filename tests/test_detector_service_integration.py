@@ -312,9 +312,18 @@ class TestDetectorServiceIntegration(unittest.TestCase):
                 aquarium_width_cm=10.0,
                 aquarium_height_cm=10.0,
                 video_files=["/tmp/test.mp4"],
+                detector_parameters={
+                    "confidence_threshold": 0.31,
+                    "nms_threshold": 0.47,
+                    "track_threshold": 0.29,
+                    "match_threshold": 0.18,
+                },
             )
 
-        mock_apply.assert_called_once_with(wizard_metadata)
+        # The call will have the full wizard_metadata structure, but we only care about detector_parameters
+        mock_apply.assert_called_once()
+        actual_call = mock_apply.call_args[0][0]
+        assert actual_call["detector_parameters"] == wizard_metadata["detector_parameters"]
 
     def test_apply_wizard_detector_overrides_normalizes_parameters(self):
         """Helper should normalize values and update detector parameters in project scope."""

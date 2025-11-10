@@ -67,6 +67,11 @@ class TestProjectWorkflowAdapter:
             "animal_method": "det",
             "wizard_metadata": {"detector_parameters": {}},
         }
+        # Configure guide generation mock to return a dictionary
+        mock_dependencies["project_workflow_service"].generate_post_creation_guide.return_value = {
+            "title": "Project Created",
+            "message": "Project created successfully",
+        }
 
         setup_detector_mock = Mock(return_value=True)
         apply_overrides_mock = Mock()
@@ -112,11 +117,11 @@ class TestProjectWorkflowAdapter:
 
         # Verify
         assert result is False
-        # Should publish error event
+        # Should publish error event (ui:show_error is the actual event value)
         error_calls = [
             call_
             for call_ in mock_dependencies["ui_event_bus"].publish_event.call_args_list
-            if "UI_SHOW_ERROR" in str(call_)
+            if "ui:show_error" in str(call_)
         ]
         assert len(error_calls) >= 1
 
@@ -183,11 +188,11 @@ class TestProjectWorkflowAdapter:
         # Verify
         assert result is True
         setup_detector_mock.assert_called_once()
-        # Should publish success info event
+        # Should publish success info event (ui:show_info is the actual event value)
         info_calls = [
             call_
             for call_ in mock_dependencies["ui_event_bus"].publish_event.call_args_list
-            if "UI_SHOW_INFO" in str(call_)
+            if "ui:show_info" in str(call_)
         ]
         assert len(info_calls) >= 1
 

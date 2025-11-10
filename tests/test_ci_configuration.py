@@ -116,7 +116,7 @@ def test_github_actions_has_timeout():
     repo_root = Path(__file__).parent.parent
     ci_workflow = repo_root / ".github" / "workflows" / "ci.yml"
 
-    content = ci_workflow.read_text()
+    content = ci_workflow.read_text(encoding="utf-8")
 
     # Check for timeout configuration
     assert "timeout-minutes:" in content, "CI workflow missing timeout-minutes"

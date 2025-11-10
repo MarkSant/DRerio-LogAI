@@ -124,6 +124,9 @@ def main_view_model(
         def __init__(self, *args, **kwargs):
             pass
 
+        def set_view(self, *_args, **_kwargs):
+            pass
+
         def set_arena_callback(self, *_args, **_kwargs):
             pass
 
@@ -141,6 +144,9 @@ def main_view_model(
 
     class DummyAnalysisCoordinator:
         def __init__(self, *args, **kwargs):
+            pass
+
+        def set_view(self, *_args, **_kwargs):
             pass
 
         def set_refresh_callback(self, *_args, **_kwargs):

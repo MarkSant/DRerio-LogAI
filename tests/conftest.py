@@ -79,11 +79,31 @@ def pytest_sessionfinish(session, exitstatus):
     # 1. Force garbage collection
     gc.collect()
 
+    # 1.5. Shutdown ThreadPoolExecutors
+    from concurrent.futures import ThreadPoolExecutor
+    import sys
+
+    # Find all ThreadPoolExecutor instances and shutdown
+    all_objects = gc.get_objects()
+    executors_shutdown = 0
+    for obj in all_objects:
+        if isinstance(obj, ThreadPoolExecutor):
+            try:
+                obj.shutdown(wait=False)
+                executors_shutdown += 1
+            except Exception:
+                pass
+
+    if executors_shutdown > 0:
+        print(f"\n=== PYTEST SESSION CLEANUP ===")
+        print(f"Shutdown {executors_shutdown} ThreadPoolExecutor(s)")
+    else:
+        print("\n=== PYTEST SESSION CLEANUP ===")
+
     # 2. Wait for non-daemon threads with timeout
     timeout = 5.0  # 5 second timeout
     start = time.time()
 
-    print("\n=== PYTEST SESSION CLEANUP ===")
     non_daemon_threads = [
         t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()
     ]

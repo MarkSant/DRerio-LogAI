@@ -15,7 +15,7 @@ class TestCameraContextManager:
     """Test Camera context manager."""
 
     @pytest.mark.unit
-    def test_context_manager_releases_camera(self, settings_obj):
+    def test_context_manager_releases_camera(self, test_settings):
         """Context manager automatically releases camera."""
         with patch('cv2.VideoCapture') as mock_capture_class:
             # Setup mock
@@ -30,7 +30,7 @@ class TestCameraContextManager:
             mock_capture_class.return_value = mock_cap
 
             # Use context manager
-            with Camera(settings_obj=settings_obj) as camera:
+            with Camera(settings_obj=test_settings) as camera:
                 assert camera is not None
                 assert camera.cap is not None
 
@@ -38,7 +38,7 @@ class TestCameraContextManager:
             mock_cap.release.assert_called()
 
     @pytest.mark.unit
-    def test_context_manager_releases_on_exception(self, settings_obj):
+    def test_context_manager_releases_on_exception(self, test_settings):
         """Context manager releases camera even if exception raised."""
         with patch('cv2.VideoCapture') as mock_capture_class:
             # Setup mock
@@ -54,13 +54,13 @@ class TestCameraContextManager:
 
             # Exception should be raised, but camera still cleaned up
             with pytest.raises(RuntimeError):
-                with Camera(settings_obj=settings_obj):
+                with Camera(settings_obj=test_settings):
                     raise RuntimeError("Test error")
             # Still cleaned up
             mock_cap.release.assert_called()
 
     @pytest.mark.unit
-    def test_context_manager_handles_cleanup_failure(self, settings_obj):
+    def test_context_manager_handles_cleanup_failure(self, test_settings):
         """Context manager handles cleanup failures gracefully."""
         with patch('cv2.VideoCapture') as mock_capture_class:
             # Setup mock that fails on release
@@ -76,7 +76,7 @@ class TestCameraContextManager:
             mock_capture_class.return_value = mock_cap
 
             # Should not raise exception even if cleanup fails
-            with Camera(settings_obj=settings_obj):
+            with Camera(settings_obj=test_settings):
                 pass
 
             # Cleanup was attempted
@@ -87,12 +87,12 @@ class TestRecorderContextManager:
     """Test Recorder context manager."""
 
     @pytest.mark.unit
-    def test_context_manager_stops_recording(self, tmp_path, settings_obj):
+    def test_context_manager_stops_recording(self, tmp_path, test_settings):
         """Context manager automatically stops recording."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        recorder = Recorder(settings_obj=settings_obj)
+        recorder = Recorder(settings_obj=test_settings)
 
         # Mock the video writer to avoid actual file creation issues
         with patch('cv2.VideoWriter') as mock_writer_class:
@@ -118,12 +118,12 @@ class TestRecorderContextManager:
             mock_writer.release.assert_called()
 
     @pytest.mark.unit
-    def test_context_manager_force_stop_on_exception(self, tmp_path, settings_obj):
+    def test_context_manager_force_stop_on_exception(self, tmp_path, test_settings):
         """Context manager force stops on exception."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        recorder = Recorder(settings_obj=settings_obj)
+        recorder = Recorder(settings_obj=test_settings)
 
         # Mock the video writer
         with patch('cv2.VideoWriter') as mock_writer_class:
@@ -148,9 +148,9 @@ class TestRecorderContextManager:
             mock_writer.release.assert_called()
 
     @pytest.mark.unit
-    def test_context_manager_no_recording_started(self, settings_obj):
+    def test_context_manager_no_recording_started(self, test_settings):
         """Context manager handles case where no recording was started."""
-        recorder = Recorder(settings_obj=settings_obj)
+        recorder = Recorder(settings_obj=test_settings)
 
         # Should not raise exception even if no recording started
         with recorder:
@@ -251,7 +251,7 @@ class TestResourceCleanupIntegration:
     """Integration tests for resource cleanup."""
 
     @pytest.mark.integration
-    def test_nested_context_managers(self, tmp_path, settings_obj):
+    def test_nested_context_managers(self, tmp_path, test_settings):
         """Test nested context managers clean up properly."""
         with patch('cv2.VideoCapture') as mock_capture_class, \
              patch('cv2.VideoWriter') as mock_writer_class:
@@ -272,8 +272,8 @@ class TestResourceCleanupIntegration:
             mock_writer_class.return_value = mock_writer
 
             # Use nested context managers
-            with Camera(settings_obj=settings_obj) as camera:
-                with Recorder(settings_obj=settings_obj) as recorder:
+            with Camera(settings_obj=test_settings) as camera:
+                with Recorder(settings_obj=test_settings) as recorder:
                     # Both resources acquired
                     assert camera is not None
                     assert recorder is not None
@@ -282,7 +282,7 @@ class TestResourceCleanupIntegration:
             mock_cap.release.assert_called()
 
     @pytest.mark.integration
-    def test_exception_in_nested_contexts(self, tmp_path, settings_obj):
+    def test_exception_in_nested_contexts(self, tmp_path, test_settings):
         """Test exception handling in nested context managers."""
         with patch('cv2.VideoCapture') as mock_capture_class, \
              patch('cv2.VideoWriter') as mock_writer_class:
@@ -304,8 +304,8 @@ class TestResourceCleanupIntegration:
 
             # Exception in nested context
             with pytest.raises(RuntimeError):
-                with Camera(settings_obj=settings_obj):
-                    with Recorder(settings_obj=settings_obj):
+                with Camera(settings_obj=test_settings):
+                    with Recorder(settings_obj=test_settings):
                         raise RuntimeError("Test error")
             # Both resources still cleaned up
             mock_cap.release.assert_called()

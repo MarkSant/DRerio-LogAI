@@ -214,8 +214,8 @@ def test_camera_release_stops_thread_and_releases_device(mock_video_capture):
     assert not thread.is_alive()
 
 
-def test_create_source_for_camera(mock_video_capture):
+def test_create_source_for_camera(mock_video_capture, test_settings):
     """Tests that the factory function can create a Camera source."""
-    source = create_source("camera")
+    source = create_source("camera", settings_obj=test_settings)
     assert isinstance(source, Camera)
     source.release()

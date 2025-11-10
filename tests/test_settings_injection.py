@@ -42,22 +42,24 @@ class MockGUI:
         return result
 
 
-def test_validation_manager_requires_settings():
+def test_validation_manager_requires_settings(test_settings):
     """ValidationManager stores injected settings_obj parameter."""
-    settings = Settings()
     gui = MockGUI()
 
     # Should work with settings
-    manager = ValidationManager(gui, settings_obj=settings)
-    assert manager._settings is settings
+    manager = ValidationManager(gui, settings_obj=test_settings)
+    assert manager._settings is test_settings
 
 
-def test_validation_manager_uses_injected_settings():
+def test_validation_manager_uses_injected_settings(test_settings):
     """ValidationManager uses injected settings, not singleton."""
-    settings1 = Settings()
+    import copy
+
+    # Create two separate settings instances using deepcopy
+    settings1 = copy.deepcopy(test_settings)
     settings1.video_processing.fps = 25
 
-    settings2 = Settings()
+    settings2 = copy.deepcopy(test_settings)
     settings2.video_processing.fps = 60
 
     gui1 = MockGUI()
@@ -78,22 +80,23 @@ def test_validation_manager_handles_none_settings():
     assert manager._settings is None
 
 
-def test_widget_factory_requires_settings():
+def test_widget_factory_requires_settings(test_settings):
     """WidgetFactory stores injected settings_obj parameter."""
-    settings = Settings()
     gui = MockGUI()
 
     # Should work with settings
-    factory = WidgetFactory(gui, settings_obj=settings)
-    assert factory._settings is settings
+    factory = WidgetFactory(gui, settings_obj=test_settings)
+    assert factory._settings is test_settings
 
 
-def test_widget_factory_uses_injected_settings():
+def test_widget_factory_uses_injected_settings(test_settings):
     """WidgetFactory uses injected settings, not singleton."""
-    settings1 = Settings()
+    import copy
+
+    settings1 = copy.deepcopy(test_settings)
     settings1.video_processing.fps = 25
 
-    settings2 = Settings()
+    settings2 = copy.deepcopy(test_settings)
     settings2.video_processing.fps = 60
 
     gui1 = MockGUI()
@@ -114,12 +117,14 @@ def test_widget_factory_handles_none_settings():
     assert factory._settings is None
 
 
-def test_validation_manager_isolation():
+def test_validation_manager_isolation(test_settings):
     """Multiple ValidationManager instances maintain separate settings."""
-    settings1 = Settings()
+    import copy
+
+    settings1 = copy.deepcopy(test_settings)
     settings1.trajectory_smoothing.window_length = 5
 
-    settings2 = Settings()
+    settings2 = copy.deepcopy(test_settings)
     settings2.trajectory_smoothing.window_length = 9
 
     gui1 = MockGUI()
@@ -140,12 +145,14 @@ def test_validation_manager_isolation():
     assert manager2._settings.trajectory_smoothing.window_length == 9
 
 
-def test_widget_factory_isolation():
+def test_widget_factory_isolation(test_settings):
     """Multiple WidgetFactory instances maintain separate settings."""
-    settings1 = Settings()
+    import copy
+
+    settings1 = copy.deepcopy(test_settings)
     settings1.recorder.flush_interval_seconds = 5.0
 
-    settings2 = Settings()
+    settings2 = copy.deepcopy(test_settings)
     settings2.recorder.flush_interval_seconds = 10.0
 
     gui1 = MockGUI()

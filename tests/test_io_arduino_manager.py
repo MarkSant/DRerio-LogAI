@@ -209,7 +209,7 @@ def test_arduino_manager_send_command_success(mock_controller, arduino_factory, 
 
     mock_arduino.send_command.assert_called_once_with(42)
     mock_controller.log_arduino_event.assert_any_call("Comando 42 enviado ao Arduino.")
-    mock_controller.on_arduino_command_sent.assert_called_with(42, success=True, source="auto")
+    mock_controller.on_arduino_command_sent.assert_called_with(42, True, "auto")
 
     manager.disconnect()
 
@@ -221,7 +221,7 @@ def test_arduino_manager_send_command_custom_source(mock_controller, arduino_fac
 
     manager.send_command(42, source="manual")
 
-    mock_controller.on_arduino_command_sent.assert_called_with(42, success=True, source="manual")
+    mock_controller.on_arduino_command_sent.assert_called_with(42, True, "manual")
 
     manager.disconnect()
 
@@ -238,7 +238,7 @@ def test_arduino_manager_send_command_not_connected(mock_controller):
     mock_controller.log_arduino_event.assert_called_with(
         "Não foi possível enviar comando: Arduino desconectado."
     )
-    mock_controller.on_arduino_command_sent.assert_called_with(42, success=False, source="auto")
+    mock_controller.on_arduino_command_sent.assert_called_with(42, False, "auto")
 
 
 def test_arduino_manager_send_command_exception(mock_controller, arduino_factory, mock_arduino):
@@ -253,7 +253,7 @@ def test_arduino_manager_send_command_exception(mock_controller, arduino_factory
     assert result is False
 
     mock_controller.log_arduino_event.assert_any_call("Falha ao enviar comando 42 ao Arduino.")
-    mock_controller.on_arduino_command_sent.assert_called_with(42, success=False, source="auto")
+    mock_controller.on_arduino_command_sent.assert_called_with(42, False, "auto")
 
     manager.disconnect()
 
