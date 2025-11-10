@@ -1,5 +1,5 @@
 """
-SaveROITemplateDialog
+SaveROITemplateDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -21,6 +21,15 @@ class SaveROITemplateDialog(simpledialog.Dialog):
     """Dialog that gathers options for saving ROI/Arena templates."""
 
     def __init__(
+        """Initialize the save ROI template dialog.
+
+        Args:
+            parent: Parent widget.
+            project_service: Service for accessing project data.
+            current_arena: Current arena polygon definition.
+            current_rois: List of current ROI configurations.
+            existing_templates: List of existing template names.
+        """
         self,
         parent,
         *,
@@ -37,6 +46,14 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         super().__init__(parent, "Salvar template de zonas")
 
     def body(self, master):
+        """Create dialog body with ROI template save options.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         master.columnconfigure(1, weight=1)
 
         ttk.Label(master, text="Nome do template:").grid(
@@ -142,6 +159,11 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         return self.name_entry
 
     def validate(self) -> bool:
+        """Validate template name and configuration.
+
+        Returns:
+            True if validation passes, False otherwise.
+        """
         name = (self.name_var.get() or "").strip()
         save_arena = bool(self.save_arena_var.get())
         save_rois = bool(self.save_rois_var.get())
@@ -170,6 +192,7 @@ class SaveROITemplateDialog(simpledialog.Dialog):
         return True
 
     def apply(self) -> None:
+        """Apply and save the ROI template with entered name and settings."""
         location = self.location_var.get()
         custom_path = (self.custom_path_var.get() or "").strip()
         if location == "custom" and custom_path:

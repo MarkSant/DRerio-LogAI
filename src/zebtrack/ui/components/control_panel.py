@@ -1,6 +1,4 @@
-"""
-Control panel widget component - recording and detector controls.
-"""
+"""Control panel widget component - recording and detector controls."""
 
 from tkinter import BooleanVar, Button, StringVar, ttk
 

@@ -1,5 +1,5 @@
 """
-Step 5: Confirmation & Summary Dialog
+Step 5: Confirmation & Summary Dialog.
 
 Shows final summary of all wizard steps and allows project name/location configuration.
 Validates all settings before enabling project creation.
@@ -203,7 +203,7 @@ class ConfirmationStep(WizardStep):
         self.after(0, self._initial_wrap_refresh)
 
     def on_show(self):
-        """Called when step becomes visible - generate summary."""
+        """Execute actions when step becomes visible - generate summary."""
         self._generate_default_project_name()
         self._generate_summary()
         self._update_template_banner()
@@ -298,7 +298,7 @@ class ConfirmationStep(WizardStep):
             self.summary_textbox.yview_moveto(0.0)
 
     def on_hide(self):
-        """Called when step is hidden (no special cleanup needed now)."""
+        """Execute actions when step is hidden (no special cleanup needed now)."""
         pass
 
     # ------------------------------------------------------------------

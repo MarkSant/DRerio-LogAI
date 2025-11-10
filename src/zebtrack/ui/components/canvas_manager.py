@@ -389,7 +389,7 @@ class CanvasManager:
     # ========== Interactive Polygon Drawing Methods ==========
 
     def _draw_interactive_polygon(self):
-        """Helper to (re)draw the polygon and its handles based on current points.
+        """Redraw the polygon and its handles based on current points.
 
         This method:
         - Clears previous interactive drawings
@@ -1173,7 +1173,7 @@ class CanvasManager:
         )
 
     def handle_vertex_drag(self, event):
-        """Updates the polygon point and redraws as the handle is dragged."""
+        """Update the polygon point and redraw as the handle is dragged."""
         if self.gui._dragged_handle_index is None:
             return
 
@@ -1243,7 +1243,7 @@ class CanvasManager:
         self._draw_interactive_polygon()
 
     def handle_canvas_click(self, event):
-        """Handles single clicks on the canvas during polygon drawing."""
+        """Handle single clicks on the canvas during polygon drawing."""
         if self.gui.drawing_mode != "polygon":
             return
 
@@ -1339,7 +1339,7 @@ class CanvasManager:
             )
 
     def edit_selected_zone_vertices(self):
-        """Enables interactive editing of the selected zone's vertices."""
+        """Enable interactive editing of the selected zone's vertices."""
         selected = self.gui.zone_listbox.selection()
         if not selected:
             return
@@ -1427,7 +1427,7 @@ class CanvasManager:
         self.gui.set_status("Pronto.")
 
     def load_selected_video_frame(self, event=None):
-        """Loads the frame from the selected video to the main canvas."""
+        """Load the frame from the selected video to the main canvas."""
         import os
 
         if not self.gui.video_selector_tree:

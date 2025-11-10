@@ -1,5 +1,5 @@
 """
-MissingMetadataDialog
+MissingMetadataDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -15,12 +15,32 @@ from tkinter import (
 
 
 class MissingMetadataDialog(simpledialog.Dialog):
+    """Dialog for manually entering missing experiment metadata.
+
+    Prompts the user to provide day, group, and subject information when
+    metadata cannot be automatically extracted from experiment identifiers.
+    """
+
     def __init__(self, parent, experiment_id):
+        """Initialize the missing metadata dialog.
+
+        Args:
+            parent: Parent widget.
+            experiment_id: Experiment identifier needing metadata.
+        """
         self.experiment_id = experiment_id
         self.result = None
         super().__init__(parent, "Metadados Ausentes")
 
     def body(self, master):
+        """Create the dialog body with metadata input fields.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The first entry widget as initial focus element.
+        """
         Label(master, text="Não foi possível encontrar metadados automaticamente para:").pack(
             pady=5
         )
@@ -46,6 +66,11 @@ class MissingMetadataDialog(simpledialog.Dialog):
         return form_frame
 
     def validate(self):
+        """Validate that all required fields are filled.
+
+        Returns:
+            True if all fields have values, False otherwise.
+        """
         try:
             int(self.day_var.get())
             int(self.cobaia_var.get())
@@ -62,6 +87,7 @@ class MissingMetadataDialog(simpledialog.Dialog):
         return 1
 
     def apply(self):
+        """Apply the entered metadata values to result dictionary."""
         self.result = {
             "day": int(self.day_var.get()),
             "group": self.group_var.get().strip(),

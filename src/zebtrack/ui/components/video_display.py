@@ -1,6 +1,4 @@
-"""
-Video display widget component - handles canvas rendering and video frame display.
-"""
+"""Video display widget component - handles canvas rendering and video frame display."""
 
 import os
 from tkinter import Canvas

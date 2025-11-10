@@ -1,5 +1,5 @@
 """
-Step 4: Import Configuration Dialog
+Step 4: Import Configuration Dialog.
 
 Allows user to configure per-video import strategy with smart defaults.
 Shows table of videos with checkboxes for arena/ROIs/trajectory import.
@@ -250,7 +250,7 @@ class ImportConfigStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
-        """Called when step becomes visible - compute smart defaults."""
+        """Execute actions when step becomes visible - compute smart defaults."""
         self._compute_smart_defaults()
         self._populate_table()
         self._update_summary()
@@ -258,9 +258,7 @@ class ImportConfigStep(WizardStep):
         self._update_template_banner()
 
     def _compute_smart_defaults(self):
-        """
-        Compute initial checkbox state based on Step 1 choices and parquet availability.
-        """
+        """Compute initial checkbox state based on Step 1 choices and parquet availability."""
         scanned_videos = self.wizard_data.get("scanned_videos", [])
         parquet_import_scope = self.wizard_data.get("parquet_import_scope")
 

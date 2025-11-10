@@ -114,7 +114,7 @@ class WizardStep(Frame):
 
     def on_show(self):
         """
-        Called when step becomes visible.
+        Execute actions when step becomes visible.
 
         Use this to:
         - Refresh data from previous steps
@@ -127,7 +127,7 @@ class WizardStep(Frame):
 
     def on_hide(self):
         """
-        Called when leaving this step.
+        Execute actions when leaving this step.
 
         Use this to:
         - Clean up resources

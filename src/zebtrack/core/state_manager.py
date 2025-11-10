@@ -295,7 +295,7 @@ class StateObserverProtocol(Protocol):
         new_value: Any,
     ) -> None:
         """
-        Called when observed state changes.
+        Call when observed state changes.
 
         Args:
             category: The state category that changed
@@ -333,7 +333,7 @@ class BaseStateObserver(ABC):
         new_value: Any,
     ) -> None:
         """
-        Called when observed state changes.
+        Call when observed state changes.
 
         Args:
             category: The state category that changed
@@ -779,7 +779,7 @@ class StateManager:
             return snapshot
 
     def get_state_snapshot(self) -> dict:
-        """Returns frozen snapshot for debugging. DO NOT MODIFY."""
+        """Return frozen snapshot for debugging. DO NOT MODIFY."""
 
         def convert_paths_to_strings(d):
             if isinstance(d, dict):
@@ -1174,7 +1174,7 @@ class StateManager:
             }
 
     def __repr__(self) -> str:
-        """String representation for debugging."""
+        """Return string representation for debugging."""
         history_info = (
             f", history={len(self._history)}/{self._max_history_size}"
             if self._enable_history

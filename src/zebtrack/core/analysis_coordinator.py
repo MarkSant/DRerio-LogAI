@@ -100,7 +100,7 @@ class AnalysisCoordinator:
             self._executor.shutdown(wait=True)
 
     def _on_worker_complete(self, future) -> None:
-        """Callback when worker thread completes.
+        """Handle completion of worker thread.
 
         Args:
             future: Future object from ThreadPoolExecutor

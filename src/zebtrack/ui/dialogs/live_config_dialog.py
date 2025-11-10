@@ -36,6 +36,12 @@ class LiveConfigDialog(simpledialog.Dialog):
     """A dialog to configure live analysis settings (camera and Arduino)."""
 
     def __init__(self, parent, settings_obj: "Settings | None" = None):
+        """Initialize the live configuration dialog.
+
+        Args:
+            parent: Parent widget.
+            settings_obj: Settings object with configuration.
+        """
         self.result = None
         self.available_cameras = {}
         self.available_ports = {}
@@ -43,6 +49,14 @@ class LiveConfigDialog(simpledialog.Dialog):
         super().__init__(parent, "Configuração da Análise ao Vivo")
 
     def body(self, master):
+        """Create dialog body with live analysis configuration controls.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         # --- Detect devices first ---
         self._detect_devices()
 
@@ -132,7 +146,7 @@ class LiveConfigDialog(simpledialog.Dialog):
         log.info("device_detection.camera.refreshed", cameras=self.available_cameras)
 
     def _detect_devices(self):
-        """Detects available cameras and serial ports."""
+        """Detect available cameras and serial ports."""
         # Import here to access WizardService camera detection
         from zebtrack.core.wizard_service import WizardService
 

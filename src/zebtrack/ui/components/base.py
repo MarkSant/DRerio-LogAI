@@ -1,6 +1,4 @@
-"""
-Base widget class providing event bus integration and common functionality.
-"""
+"""Base widget class providing event bus integration and common functionality."""
 
 from collections.abc import Callable
 from tkinter import ttk

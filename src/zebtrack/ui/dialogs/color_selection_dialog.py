@@ -1,5 +1,5 @@
 """
-ColorSelectionDialog
+ColorSelectionDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -16,6 +16,12 @@ class ColorSelectionDialog(simpledialog.Dialog):
     """Diálogo para seleção de cor de áreas de interesse."""
 
     def __init__(self, parent, title="Selecionar Cor da Área"):
+        """Initialize the color selection dialog.
+
+        Args:
+            parent: Parent widget.
+            title: Dialog window title (default: "Selecionar Cor da Área").
+        """
         self.result = None
         super().__init__(parent, title)
 

@@ -1,5 +1,5 @@
 """
-CreateProjectDialog
+CreateProjectDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -26,11 +26,24 @@ class CreateProjectDialog(simpledialog.Dialog):
     """A custom dialog to gather all new project information."""
 
     def __init__(self, parent):
+        """Initialize the create project dialog.
+
+        Args:
+            parent: Parent widget.
+        """
         self.project_path = None
         self.result = None
         super().__init__(parent, "Criar Novo Projeto")
 
     def body(self, master):
+        """Create project creation dialog body with all configuration fields.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         schedule_maximize(self)
         self.project_name_var = StringVar()
         self.num_aquariums_var = StringVar(value="1")
@@ -343,6 +356,11 @@ class CreateProjectDialog(simpledialog.Dialog):
                 self.countdown_entry.config(state="disabled")
 
     def validate(self):
+        """Validate all project configuration fields.
+
+        Returns:
+            True if all required fields are valid, False otherwise.
+        """
         # Run a sequence of focused validators. Each returns (ok, message)
         validators = [
             self._validate_base_path_and_name,
@@ -453,6 +471,7 @@ class CreateProjectDialog(simpledialog.Dialog):
         return True, ""
 
     def apply(self):
+        """Apply the project configuration and store in result dictionary."""
         duration = 0
         if self.use_timed_recording_var.get():
             try:

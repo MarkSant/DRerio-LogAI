@@ -1,3 +1,9 @@
+"""Model weight management and OpenVINO conversion module.
+
+Manages YOLO model weights catalog, provides weight discovery, validation,
+and handles conversion to OpenVINO format for optimized inference.
+"""
+
 import json
 import os
 import shutil
@@ -70,6 +76,12 @@ class OpenVINOExportError(Exception):
 
 
 class WeightManager:
+    """Manages YOLO model weights catalog and OpenVINO conversion.
+
+    Provides weight discovery, validation, metadata management, and handles
+    conversion of PyTorch models to OpenVINO format for optimized inference.
+    """
+
     def __init__(self, settings_obj=None, config_dir="."):
         """Initialize WeightManager with settings dependency injection.
 
@@ -84,7 +96,7 @@ class WeightManager:
         self._load_weights()
 
     def _load_weights(self):
-        """Loads the weights configuration from the JSON file."""
+        """Load the weights configuration from the JSON file."""
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, encoding="utf-8") as f:
@@ -131,7 +143,7 @@ class WeightManager:
 
     def get_weight_path_by_method(self, method: str, task: str) -> str | None:
         """
-        Gets the weight path for a specific method and task.
+        Get the weight path for a specific method and task.
 
         Args:
             method: "seg" or "det"
@@ -182,7 +194,7 @@ class WeightManager:
             return None
 
     def _initialize_default_weight(self):
-        """Initializes the config with the default weight from settings."""
+        """Initialize the config with the default weight from settings."""
         if self.settings is None:
             log.warning(
                 "weight_manager.init.no_settings",
@@ -281,7 +293,7 @@ class WeightManager:
             )
 
     def save_weights(self):
-        """Saves the current weights configuration to the JSON file."""
+        """Save the current weights configuration to the JSON file."""
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self.weights, f, indent=4)
@@ -291,15 +303,15 @@ class WeightManager:
             raise OSError(f"Não foi possível salvar o arquivo de configuração de pesos: {e}") from e
 
     def get_all_weights(self) -> list[str]:
-        """Returns a list of names of all available weights."""
+        """Return a list of names of all available weights."""
         return list(self.weights.keys())
 
     def get_weight_details(self, name: str) -> dict | None:
-        """Returns the details dictionary for a given weight name."""
+        """Return the details dictionary for a given weight name."""
         return self.weights.get(name)
 
     def get_default_weight(self) -> tuple[str, dict] | tuple[None, None]:
-        """Returns the name and details of the default weight."""
+        """Return the name and details of the default weight."""
         for name, details in self.weights.items():
             if details.get("is_default"):
                 return name, details
@@ -314,7 +326,7 @@ class WeightManager:
 
     def get_default_weight_by_type(self, weight_type: str) -> tuple[str, dict] | tuple[None, None]:
         """
-        Returns the name and details of the default weight for a specific type.
+        Return the name and details of the default weight for a specific type.
 
         Args:
             weight_type: "seg" or "det"
@@ -329,16 +341,16 @@ class WeightManager:
         return None, None
 
     def get_default_seg_weight(self) -> tuple[str, dict] | tuple[None, None]:
-        """Returns the name and details of the default segmentation weight."""
+        """Return the name and details of the default segmentation weight."""
         return self.get_default_weight_by_type("seg")
 
     def get_default_det_weight(self) -> tuple[str, dict] | tuple[None, None]:
-        """Returns the name and details of the default detection weight."""
+        """Return the name and details of the default detection weight."""
         return self.get_default_weight_by_type("det")
 
     def set_default_weight_by_type(self, name_to_set: str, weight_type: str):
         """
-        Sets a new default weight for a specific type.
+        Set a new default weight for a specific type.
 
         Args:
             name_to_set: Weight name to set as default
@@ -374,7 +386,7 @@ class WeightManager:
         log.info("weights.default_by_type.set", name=name_to_set, type=weight_type)
 
     def set_default_weight(self, name: str):
-        """Sets a new default weight with proper type handling."""
+        """Set a new default weight with proper type handling."""
         target_weight = self.get_weight_details(name)
         if not target_weight:
             log.warning("set_default.not_found", name=name)
@@ -408,7 +420,7 @@ class WeightManager:
         self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None
     ):
         """
-        Adds a new weight from a given path after performing security checks.
+        Add a new weight from a given path after performing security checks.
 
         Args:
             new_path: The file path to the new .pt weight file.
@@ -498,7 +510,7 @@ class WeightManager:
         log.info("weights.add.success", name=new_name, path=str(model_path), type=weight_type)
 
     def delete_weight(self, name_to_delete: str):
-        """Deletes a weight from the configuration."""
+        """Delete a weight from the configuration."""
         if name_to_delete not in self.weights:
             log.warning("weights.delete.not_found", name=name_to_delete)
             raise ValueError(f"Peso '{name_to_delete}' não encontrado.")
@@ -532,7 +544,8 @@ class WeightManager:
 
     def convert_to_openvino(self, name: str) -> str | None:
         """
-        Converts the specified weight to OpenVINO format.
+        Convert the specified weight to OpenVINO format.
+        
         Handles caching and updates the config file.
         Returns the path to the converted model directory or None on failure.
         """

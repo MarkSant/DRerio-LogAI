@@ -1,3 +1,9 @@
+"""Detection coordination module for zebrafish tracking.
+
+Manages the detection process by delegating to detector plugins and handling
+stateful logic for zone tracking, ROI filtering, and overlay rendering.
+"""
+
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -29,8 +35,7 @@ class ZoneData:
 
 class Detector:
     """
-    Manages the detection process by delegating to a plugin and handling
-    stateful logic for zone tracking.
+    Manages the detection process by delegating to a plugin and handling stateful logic for zone tracking.
 
     Nota de Otimização:
     O rastreamento de objetos é baseado nos bounding boxes. Se o modelo de IA
@@ -49,7 +54,7 @@ class Detector:
         settings_obj: "Settings | None" = None,
     ):
         """
-        Initializes the detector with a specific plugin.
+        Initialize the detector with a specific plugin.
 
         Args:
             plugin (DetectorPlugin): An instantiated detector plugin.
@@ -85,7 +90,7 @@ class Detector:
 
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
-        Sets the detection zones and scales them to the current video resolution.
+        Set the detection zones and scales them to the current video resolution.
 
         Args:
             zones (ZoneData): The zone configuration object.
@@ -131,8 +136,9 @@ class Detector:
 
     def _update_scaling(self, actual_width: int, actual_height: int):
         """
-        Updates the coordinates of the polygon and squares based on the actual
-        video resolution, using a cache to avoid redundant calculations.
+        Update the coordinates of the polygon and squares based on the actual video resolution.
+
+        Uses a cache to avoid redundant calculations.
         """
         cache_key = (actual_width, actual_height)
         if cache_key in self._scaling_cache:
@@ -170,8 +176,8 @@ class Detector:
 
     def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
         """
-        Checks if any of the 4 corners OR the center of the bounding box is
-        inside the polygon.
+        Check if any of the 4 corners OR the center of the bounding box is inside the polygon.
+
         Returns False if the polygon is empty or invalid.
         """
         if polygon.size == 0:
@@ -200,8 +206,8 @@ class Detector:
         self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray
     ) -> bool:
         """
-        Returns True if 4 corners OR center of bbox falls within roi_polygon
-        (cv2.pointPolygonTest >= 0).
+        Return True if 4 corners OR center of bbox falls within roi_polygon (cv2.pointPolygonTest >= 0).
+
         This is a utility helper for future live ROI checking functionality.
         """
         if roi_polygon.size == 0:
@@ -227,9 +233,7 @@ class Detector:
         return False
 
     def detect(self, frame: np.ndarray, project_type: str):
-        """
-        Processes a single frame for object detection and state tracking.
-        """
+        """Process a single frame for object detection and state tracking."""
         if not self._zones_configured:
             raise RuntimeError(
                 "Must call set_zones() before detect(). "
@@ -352,7 +356,6 @@ class Detector:
 
     def set_single_subject_mode(self, enabled: bool) -> None:
         """Toggle lightweight single-subject tracking."""
-
         enabled = bool(enabled)
         if self._single_subject_mode == enabled:
             log.debug(
@@ -385,12 +388,10 @@ class Detector:
 
     def is_single_subject_mode(self) -> bool:
         """Expose the current single-subject tracking flag."""
-
         return self._single_subject_mode
 
     def reset_tracking_state(self) -> None:
         """Reset tracker state between videos."""
-
         if hasattr(self.plugin, "reset_tracking_state"):
             try:
                 self.plugin.reset_tracking_state()
@@ -401,7 +402,7 @@ class Detector:
         self._byte_tracker_params = None
 
     def clear_cache(self):
-        """Clears the internal scaling cache to free memory."""
+        """Clear the internal scaling cache to free memory."""
         self._scaling_cache.clear()
         log.debug("detector.cache.cleared")
 
@@ -604,9 +605,7 @@ class Detector:
         return int(self.base_height), int(self.base_width)
 
     def draw_overlay(self, frame, detections):
-        """
-        Draws detection overlays on the frame.
-        """
+        """Draws detection overlays on the frame."""
         # Draw the ROI polygons
         for i, polygon in enumerate(self.scaled_roi_polygons):
             if i < len(self.zones.roi_colors):

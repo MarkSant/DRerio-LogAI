@@ -1,5 +1,5 @@
 """
-ManageWeightsDialog
+ManageWeightsDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -25,11 +25,26 @@ class ManageWeightsDialog(simpledialog.Dialog):
         controller,
         refresh_callback: Callable[..., Any] | None = None,
     ):
+        """Initialize the manage weights dialog.
+
+        Args:
+            parent: Parent widget.
+            controller: Main view model controller instance.
+            refresh_callback: Optional callback to refresh UI after changes.
+        """
         self.controller = controller
         self.refresh_callback = refresh_callback
         super().__init__(parent, "Gerenciar Pesos de Detecção")
 
     def body(self, master):
+        """Create dialog body with weight list and management buttons.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         schedule_maximize(self)
 
         # Treeview com colunas expandidas para mostrar tipo e padrões por tipo
@@ -82,6 +97,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         )
 
     def populate_list(self):
+        """Populate the listbox with available weights from weight manager."""
         for item in self.listbox.get_children():
             self.listbox.delete(item)
 
@@ -105,6 +121,11 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
 
     def get_selected_item_name(self):
+        """Get the name of the currently selected weight.
+
+        Returns:
+            Weight name if selected, None otherwise.
+        """
         selected = self.listbox.selection()
         if not selected:
             messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione um peso primeiro.")
@@ -184,6 +205,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
                 )
 
     def delete(self):
+        """Delete the currently selected weight after confirmation."""
         name = self.get_selected_item_name()
         if name:
             if messagebox.askyesno(
@@ -195,12 +217,14 @@ class ManageWeightsDialog(simpledialog.Dialog):
                 self.populate_list()
 
     def destroy(self):
+        """Clean up and destroy the dialog window."""
         # Override destroy to call the callback if it exists
         if self.refresh_callback:
             self.refresh_callback()
         super().destroy()
 
     def buttonbox(self):
+        """Create custom button box with Close button."""
         # Override to have only a close button
         box = ttk.Frame(self)
         w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")

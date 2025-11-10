@@ -1,6 +1,4 @@
-"""
-Project overview widget component - project status and video tree display.
-"""
+"""Project overview widget component - project status and video tree display."""
 
 from tkinter import StringVar, ttk
 

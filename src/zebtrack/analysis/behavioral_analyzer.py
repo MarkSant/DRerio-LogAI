@@ -1,3 +1,9 @@
+"""Behavioral analysis simulation module for testing purposes.
+
+Provides a mock BehavioralAnalyzer class that generates random behavioral metrics
+for testing and development when real analysis is not needed.
+"""
+
 import random
 from pathlib import Path
 
@@ -5,12 +11,13 @@ from pathlib import Path
 class BehavioralAnalyzer:
     """
     A class to analyze the general behavior of an animal from trajectory data.
+
     This implementation returns random data to simulate a real analysis.
     """
 
     def analyze(self, video_path: Path | str) -> dict:
         """
-        Runs a simulated behavioral analysis.
+        Run a simulated behavioral analysis.
 
         Args:
             video_path: The path to the video file, used to add variability.

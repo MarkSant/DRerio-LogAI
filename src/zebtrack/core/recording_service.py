@@ -1,5 +1,5 @@
 """
-Recording Service - Phase 2.2: Recording & Arduino Consolidation
+Recording Service - Phase 2.2: Recording & Arduino Consolidation.
 
 Extracts recording session orchestration logic from MainViewModel.
 Coordinates recorder, state management, Arduino hardware, and UI feedback.
@@ -72,12 +72,12 @@ class RecordingService:
 
     @property
     def recorder(self):
-        """Access controller's current recorder (supports test mocking)."""
+        """Property to access controller's current recorder instance."""
         return self.controller.recorder
 
     @property
     def arduino_manager(self):
-        """Access controller's current arduino_manager (supports test mocking)."""
+        """Property to access controller's current arduino_manager instance."""
         return self.controller.arduino_manager
 
     def set_ui_callbacks(self, callbacks: dict[str, Callable]) -> None:

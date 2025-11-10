@@ -87,7 +87,7 @@ class HardwareCoordinator:
         active_weight_name: str = "",
     ) -> bool:
         """
-        Initializes the detector instance based on the animal method selection.
+        Initialize the detector instance based on the animal method selection.
 
         Delegates to DetectorService for actual initialization.
 
@@ -126,7 +126,7 @@ class HardwareCoordinator:
 
     def setup_detector_zones(self) -> None:
         """
-        Loads zone data from project and sets it on the detector instance.
+        Load zone data from project and sets it on the detector instance.
 
         Delegates zone configuration to DetectorService.
         """
@@ -162,7 +162,7 @@ class HardwareCoordinator:
     # =============================================================================
 
     def setup_arduino(self) -> bool:
-        """Ensures the Arduino connection is ready when the project requests it.
+        """Ensure the Arduino connection is ready when the project requests it.
 
         Returns:
             True if Arduino is connected and ready, False otherwise
@@ -212,7 +212,7 @@ class HardwareCoordinator:
         return False
 
     def is_arduino_connected(self) -> bool:
-        """Checks whether there is an active Arduino connection.
+        """Check whether there is an active Arduino connection.
 
         Returns:
             True if Arduino is connected, False otherwise

@@ -1,5 +1,5 @@
 """
-Step 3 (Live only): Live Recording Configuration
+Step 3 (Live only): Live Recording Configuration.
 
 Configures camera, Arduino, and recording settings for live projects.
 """
@@ -416,7 +416,7 @@ class LiveConfigStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
-        """Called when step becomes visible."""
+        """Execute actions when step becomes visible."""
         self._update_template_banner()
         # Update UI state based on checkboxes
         self._on_arduino_toggle()

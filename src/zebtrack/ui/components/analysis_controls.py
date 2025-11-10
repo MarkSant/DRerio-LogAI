@@ -1,6 +1,4 @@
-"""
-Analysis controls widget component - analysis tab controls and status display.
-"""
+"""Analysis controls widget component - analysis tab controls and status display."""
 
 from tkinter import Label, StringVar, ttk
 

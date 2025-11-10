@@ -1,3 +1,9 @@
+"""Report generation module for behavioral analysis results.
+
+Generates Word document reports with visualizations and metrics from zebrafish
+tracking data, supporting both individual and project-level reports.
+"""
+
 import gettext
 import io
 import locale
@@ -74,9 +80,7 @@ def _(message: str) -> str:
 
 
 def _format_time_minutes_seconds(seconds):
-    """
-    Format time as MM:SS or HH:MM:SS if over an hour.
-    """
+    """Format time as MM:SS or HH:MM:SS if over an hour."""
     if pd.isna(seconds) or seconds is None:
         return "N/A"
 
@@ -378,12 +382,13 @@ class Reporter:
             raise ValueError(f"Unsupported file format: {format}")
 
     def export_individual_report(self, output_path: Path | str):
-        """
-        Exports a complete individual report. This is a convenience wrapper
-        around the step-by-step method for consumers who don't need progress updates.
+        """Export a complete individual report.
+
+        This is a convenience wrapper around the step-by-step method for consumers
+        who don't need progress updates.
 
         Args:
-            output_path: Output file path for the report
+            output_path: Output file path for the report.
         """
         self.export_individual_report_step_by_step(output_path, lambda p, s: None)
 

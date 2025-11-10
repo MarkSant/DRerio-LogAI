@@ -25,6 +25,13 @@ class IntegrationExample:
     """
 
     def __init__(self, root, controller, event_bus: EventBus):
+        """Initialize the integration example window.
+
+        Args:
+            root: Root Tkinter window.
+            controller: Main view model controller instance.
+            event_bus: Event bus for UI communication.
+        """
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
@@ -41,7 +48,7 @@ class IntegrationExample:
 
     def _example_1_video_display(self):
         """
-        Exemplo 1: Integrar VideoDisplayWidget
+        Exemplo 1: Integrar VideoDisplayWidget.
 
         ANTES (código inline):
         ---------------------
@@ -78,7 +85,7 @@ class IntegrationExample:
 
     def _example_2_zone_controls(self):
         """
-        Exemplo 2: Integrar ZoneControlsWidget
+        Exemplo 2: Integrar ZoneControlsWidget.
 
         ANTES (código inline):
         ---------------------
@@ -119,7 +126,7 @@ class IntegrationExample:
 
     def _example_3_control_panel(self):
         """
-        Exemplo 3: Integrar ControlPanelWidget
+        Exemplo 3: Integrar ControlPanelWidget.
 
         ANTES (código inline):
         ---------------------
@@ -154,7 +161,7 @@ class IntegrationExample:
 
     def _example_4_combined_tab(self):
         """
-        Exemplo 4: Combinar múltiplos componentes em uma tab
+        Exemplo 4: Combinar múltiplos componentes em uma tab.
 
         Demonstra como compor componentes para criar UIs complexas.
         """

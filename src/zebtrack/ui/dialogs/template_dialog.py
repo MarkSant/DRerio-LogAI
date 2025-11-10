@@ -1,5 +1,5 @@
 """
-TemplateDialog
+TemplateDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -15,6 +15,14 @@ class TemplateDialog(simpledialog.Dialog):
     """Dialog to create ROI templates."""
 
     def body(self, master):
+        """Create template selection dialog body.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         self.template_type = StringVar(value="vertical")
         self.num_lanes = StringVar(value="3")
         self.num_rows = StringVar(value="2")
@@ -48,6 +56,7 @@ class TemplateDialog(simpledialog.Dialog):
         return master
 
     def apply(self):
+        """Apply the selected template to result."""
         try:
             self.result = {
                 "type": self.template_type.get(),

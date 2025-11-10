@@ -1,5 +1,5 @@
 """
-StartRecordingDialog
+StartRecordingDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -14,12 +14,32 @@ from tkinter import (
 
 
 class StartRecordingDialog(simpledialog.Dialog):
+    """Dialog for initiating a new recording session.
+
+    Allows users to select day, group, and subject for starting a new
+    live camera recording session with smart state retention.
+    """
+
     def __init__(self, parent, project_manager):
+        """Initialize the start recording dialog.
+
+        Args:
+            parent: Parent widget.
+            project_manager: Project manager instance for accessing project data.
+        """
         self.pm = project_manager
         self.result = None
         super().__init__(parent, "Iniciar Nova Sessão de Gravação")
 
     def body(self, master):
+        """Create dialog body with recording session selection options.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         # Get data from project manager
         days = self.pm.project_data.get("experiment_days", 1)
         groups = self.pm.project_data.get("groups", [])
@@ -65,12 +85,18 @@ class StartRecordingDialog(simpledialog.Dialog):
         return subject_menu  # Initial focus
 
     def validate(self):
+        """Validate that day, group, and subject are selected.
+
+        Returns:
+            True if all selections are valid, False otherwise.
+        """
         if not all([self.day_var.get(), self.group_var.get(), self.subject_var.get()]):
             messagebox.showerror("Erro", "Todos os campos são obrigatórios.")
             return False
         return True
 
     def apply(self):
+        """Apply the selected recording session parameters to result."""
         self.result = {
             "day": int(self.day_var.get()),
             "group": self.group_var.get(),

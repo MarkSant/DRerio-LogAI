@@ -1,5 +1,5 @@
 """
-PendingVideosDialog
+PendingVideosDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -31,6 +31,16 @@ class PendingVideosDialog(simpledialog.Dialog):
         arena_only: list[dict],
         without_arena: list[dict],
     ):
+        """Initialize the pending videos dialog.
+
+        Args:
+            parent: Parent widget.
+            hierarchy_builder: Function to build hierarchical tree structure.
+            ready_with_trajectory: Videos ready with complete trajectory data.
+            ready_with_zones: Videos ready with zone definitions.
+            arena_only: Videos with only arena defined.
+            without_arena: Videos without arena definition.
+        """
         self.hierarchy_builder = hierarchy_builder
         self.ready_with_trajectory = ready_with_trajectory or []
         self.ready_with_zones = ready_with_zones or []
@@ -44,6 +54,14 @@ class PendingVideosDialog(simpledialog.Dialog):
             self.result = {"confirmed": False, "include_arena_only": False}
 
     def body(self, master):
+        """Create the body of the dialog with video tree view.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The tree widget as the initial focus element.
+        """
         master.columnconfigure(0, weight=1)
         master.rowconfigure(1, weight=1)
 
@@ -108,6 +126,7 @@ class PendingVideosDialog(simpledialog.Dialog):
         return self.tree
 
     def buttonbox(self):
+        """Create custom button box with Cancel and Process buttons."""
         box = ttk.Frame(self)
         box.pack(pady=(0, 12))
         ttk.Button(box, text="Cancelar", command=self.cancel).pack(side="right", padx=6)
@@ -118,6 +137,10 @@ class PendingVideosDialog(simpledialog.Dialog):
         self.bind("<Escape>", self.cancel)
 
     def apply(self):
+        """Apply the dialog results and store user choices.
+
+        Sets result dictionary with confirmed status and arena_only preference.
+        """
         self.result = {
             "confirmed": True,
             "include_arena_only": bool(self.include_arena_only_var.get())
@@ -126,6 +149,11 @@ class PendingVideosDialog(simpledialog.Dialog):
         }
 
     def cancel(self, event=None):
+        """Handle dialog cancellation.
+
+        Args:
+            event: Optional event that triggered cancellation.
+        """
         self.result = {"confirmed": False, "include_arena_only": False}
         super().cancel(event)
 

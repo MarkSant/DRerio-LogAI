@@ -1,3 +1,9 @@
+"""Project management module for ZebTrack-AI.
+
+Provides the ProjectManager class for handling project lifecycle operations including
+creation, loading, configuration management, and asset tracking for zebrafish behavioral analysis.
+"""
+
 from __future__ import annotations
 
 import json
@@ -68,6 +74,12 @@ log = structlog.get_logger()
 
 
 class ProjectManager:
+    """Manages project lifecycle, configuration, and asset tracking.
+
+    Handles project creation, loading, saving, asset management, zone data,
+    video metadata, and configuration persistence for zebrafish tracking projects.
+    """
+
     def __init__(self, state_manager: StateManager | None = None, settings_obj=None):
         """Initialize ProjectManager with dependency injection.
 
@@ -116,6 +128,7 @@ class ProjectManager:
     def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
         """
         Remove duplicate zone entries that resolve to the same canonical path.
+        
         Delegates to ZoneManager.
         """
         ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
@@ -221,6 +234,7 @@ class ProjectManager:
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
         """
         Set the video whose zones should be considered active in memory.
+        
         Delegates to ZoneManager.
         """
         self.zone_manager.set_active_zone_video(self.project_data, video_path)
@@ -232,6 +246,7 @@ class ProjectManager:
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
         """
         Return the last video that had zones saved, excluding optional target.
+        
         Delegates to ZoneManager.
         """
         return self.zone_manager.get_last_zone_video(self.project_data, exclude)
@@ -239,6 +254,7 @@ class ProjectManager:
     def has_zone_data(self, video_path: Path | str | None) -> bool:
         """
         Check whether the given video currently stores arena or ROI data.
+        
         Delegates to ZoneManager.
         """
         return self.zone_manager.has_zone_data(self.project_data, video_path)
@@ -424,7 +440,7 @@ class ProjectManager:
     @staticmethod
     def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
         """
-        Loads zone data (arena and ROIs) from existing parquet files.
+        Load zone data (arena and ROIs) from existing parquet files.
 
         Args:
             video_info: Dictionary returned by scan_input_paths containing
@@ -553,7 +569,7 @@ class ProjectManager:
         scanned_videos: list[dict] | None = None,
     ) -> bool:
         """
-        Imports arena, ROIs, and trajectory data from existing parquet files.
+        Import arena, ROIs, and trajectory data from existing parquet files.
 
         This method is called after project creation to import data from parquet files
         based on the wizard's import configuration.
@@ -798,7 +814,7 @@ class ProjectManager:
         return counts
 
     def _save_settings_snapshot(self):
-        """Saves a snapshot of the current settings to the project directory."""
+        """Save a snapshot of the current settings to the project directory."""
         if not self.project_path:
             return False
 
@@ -864,7 +880,8 @@ class ProjectManager:
         _wizard_metadata: dict | None = None,
     ):
         """
-        Initializes a new project, creating its directory and config file.
+        Initialize a new project, creating its directory and config file.
+        
         It no longer handles OpenVINO conversion, just records the settings.
         """
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
@@ -962,7 +979,7 @@ class ProjectManager:
 
     def add_video_batch(self, video_files: list[dict], save_project: bool = True):
         """
-        Adds a new batch of videos to the project.
+        Add a new batch of videos to the project.
 
         Args:
             video_files: A list of video dicts from scan_input_paths.
@@ -1169,7 +1186,7 @@ class ProjectManager:
 
     def load_project(self, project_path: Path | str):
         """
-        Loads project data from a config file in the given directory.
+        Load project data from a config file in the given directory.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
         """
@@ -1221,7 +1238,7 @@ class ProjectManager:
 
     def save_project(self) -> None:
         """
-        Saves the current project data to the config file with an integrity hash.
+        Save the current project data to the config file with an integrity hash.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
 
@@ -1290,7 +1307,7 @@ class ProjectManager:
 
     def update_video_status(self, video_path: Path | str, new_status) -> bool:
         """
-        Updates the status of a specific video across all batches and saves the project.
+        Update the status of a specific video across all batches and saves the project.
 
         Returns:
             bool: True if video was found and updated, False otherwise.
@@ -1324,12 +1341,13 @@ class ProjectManager:
         return changed
 
     def get_all_videos(self) -> list[dict]:
-        """Returns a flat list of all videos from all batches. Delegates to VideoManager."""
+        """Return a flat list of all videos from all batches. Delegates to VideoManager."""
         return VideoManager.get_all_videos(self.project_data)
 
     def _iter_project_videos(self):
         """
         Yield (batch_dict, video_dict) pairs for every registered video.
+        
         Delegates to VideoManager.
         """
         return VideoManager.iter_project_videos(self.project_data)
@@ -1348,6 +1366,17 @@ class ProjectManager:
         return AssetManager.delete_file_if_exists(path)
 
     def can_remove_asset(self, video_path: Path | str, asset: AssetType) -> tuple[bool, str | None]:
+        """Check if an asset can be removed from a video entry.
+
+        Validates removal dependencies to ensure integrity of project data.
+
+        Args:
+            video_path: Path to the video file.
+            asset: Type of asset to remove (arena, rois, trajectory, summary, video).
+
+        Returns:
+            Tuple of (can_remove, error_message). If can_remove is True, error_message is None.
+        """
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
@@ -1394,6 +1423,16 @@ class ProjectManager:
         *,
         delete_files: bool = True,
     ) -> bool:
+        """Remove an asset from a video entry and optionally delete associated files.
+
+        Args:
+            video_path: Path to the video file.
+            asset: Type of asset to remove.
+            delete_files: If True, delete associated files from disk.
+
+        Returns:
+            True if asset was successfully removed, False otherwise.
+        """
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
@@ -1560,6 +1599,7 @@ class ProjectManager:
     ) -> dict | None:
         """
         Return the project entry for a given video path or experiment id.
+        
         Delegates to VideoManager.
         """
         return VideoManager.find_video_entry(
@@ -1572,7 +1612,6 @@ class ProjectManager:
         video_path: Path | str | None = None,
     ) -> dict:
         """Construct metadata for processing when metadata.csv has no entry."""
-
         if video_path is not None:
             video_path = Path(video_path) if isinstance(video_path, str) else video_path
         metadata: dict = {}
@@ -1612,7 +1651,6 @@ class ProjectManager:
         For projects with metadata, returns: project/group/day/subject/
         All files for a given subject are stored together in the subject folder.
         """
-
         experiment_source = experiment_id or (metadata or {}).get("experiment_id")
         experiment_component = self._sanitize_path_component(
             experiment_source,
@@ -1862,15 +1900,26 @@ class ProjectManager:
 
     def get_next_video(self):
         """
-        Returns the path of the next video with 'pending' status from all batches.
+        Return the path of the next video with 'pending' status from all batches.
+        
         Delegates to VideoManager.
         """
         return VideoManager.get_next_video(self.project_data)
 
     def get_project_name(self):
+        """Return the project name.
+
+        Returns:
+            Project name string, or "N/A" if not set.
+        """
         return self.project_data.get("project_name", "N/A")
 
     def get_project_type(self):
+        """Return the project type.
+
+        Returns:
+            Project type string (e.g., 'batch' or 'live'), or None if not set.
+        """
         return self.project_data.get("project_type")
 
     def get_zone_data(
@@ -1881,6 +1930,7 @@ class ProjectManager:
     ) -> ZoneData:
         """
         Retrieve zone data for a specific video or fallback to project defaults.
+        
         Delegates to ZoneManager.
         """
         return self.zone_manager.get_zone_data(
@@ -1890,6 +1940,7 @@ class ProjectManager:
     def update_main_polygon(self, points: list):
         """
         Atualiza ou define o polígono principal nos dados do projeto.
+        
         Delegates to ZoneManager.
         """
         self.zone_manager.update_main_polygon(
@@ -1897,7 +1948,7 @@ class ProjectManager:
         )
 
     def load_metadata(self):
-        """Loads the metadata.csv file from the project root into a pandas DataFrame."""
+        """Load the metadata.csv file from the project root into a pandas DataFrame."""
         if not self.project_path:
             return
 
@@ -1935,7 +1986,8 @@ class ProjectManager:
 
     def get_metadata_for_experiment(self, experiment_id: str) -> dict:
         """
-        Retrieves a dictionary of metadata for a given experiment ID.
+        Retrieve a dictionary of metadata for a given experiment ID.
+        
         It first checks the loaded metadata.csv file. If the experiment is not
         found, it attempts to parse the experiment_id using a regex as a fallback.
 
@@ -1979,7 +2031,7 @@ class ProjectManager:
 
     def save_detector_state(self, detector_config: dict) -> bool:
         """
-        Saves detector configuration to project data.
+        Save detector configuration to project data.
 
         Args:
             detector_config: Dictionary with keys plugin_name, confidence_threshold,
@@ -2029,7 +2081,7 @@ class ProjectManager:
 
     def get_detector_state(self) -> dict:
         """
-        Retrieves detector configuration from project data.
+        Retrieve detector configuration from project data.
 
         Returns:
             dict: Detector configuration or empty dict if not found
@@ -2066,7 +2118,8 @@ class ProjectManager:
 
     def get_completed_sessions(self) -> set[tuple[int, str, int]]:
         """
-        Scans the project directory for completed session folders and returns them.
+        Scan the project directory for completed session folders and returns them.
+        
         A session is a tuple of (day, group_name, subject_id).
         """
         if not self.project_path:
@@ -2095,7 +2148,7 @@ class ProjectManager:
         return completed
 
     def save_last_session_details(self, day: int, group: str):
-        """Saves the last selected day and group to the project config."""
+        """Save the last selected day and group to the project config."""
         if not self.project_path:
             return
         self.project_data["last_selected_day"] = day
@@ -2103,7 +2156,7 @@ class ProjectManager:
         self.save_project()
 
     def get_last_session_details(self) -> tuple[int | None, str | None]:
-        """Retrieves the last selected day and group from the project config."""
+        """Retrieve the last selected day and group from the project config."""
         if not self.project_data:
             return None, None
 

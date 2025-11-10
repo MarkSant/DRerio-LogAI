@@ -1,6 +1,4 @@
-"""
-Utilitários para carregar ícones da aplicação DRerio LogAI.
-"""
+"""Utilitários para carregar ícones da aplicação DRerio LogAI."""
 
 import tkinter as tk
 from pathlib import Path

@@ -1,5 +1,5 @@
 """
-Diagnostic Progress Dialog
+Diagnostic Progress Dialog.
 
 Non-modal progress dialog for diagnostic test execution.
 Shows real-time progress and allows user cancellation.
@@ -12,6 +12,12 @@ class DiagnosticProgressDialog(Toplevel):
     """Non-modal progress dialog for diagnostic test execution."""
 
     def __init__(self, parent, title="Diagnóstico em Progresso"):
+        """Initialize the diagnostic progress dialog.
+
+        Args:
+            parent: Parent widget.
+            title: Dialog window title (default: "Diagnóstico em Progresso").
+        """
         super().__init__(parent)
         self.title(title)
         self.parent = parent

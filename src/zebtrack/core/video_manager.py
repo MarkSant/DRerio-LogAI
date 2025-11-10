@@ -54,7 +54,8 @@ class VideoManager:
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict]:
         """
-        Scans a list of input paths (files or directories) and identifies video files.
+        Scan a list of input paths (files or directories) and identifies video files.
+
         For each video, it checks if corresponding parquet files exist and identifies
         their types (arena, ROIs, trajectory).
 
@@ -279,7 +280,7 @@ class VideoManager:
         project_data: dict, video_files: list[dict], save_callback: callable | None = None
     ) -> int:
         """
-        Adds a new batch of videos to the project data.
+        Add a new batch of videos to the project data.
 
         Args:
             project_data: The project data dictionary to modify
@@ -380,7 +381,7 @@ class VideoManager:
         save_callback: callable | None = None,
     ) -> bool:
         """
-        Updates the status of a specific video across all batches.
+        Update the status of a specific video across all batches.
 
         Args:
             project_data: The project data dictionary to modify
@@ -438,7 +439,7 @@ class VideoManager:
 
     @staticmethod
     def get_all_videos(project_data: dict) -> list[dict]:
-        """Returns a flat list of all videos from all batches.
+        """Return a flat list of all videos from all batches.
 
         Args:
             project_data: The project data dictionary to query
@@ -521,7 +522,7 @@ class VideoManager:
     @staticmethod
     def get_next_video(project_data: dict) -> str | None:
         """
-        Returns the path of the next video with 'pending' status from all batches.
+        Return the path of the next video with 'pending' status from all batches.
 
         Args:
             project_data: The project data dictionary to search

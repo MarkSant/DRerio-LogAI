@@ -301,7 +301,7 @@ class ProjectWorkflowAdapter:
         setup_detector_zones_callback: Callable[[], None],
     ) -> None:
         """
-        Setup zones from project data.
+        Set up zones from project data.
 
         Args:
             setup_detector_zones_callback: Callback to setup zones in detector

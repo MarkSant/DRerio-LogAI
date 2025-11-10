@@ -1,4 +1,5 @@
-"""
+"""ROI analysis module for behavioral studies.
+
 This module defines the ROIAnalyzer class for detailed behavioral analysis
 within specific regions of interest (ROIs).
 """
@@ -24,15 +25,21 @@ class ROI:
         geometry: BaseGeometry,
         coordinate_space: Literal["px", "cm"] = "cm",
     ):
+        """Initialize an ROI (Region of Interest).
+
+        Args:
+            name: ROI name identifier.
+            geometry: Shapely geometry object defining the ROI.
+            coordinate_space: Coordinate system ("px" or "cm", default: "cm").
+            color: Optional RGB color tuple for visualization.
+        """
         self.name = name
         self.geometry = geometry
         self.coordinate_space = coordinate_space
 
 
 class ROIAnalyzer:
-    """
-    Performs spatial and behavioral analysis based on defined ROIs.
-    """
+    """Performs spatial and behavioral analysis based on defined ROIs."""
 
     def __init__(
         self,
@@ -44,7 +51,7 @@ class ROIAnalyzer:
         min_bbox_overlap_ratio: float | None = None,
     ):
         """
-        Initializes the ROIAnalyzer.
+        Initialize the ROIAnalyzer.
 
         Args:
             behavior_analyzer (BehavioralAnalyzer): An instance of
@@ -77,7 +84,7 @@ class ROIAnalyzer:
         return self._rois
 
     def _validate_rois(self):
-        """Checks for empty or invalid ROIs."""
+        """Check for empty or invalid ROIs."""
         if not self._rois:
             raise ValueError("ROI list cannot be empty.")
         for name, roi in self._rois.items():
@@ -86,7 +93,7 @@ class ROIAnalyzer:
                 raise ValueError(f"ROI '{name}' has invalid geometry.")
 
     def _normalize_roi_geometries(self) -> dict[str, BaseGeometry]:
-        """Converts ROI geometries to warped pixel space when necessary."""
+        """Convert ROI geometries to warped pixel space when necessary."""
         normalized: dict[str, BaseGeometry] = {}
         pixelcm_x = getattr(self._b_analyzer, "_pixelcm_x", 1.0)
         pixelcm_y = getattr(self._b_analyzer, "_pixelcm_y", 1.0)
@@ -134,7 +141,7 @@ class ROIAnalyzer:
 
     def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
         """
-        Applies a flutter filter to a boolean series of presence data.
+        Apply a flutter filter to a boolean series of presence data.
 
         An entry is confirmed after N consecutive `True` frames.
         An exit is confirmed after N consecutive `False` frames.
@@ -165,9 +172,9 @@ class ROIAnalyzer:
         return stable_presence
 
     def _calculate_presence_in_rois(self):
-        """
-        Calculates raw and stable presence for each ROI based on the
-        configured inclusion rule. Also creates a single column with
+        """Calculate raw and stable presence for each ROI.
+
+        Based on the configured inclusion rule. Also creates a single column with
         the current stable ROI name.
         """
         # Calculate time delta between frames for later use
@@ -196,9 +203,7 @@ class ROIAnalyzer:
         x_coords: np.ndarray,
         y_coords: np.ndarray,
     ) -> pd.Series:
-        """
-        Calculate presence in ROI based on the configured inclusion rule.
-        """
+        """Calculate presence in ROI based on the configured inclusion rule."""
         if self._inclusion_rule == "centroid_in":
             return self._calculate_centroid_in(roi_geometry, x_coords, y_coords)
         elif self._inclusion_rule == "centroid_in_on_buffered_roi":
@@ -293,9 +298,7 @@ class ROIAnalyzer:
         )
 
     def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:
-        """
-        Calculates the total time (seconds and percentage) spent in each ROI.
-        """
+        """Calculate the total time (seconds and percentage) spent in each ROI."""
         results = {}
         total_time = self._trajectory["dt"].sum()
         if total_time == 0:
@@ -326,7 +329,8 @@ class ROIAnalyzer:
 
     def get_latency_to_first_entry(self) -> dict[str, float | None]:
         """
-        Calculates the latency to the first entry into each ROI.
+        Calculate the latency to the first entry into each ROI.
+
         Returns None for a given ROI if the animal never enters it.
         """
         results = {}
@@ -347,7 +351,7 @@ class ROIAnalyzer:
         return results
 
     def get_entry_counts(self) -> dict[str, int]:
-        """Counts the number of entries into each ROI."""
+        """Count the number of entries into each ROI."""
         results = {}
         for name in self._rois:
             # An entry is a transition from False to True
@@ -356,7 +360,7 @@ class ROIAnalyzer:
         return results
 
     def get_exit_counts(self) -> dict[str, int]:
-        """Counts the number of exits from each ROI."""
+        """Count the number of exits from each ROI."""
         results = {}
         for name in self._rois:
             # An exit is a transition from True to False, which is a diff of -1.
@@ -366,7 +370,8 @@ class ROIAnalyzer:
 
     def get_inter_visit_latencies(self) -> dict[str, list[float]]:
         """
-        Calculates latencies for re-entries into each ROI.
+        Calculate latencies for re-entries into each ROI.
+        
         A re-entry latency is the time from the last exit from ANY ROI to the
         next entry into the specified ROI.
         """
@@ -398,9 +403,9 @@ class ROIAnalyzer:
         return results
 
     def get_roi_transitions(self) -> pd.DataFrame:
-        """
-        Calculates a transition matrix showing the count of direct movements
-        between ROIs (and 'Outside').
+        """Calculate a transition matrix showing ROI transitions.
+
+        Show the count of direct movements between ROIs (and 'Outside').
         """
         states = self._trajectory["stable_roi"]
         # Compare current state with the state in the previous frame
@@ -412,7 +417,7 @@ class ROIAnalyzer:
 
     def get_event_log(self) -> pd.DataFrame:
         """
-        Generates a sequential log of all entry and exit events for all ROIs.
+        Generate a sequential log of all entry and exit events for all ROIs.
 
         Returns:
             A pandas DataFrame with columns for timestamp, event type, and ROI name,
@@ -469,13 +474,13 @@ class ROIAnalyzer:
         return event_df
 
     def _get_filtered_trajectory(self, roi_name: str) -> pd.DataFrame:
-        """Helper to get trajectory segments only within a specific ROI."""
+        """Get trajectory segments only within a specific ROI."""
         if f"in_{roi_name}_stable" not in self._trajectory.columns:
             raise ValueError(f"Invalid ROI name: {roi_name}")
         return self._trajectory[self._trajectory[f"in_{roi_name}_stable"]]
 
     def get_distance_in_rois(self) -> dict[str, float]:
-        """Calculates the total distance traveled within each ROI."""
+        """Calculate the total distance traveled within each ROI."""
         results = {}
         # Calculate distance for all segments first
         if "segment_dist" not in self._trajectory.columns:
@@ -494,7 +499,7 @@ class ROIAnalyzer:
         return results
 
     def get_velocity_stats_in_rois(self) -> dict[str, dict[str, float] | None]:
-        """Calculates velocity statistics within each ROI."""
+        """Calculate velocity statistics within each ROI."""
         results = {}
         # Ensure velocity is calculated on the base analyzer
         if "v_mag" not in self._b_analyzer.trajectory_data.columns:
@@ -517,7 +522,7 @@ class ROIAnalyzer:
     def get_freezing_in_rois(
         self, vel_threshold: float, min_duration: float
     ) -> dict[str, dict[str, Any]]:
-        """Calculates freezing episodes that occur within each ROI."""
+        """Calculate freezing episodes that occur within each ROI."""
         results = {}
         # Ensure freezing episodes are detected on the base analyzer
         freezing_episodes = self._b_analyzer.detect_freezing_episodes(vel_threshold, min_duration)
@@ -541,7 +546,7 @@ class ROIAnalyzer:
         return results
 
     def get_tortuosity_in_rois(self) -> dict[str, float | None]:
-        """Calculates trajectory tortuosity within each ROI."""
+        """Calculate trajectory tortuosity within each ROI."""
         results = {}
         for name in self._rois:
             roi_traj = self._get_filtered_trajectory(name)
@@ -570,7 +575,7 @@ class ROIAnalyzer:
 
     def analyze_center_vs_periphery(self, method: str, value: float) -> dict[str, Any]:
         """
-        Generates center and periphery ROIs and runs a full analysis on them.
+        Generate center and periphery ROIs and runs a full analysis on them.
 
         Args:
             method (str): The method to define the center zone,
@@ -626,7 +631,7 @@ class ROIAnalyzer:
         pixelcm_y: float,
     ) -> dict[str, Any]:
         """
-        Performs social proximity analysis on a multi-animal trajectory DataFrame.
+        Perform social proximity analysis on a multi-animal trajectory DataFrame.
 
         Args:
             full_trajectory_df (pd.DataFrame): DataFrame with all animal tracks.
