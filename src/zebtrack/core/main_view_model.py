@@ -410,8 +410,6 @@ class MainViewModel:
         # Video orchestrator (batch processing, video workflows)
         if video_orchestrator is not None:
             self.video_orchestrator = video_orchestrator
-            # Set view on injected coordinator
-            self.video_orchestrator.set_view(self.view)
             log.info("main_view_model.video_orchestrator.injected")
         else:
             self.video_orchestrator = VideoOrchestrator(
@@ -424,15 +422,15 @@ class MainViewModel:
                 video_processing_service=self.video_processing_service,
                 analysis_service=self.analysis_service,
                 recorder=self.recorder,
-                view=self.view,
             )
             log.info("main_view_model.video_orchestrator.created_internally")
+
+        # Set view on coordinator (both injected and internally created)
+        self.video_orchestrator.set_view(self.view)
 
         # Analysis coordinator (reports, summaries, analysis pipeline)
         if analysis_coordinator is not None:
             self.analysis_coordinator = analysis_coordinator
-            # Set view on injected coordinator
-            self.analysis_coordinator.set_view(self.view)
             log.info("main_view_model.analysis_coordinator.injected")
         else:
             self.analysis_coordinator = AnalysisCoordinator(
@@ -443,9 +441,11 @@ class MainViewModel:
                 project_manager=self.project_manager,
                 analysis_service=self.analysis_service,
                 video_processing_service=self.video_processing_service,
-                view=self.view,
             )
             log.info("main_view_model.analysis_coordinator.created_internally")
+
+        # Set view on coordinator (both injected and internally created)
+        self.analysis_coordinator.set_view(self.view)
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
