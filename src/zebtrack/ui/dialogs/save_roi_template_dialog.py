@@ -21,6 +21,14 @@ class SaveROITemplateDialog(simpledialog.Dialog):
     """Dialog that gathers options for saving ROI/Arena templates."""
 
     def __init__(
+        self,
+        parent,
+        *,
+        default_name: str,
+        has_arena: bool,
+        has_rois: bool,
+        allow_project: bool,
+    ) -> None:
         """Initialize the save ROI template dialog.
 
         Args:
@@ -30,14 +38,6 @@ class SaveROITemplateDialog(simpledialog.Dialog):
             current_rois: List of current ROI configurations.
             existing_templates: List of existing template names.
         """
-        self,
-        parent,
-        *,
-        default_name: str,
-        has_arena: bool,
-        has_rois: bool,
-        allow_project: bool,
-    ) -> None:
         self.result: dict[str, Any] | None = None
         self._has_arena = has_arena
         self._has_rois = has_rois
