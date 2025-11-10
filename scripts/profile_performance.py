@@ -25,16 +25,14 @@ import argparse
 import cProfile
 import gc
 import io
-import os
+import platform
 import pstats
 import resource
 import sys
-import threading
 import time
 import tracemalloc
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -145,8 +143,9 @@ class PerformanceProfiler:
             yield
         finally:
             snapshot_after = tracemalloc.take_snapshot()
-            tracemalloc.stop()
             self._save_memory_profile(snapshot_before, snapshot_after, name)
+            if tracemalloc.is_tracing():
+                tracemalloc.stop()
 
     def _save_memory_profile(
         self,
@@ -221,7 +220,11 @@ class PerformanceProfiler:
             while time.time() - start_time < duration:
                 # Sample metrics using resource module
                 usage = resource.getrusage(resource.RUSAGE_SELF)
-                mem_mb = usage.ru_maxrss / 1024  # maxrss is in KB on Linux
+                # Adjust for platform differences in ru_maxrss
+                if platform.system() == "Darwin":  # macOS
+                    mem_mb = usage.ru_maxrss / 1024 / 1024  # bytes to MB
+                else:  # Linux
+                    mem_mb = usage.ru_maxrss / 1024  # KB to MB
                 gc_count = sum(gc.get_count())
 
                 sample = {
@@ -237,6 +240,7 @@ class PerformanceProfiler:
                     f"{sample['memory_mb']:.2f},"
                     f"{sample['gc_collections']}\n"
                 )
+                f.flush()  # Ensure data is written immediately for real-time monitoring
 
                 # Print progress
                 print(
@@ -285,12 +289,24 @@ class PerformanceProfiler:
             from zebtrack.plugins import DETECTOR_PLUGINS
 
             settings = load_settings()
+            
+            # Use configured model path from settings
+            model_path = settings.detector.model_path
+            
+            # Fallback to cache location if not set
+            if not model_path or not Path(model_path).exists():
+                cache_path = Path.home() / ".cache" / "zebtrack" / "yolo11n.pt"
+                if cache_path.exists():
+                    model_path = str(cache_path)
+                else:
+                    print(f"SKIPPED: Model not found at {cache_path}\n")
+                    return None
 
             with self.cpu_profile("detector_init"):
                 start = time.time()
                 detector = Detector(
                     detector_name="yolo",
-                    model_path=str(Path.home() / ".cache" / "zebtrack" / "yolo11n.pt"),
+                    model_path=model_path,
                     detector_plugins=DETECTOR_PLUGINS,
                     settings_obj=settings,
                 )
@@ -490,18 +506,38 @@ def main():
     print(f"Output directory: {args.output_dir}")
     print("=" * 80 + "\n")
 
-    if args.mode in ("benchmark", "all"):
-        # Run comprehensive benchmarks
+    if args.mode == "cpu":
+        # CPU profiling mode - detector initialization and frame detection
         detector = profiler.benchmark_detector_initialization()
-        # Only run frame detection if detector initialized successfully
-        # profiler.benchmark_frame_detection(detector, num_frames=100)
+        if detector:
+            profiler.benchmark_frame_detection(detector, num_frames=100)
+    
+    elif args.mode == "memory":
+        # Memory profiling mode - focus on memory-intensive operations
+        detector = profiler.benchmark_detector_initialization()
+        if detector:
+            profiler.benchmark_frame_detection(detector, num_frames=50)
+        profiler.benchmark_parquet_write(num_rows=50000)
+    
+    elif args.mode == "live":
+        # Live monitoring mode
+        profiler.live_monitor(duration=args.duration)
+    
+    elif args.mode == "benchmark":
+        # Quick benchmark mode - skips slow frame detection by default
+        # Frame detection can take 8-10 seconds and is the #1 bottleneck
+        # Use --mode cpu to profile detector performance specifically
+        detector = profiler.benchmark_detector_initialization()
         profiler.benchmark_parquet_write(num_rows=50000)
         profiler.benchmark_plot_generation()
-
-    if args.mode == "live":
-        profiler.live_monitor(duration=args.duration)
-
-    if args.mode == "all":
+    
+    elif args.mode == "all":
+        # Comprehensive profiling - all benchmarks + live monitoring
+        detector = profiler.benchmark_detector_initialization()
+        if detector:
+            profiler.benchmark_frame_detection(detector, num_frames=100)
+        profiler.benchmark_parquet_write(num_rows=50000)
+        profiler.benchmark_plot_generation()
         profiler.live_monitor(duration=30)
 
     print("\n" + "=" * 80)
