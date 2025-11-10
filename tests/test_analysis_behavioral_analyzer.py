@@ -1,8 +1,12 @@
-"""Comprehensive tests for analysis/behavioral_analyzer.py."""
+"""Comprehensive tests for analysis/behavioral_analyzer.py.
+
+Note: These tests validate the mock BehavioralAnalyzer implementation used for
+testing purposes. The analyzer generates random behavioral metrics with seeding
+for consistency. Tests verify data structure, seeding behavior, and value ranges
+rather than real behavioral analysis logic.
+"""
 
 from pathlib import Path
-
-import pytest
 
 from zebtrack.analysis.behavioral_analyzer import BehavioralAnalyzer
 
@@ -171,12 +175,18 @@ def test_behavioral_analyzer_with_unicode():
 
 
 def test_behavioral_analyzer_velocity_relationship():
-    """Test that max velocity is greater than or equal to average velocity."""
+    """Test max velocity vs average velocity relationship.
+
+    Note: This test validates the mock implementation's seeding consistency.
+    The mock uses independent random ranges (max: 5-12, avg: 2-6) which could
+    technically violate the max >= avg relationship, but with proper seeding
+    the ranges should typically satisfy this constraint.
+    """
     analyzer = BehavioralAnalyzer()
     result = analyzer.analyze("test.mp4")
 
-    # In a valid analysis, max velocity should be >= average velocity
-    # Note: Due to random generation, this may not always hold, but it's expected behavior
+    # With the current random ranges, this should generally hold
+    # If it fails, it indicates the random ranges need adjustment
     assert result["velocidade_maxima_cm_s"] >= result["velocidade_media_cm_s"]
 
 

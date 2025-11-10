@@ -31,7 +31,7 @@ def test_create_source_file_missing_video_path():
 def test_create_source_file_invalid_video_path_type():
     """Test that ValueError is raised when video_path is not a string."""
     with pytest.raises(ValueError, match="`video_path` keyword argument is required"):
-        create_source("file", video_path=123)
+        create_source("file", video_path=123)  # type: ignore[arg-type]
 
 
 def test_create_source_file_none_video_path():
@@ -95,8 +95,6 @@ def test_create_source_file_with_unicode(tmp_path):
 
 def test_create_source_returns_frame_source_interface():
     """Test that all returned sources implement FrameSource interface."""
-    from zebtrack.io.frame_source import FrameSource
-
     # Test camera
     camera = create_source("camera")
     assert hasattr(camera, "get_frame")

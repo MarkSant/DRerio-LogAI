@@ -1,7 +1,7 @@
 """Comprehensive tests for plugins/ultralytics_detector.py."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -68,7 +68,7 @@ def test_ultralytics_detector_init_path_object(mock_ultralytics_import):
     mock_ultralytics_import.return_value = mock_model_instance
 
     path = Path("model.pt")
-    detector = UltralyticsDetectorPlugin(model_path=path, settings_obj=None)
+    UltralyticsDetectorPlugin(model_path=path, settings_obj=None)
 
     mock_ultralytics_import.assert_called_once_with(str(path))
 
@@ -78,6 +78,21 @@ def test_ultralytics_detector_import_error():
     with patch("zebtrack.plugins.ultralytics_detector.ULTRALYTICS_AVAILABLE", False):
         with pytest.raises(ImportError, match="Ultralytics is not available"):
             UltralyticsDetectorPlugin(model_path="model.pt")
+
+
+def test_ultralytics_detector_model_input_shape(mock_ultralytics_import):
+    """Test that model_input_shape property returns correct value."""
+    mock_model_instance = MagicMock()
+    mock_model_instance.args.imgsz = (640, 640)
+    mock_ultralytics_import.return_value = mock_model_instance
+
+    detector = UltralyticsDetectorPlugin(model_path="model.pt")
+    shape = detector.model_input_shape
+
+    assert isinstance(shape, tuple)
+    assert len(shape) == 2
+    assert shape == (640, 640)
+    assert all(isinstance(x, int) for x in shape)
 
 
 def test_ultralytics_detector_detect_with_results(mock_ultralytics_import):
@@ -260,15 +275,6 @@ def test_ultralytics_detector_predict_orphan_masks(mock_ultralytics_import):
 def test_ultralytics_detector_get_name():
     """Test get_name static method."""
     assert UltralyticsDetectorPlugin.get_name() == "YOLO (Ultralytics)"
-
-
-def test_ultralytics_detector_model_input_shape(mock_ultralytics_import):
-    """Test model_input_shape property."""
-    mock_model_instance = MagicMock()
-    mock_ultralytics_import.return_value = mock_model_instance
-
-    detector = UltralyticsDetectorPlugin(model_path="model.pt")
-    assert detector.model_input_shape == (640, 640)
 
 
 def test_ultralytics_detector_set_tracking_parameters(mock_ultralytics_import):
