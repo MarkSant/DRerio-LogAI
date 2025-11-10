@@ -63,6 +63,7 @@ from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
 
 log = structlog.get_logger()
@@ -405,6 +406,15 @@ class MainViewModel:
             project_manager=self.project_manager,
             analysis_service=self.analysis_service,
             video_processing_service=self.video_processing_service,
+        )
+
+        # Project workflow adapter (P2-T2: project create/open/close workflows)
+        self.project_workflow_adapter = ProjectWorkflowAdapter(
+            project_workflow_service=self.project_workflow_service,
+            project_manager=self.project_manager,
+            detector_service=self.detector_service,
+            state_manager=self.state_manager,
+            ui_event_bus=self.ui_event_bus,
         )
 
         # Set callbacks for coordinators that need to call back to MainViewModel
@@ -1040,81 +1050,39 @@ class MainViewModel:
         )
 
     def close_project(self):
-        # Restore global defaults before clearing project state
-        self._restore_global_model_defaults()
+        """
+        Close the current project.
 
-        # Reset project manager (pass StateManager reference and settings)
-        self.project_manager = ProjectManager(
-            state_manager=self.state_manager, settings_obj=self.settings
+        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        """
+        # Delegate to adapter which handles all UI coordination
+        new_project_manager = self.project_workflow_adapter.close_project(
+            restore_global_defaults_callback=self._restore_global_model_defaults,
+            settings_obj=self.settings,
         )
-
-        # Update StateManager: project closed
-        self.state_manager.update_project_state(
-            source="controller.close_project",
-            project_path=None,
-            project_data={},
-            active_zone_video=None,
-        )
-
-        # _create_welcome_frame handles all UI cleanup
-        self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_WELCOME)
+        # Update reference to new project manager
+        self.project_manager = new_project_manager
 
     def create_project_workflow(self, **kwargs):
         """
         Create project workflow orchestration.
 
-        Phase 5: Refactored to use ProjectWorkflowService for orchestration.
-        Controller now focuses on UI updates and detector setup.
+        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
         """
-        # Update global model defaults before creation
-        self.project_workflow_service.set_global_model_defaults(
-            active_weight=self.active_weight_name or None,
-            use_openvino=self.use_openvino,
-        )
-
-        # Orchestrate project creation via service
-        result = self.project_workflow_service.create_project(
+        # Delegate to adapter which handles all UI coordination
+        return self.project_workflow_adapter.create_project_workflow(
             setup_detector_callback=self.setup_detector,
-            active_weight_setter=self.set_active_weight,
-            use_openvino_setter=self.set_openvino_usage,
+            set_active_weight_callback=self.set_active_weight,
+            set_openvino_usage_callback=self.set_openvino_usage,
+            update_openvino_status_callback=self.update_openvino_status,
+            get_active_weight_name=lambda: self.active_weight_name,
+            get_use_openvino=lambda: self.use_openvino,
+            apply_wizard_overrides_callback=self._apply_wizard_detector_overrides,
+            view_suppress_guide_check=lambda: getattr(
+                self.view, "suppress_post_creation_guide", False
+            ),
             **kwargs,
         )
-
-        # Handle failure
-        if not result["success"]:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Configuração Inválida", "message": result["error_message"]},
-            )
-            return
-
-        # Extract result data
-        animal_method = result["animal_method"]
-        wizard_metadata = result["wizard_metadata"]
-
-        # Setup detector with the resolved animal method
-        if self.setup_detector(temp_animal_method=animal_method):
-            if wizard_metadata:
-                self._apply_wizard_detector_overrides(wizard_metadata)
-
-            # Update UI
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": self.use_openvino}
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": self.active_weight_name}
-            )
-            self.update_openvino_status()
-
-            # Show post-creation guide if wizard metadata provided
-            if wizard_metadata:
-                self._show_post_creation_guide(wizard_metadata)
-        else:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "Falha ao configurar o detector."},
-            )
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
         """Apply detector parameter overrides captured during the wizard flow."""
@@ -1203,86 +1171,29 @@ class MainViewModel:
         """
         Setup zones from project data.
 
-        Phase 5: Extracted from open_project_workflow for use as callback.
+        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
         """
-        # Setup zones in detector
-        self.setup_detector_zones()
-
-        # Update zone visualization in GUI
-        self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
-        self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
+        self.project_workflow_adapter.setup_zones_from_project(
+            setup_detector_zones_callback=self.setup_detector_zones,
+        )
 
     def open_project_workflow(self, project_path: Path | str):
         """
         Load project and configure everything automatically.
 
-        Phase 5: Refactored to use ProjectWorkflowService for orchestration.
-        Controller now focuses on UI updates and detector/zone setup.
+        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
         """
-        project_path = Path(project_path) if isinstance(project_path, str) else project_path
-        # Update global model defaults before opening
-        self.project_workflow_service.set_global_model_defaults(
-            active_weight=self.active_weight_name or None,
-            use_openvino=self.use_openvino,
-        )
-
-        # Orchestrate project opening via service
-        result = self.project_workflow_service.open_project(
+        return self.project_workflow_adapter.open_project_workflow(
             project_path=project_path,
-            active_weight_setter=self.set_active_weight,
-            use_openvino_setter=self.set_openvino_usage,
-            restore_detector_callback=self._restore_detector_settings,
+            setup_detector_callback=self.setup_detector,
+            set_active_weight_callback=self.set_active_weight,
+            set_openvino_usage_callback=self.set_openvino_usage,
+            update_openvino_status_callback=self.update_openvino_status,
             setup_zones_callback=self._setup_zones_from_project,
+            restore_detector_callback=self._restore_detector_settings,
+            get_active_weight_name=lambda: self.active_weight_name,
+            get_use_openvino=lambda: self.use_openvino,
         )
-
-        # Handle failure
-        if not result["success"]:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": result["error_message"]},
-            )
-            return False
-
-        # Extract result data
-        project_info = result["project_info"]
-
-        # Update UI to reflect restored state
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": self.use_openvino}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": self.active_weight_name}
-        )
-        self.update_openvino_status()
-
-        # Initialize detector
-        if not self.setup_detector():
-            log.warning("controller.load_project.detector_setup_failed")
-        else:
-            # Load project view
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
-
-        # Display success message
-        self.ui_event_bus.publish_event(
-            Events.UI_SHOW_INFO,
-            {
-                "title": "Projeto Carregado",
-                "message": f"Projeto '{project_info['name']}' carregado com sucesso!\n\n"
-                f"• Vídeos: {project_info['videos_count']}\n"
-                f"• Arena Principal: {project_info['zone_status']}\n"
-                f"• ROIs: {project_info['roi_count']}\n"
-                f"• Peso: {project_info['active_weight']}\n"
-                f"• OpenVINO: {'✓' if project_info['use_openvino'] else '✗'}",
-            },
-        )
-
-        log.info(
-            "controller.load_project.complete",
-            project=project_info["name"],
-            videos=project_info["videos_count"],
-        )
-
-        return True
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
