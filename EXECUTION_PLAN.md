@@ -958,7 +958,8 @@ Cada task deve seguir:
 ## 📚 REFERÊNCIAS
 
 - **CLAUDE.md**: Instruções do projeto
-- **GOD_OBJECTS_ANALYSIS.md**: Análise detalhada dos God Objects
+- **docs/archive/GOD_OBJECTS_ANALYSIS.md**: Análise detalhada dos God Objects (archived)
+- **docs/INDEX.md**: Central documentation index (⭐ START HERE)
 - **docs/ARCHITECTURE.md**: Arquitetura do sistema
 - **docs/CHEATSHEET.md**: Referência rápida
 - **README_TESTS.md**: Guia de testes
