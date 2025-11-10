@@ -29,7 +29,9 @@
       "Bash(cat:*)",
       "Bash(poetry run coverage:*)",
       "Bash(test:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(Select-Object -First 100)",
+      "Bash(del \"c:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\test_debug.py\")"
     ],
     "deny": [],
     "ask": []
