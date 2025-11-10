@@ -24,6 +24,7 @@ A `ApplicationGUI` (View) é desacoplada e se comunica com o `MainViewModel` exc
 - **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos via `EventBus`. A `ApplicationGUI` atua como um contêiner para esses componentes.
 - **ViewModel**: O `MainViewModel` (controller) que orquestra as operações. Ele se inscreve em eventos do `EventBus` para responder a interações da UI e atualiza o `StateManager` para acionar atualizações reativas na View.
 - **Service Layer**: Serviços injetados via construtor (`DetectorService`, `VideoProcessingService`, `ProjectWorkflowService`, `WeightManager`, etc.) encapsulam lógica de domínio complexa e dependências externas.
+- **Coordinator/Adapter Layer** (Phase 2+): Coordenadores especializados (`AnalysisCoordinator`, `ProjectWorkflowAdapter`, `DialogManager`) que orquestram workflows complexos e reduzem a complexidade do `MainViewModel`.
 
 Este padrão promove:
 
@@ -52,25 +53,33 @@ graph TB
 
         EventBus[UI EventBus<br/>- Decoupled events]
         WizardDialog[🧙 WizardDialog]
+        DialogMgr[🆕 DialogManager<br/>- Centraliza diálogos<br/>- File dialogs<br/>- MessageBoxes]
     end
 
     subgraph ViewModel["ViewModel Layer"]
         Controller[MainViewModel<br/>- Coordenação geral<br/>- Ouve o EventBus<br/>- Atualiza o StateManager]
-        
+
+        subgraph Coordinators["🎯 Coordinators & Adapters (Phase 2+)"]
+            PWAdapter[🆕 ProjectWorkflowAdapter<br/>- Workflows de projeto<br/>- Orquestra create/open/close]
+            AnalysisCoord[🆕 AnalysisCoordinator<br/>- Pipeline de análise<br/>- Geração de relatórios<br/>- Sumários Parquet]
+        end
+
         subgraph Facades["🏛️ Facades (Simplificação de APIs)"]
             RecFacade[RecordingFacade<br/>- Gravação simplificada]
             ZoneFacade[ZoneManagementFacade<br/>- Gerenciamento de Zonas/ROIs]
             ArduinoFacade[ArduinoFacade<br/>- Controle Arduino]
         end
-        
-        StateManager[🆕 StateManager<br/>- Estado centralizado<br/>- Padrão Observable<br/>- Thread-safe]
+
+        StateManager[StateManager<br/>- Estado centralizado<br/>- Padrão Observable<br/>- Thread-safe]
     end
 
     subgraph Model["Model Layer (Services & Domain)"]
+        ProjectWorkflowService[ProjectWorkflowService<br/>- Lógica de negócio de projetos]
         ProjectService[ProjectService<br/>- Project I/O]
         AnalysisService[AnalysisService<br/>- Orquestra análise]
         ProjectManager[ProjectManager<br/>- Dados em memória]
         RecordingService[RecordingService<br/>- Controle de gravação]
+        VideoProcessingService[VideoProcessingService<br/>- Processamento de vídeo]
         Detector[Detector<br/>- Abstração de IA]
         Recorder[Recorder<br/>- Escrita Parquet]
         ArduinoManager[ArduinoManager<br/>- Comunicação serial]
@@ -92,28 +101,43 @@ graph TB
     AppGUI -.->|Atualiza estado dos| Comp1
     AppGUI -.->|Atualiza estado dos| Comp2
 
+    %% DialogManager usado pela GUI
+    AppGUI -->|Usa diálogos| DialogMgr
+
     %% Fluxo do Wizard
-    WizardDialog -->|Dados via Adapter| Controller
+    WizardDialog -->|Dados via Adapter| PWAdapter
+
+    %% MainViewModel → Coordinators & Adapters (Delegação Phase 2+)
+    Controller -->|Delega workflows| PWAdapter
+    Controller -->|Delega análise| AnalysisCoord
+
+    %% Coordinators → Services
+    PWAdapter -->|Usa| ProjectWorkflowService
+    PWAdapter -->|Usa| ProjectManager
+    PWAdapter -->|Publica eventos| EventBus
+
+    AnalysisCoord -->|Usa| AnalysisService
+    AnalysisCoord -->|Usa| VideoProcessingService
+    AnalysisCoord -->|Publica eventos| EventBus
 
     %% MainViewModel → Facades (Delegação)
     Controller -->|Delega gravação| RecFacade
     Controller -->|Delega zonas| ZoneFacade
     Controller -->|Delega Arduino| ArduinoFacade
-    
+
     %% Facades → StateManager & Services
     RecFacade -->|Atualiza estado| StateManager
     RecFacade -->|Usa| RecordingService
     RecFacade -->|Usa| Recorder
-    
+
     ZoneFacade -->|Atualiza estado| StateManager
     ZoneFacade -->|Usa| ProjectManager
-    
+
     ArduinoFacade -->|Atualiza estado| StateManager
     ArduinoFacade -->|Usa| ArduinoManager
 
     %% MainViewModel → Model (Orquestração direta)
     Controller -->|Orquestra| ProjectService
-    Controller -->|Orquestra| AnalysisService
     Controller -->|Atualiza estado no| StateManager
     Controller -->|Gerencia| Detector
 
@@ -133,6 +157,9 @@ graph TB
     style RecFacade fill:#F0E68C
     style ZoneFacade fill:#F0E68C
     style ArduinoFacade fill:#F0E68C
+    style PWAdapter fill:#FFB6C1
+    style AnalysisCoord fill:#FFB6C1
+    style DialogMgr fill:#B0E0E6
 ```
 
 ### 2.1. Padrão Facade
@@ -170,6 +197,62 @@ def start_recording(self):
     # Facade coordena internamente recorder, service e state
 ```
 
+### 2.2. Padrão Coordinator & Adapter (Phase 2+)
+
+> **Nota sobre numeração de fases**: "Phase 2+" refere-se às fases de implementação/refatoração do código (Phase 1-3: migração DI, Phase 2+: introdução de coordinators). A documentação atual faz parte da Phase 4 (documentação pós-refatoração).
+
+A partir da **Phase 2** do refactoring, foram introduzidos **Coordinators** e **Adapters** (🎯) para orquestrar workflows complexos de alto nível, reduzindo drasticamente a complexidade do `MainViewModel`.
+
+**Benefícios dos Coordinators & Adapters:**
+
+- **Redução de complexidade**: `MainViewModel` permanece em ~5442 linhas; coordinators/adapters extraem responsabilidades de orquestração complexas para componentes dedicados
+- **Separação de responsabilidades**: Cada coordinator/adapter gerencia um domínio específico
+- **Orquestração UI-aware**: Coordenam serviços e publicam eventos UI de forma centralizada
+- **Testabilidade**: Workflows complexos podem ser testados isoladamente
+
+**Coordinators & Adapters implementados:**
+
+| Componente | Responsabilidade | Serviços utilizados | Arquivo |
+|------------|------------------|---------------------|---------|
+| `ProjectWorkflowAdapter` | Orquestra workflows de ciclo de vida de projetos (create/open/close), aplica overrides do wizard, setup de detector e zonas | `ProjectWorkflowService`, `ProjectManager`, `DetectorService`, `StateManager`, `EventBus` | `ui/project_workflow_adapter.py` (354 linhas) |
+| `AnalysisCoordinator` | Coordena pipeline de análise, geração de relatórios agregados, sumários Parquet, resultados de análise | `AnalysisService`, `VideoProcessingService`, `ProjectManager`, `UICoordinator`, `EventBus` | `core/analysis_coordinator.py` (734 linhas) |
+| `DialogManager` | Centraliza todas as interações de diálogo (messageboxes, file dialogs, custom dialogs), extraído de `ApplicationGUI` | `ApplicationGUI` (referência) | `ui/components/dialog_manager.py` (811 linhas) |
+
+**Exemplo de uso - ProjectWorkflowAdapter:**
+
+```python
+# Sem adapter (MainViewModel gerencia workflow completo)
+def create_project(self, **kwargs):
+    # 150+ linhas de coordenação: validação, wizard, detector setup,
+    # UI events, state updates, post-creation guide...
+    pass
+
+# Com adapter (delegação de workflow)
+def create_project(self, **kwargs):
+    return self.project_workflow_adapter.create_project_workflow(
+        setup_detector_callback=self.setup_detector,
+        set_active_weight_callback=self.set_active_weight,
+        # ... outros callbacks
+        **kwargs
+    )
+    # Adapter coordena internamente: service calls, UI events, detector setup
+```
+
+**Exemplo de uso - AnalysisCoordinator:**
+
+```python
+# Sem coordinator (MainViewModel gerencia análise completa)
+def generate_report(self, videos):
+    # 100+ linhas: load parquet, aggregate data, export Excel/CSV,
+    # generate .docx, error handling, UI events...
+    pass
+
+# Com coordinator (delegação de análise)
+def generate_report(self, videos):
+    self.analysis_coordinator.generate_report(videos, report_type="unified")
+    # Coordinator coordena: data loading, aggregation, export, UI notifications
+```
+
 ## 3. Componentes Principais
 
 ### 3.1. View Layer (UI)
@@ -181,24 +264,31 @@ A UI foi refatorada de uma classe monolítica para uma **arquitetura baseada em 
 | `ApplicationGUI` | A janela principal da aplicação. Atua como um contêiner que monta os vários componentes da UI e se inscreve nas mudanças de estado do `StateManager` para atualizar seus filhos. |
 | **Componentes de UI** | Subclasses de `ttk.Frame` auto-contidas e reutilizáveis (ex: `VideoDisplayWidget`, `ZoneControlsWidget`). Lidam exclusivamente com a lógica de exibição e emitem eventos no `EventBus` em resposta à interação do usuário. |
 | `EventBus` | Um sistema de publicação/inscrição que desacopla os componentes da UI do `MainViewModel`. Componentes publicam eventos (`zone.draw_roi`) sem conhecer quem os consome. |
-| `WizardDialog` 🧙 | Assistente de 5 etapas para criação inteligente de projetos. É um componente complexo, porém autocontido, que entrega um conjunto de dados para o `MainViewModel` através de um `Adapter`. |
+| `WizardDialog` 🧙 | Assistente de 5 etapas para criação inteligente de projetos. É um componente complexo, porém autocontido, que entrega um conjunto de dados para o `ProjectWorkflowAdapter`. |
+| `DialogManager` 🆕 | **Novo (Phase 2+)**: Centraliza todas as interações de diálogo da UI. Extraído de `ApplicationGUI` (~811 linhas) para reduzir God Object. Gerencia messageboxes, file dialogs, custom dialogs (calibração, ROI templates, análise), confirmações e notificações. |
 
 ### 3.2. ViewModel Layer
 
 | Componente | Responsabilidade principal |
 |---|---|
-| `MainViewModel` | Orquestra o fluxo da aplicação. Inscreve-se em eventos do `EventBus` para executar a lógica de negócio correspondente (ex: iniciar o desenho de uma zona). Atualiza o `StateManager` com o novo estado da aplicação. |
-| `StateManager` 🆕 | **Fonte única de verdade** para o estado da aplicação. Implementa um padrão observável thread-safe com 5 categorias de estado (Project, Detector, Recording, Processing, UI). A UI observa o `StateManager` e reage a mudanças. |
+| `MainViewModel` | Orquestra o fluxo da aplicação. Inscreve-se em eventos do `EventBus` para executar a lógica de negócio correspondente (ex: iniciar o desenho de uma zona). Atualiza o `StateManager` com o novo estado da aplicação. **Atualmente ~5442 linhas; Coordinators/Adapters (Phase 2+) extraem orquestração complexa de workflows para componentes dedicados**. |
+| `StateManager` | **Fonte única de verdade** para o estado da aplicação. Implementa um padrão observável thread-safe com 5 categorias de estado (Project, Detector, Recording, Processing, UI). A UI observa o `StateManager` e reage a mudanças. |
+| `ProjectWorkflowAdapter` 🆕 | **Novo (Phase 2+)**: Orquestra workflows de ciclo de vida de projetos (create/open/close). Coordena UI events, detector setup, zone setup, e aplicação de wizard overrides. Delega lógica de negócio para `ProjectWorkflowService`. |
+| `AnalysisCoordinator` 🆕 | **Novo (Phase 2+)**: Coordena pipeline de análise comportamental e geração de relatórios. Gerencia report generation (Excel/CSV/Word), parquet summary regeneration, e result aggregation. Executa análise em worker threads e publica UI events. |
 
 ### 3.3. Model Layer (Services & Domain)
 
 | Componente | Responsabilidade principal |
 |---|---|
+| `ProjectWorkflowService` | **Novo (Phase 2+)**: Lógica de negócio para workflows de projetos. Coordena criação/abertura de projetos, validação de configurações, aplicação de wizard metadata, geração de guias pós-criação. Usado por `ProjectWorkflowAdapter`. |
 | `ProjectService` | Camada de serviço para I/O de projetos: criar, salvar, carregar configurações e gerenciar templates de ROI. |
 | `AnalysisService` | Camada de serviço que orquestra a análise de dados, coordenando os diferentes analisadores (comportamental, ROI) e o gerador de relatórios. |
+| `VideoProcessingService` | Processa vídeos individuais: coordena detector, recorder, e análise. Gerencia pipeline de processamento frame-a-frame com callbacks de progresso. Usado por `AnalysisCoordinator` e `MainViewModel`. |
 | `ProjectManager` | Gerencia o estado do projeto em memória, incluindo a lista de vídeos, zonas, intervalos de análise e outras configurações. |
+| `DetectorService` | Serviço para gerenciamento de detectores: inicialização, seleção de plugins (YOLO/OpenVINO), configuração de thresholds. |
 | `Detector` | Abstração para os modelos de IA (YOLO, OpenVINO), normalizando as detecções e gerenciando a máquina de estado das zonas. |
 | `Recorder` | Responsável pela persistência de dados, garantindo um esquema Parquet imutável e a gravação opcional de vídeos com overlays. |
+| `RecordingService` | Controla gravação de câmera ao vivo: inicia/para recording, coordena com Arduino triggers, gerencia sessões experimentais. |
 
 ## 4. Estrutura de Dados do Projeto
 
