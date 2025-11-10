@@ -24,7 +24,9 @@ def test_detector_plugin_requires_init():
     """Test that subclasses must implement __init__."""
 
     class IncompleteDetector1(DetectorPlugin):
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             return []
 
         @staticmethod
@@ -44,6 +46,7 @@ def test_detector_plugin_requires_detect():
 
     class IncompleteDetector2(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = model_path
 
         @staticmethod
@@ -63,9 +66,12 @@ def test_detector_plugin_requires_get_name():
 
     class IncompleteDetector3(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = model_path
 
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             return []
 
         @property
@@ -81,9 +87,12 @@ def test_detector_plugin_requires_model_input_shape():
 
     class IncompleteDetector4(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = model_path
 
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             return []
 
         @staticmethod
@@ -99,9 +108,12 @@ def test_detector_plugin_complete_implementation():
 
     class CompleteDetector(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
 
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             # Return dummy detection
             return [(100, 100, 200, 200, 0.95, None, 0)]
 
@@ -132,9 +144,12 @@ def test_detector_plugin_detect_return_type():
 
     class TestDetector(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = model_path
 
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             return [
                 (10, 20, 30, 40, 0.9, 1, 0),  # Detection with track_id
                 (50, 60, 70, 80, 0.8, None, 0),  # Detection without track_id
@@ -174,9 +189,12 @@ def test_detector_plugin_accepts_path_object():
 
     class PathDetector(DetectorPlugin):
         def __init__(self, model_path: Path | str):
+            super().__init__(model_path)
             self.model_path = Path(model_path) if isinstance(model_path, str) else model_path
 
-        def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        def detect(
+            self, frame: np.ndarray
+        ) -> list[tuple[int, int, int, int, float, int | None, int]]:
             return []
 
         @staticmethod
