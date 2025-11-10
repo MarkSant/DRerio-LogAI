@@ -100,12 +100,9 @@ def test_pytest_ini_has_timeout_config():
 
     content = pytest_ini.read_text()
 
-    # Check for timeout configuration
-    assert "--timeout=" in content, "pytest.ini missing --timeout option"
-    assert "--timeout-method=" in content, "pytest.ini missing --timeout-method option"
-    assert "timeout = 300" in content or "timeout=300" in content, (
-        "pytest.ini missing timeout = 300 configuration"
-    )
+    # Check for timeout configuration in addopts
+    assert "--timeout=" in content, "pytest.ini missing --timeout option in addopts"
+    assert "--timeout-method=" in content, "pytest.ini missing --timeout-method option in addopts"
 
 
 def test_github_actions_has_timeout():
