@@ -73,7 +73,7 @@ class ProjectWorkflowAdapter:
         self,
         restore_global_defaults_callback: Callable[[], None],
         settings_obj: Any,
-    ) -> None:
+    ) -> "ProjectManager":
         """
         Close the current project and restore global defaults.
 
