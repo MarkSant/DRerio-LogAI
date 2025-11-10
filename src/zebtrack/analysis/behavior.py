@@ -1,6 +1,4 @@
-"""
-This module defines the abstract base class for behavioral analysis of trajectory data.
-"""
+"""This module defines the abstract base class for behavioral analysis of trajectory data."""
 
 from abc import ABC, abstractmethod
 
@@ -43,7 +41,7 @@ class BehavioralAnalyzer(ABC):
         angular_velocity_smoothing_window: int = 3,
     ):
         """
-        Initializes the BehavioralAnalyzer and performs preprocessing.
+        Initialize the BehavioralAnalyzer and performs preprocessing.
 
         Args:
             trajectory_df (pd.DataFrame): DataFrame containing raw trajectory
@@ -115,7 +113,7 @@ class BehavioralAnalyzer(ABC):
         window_length: int,
         polyorder: int,
     ) -> pd.DataFrame:
-        """Performs data conversion, cleaning, and smoothing."""
+        """Perform data conversion, cleaning, and smoothing."""
         if df.empty:
             raise ValueError(
                 "Input DataFrame is empty. Cannot perform behavioral analysis on "
@@ -199,7 +197,7 @@ class BehavioralAnalyzer(ABC):
     @abstractmethod
     def calculate_total_distance(self, max_time_gap: float | None = None) -> float:
         """
-        Calculates the total distance traveled along the smoothed trajectory.
+        Calculate the total distance traveled along the smoothed trajectory.
 
         Args:
             max_time_gap (float | None): If the time between consecutive
@@ -214,7 +212,7 @@ class BehavioralAnalyzer(ABC):
     @abstractmethod
     def calculate_velocity_timeseries(self) -> pd.DataFrame:
         """
-        Calculates the velocity time series from the smoothed trajectory.
+        Calculate the velocity time series from the smoothed trajectory.
 
         The velocity is computed as the first derivative of the position.
 
@@ -226,7 +224,7 @@ class BehavioralAnalyzer(ABC):
 
     def get_velocity_stats(self) -> dict[str, float]:
         """
-        Calculates summary statistics for the velocity magnitude.
+        Calculate summary statistics for the velocity magnitude.
 
         This is a concrete method that relies on the output of
         `calculate_velocity_timeseries`.
@@ -258,7 +256,7 @@ class BehavioralAnalyzer(ABC):
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
         """
-        Detects freezing episodes based on a velocity threshold.
+        Detect freezing episodes based on a velocity threshold.
 
         A freezing episode starts when velocity drops below a threshold
         and lasts for at least `min_duration`.
@@ -283,7 +281,7 @@ class BehavioralAnalyzer(ABC):
     @abstractmethod
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
         """
-        Calculates the angular velocity of the trajectory.
+        Calculate the angular velocity of the trajectory.
 
         This is derived from the temporal derivative of the trajectory's angle.
 
@@ -301,7 +299,7 @@ class BehavioralAnalyzer(ABC):
         self, window_size: float | None = None, step: float | None = None
     ) -> float | pd.Series:
         """
-        Calculates the tortuosity of the trajectory.
+        Calculate the tortuosity of the trajectory.
 
         Tortuosity is the ratio of the actual path distance to the straight-line
         distance between the start and end points.
@@ -321,7 +319,7 @@ class BehavioralAnalyzer(ABC):
     @abstractmethod
     def get_thigmotaxis_timeseries(self) -> pd.Series:
         """
-        Calculates the time series of distances to the nearest arena wall.
+        Calculate the time series of distances to the nearest arena wall.
 
         For each point in the trajectory, this method computes the minimum
         Euclidean distance to the arena boundary.
@@ -335,7 +333,7 @@ class BehavioralAnalyzer(ABC):
         self, method: str, distance_threshold: float | None = None
     ) -> float:
         """
-        Calculates a numerical index for thigmotaxis behavior.
+        Calculate a numerical index for thigmotaxis behavior.
 
         This concrete method supports two calculation logics:
         1. 'average_distance': The mean distance from the wall over the whole trial.
@@ -396,11 +394,17 @@ class BehavioralAnalyzer(ABC):
 
 
 class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
-    """
-    A concrete implementation of BehavioralAnalyzer providing basic analysis methods.
-    """
+    """A concrete implementation of BehavioralAnalyzer providing basic analysis methods."""
 
     def calculate_total_distance(self, max_time_gap: float | None = None) -> float:
+        """Calculate total distance traveled in centimeters.
+
+        Args:
+            max_time_gap: Maximum time gap between points to consider continuous (seconds).
+
+        Returns:
+            Total distance in centimeters.
+        """
         df = self._trajectory_data
         if max_time_gap is not None:
             time_diffs = df.index.to_series().diff()
@@ -412,6 +416,11 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return distances.sum()
 
     def calculate_velocity_timeseries(self) -> pd.DataFrame:
+        """Calculate velocity time series with vx, vy, and v_mag components.
+
+        Returns:
+            DataFrame with added velocity columns (vx, vy, v_mag in cm/s).
+        """
         df = self._trajectory_data
         if "v_mag" in df.columns:
             return df
@@ -443,6 +452,17 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         threshold_method: str = "absolute",
         quantile: float = 0.1,
     ) -> list[dict[str, float]]:
+        """Detect freezing episodes based on velocity threshold.
+
+        Args:
+            min_duration: Minimum duration for a freezing episode (seconds).
+            vel_threshold: Velocity threshold (cm/s), or None to auto-detect.
+            threshold_method: Method for threshold determination ("absolute" or "quantile").
+            quantile: Quantile to use if threshold_method is "quantile" (0-1).
+
+        Returns:
+            List of dicts with 'start_time', 'end_time', 'duration' for each episode.
+        """
         self.calculate_velocity_timeseries()
         v_mag = self._trajectory_data["v_mag"].fillna(0.0)
 
@@ -476,9 +496,9 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return episodes
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
-        """
-        Calculates the angular velocity of the trajectory using a robust method
-        that handles detection jitter and stationary states.
+        """Calculate the angular velocity of the trajectory using a robust method.
+
+        This method handles detection jitter and stationary states.
 
         This implementation addresses the numerical instability that occurs when
         calculating angles from very small displacement vectors. When the subject
@@ -585,6 +605,15 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     def get_tortuosity(
         self, window_size: float | None = None, step: float | None = None
     ) -> float | pd.Series:
+        """Calculate path tortuosity (actual distance / straight-line distance).
+
+        Args:
+            window_size: Size of sliding window (seconds), or None for entire trajectory.
+            step: Step size for sliding window (seconds).
+
+        Returns:
+            Tortuosity ratio (>=1.0, where 1.0 is perfectly straight), or Series if windowed.
+        """
         # Implementation for the entire trajectory
         if window_size is not None:
             # Sliding window not implemented for this concrete class
@@ -604,6 +633,11 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         return np.nan if path_distance > 0 else 1.0
 
     def get_thigmotaxis_timeseries(self) -> pd.Series:
+        """Calculate distance to wall time series for thigmotaxis analysis.
+
+        Returns:
+            Series with distance to nearest arena boundary in centimeters.
+        """
         df = self._trajectory_data
         if df.empty:
             return pd.Series([], dtype=np.float64, index=df.index, name="distance_to_wall_cm")
@@ -636,7 +670,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         quantile: float = 0.9,
     ) -> dict[str, int | float | list[dict[str, float]]]:
         """
-        Detects episodes where the animal exceeds a velocity threshold.
+        Detect episodes where the animal exceeds a velocity threshold.
 
         Args:
             threshold_cm_s: Absolute velocity threshold in cm/s. When ``None``,
@@ -651,7 +685,6 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             A dictionary containing the threshold applied, episode count, total
             duration in seconds, and a detailed list of episodes.
         """
-
         self.calculate_velocity_timeseries()
         if self._trajectory_data.empty:
             inferred_threshold = np.nan if threshold_cm_s is None else threshold_cm_s
@@ -687,7 +720,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         min_duration: float = 1.0,
     ) -> dict[str, int | float | list[dict[str, float]]]:
         """
-        Detects inactivity episodes where the velocity stays below a threshold.
+        Detect inactivity episodes where the velocity stays below a threshold.
 
         Args:
             velocity_threshold_cm_s: Maximum velocity magnitude (cm/s) to be
@@ -700,7 +733,6 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             cumulative inactivity duration, percentage of the recording spent
             inactive, and the detailed list of episodes.
         """
-
         self.calculate_velocity_timeseries()
         if self._trajectory_data.empty:
             return {
@@ -734,7 +766,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         self, threshold_deg_s: float, cooldown_s: float = 0.5
     ) -> dict[str, float | pd.Index]:
         """
-        Calculates the number of sharp turns based on angular velocity.
+        Calculate the number of sharp turns based on angular velocity.
 
         Args:
             threshold_deg_s (float): The threshold in degrees per second to

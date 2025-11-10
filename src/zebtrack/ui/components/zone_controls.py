@@ -1,6 +1,4 @@
-"""
-Zone controls widget component - zone drawing and management UI.
-"""
+"""Zone controls widget component - zone drawing and management UI."""
 
 import tkinter as tk
 from tkinter import StringVar, ttk

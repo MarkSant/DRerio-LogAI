@@ -67,7 +67,7 @@ class AnalysisService:
         smoothing_polyorder: int | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None]:
         """
-        Runs a complete analysis pipeline on the given trajectory data.
+        Run a complete analysis pipeline on the given trajectory data.
 
         This method instantiates the necessary analyzers, runs all relevant
         metric calculations, and compiles them into a single, structured report.

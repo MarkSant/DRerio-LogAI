@@ -1,3 +1,9 @@
+"""Event bus implementation for thread-safe UI updates in Tkinter.
+
+Provides publish-subscribe pattern and callable event queue for coordinating
+background threads with the Tkinter main thread.
+"""
+
 from __future__ import annotations
 
 import queue
@@ -28,6 +34,7 @@ class CallableEvent:
     kwargs: dict[str, Any]
 
     def execute(self) -> None:
+        """Execute the callable with stored arguments and keyword arguments."""
         self.callback(*self.args, **self.kwargs)
 
 
@@ -56,6 +63,11 @@ class EventBus:
     """
 
     def __init__(self, maxsize: int = 0) -> None:
+        """Initialize the event bus.
+
+        Args:
+            maxsize: Maximum queue size (0 for unlimited).
+        """
         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
         # Subscribers map: event_name -> list of handlers
         self._subscribers: dict[str, list[Callable[[dict], Any]]] = defaultdict(list)
@@ -71,7 +83,6 @@ class EventBus:
 
         Returns True when the event was enqueued; False when the queue was full.
         """
-
         try:
             self._queue.put(event, block=block, timeout=timeout or 0)
             return True
@@ -87,8 +98,10 @@ class EventBus:
         timeout: float | None = None,
         **kwargs: Any,
     ) -> bool:
-        """Convenience helper for enqueuing callable events."""
+        """Enqueue a callable event for execution.
 
+        Convenience helper for enqueuing callable events.
+        """
         event = UIEvent(
             EventType.CALLABLE,
             CallableEvent(callback=callback, args=args, kwargs=kwargs),
@@ -194,7 +207,6 @@ class EventBus:
 
     def drain(self, *, max_items: int | None = None) -> list[UIEvent]:
         """Retrieve up to ``max_items`` events without blocking."""
-
         events: list[UIEvent] = []
         remaining = max_items if max_items is not None else -1
         while remaining != 0:
@@ -208,7 +220,6 @@ class EventBus:
 
     def clear(self) -> None:
         """Remove all pending events."""
-
         while True:
             try:
                 self._queue.get_nowait()
@@ -216,9 +227,19 @@ class EventBus:
                 break
 
     def empty(self) -> bool:
+        """Check if the event queue is empty.
+
+        Returns:
+            True if queue is empty, False otherwise.
+        """
         return self._queue.empty()
 
     def size(self) -> int:
+        """Return the number of events in the queue.
+
+        Returns:
+            Number of pending events.
+        """
         return self._queue.qsize()
 
 

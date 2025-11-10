@@ -247,7 +247,7 @@ class VideoProcessingService:
         Calibration | None,
         tuple | None,
     ]:
-        """Setup tracking session: open video, prepare recorder, zones, and calibration.
+        """Set up tracking session: open video, prepare recorder, zones, and calibration.
 
         Args:
             video_path: Path to video file
@@ -1615,7 +1615,6 @@ class VideoProcessingService:
         Returns:
             True if processing succeeded, False otherwise
         """
-
         log.info(
             "video_processing_service.process_frame_source.start",
             experiment_id=experiment_id,

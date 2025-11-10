@@ -29,6 +29,7 @@ log = structlog.get_logger()
 class ProcessingCallbacks:
     """
     Callbacks for communicating processing events back to the controller.
+    
     All callbacks will be invoked from the worker thread, so implementations
     must use thread-safe mechanisms (e.g., root.after()) for UI updates.
     """
@@ -94,6 +95,7 @@ class ProcessingCallbacks:
 class ProcessingContext:
     """
     All context needed for the worker to process videos independently.
+    
     This allows the worker to operate without direct controller references.
     """
 
@@ -168,7 +170,8 @@ class ProcessingWorker:
 
     def run(self):
         """
-        Main processing loop - runs in worker thread.
+        Run main processing loop in worker thread.
+        
         This method should be called as the target of a threading.Thread.
         """
         log.info(
@@ -340,7 +343,7 @@ class ProcessingWorker:
                 self.callbacks.on_completed(was_cancelled, final_output_dir, summary=final_summary)
 
     def _report_progress(self, fraction: float, message: str, stats: dict | None) -> None:
-        """Helper to report progress through callback."""
+        """Report progress through callback."""
         if self.callbacks.on_progress:
             self.callbacks.on_progress(fraction, message, stats)
 
@@ -351,7 +354,7 @@ class ProcessingWorker:
 
     def start_in_thread(self) -> threading.Thread:
         """
-        Convenience method to start the worker in a new daemon thread.
+        Start the worker in a new daemon thread.
 
         Returns:
             The thread object (already started)

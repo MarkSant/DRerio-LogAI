@@ -1,5 +1,5 @@
 """
-Step 3: Physical Calibration Dialog
+Step 3: Physical Calibration Dialog.
 
 Allows user to configure physical dimensions of the arena for pixel-to-cm conversion.
 Provides input fields for aquarium dimensions and number of animals.
@@ -290,7 +290,7 @@ class CalibrationStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
-        """Called when step becomes visible."""
+        """Execute actions when step becomes visible."""
         self._update_template_banner()
 
         if "num_aquariums" in self.wizard_data:

@@ -1,5 +1,5 @@
 """
-ROI Template Manager
+ROI Template Manager.
 
 Gerencia templates globais de ROI/Arena independente de projetos específicos.
 Templates podem ser salvos em configurações globais do usuário, no projeto,
@@ -53,7 +53,7 @@ class ROITemplateManager:
     @staticmethod
     def _slugify(value: str) -> str:
         """
-        Converte string em slug seguro para nomes de arquivo.
+        Convert string em slug seguro para nomes de arquivo.
 
         Args:
             value: String original

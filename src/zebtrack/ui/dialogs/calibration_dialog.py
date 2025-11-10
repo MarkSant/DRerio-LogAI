@@ -1,5 +1,5 @@
 """
-CalibrationDialog
+CalibrationDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -37,6 +37,12 @@ class CalibrationDialog(simpledialog.Dialog):
     OPENVINO_OFF = "off"
 
     def __init__(self, parent, controller):
+        """Initialize the calibration dialog.
+
+        Args:
+            parent: Parent widget.
+            controller: Main view model controller instance.
+        """
         self.controller = controller
         self.project_manager = controller.project_manager
 
@@ -93,6 +99,14 @@ class CalibrationDialog(simpledialog.Dialog):
             log.warning("icon.set.failed", exc_info=True)
 
     def body(self, master):
+        """Create calibration dialog body with model and detection controls.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         schedule_maximize(self)
 
         container = ttk.Frame(master, padding=0)
@@ -861,6 +875,11 @@ class CalibrationDialog(simpledialog.Dialog):
         )
 
     def update_openvino_status_label(self, status: str):
+        """Update the OpenVINO status label with current status.
+
+        Args:
+            status: Status string to display.
+        """
         self.openvino_status_var.set(status)
         if not self.openvino_status_label:
             return
@@ -925,6 +944,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.controller.ui_event_bus.publish_event(Events.MODEL_RUN_DIAGNOSTIC, {"config": config})
 
     def buttonbox(self):
+        """Create custom button box with calibration action buttons."""
         box = ttk.Frame(self)
         w = ttk.Button(box, text="Fechar", width=10, command=self.ok, default="active")
         w.pack(side="left", padx=5, pady=5)

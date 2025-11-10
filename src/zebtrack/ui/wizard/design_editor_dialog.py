@@ -1,5 +1,5 @@
 """
-Design Editor Dialog
+Design Editor Dialog.
 
 Allows manual editing of detected experimental design (groups, days, subjects).
 """
@@ -525,4 +525,9 @@ class DesignEditorDialog(Dialog):
         )
 
     def get_result(self) -> dict | None:
+        """Get the design editor result data.
+
+        Returns:
+            Dictionary with ROI and arena configuration, or None if cancelled.
+        """
         return self.edited_design

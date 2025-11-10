@@ -694,7 +694,7 @@ class VideoOrchestrator:
         """
 
         def on_started():
-            """Called when processing starts."""
+            """Call when processing starts."""
             self.ui_coordinator.show_progress_bar(self.view)
             self.ui_coordinator.set_status(
                 self.view,
@@ -705,7 +705,7 @@ class VideoOrchestrator:
                 self._publish_processing_mode_callback(source="worker.started", force=True)
 
         def on_progress(fraction: float, message: str, stats: dict | None):
-            """Called with progress updates."""
+            """Call with progress updates."""
             if self.cancel_event.is_set():
                 return
 
@@ -726,7 +726,7 @@ class VideoOrchestrator:
                 self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
 
         def on_frame_processed(frame, detections, processing_info):
-            """Called when a frame is ready for display."""
+            """Call when a frame is ready for display."""
             if frame is not None:
                 self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
 
@@ -737,7 +737,7 @@ class VideoOrchestrator:
                 )
 
         def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
-            """Called when a single video completes."""
+            """Call when a single video completes."""
             log.info(
                 "video_orchestrator.video_completed",
                 index=index,
@@ -747,7 +747,7 @@ class VideoOrchestrator:
             )
 
         def on_error(error: Exception, context: str):
-            """Called when an error occurs."""
+            """Call when an error occurs."""
             log.error(
                 "video_orchestrator.processing.worker_error", context=context, error=str(error)
             )
@@ -757,7 +757,7 @@ class VideoOrchestrator:
             )
 
         def on_fatal_error(exc, context, recovery_info):
-            """Called on fatal processing errors."""
+            """Call on fatal processing errors."""
             log.error(
                 "video_orchestrator.processing.fatal_error",
                 context=context,
@@ -778,7 +778,7 @@ class VideoOrchestrator:
             self.ui_coordinator.set_status(self.view, "Processamento falhou")
 
         def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None):
-            """Called when all processing completes."""
+            """Call when all processing completes."""
             self.project_manager.set_active_zone_video(None)
             self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
             self.ui_coordinator.hide_progress_bar(self.view)

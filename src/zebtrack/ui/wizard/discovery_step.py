@@ -1,5 +1,5 @@
 """
-Step 1: Discovery Dialog
+Step 1: Discovery Dialog.
 
 Gathers initial context about project type, folder organization, and
 existing parquet files before scanning any videos.
@@ -490,6 +490,7 @@ class DiscoveryStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
+        """Handle step visibility when shown and update UI state."""
         super().on_show()
         self._update_template_banner()
         if hasattr(self, "scroll_canvas"):
@@ -497,6 +498,7 @@ class DiscoveryStep(WizardStep):
             self.scroll_canvas.yview_moveto(0)
 
     def on_hide(self):
+        """Handle step visibility when hidden and clean up bindings."""
         super().on_hide()
         self._unbind_mousewheel()
 

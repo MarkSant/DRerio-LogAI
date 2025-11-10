@@ -1,6 +1,4 @@
-"""
-Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack.
-"""
+"""Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack."""
 
 import hashlib
 import os
@@ -167,17 +165,13 @@ class _VideoPathResolverContext:
 
 
 class ApplicationGUI:
-    """
-    A classe principal que gerencia a interface gráfica (a "Visão").
-    """
+    """A classe principal que gerencia a interface gráfica (a "Visão")."""
 
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
     def __init__(self, root, controller, event_bus: EventBus | None = None, settings_obj=None):
-        """
-        Inicializa a ApplicationGUI.
-        """
+        """Inicializa a ApplicationGUI."""
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
@@ -441,7 +435,8 @@ class ApplicationGUI:
 
     def _update_window_title(self, project_name: str | None = None):
         """
-        Updates the window title with optional project name.
+        Update the window title with optional project name.
+        
         Delegates to ProjectViewManager.
 
         Args:
@@ -450,7 +445,7 @@ class ApplicationGUI:
         return self.project_view_manager.update_window_title(project_name)
 
     def _display_welcome_logo(self):
-        """Displays the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
+        """Display the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
         return self.widget_factory.display_welcome_logo()
 
     def _create_welcome_frame(self):
@@ -603,8 +598,9 @@ class ApplicationGUI:
 
     def _on_tab_changed(self, event):
         """
-        Handle tab change event to ensure analysis overlay is hidden when not on
-        analysis tab.
+        Handle tab change event to ensure analysis overlay is hidden.
+
+        Only shows overlay when on analysis tab.
         """
         if not self.notebook:
             return
@@ -623,7 +619,7 @@ class ApplicationGUI:
                     self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def _create_main_control_frame(self):
-        """Creates the main UI with tabs for controlling the app."""
+        """Create the main UI with tabs for controlling the app."""
         if self.welcome_frame:
             self.welcome_frame.destroy()
         reset_geometry_if_not_maximized(self.root)
@@ -665,7 +661,7 @@ class ApplicationGUI:
         self.hide_progress_bar()
 
     def _create_configuration_tab_widget(self) -> None:
-        """Creates the configuration tab. Delegates to WidgetFactory."""
+        """Create the configuration tab. Delegates to WidgetFactory."""
         return self.widget_factory.create_configuration_tab_widget()
 
     def _reload_config_editor_values_widget(self) -> None:
@@ -691,7 +687,7 @@ class ApplicationGUI:
         pass
 
     def _create_main_controls_tab(self):
-        """Creates the tab with the main project controls."""
+        """Create the tab with the main project controls."""
         self.main_controls_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.main_controls_frame, text="Controle Principal")
 
@@ -944,7 +940,7 @@ class ApplicationGUI:
         return self.dialog_manager.clear_external_trigger_notice()
 
     def _create_roi_analysis_tab(self):
-        """Creates the tab for ROI and detection zone configuration."""
+        """Create the tab for ROI and detection zone configuration."""
         # This tab is now for defining detection zones (main polygon, ROI polygons)
         # and will replace the old ROI analysis functionality.
         self.roi_data = {}  # This will be repurposed for the new zone data
@@ -1220,7 +1216,7 @@ class ApplicationGUI:
         return self.project_view_manager._refresh_zone_indicators(videos)
 
     def _create_analysis_tab_widget(self):
-        """Creates the analysis tab. Delegates to WidgetFactory."""
+        """Create the analysis tab. Delegates to WidgetFactory."""
         return self.widget_factory.create_analysis_tab_widget()
 
     def _create_scrollable_controls_frame(self, parent):
@@ -1285,11 +1281,11 @@ class ApplicationGUI:
         return self.validation_manager.apply_roi_settings()
 
     def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Setup interactive polygon. Delegates to EventDispatcher."""
+        """Set up interactive polygon. Delegates to EventDispatcher."""
         return self.event_dispatcher.setup_interactive_polygon(polygon)
 
     def _on_handle_press(self, event, handle_index):
-        """Records which handle is being dragged and initial offset."""
+        """Record which handle is being dragged and initial offset."""
         self._dragged_handle_index = handle_index
 
         # Store the initial mouse position and handle position
@@ -1310,7 +1306,7 @@ class ApplicationGUI:
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
 
     def _on_handle_drag(self, event):
-        """Updates polygon point and redraws. Delegates to CanvasManager."""
+        """Update polygon point and redraw. Delegates to CanvasManager."""
         return self.canvas_manager.handle_vertex_drag(event)
 
     def _on_handle_drag_global(self, event):
@@ -1318,7 +1314,7 @@ class ApplicationGUI:
         self._on_handle_drag(event)
 
     def _on_handle_release(self, event):
-        """Finalizes the drag operation (called from tag binding)."""
+        """Finalize the drag operation (called from tag binding)."""
         self._handle_release_common()
 
     def _on_handle_release_global(self, event):
@@ -1329,12 +1325,12 @@ class ApplicationGUI:
         self._handle_release_common()
 
     def _handle_release_common(self):
-        """Common release logic."""
+        """Execute common release logic."""
         self._dragged_handle_index = None
         self._drag_offset = (0, 0)
 
     def _on_save_arena(self):
-        """Saves the edited polygon and makes it static."""
+        """Save the edited polygon and make it static."""
         if self.current_editing_zone == "arena":
             # Save main arena
             self.event_dispatcher.publish_event(
@@ -1390,7 +1386,7 @@ class ApplicationGUI:
         self.canvas_manager.redraw_zones_from_project_data()
 
     def _clear_interactive_polygon(self):
-        """Clears all interactive elements from the canvas and hides buttons."""
+        """Clear all interactive elements from the canvas and hide buttons."""
         self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
         try:
             if self.interactive_buttons_frame and self.interactive_buttons_frame.winfo_exists():
@@ -1448,7 +1444,6 @@ class ApplicationGUI:
 
     def _refresh_video_selector_tree(self) -> None:
         """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
-
         if not self.video_selector_tree:
             return
 
@@ -1515,7 +1510,7 @@ class ApplicationGUI:
         )
 
     def _load_selected_video_frame(self, event=None):
-        """Loads frame from selected video to canvas. Delegates to CanvasManager."""
+        """Load frame from selected video to canvas. Delegates to CanvasManager."""
         return self.canvas_manager.load_selected_video_frame(event)
 
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
@@ -1523,12 +1518,12 @@ class ApplicationGUI:
         return self.dialog_manager.offer_zone_reuse(video_path)
 
     def _on_video_tree_double_click(self, event):
-        """Callback para duplo clique no seletor de vídeos."""
+        """Handle double click on video selector."""
         del event  # Evento não é utilizado diretamente
         self._load_selected_video_frame()
 
     def _create_processing_reports_tab(self) -> None:
-        """Creates the processing reports tab. Delegates to WidgetFactory."""
+        """Create the processing reports tab. Delegates to WidgetFactory."""
         return self.widget_factory.create_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
@@ -1574,7 +1569,7 @@ class ApplicationGUI:
         return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
 
     def _on_report_item_select(self, event=None):
-        """Enables or disables the partial report button based on selection."""
+        """Enable or disable the partial report button based on selection."""
         selection = self.reports_tree.selection()
         has_video = False
         metadata_store = getattr(self, "_report_tree_metadata", {})
@@ -1638,7 +1633,7 @@ class ApplicationGUI:
         )
 
     def _start_main_arena_drawing(self):
-        """Starts drawing the main arena polygon."""
+        """Start drawing the main arena polygon."""
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
@@ -1652,7 +1647,7 @@ class ApplicationGUI:
         self._start_polygon_drawing()
 
     def _start_roi_drawing(self):
-        """Starts drawing an ROI polygon, checking if an arena exists first."""
+        """Start drawing an ROI polygon, checking if an arena exists first."""
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
@@ -1681,7 +1676,7 @@ class ApplicationGUI:
         return self.canvas_manager.stop_drawing()
 
     def _create_drawing_buttons(self):
-        """Creates floating undo/redo buttons over the canvas. Delegates to WidgetFactory."""
+        """Create floating undo/redo buttons over the canvas. Delegates to WidgetFactory."""
         return self.widget_factory.create_drawing_buttons()
 
     def _on_drawing_undo(self, event):
@@ -1782,7 +1777,7 @@ class ApplicationGUI:
 
     def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
-        Applies snapping to nearby vertices or edges of existing polygons.
+        Apply snapping to nearby vertices or edges of existing polygons.
 
         Args:
             canvas_x (float): X coordinate in canvas space
@@ -2370,11 +2365,11 @@ class ApplicationGUI:
         self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
     def _on_canvas_click(self, event):
-        """Handles canvas clicks during polygon drawing. Delegates to CanvasManager."""
+        """Handle canvas clicks during polygon drawing. Delegates to CanvasManager."""
         return self.canvas_manager.handle_canvas_click(event)
 
     def _on_canvas_motion(self, event):
-        """Handles mouse movement for drawing elastic lines."""
+        """Handle mouse movement for drawing elastic lines."""
         if self.drawing_mode != "polygon":
             return
 
@@ -2655,7 +2650,7 @@ class ApplicationGUI:
                 self.draw_roi_button.config(state="disabled")
 
     def _remove_selected_roi(self):
-        """Removes the ROI selected in the listbox."""
+        """Remove the ROI selected in the listbox."""
         selected_items = self.roi_listbox.selection()
         if not selected_items:
             self.show_warning(
@@ -2678,7 +2673,7 @@ class ApplicationGUI:
         self._on_arena_select()
 
     def _run_center_periphery_analysis(self):
-        """Runs the center-periphery analysis."""
+        """Run the center-periphery analysis."""
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
             self.show_error("Erro", "Selecione um aquário ativo e carregue os dados primeiro.")
@@ -2695,7 +2690,7 @@ class ApplicationGUI:
         )
 
     def _create_template_rois(self):
-        """Opens a dialog to create ROIs from a template. Delegates to WidgetFactory."""
+        """Open a dialog to create ROIs from a template. Delegates to WidgetFactory."""
         return self.widget_factory.create_template_rois()
 
     def _start_circle_drawing(self):
@@ -2775,8 +2770,9 @@ class ApplicationGUI:
 
     def _load_project_view(self):
         """
-        Transitions from the welcome screen to the main control view and
-        initializes the detector with the appropriate plugin.
+        Transitions from the welcome screen to the main control view.
+
+        Initializes the detector with the appropriate plugin.
         """
         # Reset analysis display state from single video workflow
         self.hide_progress_bar()
@@ -2877,15 +2873,15 @@ class ApplicationGUI:
             self.root.after(1000, self._check_live_project_calibration)
 
     def _create_progress_grid_tab(self):
-        """Creates the progress grid tab. Delegates to WidgetFactory."""
+        """Create the progress grid tab. Delegates to WidgetFactory."""
         return self.widget_factory.create_progress_grid_tab()
 
     def _check_live_project_calibration(self):
-        """Checks if Live project needs calibration. Delegates to ValidationManager."""
+        """Check if Live project needs calibration. Delegates to ValidationManager."""
         return self.validation_manager.check_live_project_calibration()
 
     def _render_progress_grid(self):
-        """Clears and redraws progress grid. Delegates to WidgetFactory."""
+        """Clear and redraw progress grid. Delegates to WidgetFactory."""
         return self.widget_factory.render_progress_grid()
 
     def _on_grid_cell_clicked(self, day, group_name):
@@ -2905,9 +2901,7 @@ class ApplicationGUI:
             self._render_progress_grid()  # Refresh grid after starting a recording
 
     def _live_frame_capture_loop(self):
-        """
-        Loop to capture frames from a LIVE source (camera).
-        """
+        """Loop to capture frames from a LIVE source (camera)."""
         live_frame_count = 0
         while not self.controller.program_exit_event.is_set():
             if not self.controller.active_frame_source:
@@ -2933,9 +2927,7 @@ class ApplicationGUI:
             time.sleep(1 / (fps * 1.5))
 
     def _live_processing_loop(self):
-        """
-        Loop to process frames from a LIVE source.
-        """
+        """Loop to process frames from a LIVE source."""
         while not self.controller.program_exit_event.is_set():
             try:
                 frame_number, frame = self.controller.frame_queue.get(timeout=1)
@@ -2991,11 +2983,11 @@ class ApplicationGUI:
         return self.widget_factory.prompt_for_weight_type()
 
     def _manage_weights_clicked(self):
-        """Opens the weight management dialog."""
+        """Open the weight management dialog."""
         self.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
 
     def update_weights_dropdown(self, weights: list[str]):
-        """Caches available weights so summaries stay consistent."""
+        """Cache available weights so summaries stay consistent."""
         self._available_weight_names = list(weights or [])
         if (
             self.controller.active_weight_name
@@ -3006,16 +2998,16 @@ class ApplicationGUI:
             self._update_active_weight_display("")
 
     def set_active_weight_in_dropdown(self, weight_name: str | None):
-        """Updates the active weight summary."""
+        """Update the active weight summary."""
         self._update_active_weight_display(weight_name or "")
 
     def update_openvino_checkbox(self, enabled: bool):
-        """Synchronizes OpenVINO toggle state with the summary label."""
+        """Synchronize OpenVINO toggle state with the summary label."""
         self._openvino_enabled = bool(enabled)
         self._refresh_openvino_summary()
 
     def update_openvino_status_display(self, status: str):
-        """Updates the detailed OpenVINO status shown in the UI."""
+        """Update the detailed OpenVINO status shown in the UI."""
         self._openvino_status_message = status or ""
         self._refresh_openvino_summary()
 
@@ -3034,7 +3026,7 @@ class ApplicationGUI:
             self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
 
     def update_gpu_hardware_display(self, hardware_summary: dict):
-        """Updates the GPU hardware information shown in the UI."""
+        """Update the GPU hardware information shown in the UI."""
         gpu_name = "CPU apenas"
         recommended_backend = hardware_summary.get("recommended_backend", "pytorch")
 
@@ -3065,9 +3057,9 @@ class ApplicationGUI:
 
     def _create_project_workflow(self):
         """
-        Handles the UI part of creating a new project by opening a comprehensive dialog,
-        then calls the controller with the collected data.
+        Handle the UI part of creating a new project by opening a comprehensive dialog.
 
+        Then calls the controller with the collected data.
         Phase 7: Direct wizard data delegation to ProjectWorkflowService.
         No adapter layer needed - service processes wizard output directly.
         """
@@ -3089,7 +3081,7 @@ class ApplicationGUI:
         self.event_dispatcher.publish_event(Events.WIZARD_CREATE_PROJECT, wizard.result)
 
     def _open_project_workflow(self):
-        """Handles the UI part of opening a project, then calls the controller."""
+        """Handle the UI part of opening a project, then call the controller."""
         project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
@@ -3101,7 +3093,7 @@ class ApplicationGUI:
         return self.event_dispatcher.handle_analyze_single_video_clicked()
 
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
-        """Prepares and displays the zone configuration tab for a single video."""
+        """Prepare and display the zone configuration tab for a single video."""
         # Reset analysis UI elements for a clean setup
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
@@ -3158,7 +3150,7 @@ class ApplicationGUI:
         return self.validation_manager.compose_single_video_runtime_config()
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
-        """Handler for the auto-detect button."""
+        """Handle the auto-detect button."""
         # Prevent editing during analysis
         if self.analysis_active:
             self.show_warning(
@@ -3201,7 +3193,7 @@ class ApplicationGUI:
         )
 
     def _on_start_single_video_processing_clicked(self):
-        """Handler for the 'Start Analysis' button in the single video flow."""
+        """Handle the 'Start Analysis' button in the single video flow."""
         # If the user was editing a polygon, prompt for confirmation before saving.
         if self.edited_polygon_points:
             response = self.dialog_manager.confirm_save_polygon_before_analysis()
@@ -3243,15 +3235,15 @@ class ApplicationGUI:
         self.pending_single_video_config = None
 
     def _on_close(self):
-        """Delegates the close action to the controller."""
+        """Delegate the close action to the controller."""
         self.controller.on_close()
 
     def _join_threads(self):
-        """Delegates thread joining to the controller."""
+        """Delegate thread joining to the controller."""
         self.controller.join_threads()
 
     def set_status(self, text):
-        """Updates the UI status bar."""
+        """Update the UI status bar."""
         self.status_var.set(text)
 
     def show_progress_bar(self):
@@ -3334,8 +3326,7 @@ class ApplicationGUI:
             self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def start_analysis_view_mode(self):
-        """Called when analysis starts - immediately switch to analysis view and
-        enable toggle."""
+        """Start analysis - immediately switch to analysis view and enable toggle."""
         self.analysis_active = True
         self.analysis_status_var.set("Preparando análise...")
         if self.analysis_task_var is not None:
@@ -3350,7 +3341,7 @@ class ApplicationGUI:
         self._switch_to_analysis_view()
 
     def stop_analysis_view_mode(self):
-        """Called when analysis stops - disable toggle and return to zones view."""
+        """Stop analysis - disable toggle and return to zones view."""
         self.analysis_active = False
         if self.toggle_view_btn:
             self.toggle_view_btn.config(state="disabled")
@@ -3392,7 +3383,6 @@ class ApplicationGUI:
 
     def update_processing_mode(self, report: ProcessingReport | None) -> None:
         """Update the UI to reflect the active tracking pipeline."""
-
         if report is None:
             return
 
@@ -3537,15 +3527,15 @@ class ApplicationGUI:
         return StateSynchronizer._format_time(seconds)
 
     def show_error(self, title, message):
-        """Shows an error message box. Delegates to DialogManager."""
+        """Show an error message box. Delegates to DialogManager."""
         return self.dialog_manager.show_error(title, message)
 
     def show_warning(self, title, message):
-        """Shows a warning message box. Delegates to DialogManager."""
+        """Show a warning message box. Delegates to DialogManager."""
         return self.dialog_manager.show_warning(title, message)
 
     def show_info(self, title, message):
-        """Shows an info message box. Delegates to DialogManager."""
+        """Show an info message box. Delegates to DialogManager."""
         return self.dialog_manager.show_info(title, message)
 
     def show_pending_videos_dialog(
@@ -3565,19 +3555,19 @@ class ApplicationGUI:
         )
 
     def ask_ok_cancel(self, title, message):
-        """Shows a confirmation dialog. Delegates to DialogManager."""
+        """Show a confirmation dialog. Delegates to DialogManager."""
         return self.dialog_manager.ask_ok_cancel(title, message)
 
     def ask_string(self, title, prompt, initialvalue=None):
-        """Shows a dialog for string input. Delegates to DialogManager."""
+        """Show a dialog for string input. Delegates to DialogManager."""
         return self.dialog_manager.ask_string(title, prompt, initialvalue=initialvalue)
 
     def ask_directory(self, title):
-        """Shows a dialog to select a directory. Delegates to DialogManager."""
+        """Show a dialog to select a directory. Delegates to DialogManager."""
         return self.dialog_manager.ask_directory(title)
 
     def ask_open_filenames(self, title, filetypes):
-        """Shows a dialog to select one or more files. Delegates to DialogManager."""
+        """Show a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
 
     def _on_zone_double_click(self, event):
@@ -3585,7 +3575,7 @@ class ApplicationGUI:
         self._edit_selected_zone_vertices()
 
     def _on_zone_right_click(self, event):
-        """Mostra menu de contexto"""
+        """Mostra menu de contexto."""
         # Seleciona item sob o cursor
         item = self.zone_listbox.identify_row(event.y)
         if item:
@@ -3607,19 +3597,19 @@ class ApplicationGUI:
                 arena_menu.post(event.x_root, event.y_root)
 
     def _edit_selected_zone_vertices(self):
-        """Enables interactive editing of selected zone vertices. Delegates to CanvasManager."""
+        """Enable interactive editing of selected zone vertices. Delegates to CanvasManager."""
         return self.canvas_manager.edit_selected_zone_vertices()
 
     def _rename_selected_roi(self):
-        """Renames the selected ROI. Delegates to DialogManager."""
+        """Rename the selected ROI. Delegates to DialogManager."""
         return self.dialog_manager.rename_selected_roi()
 
     def _change_roi_color(self):
-        """Changes the color of the selected ROI. Delegates to DialogManager."""
+        """Change the color of the selected ROI. Delegates to DialogManager."""
         return self.dialog_manager.change_roi_color()
 
     def _remove_selected_roi_confirm(self):
-        """Remove ROI selecionada com confirmação"""
+        """Remove ROI selecionada com confirmação."""
         selected = self.zone_listbox.selection()
         if not selected:
             return
@@ -3661,11 +3651,11 @@ class ApplicationGUI:
                 self.show_error("Erro", "ROI não encontrada")
 
     def ask_save_filename(self, **options):
-        """Shows a dialog to select a save file path. Delegates to DialogManager."""
+        """Show a dialog to select a save file path. Delegates to DialogManager."""
         return self.dialog_manager.ask_save_filename(**options)
 
     def update_button_state(self, button_name, state):
-        """Updates the state of a button ('normal' or 'disabled')."""
+        """Update the state of a button ('normal' or 'disabled')."""
         if button_name == "start_rec" and self.start_rec_btn is not None:
             self.start_rec_btn.config(state=state)
         elif button_name == "stop_rec" and self.stop_rec_btn is not None:
@@ -3676,7 +3666,7 @@ class ApplicationGUI:
             self.cancel_proc_btn.config(state=state)
 
     def ask_recording_details_unified(self):
-        """Shows a unified dialog to get day, group, and subject."""
+        """Show a unified dialog to get day, group, and subject."""
         # Check if it's a live project with the necessary config
         pm = self.controller.project_manager
         if not pm.project_data.get("experiment_days"):
@@ -3690,7 +3680,7 @@ class ApplicationGUI:
         return dialog.result
 
     def ask_missing_metadata(self, experiment_id):
-        """Shows a dialog to get missing metadata from the user."""
+        """Show a dialog to get missing metadata from the user."""
         dialog = MissingMetadataDialog(self.root, experiment_id)
         return dialog.result
 
@@ -3746,8 +3736,9 @@ def _add_compatibility_properties_to_application_gui():
     @property
     def roi_template_combobox(self):
         """
-        Backward compatibility: map roi_template_combobox to
-        zone_controls.roi_template_combobox.
+        Backward compatibility property for roi_template_combobox.
+
+        Maps to zone_controls.roi_template_combobox.
         """
         if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.roi_template_combobox
@@ -3763,8 +3754,9 @@ def _add_compatibility_properties_to_application_gui():
     @property
     def interactive_buttons_frame(self):
         """
-        Backward compatibility: map interactive_buttons_frame to
-        zone_controls.interactive_buttons_frame.
+        Backward compatibility property for interactive_buttons_frame.
+
+        Maps to zone_controls.interactive_buttons_frame.
         """
         if hasattr(self, "zone_controls") and self.zone_controls:
             return self.zone_controls.interactive_buttons_frame

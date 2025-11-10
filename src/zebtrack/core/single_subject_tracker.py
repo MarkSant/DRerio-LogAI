@@ -12,13 +12,18 @@ class SingleSubjectTracker:
     """Assigns a fixed track ID to the most plausible detection in each frame."""
 
     def __init__(self, track_id: int = 1, iou_threshold: float = 0.3) -> None:
+        """Initialize the single subject tracker.
+
+        Args:
+            track_id: The fixed track ID to assign (default: 1).
+            iou_threshold: IoU threshold for associating detections (default: 0.3).
+        """
         self.track_id = int(track_id)
         self.iou_threshold = float(iou_threshold)
         self._last_bbox: tuple[int, int, int, int] | None = None
 
     def reset(self) -> None:
         """Forget any previously tracked bounding box."""
-
         self._last_bbox = None
 
     def assign(self, detections: Sequence[Detection]) -> list[TrackedDetection]:
@@ -28,7 +33,6 @@ class SingleSubjectTracker:
         previous selection. If none overlap sufficiently, fall back to the highest
         confidence detection.
         """
-
         if not detections:
             self._last_bbox = None
             return []

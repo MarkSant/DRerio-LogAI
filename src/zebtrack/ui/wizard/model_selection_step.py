@@ -35,6 +35,13 @@ class ModelSelectionStep(WizardStep):
     _responsive_labels: dict[str, list[Label]]
 
     def __init__(self, parent, wizard_data: dict, settings_obj: Settings | None = None):
+        """Initialize the model selection wizard step.
+
+        Args:
+            parent: Parent widget.
+            wizard_data: Shared wizard data dictionary.
+            settings_obj: Settings object with configuration.
+        """
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.MODEL_SELECTION
         self.settings = settings_obj
@@ -80,7 +87,6 @@ class ModelSelectionStep(WizardStep):
     # ------------------------------------------------------------------
     def _load_weight_catalog(self) -> None:
         """Populate cached segmentation/detection weight name lists."""
-
         self.seg_weight_names.clear()
         self.det_weight_names.clear()
 
@@ -102,8 +108,7 @@ class ModelSelectionStep(WizardStep):
         )
 
     def _method_display(self, method_key: str | None) -> str:
-        """Helper to format method labels for display."""
-
+        """Format method labels for display."""
         if method_key in _METHOD_OPTIONS:
             return _METHOD_OPTIONS[method_key]
         if method_key:
@@ -112,7 +117,6 @@ class ModelSelectionStep(WizardStep):
 
     def _prefill_from_wizard_data(self) -> None:
         """Initialise state variables from wizard data or global defaults."""
-
         selection = dict(self.wizard_data.get("model_selection", {}) or {})
         weight_assignments = dict(self.wizard_data.get("weight_assignments", {}) or {})
 
@@ -193,6 +197,7 @@ class ModelSelectionStep(WizardStep):
     # UI construction
     # ------------------------------------------------------------------
     def build_ui(self) -> None:
+        """Build the UI for this step with model selection controls."""
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(self, text="Modelos e Pesos", font=title_font)
         title.pack(pady=(0, 10))
@@ -567,7 +572,7 @@ class ModelSelectionStep(WizardStep):
     # Validation and error highlighting
     # ------------------------------------------------------------------
     def _setup_validation_callbacks(self) -> None:
-        """Setup real-time validation callbacks for threshold parameters."""
+        """Set up real-time validation callbacks for threshold parameters."""
         # Add trace callbacks to validate on value change
         self.confidence_var.trace_add(
             "write", lambda *_: self._validate_threshold_field("confidence")
@@ -717,7 +722,6 @@ class ModelSelectionStep(WizardStep):
 
     def _on_resize(self, event) -> None:
         """Adjust wraplengths to keep text readable when the dialog resizes."""
-
         if event.widget is not self:
             return
 
@@ -744,7 +748,6 @@ class ModelSelectionStep(WizardStep):
 
     def _apply_column_layout(self) -> None:
         """Reflow primary columns when switching between stacked and side-by-side modes."""
-
         content = self._content_frame
         left = self._left_column
         right = self._right_column
@@ -769,7 +772,6 @@ class ModelSelectionStep(WizardStep):
 
     def _refresh_layout_mode(self) -> None:
         """Force a layout recalculation using the current widget width."""
-
         try:
             width = self.winfo_width()
         except Exception:
@@ -781,6 +783,7 @@ class ModelSelectionStep(WizardStep):
     # Wizard lifecycle overrides
     # ------------------------------------------------------------------
     def on_show(self) -> None:
+        """Handle step visibility and refresh UI from shared wizard data."""
         # Refresh UI from shared wizard data so templates/back navigation stay in sync
         self._prefill_from_wizard_data()
         self._update_template_banner()
@@ -788,6 +791,11 @@ class ModelSelectionStep(WizardStep):
         self._update_animal_method_hint()
 
     def set_data(self, data: dict):
+        """Set wizard data for this step.
+
+        Args:
+            data: Dictionary with wizard configuration data.
+        """
         if not data:
             return
         model_selection = self.wizard_data.setdefault("model_selection", {})
@@ -856,6 +864,11 @@ class ModelSelectionStep(WizardStep):
     # Validation and data extraction
     # ------------------------------------------------------------------
     def validate(self) -> tuple[bool, str]:
+        """Validate model selection and detector parameters.
+
+        Returns:
+            Tuple of (is_valid, error_message). If valid, error_message is empty.
+        """
         try:
             confidence = float(self.confidence_var.get())
             nms = float(self.nms_var.get())
@@ -891,6 +904,11 @@ class ModelSelectionStep(WizardStep):
         return True, ""
 
     def get_data(self) -> dict:
+        """Get model selection data from this step.
+
+        Returns:
+            Dictionary with model_selection and weight_assignments data.
+        """
         aquarium_method = self._method_key_from_label(self.aquarium_method_var.get())
         animal_method = self._method_key_from_label(self.animal_method_var.get())
 

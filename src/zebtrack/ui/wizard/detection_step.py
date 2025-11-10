@@ -171,7 +171,7 @@ class DetectionStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
-        """Called when step becomes visible - run detection automatically."""
+        """Execute actions when step becomes visible - run detection automatically."""
         self._update_template_banner()
         if self.wizard_data.get("custom_regex_patterns"):
             self.custom_regex_patterns = self.wizard_data.get("custom_regex_patterns")
@@ -255,7 +255,6 @@ class DetectionStep(WizardStep):
 
     def _ensure_group_display_names(self) -> None:
         """Ensure detected design carries a friendly-name mapping."""
-
         if not self.detected_design:
             return
 
@@ -270,7 +269,6 @@ class DetectionStep(WizardStep):
 
     def _open_design_editor_for_confirmation(self, auto_invoked: bool = False) -> None:
         """Open the design editor dialog to force friendly-name confirmation."""
-
         if not self.detected_design:
             return
 
@@ -706,7 +704,6 @@ class DetectionStep(WizardStep):
 
     def _format_detector_configuration(self) -> str:
         """Build textual summary of detector/model selections."""
-
         model_selection = self.wizard_data.get("model_selection") or {}
         weight_assignments = self.wizard_data.get("weight_assignments") or {}
         detector_params = self.wizard_data.get("detector_parameters") or {}

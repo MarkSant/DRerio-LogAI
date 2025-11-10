@@ -161,7 +161,7 @@ class DataTransformer:
         r_analyzer: ROIAnalyzer | None = None,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
     ) -> pd.DataFrame:
-        """Creates a flat, tidy DataFrame from the structured report dictionary.
+        """Create a flat, tidy DataFrame from the structured report dictionary.
 
         Args:
             report: Structured analysis report dictionary
@@ -282,7 +282,7 @@ class DataTransformer:
         return combined_data
 
     def _resolve_group_id(self, combined_data: dict[str, Any], metadata: dict[str, Any]) -> str:
-        """Ensures the summary dataframe includes a populated group_id column.
+        """Ensure the summary dataframe includes a populated group_id column.
 
         Args:
             combined_data: Combined data dictionary

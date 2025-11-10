@@ -1,5 +1,5 @@
 """
-Step 2: File Selection Dialog
+Step 2: File Selection Dialog.
 
 Allows user to select video files and folders for analysis.
 Provides summary of selection and validates that at least one video is chosen.
@@ -374,7 +374,7 @@ class FileSelectionStep(WizardStep):
         self._update_template_banner()
 
     def on_show(self):
-        """Called when step becomes visible."""
+        """Execute actions when step becomes visible."""
         # Refresh display in case data changed
         self._update_display()
         self._update_template_banner()

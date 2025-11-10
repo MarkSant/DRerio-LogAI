@@ -1,5 +1,5 @@
 """
-Custom Regex Patterns Dialog
+Custom Regex Patterns Dialog.
 
 Allows user to define custom regex patterns for detecting groups, days, and subjects
 from folder structure or filenames.

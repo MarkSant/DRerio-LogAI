@@ -52,7 +52,7 @@ class ProjectViewManager:
 
     def update_window_title(self, project_name: str | None = None):
         """
-        Updates the window title with optional project name.
+        Update the window title with optional project name.
 
         Args:
             project_name: Name of the current project, or None for default title
@@ -354,7 +354,7 @@ class ProjectViewManager:
         self._refresh_pipeline_video_table()
 
     def _refresh_pipeline_video_table(self) -> None:
-        """Internal implementation of pipeline video table refresh."""
+        """Refresh pipeline video table (internal implementation)."""
         log.warning(
             "project_view_manager.refresh_pipeline_video_table_deprecated",
             message="This method is LEGACY and may be removed in future versions",
@@ -466,7 +466,7 @@ class ProjectViewManager:
 
     def _refresh_processing_reports_tab(self) -> None:
         """
-        Internal implementation of processing reports tab refresh.
+        Refresh processing reports tab (internal implementation).
 
         Updates the tree with current project data and report artifacts.
         """
@@ -836,7 +836,7 @@ class ProjectViewManager:
 
     def on_project_overview_tree_double_click(self, event=None) -> None:
         """
-        Handler for double-click on project overview tree.
+        Handle double-click on project overview tree.
 
         Args:
             event: Tkinter event object
@@ -845,7 +845,7 @@ class ProjectViewManager:
 
     def _on_project_overview_tree_double_click_impl(self, event=None) -> None:
         """
-        Implementation of double-click handler for project overview tree.
+        Implement double-click handler for project overview tree.
 
         Args:
             event: Tkinter event object
@@ -892,7 +892,7 @@ class ProjectViewManager:
 
     def on_project_overview_right_click(self, event=None) -> None:
         """
-        Handler for right-click on project overview tree.
+        Handle right-click on project overview tree.
 
         Args:
             event: Tkinter event object
@@ -1063,7 +1063,7 @@ class ProjectViewManager:
             self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")
 
     def handle_project_overview_double_click(self, item_id: str) -> None:
-        """Implementation of double-click logic on project overview tree."""
+        """Implement double-click logic on project overview tree."""
         import os
 
         if not self.gui.project_overview_tree:

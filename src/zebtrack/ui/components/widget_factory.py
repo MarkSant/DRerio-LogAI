@@ -377,7 +377,7 @@ class WidgetFactory:
 
     def create_drawing_buttons(self):
         """
-        Creates floating undo/redo buttons over the canvas.
+        Create floating undo/redo buttons over the canvas.
 
         Buttons are positioned in top-right corner of viz_frame.
         """
@@ -412,7 +412,7 @@ class WidgetFactory:
 
     def create_progress_grid_tab(self):
         """
-        Creates the tab for viewing the experimental progress grid.
+        Create the tab for viewing the experimental progress grid.
 
         Used for live camera projects to show recording progress.
         """
@@ -530,7 +530,7 @@ class WidgetFactory:
 
     def create_configuration_tab_widget(self) -> None:
         """
-        Creates the configuration tab using ConfigEditorWidget.
+        Create the configuration tab using ConfigEditorWidget.
 
         Sets up event handlers for config save/reset actions.
         """
@@ -566,7 +566,7 @@ class WidgetFactory:
 
     def create_analysis_tab_widget(self):
         """
-        Creates the analysis tab using the AnalysisDisplayWidget.
+        Create the analysis tab using the AnalysisDisplayWidget.
 
         Sets up event handlers for track selection and cancel actions.
         """
@@ -610,7 +610,7 @@ class WidgetFactory:
 
     def create_processing_reports_tab(self) -> None:
         """
-        Creates the unified Processing and Reports tab.
+        Create the unified Processing and Reports tab.
 
         This tab consolidates functionality from the old "Trajectories and Summaries"
         and "Reports" tabs into a single interface for better UX and reduced redundancy.
@@ -719,7 +719,7 @@ class WidgetFactory:
 
     def create_welcome_frame(self):
         """
-        Creates the initial UI for project selection and model configuration.
+        Create the initial UI for project selection and model configuration.
 
         This is the main entry screen shown when no project is loaded.
         """
@@ -750,7 +750,7 @@ class WidgetFactory:
 
     def create_main_control_frame(self):
         """
-        Creates the main UI with tabs for controlling the app.
+        Create the main UI with tabs for controlling the app.
 
         This is the main screen shown when a project is loaded.
         Creates all tabs and status bar.
@@ -1549,7 +1549,7 @@ class WidgetFactory:
             self.gui.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
 
     def create_template_rois(self) -> None:
-        """Opens a dialog to create ROIs from a template."""
+        """Open a dialog to create ROIs from a template."""
         import numpy as np
 
         from zebtrack.ui.dialogs.template_dialog import TemplateDialog
@@ -1613,7 +1613,7 @@ class WidgetFactory:
         self.gui._on_arena_select()
 
     def render_progress_grid(self) -> None:
-        """Clears and redraws the experimental progress grid based on project data."""
+        """Clear and redraw the experimental progress grid based on project data."""
         from tkinter import Button
 
         # 1. Clear existing widgets
@@ -1909,7 +1909,7 @@ class WidgetFactory:
             self.gui.rule_help_label.config(text=help_text)
 
     def display_welcome_logo(self):
-        """Displays the DRerio LogAI logo in the welcome frame."""
+        """Display the DRerio LogAI logo in the welcome frame."""
         from pathlib import Path
 
         try:

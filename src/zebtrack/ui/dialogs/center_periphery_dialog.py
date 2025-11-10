@@ -1,5 +1,5 @@
 """
-CenterPeripheryDialog
+CenterPeripheryDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -15,6 +15,14 @@ class CenterPeripheryDialog(simpledialog.Dialog):
     """Dialog for center-periphery analysis settings."""
 
     def body(self, master):
+        """Create dialog body with center/periphery configuration options.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         self.method = StringVar(value="distance")
         self.value = StringVar(value="5.0")
 
@@ -37,6 +45,7 @@ class CenterPeripheryDialog(simpledialog.Dialog):
         return master
 
     def apply(self):
+        """Apply the selected center/periphery settings to result."""
         try:
             self.result = {
                 "method": self.method.get(),

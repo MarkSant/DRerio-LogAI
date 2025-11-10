@@ -57,7 +57,7 @@ class LiveConfigData(BaseModel):
     @field_validator("recording_duration_s")
     @classmethod
     def validate_recording_duration(cls, v, info):
-        """Recording duration must be > 0 when timed recording is enabled."""
+        """Validate that recording duration is > 0 when timed recording is enabled."""
         if info.data.get("use_timed_recording") and v <= 0:
             raise ValueError("Duração de gravação deve ser > 0 quando gravação temporizada ativada")
         return v

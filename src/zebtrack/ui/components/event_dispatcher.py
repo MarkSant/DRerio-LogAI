@@ -153,7 +153,7 @@ class EventDispatcher:
     # =========================================================================
 
     def _handle_request_weight_file(self, data: dict) -> None:
-        """Handles the request to open a file dialog for selecting a weight file."""
+        """Handle the request to open a file dialog for selecting a weight file."""
         filepath = filedialog.askopenfilename(
             title="Selecione o arquivo de peso do modelo (.pt)",
             filetypes=[("PyTorch Model", "*.pt"), ("All files", "*.*")],
@@ -163,13 +163,13 @@ class EventDispatcher:
             self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"filepath": filepath})
 
     def _handle_request_weight_type(self, data: dict) -> None:
-        """Handles the request to ask the user for the weight type."""
+        """Handle the request to ask the user for the weight type."""
         weight_type = self.gui._prompt_for_weight_type()
         if weight_type:
             self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"weight_type": weight_type})
 
     def _handle_request_weight_action(self, data: dict) -> None:
-        """Handles the request to ask the user what to do with the new weight."""
+        """Handle the request to ask the user what to do with the new weight."""
         weight_type = data.get("weight_type", "desconhecido")
         response = messagebox.askyesnocancel(
             "Adicionar Novo Peso",
@@ -188,7 +188,7 @@ class EventDispatcher:
         self.publish_event(Events.MODEL_LOAD_NEW_WEIGHT, {"choice": choice})
 
     def _handle_open_manage_weights_dialog(self, data: dict) -> None:
-        """Opens the weight management dialog."""
+        """Open the weight management dialog."""
         ManageWeightsDialog(self.gui.root, self.gui.controller)
 
     def _handle_set_status(self, data: dict) -> None:
@@ -327,7 +327,7 @@ class EventDispatcher:
         self.gui.update_openvino_status_display(data.get("status", ""))
 
     def _handle_setup_interactive_polygon(self, data: dict) -> None:
-        """Setup interactive polygon editing."""
+        """Set up interactive polygon editing."""
         polygon = data.get("polygon")
         if polygon is not None:
             self.gui.setup_interactive_polygon(np.array(polygon))

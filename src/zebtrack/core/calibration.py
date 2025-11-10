@@ -1,3 +1,9 @@
+"""Calibration module for perspective correction and scale mapping.
+
+Handles perspective transformation and pixel-to-centimeter conversion based on
+detected polygon boundaries for accurate spatial measurements in zebrafish tracking.
+"""
+
 import cv2
 import numpy as np
 import structlog
@@ -6,13 +12,11 @@ log = structlog.get_logger()
 
 
 class Calibration:
-    """
-    Handles perspective correction and scale calibration based on a detected polygon.
-    """
+    """Handles perspective correction and scale calibration based on a detected polygon."""
 
     def __init__(self, polygon, real_width_cm: float, real_height_cm: float):
         """
-        Initializes the Calibration object.
+        Initialize the Calibration object.
 
         Args:
             polygon (np.ndarray): A single polygon (numpy array) from AquariumDetector.
@@ -30,9 +34,7 @@ class Calibration:
             self._process_polygon()
 
     def _process_polygon(self):
-        """
-        Processes the detected polygon to calculate the homography matrix and scale.
-        """
+        """Process the detected polygon to calculate the homography matrix and scale."""
         # 1. Find the four corner points of the polygon.
         # Using cv2.minAreaRect is a robust way to find the corners of a
         # near-rectangular shape. A more complex RANSAC-based line fitting
@@ -78,9 +80,7 @@ class Calibration:
 
     @staticmethod
     def _find_corners(polygon: np.ndarray) -> np.ndarray | None:
-        """
-        Finds the four corners of a polygon using its minimum area rectangle.
-        """
+        """Find the four corners of a polygon using its minimum area rectangle."""
         if polygon is None or len(polygon) < 3:
             return None
         # Ensure polygon is in the correct format (np.float32 or np.int32)
@@ -94,8 +94,9 @@ class Calibration:
     @staticmethod
     def _order_points(pts: np.ndarray) -> np.ndarray:
         """
-        Orders the 4 corner points into a consistent order:
-        top-left, top-right, bottom-right, bottom-left.
+        Orders the 4 corner points into a consistent order.
+
+        The order is: top-left, top-right, bottom-right, bottom-left.
         This is crucial for cv2.getPerspectiveTransform.
         """
         rect = np.zeros((4, 2), dtype="float32")
@@ -115,9 +116,7 @@ class Calibration:
         return rect
 
     def warp_frame(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Applies the calculated perspective warp to a given frame.
-        """
+        """Apply the calculated perspective warp to a given frame."""
         if self.homography_matrix is None:
             log.warning("calibration.warp.no_matrix", returning_original=True)
             return frame
@@ -126,7 +125,7 @@ class Calibration:
 
     def transform_points(self, points: list) -> list:
         """
-        Transforms a list of points using the homography matrix.
+        Transform a list of points using the homography matrix.
 
         Args:
             points: List of [x, y] coordinates
@@ -146,7 +145,7 @@ class Calibration:
 
     def transform_bbox(self, x1: float, y1: float, x2: float, y2: float) -> tuple:
         """
-        Transforms a bounding box from original video space to warped space.
+        Transform a bounding box from original video space to warped space.
 
         This method transforms all 4 corners of the bbox and finds the new
         axis-aligned bounding box that encompasses all transformed points.

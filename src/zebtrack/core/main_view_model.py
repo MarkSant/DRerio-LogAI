@@ -1,3 +1,9 @@
+"""Main application view model orchestrating the ZebTrack-AI application.
+
+Coordinates all core services, manages application state, handles user interactions,
+and orchestrates video processing workflows with dependency injection.
+"""
+
 from __future__ import annotations
 
 import glob
@@ -75,7 +81,7 @@ DEFAULT_MATCH_THRESHOLD = 0.15
 
 def _is_valid_openvino_directory(path: str | None) -> bool:
     """
-    Validates if an OpenVINO model directory exists and contains required .xml files.
+    Validate if an OpenVINO model directory exists and contains required .xml files.
 
     Args:
         path: Path to the OpenVINO model directory
@@ -469,6 +475,10 @@ class MainViewModel:
         log.info("main_view_model.coordinators_initialized")
 
     def run(self):
+        """Start the Tkinter main event loop.
+
+        This is the main entry point for running the application GUI.
+        """
         # The GUI is now responsible for populating its own widgets when created.
         self.root.mainloop()
 
@@ -630,7 +640,7 @@ class MainViewModel:
 
     def get_openvino_status(self) -> str:
         """
-        Gets the current OpenVINO status text based on the model and self.settings.
+        Get the current OpenVINO status text based on the model and self.settings.
 
         Delegates to ModelService for business logic (Phase 2.1).
         """
@@ -639,6 +649,11 @@ class MainViewModel:
         )
 
     def on_close(self):
+        """Handle application close event with user confirmation.
+
+        Prompts user for confirmation, stops event bus polling, joins threads,
+        and destroys the root window.
+        """
         if self.view.ask_ok_cancel("Sair", "Deseja realmente sair?"):
             if hasattr(self.view, "stop_event_bus_polling"):
                 try:
@@ -695,7 +710,7 @@ class MainViewModel:
         self.ui_coordinator.schedule(func, *args, **kwargs)
 
     def _setup_recording_service_callbacks(self) -> None:
-        """Setup UI callbacks for RecordingService."""
+        """Set up UI callbacks for RecordingService."""
         if self.recording_service is None:
             return
 
@@ -874,7 +889,7 @@ class MainViewModel:
     }
 
     def _create_event_dispatcher(self, event_name: str):
-        """Factory to create event-specific dispatcher closures.
+        """Create event-specific dispatcher closures.
 
         Phase 7.1: Generic dispatcher that replaces 32 individual _handle_* methods.
 
@@ -887,7 +902,7 @@ class MainViewModel:
         method_name, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
 
         def dispatcher(data: dict) -> None:
-            """Generic event handler that delegates to controller method."""
+            """Delegate event to controller method."""
             method = getattr(self, method_name)
 
             if mode == "no_params":
@@ -937,7 +952,7 @@ class MainViewModel:
         )
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict):
-        """Handler for the special single video zone definition event."""
+        """Handle the special single video zone definition event."""
         video_path = data.get("video_path")
         config = data.get("config")
         if video_path and config:
@@ -945,7 +960,6 @@ class MainViewModel:
 
     def _determine_processing_mode(self) -> ProcessingMode:
         """Inspect current detector/settings state to infer active mode."""
-
         detector = getattr(self, "detector", None)
         if detector and hasattr(detector, "is_single_subject_mode"):
             try:
@@ -979,7 +993,6 @@ class MainViewModel:
         mode_override: ProcessingMode | None = None,
     ) -> ProcessingReport:
         """Notify the GUI about the current processing mode when it changes."""
-
         mode = mode_override or self._determine_processing_mode()
         if not force and mode == getattr(self, "_active_processing_mode", None):
             return ProcessingReport(mode=mode, source=source)
@@ -999,7 +1012,6 @@ class MainViewModel:
         immediate: bool = False,
     ) -> None:
         """Request a refresh of project-related UI components on the main thread."""
-
         if not getattr(self, "view", None):
             return
 
@@ -1041,6 +1053,11 @@ class MainViewModel:
         self.hardware_coordinator.on_arduino_command_sent(command, success, source)
 
     def on_arduino_event(self, event_code: int):
+        """Handle Arduino event signals for external trigger control.
+
+        Args:
+            event_code: Integer code from Arduino (1 for start, 0 for stop).
+        """
         log.info("controller.arduino.event_received", code=event_code)
         self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
 
@@ -1058,6 +1075,11 @@ class MainViewModel:
             log.info("controller.arduino.event.ignored", code=event_code)
 
     def trigger_recording(self, event_code: int | None = None):
+        """Trigger a pending recording session from external Arduino event.
+
+        Args:
+            event_code: Optional Arduino event code that triggered recording.
+        """
         if not self._pending_external_trigger:
             log.warning("controller.external_trigger.no_pending", code=event_code)
             return
@@ -1125,7 +1147,6 @@ class MainViewModel:
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
         """Apply detector parameter overrides captured during the wizard flow."""
-
         if not wizard_metadata:
             return
 
@@ -1208,7 +1229,7 @@ class MainViewModel:
 
     def _setup_zones_from_project(self) -> None:
         """
-        Setup zones from project data.
+        Set up zones from project data.
 
         Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
         """
@@ -1236,7 +1257,7 @@ class MainViewModel:
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
-        Initializes the detector instance based on the animal method selection.
+        Initialize the detector instance based on the animal method selection.
 
         Task 2.2: Delegates to HardwareCoordinator.
 
@@ -1251,14 +1272,14 @@ class MainViewModel:
         )
 
     def _is_arduino_connected(self) -> bool:
-        """Checks whether there is an active Arduino connection.
+        """Check whether there is an active Arduino connection.
 
         Task 2.2: Delegates to HardwareCoordinator.
         """
         return self.hardware_coordinator.is_arduino_connected()
 
     def setup_arduino(self) -> bool:
-        """Ensures the Arduino connection is ready when the project requests it.
+        """Ensure the Arduino connection is ready when the project requests it.
 
         Task 2.2: Delegates to HardwareCoordinator.
         """
@@ -1270,7 +1291,7 @@ class MainViewModel:
 
     def setup_detector_zones(self):
         """
-        Loads zone data from project and sets it on the detector instance.
+        Load zone data from project and sets it on the detector instance.
 
         Task 2.2: Delegates to HardwareCoordinator.
         """
@@ -1331,6 +1352,11 @@ class MainViewModel:
             )
 
     def delete_weight(self, name: str):
+        """Delete a model weight from the catalog.
+
+        Args:
+            name: Name of the weight to delete.
+        """
         try:
             self.weight_manager.delete_weight(name)
             # Refresh UI on success
@@ -1350,6 +1376,12 @@ class MainViewModel:
             )
 
     def set_active_weight(self, name: str | None, dialog=None):
+        """Set the active model weight and update UI accordingly.
+
+        Args:
+            name: Name of the weight to set as active.
+            dialog: Optional dialog to update with OpenVINO status.
+        """
         candidate = name or ""
         available = set(self.get_all_weight_names())
 
@@ -1371,7 +1403,7 @@ class MainViewModel:
             self._global_model_defaults["active_weight"] = self.active_weight_name or None
 
     def manage_weights(self):
-        """Opens the weight management dialog."""
+        """Open the weight management dialog."""
         self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
 
     def load_new_weight(
@@ -1380,7 +1412,7 @@ class MainViewModel:
         weight_type: str | None = None,
         choice: str | None = None,
     ):
-        """Handles the 'Load New Weight' button click."""
+        """Handle the 'Load New Weight' button click."""
         if filepath is not None:
             filepath = Path(filepath) if isinstance(filepath, str) else filepath
         if filepath is None:
@@ -1414,6 +1446,12 @@ class MainViewModel:
             self.add_new_weight(path=filepath, set_as_default=False, weight_type=weight_type)
 
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
+        """Enable or disable OpenVINO inference mode.
+
+        Args:
+            use_openvino: True to enable OpenVINO, False to use PyTorch.
+            dialog: Optional dialog to update with status.
+        """
         self.use_openvino = bool(use_openvino)
         log.info("controller.openvino_usage.set", enabled=self.use_openvino)
         self.ui_event_bus.publish_event(
@@ -1470,7 +1508,7 @@ class MainViewModel:
                 )
 
     def update_openvino_status(self, dialog=None):
-        """Updates the status label in the GUI based on the current state."""
+        """Update the status label in the GUI based on the current state."""
         status = self.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
@@ -1478,9 +1516,19 @@ class MainViewModel:
 
     @property
     def are_project_overrides_active(self) -> bool:
+        """Check if project-specific model overrides are currently active.
+
+        Returns:
+            True if using project overrides, False if using global settings.
+        """
         return bool(self._using_project_overrides)
 
     def get_global_model_defaults(self) -> dict:
+        """Get global model default settings.
+
+        Returns:
+            Dictionary with 'active_weight' and 'use_openvino' keys.
+        """
         return {
             "active_weight": self._global_model_defaults.get("active_weight"),
             "use_openvino": self._global_model_defaults.get("use_openvino", False),
@@ -1502,12 +1550,22 @@ class MainViewModel:
         return overrides
 
     def has_project_override_settings(self) -> bool:
+        """Check if project has any non-empty model override settings.
+
+        Returns:
+            True if project has model overrides, False otherwise.
+        """
         if not getattr(self.project_manager, "project_path", None):
             return False
         overrides = self._ensure_project_overrides_record()
         return any(value not in (None, "", "inherit") for value in overrides.values())
 
     def get_calibration_scope_info(self) -> dict:
+        """Get calibration scope information for UI display.
+
+        Returns:
+            Dictionary with scope, project status, labels, and detail messages.
+        """
         project_path = getattr(self.project_manager, "project_path", None)
         project_loaded = bool(project_path)
         project_name = None
@@ -1648,6 +1706,11 @@ class MainViewModel:
         return overrides
 
     def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
+        """Copy global model settings to current project as overrides.
+
+        Returns:
+            Tuple of (weight_name, use_openvino) if successful, None otherwise.
+        """
         if not getattr(self.project_manager, "project_path", None):
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
@@ -1671,6 +1734,11 @@ class MainViewModel:
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 
     def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
+        """Save current model settings as project-specific overrides.
+
+        Returns:
+            Tuple of (weight_name, use_openvino) if successful, None otherwise.
+        """
         if not getattr(self.project_manager, "project_path", None):
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
@@ -1707,6 +1775,14 @@ class MainViewModel:
     def resolve_project_model_settings(
         self, overrides: dict | None = None
     ) -> tuple[str | None, bool]:
+        """Resolve model settings considering project overrides and global defaults.
+
+        Args:
+            overrides: Optional override dictionary to merge with project overrides.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         base_overrides = project_data.get("model_overrides") or {}
         if overrides is not None:
@@ -1763,6 +1839,14 @@ class MainViewModel:
     def apply_project_model_overrides(
         self, overrides: dict | None = None
     ) -> tuple[str | None, bool]:
+        """Apply project-specific model overrides to current settings.
+
+        Args:
+            overrides: Optional override dictionary to use instead of stored overrides.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
         if not getattr(self.project_manager, "project_data", None):
             return self.active_weight_name or None, bool(self.use_openvino)
 
@@ -1787,6 +1871,15 @@ class MainViewModel:
     def save_project_model_overrides(
         self, active_weight_override: str | None, use_openvino_override: bool | None
     ) -> tuple[str | None, bool]:
+        """Save model settings as project overrides and apply them.
+
+        Args:
+            active_weight_override: Weight name to save as override.
+            use_openvino_override: OpenVINO preference to save as override.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
         if not getattr(self.project_manager, "project_path", None):
             log.warning("controller.project_overrides.no_project_loaded")
             return self.active_weight_name or None, self.use_openvino
@@ -1813,6 +1906,14 @@ class MainViewModel:
 
     @contextmanager
     def global_calibration_session(self):
+        """Context manager for global calibration mode.
+
+        Temporarily disables project overrides and saves changes to global defaults.
+        Restores project overrides on exit if they were active before.
+
+        Yields:
+            None
+        """
         previous_flag = self._using_project_overrides
         self._using_project_overrides = False
         try:
@@ -1826,6 +1927,14 @@ class MainViewModel:
 
     @contextmanager
     def project_calibration_session(self):
+        """Context manager for project-specific calibration mode.
+
+        Enables project override mode and saves changes to project settings.
+        Maintains override state on exit if project has overrides.
+
+        Yields:
+            None
+        """
         previous_flag = self._using_project_overrides
         self._using_project_overrides = True
         try:
@@ -1842,7 +1951,7 @@ class MainViewModel:
         stabilization_frames: int = 10,
         temp_aquarium_method: str | None = None,
     ):
-        """Runs the aquarium detection model on the specified or first project video.
+        """Run the aquarium detection model on the specified or first project video.
 
         Args:
             video_path: Path to video file, if None uses next project video
@@ -2040,7 +2149,7 @@ class MainViewModel:
         pass
 
     def set_main_arena_polygon(self, points: list) -> bool:
-        """Salva polígono com validações robustas"""
+        """Salva polígono com validações robustas."""
         try:
             # Validação 1: Pontos válidos
             if not points or len(points) < 3:
@@ -2091,7 +2200,7 @@ class MainViewModel:
 
     def save_manual_arena(self, polygon_points: list[list[int]]):
         """
-        Saves the manually adjusted arena and updates the detector.
+        Save the manually adjusted arena and updates the detector.
 
         Delegates to ProjectService for persistence (Phase 2.1).
         MainViewModel handles UI coordination and detector updates.
@@ -2101,7 +2210,7 @@ class MainViewModel:
 
     def update_main_arena(self, polygon_points: list[list[int]]):
         """
-        Updates the main arena polygon in the project's zone data.
+        Update the main arena polygon in the project's zone data.
 
         Phase 2.1: Logic simplified but maintains compatibility with existing tests.
         ProjectService methods available for future direct usage.
@@ -2118,7 +2227,7 @@ class MainViewModel:
         log.info("controller.zone.update_arena.success")
 
     def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
-        """Adiciona ROI com validação de sobreposição"""
+        """Adiciona ROI com validação de sobreposição."""
         try:
             log.info("controller.zone.add_roi", name=name, points=len(roi_points))
 
@@ -2297,7 +2406,7 @@ class MainViewModel:
             return False
 
     def run_live_calibration(self, temp_aquarium_method: str | None = None):
-        """Records a short clip from the live camera and runs aquarium detection.
+        """Record a short clip from the live camera and runs aquarium detection.
 
         Args:
             temp_aquarium_method: Temporary override for aquarium detection method
@@ -2402,7 +2511,7 @@ class MainViewModel:
         group: str | None = None,
         cobaia: str | None = None,
     ):
-        """Starts a recording session (live mode) with zone validation."""
+        """Start a recording session (live mode) with zone validation."""
         log.info("controller.recording.start")
 
         # Live recordings rely on project-wide zones, not per-video ones
@@ -2592,7 +2701,7 @@ class MainViewModel:
             )
 
     def stop_recording(self):
-        """Stops the current recording session (delegates to RecordingService - Phase 2.2)."""
+        """Stop the current recording session (delegates to RecordingService - Phase 2.2)."""
         log.info("controller.recording.stop")
 
         if self._pending_external_trigger:
@@ -2707,7 +2816,6 @@ class MainViewModel:
 
     def cancel_current_analysis(self) -> None:
         """Request cancellation for the currently running analysis workflow."""
-
         worker_running = bool(self.processing_worker and self.processing_worker.is_running)
         thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
 
@@ -2762,7 +2870,6 @@ class MainViewModel:
 
     def _show_cancel_feedback(self) -> None:
         """Update UI immediately after a cancellation request."""
-
         if self._cancel_feedback_displayed:
             return
 
@@ -2783,7 +2890,7 @@ class MainViewModel:
         )
 
     def start_single_video_workflow(self, video_path: Path | str, config: dict):
-        """Prepares the UI for zone definition in the single video workflow."""
+        """Prepare the UI for zone definition in the single video workflow."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.setup_start", video=str(video_path))
 
@@ -2836,7 +2943,7 @@ class MainViewModel:
     def start_single_video_processing(
         self, video_path: Path | str, config: dict, zone_data: ZoneData
     ):
-        """Starts the actual processing for a single video after zone setup."""
+        """Start the actual processing for a single video after zone setup."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)
 
@@ -2972,7 +3079,7 @@ class MainViewModel:
             )
 
     def start_project_processing_workflow(self):
-        """Adiciona vídeos com validação robusta de zonas"""
+        """Adiciona vídeos com validação robusta de zonas."""
         log.info("workflow.project_processing.start")
 
         if self.processing_thread and self.processing_thread.is_alive():
@@ -3729,8 +3836,9 @@ class MainViewModel:
         video_paths: list[str] | None,
         all_videos: list[dict],
     ) -> list[dict] | None:
-        """Return a list of candidate video entries to process, or None if the
-        calling function should abort (due to user cancel or invalid selection).
+        """Return a list of candidate video entries to process.
+
+        Returns None if the calling function should abort (due to user cancel or invalid selection).
         """
         videos_by_norm: dict[str, dict] = {}
         for video in all_videos:
@@ -3811,8 +3919,9 @@ class MainViewModel:
     def _classify_candidate_videos(
         self, candidate_entries: list[dict], info_by_norm: dict
     ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
-        """Given candidate entries and a lookup, classify them into buckets and
-        return (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
+        """Given candidate entries and a lookup, classify them into buckets.
+
+        Returns (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
         """
         ready_with_trajectory: list[dict] = []
         ready_with_zones: list[dict] = []
@@ -4496,7 +4605,7 @@ class MainViewModel:
             return success, results_dir
 
     def apply_project_settings_to_batch(self, videos: list):
-        """Aplica configurações do projeto a novos vídeos"""
+        """Aplica configurações do projeto a novos vídeos."""
         if not self.project_manager.project_path:
             log.warning("controller.batch.no_project_path")
             return False
@@ -4626,12 +4735,13 @@ class MainViewModel:
 
     def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """
-        Creates thread-safe callbacks for the processing worker.
+        Create thread-safe callbacks for the processing worker.
+
         All callbacks schedule UI updates via root.after() to ensure thread safety.
         """
 
         def on_started():
-            """Called when processing starts."""
+            """Call when processing starts."""
             # Phase 4: Use UICoordinator for UI updates
             self.ui_coordinator.show_progress_bar(self.view)
             self.ui_coordinator.set_status(
@@ -4642,7 +4752,7 @@ class MainViewModel:
             self._publish_processing_mode(source="worker.started", force=True)
 
         def on_progress(fraction: float, message: str, stats: dict | None):
-            """Called with progress updates."""
+            """Call with progress updates."""
             if self.cancel_event.is_set():
                 return
 
@@ -4664,7 +4774,7 @@ class MainViewModel:
                 self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
 
         def on_frame_processed(frame, detections, processing_info):
-            """Called when a frame is ready for display."""
+            """Call when a frame is ready for display."""
             if frame is not None:
                 # Phase 4: Use UICoordinator for frame display
                 self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
@@ -4676,7 +4786,7 @@ class MainViewModel:
                 )
 
         def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
-            """Called when a single video completes."""
+            """Call when a single video completes."""
             log.info(
                 "controller.video_completed",
                 index=index,
@@ -4686,7 +4796,7 @@ class MainViewModel:
             )
 
         def on_error(error: Exception, context: str):
-            """Called when an error occurs."""
+            """Call when an error occurs."""
             log.error("controller.processing.worker_error", context=context, error=str(error))
             self.root.after(
                 0,
@@ -4714,7 +4824,7 @@ class MainViewModel:
             self.ui_coordinator.set_status(self.view, "Processamento falhou")
 
         def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None):
-            """Called when all processing completes."""
+            """Call when all processing completes."""
             # Phase 4: Use UICoordinator for UI updates
             self.project_manager.set_active_zone_video(None)
             self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
@@ -4762,9 +4872,7 @@ class MainViewModel:
         output_base_dir: str,
         single_video_config: dict | None = None,
     ) -> ProcessingContext:
-        """
-        Creates the processing context with all necessary configuration.
-        """
+        """Create the processing context with all necessary configuration."""
         return ProcessingContext(
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
@@ -4785,9 +4893,9 @@ class MainViewModel:
         single_video_config: dict | None = None,
     ):
         """
-        Private helper to process a list of videos and save results. This is
-        designed to be run in a background thread.
+        Private helper to process a list of videos and save results.
 
+        This is designed to be run in a background thread.
         Phase 3: Delegates batch processing orchestration to AnalysisService.
         """
         log.info("controller.processing.start_delegating", count=len(videos_to_process))
@@ -4805,7 +4913,7 @@ class MainViewModel:
             )
 
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
-        """Generates a report from a list of processed videos.
+        """Generate a report from a list of processed videos.
 
         Task 2.2: Delegates to AnalysisCoordinator.
         """
@@ -4813,7 +4921,8 @@ class MainViewModel:
 
     def run_model_diagnostic(self, config: dict):
         """
-        Prepares for and launches the diagnostic test in a background thread.
+        Prepare for and launches the diagnostic test in a background thread.
+
         Now shows a progress dialog during execution.
         """
         log.info("controller.diagnostic.start", config=config)
@@ -4915,7 +5024,8 @@ class MainViewModel:
 
     def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
         """
-        The actual diagnostic processing logic that runs in a background thread.
+        Run actual diagnostic processing logic in a background thread.
+        
         Updates progress dialog during execution.
         """
         video_path = config["video_path"]
@@ -5186,7 +5296,7 @@ class MainViewModel:
             cap.release()
 
     def _finish_diagnostic_and_save_report(self, config, results):
-        """Formats and saves the report. Runs on the main UI thread."""
+        """Format and saves the report. Runs on the main UI thread."""
         report_str = self._format_diagnostic_report(config, results)
         save_path = self.view.ask_save_filename(
             title="Salvar Relatório de Diagnóstico",
@@ -5224,7 +5334,7 @@ class MainViewModel:
         )
 
     def _format_diagnostic_report(self, config, results) -> str:
-        """Formats the collected diagnostic data into a string."""
+        """Format the collected diagnostic data into a string."""
         report_lines = [
             "Relatório de Diagnóstico do Modelo",
             "-----------------------------------",

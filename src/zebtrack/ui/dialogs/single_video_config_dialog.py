@@ -1,5 +1,5 @@
 """
-SingleVideoConfigDialog
+SingleVideoConfigDialog.
 
 Extracted from gui.py for better modularity.
 """
@@ -27,11 +27,25 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
     """A simplified dialog to get configuration for a single video analysis."""
 
     def __init__(self, parent, settings_obj: "Settings | None" = None):
+        """Initialize the single video configuration dialog.
+
+        Args:
+            parent: Parent widget.
+            settings_obj: Settings object with configuration.
+        """
         self.result = None
         self.settings = settings_obj
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
 
     def body(self, master):
+        """Create dialog body with single video configuration options.
+
+        Args:
+            master: Parent widget for dialog body.
+
+        Returns:
+            The initial focus widget.
+        """
         # --- Tkinter Variables ---
         self.source_type_var = StringVar(value="video")  # "video" or "camera"
         self.video_path_var = StringVar(value="")
@@ -354,7 +368,6 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
     def _browse_video(self):
         """Open file dialog to select a video file."""
-
         video_path = filedialog.askopenfilename(
             parent=self,
             title="Selecione um Arquivo de Vídeo",
@@ -410,6 +423,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             messagebox.showerror("Erro", f"Erro ao detectar câmeras:\n{e}")
 
     def validate(self):
+        """Validate video file and configuration settings.
+
+        Returns:
+            True if configuration is valid, False otherwise.
+        """
         # Check if source was selected
         source_type = self.source_type_var.get()
 
@@ -463,6 +481,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         return True
 
     def apply(self):
+        """Apply the single video configuration to result dictionary."""
         analysis_interval = int(self.analysis_interval_var.get())
         display_interval = int(self.display_interval_var.get())
         num_aquariums = int(self.num_aquariums_var.get())

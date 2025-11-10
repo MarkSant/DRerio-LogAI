@@ -1,5 +1,5 @@
 """
-Collapsible Frame Widget
+Collapsible Frame Widget.
 
 Provides a frame with a clickable header that can expand/collapse its content.
 """

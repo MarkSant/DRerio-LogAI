@@ -1,5 +1,5 @@
 """
-Wizard Template System
+Wizard Template System.
 
 Allows saving and loading project configuration templates for quick project creation.
 """
@@ -288,7 +288,6 @@ class TemplateManager:
 
 def format_template_banner(metadata: dict | None) -> str:
     """Format banner text for loaded templates."""
-
     if not metadata:
         return ""
 

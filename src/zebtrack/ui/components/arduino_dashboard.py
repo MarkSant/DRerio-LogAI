@@ -273,7 +273,7 @@ class ArduinoDashboardWidget(BaseWidget):
         entry = f"[{timestamp}] {message}\n"
 
         def _update_log():
-            """Internal method to update log text widget on main thread."""
+            """Update log text widget on main thread."""
             if not self.log_text:
                 return
 

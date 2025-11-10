@@ -1,3 +1,9 @@
+"""Aquarium detection module using YOLO segmentation models.
+
+Provides the AquariumDetector class for detecting and segmenting aquarium boundaries
+in video frames for perspective correction and calibration.
+"""
+
 from pathlib import Path
 
 import cv2
@@ -19,13 +25,11 @@ log = structlog.get_logger()
 
 
 class AquariumDetector:
-    """
-    Detects aquariums in a video using a YOLO segmentation model.
-    """
+    """Detects aquariums in a video using a YOLO segmentation model."""
 
     def __init__(self, model_path: Path | str, mode: str = "seg"):
         """
-        Initializes the AquariumDetector.
+        Initialize the AquariumDetector.
 
         Args:
             model_path: Path to the YOLO model (.pt file).
@@ -52,7 +56,7 @@ class AquariumDetector:
             raise
 
     def _calculate_iou(self, poly1_points, poly2_points) -> float:
-        """Calculates the Intersection over Union (IoU) of two polygons."""
+        """Calculate the Intersection over Union (IoU) of two polygons."""
         try:
             poly1 = Polygon(poly1_points)
             poly2 = Polygon(poly2_points)
@@ -77,7 +81,7 @@ class AquariumDetector:
 
     def _extract_polygon_from_detection(self, frame, results) -> np.ndarray | None:
         """
-        Extracts a polygon from detection results (bounding boxes).
+        Extract a polygon from detection results (bounding boxes).
 
         Args:
             frame: The frame from which detection was performed
@@ -153,7 +157,7 @@ class AquariumDetector:
 
     def _process_segmentation_results(self, frame, results, frame_index: int) -> np.ndarray | None:
         """
-        Processes segmentation results to extract a valid aquarium polygon.
+        Process segmentation results to extract a valid aquarium polygon.
 
         Args:
             frame: Video frame
@@ -312,7 +316,7 @@ class AquariumDetector:
 
     def _find_consensus_polygon(self, good_polygons: list, source) -> list:
         """
-        Finds the most stable polygon using consensus approach.
+        Find the most stable polygon using consensus approach.
 
         Args:
             good_polygons: List of candidate polygons

@@ -34,7 +34,7 @@ class MenuManager:
         self._about_logo_image = None
 
     def create_menu_bar(self):
-        """Creates the application menu bar with File and Help menus."""
+        """Create the application menu bar with File and Help menus."""
         menubar = Menu(self.gui.root)
         self.gui.root.config(menu=menubar)
 
@@ -61,7 +61,7 @@ class MenuManager:
         help_menu.add_command(label="Sobre DRerio LogAI", command=self.show_about_dialog)
 
     def show_about_dialog(self):
-        """Shows the About dialog with application information."""
+        """Show the About dialog with application information."""
         about_window = Toplevel(self.gui.root)
         about_window.title("Sobre DRerio LogAI")
         about_window.resizable(False, False)
@@ -404,7 +404,7 @@ class MenuManager:
         )
 
     def create_roi_context_menu(self):
-        """Cria menu de contexto para ROIs"""
+        """Cria menu de contexto para ROIs."""
         self.gui.roi_context_menu = Menu(self.gui.root, tearoff=0)
         self.gui.roi_context_menu.add_command(
             label="🔧 Editar Vértices", command=self.gui._edit_selected_zone_vertices

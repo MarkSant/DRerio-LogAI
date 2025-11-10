@@ -528,7 +528,7 @@ class ZoneManager:
     @staticmethod
     def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
         """
-        Loads zone data (arena and ROIs) from existing parquet files.
+        Load zone data (arena and ROIs) from existing parquet files.
 
         Args:
             video_info: Dictionary returned by scan_input_paths containing

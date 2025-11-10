@@ -1,5 +1,5 @@
 """
-Experimental Design Step - Live Projects
+Experimental Design Step - Live Projects.
 
 Collects experimental structure for live recording projects:
 - Number of groups

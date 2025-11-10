@@ -1,3 +1,9 @@
+"""Window utility functions for cross-platform Tkinter window management.
+
+Provides platform-independent utilities for window operations such as maximizing
+and centering windows across different operating systems.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

@@ -43,7 +43,7 @@ class DialogManager:
     # =========================================================================
 
     def show_error(self, title: str, message: str) -> None:
-        """Shows an error message box.
+        """Show an error message box.
 
         Args:
             title: Dialog title
@@ -52,7 +52,7 @@ class DialogManager:
         messagebox.showerror(title, message)
 
     def show_warning(self, title: str, message: str) -> None:
-        """Shows a warning message box.
+        """Show a warning message box.
 
         Args:
             title: Dialog title
@@ -61,7 +61,7 @@ class DialogManager:
         messagebox.showwarning(title, message)
 
     def show_info(self, title: str, message: str) -> None:
-        """Shows an info message box.
+        """Show an info message box.
 
         Args:
             title: Dialog title
@@ -70,7 +70,7 @@ class DialogManager:
         messagebox.showinfo(title, message)
 
     def ask_ok_cancel(self, title: str, message: str) -> bool:
-        """Shows a confirmation dialog with OK/Cancel buttons.
+        """Show a confirmation dialog with OK/Cancel buttons.
 
         Args:
             title: Dialog title
@@ -82,7 +82,7 @@ class DialogManager:
         return messagebox.askokcancel(title, message)
 
     def ask_yes_no(self, title: str, message: str, *, icon: str = "question") -> bool:
-        """Shows a confirmation dialog with Yes/No buttons.
+        """Show a confirmation dialog with Yes/No buttons.
 
         Args:
             title: Dialog title
@@ -95,7 +95,7 @@ class DialogManager:
         return messagebox.askyesno(title, message, icon=icon)
 
     def ask_yes_no_cancel(self, title: str, message: str, *, icon: str = "question") -> bool | None:
-        """Shows a confirmation dialog with Yes/No/Cancel buttons.
+        """Show a confirmation dialog with Yes/No/Cancel buttons.
 
         Args:
             title: Dialog title
@@ -112,7 +112,7 @@ class DialogManager:
     # =========================================================================
 
     def ask_directory(self, title: str, initial_dir: str | None = None) -> str:
-        """Shows a dialog to select a directory.
+        """Show a dialog to select a directory.
 
         Args:
             title: Dialog title
@@ -132,7 +132,7 @@ class DialogManager:
         filetypes: list[tuple[str, str]],
         initial_dir: str | None = None,
     ) -> str:
-        """Shows a dialog to select a single file.
+        """Show a dialog to select a single file.
 
         Args:
             title: Dialog title
@@ -153,7 +153,7 @@ class DialogManager:
         filetypes: list[tuple[str, str]],
         initial_dir: str | None = None,
     ) -> tuple[str, ...]:
-        """Shows a dialog to select one or more files.
+        """Show a dialog to select one or more files.
 
         Args:
             title: Dialog title
@@ -169,7 +169,7 @@ class DialogManager:
         return filedialog.askopenfilenames(**kwargs)
 
     def ask_save_filename(self, **options) -> str:
-        """Shows a dialog to select a save file path.
+        """Show a dialog to select a save file path.
 
         Args:
             **options: Keyword arguments passed to asksaveasfilename
@@ -181,7 +181,7 @@ class DialogManager:
         return filedialog.asksaveasfilename(**options)
 
     def ask_string(self, title: str, prompt: str, initialvalue: str | None = None) -> str | None:
-        """Shows a dialog for string input.
+        """Show a dialog for string input.
 
         Args:
             title: Dialog title
@@ -198,12 +198,12 @@ class DialogManager:
     # =========================================================================
 
     def open_global_calibration_window(self) -> None:
-        """Opens the global calibration dialog."""
+        """Open the global calibration dialog."""
         with self.gui.controller.global_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
 
     def open_project_calibration_window(self) -> None:
-        """Opens the project-specific calibration dialog.
+        """Open the project-specific calibration dialog.
 
         Shows warning if no project is loaded.
         """
@@ -232,7 +232,7 @@ class DialogManager:
         allow_project: bool,
         initial_name: str,
     ) -> dict[str, Any] | None:
-        """Shows dialog to save ROI template.
+        """Show dialog to save ROI template.
 
         Args:
             has_arena: Whether current context has arena
@@ -402,7 +402,7 @@ class DialogManager:
     # =========================================================================
 
     def open_center_periphery_dialog(self) -> dict[str, Any] | None:
-        """Opens the center-periphery analysis dialog.
+        """Open the center-periphery analysis dialog.
 
         Returns:
             Dialog result with method and value, or None if cancelled
@@ -411,7 +411,7 @@ class DialogManager:
         return dialog.result if dialog.result else None
 
     def open_template_rois_dialog(self) -> dict[str, Any] | None:
-        """Opens the dialog to create ROIs from a template.
+        """Open the dialog to create ROIs from a template.
 
         Returns:
             Dialog result with template type and parameters, or None if cancelled
@@ -420,7 +420,7 @@ class DialogManager:
         return dialog.result if dialog.result else None
 
     def open_single_video_config_dialog(self) -> dict[str, Any] | None:
-        """Opens the single video configuration dialog.
+        """Open the single video configuration dialog.
 
         Returns:
             Dialog result with video config, or None if cancelled
@@ -440,7 +440,7 @@ class DialogManager:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> dict | None:
-        """Shows the hierarchical pending videos dialog.
+        """Show the hierarchical pending videos dialog.
 
         Args:
             ready_with_trajectory: Videos with complete trajectory data
@@ -470,7 +470,7 @@ class DialogManager:
         return dialog.result
 
     def ask_recording_details_unified(self) -> dict[str, Any] | None:
-        """Shows a unified dialog to get day, group, and subject.
+        """Show a unified dialog to get day, group, and subject.
 
         Returns:
             Dialog result with recording metadata, or None if cancelled
@@ -488,7 +488,7 @@ class DialogManager:
         return dialog.result
 
     def ask_missing_metadata(self, experiment_id: str) -> dict[str, Any] | None:
-        """Shows a dialog to get missing metadata from the user.
+        """Show a dialog to get missing metadata from the user.
 
         Args:
             experiment_id: The experiment ID needing metadata
@@ -500,7 +500,7 @@ class DialogManager:
         return dialog.result
 
     def open_project_workflow(self) -> None:
-        """Handles the UI part of opening a project, then calls the controller."""
+        """Handle the UI part of opening a project, then call the controller."""
         project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
         if not project_path:
             return
@@ -516,7 +516,7 @@ class DialogManager:
     def confirm_delete_roi_template(
         self, template_name: str, template_file: str, template_location: str
     ) -> bool:
-        """Confirms deletion of an ROI template.
+        """Confirm deletion of an ROI template.
 
         Args:
             template_name: Name of the template
@@ -536,7 +536,7 @@ class DialogManager:
         )
 
     def confirm_remove_roi(self, roi_name: str) -> bool:
-        """Confirms removal of an ROI.
+        """Confirm removal of an ROI.
 
         Args:
             roi_name: Name of the ROI to remove
@@ -552,7 +552,7 @@ class DialogManager:
         )
 
     def confirm_save_polygon_before_analysis(self) -> bool | None:
-        """Confirms whether to save polygon changes before starting analysis.
+        """Confirm whether to save polygon changes before starting analysis.
 
         Returns:
             True to save and proceed, False to discard and proceed, None to cancel
@@ -571,7 +571,7 @@ class DialogManager:
     # =========================================================================
 
     def show_external_trigger_notice(self, session_label: str, **details) -> None:
-        """Shows a notice that the system is waiting for external trigger.
+        """Show a notice that the system is waiting for external trigger.
 
         Args:
             session_label: Label for the session (e.g., "gravação")
@@ -609,7 +609,7 @@ class DialogManager:
             pass
 
     def clear_external_trigger_notice(self) -> None:
-        """Clears the external trigger notice."""
+        """Clear the external trigger notice."""
         if not self.gui.external_trigger_notice_label:
             return
 
@@ -635,7 +635,7 @@ class DialogManager:
     # =========================================================================
 
     def show_progress_bar(self) -> None:
-        """Shows the progress bar frame and cancel button."""
+        """Show the progress bar frame and cancel button."""
         if self.gui.progress_frame and not self.gui.progress_frame.winfo_viewable():
             # Pack progress_frame BEFORE video_container to ensure it stays visible
             if hasattr(self.gui, "video_container") and self.gui.video_container:
@@ -736,7 +736,7 @@ class DialogManager:
             self.gui._refresh_video_selector_tree()
 
     def change_roi_color(self):
-        """Changes the color of the selected ROI."""
+        """Change the color of the selected ROI."""
         from zebtrack.ui.dialogs import ColorSelectionDialog
 
         selected = self.gui.zone_listbox.selection()
@@ -777,7 +777,7 @@ class DialogManager:
             self.show_error("Erro", "Dados de cor da ROI não encontrados")
 
     def rename_selected_roi(self):
-        """Renames the selected ROI."""
+        """Rename the selected ROI."""
         selected = self.gui.zone_listbox.selection()
         if not selected:
             return

@@ -1,5 +1,5 @@
 """
-Live Camera Service - Camera Analysis Session Management
+Live Camera Service - Camera Analysis Session Management.
 
 Manages live camera analysis sessions including:
 - Thread coordination for frame capture and processing
@@ -256,7 +256,7 @@ class LiveCameraService:
         log.info("live_camera_service.session_stopped")
 
     def _setup_camera(self, camera_index: int) -> bool:
-        """Setup camera with given index."""
+        """Set up camera with given index."""
         try:
             from zebtrack.io.camera import Camera
 
