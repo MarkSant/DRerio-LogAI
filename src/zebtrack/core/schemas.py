@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ROITemplateSchema(BaseModel):
@@ -56,7 +56,7 @@ class ProjectConfigSchema(BaseModel):
     calibration: dict[str, Any]
     videos: list[dict[str, Any]]
 
-    model_config = {"extra": "allow"}  # Permitir campos adicionais para compatibilidade
+    model_config = ConfigDict(extra="allow")  # Permitir campos adicionais para compatibilidade
 
 
 class InvalidTemplateError(ValueError):
