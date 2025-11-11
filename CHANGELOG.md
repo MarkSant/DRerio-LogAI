@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔴 Breaking Changes
+- **Live Projects**: Migrated to unified LiveCameraService architecture
+  - Legacy thread system (`_live_frame_capture_loop`, `_live_processing_loop`) deprecated
+  - Will be removed in v3.0
+
+### ✨ Features
+- Unified camera management for both analysis contexts
+- Live projects now respect `camera_index` selected in wizard
+- Intervals (analysis/display) properly respected in all workflows
+
+### 🐛 Bug Fixes
+- **CRITICAL**: Fixed Live projects always opening camera 0 (now uses wizard selection)
+- **CRITICAL**: Fixed analysis intervals being ignored in single video workflow
+- **CRITICAL**: Decoupled LiveCameraService from RecordingService (eliminated tight coupling)
+  - Fixed multiple cameras activating simultaneously
+  - Fixed wrong camera opening (respects camera_index correctly)
+  - Fixed preview window delays and display issues
+  - Eliminated unwanted side effects on global state
+- Fixed LiveStreamSource ignoring camera_index parameter
+- Fixed FrameSourceFactory ignoring camera_index parameter
+
+### 🚀 Performance
+- Reduced thread count by 50% (4 → 2 threads)
+- Reduced frame buffer memory by 50%
+- Eliminated lock contention overhead
+
+### 📝 Deprecated
+- `gui._live_frame_capture_loop()` - Use LiveCameraService
+- `gui._live_processing_loop()` - Use LiveCameraService
+- Scheduled for removal: v3.0
+
+### 🏗️ Architecture
+- Unified `LiveCameraService` for both contexts:
+  - Context 1: Single video analysis with camera
+  - Context 2: Live projects with multi-session recording
+
 ## [2.1.0] - 2025-11-09
 
 ### 🚨 **CRITICAL BUG FIX** - Pytest Hang on Windows
