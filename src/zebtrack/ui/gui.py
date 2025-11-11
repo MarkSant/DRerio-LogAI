@@ -60,7 +60,7 @@ from zebtrack.ui.dialogs import (
     StartRecordingDialog,
     SubjectSelectionDialog,
 )
-from zebtrack.ui.event_bus import EventBus, EventType
+from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
@@ -364,7 +364,7 @@ class ApplicationGUI:
         log.info("gui.init.event_bus_setup", has_event_bus=self.event_bus is not None)
         if self.event_bus is not None:
             log.info("gui.init.registering_handlers")
-            self._register_event_bus_handlers()
+            self.event_dispatcher.register_event_bus_handlers()
             log.info("gui.init.subscribing_to_ui_events")
             # New: Subscribe to Controller->UI events
             self.event_dispatcher.subscribe_to_ui_events()
@@ -382,12 +382,6 @@ class ApplicationGUI:
         return self.widget_factory.build_status_icon_legend_simple(include_summary=include_summary)
 
     # --- Event bus helpers -------------------------------------------------
-
-    def _register_event_bus_handlers(self) -> None:
-        self._event_bus_handlers = {
-            EventType.CALLABLE: self._handle_callable_event,
-            EventType.NAMED: self._handle_named_event,
-        }
 
     def _poll_event_bus(self) -> None:
         """Poll event bus. Delegates to EventDispatcher."""

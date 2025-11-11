@@ -5,11 +5,14 @@ Detects available GPU hardware and recommends optimal inference backend
 (PyTorch with CUDA or OpenVINO).
 """
 
+from functools import lru_cache
+
 import structlog
 
 log = structlog.get_logger()
 
 
+@lru_cache(maxsize=1)
 def is_cuda_available() -> bool:
     """
     Check if NVIDIA CUDA is available for PyTorch.
@@ -38,6 +41,7 @@ def is_cuda_available() -> bool:
         return False
 
 
+@lru_cache(maxsize=1)
 def is_openvino_available() -> bool:
     """
     Check if OpenVINO runtime is available.
@@ -55,29 +59,31 @@ def is_openvino_available() -> bool:
         return False
 
 
-def get_openvino_devices() -> list[str]:
+@lru_cache(maxsize=1)
+def get_openvino_devices() -> tuple[str, ...]:
     """
     Get list of available OpenVINO devices.
 
     Returns:
-        list[str]: List of device names (e.g., ['CPU', 'GPU.0', 'GPU.1']).
-                   Empty list if OpenVINO is not available.
+        tuple[str, ...]: Tuple of device names (e.g., ('CPU', 'GPU.0', 'GPU.1')).
+                         Empty tuple if OpenVINO is not available.
     """
     if not is_openvino_available():
-        return []
+        return ()
 
     try:
         import openvino as ov
 
         core = ov.Core()
-        devices = core.available_devices
+        devices = tuple(core.available_devices)
         log.info("hardware.openvino.devices", devices=devices)
         return devices
     except Exception as e:
         log.warning("hardware.openvino.device_query_failed", error=str(e))
-        return []
+        return ()
 
 
+@lru_cache(maxsize=1)
 def has_intel_gpu() -> bool:
     """
     Check if Intel GPU (including EVO platform) is available for OpenVINO.
@@ -92,6 +98,7 @@ def has_intel_gpu() -> bool:
     return has_gpu
 
 
+@lru_cache(maxsize=1)
 def recommend_backend() -> str:
     """
     Recommend optimal inference backend based on available hardware.
@@ -141,6 +148,7 @@ def recommend_backend() -> str:
     return "pytorch"
 
 
+@lru_cache(maxsize=1)
 def get_hardware_summary() -> dict:
     """
     Get comprehensive hardware detection summary.
@@ -149,14 +157,14 @@ def get_hardware_summary() -> dict:
         dict: Summary containing:
             - cuda_available: bool
             - openvino_available: bool
-            - openvino_devices: list[str]
+            - openvino_devices: tuple[str, ...]
             - has_intel_gpu: bool
             - recommended_backend: str
     """
     summary = {
         "cuda_available": is_cuda_available(),
         "openvino_available": is_openvino_available(),
-        "openvino_devices": get_openvino_devices(),
+        "openvino_devices": list(get_openvino_devices()),  # Convert tuple to list for JSON
         "has_intel_gpu": has_intel_gpu(),
         "recommended_backend": recommend_backend(),
     }
