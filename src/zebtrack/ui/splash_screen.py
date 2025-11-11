@@ -12,6 +12,13 @@ log = structlog.get_logger()
 # Platform-specific font selection
 FONT_FAMILY = "Segoe UI" if platform.system() == "Windows" else "Helvetica"
 
+# Color scheme constants
+BG_COLOR = "#1e1e2e"  # Dark elegant background
+ACCENT_COLOR = "#4a9eff"  # Blue accent for highlights
+TEXT_PRIMARY = "#ffffff"  # White for primary text
+TEXT_SECONDARY = "#a0a0a0"  # Gray for secondary text
+TEXT_MUTED = "#505050"  # Darker gray for footer text
+
 
 class SplashScreen:
     """Professional splash screen with logo and loading indicator.
@@ -44,14 +51,14 @@ class SplashScreen:
         self.splash.geometry(f"{splash_width}x{splash_height}+{x}+{y}")
 
         # Set background color
-        self.splash.configure(bg="#1e1e2e")  # Dark elegant background
+        self.splash.configure(bg=BG_COLOR)
 
         # Main container
-        container = tk.Frame(self.splash, bg="#1e1e2e")
+        container = tk.Frame(self.splash, bg=BG_COLOR)
         container.pack(expand=True, fill=tk.BOTH, padx=40, pady=40)
 
         # Logo image (try PNG first, fallback to text)
-        logo_frame = tk.Frame(container, bg="#1e1e2e")
+        logo_frame = tk.Frame(container, bg=BG_COLOR)
         logo_frame.pack(pady=(0, 30))
 
         self._logo_label = self._create_logo(logo_frame)
@@ -61,8 +68,8 @@ class SplashScreen:
             container,
             text="DRerio LogAI",
             font=(FONT_FAMILY, 28, "bold"),
-            bg="#1e1e2e",
-            fg="#ffffff",
+            bg=BG_COLOR,
+            fg=TEXT_PRIMARY,
         )
         title_label.pack(pady=(0, 5))
 
@@ -71,13 +78,13 @@ class SplashScreen:
             container,
             text="Zebrafish Tracking & Analysis",
             font=(FONT_FAMILY, 11),
-            bg="#1e1e2e",
-            fg="#a0a0a0",
+            bg=BG_COLOR,
+            fg=TEXT_SECONDARY,
         )
         subtitle_label.pack(pady=(0, 40))
 
         # Loading indicator (indeterminate progress bar)
-        progress_frame = tk.Frame(container, bg="#1e1e2e")
+        progress_frame = tk.Frame(container, bg=BG_COLOR)
         progress_frame.pack(fill=tk.X, pady=(0, 15))
 
         self.progress_bar = ttk.Progressbar(progress_frame, mode="indeterminate", length=400)
@@ -90,8 +97,8 @@ class SplashScreen:
             container,
             textvariable=self.status_var,
             font=(FONT_FAMILY, 10),
-            bg="#1e1e2e",
-            fg="#a0a0a0",
+            bg=BG_COLOR,
+            fg=TEXT_SECONDARY,
         )
         self.status_label.pack()
 
@@ -100,8 +107,8 @@ class SplashScreen:
             container,
             text="Powered by YOLO + ByteTrack",
             font=(FONT_FAMILY, 8),
-            bg="#1e1e2e",
-            fg="#505050",
+            bg=BG_COLOR,
+            fg=TEXT_MUTED,
         )
         version_label.pack(side=tk.BOTTOM)
 
@@ -137,7 +144,7 @@ class SplashScreen:
                 img.thumbnail((200, 200), Image.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
 
-                label = tk.Label(parent, image=photo, bg="#1e1e2e")
+                label = tk.Label(parent, image=photo, bg=BG_COLOR)
                 label.image = photo  # Keep reference
                 label.pack()
 
@@ -150,7 +157,7 @@ class SplashScreen:
             # Fallback to text logo
             log.info("splash.logo.fallback", reason=str(e))
             label = tk.Label(
-                parent, text="🐟", font=(FONT_FAMILY, 72), bg="#1e1e2e", fg="#4a9eff"
+                parent, text="🐟", font=(FONT_FAMILY, 72), bg=BG_COLOR, fg=ACCENT_COLOR
             )
             label.pack()
             return label

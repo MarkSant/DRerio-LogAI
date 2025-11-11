@@ -1,5 +1,7 @@
 """Factory for lazy-loading Recorder with heavy dependencies."""
 
+import threading
+
 import structlog
 
 log = structlog.get_logger()
@@ -10,6 +12,7 @@ class RecorderFactory:
 
     This avoids importing heavy dependencies (pandas, pyarrow) during startup.
     The Recorder is created on first access, typically when user starts analysis.
+    Thread-safe using double-checked locking pattern.
     """
 
     def __init__(self, settings_obj):
@@ -20,29 +23,34 @@ class RecorderFactory:
         """
         self._settings_obj = settings_obj
         self._recorder = None
-        self._initialized = False
+        self._lock = threading.Lock()
         log.info("recorder_factory.created", lazy_load=True)
 
     def get_recorder(self):
         """Get Recorder instance, creating it lazily on first access.
 
+        Thread-safe using double-checked locking pattern.
+
         Returns:
             Recorder instance
         """
-        if not self._initialized:
-            log.info("recorder_factory.initializing", first_access=True)
-            import time
+        # Fast path - avoid lock if already initialized
+        if self._recorder is None:
+            with self._lock:
+                # Double-check inside lock to prevent race condition
+                if self._recorder is None:
+                    log.info("recorder_factory.initializing", first_access=True)
+                    import time
 
-            _t0 = time.perf_counter()
+                    _t0 = time.perf_counter()
 
-            # Import only when needed (heavy: pandas + pyarrow)
-            from zebtrack.io.recorder import Recorder
+                    # Import only when needed (heavy: pandas + pyarrow)
+                    from zebtrack.io.recorder import Recorder
 
-            self._recorder = Recorder(settings_obj=self._settings_obj)
-            elapsed_ms = int((time.perf_counter() - _t0) * 1000)
+                    self._recorder = Recorder(settings_obj=self._settings_obj)
+                    elapsed_ms = int((time.perf_counter() - _t0) * 1000)
 
-            self._initialized = True
-            log.info("recorder_factory.initialized", elapsed_ms=elapsed_ms)
+                    log.info("recorder_factory.initialized", elapsed_ms=elapsed_ms)
 
         return self._recorder
 
