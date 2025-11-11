@@ -139,8 +139,8 @@ def test_splash_screen_topmost():
     try:
         splash = SplashScreen(parent=root)
 
-        # Check topmost attribute
-        assert splash.splash.attributes("-topmost") is True
+        # Check topmost attribute (returns 1 for True in Tkinter)
+        assert splash.splash.attributes("-topmost") == 1
 
         splash.destroy()
     finally:

@@ -29,7 +29,9 @@ def mock_controller():
     controller = Mock()
     controller.settings.video_processing.fps = 30.0
     controller.settings.camera.index = 0
-    controller.recorder = None
+    # Mock recorder with stop_recording method
+    controller.recorder = Mock()
+    controller.recorder.stop_recording = Mock()
     controller.ui_event_bus = None
     controller.setup_detector.return_value = True
     return controller
@@ -725,24 +727,16 @@ class TestLiveCameraServiceRecordingIntegration:
             # Manual stop
             live_camera_service.stop_session()
 
-            # Verify recording service was stopped
-            live_camera_service.recording_service.stop_session.assert_called()
+            # Verify recorder was stopped (not recording_service)
+            live_camera_service.controller.recorder.stop_recording.assert_called()
 
     def test_callback_registration_and_execution(self, live_camera_service, mock_camera):
-        """Test callback registration with RecordingService."""
+        """Test that live camera service starts and manages recorder directly."""
         with (
             patch("zebtrack.io.camera.Camera", return_value=mock_camera),
             patch("zebtrack.ui.dialogs.LivePreviewWindow"),
             patch("zebtrack.core.live_camera_service.Path.mkdir"),
         ):
-            # Track callback registration
-            registered_callbacks = {}
-
-            def mock_set_ui_callbacks(callbacks):
-                registered_callbacks.update(callbacks)
-
-            live_camera_service.recording_service.set_ui_callbacks = mock_set_ui_callbacks
-
             # Start session
             live_camera_service.start_session(
                 camera_index=0,
@@ -751,8 +745,8 @@ class TestLiveCameraServiceRecordingIntegration:
                 record_video=True,
             )
 
-            # Verify callback was registered
-            assert "stop_recording_callback" in registered_callbacks
+            # Verify recorder was used (called start_recording)
+            assert live_camera_service.controller.recorder.start_recording.called
 
             # Cleanup
             live_camera_service.stop_session()

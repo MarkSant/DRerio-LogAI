@@ -88,7 +88,9 @@ class TestFrameSourceFactoryFromCamera:
         )
 
         assert result == mock_camera
-        mock_camera_class.assert_called_once_with(settings_obj=mock_settings)
+        # Camera is called with a copy of settings (model_copy)
+        mock_camera_class.assert_called_once()
+        assert "settings_obj" in mock_camera_class.call_args.kwargs
 
     @patch("zebtrack.io.camera.Camera")
     def test_create_with_zero_duration(self, mock_camera_class, mock_settings):

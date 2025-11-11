@@ -48,7 +48,9 @@ class TestLiveStreamSourceInit:
         assert stream.width == 640
         assert stream.height == 480
         assert stream.fps == 30.0
-        mock_camera_class.assert_called_once_with(settings_obj=mock_settings)
+        # Camera is called with a copy of settings (model_copy)
+        mock_camera_class.assert_called_once()
+        assert "settings_obj" in mock_camera_class.call_args.kwargs
 
     @patch("zebtrack.io.live_stream_source.Camera")
     def test_init_calculates_estimated_frames(self, mock_camera_class, mock_settings):

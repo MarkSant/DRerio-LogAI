@@ -250,6 +250,8 @@ def test_live_camera_analysis_enables_timed_recording(mock_main_view_model, mock
 
 def test_live_camera_analysis_creates_output_directory(mock_main_view_model, mock_camera, tmp_path):
     """Test that output directory is created in live_analysis_sessions/."""
+    from pathlib import Path
+
     from zebtrack.core.main_view_model import MainViewModel
 
     with (
@@ -271,20 +273,16 @@ def test_live_camera_analysis_creates_output_directory(mock_main_view_model, moc
 
         controller = mock_main_view_model
 
-        # Capture context passed to start_session
-        captured_context = {}
-
-        def capture_context(context, project_data, trigger_source):
-            captured_context.update(context)
-
-        controller.recording_service.start_session = capture_context
-
         MainViewModel.start_live_camera_analysis(controller)
 
-        # Verify output folder contains experiment_id
-        output_folder = captured_context.get("output_folder", "")
-        assert "output_test" in output_folder
-        assert "live_analysis_sessions" in output_folder
+        # Verify output directory was created in live_analysis_sessions/
+        live_analysis_dir = Path("live_analysis_sessions")
+        assert live_analysis_dir.exists()
+
+        # Find directories containing the experiment_id
+        output_dirs = list(live_analysis_dir.glob("output_test_*"))
+        assert len(output_dirs) > 0, "No output directory created with experiment_id"
+        assert "output_test" in str(output_dirs[0])
 
 
 def test_live_camera_analysis_dialog_cancelled(mock_main_view_model):
@@ -366,7 +364,7 @@ def test_live_camera_analysis_detector_setup_fails(mock_main_view_model):
 
 
 def test_live_camera_analysis_no_arduino(mock_main_view_model, mock_camera):
-    """Test that Arduino is explicitly disabled for live analysis."""
+    """Test that live analysis starts recorder directly without Arduino support."""
     from zebtrack.core.main_view_model import MainViewModel
 
     with (
@@ -388,15 +386,8 @@ def test_live_camera_analysis_no_arduino(mock_main_view_model, mock_camera):
 
         controller = mock_main_view_model
 
-        # Capture project_data
-        captured_data = {}
-
-        def capture_data(context, project_data, trigger_source):
-            captured_data.update(project_data)
-
-        controller.recording_service.start_session = capture_data
-
         MainViewModel.start_live_camera_analysis(controller)
 
-        # Verify Arduino is disabled
-        assert captured_data.get("use_arduino") is False
+        # Verify recorder was started directly by LiveCameraService
+        # (Arduino is implicitly not used since RecordingService is bypassed)
+        assert controller.recorder.start_recording.called
