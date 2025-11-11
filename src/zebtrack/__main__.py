@@ -134,6 +134,9 @@ def main():
 
     log = structlog.get_logger()
 
+    # Configuration constants
+    SPLASH_DISPLAY_DURATION_MS = 300  # Time to show "Pronto!" message before closing splash
+
     # ========================================================================
     # COMPOSITION ROOT: Dependency Injection Setup
     # ========================================================================
@@ -185,14 +188,20 @@ def main():
     log.info("application.starting", component="main")
 
     try:
-        # Create Tkinter root
+        # Create Tkinter root FIRST (required for Toplevel widgets)
         root = tk.Tk()
+        root.withdraw()  # Hide main window while loading
 
         # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
 
         set_window_icon(root)
-        maximize_window(root)
+
+        # Create splash screen (lightweight, shows immediately)
+        from zebtrack.ui.splash_screen import create_splash
+
+        splash = create_splash(parent=root)
+        splash.update_status("Carregando configurações...")
 
         # ===== DEPENDENCY INJECTION: Create all services =====
 
@@ -205,6 +214,8 @@ def main():
         state_manager = StateManager(enable_history=True, max_history_size=100)
         ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
 
+        splash.update_status("Carregando sistema de modelos...")
+
         # Model and weight management
         _t0 = time.perf_counter()
         from zebtrack.core.model_service import ModelService
@@ -213,6 +224,8 @@ def main():
         weight_manager = WeightManager(settings_obj=settings_obj)
         model_service = ModelService(weight_manager)
         log.info("timing.model_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        splash.update_status("Inicializando gerenciador de projetos...")
 
         # Project management
         _t0 = time.perf_counter()
@@ -239,6 +252,8 @@ def main():
             "timing.project_workflow_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
         )
 
+        splash.update_status("Configurando detector...")
+
         # Detector service
         _t0 = time.perf_counter()
         from zebtrack.core.detector_service import DetectorService
@@ -252,14 +267,18 @@ def main():
         )
         log.info("timing.detector_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
+        splash.update_status("Preparando processamento de vídeo...")
+
         # Video processing service
         _t0 = time.perf_counter()
         from zebtrack.core.video_processing_service import VideoProcessingService
-        from zebtrack.io.recorder import Recorder
+        from zebtrack.io.recorder_factory import RecorderFactory
 
-        # Initialize recorder with settings
-        recorder = Recorder(settings_obj=settings_obj)
-        log.info("timing.recorder_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        # Create recorder factory (lazy-loads on first use)
+        recorder_factory = RecorderFactory(settings_obj=settings_obj)
+        log.info("timing.recorder_factory_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        splash.update_status("Criando interface gráfica...")
 
         _t0 = time.perf_counter()
         cancel_event = threading.Event()
@@ -270,7 +289,7 @@ def main():
         # detection methods (seg/det) and backends (YOLO/OpenVINO) per project.
         video_processing_service = VideoProcessingService(
             detector=None,  # Lazy-initialized by detector_service.initialize_detector()
-            recorder=recorder,
+            recorder=recorder_factory,  # Lazy-loads when first used
             project_manager=project_manager,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
@@ -331,9 +350,11 @@ def main():
             project_manager=project_manager,
             video_processing_service=video_processing_service,
             analysis_service=analysis_service,
-            recorder=recorder,
+            recorder=recorder_factory,
         )
         log.info("timing.coordinators_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        splash.update_status("Finalizando inicialização...")
 
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
@@ -365,12 +386,41 @@ def main():
         # Set view reference in video_processing_service after view is created
         video_processing_service.view = controller.view
 
-        # Bind events and run
+        # Bind events
         controller.bind_events()
+
+        # Close splash and show main window
+        splash.update_status("Pronto!")
+        root.update()  # Force update to ensure all widgets are rendered
+
+        # Delay to let user see "Pronto!" message before showing main window
+        def close_splash_and_show_main():
+            splash.destroy()
+            maximize_window(root)
+            root.deiconify()  # Show main window
+
+        root.after(SPLASH_DISPLAY_DURATION_MS, close_splash_and_show_main)
+
+        # Run main loop
         controller.run()
 
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
+
+        # Try to close splash if it exists
+        try:
+            if "splash" in locals():
+                splash.destroy()
+        except Exception:
+            pass  # Ignore errors; app is already in fatal error state
+
+        # Show main window if hidden
+        try:
+            if "root" in locals():
+                root.deiconify()
+        except Exception:
+            pass  # Ignore errors; avoid cascading failures
+
         messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
     finally:
         log.info("application.finished", component="main")

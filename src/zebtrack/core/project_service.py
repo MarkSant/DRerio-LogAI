@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-import pandas as pd
 import structlog
 
 from zebtrack.utils import IntegrityError
@@ -329,7 +328,7 @@ class ProjectService:
     # Metadata Operations
     # -------------------------------------------------------------------------
 
-    def load_metadata_csv(self, project_path: Path | str) -> pd.DataFrame | None:
+    def load_metadata_csv(self, project_path: Path | str) -> "pd.DataFrame | None":
         """
         Load metadata.csv from project directory.
 
@@ -339,6 +338,8 @@ class ProjectService:
         Returns:
             pd.DataFrame | None: Metadata dataframe or None if file doesn't exist
         """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
         metadata_file = project_path / "metadata.csv"
 
