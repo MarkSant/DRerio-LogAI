@@ -54,11 +54,11 @@ def test_camera_initialization(camera_and_mock):
 def test_camera_is_opened(camera_and_mock):
     """Test that is_opened() returns the correct status."""
     camera, mock_vc = camera_and_mock
-    
+
     # Initially opened
     mock_vc.isOpened.return_value = True
     assert camera.is_opened() is True
-    
+
     # Simulate camera closing
     mock_vc.isOpened.return_value = False
     assert camera.is_opened() is False

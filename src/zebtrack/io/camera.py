@@ -45,14 +45,14 @@ class Camera(FrameSource):
             )
 
         self._camera_index = self.settings.camera.index
-        
+
         log.info(
             "camera.initializing",
             camera_index=self._camera_index,
             desired_width=self.settings.camera.desired_width,
             desired_height=self.settings.camera.desired_height,
         )
-        
+
         self.cap = cv2.VideoCapture(self._camera_index)
         if not self.cap.isOpened():
             raise OSError(f"Cannot open camera at index {self._camera_index}")
