@@ -51,6 +51,19 @@ def test_camera_initialization(camera_and_mock):
     mock_vc.set.assert_any_call(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 
 
+def test_camera_is_opened(camera_and_mock):
+    """Test that is_opened() returns the correct status."""
+    camera, mock_vc = camera_and_mock
+    
+    # Initially opened
+    mock_vc.isOpened.return_value = True
+    assert camera.is_opened() is True
+    
+    # Simulate camera closing
+    mock_vc.isOpened.return_value = False
+    assert camera.is_opened() is False
+
+
 def test_camera_reconnects_successfully_and_updates_dimensions(camera_and_mock, monkeypatch):
     """Test that the camera can recover and updates its properties."""
     camera, mock_vc = camera_and_mock

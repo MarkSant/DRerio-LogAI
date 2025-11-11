@@ -161,7 +161,9 @@ class LiveCameraService:
             )
 
         # Create preview window
+        log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
         self._create_preview_window(camera_index, duration_s)
+        log.info("live_camera_service.preview_window_creation_complete", camera_index=camera_index)
 
         # Start threads before recording service
         if not self._start_threads():
@@ -260,6 +262,8 @@ class LiveCameraService:
         try:
             from zebtrack.io.camera import Camera
 
+            log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
+
             # Create temporary settings with desired camera index
             temp_settings = self.controller.settings.model_copy(deep=True)
             temp_settings.camera.index = camera_index
@@ -341,13 +345,14 @@ class LiveCameraService:
 
         while not self.exit_event.is_set():
             if not self.camera:
+                log.warning("live_camera_service.camera_not_initialized")
                 time.sleep(0.1)
                 continue
 
             try:
                 ret, frame = self.camera.get_frame()
                 if not ret or frame is None:
-                    log.warning("live_camera_service.frame_capture_failed")
+                    log.warning("live_camera_service.frame_capture_failed", frame_count=frame_count)
                     time.sleep(0.1)
                     continue
 
@@ -424,17 +429,12 @@ class LiveCameraService:
                         # Draw overlay
                         detector.draw_overlay(frame, detections)
 
-                # Update preview window if exists (respect display interval)
+                # Update preview window if exists
                 if self.preview_window and should_display:
-                    try:
-                        # CRITICAL: Schedule on main thread for Tkinter thread safety
-                        if self.root:
-                            self.root.after(0, self.preview_window.update_frame, frame, detections)
-                        else:
-                            # Fallback if root not available (edge case)
-                            self.preview_window.update_frame(frame, detections)
-                    except Exception as e:
-                        log.error("live_camera_service.preview_update_error", error=str(e))
+                    if self.root:
+                        self.root.after(0, self.preview_window.update_frame, frame, detections)
+                    else:
+                        self.preview_window.update_frame(frame, detections)
 
             except Exception as e:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)

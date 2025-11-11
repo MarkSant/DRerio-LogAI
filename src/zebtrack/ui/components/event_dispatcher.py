@@ -518,12 +518,8 @@ class EventDispatcher:
         source_type = dialog.result.get("source_type", "video")
 
         if source_type == "camera":
-            # Camera analysis: use camera_index
+            # Camera analysis: trigger camera analysis via controller
             camera_index = dialog.result.get("camera_index", 0)
-            self.gui.show_info(
-                "Análise de Câmera", f"Iniciando análise da câmera {camera_index}..."
-            )
-            # Trigger camera analysis via controller
             self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
             return
 

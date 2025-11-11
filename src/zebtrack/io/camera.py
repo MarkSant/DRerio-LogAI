@@ -45,6 +45,14 @@ class Camera(FrameSource):
             )
 
         self._camera_index = self.settings.camera.index
+        
+        log.info(
+            "camera.initializing",
+            camera_index=self._camera_index,
+            desired_width=self.settings.camera.desired_width,
+            desired_height=self.settings.camera.desired_height,
+        )
+        
         self.cap = cv2.VideoCapture(self._camera_index)
         if not self.cap.isOpened():
             raise OSError(f"Cannot open camera at index {self._camera_index}")
@@ -249,6 +257,16 @@ class Camera(FrameSource):
         except Exception as e:
             log.warning("camera.cleanup.failed", error=str(e))
         return False  # Don't suppress exceptions
+
+    def is_opened(self) -> bool:
+        """
+        Check if the camera is currently opened.
+
+        Returns:
+            True if camera is opened, False otherwise.
+        """
+        with self._lock:
+            return self.cap.isOpened()
 
     def get_properties(self) -> dict[str, Any]:
         """

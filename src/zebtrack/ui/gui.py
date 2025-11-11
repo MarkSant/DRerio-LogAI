@@ -3344,7 +3344,7 @@ class ApplicationGUI:
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         if self.analysis_task_var is not None:
-            self.analysis_task_var.set(self._default_analysis_task_text())
+            self.analysis_task_var.set("Nenhuma tarefa em andamento.")
         self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self._switch_to_zones_view()

@@ -5025,7 +5025,7 @@ class MainViewModel:
     def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
         """
         Run actual diagnostic processing logic in a background thread.
-        
+
         Updates progress dialog during execution.
         """
         video_path = config["video_path"]
