@@ -31,43 +31,43 @@ log = structlog.get_logger()
 
 class SplashScreen:
     """Professional splash screen with logo and loading indicator.
-    
+
     Displays the DRerio LogAI logo with a progress bar and status text
     during application initialization.
     """
-    
+
     def __init__(self):
         """Create and display splash screen."""
         self.splash = tk.Toplevel()
         self.splash.overrideredirect(True)  # Remove window decorations
-        
+
         # Get screen dimensions for centering
         screen_width = self.splash.winfo_screenwidth()
         screen_height = self.splash.winfo_screenheight()
-        
+
         # Splash dimensions
         splash_width = 500
         splash_height = 400
-        
+
         # Calculate position for center of screen
         x = (screen_width - splash_width) // 2
         y = (screen_height - splash_height) // 2
-        
+
         self.splash.geometry(f"{splash_width}x{splash_height}+{x}+{y}")
-        
+
         # Set background color
         self.splash.configure(bg="#1e1e2e")  # Dark elegant background
-        
+
         # Main container
         container = tk.Frame(self.splash, bg="#1e1e2e")
         container.pack(expand=True, fill=tk.BOTH, padx=40, pady=40)
-        
+
         # Logo image (try PNG first, fallback to text)
         logo_frame = tk.Frame(container, bg="#1e1e2e")
         logo_frame.pack(pady=(0, 30))
-        
+
         self._logo_label = self._create_logo(logo_frame)
-        
+
         # Application title
         title_label = tk.Label(
             container,
@@ -77,7 +77,7 @@ class SplashScreen:
             fg="#ffffff"
         )
         title_label.pack(pady=(0, 5))
-        
+
         # Subtitle
         subtitle_label = tk.Label(
             container,
@@ -87,11 +87,11 @@ class SplashScreen:
             fg="#a0a0a0"
         )
         subtitle_label.pack(pady=(0, 40))
-        
+
         # Loading indicator (indeterminate progress bar)
         progress_frame = tk.Frame(container, bg="#1e1e2e")
         progress_frame.pack(fill=tk.X, pady=(0, 15))
-        
+
         self.progress_bar = ttk.Progressbar(
             progress_frame,
             mode="indeterminate",
@@ -99,7 +99,7 @@ class SplashScreen:
         )
         self.progress_bar.pack()
         self.progress_bar.start(10)  # Animate every 10ms
-        
+
         # Status label
         self.status_var = tk.StringVar(value="Inicializando...")
         self.status_label = tk.Label(
@@ -110,7 +110,7 @@ class SplashScreen:
             fg="#a0a0a0"
         )
         self.status_label.pack()
-        
+
         # Version/info label (small footer)
         version_label = tk.Label(
             container,
@@ -120,15 +120,15 @@ class SplashScreen:
             fg="#505050"
         )
         version_label.pack(side=tk.BOTTOM)
-        
+
         # Make splash stay on top
         self.splash.attributes("-topmost", True)
-        
+
         # Update to show splash immediately
         self.splash.update()
-        
+
         log.info("splash.created", width=splash_width, height=splash_height)
-    
+
     def _create_logo(self, parent):
         """Try to load logo image, fallback to text if not found."""
         try:
@@ -137,31 +137,31 @@ class SplashScreen:
                 Path(__file__).parent / "assets" / "logo_welcome.png",
                 Path("src/zebtrack/ui/assets/logo_welcome.png"),
             ]
-            
+
             logo_path = None
             for path in possible_paths:
                 if path.exists():
                     logo_path = path
                     break
-            
+
             if logo_path:
                 # Load and display image
                 from PIL import Image, ImageTk
-                
+
                 img = Image.open(logo_path)
                 # Resize to reasonable splash size (keep aspect ratio)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
-                
+
                 label = tk.Label(parent, image=photo, bg="#1e1e2e")
                 label.image = photo  # Keep reference
                 label.pack()
-                
+
                 log.info("splash.logo.loaded", path=str(logo_path))
                 return label
             else:
                 raise FileNotFoundError("Logo not found")
-                
+
         except Exception as e:
             # Fallback to text logo
             log.info("splash.logo.fallback", reason=str(e))
@@ -174,17 +174,17 @@ class SplashScreen:
             )
             label.pack()
             return label
-    
+
     def update_status(self, message: str) -> None:
         """Update status message.
-        
+
         Args:
             message: Status text to display
         """
         self.status_var.set(message)
         self.splash.update()
         log.debug("splash.status.updated", message=message)
-    
+
     def destroy(self) -> None:
         """Close and destroy splash screen."""
         try:
@@ -197,7 +197,7 @@ class SplashScreen:
 
 def create_splash() -> SplashScreen:
     """Factory function to create splash screen.
-    
+
     Returns:
         SplashScreen instance
     """
@@ -226,14 +226,14 @@ log = structlog.get_logger()
 
 class RecorderFactory:
     """Factory that delays Recorder instantiation until first use.
-    
+
     This avoids importing heavy dependencies (pandas, pyarrow) during startup.
     The Recorder is created on first access, typically when user starts analysis.
     """
-    
+
     def __init__(self, settings_obj):
         """Initialize factory with settings.
-        
+
         Args:
             settings_obj: Settings instance to pass to Recorder
         """
@@ -241,10 +241,10 @@ class RecorderFactory:
         self._recorder = None
         self._initialized = False
         log.info("recorder_factory.created", lazy_load=True)
-    
+
     def get_recorder(self):
         """Get Recorder instance, creating it lazily on first access.
-        
+
         Returns:
             Recorder instance
         """
@@ -252,26 +252,26 @@ class RecorderFactory:
             log.info("recorder_factory.initializing", first_access=True)
             import time
             _t0 = time.perf_counter()
-            
+
             # Import only when needed (heavy: pandas + pyarrow)
             from zebtrack.io.recorder import Recorder
-            
+
             self._recorder = Recorder(settings_obj=self._settings_obj)
             elapsed_ms = int((time.perf_counter() - _t0) * 1000)
-            
+
             self._initialized = True
             log.info("recorder_factory.initialized", elapsed_ms=elapsed_ms)
-        
+
         return self._recorder
-    
+
     @property
     def recorder(self):
         """Property access to recorder (lazy-loads on first access)."""
         return self.get_recorder()
-    
+
     def __getattr__(self, name):
         """Delegate all other attributes to the underlying recorder.
-        
+
         This makes RecorderFactory transparent - callers can use it
         as if it were a Recorder directly.
         """
@@ -338,7 +338,7 @@ recorder=recorder,
 recorder=recorder_factory,
 ```
 
-**Validação:** 
+**Validação:**
 - RecorderFactory usado no lugar de Recorder direto ✅
 - Import de recorder.py removido do topo ✅
 - Tempo de init cai de ~2300ms para <5ms ✅
@@ -371,17 +371,17 @@ recorder=recorder_factory,
     try:
         # Create splash screen FIRST (lightweight, shows immediately)
         from zebtrack.ui.splash_screen import create_splash
-        
+
         splash = create_splash()
         splash.update_status("Carregando configurações...")
-        
+
         # Create Tkinter root (hidden during init)
         root = tk.Tk()
         root.withdraw()  # Hide main window while loading
-        
+
         # Set application icon (for when window shows)
         from zebtrack.ui.icon_utils import set_window_icon
-        
+
         set_window_icon(root)
 ```
 
@@ -393,7 +393,7 @@ recorder=recorder_factory,
 ```python
         state_manager = StateManager(enable_history=True, max_history_size=100)
         ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
-        
+
         splash.update_status("Carregando sistema de modelos...")
 ```
 
@@ -401,7 +401,7 @@ recorder=recorder_factory,
 ```python
         model_service = ModelService(weight_manager)
         log.info("timing.model_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
-        
+
         splash.update_status("Inicializando gerenciador de projetos...")
 ```
 
@@ -409,7 +409,7 @@ recorder=recorder_factory,
 ```python
         project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
         log.info("timing.project_manager_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
-        
+
         splash.update_status("Configurando detector...")
 ```
 
@@ -417,7 +417,7 @@ recorder=recorder_factory,
 ```python
         detector_service = DetectorService(...)
         log.info("timing.detector_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
-        
+
         splash.update_status("Preparando processamento de vídeo...")
 ```
 
@@ -425,7 +425,7 @@ recorder=recorder_factory,
 ```python
         recorder_factory = RecorderFactory(settings_obj=settings_obj)
         log.info("timing.recorder_factory_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
-        
+
         splash.update_status("Criando interface gráfica...")
 ```
 
@@ -433,7 +433,7 @@ recorder=recorder_factory,
 ```python
         _t0 = time.perf_counter()
         from zebtrack.core.main_view_model import MainViewModel
-        
+
         splash.update_status("Finalizando inicialização...")
 ```
 
@@ -452,23 +452,23 @@ recorder=recorder_factory,
 ```python
         # Bind events
         controller.bind_events()
-        
+
         # Close splash and show main window
         splash.update_status("Pronto!")
         root.update()  # Force update to ensure all widgets are rendered
-        
+
         # Small delay to let user see "Pronto!" message
         root.after(200, lambda: (
             splash.destroy(),
             maximize_window(root),
             root.deiconify()  # Show main window
         ))
-        
+
         # Run main loop
         controller.run()
 ```
 
-**Validação:** 
+**Validação:**
 - Splash aparece imediatamente ✅
 - Status atualiza durante carregamento ✅
 - Splash fecha e janela principal aparece pronta ✅
@@ -492,21 +492,21 @@ recorder=recorder_factory,
 ```python
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
-        
+
         # Try to close splash if it exists
         try:
             if 'splash' in locals():
                 splash.destroy()
         except Exception:
             pass
-        
+
         # Show main window if hidden
         try:
             if 'root' in locals():
                 root.deiconify()
         except Exception:
             pass
-        
+
         messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
 ```
 
@@ -714,6 +714,6 @@ Se algo der errado:
 
 ---
 
-**Plano criado em:** 2025-11-10  
-**Autor:** GitHub Copilot  
+**Plano criado em:** 2025-11-10
+**Autor:** GitHub Copilot
 **Versão:** 1.0
