@@ -19,12 +19,14 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-import pandas as pd
 import structlog
 
 from zebtrack.utils import IntegrityError
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = structlog.get_logger()
 
@@ -339,6 +341,8 @@ class ProjectService:
         Returns:
             pd.DataFrame | None: Metadata dataframe or None if file doesn't exist
         """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
         metadata_file = project_path / "metadata.csv"
 

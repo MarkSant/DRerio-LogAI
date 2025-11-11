@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-import pandas as pd
 import structlog
 import yaml
 
@@ -449,6 +448,8 @@ class ProjectManager:
         Returns:
             ZoneData object with loaded zones, or None if loading failed.
         """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         parquet_files = video_info.get("parquet_files", {})
         arena_path = parquet_files.get("arena")
         rois_path = parquet_files.get("rois")
@@ -675,6 +676,8 @@ class ProjectManager:
 
         Returns a dict with keys: arena, rois, trajectory (counts)
         """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         counts = {"arena": 0, "rois": 0, "trajectory": 0}
 
         video_path = config.get("video")
@@ -1949,6 +1952,8 @@ class ProjectManager:
 
     def load_metadata(self):
         """Load the metadata.csv file from the project root into a pandas DataFrame."""
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         if not self.project_path:
             return
 

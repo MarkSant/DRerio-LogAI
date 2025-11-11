@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pandas as pd
 import structlog
 
 from zebtrack.core.detector import ZoneData
@@ -537,6 +536,8 @@ class ZoneManager:
         Returns:
             ZoneData object with loaded zones, or None if loading failed.
         """
+        import pandas as pd  # Lazy import to avoid loading pandas during startup
+
         parquet_files = video_info.get("parquet_files", {})
         arena_path = parquet_files.get("arena")
         rois_path = parquet_files.get("rois")
