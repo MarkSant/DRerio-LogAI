@@ -134,6 +134,9 @@ def main():
 
     log = structlog.get_logger()
 
+    # Configuration constants
+    SPLASH_DISPLAY_DURATION_MS = 300  # Time to show "Pronto!" message before closing splash
+
     # ========================================================================
     # COMPOSITION ROOT: Dependency Injection Setup
     # ========================================================================
@@ -390,13 +393,13 @@ def main():
         splash.update_status("Pronto!")
         root.update()  # Force update to ensure all widgets are rendered
 
-        # Small delay to let user see "Pronto!" message
+        # Delay to let user see "Pronto!" message before showing main window
         def close_splash_and_show_main():
             splash.destroy()
             maximize_window(root)
             root.deiconify()  # Show main window
 
-        root.after(100, close_splash_and_show_main)
+        root.after(SPLASH_DISPLAY_DURATION_MS, close_splash_and_show_main)
 
         # Run main loop
         controller.run()
@@ -409,17 +412,14 @@ def main():
             if "splash" in locals():
                 splash.destroy()
         except Exception:
-            # Ignore errors during splash cleanup; app is already in fatal error state.
-            pass
+            pass  # Ignore errors; app is already in fatal error state
 
         # Show main window if hidden
         try:
             if "root" in locals():
                 root.deiconify()
         except Exception:
-            # Ignore exceptions when trying to show the main window after a fatal error.
-            # At this point, the application is already in an error state and we want to avoid cascading failures.
-            pass
+            pass  # Ignore errors; avoid cascading failures
 
         messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
     finally:
