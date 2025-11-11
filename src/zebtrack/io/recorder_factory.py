@@ -58,3 +58,11 @@ class RecorderFactory:
         as if it were a Recorder directly.
         """
         return getattr(self.get_recorder(), name)
+
+    def __enter__(self):
+        """Support context manager protocol by delegating to Recorder."""
+        return self.get_recorder().__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Support context manager protocol by delegating to Recorder."""
+        return self.get_recorder().__exit__(exc_type, exc_val, exc_tb)

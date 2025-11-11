@@ -185,20 +185,20 @@ def main():
     log.info("application.starting", component="main")
 
     try:
-        # Create splash screen FIRST (lightweight, shows immediately)
-        from zebtrack.ui.splash_screen import create_splash
-
-        splash = create_splash()
-        splash.update_status("Carregando configurações...")
-
-        # Create Tkinter root (hidden during init)
+        # Create Tkinter root FIRST (required for Toplevel widgets)
         root = tk.Tk()
         root.withdraw()  # Hide main window while loading
 
-        # Set application icon (for when window shows)
+        # Set application icon
         from zebtrack.ui.icon_utils import set_window_icon
 
         set_window_icon(root)
+
+        # Create splash screen (lightweight, shows immediately)
+        from zebtrack.ui.splash_screen import create_splash
+
+        splash = create_splash(parent=root)
+        splash.update_status("Carregando configurações...")
 
         # ===== DEPENDENCY INJECTION: Create all services =====
 
@@ -391,14 +391,12 @@ def main():
         root.update()  # Force update to ensure all widgets are rendered
 
         # Small delay to let user see "Pronto!" message
-        root.after(
-            200,
-            lambda: (
-                splash.destroy(),
-                maximize_window(root),
-                root.deiconify(),  # Show main window
-            ),
-        )
+        def close_splash_and_show_main():
+            splash.destroy()
+            maximize_window(root)
+            root.deiconify()  # Show main window
+
+        root.after(100, close_splash_and_show_main)
 
         # Run main loop
         controller.run()
@@ -411,6 +409,7 @@ def main():
             if "splash" in locals():
                 splash.destroy()
         except Exception:
+            # Ignore errors during splash cleanup; app is already in fatal error state.
             pass
 
         # Show main window if hidden
@@ -418,6 +417,8 @@ def main():
             if "root" in locals():
                 root.deiconify()
         except Exception:
+            # Ignore exceptions when trying to show the main window after a fatal error.
+            # At this point, the application is already in an error state and we want to avoid cascading failures.
             pass
 
         messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
