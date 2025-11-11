@@ -1,9 +1,15 @@
 # 🎯 Plano de Ação: Correção e Unificação dos Fluxos de Câmera ao Vivo
 
-**Data:** 2025-01-11
-**Versão:** 1.0
+**Data:** 2025-01-11 (Atualizado)
+**Versão:** 1.1
 **Status:** Pendente Implementação
 **Prioridade:** 🔴 CRÍTICA
+
+**Changelog v1.1:**
+- ✅ Adicionado **Bug #6 (CRÍTICO)**: Acoplamento LiveCameraService → RecordingService
+- ✅ Adicionada **Fase 2.6**: Desacoplamento completo com código detalhado
+- ✅ Explicação de como o acoplamento causa os sintomas reportados
+- ✅ Atualização nos checklists de validação e implementação
 
 ---
 
@@ -130,6 +136,87 @@ return Camera(settings_obj=settings_obj)  # ❌ Não modifica camera.index
 - Competição por hardware (múltiplos `cv2.VideoCapture`)
 - Race conditions
 - Código difícil de manter
+
+---
+
+### Bug 6: 🔴 CRÍTICO - Acoplamento indevido entre LiveCameraService e RecordingService
+
+**Localização:** `src/zebtrack/core/live_camera_service.py:178-213`
+
+**Código problemático:**
+```python
+def start_session(self, ...):
+    # ... setup camera, detector, preview window ...
+
+    # Linha 178-188: Constrói contexto para RecordingService
+    context = {
+        "day": 1,
+        "group": "live_analysis",
+        "cobaia": experiment_id,
+        "folder_name": folder_name,
+        "output_folder": str(output_dir),
+        "camera_width": self.camera.actual_width if self.camera else 640,
+        "camera_height": self.camera.actual_height if self.camera else 480,
+        "arduino_enabled": False,
+    }
+
+    project_data = {
+        "use_timed_recording": True,
+        "recording_duration_s": duration_s,
+        "use_countdown": False,
+        "use_arduino": False,
+    }
+
+    # Linha 209: ❌ CHAMA RecordingService (ACOPLAMENTO CRÍTICO)
+    self.recording_service.start_session(
+        context=context,
+        project_data=project_data,
+        trigger_source="live_analysis",
+    )
+```
+
+**Por que isso é problemático:**
+
+`RecordingService` foi projetado para **contexto de PROJETO** e assume:
+1. Existe um projeto carregado (`ProjectManager`)
+2. Pode acessar `project_manager.get_zone_data()` (linha ~150 em recording_service.py)
+3. Atualiza estado global via `StateManager.update_recording_state()`
+4. Chama callbacks de UI (`_update_button_state()`) que modificam controles do projeto
+5. Pode interagir com Arduino via projeto
+
+**Impacto CRÍTICO - Como causa os sintomas reportados:**
+
+1. **Múltiplas câmeras ativando (LEDs acendem):**
+   - RecordingService pode chamar `setup_detector()` que recarrega zonas
+   - Detector pode instanciar Camera temporária para validação
+   - Resultado: 2-3 objetos Camera simultâneos = múltiplos LEDs
+
+2. **Câmera errada abre:**
+   - RecordingService acessa `self.controller.settings` (global)
+   - Ignora o `camera_index` passado ao LiveCameraService
+   - Usa `settings.camera.index` (padrão = 0)
+
+3. **Preview não mostra imagens / delays:**
+   - RecordingService compete pelos mesmos frame queues
+   - Atualiza StateManager causando race conditions
+   - UI recebe sinais conflitantes sobre estado de gravação
+
+4. **Side effects indesejados:**
+   - Atualiza botões de projeto (Start/Stop Recording) mesmo sem projeto aberto
+   - Pode disparar callbacks de Arduino
+   - Polui logs com eventos de "recording_started" quando é só análise
+
+**Impacto:**
+- ❌ LiveCameraService (análise standalone) **DEPENDE** de RecordingService (orientado a projetos)
+- ❌ Acoplamento tight = código frágil, difícil de manter
+- ❌ Viola princípio de responsabilidade única (SRP)
+- ❌ Análise standalone não deveria modificar estado global
+- ❌ Causa os bugs principais: múltiplas câmeras, câmera errada, preview quebrado
+
+**Solução necessária (Fase 2.6):**
+- Desacoplar: LiveCameraService deve ter gravação própria e leve
+- RecordingService continua servindo projetos
+- Separação clara de responsabilidades
 
 ---
 
@@ -679,6 +766,317 @@ def _start_recording_session(self, day: int, group: str, subject: str):
 
 ---
 
+#### 2.6. 🔥 CRÍTICO - Desacoplar LiveCameraService do RecordingService
+
+**Contexto:**
+Atualmente, `LiveCameraService.start_session()` chama `RecordingService.start_session()` na linha 209.
+Isso cria acoplamento tight e causa múltiplos bugs (câmera errada, múltiplas câmeras, preview quebrado).
+
+**Solução:** LiveCameraService deve gerenciar sua própria gravação de forma leve, sem depender de RecordingService.
+
+---
+
+**Arquivo:** `src/zebtrack/core/live_camera_service.py`
+
+**Localização:** Método `start_session()`, linhas 178-216
+
+**Mudança Completa:**
+
+```python
+def start_session(
+    self,
+    camera_index: int,
+    duration_s: float,
+    experiment_id: str,
+    analysis_interval_frames: int = 1,
+    display_interval_frames: int = 1,
+    record_video: bool = True,
+    output_base_dir: str | None = None,
+) -> bool:
+    """
+    Start a live camera analysis session.
+
+    Args:
+        camera_index: Camera device index
+        duration_s: Session duration in seconds
+        experiment_id: Identifier for this session
+        analysis_interval_frames: Analyze every N frames
+        display_interval_frames: Display every N frames
+        record_video: Whether to record video
+        output_base_dir: Custom output directory (default: live_analysis_sessions/)
+
+    Returns:
+        True if session started successfully, False otherwise
+    """
+    log.info(
+        "live_camera_service.start_session",
+        camera_index=camera_index,
+        duration_s=duration_s,
+        experiment_id=experiment_id,
+        analysis_interval=analysis_interval_frames,
+        display_interval=display_interval_frames,
+    )
+
+    # Store configuration
+    self.analysis_interval_frames = analysis_interval_frames
+    self.display_interval_frames = display_interval_frames
+    self.is_capturing_for_video = record_video
+
+    # Setup camera
+    if not self._setup_camera(camera_index):
+        return False
+
+    # Create output directory
+    from datetime import datetime
+
+    if output_base_dir:
+        output_base = Path(output_base_dir)
+    else:
+        output_base = Path("live_analysis_sessions")
+
+    output_base.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    folder_name = f"{experiment_id}_{timestamp}"
+    output_dir = output_base / folder_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Setup detector if needed
+    if not self.detector_service.detector:
+        if not self.controller.setup_detector():
+            log.error("live_camera_service.detector_setup_failed")
+            return False
+
+    # Apply zones to detector if available
+    zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+    if zone_data and self.camera:
+        # CRITICAL: Use actual camera dimensions for correct zone rescaling
+        self.detector_service.configure_zones(
+            zone_data=zone_data,
+            width=self.camera.actual_width,
+            height=self.camera.actual_height,
+        )
+
+    # Create preview window
+    log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
+    self._create_preview_window(camera_index, duration_s)
+    log.info("live_camera_service.preview_window_creation_complete", camera_index=camera_index)
+
+    # Start threads before recording
+    if not self._start_threads():
+        return False
+
+    # Update state
+    self.state_manager.update_processing_state(
+        source="live_camera_service.start",
+        is_processing=True,
+    )
+
+    # ========================================================================
+    # ✅ NOVA IMPLEMENTAÇÃO: Gravação leve DENTRO de LiveCameraService
+    # ========================================================================
+    # Substituiu chamada a RecordingService (linha 209 REMOVIDA)
+    # LiveCameraService agora é autossuficiente e não polui estado global
+
+    # Initialize lightweight recorder for standalone analysis
+    if record_video and self.controller.recorder:
+        # Prepare recorder context (simplified, no project assumptions)
+        video_filename = f"{experiment_id}_{timestamp}.mp4"
+        parquet_filename = f"{experiment_id}_{timestamp}.parquet"
+
+        # Start recorder directly (no RecordingService intermediary)
+        try:
+            recorder_started = self.controller.recorder.start_recording(
+                folder_name=str(output_dir),
+                video_filename=video_filename,
+                parquet_filename=parquet_filename,
+                width=self.camera.actual_width if self.camera else 640,
+                height=self.camera.actual_height if self.camera else 480,
+                fps=self.camera.actual_fps if self.camera else 30.0,
+            )
+
+            if not recorder_started:
+                log.error("live_camera_service.recorder_start_failed")
+                self.stop_session()
+                return False
+
+            log.info(
+                "live_camera_service.recorder_started",
+                output_dir=str(output_dir),
+                video_file=video_filename,
+            )
+
+        except Exception as e:
+            log.error(
+                "live_camera_service.recorder_init_error",
+                error=str(e),
+                exc_info=True,
+            )
+            self.stop_session()
+            return False
+
+    # Setup session completion timer (replaces RecordingService timer)
+    self._setup_session_timer(duration_s, output_dir)
+
+    log.info("live_camera_service.session_started", output_dir=str(output_dir))
+    return True
+```
+
+---
+
+**Adicionar novo método auxiliar:**
+
+```python
+def _setup_session_timer(self, duration_s: float, output_dir: Path):
+    """
+    Setup timer to automatically stop session after duration.
+
+    Replaces RecordingService's timed recording logic.
+
+    Args:
+        duration_s: Session duration in seconds
+        output_dir: Output directory for results
+    """
+    def on_timer_expired():
+        """Called when duration expires."""
+        log.info(
+            "live_camera_service.timer_expired",
+            duration_s=duration_s,
+        )
+        self._on_session_complete(output_dir)
+
+    # Schedule timer (in milliseconds)
+    if self.root:
+        self.timer_id = self.root.after(
+            int(duration_s * 1000),
+            on_timer_expired,
+        )
+        log.info(
+            "live_camera_service.timer_scheduled",
+            duration_s=duration_s,
+        )
+```
+
+---
+
+**Modificar `stop_session()` para limpar timer:**
+
+```python
+def stop_session(self):
+    """Stop the current live camera analysis session."""
+    log.info("live_camera_service.stop_session")
+
+    # ✅ NOVO: Cancelar timer se existir
+    if hasattr(self, "timer_id") and self.timer_id and self.root:
+        try:
+            self.root.after_cancel(self.timer_id)
+            log.info("live_camera_service.timer_cancelled")
+        except Exception as e:
+            log.warning("live_camera_service.timer_cancel_error", error=str(e))
+
+    # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
+    if self.controller.recorder:
+        try:
+            self.controller.recorder.stop_recording()
+            log.info("live_camera_service.recorder_stopped")
+        except Exception as e:
+            log.warning("live_camera_service.recorder_stop_error", error=str(e))
+
+    # Signal threads to exit
+    self.exit_event.set()
+
+    # Wait for threads to finish
+    if self.capture_thread and self.capture_thread.is_alive():
+        self.capture_thread.join(timeout=2.0)
+
+    if self.processing_thread and self.processing_thread.is_alive():
+        self.processing_thread.join(timeout=2.0)
+
+    # Close preview window
+    if self.preview_window:
+        try:
+            self.preview_window.destroy()
+        except Exception as e:
+            log.warning("live_camera_service.preview_close_error", error=str(e))
+        self.preview_window = None
+
+    # Release camera
+    if self.camera:
+        self.camera.release()
+        self.camera = None
+
+    # Update state
+    self.state_manager.update_processing_state(
+        source="live_camera_service.stop",
+        is_processing=False,
+    )
+
+    # Clear queues
+    self._clear_queues()
+
+    log.info("live_camera_service.session_stopped")
+```
+
+---
+
+**Adicionar campo de instância no `__init__()`:**
+
+```python
+def __init__(
+    self,
+    controller: MainViewModel,
+    state_manager: StateManager,
+    project_manager: ProjectManager,
+    recording_service: RecordingService,  # Manter injetado mas não usar
+    detector_service: DetectorService,
+    root: Misc | None = None,
+):
+    """
+    Initialize LiveCameraService.
+
+    Args:
+        controller: MainViewModel controller for accessing resources
+        state_manager: StateManager for centralized state tracking
+        project_manager: ProjectManager for project-specific data
+        recording_service: RecordingService (kept for DI compatibility, not used)
+        detector_service: DetectorService for detection operations
+        root: Tkinter root for UI updates
+    """
+    self.controller = controller
+    self.state_manager = state_manager
+    self.project_manager = project_manager
+    self.recording_service = recording_service  # Not used after refactor
+    self.detector_service = detector_service
+    self.root = root
+
+    # Threading infrastructure
+    self.frame_queue = queue.Queue(maxsize=30)
+    self.video_queue = queue.Queue(maxsize=30)
+    self.exit_event = threading.Event()
+    self.capture_thread: threading.Thread | None = None
+    self.processing_thread: threading.Thread | None = None
+
+    # Active session state
+    self.camera: Camera | None = None
+    self.preview_window: LivePreviewWindow | None = None
+    self.analysis_interval_frames = 1
+    self.display_interval_frames = 1
+    self.is_capturing_for_video = False
+    self.timer_id: str | None = None  # ✅ NOVO: ID do timer de duração
+```
+
+---
+
+**Resultado:**
+- ✅ LiveCameraService **NÃO** chama RecordingService
+- ✅ Gravação leve e autossuficiente
+- ✅ Não polui estado global
+- ✅ Não modifica UI de projetos
+- ✅ Respeita camera_index corretamente
+- ✅ Evita múltiplas instâncias de Camera
+- ✅ Preview funciona sem race conditions
+
+---
+
 ### Fase 3: Correções Preventivas (Bugs Latentes)
 
 #### 3.1. Fix Bug 3 - LiveStreamSource respeita `camera_index`
@@ -810,6 +1208,11 @@ def create_from_camera(
 ### 🐛 Bug Fixes
 - **CRITICAL**: Fixed Live projects always opening camera 0 (now uses wizard selection)
 - **CRITICAL**: Fixed analysis intervals being ignored in single video workflow
+- **CRITICAL**: Decoupled LiveCameraService from RecordingService (eliminated tight coupling)
+  - Fixed multiple cameras activating simultaneously
+  - Fixed wrong camera opening (respects camera_index correctly)
+  - Fixed preview window delays and display issues
+  - Eliminated unwanted side effects on global state
 - Fixed LiveStreamSource ignoring camera_index parameter
 - Fixed FrameSourceFactory ignoring camera_index parameter
 
@@ -922,9 +1325,11 @@ All tests updated to use unified architecture. See:
 - [ ] **Teste 1.1**: Selecionar câmera 1, verificar que câmera 1 abre (não 0)
 - [ ] **Teste 1.2**: Configurar `analysis_interval=15`, verificar logs mostram interval=15
 - [ ] **Teste 1.3**: Configurar `display_interval=20`, verificar preview atualiza a cada 20 frames
-- [ ] **Teste 1.4**: Apenas câmera selecionada acende LED (não outras câmeras)
-- [ ] **Teste 1.5**: Preview mostra imagens dentro de 2 segundos
+- [ ] **Teste 1.4**: Apenas câmera selecionada acende LED (não outras câmeras) ✅ **Fix Bug #6**
+- [ ] **Teste 1.5**: Preview mostra imagens dentro de 2 segundos ✅ **Fix Bug #6**
 - [ ] **Teste 1.6**: Gravação salva em `live_analysis_sessions/` com Parquet correto
+- [ ] **Teste 1.7**: Verificar logs NÃO mostram "recording_service.start_session" ✅ **Fix Bug #6**
+- [ ] **Teste 1.8**: Verificar que botões de projeto não mudam de estado ✅ **Fix Bug #6**
 
 #### Contexto 2: Projetos Live
 
@@ -1089,7 +1494,8 @@ git checkout HEAD~1 -- src/zebtrack/ui/components/event_dispatcher.py
 | `src/zebtrack/ui/gui.py` | 2856-2916 | Deprecation |
 | `src/zebtrack/io/live_stream_source.py` | 60-61 | Correção |
 | `src/zebtrack/io/frame_source_factory.py` | 104 | Correção |
-| `src/zebtrack/core/live_camera_service.py` | 96-216 | Adição parâmetro |
+| `src/zebtrack/core/live_camera_service.py` | 178-216 | **Refatoração crítica** - Desacoplamento |
+| `src/zebtrack/core/live_camera_service.py` | +métodos novos | Adição (timer, recording) |
 | `CHANGELOG.md` | - | Adição |
 | `docs/LIVE_CAMERA_UNIFICATION.md` | - | Novo arquivo |
 
@@ -1101,6 +1507,17 @@ git commit -m "fix(camera): respect analysis/display intervals in single video w
 git commit -m "fix(camera): live projects use camera_index from wizard (Bug #1)"
 
 # Fase 2
+git commit -m "refactor(camera): decouple LiveCameraService from RecordingService (Bug #6 - CRITICAL)
+
+BREAKING: LiveCameraService no longer depends on RecordingService for standalone analysis.
+This fixes multiple critical bugs:
+- Multiple cameras activating simultaneously (LEDs)
+- Wrong camera opening (respects camera_index now)
+- Preview window delays and display issues
+- Unwanted side effects on global state
+
+LiveCameraService now manages its own lightweight recording and session timer."
+
 git commit -m "refactor(camera): migrate live projects to LiveCameraService"
 git commit -m "deprecate(gui): mark legacy thread system for removal in v3.0"
 
@@ -1142,6 +1559,15 @@ git commit -m "test: add integration tests for unified camera workflows"
 - [ ] Commit: "fix(camera): critical bugs in camera selection and intervals"
 
 ### Fase 2: Migração Arquitetural
+- [ ] **2.6 CRÍTICO**: Desacoplar LiveCameraService do RecordingService
+  - [ ] Remover chamada a `recording_service.start_session()` (linha 209)
+  - [ ] Implementar gravação leve diretamente no LiveCameraService
+  - [ ] Adicionar método `_setup_session_timer()`
+  - [ ] Modificar `stop_session()` para parar recorder diretamente
+  - [ ] Adicionar campo `timer_id` no `__init__()`
+  - [ ] Testar que apenas 1 câmera abre (LED único)
+  - [ ] Testar que preview funciona imediatamente
+  - [ ] Verificar logs não mostram eventos de RecordingService
 - [ ] Marcar threads legados como DEPRECATED
 - [ ] Criar `start_live_project_session()` em `main_view_model.py`
 - [ ] Modificar `LiveCameraService` para aceitar `output_base_dir`
