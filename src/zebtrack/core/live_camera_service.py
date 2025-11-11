@@ -92,6 +92,7 @@ class LiveCameraService:
         self.analysis_interval_frames = 1
         self.display_interval_frames = 1
         self.is_capturing_for_video = False
+        self.timer_id: str | None = None  # ✅ Session timer ID
 
     def start_session(
         self,
@@ -101,6 +102,7 @@ class LiveCameraService:
         analysis_interval_frames: int = 1,
         display_interval_frames: int = 1,
         record_video: bool = True,
+        output_base_dir: str | None = None,
     ) -> bool:
         """
         Start a live camera analysis session.
@@ -112,6 +114,7 @@ class LiveCameraService:
             analysis_interval_frames: Analyze every N frames
             display_interval_frames: Display every N frames
             record_video: Whether to record video
+            output_base_dir: Custom output directory (default: live_analysis_sessions/)
 
         Returns:
             True if session started successfully, False otherwise
@@ -137,7 +140,12 @@ class LiveCameraService:
         # Create output directory
         from datetime import datetime
 
-        output_base = Path("live_analysis_sessions")
+        # ✅ Allow custom output directory for projects
+        if output_base_dir:
+            output_base = Path(output_base_dir)
+        else:
+            output_base = Path("live_analysis_sessions")
+
         output_base.mkdir(exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder_name = f"{experiment_id}_{timestamp}"
@@ -175,42 +183,51 @@ class LiveCameraService:
             is_processing=True,
         )
 
-        # Build context and start recording through RecordingService
-        context = {
-            "day": 1,
-            "group": "live_analysis",
-            "cobaia": experiment_id,
-            "folder_name": folder_name,
-            "output_folder": str(output_dir),
-            "camera_width": self.camera.actual_width if self.camera else 640,
-            "camera_height": self.camera.actual_height if self.camera else 480,
-            "arduino_enabled": False,
-        }
+        # ========================================================================
+        # ✅ NOVA IMPLEMENTAÇÃO: Gravação leve DENTRO de LiveCameraService
+        # ========================================================================
+        # Substituiu chamada a RecordingService (linha 209 REMOVIDA)
+        # LiveCameraService agora é autossuficiente e não polui estado global
 
-        project_data = {
-            "use_timed_recording": True,
-            "recording_duration_s": duration_s,
-            "use_countdown": False,
-            "use_arduino": False,
-        }
+        # Initialize lightweight recorder for standalone analysis
+        if record_video and self.controller.recorder:
+            # Prepare recorder context (simplified, no project assumptions)
+            video_filename = f"{experiment_id}_{timestamp}.mp4"
+            parquet_filename = f"{experiment_id}_{timestamp}.parquet"
 
-        # Register completion callback
-        def on_complete():
-            self._on_session_complete(output_dir)
+            # Start recorder directly (no RecordingService intermediary)
+            try:
+                recorder_started = self.controller.recorder.start_recording(
+                    folder_name=str(output_dir),
+                    video_filename=video_filename,
+                    parquet_filename=parquet_filename,
+                    width=self.camera.actual_width if self.camera else 640,
+                    height=self.camera.actual_height if self.camera else 480,
+                    fps=self.camera.actual_fps if self.camera else 30.0,
+                )
 
-        # Register UI callbacks for timed recording completion
-        self.recording_service.set_ui_callbacks(
-            {
-                "stop_recording_callback": on_complete,
-            }
-        )
+                if not recorder_started:
+                    log.error("live_camera_service.recorder_start_failed")
+                    self.stop_session()
+                    return False
 
-        # Start recording session
-        self.recording_service.start_session(
-            context=context,
-            project_data=project_data,
-            trigger_source="live_analysis",
-        )
+                log.info(
+                    "live_camera_service.recorder_started",
+                    output_dir=str(output_dir),
+                    video_file=video_filename,
+                )
+
+            except Exception as e:
+                log.error(
+                    "live_camera_service.recorder_init_error",
+                    error=str(e),
+                    exc_info=True,
+                )
+                self.stop_session()
+                return False
+
+        # Setup session completion timer (replaces RecordingService timer)
+        self._setup_session_timer(duration_s, output_dir)
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
@@ -219,9 +236,21 @@ class LiveCameraService:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
-        # Stop recording
-        if self.recording_service:
-            self.recording_service.stop_session()
+        # ✅ NOVO: Cancelar timer se existir
+        if hasattr(self, "timer_id") and self.timer_id and self.root:
+            try:
+                self.root.after_cancel(self.timer_id)
+                log.info("live_camera_service.timer_cancelled")
+            except Exception as e:
+                log.warning("live_camera_service.timer_cancel_error", error=str(e))
+
+        # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
+        if self.controller.recorder:
+            try:
+                self.controller.recorder.stop_recording()
+                log.info("live_camera_service.recorder_stopped")
+            except Exception as e:
+                log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
         # Signal threads to exit
         self.exit_event.set()
@@ -440,6 +469,35 @@ class LiveCameraService:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
 
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
+
+    def _setup_session_timer(self, duration_s: float, output_dir: Path):
+        """
+        Setup timer to automatically stop session after duration.
+
+        Replaces RecordingService's timed recording logic.
+
+        Args:
+            duration_s: Session duration in seconds
+            output_dir: Output directory for results
+        """
+        def on_timer_expired():
+            """Called when duration expires."""
+            log.info(
+                "live_camera_service.timer_expired",
+                duration_s=duration_s,
+            )
+            self._on_session_complete(output_dir)
+
+        # Schedule timer (in milliseconds)
+        if self.root:
+            self.timer_id = self.root.after(
+                int(duration_s * 1000),
+                on_timer_expired,
+            )
+            log.info(
+                "live_camera_service.timer_scheduled",
+                duration_s=duration_s,
+            )
 
     def _on_session_complete(self, output_dir: Path):
         """Handle session completion."""
