@@ -2836,7 +2836,23 @@ class ApplicationGUI:
                         f"{self.controller.settings.arduino.port}. Executando em modo offline.",
                     )
             try:
-                self.controller.camera = Camera()
+                # ✅ Use camera_index from project_data (saved by wizard)
+                pm = self.controller.project_manager
+                camera_index = pm.project_data.get("camera_index", 0)
+
+                log.info(
+                    "gui.project_loading.live_camera_setup",
+                    camera_index=camera_index,
+                    project_name=pm.get_project_name(),
+                )
+
+                # Create temporary settings with correct camera index
+                temp_settings = self.controller.settings.model_copy(deep=True)
+                temp_settings.camera.index = camera_index
+
+                # Initialize camera with modified settings
+                self.controller.camera = Camera(settings_obj=temp_settings)
+
                 self.controller.active_frame_source = self.controller.camera
                 self.controller.detector.update_scaling(
                     self.controller.camera.actual_width,
@@ -2854,6 +2870,18 @@ class ApplicationGUI:
             self._request_overview_refresh(reason=ready_message, append_summary=True)
 
         if project_type == "live":
+            # ⚠️ DEPRECATED: Legacy thread system for Live projects
+            # TODO: Migrate to LiveCameraService in Phase 2.2
+            # This code will be removed in v3.0
+
+            log.warning(
+                "gui.project_loading.legacy_threads_active",
+                message=(
+                    "Using deprecated thread system for Live projects. "
+                    "Migrate to LiveCameraService for better performance and reliability."
+                ),
+            )
+
             self.controller.capture_thread = threading.Thread(
                 target=self._live_frame_capture_loop, name="CaptureThread", daemon=True
             )
@@ -2891,11 +2919,35 @@ class ApplicationGUI:
 
         if dialog.result:
             subject_id = dialog.result
-            self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
+            project_type = pm.get_project_type()
+
+            if project_type == "live":
+                # ✅ NEW: Use LiveCameraService for Live projects
+                success = self.controller.start_live_project_session(
+                    day=day,
+                    group=group_name,
+                    subject=str(subject_id),
+                )
+
+                if not success:
+                    self.show_error(
+                        "Erro na Gravação",
+                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}."
+                    )
+            else:
+                # Legacy path for pre-recorded projects
+                self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
+
             self._render_progress_grid()  # Refresh grid after starting a recording
 
     def _live_frame_capture_loop(self):
-        """Loop to capture frames from a LIVE source (camera)."""
+        """
+        Loop to capture frames from a LIVE source (camera).
+
+        .. deprecated:: 2.1
+            This method is deprecated and will be removed in v3.0.
+            Use LiveCameraService for live camera management instead.
+        """
         live_frame_count = 0
         while not self.controller.program_exit_event.is_set():
             if not self.controller.active_frame_source:
@@ -2921,7 +2973,13 @@ class ApplicationGUI:
             time.sleep(1 / (fps * 1.5))
 
     def _live_processing_loop(self):
-        """Loop to process frames from a LIVE source."""
+        """
+        Loop to process frames from a LIVE source.
+
+        .. deprecated:: 2.1
+            This method is deprecated and will be removed in v3.0.
+            Use LiveCameraService for live camera processing instead.
+        """
         while not self.controller.program_exit_event.is_set():
             try:
                 frame_number, frame = self.controller.frame_queue.get(timeout=1)
