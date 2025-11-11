@@ -430,7 +430,7 @@ class ApplicationGUI:
     def _update_window_title(self, project_name: str | None = None):
         """
         Update the window title with optional project name.
-        
+
         Delegates to ProjectViewManager.
 
         Args:
