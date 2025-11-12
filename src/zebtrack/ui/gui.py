@@ -2,11 +2,8 @@
 
 import hashlib
 import os
-import queue
 import subprocess
 import sys
-import threading
-import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -2870,27 +2867,6 @@ class ApplicationGUI:
             self._request_overview_refresh(reason=ready_message, append_summary=True)
 
         if project_type == "live":
-            # ⚠️ DEPRECATED: Legacy thread system for Live projects
-            # TODO: Migrate to LiveCameraService in Phase 2.2
-            # This code will be removed in v3.0
-
-            log.warning(
-                "gui.project_loading.legacy_threads_active",
-                message=(
-                    "Using deprecated thread system for Live projects. "
-                    "Migrate to LiveCameraService for better performance and reliability."
-                ),
-            )
-
-            self.controller.capture_thread = threading.Thread(
-                target=self._live_frame_capture_loop, name="CaptureThread", daemon=True
-            )
-            self.controller.processing_thread = threading.Thread(
-                target=self._live_processing_loop, name="ProcessingThread", daemon=True
-            )
-            self.controller.capture_thread.start()
-            self.controller.processing_thread.start()
-
             # Auto-calibration for Live projects when no zones are defined
             self.root.after(1000, self._check_live_project_calibration)
 
@@ -2940,95 +2916,6 @@ class ApplicationGUI:
 
             self._render_progress_grid()  # Refresh grid after starting a recording
 
-    def _live_frame_capture_loop(self):
-        """
-        Loop to capture frames from a LIVE source (camera).
-
-        .. deprecated:: 2.1
-            This method is deprecated and will be removed in v3.0.
-            Use LiveCameraService for live camera management instead.
-        """
-        live_frame_count = 0
-        while not self.controller.program_exit_event.is_set():
-            if not self.controller.active_frame_source:
-                time.sleep(0.1)
-                continue
-
-            ret, frame = self.controller.active_frame_source.get_frame()
-            if not ret:
-                log.error("gui.capture_thread.get_frame_failed")
-                time.sleep(0.5)
-                continue
-
-            live_frame_count += 1
-
-            if not self.controller.frame_queue.full():
-                self.controller.frame_queue.put((live_frame_count, frame.copy()))
-            if self.controller.is_capturing_for_video and not self.controller.video_queue.full():
-                self.controller.video_queue.put(frame.copy())
-
-            fps = (
-                self.controller.settings.video_processing.fps if self.controller.settings else 30.0
-            )
-            time.sleep(1 / (fps * 1.5))
-
-    def _live_processing_loop(self):
-        """
-        Loop to process frames from a LIVE source.
-
-        .. deprecated:: 2.1
-            This method is deprecated and will be removed in v3.0.
-            Use LiveCameraService for live camera processing instead.
-        """
-        while not self.controller.program_exit_event.is_set():
-            try:
-                frame_number, frame = self.controller.frame_queue.get(timeout=1)
-            except queue.Empty:
-                continue
-
-            # Determine if we should process/display this frame based on intervals
-            should_analyze = (frame_number % self.controller.analysis_interval_frames) == 0
-            should_display = (frame_number % self.controller.display_interval_frames) == 0
-
-            detections = []  # Initialize empty for frames that aren't analyzed
-
-            if self.controller.is_processing and should_analyze:
-                # Apply perspective warp if calibration data is available
-                calib_data = self.controller.project_manager.project_data.get("calibration", {})
-                h_matrix = calib_data.get("homography_matrix")
-                target_dims = calib_data.get("target_dims_px")
-
-                if h_matrix and target_dims:
-                    import numpy as np
-
-                    h_matrix = np.array(h_matrix)
-                    frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
-
-                detections, command = self.controller.detector.detect(frame, "live")
-                if command is not None:
-                    self.controller.arduino.send_command(command)
-                if self.controller.is_recording and detections:
-                    timestamp = time.time() - self.controller.recorder.start_time
-                    self.controller.recorder.write_detection_data(
-                        timestamp, frame_number, detections
-                    )
-                self.controller.detector.draw_overlay(frame, detections)
-
-            # Update live preview window if it exists (respect display interval)
-            if self.controller.live_preview_window and should_display:
-                try:
-                    self.controller.live_preview_window.update_frame(frame, detections)
-                except Exception as e:
-                    log.error("gui.live_preview.update_error", error=str(e))
-
-            # Only show cv2 window if no preview window is active (respect display interval)
-            if not self.controller.live_preview_window and should_display:
-                cv2.imshow("Live View", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                self.controller.on_close()
-                break
-        cv2.destroyAllWindows()
-        log.info("gui.live_processing_loop.finished")
 
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type. Delegates to WidgetFactory."""

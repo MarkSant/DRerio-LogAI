@@ -192,6 +192,26 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Full Details**: `docs/LIVE_CAMERA_UNIFICATION.md`, `PLANO_CORRECAO_FLUXOS_CAMERA_LIVE.md`
 
+### Phase 9: Legacy Code Removal - v3.0 (Jan 2025) ✅ COMPLETE
+**BREAKING CHANGE**: Removed all deprecated legacy thread system code from Live camera workflows.
+
+**REMOVED CODE**:
+- ❌ `_live_frame_capture_loop()` method (~30 lines) - replaced by LiveCameraService
+- ❌ `_live_processing_loop()` method (~60 lines) - replaced by LiveCameraService
+- ❌ `capture_thread` initialization and cleanup in `gui.py` - no longer needed
+- ❌ Legacy thread join logic in `main_view_model.py` - simplified
+
+**IMPACT**:
+- 🧹 Removed ~90 lines of deprecated code
+- ✅ Simplified project loading flow for Live projects
+- ✅ All Live camera functionality exclusively through LiveCameraService
+- ✅ Cleaner separation between video processing and live camera threads
+- ⚠️ **BREAKING**: Code depending on legacy threads will fail (use LiveCameraService API)
+
+**VERSION**: v3.0.0 (2025-01-11)
+
+**Full Details**: `docs/LIVE_CAMERA_UNIFICATION.md`, `PLANO_CORRECAO_FLUXOS_CAMERA_LIVE.md`
+
 ## Common Patterns
 
 ### Logging (structlog)
@@ -293,8 +313,10 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Version History (Quick Reference)
 
-- **v2.1 (Nov 2025)**: ⚠️ **CRITICAL PYTEST FIXES** - Resolved system-freezing test hangs, daemon threads, Tkinter cleanup hooks
-- **v2.0 (Oct 2025)**: WizardService, dialog extraction, hardware caching, E2E tests, LiveCameraService
+- **v3.0 (Jan 2025)**: 🔴 **BREAKING** - Removed all legacy thread system code for Live cameras (~90 lines)
+- **v2.1 (Jan 2025)**: Live Camera Unification - Fixed critical bugs (camera selection, intervals, preview)
+- **v2.0 (Nov 2025)**: ⚠️ **CRITICAL PYTEST FIXES** - Resolved system-freezing test hangs, daemon threads, Tkinter cleanup hooks
+- **v1.9 (Oct 2025)**: WizardService, dialog extraction, hardware caching, E2E tests, LiveCameraService
 - **v1.8**: StateManager (observable, thread-safe)
 - **v1.7**: Pydantic v2 settings, in-app config editor
 - **v1.6**: 5-step wizard flow

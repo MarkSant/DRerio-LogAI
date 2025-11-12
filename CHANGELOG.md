@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2025-01-11
+
+### 🔴 Breaking Changes
+- **REMOVED**: Legacy thread system for Live projects completely removed
+  - `_live_frame_capture_loop()` method removed from GUI
+  - `_live_processing_loop()` method removed from GUI
+  - `capture_thread` cleanup removed from MainViewModel
+  - All Live camera functionality now exclusively through LiveCameraService
+
+### 🧹 Code Cleanup
+- Removed ~90 lines of deprecated legacy code
+- Simplified project loading flow for Live projects
+- Cleaner separation between video processing and live camera threads
+
+## [2.1.0] - 2025-01-11
+
 ### 🔴 Breaking Changes
 - **Live Projects**: Migrated to unified LiveCameraService architecture
   - Legacy thread system (`_live_frame_capture_loop`, `_live_processing_loop`) deprecated

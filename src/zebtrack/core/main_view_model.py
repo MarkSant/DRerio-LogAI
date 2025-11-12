@@ -668,11 +668,8 @@ class MainViewModel:
         log.info("controller.shutdown.start")
         self.program_exit_event.set()
 
-        # Join background threads
-        if hasattr(self, "capture_thread") and self.capture_thread.is_alive():
-            log.info("controller.shutdown.join_capture_thread")
-            self.capture_thread.join()
-
+        # Join background threads (video processing threads)
+        # Note: Live camera threads are managed by LiveCameraService
         if self.processing_thread is not None and self.processing_thread.is_alive():
             log.info("controller.shutdown.join_processing_thread")
             self.processing_thread.join()
