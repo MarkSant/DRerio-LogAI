@@ -291,6 +291,11 @@ class Detector:
         # This is still necessary for non-rectangular polygons
         detections_in_polygon = []
         if len(predictions) > 0:
+            log.info(
+                "detector.predictions_before_polygon_filter",
+                count=len(predictions),
+                has_polygon=self.scaled_polygon.size > 0,
+            )
             for det in predictions:
                 x1, y1, x2, y2, confidence, track_id, class_id = det
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
@@ -305,16 +310,32 @@ class Detector:
                         track_id=track_id,
                         class_id=class_id,
                     )
+        else:
+            log.info(
+                "detector.no_predictions_from_model",
+                has_polygon=self.scaled_polygon.size > 0,
+            )
 
         # Centralized filtering logic based on context
         filtered_detections = []
         if self._context == "diagnostic":
             # Diagnostic mode shows everything
             filtered_detections = detections_in_polygon
+            log.info(
+                "detector.diagnostic_mode",
+                detections_count=len(filtered_detections),
+            )
         else:
             # Tracking mode
             aquarium_class_id = 0
             zebrafish_class_id = 1
+
+            log.info(
+                "detector.filtering_by_class",
+                detections_in_polygon=len(detections_in_polygon),
+                aquarium_defined=self._aquarium_region_defined,
+                target_class="zebrafish(1)" if self._aquarium_region_defined else "aquarium(0)",
+            )
 
             if not self._aquarium_region_defined:
                 # Before arena is defined, show only aquarium detections (class_id 0)
@@ -337,7 +358,7 @@ class Detector:
                     if class_id == zebrafish_class_id:
                         filtered_detections.append(det)
                     else:
-                        log.debug(
+                        log.info(
                             "detector.filtered_by_class",
                             bbox=(det[0], det[1], det[2], det[3]),
                             class_id=class_id,

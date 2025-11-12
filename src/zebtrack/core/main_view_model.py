@@ -2747,12 +2747,19 @@ class MainViewModel:
         # This allows detection to work without manual zone configuration
         # NOTE: Only for single video analysis, not for live projects
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+
+        log.info(
+            "controller.live_analysis.checking_zones",
+            has_zone_data=zone_data is not None,
+            has_polygon=bool(zone_data.polygon) if zone_data else False,
+        )
+
         if not zone_data or not zone_data.polygon:
             import math
 
-            import cv2
-
             from zebtrack.core.detector import ZoneData
+
+            log.info("controller.live_analysis.creating_default_arena", reason="no_arena_defined")
 
             # Open camera temporarily to get dimensions
             from zebtrack.io.camera import Camera
@@ -2801,6 +2808,12 @@ class MainViewModel:
                     "controller.live_analysis.default_arena_failed",
                     reason="camera_not_opened",
                 )
+        else:
+            log.info(
+                "controller.live_analysis.using_existing_zones",
+                has_polygon=bool(zone_data.polygon),
+                num_rois=len(zone_data.roi_polygons) if zone_data else 0,
+            )
 
         # Delegate to LiveCameraService with complete configuration
         success = self.live_camera_service.start_session(
