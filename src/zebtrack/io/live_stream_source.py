@@ -57,8 +57,11 @@ class LiveStreamSource(FrameSource):
         self.max_duration_s = max_duration_s
         self.settings = settings_obj
 
-        # Create underlying camera
-        self.camera = Camera(settings_obj=settings_obj)
+        # Create underlying camera with correct camera index
+        # ✅ Create modified settings with correct camera index
+        temp_settings = settings_obj.model_copy(deep=True)
+        temp_settings.camera.index = camera_index
+        self.camera = Camera(settings_obj=temp_settings)
 
         # Track timing
         self.start_time = time.time()

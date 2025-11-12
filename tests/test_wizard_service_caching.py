@@ -8,6 +8,8 @@ performance and reduce unnecessary hardware probing.
 import time
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+
 from zebtrack.core.wizard_service import WizardService
 
 
@@ -25,10 +27,13 @@ class TestWizardServiceCaching:
     @patch("cv2.VideoCapture")
     def test_camera_detection_caches_results(self, mock_video_capture):
         """Test that camera detection results are cached."""
-        # Setup mock
+        # Setup mock with real numpy frame to pass ghost detection
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
         mock_cap.get.side_effect = [640, 480, 30.0]  # width, height, fps
+        # Create a valid frame (not black) to pass ghost camera detection
+        valid_frame = np.ones((480, 640, 3), dtype=np.uint8) * 128
+        mock_cap.read.return_value = (True, valid_frame)
         mock_video_capture.return_value = mock_cap
 
         # First call should hit the actual detection
@@ -161,7 +166,10 @@ class TestWizardServiceCaching:
         # Setup mock with slight delay to simulate real detection
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
-        mock_cap.get.side_effect = [640, 480, 30.0]
+        mock_cap.get.side_effect = [640, 480, 30.0, 640, 480, 30.0]
+        # Valid frame for ghost detection
+        valid_frame = np.ones((480, 640, 3), dtype=np.uint8) * 128
+        mock_cap.read.return_value = (True, valid_frame)
 
         def delayed_capture(*args, **kwargs):
             time.sleep(0.01)  # Simulate 10ms detection time
@@ -192,6 +200,9 @@ class TestWizardServiceCaching:
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
         mock_cap.get.side_effect = [640, 480, 30.0, 640, 480, 30.0]
+        # Valid frame for ghost detection
+        valid_frame = np.ones((480, 640, 3), dtype=np.uint8) * 128
+        mock_cap.read.return_value = (True, valid_frame)
         mock_video_capture.return_value = mock_cap
 
         mock_port = MagicMock()

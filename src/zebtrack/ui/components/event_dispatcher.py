@@ -518,9 +518,10 @@ class EventDispatcher:
         source_type = dialog.result.get("source_type", "video")
 
         if source_type == "camera":
-            # Camera analysis: trigger camera analysis via controller
-            camera_index = dialog.result.get("camera_index", 0)
-            self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
+            # Camera analysis: Pass complete configuration to respect all settings
+            # (camera_index, analysis_interval_frames, display_interval_frames, etc.)
+            config = dialog.result
+            self.gui.controller.start_live_camera_analysis_from_config(config)
             return
 
         # Video file analysis: require video_path

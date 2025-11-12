@@ -140,9 +140,10 @@ class TestMainFunction:
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_successful_startup(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test successful application startup."""
         from zebtrack.__main__ import main
@@ -153,6 +154,8 @@ class TestMainFunction:
 
         # Mock Tkinter
         mock_root = Mock()
+        mock_root.tk = Mock()  # Add tk attribute to prevent dialog errors
+        mock_root.tk.call = Mock(return_value=())  # Mock call method
         mock_tk.return_value = mock_root
 
         # Mock controller with run() that returns immediately
@@ -188,10 +191,16 @@ class TestMainFunction:
                                                         "analysis_service."
                                                         "AnalysisService"
                                                     ):
-                                                        main()
-                                                        # Test verifies init
-                                                        # completes and run called
-                                                        mock_controller_instance.run.assert_called_once()
+                                                        # Mock splash screen
+                                                        with patch(
+                                                            "zebtrack.ui.splash_screen."
+                                                            "create_splash"
+                                                        ) as mock_splash:
+                                                            mock_splash.return_value = Mock()
+                                                            main()
+                                                            # Test verifies init
+                                                            # completes and run called
+                                                            mock_controller_instance.run.assert_called_once()
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
@@ -279,9 +288,16 @@ class TestMainFunction:
     @patch("zebtrack.settings.load_settings")
     @patch("zebtrack.utils.set_seed")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_sets_reproducibility_seed(
-        self, mock_controller, mock_tk, mock_set_seed, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_msgbox,
+        mock_tk,
+        mock_set_seed,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test that reproducibility seed is set when configured."""
         from zebtrack.__main__ import main
@@ -293,13 +309,46 @@ class TestMainFunction:
         mock_settings_obj.logging = Mock(levels={})  # Add logging.levels as dict
         mock_settings.return_value = mock_settings_obj
 
+        # Mock Tkinter
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
+
         # Mock controller with run() that returns immediately
         mock_controller_instance = Mock()
         mock_controller_instance.run = Mock()
         mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
-            main()
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                # Mock all services
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ):
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
 
         # Should set seed
         mock_set_seed.assert_called_once_with(42)
@@ -307,9 +356,17 @@ class TestMainFunction:
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.__main__.logging.getLogger")
+    @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_applies_cli_log_level_overrides(
-        self, mock_get_logger, mock_tk, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_get_logger,
+        mock_msgbox,
+        mock_tk,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test CLI --log-level overrides."""
         from zebtrack.__main__ import main
@@ -317,26 +374,67 @@ class TestMainFunction:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
+
         # Mock specific logger
         mock_module_logger = Mock()
         mock_get_logger.return_value = mock_module_logger
 
+        # Mock controller
+        mock_controller_instance = Mock()
+        mock_controller_instance.run = Mock()
+        mock_controller.return_value = mock_controller_instance
+
         # Simulate CLI argument
         with patch("sys.argv", ["zebtrack", "--log-level", "zebtrack.core.detector=DEBUG"]):
-            with patch("zebtrack.core.main_view_model.MainViewModel"):
-                try:
-                    main()
-                except Exception:
-                    pass
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ):
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
 
         # Should set DEBUG level for specified module
         # (actual call depends on implementation details)
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
+    @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.__main__.logging.getLogger")
+    @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_ignores_invalid_log_level_format(
-        self, mock_get_logger, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_get_logger,
+        mock_msgbox,
+        mock_tk,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test that invalid --log-level format is ignored."""
         from zebtrack.__main__ import main
@@ -344,23 +442,55 @@ class TestMainFunction:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
+
+        # Mock controller
+        mock_controller_instance = Mock()
+        mock_controller_instance.run = Mock()
+        mock_controller.return_value = mock_controller_instance
+
         # Invalid format (missing '=')
         with patch("sys.argv", ["zebtrack", "--log-level", "invalid_format"]):
-            with patch("tkinter.Tk"):
-                with patch("zebtrack.core.main_view_model.MainViewModel"):
-                    try:
-                        main()
-                    except Exception:
-                        pass
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ):
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
 
         # Should not crash, just ignore invalid format
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_creates_all_services(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test that all required services are instantiated."""
         from zebtrack.__main__ import main
@@ -369,29 +499,56 @@ class TestMainFunction:
         mock_settings.return_value = mock_settings_obj
 
         mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
         mock_tk.return_value = mock_root
+
+        # Mock controller
+        mock_controller_instance = Mock()
+        mock_controller_instance.run = Mock()
+        mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
             # Mock all service imports
-            with patch("zebtrack.core.state_manager.StateManager") as mock_state:
-                with patch("zebtrack.ui.event_bus.EventBus") as mock_eventbus:
-                    with patch("zebtrack.core.project_manager.ProjectManager"):
-                        with patch("zebtrack.core.weight_manager.WeightManager"):
-                            try:
-                                main()
-                            except Exception:
-                                pass
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager") as mock_state:
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus") as mock_eventbus:
+                            with patch("zebtrack.core.project_manager.ProjectManager"):
+                                with patch("zebtrack.core.weight_manager.WeightManager"):
+                                    with patch("zebtrack.core.model_service.ModelService"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ):
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
 
-                            # Should create core services
-                            mock_state.assert_called_once()
-                            mock_eventbus.assert_called_once()
+                                                            # Should create core services
+                                                            mock_state.assert_called_once()
+                                                            mock_eventbus.assert_called_once()
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_calls_bind_events(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test that controller.bind_events() is called."""
         from zebtrack.__main__ import main
@@ -399,40 +556,45 @@ class TestMainFunction:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
+
         mock_controller_instance = Mock()
         mock_controller_instance.view = Mock()  # Add view attribute
+        mock_controller_instance.run = Mock()
         mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
             # Mock all service dependencies
-            with patch("zebtrack.core.state_manager.StateManager"):
-                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
-                    with patch("zebtrack.ui.event_bus.EventBus"):
-                        with patch("zebtrack.core.weight_manager.WeightManager"):
-                            with patch("zebtrack.core.model_service.ModelService"):
-                                with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch(
-                                        "zebtrack.core.project_workflow_service."
-                                        "ProjectWorkflowService"
-                                    ):
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
                                         with patch(
-                                            "zebtrack.core.detector_service.DetectorService"
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
                                         ):
-                                            with patch("zebtrack.io.recorder.Recorder"):
-                                                with patch(
-                                                    "zebtrack.core."
-                                                    "video_processing_service."
-                                                    "VideoProcessingService"
-                                                ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
                                                     with patch(
-                                                        "zebtrack.analysis."
-                                                        "analysis_service."
-                                                        "AnalysisService"
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
                                                     ):
-                                                        try:
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
                                                             main()
-                                                        except Exception:
-                                                            pass
 
         # Should call bind_events
         mock_controller_instance.bind_events.assert_called_once()
@@ -440,9 +602,10 @@ class TestMainFunction:
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_calls_controller_run(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test that controller.run() is called."""
         from zebtrack.__main__ import main
@@ -450,40 +613,45 @@ class TestMainFunction:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
+
         mock_controller_instance = Mock()
         mock_controller_instance.view = Mock()  # Add view attribute
+        mock_controller_instance.run = Mock()
         mock_controller.return_value = mock_controller_instance
 
         with patch("sys.argv", ["zebtrack"]):
             # Mock all service dependencies
-            with patch("zebtrack.core.state_manager.StateManager"):
-                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
-                    with patch("zebtrack.ui.event_bus.EventBus"):
-                        with patch("zebtrack.core.weight_manager.WeightManager"):
-                            with patch("zebtrack.core.model_service.ModelService"):
-                                with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch(
-                                        "zebtrack.core.project_workflow_service."
-                                        "ProjectWorkflowService"
-                                    ):
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
                                         with patch(
-                                            "zebtrack.core.detector_service.DetectorService"
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
                                         ):
-                                            with patch("zebtrack.io.recorder.Recorder"):
-                                                with patch(
-                                                    "zebtrack.core."
-                                                    "video_processing_service."
-                                                    "VideoProcessingService"
-                                                ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
                                                     with patch(
-                                                        "zebtrack.analysis."
-                                                        "analysis_service."
-                                                        "AnalysisService"
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
                                                     ):
-                                                        try:
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
                                                             main()
-                                                        except Exception:
-                                                            pass
 
         # Should call run
         mock_controller_instance.run.assert_called_once()
@@ -495,9 +663,10 @@ class TestDependencyInjection:
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_injects_settings_to_services(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test that settings_obj is injected to all services."""
         from zebtrack.__main__ import main
@@ -505,25 +674,59 @@ class TestDependencyInjection:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
-        with patch("sys.argv", ["zebtrack"]):
-            with patch("zebtrack.core.project_manager.ProjectManager") as mock_pm:
-                with patch("zebtrack.core.weight_manager.WeightManager"):
-                    try:
-                        main()
-                    except Exception:
-                        pass
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
 
-                    # Should pass settings_obj to services
-                    if mock_pm.called:
-                        call_args = mock_pm.call_args
-                        assert "settings_obj" in str(call_args)
+        # Mock controller
+        mock_controller_instance = Mock()
+        mock_controller_instance.run = Mock()
+        mock_controller.return_value = mock_controller_instance
+
+        with patch("sys.argv", ["zebtrack"]):
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.project_manager.ProjectManager") as mock_pm:
+                                with patch("zebtrack.core.weight_manager.WeightManager"):
+                                    with patch("zebtrack.core.model_service.ModelService"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core."
+                                                        "video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ):
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
+
+                                                            # Should pass settings_obj to services
+                                                            if mock_pm.called:
+                                                                call_args = mock_pm.call_args
+                                                                assert "settings_obj" in str(
+                                                                    call_args
+                                                                )
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
     @patch("tkinter.Tk")
+    @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_passes_detector_none_initially(
-        self, mock_controller, mock_tk, mock_settings, mock_config_logging
+        self, mock_controller, mock_msgbox, mock_tk, mock_settings, mock_config_logging
     ):
         """Test that VideoProcessingService receives detector=None initially."""
         from zebtrack.__main__ import main
@@ -531,17 +734,52 @@ class TestDependencyInjection:
         mock_settings_obj = create_mock_settings()
         mock_settings.return_value = mock_settings_obj
 
-        with patch("sys.argv", ["zebtrack"]):
-            with patch("zebtrack.core.video_processing_service.VideoProcessingService") as mock_vps:
-                try:
-                    main()
-                except Exception:
-                    pass
+        mock_root = Mock()
+        mock_root.tk = Mock()
+        mock_root.tk.call = Mock(return_value=())
+        mock_tk.return_value = mock_root
 
-                # Should pass detector=None (lazy initialization)
-                if mock_vps.called:
-                    call_args = mock_vps.call_args
-                    assert call_args[1].get("detector") is None
+        # Mock controller
+        mock_controller_instance = Mock()
+        mock_controller_instance.run = Mock()
+        mock_controller.return_value = mock_controller_instance
+
+        with patch("sys.argv", ["zebtrack"]):
+            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
+                mock_splash.return_value = Mock()
+                with patch("zebtrack.core.state_manager.StateManager"):
+                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
+                        with patch("zebtrack.ui.event_bus.EventBus"):
+                            with patch("zebtrack.core.weight_manager.WeightManager"):
+                                with patch("zebtrack.core.model_service.ModelService"):
+                                    with patch("zebtrack.core.project_manager.ProjectManager"):
+                                        with patch(
+                                            "zebtrack.core.project_workflow_service."
+                                            "ProjectWorkflowService"
+                                        ):
+                                            with patch(
+                                                "zebtrack.core.detector_service.DetectorService"
+                                            ):
+                                                with patch("zebtrack.io.recorder.Recorder"):
+                                                    with patch(
+                                                        "zebtrack.core.video_processing_service."
+                                                        "VideoProcessingService"
+                                                    ) as mock_vps:
+                                                        with patch(
+                                                            "zebtrack.analysis."
+                                                            "analysis_service."
+                                                            "AnalysisService"
+                                                        ):
+                                                            main()
+
+                                                            # Should pass detector=None
+                                                            # (lazy initialization)
+                                                            if mock_vps.called:
+                                                                call_args = mock_vps.call_args
+                                                                assert (
+                                                                    call_args[1].get("detector")
+                                                                    is None
+                                                                )
 
 
 if __name__ == "__main__":

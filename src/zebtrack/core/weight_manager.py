@@ -545,7 +545,7 @@ class WeightManager:
     def convert_to_openvino(self, name: str) -> str | None:
         """
         Convert the specified weight to OpenVINO format.
-        
+
         Handles caching and updates the config file.
         Returns the path to the converted model directory or None on failure.
         """

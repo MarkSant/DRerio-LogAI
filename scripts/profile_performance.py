@@ -40,13 +40,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 # Optional structlog for logging
 try:
     import structlog
+
     log = structlog.get_logger(__name__)
 except ImportError:
+
     class DummyLogger:
         def info(self, *args, **kwargs):
             pass
+
         def error(self, *args, **kwargs):
             pass
+
     log = DummyLogger()
 
 
@@ -244,9 +248,7 @@ class PerformanceProfiler:
 
                 # Print progress
                 print(
-                    f"[{sample['timestamp']:6.1f}s] "
-                    f"MEM: {mem_mb:7.1f}MB | "
-                    f"GC: {gc_count}",
+                    f"[{sample['timestamp']:6.1f}s] MEM: {mem_mb:7.1f}MB | GC: {gc_count}",
                     end="\r",
                 )
 
@@ -284,15 +286,15 @@ class PerformanceProfiler:
         print("=" * 80 + "\n")
 
         try:
-            from zebtrack.settings import load_settings
             from zebtrack.core.detector import Detector
             from zebtrack.plugins import DETECTOR_PLUGINS
+            from zebtrack.settings import load_settings
 
             settings = load_settings()
-            
+
             # Use configured model path from settings
             model_path = settings.detector.model_path
-            
+
             # Fallback to cache location if not set
             if not model_path or not Path(model_path).exists():
                 cache_path = Path.home() / ".cache" / "zebtrack" / "yolo11n.pt"
@@ -345,16 +347,16 @@ class PerformanceProfiler:
             with self.memory_profile("frame_detection"):
                 start = time.time()
                 for i in range(num_frames):
-                    detections = detector.detect(test_frame)
+                    _ = detector.detect(test_frame)
                     if i % 10 == 0:
                         print(f"Processed {i}/{num_frames} frames...", end="\r")
                 elapsed = time.time() - start
 
         fps = num_frames / elapsed
-        print(f"\nFrame detection completed:")
+        print("\nFrame detection completed:")
         print(f"  Total time: {elapsed:.3f}s")
         print(f"  FPS: {fps:.2f}")
-        print(f"  Avg time per frame: {elapsed/num_frames*1000:.2f}ms\n")
+        print(f"  Avg time per frame: {elapsed / num_frames * 1000:.2f}ms\n")
 
     def benchmark_parquet_write(self, num_rows: int = 10000):
         """Benchmark Parquet write performance.
@@ -399,10 +401,12 @@ class PerformanceProfiler:
             _ = pq.read_table(str(output_file))
             read_time = time.time() - start
 
-            print(f"{compression:8s}: "
-                  f"Write={write_time*1000:6.2f}ms, "
-                  f"Read={read_time*1000:6.2f}ms, "
-                  f"Size={file_size:6.2f}MB")
+            print(
+                f"{compression:8s}: "
+                f"Write={write_time * 1000:6.2f}ms, "
+                f"Read={read_time * 1000:6.2f}ms, "
+                f"Size={file_size:6.2f}MB"
+            )
 
             output_file.unlink()
 
@@ -415,6 +419,7 @@ class PerformanceProfiler:
         print("=" * 80 + "\n")
 
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import numpy as np
@@ -429,10 +434,15 @@ class PerformanceProfiler:
                 start = time.time()
 
                 # Create 5 different plot types (similar to Reporter)
-                for i, plot_type in enumerate([
-                    "trajectory", "heatmap", "position_vs_time",
-                    "cumulative_distance", "angular_velocity"
-                ]):
+                for i, plot_type in enumerate(
+                    [
+                        "trajectory",
+                        "heatmap",
+                        "position_vs_time",
+                        "cumulative_distance",
+                        "angular_velocity",
+                    ]
+                ):
                     fig, ax = plt.subplots(figsize=(10, 6))
 
                     if plot_type == "trajectory":
@@ -443,7 +453,7 @@ class PerformanceProfiler:
                         ax.plot(np.arange(num_points), x)
                         ax.plot(np.arange(num_points), y)
                     elif plot_type == "cumulative_distance":
-                        dist = np.cumsum(np.sqrt(np.diff(x)**2 + np.diff(y)**2))
+                        dist = np.cumsum(np.sqrt(np.diff(x) ** 2 + np.diff(y) ** 2))
                         ax.plot(dist)
                     else:  # angular_velocity
                         angles = np.arctan2(np.diff(y), np.diff(x))
@@ -453,17 +463,22 @@ class PerformanceProfiler:
                     fig.savefig(str(plot_file), dpi=100, bbox_inches="tight")
                     plt.close(fig)
 
-                    print(f"Generated {i+1}/5 plots...", end="\r")
+                    print(f"Generated {i + 1}/5 plots...", end="\r")
 
                 elapsed = time.time() - start
 
-        print(f"\nPlot generation completed:")
+        print("\nPlot generation completed:")
         print(f"  Total time: {elapsed:.3f}s")
-        print(f"  Avg time per plot: {elapsed/5:.3f}s\n")
+        print(f"  Avg time per plot: {elapsed / 5:.3f}s\n")
 
         # Clean up test plots
-        for plot_type in ["trajectory", "heatmap", "position_vs_time",
-                          "cumulative_distance", "angular_velocity"]:
+        for plot_type in [
+            "trajectory",
+            "heatmap",
+            "position_vs_time",
+            "cumulative_distance",
+            "angular_velocity",
+        ]:
             (self.output_dir / f"test_{plot_type}.png").unlink(missing_ok=True)
 
 
@@ -511,18 +526,18 @@ def main():
         detector = profiler.benchmark_detector_initialization()
         if detector:
             profiler.benchmark_frame_detection(detector, num_frames=100)
-    
+
     elif args.mode == "memory":
         # Memory profiling mode - focus on memory-intensive operations
         detector = profiler.benchmark_detector_initialization()
         if detector:
             profiler.benchmark_frame_detection(detector, num_frames=50)
         profiler.benchmark_parquet_write(num_rows=50000)
-    
+
     elif args.mode == "live":
         # Live monitoring mode
         profiler.live_monitor(duration=args.duration)
-    
+
     elif args.mode == "benchmark":
         # Quick benchmark mode - skips slow frame detection by default
         # Frame detection can take 8-10 seconds and is the #1 bottleneck
@@ -530,7 +545,7 @@ def main():
         detector = profiler.benchmark_detector_initialization()
         profiler.benchmark_parquet_write(num_rows=50000)
         profiler.benchmark_plot_generation()
-    
+
     elif args.mode == "all":
         # Comprehensive profiling - all benchmarks + live monitoring
         detector = profiler.benchmark_detector_initialization()

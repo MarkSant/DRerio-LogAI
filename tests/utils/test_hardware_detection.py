@@ -4,6 +4,8 @@ Tests for hardware detection utilities.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from zebtrack.utils.hardware_detection import (
     get_hardware_summary,
     get_openvino_devices,
@@ -12,6 +14,18 @@ from zebtrack.utils.hardware_detection import (
     is_openvino_available,
     recommend_backend,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_hardware_caches():
+    """Clear all lru_cache decorated functions before each test."""
+    is_cuda_available.cache_clear()
+    is_openvino_available.cache_clear()
+    get_openvino_devices.cache_clear()
+    has_intel_gpu.cache_clear()
+    recommend_backend.cache_clear()
+    get_hardware_summary.cache_clear()
+    yield
 
 
 class TestCudaDetection:
@@ -66,20 +80,20 @@ class TestOpenVINODevices:
                 mock_core_class.return_value = mock_core
 
                 devices = get_openvino_devices()
-                assert devices == ["CPU", "GPU.0"]
+                assert devices == ("CPU", "GPU.0")
 
     def test_get_openvino_devices_not_available(self):
         """Test when OpenVINO is not available."""
         with patch("zebtrack.utils.hardware_detection.is_openvino_available", return_value=False):
             devices = get_openvino_devices()
-            assert devices == []
+            assert devices == ()
 
     def test_get_openvino_devices_query_fails(self):
         """Test when device query fails."""
         with patch("zebtrack.utils.hardware_detection.is_openvino_available", return_value=True):
             with patch("openvino.Core", side_effect=RuntimeError("Device query failed")):
                 devices = get_openvino_devices()
-                assert devices == []
+                assert devices == ()
 
 
 class TestIntelGPUDetection:
@@ -88,21 +102,21 @@ class TestIntelGPUDetection:
     @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
     def test_has_intel_gpu_true(self, mock_get_devices):
         """Test when Intel GPU is detected."""
-        mock_get_devices.return_value = ["CPU", "GPU.0", "GPU.1"]
+        mock_get_devices.return_value = ("CPU", "GPU.0", "GPU.1")
 
         assert has_intel_gpu() is True
 
     @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
     def test_has_intel_gpu_false(self, mock_get_devices):
         """Test when only CPU is available."""
-        mock_get_devices.return_value = ["CPU"]
+        mock_get_devices.return_value = ("CPU",)
 
         assert has_intel_gpu() is False
 
     @patch("zebtrack.utils.hardware_detection.get_openvino_devices")
     def test_has_intel_gpu_no_devices(self, mock_get_devices):
         """Test when no devices are detected."""
-        mock_get_devices.return_value = []
+        mock_get_devices.return_value = ()
 
         assert has_intel_gpu() is False
 

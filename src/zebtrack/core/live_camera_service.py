@@ -92,6 +92,7 @@ class LiveCameraService:
         self.analysis_interval_frames = 1
         self.display_interval_frames = 1
         self.is_capturing_for_video = False
+        self.timer_id: str | None = None  # ✅ Session timer ID
 
     def start_session(
         self,
@@ -101,6 +102,7 @@ class LiveCameraService:
         analysis_interval_frames: int = 1,
         display_interval_frames: int = 1,
         record_video: bool = True,
+        output_base_dir: str | None = None,
     ) -> bool:
         """
         Start a live camera analysis session.
@@ -112,6 +114,7 @@ class LiveCameraService:
             analysis_interval_frames: Analyze every N frames
             display_interval_frames: Display every N frames
             record_video: Whether to record video
+            output_base_dir: Custom output directory (default: live_analysis_sessions/)
 
         Returns:
             True if session started successfully, False otherwise
@@ -132,12 +135,35 @@ class LiveCameraService:
 
         # Setup camera
         if not self._setup_camera(camera_index):
+            # Show user-friendly error message (skip in test environments)
+            import os
+
+            if os.environ.get("PYTEST_CURRENT_TEST") is None:
+                error_msg = (
+                    f"Falha ao abrir câmera {camera_index}.\n\n"
+                    f"Possíveis causas:\n"
+                    f"• Câmera está em uso por outro programa\n"
+                    f"• Hardware com defeito\n"
+                    f"• Driver incompatível\n\n"
+                    f"Tente:\n"
+                    f"• Fechar outros programas de câmera\n"
+                    f"• Reconectar o dispositivo USB\n"
+                    f"• Selecionar outra câmera"
+                )
+                import tkinter.messagebox as messagebox
+
+                messagebox.showerror("Erro na Câmera", error_msg)
             return False
 
         # Create output directory
         from datetime import datetime
 
-        output_base = Path("live_analysis_sessions")
+        # ✅ Allow custom output directory for projects
+        if output_base_dir:
+            output_base = Path(output_base_dir)
+        else:
+            output_base = Path("live_analysis_sessions")
+
         output_base.mkdir(exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder_name = f"{experiment_id}_{timestamp}"
@@ -175,42 +201,52 @@ class LiveCameraService:
             is_processing=True,
         )
 
-        # Build context and start recording through RecordingService
-        context = {
-            "day": 1,
-            "group": "live_analysis",
-            "cobaia": experiment_id,
-            "folder_name": folder_name,
-            "output_folder": str(output_dir),
-            "camera_width": self.camera.actual_width if self.camera else 640,
-            "camera_height": self.camera.actual_height if self.camera else 480,
-            "arduino_enabled": False,
-        }
+        # ========================================================================
+        # ✅ NOVA IMPLEMENTAÇÃO: Gravação leve DENTRO de LiveCameraService
+        # ========================================================================
+        # Substituiu chamada a RecordingService (linha 209 REMOVIDA)
+        # LiveCameraService agora é autossuficiente e não polui estado global
 
-        project_data = {
-            "use_timed_recording": True,
-            "recording_duration_s": duration_s,
-            "use_countdown": False,
-            "use_arduino": False,
-        }
+        # Initialize lightweight recorder for standalone analysis
+        if record_video and self.controller.recorder:
+            # Get zone data for recorder (use empty ZoneData if none available)
+            from zebtrack.core.detector import ZoneData
 
-        # Register completion callback
-        def on_complete():
-            self._on_session_complete(output_dir)
+            recorder_zones = zone_data if zone_data else ZoneData()
 
-        # Register UI callbacks for timed recording completion
-        self.recording_service.set_ui_callbacks(
-            {
-                "stop_recording_callback": on_complete,
-            }
-        )
+            # Start recorder directly (no RecordingService intermediary)
+            try:
+                recorder_started = self.controller.recorder.start_recording(
+                    output_folder=str(output_dir),
+                    frame_width=self.camera.actual_width if self.camera else 640,
+                    frame_height=self.camera.actual_height if self.camera else 480,
+                    zones=recorder_zones,
+                    is_video_file=False,  # We want to record video
+                    base_name=f"{experiment_id}_{timestamp}",
+                )
 
-        # Start recording session
-        self.recording_service.start_session(
-            context=context,
-            project_data=project_data,
-            trigger_source="live_analysis",
-        )
+                if not recorder_started:
+                    log.error("live_camera_service.recorder_start_failed")
+                    self.stop_session()
+                    return False
+
+                log.info(
+                    "live_camera_service.recorder_started",
+                    output_dir=str(output_dir),
+                    base_name=f"{experiment_id}_{timestamp}",
+                )
+
+            except Exception as e:
+                log.error(
+                    "live_camera_service.recorder_init_error",
+                    error=str(e),
+                    exc_info=True,
+                )
+                self.stop_session()
+                return False
+
+        # Setup session completion timer (replaces RecordingService timer)
+        self._setup_session_timer(duration_s, output_dir)
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
@@ -219,9 +255,21 @@ class LiveCameraService:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
-        # Stop recording
-        if self.recording_service:
-            self.recording_service.stop_session()
+        # ✅ NOVO: Cancelar timer se existir
+        if hasattr(self, "timer_id") and self.timer_id and self.root:
+            try:
+                self.root.after_cancel(self.timer_id)
+                log.info("live_camera_service.timer_cancelled")
+            except Exception as e:
+                log.warning("live_camera_service.timer_cancel_error", error=str(e))
+
+        # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
+        if self.controller.recorder:
+            try:
+                self.controller.recorder.stop_recording()
+                log.info("live_camera_service.recorder_stopped")
+            except Exception as e:
+                log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
         # Signal threads to exit
         self.exit_event.set()
@@ -264,21 +312,79 @@ class LiveCameraService:
 
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
-            # Create temporary settings with desired camera index
+            # Create temporary settings with desired camera index and force 720p resolution
             temp_settings = self.controller.settings.model_copy(deep=True)
+            log.info(
+                "live_camera_service.settings_before_override",
+                original_index=temp_settings.camera.index,
+                requested_index=camera_index,
+            )
             temp_settings.camera.index = camera_index
+            
+            # Force 1280x720 resolution for consistent performance across all cameras
+            # This ensures:
+            # - Consistent frame processing time across different camera hardware
+            # - Reduced memory usage for live analysis sessions
+            # - Better real-time performance for detection algorithms
+            # - Compatibility with cameras that may struggle at higher resolutions
+            # NOTE: This overrides user's desired_width/desired_height from config
+            # If higher resolution is needed, modify these values or make them configurable
+            temp_settings.camera.desired_width = 1280
+            temp_settings.camera.desired_height = 720
+            log.info(
+                "live_camera_service.settings_after_override",
+                new_index=temp_settings.camera.index,
+                forced_resolution="1280x720",
+                reason="consistent_performance",
+            )
+
             self.camera = Camera(settings_obj=temp_settings)
 
             if not self.camera.is_opened():
                 log.error("live_camera_service.camera_not_opened", camera_index=camera_index)
                 return False
 
+            # CRITICAL: Warm up camera by discarding first frames
+            # Webcams often need time to adjust exposure/white balance
+            # Notebook cameras may need MORE warmup time than external webcams
+            log.info("live_camera_service.camera_warmup_start", camera_index=camera_index)
+
+            # Adaptive warmup: more frames for low-index cameras (usually integrated cameras)
+            # Index 0-1: 30 frames (~1.5s at 20fps), Index 2+: 10 frames (~0.5s)
+            warmup_frames = 30 if camera_index <= 1 else 10
+
+            successful_warmup = 0
+            for warmup_count in range(warmup_frames):
+                ret, frame = self.camera.get_frame()
+                if ret and frame is not None:
+                    successful_warmup += 1
+                time.sleep(0.05)  # 50ms between warmup frames
+
+            log.info(
+                "live_camera_service.camera_warmup_complete",
+                camera_index=camera_index,
+                frames_requested=warmup_frames,
+                frames_successful=successful_warmup,
+            )
+
+            # Verify the camera is using the correct index
+            actual_camera_index = self.camera._camera_index
             log.info(
                 "live_camera_service.camera_ready",
-                camera_index=camera_index,
+                requested_camera_index=camera_index,
+                actual_camera_index=actual_camera_index,
                 width=self.camera.actual_width,
                 height=self.camera.actual_height,
             )
+
+            if actual_camera_index != camera_index:
+                log.error(
+                    "live_camera_service.camera_index_mismatch",
+                    requested=camera_index,
+                    actual=actual_camera_index,
+                )
+                return False
+
             return True
 
         except Exception as e:
@@ -341,6 +447,14 @@ class LiveCameraService:
     def _capture_loop(self):
         """Thread loop for capturing frames from camera."""
         log.info("live_camera_service.capture_loop_started")
+
+        # Log which camera we're actually using
+        if self.camera:
+            log.info(
+                "live_camera_service.capture_loop_using_camera",
+                camera_index=self.camera._camera_index,
+            )
+
         frame_count = 0
 
         while not self.exit_event.is_set():
@@ -431,6 +545,20 @@ class LiveCameraService:
 
                 # Update preview window if exists
                 if self.preview_window and should_display:
+                    # Add camera index overlay for debugging
+                    if self.camera:
+                        camera_idx = self.camera._camera_index
+                        cv2.putText(
+                            frame,
+                            f"CAMERA INDEX: {camera_idx}",
+                            (10, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            2.0,
+                            (0, 255, 0),  # Green color
+                            4,
+                            cv2.LINE_AA,
+                        )
+
                     if self.root:
                         self.root.after(0, self.preview_window.update_frame, frame, detections)
                     else:
@@ -440,6 +568,36 @@ class LiveCameraService:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
 
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
+
+    def _setup_session_timer(self, duration_s: float, output_dir: Path):
+        """
+        Setup timer to automatically stop session after duration.
+
+        Replaces RecordingService's timed recording logic.
+
+        Args:
+            duration_s: Session duration in seconds
+            output_dir: Output directory for results
+        """
+
+        def on_timer_expired():
+            """Called when duration expires."""
+            log.info(
+                "live_camera_service.timer_expired",
+                duration_s=duration_s,
+            )
+            self._on_session_complete(output_dir)
+
+        # Schedule timer (in milliseconds)
+        if self.root:
+            self.timer_id = self.root.after(
+                int(duration_s * 1000),
+                on_timer_expired,
+            )
+            log.info(
+                "live_camera_service.timer_scheduled",
+                duration_s=duration_s,
+            )
 
     def _on_session_complete(self, output_dir: Path):
         """Handle session completion."""

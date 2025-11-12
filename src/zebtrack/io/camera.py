@@ -53,7 +53,14 @@ class Camera(FrameSource):
             desired_height=self.settings.camera.desired_height,
         )
 
-        self.cap = cv2.VideoCapture(self._camera_index)
+        # Use DirectShow backend on Windows for better reliability and consistency with wizard
+        import sys
+
+        if sys.platform == "win32":
+            self.cap = cv2.VideoCapture(self._camera_index, cv2.CAP_DSHOW)
+        else:
+            self.cap = cv2.VideoCapture(self._camera_index)
+
         if not self.cap.isOpened():
             raise OSError(f"Cannot open camera at index {self._camera_index}")
 

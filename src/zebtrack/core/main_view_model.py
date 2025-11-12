@@ -2700,6 +2700,81 @@ class MainViewModel:
                 },
             )
 
+    def start_live_camera_analysis_from_config(self, config: dict):
+        """
+        Start live camera analysis with full configuration from SingleVideoConfigDialog.
+
+        This method extracts all parameters from the config dictionary and delegates
+        to LiveCameraService, ensuring intervals and other settings are respected.
+
+        Args:
+            config: Configuration dictionary from SingleVideoConfigDialog containing:
+                - camera_index: int - Camera device index
+                - analysis_interval_frames: int - Analyze every N frames
+                - display_interval_frames: int - Display every N frames
+                - (other dialog parameters)
+        """
+        log.info("controller.live_analysis.start_from_config", config_keys=list(config.keys()))
+
+        # Extract configuration with defaults
+        camera_index = config["camera_index"]
+
+        # Duration: use setting or default
+        if hasattr(self.settings, "live_analysis"):
+            duration_s = self.settings.live_analysis.default_duration_s
+        else:
+            duration_s = 300.0  # 5 minutes default
+
+        # Experiment ID
+        experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
+
+        # ✅ CRITICAL: Extract intervals from config (not hardcoded defaults!)
+        analysis_interval_frames = config.get("analysis_interval_frames", 1)
+        display_interval_frames = config.get("display_interval_frames", 1)
+
+        # Video recording (optional)
+        record_video = config.get("record_video", True)
+
+        log.info(
+            "controller.live_analysis.extracted_config",
+            camera_index=camera_index,
+            duration_s=duration_s,
+            analysis_interval=analysis_interval_frames,
+            display_interval=display_interval_frames,
+            record_video=record_video,
+        )
+
+        # Delegate to LiveCameraService with complete configuration
+        success = self.live_camera_service.start_session(
+            camera_index=camera_index,
+            duration_s=duration_s,
+            experiment_id=experiment_id,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            record_video=record_video,
+        )
+
+        # UI feedback
+        if success and self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {
+                    "message": (
+                        f"Analisando câmera {camera_index} "
+                        f"(análise: {analysis_interval_frames}f, "
+                        f"exibição: {display_interval_frames}f)"
+                    )
+                },
+            )
+        elif not success and self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro na Análise",
+                    "message": f"Falha ao iniciar análise de câmera {camera_index}.",
+                },
+            )
+
     def stop_recording(self):
         """Stop the current recording session (delegates to RecordingService - Phase 2.2)."""
         log.info("controller.recording.stop")
@@ -2717,6 +2792,70 @@ class MainViewModel:
         self.ui_event_bus.publish_event(
             Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
         )
+
+    def start_live_project_session(
+        self,
+        day: int,
+        group: str,
+        subject: str,
+        duration_s: float | None = None,
+    ) -> bool:
+        """
+        Start a live recording session for a Live project.
+
+        This method replaces the legacy thread-based system in gui.py,
+        using LiveCameraService for unified camera management.
+
+        Args:
+            day: Day number (from project grid)
+            group: Group identifier
+            subject: Subject/animal identifier
+            duration_s: Optional duration override (uses project default if None)
+
+        Returns:
+            True if session started successfully, False otherwise
+        """
+        pm = self.project_manager
+
+        # Validate project type
+        if pm.get_project_type() != "live":
+            log.error("start_live_project_session.wrong_project_type")
+            return False
+
+        # Extract project configuration
+        project_data = pm.project_data
+        camera_index = project_data.get("camera_index", 0)
+
+        # Duration: use parameter, project default, or fallback
+        if duration_s is None:
+            duration_s = project_data.get("recording_duration_s", 300.0)
+
+        # Intervals
+        analysis_interval_frames = project_data.get("analysis_interval_frames", 1)
+        display_interval_frames = project_data.get("display_interval_frames", 1)
+
+        # Experiment ID for this session
+        experiment_id = f"day{day}_{group}_{subject}"
+
+        log.info(
+            "controller.live_project_session.start",
+            project=pm.get_project_name(),
+            experiment_id=experiment_id,
+            camera_index=camera_index,
+            duration_s=duration_s,
+        )
+
+        # Delegate to LiveCameraService (unified system)
+        success = self.live_camera_service.start_session(
+            camera_index=camera_index,
+            duration_s=duration_s,
+            experiment_id=experiment_id,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            record_video=True,  # Projects always record
+        )
+
+        return success
 
     def _ensure_zones_before_recording(self) -> bool:
         """Ensure project zones are defined (live or non-live) before starting recording.

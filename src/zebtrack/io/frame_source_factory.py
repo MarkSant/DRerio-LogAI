@@ -101,7 +101,11 @@ class FrameSourceFactory:
                 camera_index=camera_index,
                 duration="unlimited",
             )
-            return Camera(settings_obj=settings_obj)
+
+            # ✅ Create modified settings with correct camera index
+            temp_settings = settings_obj.model_copy(deep=True)
+            temp_settings.camera.index = camera_index
+            return Camera(settings_obj=temp_settings)
 
     @staticmethod
     def create(

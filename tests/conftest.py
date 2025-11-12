@@ -81,7 +81,6 @@ def pytest_sessionfinish(session, exitstatus):
 
     # 1.5. Shutdown ThreadPoolExecutors
     from concurrent.futures import ThreadPoolExecutor
-    import sys
 
     # Find all ThreadPoolExecutor instances and shutdown
     all_objects = gc.get_objects()
@@ -95,7 +94,7 @@ def pytest_sessionfinish(session, exitstatus):
                 pass
 
     if executors_shutdown > 0:
-        print(f"\n=== PYTEST SESSION CLEANUP ===")
+        print("\n=== PYTEST SESSION CLEANUP ===")
         print(f"Shutdown {executors_shutdown} ThreadPoolExecutor(s)")
     else:
         print("\n=== PYTEST SESSION CLEANUP ===")

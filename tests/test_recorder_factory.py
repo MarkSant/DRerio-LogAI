@@ -4,14 +4,21 @@ import sys
 
 import pytest
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.io.recorder_factory import RecorderFactory
-from zebtrack.settings import Settings
+from zebtrack.settings import load_settings
 
 
 @pytest.fixture
 def settings_obj():
     """Create a Settings instance for testing."""
-    return Settings()
+    return load_settings()
+
+
+@pytest.fixture
+def mock_zones():
+    """Create a ZoneData instance for testing."""
+    return ZoneData()
 
 
 def test_recorder_factory_creation(settings_obj):
@@ -95,7 +102,7 @@ def test_method_delegation(settings_obj):
     assert callable(factory.start_recording)
 
 
-def test_context_manager_support(settings_obj, tmp_path):
+def test_context_manager_support(settings_obj, mock_zones, tmp_path):
     """Test that RecorderFactory supports context manager protocol."""
     factory = RecorderFactory(settings_obj)
 
@@ -110,6 +117,7 @@ def test_context_manager_support(settings_obj, tmp_path):
             output_folder=output_folder,
             frame_width=640,
             frame_height=480,
+            zones=mock_zones,
         )
 
         assert recorder.is_recording is True
@@ -118,7 +126,7 @@ def test_context_manager_support(settings_obj, tmp_path):
     assert factory._recorder.is_recording is False
 
 
-def test_context_manager_cleanup_on_exception(settings_obj, tmp_path):
+def test_context_manager_cleanup_on_exception(settings_obj, mock_zones, tmp_path):
     """Test that context manager properly cleans up on exception."""
     factory = RecorderFactory(settings_obj)
 
@@ -130,6 +138,7 @@ def test_context_manager_cleanup_on_exception(settings_obj, tmp_path):
                 output_folder=output_folder,
                 frame_width=640,
                 frame_height=480,
+                zones=mock_zones,
             )
 
             # Raise an exception
@@ -146,15 +155,16 @@ def test_settings_injection(settings_obj):
     factory = RecorderFactory(settings_obj)
     recorder = factory.get_recorder()
 
-    # Recorder should have received the settings
-    assert hasattr(recorder, "settings_obj")
-    assert recorder.settings_obj is settings_obj
+    # Recorder should have been initialized with settings
+    # It extracts values from settings but doesn't store the object itself
+    assert hasattr(recorder, "_flush_interval_seconds")
+    assert hasattr(recorder, "_flush_row_threshold")
 
 
 def test_multiple_factories_independent():
     """Test that multiple RecorderFactory instances are independent."""
-    settings1 = Settings()
-    settings2 = Settings()
+    settings1 = load_settings()
+    settings2 = load_settings()
 
     factory1 = RecorderFactory(settings1)
     factory2 = RecorderFactory(settings2)
@@ -189,7 +199,6 @@ def test_concurrent_initialization(settings_obj):
 
     # All threads should get the same instance (thread-safe singleton per factory)
     assert len(recorders) == 10
-    assert all(
-        r is recorders[0] for r in recorders
-    ), "All threads should get same Recorder instance"
-
+    assert all(r is recorders[0] for r in recorders), (
+        "All threads should get same Recorder instance"
+    )

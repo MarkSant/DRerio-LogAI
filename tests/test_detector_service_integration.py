@@ -320,7 +320,8 @@ class TestDetectorServiceIntegration(unittest.TestCase):
                 },
             )
 
-        # The call will have the full wizard_metadata structure, but we only care about detector_parameters
+        # The call will have the full wizard_metadata structure,
+        # but we only care about detector_parameters
         mock_apply.assert_called_once()
         actual_call = mock_apply.call_args[0][0]
         assert actual_call["detector_parameters"] == wizard_metadata["detector_parameters"]

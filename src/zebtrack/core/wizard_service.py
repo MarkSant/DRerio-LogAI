@@ -9,11 +9,13 @@ logic should live here instead of in the UI layer.
 import os
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import cv2
+import numpy as np
 import serial.tools.list_ports
 import structlog
 
@@ -149,86 +151,6 @@ class WizardService:
         elapsed = time.time() - cache_time
         return elapsed < cls._cache_ttl_seconds
 
-    @staticmethod
-    def _get_camera_names_windows() -> dict[int, str]:
-        """
-        Get real camera names on Windows using multiple methods.
-
-        Tries:
-        1. PowerShell PnP device query (most reliable for real cameras)
-        2. WMI Win32_PnPEntity query (alternative method)
-        3. Registry query as fallback
-
-        Returns:
-            Dictionary mapping camera index to camera name
-        """
-        camera_names = {}
-
-        if sys.platform != "win32":
-            return camera_names
-
-        # Try method 1: PowerShell PnP devices
-        try:
-            powershell_cmd = (
-                "Get-PnpDevice -Class Camera,Image | "
-                "Where-Object {$_.Status -eq 'OK'} | "
-                "Select-Object -Property FriendlyName | "
-                "ForEach-Object { $_.FriendlyName }"
-            )
-
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", powershell_cmd],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                names = [name.strip() for name in result.stdout.strip().split("\n") if name.strip()]
-                for idx, name in enumerate(names):
-                    camera_names[idx] = name
-                log.debug(
-                    "wizard_service.camera_names_detected",
-                    method="pnp",
-                    count=len(camera_names),
-                )
-                return camera_names
-
-        except Exception as e:
-            log.debug("wizard_service.camera_names_pnp_error", error=str(e))
-
-        # Try method 2: WMI query for video devices
-        try:
-            wmi_cmd = (
-                "Get-WmiObject Win32_PnPEntity | "
-                "Where-Object {$_.PNPClass -eq 'Camera' -or $_.PNPClass -eq 'Image'} | "
-                "Select-Object -Property Name | "
-                "ForEach-Object { $_.Name }"
-            )
-
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", wmi_cmd],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                names = [name.strip() for name in result.stdout.strip().split("\n") if name.strip()]
-                for idx, name in enumerate(names):
-                    camera_names[idx] = name
-                log.debug(
-                    "wizard_service.camera_names_detected", method="wmi", count=len(camera_names)
-                )
-                return camera_names
-
-        except Exception as e:
-            log.debug("wizard_service.camera_names_wmi_error", error=str(e))
-
-        return camera_names
-
     @classmethod
     def detect_available_cameras(cls, use_cache: bool = True) -> list[dict]:
         """
@@ -255,7 +177,7 @@ class WizardService:
                 ...
             ]
         """
-        # Check cache first
+        # Check cache first (with ghost camera detection, cache is now reliable)
         cache_is_valid = cls._is_cache_valid(cls._camera_cache_time)
         if use_cache and cls._camera_cache is not None and cache_is_valid:
             log.debug("wizard_service.detect_cameras.cache_hit")
@@ -266,11 +188,12 @@ class WizardService:
         consecutive_failures = 0
         max_consecutive_failures = 3
 
-        # Get real camera names on Windows
-        camera_names = cls._get_camera_names_windows()
+        # NOTE: Windows PnP camera name mapping disabled due to unreliable index correlation
+        # between DirectShow and PnP device enumeration. Using resolution-based descriptions instead.
+        camera_names = {}  # Force using resolution-based descriptions
 
         with cls.suppress_opencv_logs():
-            for i in range(10):
+            for i in range(6):  # Scan indices 0-5 instead of 0-9
                 try:
                     # Use DirectShow backend on Windows for better reliability
                     if sys.platform == "win32":
@@ -279,25 +202,97 @@ class WizardService:
                         cap = cv2.VideoCapture(i)
 
                     if cap.isOpened():
+                        # CRITICAL: Verify camera can actually capture frames with timeout
+                        # Some cameras report isOpened=True but never return frames (ghost cameras)
+                        test_result = {"success": False, "frame": None}
+                        result_lock = threading.Lock()
+                        read_event = threading.Event()
+
+                        def try_read(
+                            capture=cap, result=test_result, camera_index=i, lock=result_lock, event=read_event
+                        ):
+                            try:
+                                ret, frame = capture.read()
+                                with lock:
+                                    result["success"] = ret
+                                    result["frame"] = frame
+                            except Exception as e:
+                                log.warning(
+                                    "wizard_service.camera_read_exception",
+                                    index=camera_index,
+                                    error=str(e),
+                                )
+                                with lock:
+                                    result["success"] = False
+                            finally:
+                                event.set()
+
+                        log.debug("wizard_service.testing_camera_capture", index=i)
+                        read_thread = threading.Thread(target=try_read, daemon=True)
+                        read_thread.start()
+                        read_event.wait(timeout=2.0)  # Wait for completion signal
+
+                        with result_lock:
+                            if not test_result["success"] or test_result["frame"] is None:
+                                log.warning(
+                                    "wizard_service.camera_ghost_detected",
+                                    index=i,
+                                    reason="isOpened=True but read() failed or timed out",
+                                    success=test_result["success"],
+                                    frame_is_none=test_result["frame"] is None,
+                                )
+                                cap.release()
+                                consecutive_failures += 1
+                                if consecutive_failures >= max_consecutive_failures:
+                                    log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                    break
+                                continue
+
+                            # CRITICAL: Check if frame is completely black
+                            # (virtual camera with no content)
+                            frame_mean = np.mean(test_result["frame"])
+                            if frame_mean < 5.0:  # Nearly black frame
+                                log.warning(
+                                    "wizard_service.camera_black_frame_detected",
+                                    index=i,
+                                    frame_mean=frame_mean,
+                                    reason="Camera returns black/empty frames",
+                                )
+                                cap.release()
+                                consecutive_failures += 1
+                                if consecutive_failures >= max_consecutive_failures:
+                                    log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                    break
+                                continue
+
+                            log.info(
+                                "wizard_service.camera_validated",
+                                index=i,
+                                frame_shape=test_result["frame"].shape,
+                                frame_mean=frame_mean,
+                            )
+
+                        # Reset consecutive failures on success
+                        consecutive_failures = 0
+
                         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         fps = cap.get(cv2.CAP_PROP_FPS)
 
-                        # Use real camera name if available, otherwise fallback to description
-                        if i in camera_names:
-                            description = camera_names[i]
-                        else:
-                            # Generate descriptive name based on resolution as fallback
-                            if width >= 1920 and height >= 1080:
-                                resolution_desc = "Full HD"
-                            elif width >= 1280 and height >= 720:
-                                resolution_desc = "HD"
-                            elif width >= 640 and height >= 480:
-                                resolution_desc = "SD"
-                            else:
-                                resolution_desc = f"{width}x{height}"
+                        # Generate descriptive name based on resolution
+                        # Add camera counter to differentiate cameras with same resolution
+                        camera_count = len(cameras) + 1  # 1-based counter
 
-                            description = f"Câmera {i} ({resolution_desc})"
+                        if width >= 1920 and height >= 1080:
+                            resolution_desc = "Full HD (1920x1080)"
+                        elif width >= 1280 and height >= 720:
+                            resolution_desc = "HD (1280x720)"
+                        elif width >= 640 and height >= 480:
+                            resolution_desc = "SD (640x480)"
+                        else:
+                            resolution_desc = f"{width}x{height}"
+
+                        description = f"Câmera #{camera_count} [índice {i}] - {resolution_desc}"
 
                         cameras.append(
                             {
@@ -309,7 +304,6 @@ class WizardService:
                             }
                         )
                         cap.release()
-                        consecutive_failures = 0  # Reset failure counter
                     else:
                         consecutive_failures += 1
                         # Stop early if we hit too many consecutive failures
@@ -333,7 +327,7 @@ class WizardService:
         )
 
         # Update cache
-        cls._camera_cache = cameras
+        cls._camera_cache = cameras if cameras else None
         cls._camera_cache_time = time.time()
 
         return cameras

@@ -127,7 +127,7 @@ class ProjectManager:
     def _deduplicate_zone_keys(self, preferred_key: str | None) -> None:
         """
         Remove duplicate zone entries that resolve to the same canonical path.
-        
+
         Delegates to ZoneManager.
         """
         ZoneManager.deduplicate_zone_keys(self.project_data, preferred_key)
@@ -233,7 +233,7 @@ class ProjectManager:
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
         """
         Set the video whose zones should be considered active in memory.
-        
+
         Delegates to ZoneManager.
         """
         self.zone_manager.set_active_zone_video(self.project_data, video_path)
@@ -245,7 +245,7 @@ class ProjectManager:
     def get_last_zone_video(self, exclude: str | None = None) -> str | None:
         """
         Return the last video that had zones saved, excluding optional target.
-        
+
         Delegates to ZoneManager.
         """
         return self.zone_manager.get_last_zone_video(self.project_data, exclude)
@@ -253,7 +253,7 @@ class ProjectManager:
     def has_zone_data(self, video_path: Path | str | None) -> bool:
         """
         Check whether the given video currently stores arena or ROI data.
-        
+
         Delegates to ZoneManager.
         """
         return self.zone_manager.has_zone_data(self.project_data, video_path)
@@ -884,7 +884,7 @@ class ProjectManager:
     ):
         """
         Initialize a new project, creating its directory and config file.
-        
+
         It no longer handles OpenVINO conversion, just records the settings.
         """
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
@@ -1350,7 +1350,7 @@ class ProjectManager:
     def _iter_project_videos(self):
         """
         Yield (batch_dict, video_dict) pairs for every registered video.
-        
+
         Delegates to VideoManager.
         """
         return VideoManager.iter_project_videos(self.project_data)
@@ -1602,7 +1602,7 @@ class ProjectManager:
     ) -> dict | None:
         """
         Return the project entry for a given video path or experiment id.
-        
+
         Delegates to VideoManager.
         """
         return VideoManager.find_video_entry(
@@ -1904,7 +1904,7 @@ class ProjectManager:
     def get_next_video(self):
         """
         Return the path of the next video with 'pending' status from all batches.
-        
+
         Delegates to VideoManager.
         """
         return VideoManager.get_next_video(self.project_data)
@@ -1933,7 +1933,7 @@ class ProjectManager:
     ) -> ZoneData:
         """
         Retrieve zone data for a specific video or fallback to project defaults.
-        
+
         Delegates to ZoneManager.
         """
         return self.zone_manager.get_zone_data(
@@ -1943,7 +1943,7 @@ class ProjectManager:
     def update_main_polygon(self, points: list):
         """
         Atualiza ou define o polígono principal nos dados do projeto.
-        
+
         Delegates to ZoneManager.
         """
         self.zone_manager.update_main_polygon(
@@ -1992,7 +1992,7 @@ class ProjectManager:
     def get_metadata_for_experiment(self, experiment_id: str) -> dict:
         """
         Retrieve a dictionary of metadata for a given experiment ID.
-        
+
         It first checks the loaded metadata.csv file. If the experiment is not
         found, it attempts to parse the experiment_id using a regex as a fallback.
 
@@ -2124,7 +2124,7 @@ class ProjectManager:
     def get_completed_sessions(self) -> set[tuple[int, str, int]]:
         """
         Scan the project directory for completed session folders and returns them.
-        
+
         A session is a tuple of (day, group_name, subject_id).
         """
         if not self.project_path:

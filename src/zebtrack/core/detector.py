@@ -35,7 +35,8 @@ class ZoneData:
 
 class Detector:
     """
-    Manages the detection process by delegating to a plugin and handling stateful logic for zone tracking.
+    Manages the detection process by delegating to a plugin and handling
+    stateful logic for zone tracking.
 
     Nota de Otimização:
     O rastreamento de objetos é baseado nos bounding boxes. Se o modelo de IA
@@ -152,7 +153,11 @@ class Detector:
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
         base_roi_polygons = [np.array(p, dtype=np.int32) for p in self.zones.roi_polygons]
 
-        if actual_width == self.base_width and actual_height == self.base_height:
+        # Handle empty polygon case (no zones defined)
+        if base_polygon.size == 0:
+            self.scaled_polygon = base_polygon
+            self.scaled_roi_polygons = base_roi_polygons
+        elif actual_width == self.base_width and actual_height == self.base_height:
             self.scaled_polygon = base_polygon
             self.scaled_roi_polygons = base_roi_polygons
         else:
@@ -206,7 +211,8 @@ class Detector:
         self, x1: int, y1: int, x2: int, y2: int, roi_polygon: np.ndarray
     ) -> bool:
         """
-        Return True if 4 corners OR center of bbox falls within roi_polygon (cv2.pointPolygonTest >= 0).
+        Return True if 4 corners OR center of bbox falls within roi_polygon
+        (cv2.pointPolygonTest >= 0).
 
         This is a utility helper for future live ROI checking functionality.
         """

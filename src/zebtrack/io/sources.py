@@ -9,7 +9,7 @@ from zebtrack.io.frame_source import FrameSource
 from zebtrack.io.video_source import VideoFileSource
 
 if TYPE_CHECKING:
-    from zebtrack.settings import Settings
+    pass
 
 
 def create_source(source_type: str, **kwargs: Any) -> FrameSource:

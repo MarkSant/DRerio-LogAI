@@ -19,9 +19,12 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import structlog
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from zebtrack.utils import IntegrityError
 
@@ -328,7 +331,7 @@ class ProjectService:
     # Metadata Operations
     # -------------------------------------------------------------------------
 
-    def load_metadata_csv(self, project_path: Path | str) -> "pd.DataFrame | None":
+    def load_metadata_csv(self, project_path: Path | str) -> pd.DataFrame | None:
         """
         Load metadata.csv from project directory.
 
