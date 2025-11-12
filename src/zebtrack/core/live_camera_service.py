@@ -95,6 +95,7 @@ class LiveCameraService:
         self.timer_id: str | None = None  # ✅ Session timer ID
         self.current_output_dir: Path | None = None  # ✅ Current session output directory
         self._analysis_completed = False  # ✅ Flag to prevent duplicate post-analysis
+        self._last_detections: list = []  # ✅ Cache last detections for persistent overlay
 
     def start_session(
         self,
@@ -135,6 +136,7 @@ class LiveCameraService:
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
         self._analysis_completed = False  # ✅ Reset flag for new session
+        self._last_detections = []  # ✅ Reset cached detections for new session
 
         # Create preview window FIRST (so we can show status updates)
         log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
@@ -600,6 +602,9 @@ class LiveCameraService:
                     if detector:
                         detections, _command = detector.detect(frame, "live")
 
+                        # ✅ Cache detections for persistent overlay on non-analyzed frames
+                        self._last_detections = detections
+
                         # Record detections
                         if self.controller.recorder and self.controller.recorder.start_time:
                             if detections:
@@ -613,9 +618,21 @@ class LiveCameraService:
                                     frame_number=frame_number,
                                     num_detections=len(detections),
                                 )
+                else:
+                    # ✅ Use cached detections for overlay on non-analyzed frames
+                    # This makes bounding boxes persist instead of flickering
+                    detections = self._last_detections
 
-                        # Draw overlay
-                        detector.draw_overlay(frame, detections)
+                # ✅ ALWAYS draw overlay when displaying (with current or cached detections)
+                detector = self.detector_service.detector
+                if detector and should_display and detections:
+                    detector.draw_overlay(frame, detections)
+                    log.debug(
+                        "live_camera_service.overlay_drawn",
+                        frame_number=frame_number,
+                        num_boxes=len(detections),
+                        is_cached=not should_analyze,
+                    )
 
                 # ✅ CRITICAL FIX: Write video frame to MP4/AVI
                 # Previously frames were queued but never written, causing no video output
