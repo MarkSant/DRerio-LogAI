@@ -26,6 +26,7 @@ openvino_model_cache/
 
 # Analysis results
 *_results/
+live_analysis_sessions/
 
 # Environment variables
 .env
