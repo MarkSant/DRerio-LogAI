@@ -199,7 +199,6 @@ def test_concurrent_initialization(settings_obj):
 
     # All threads should get the same instance (thread-safe singleton per factory)
     assert len(recorders) == 10
-    assert all(
-        r is recorders[0] for r in recorders
-    ), "All threads should get same Recorder instance"
-
+    assert all(r is recorders[0] for r in recorders), (
+        "All threads should get same Recorder instance"
+    )

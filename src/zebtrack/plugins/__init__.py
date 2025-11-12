@@ -1,6 +1,7 @@
 """Detector plugin implementations and registry.
 
-This package contains plugin implementations for different detection backends (YOLO, OpenVINO) with graceful dependency handling.
+This package contains plugin implementations for different detection backends
+(YOLO, OpenVINO) with graceful dependency handling.
 """
 
 # Try to import plugins, but handle missing dependencies gracefully

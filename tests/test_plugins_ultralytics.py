@@ -21,9 +21,10 @@ def mock_yolo_model():
 @pytest.fixture
 def mock_ultralytics_import():
     """Mock the ultralytics import."""
-    with patch("zebtrack.plugins.ultralytics_detector.ULTRALYTICS_AVAILABLE", True), patch(
-        "zebtrack.plugins.ultralytics_detector.YOLO"
-    ) as mock_yolo_class:
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.ULTRALYTICS_AVAILABLE", True),
+        patch("zebtrack.plugins.ultralytics_detector.YOLO") as mock_yolo_class,
+    ):
         yield mock_yolo_class
 
 

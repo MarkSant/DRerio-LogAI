@@ -218,6 +218,20 @@ def start_session(self, ...):
 - RecordingService continua servindo projetos
 - Separação clara de responsabilidades
 
+**UPDATE 2025-11-11:** ✅ **CORRIGIDO - TypeError em LiveCameraService.start_session()**
+
+- **Problema:** Após refatoração parcial do Bug 6, a chamada ao `Recorder.start_recording()`
+  estava usando parâmetros incorretos, causando `TypeError: Recorder.start_recording() got
+  an unexpected keyword argument 'folder_name'`
+- **Causa:** Parâmetros incorretos foram passados: `folder_name`, `video_filename`,
+  `parquet_filename`, `width`, `height`, `fps` ao invés de `output_folder`, `frame_width`,
+  `frame_height`, `zones`, `is_video_file`, `base_name`
+- **Correção:** Ajustada a chamada em `live_camera_service.py` (linhas 193-218) para usar
+  a assinatura correta de `Recorder.start_recording()`
+- **Teste:** Adicionado teste de regressão `test_recorder_called_with_correct_parameters()`
+  em `test_live_camera_service_threading.py` para prevenir futuros erros
+- **Status:** 24/24 testes passando ✅
+
 ---
 
 ## 🎯 Objetivos

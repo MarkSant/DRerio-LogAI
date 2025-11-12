@@ -17,7 +17,7 @@ class TestCameraContextManager:
     @pytest.mark.unit
     def test_context_manager_releases_camera(self, test_settings):
         """Context manager automatically releases camera."""
-        with patch('cv2.VideoCapture') as mock_capture_class:
+        with patch("cv2.VideoCapture") as mock_capture_class:
             # Setup mock
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
@@ -40,7 +40,7 @@ class TestCameraContextManager:
     @pytest.mark.unit
     def test_context_manager_releases_on_exception(self, test_settings):
         """Context manager releases camera even if exception raised."""
-        with patch('cv2.VideoCapture') as mock_capture_class:
+        with patch("cv2.VideoCapture") as mock_capture_class:
             # Setup mock
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
@@ -62,7 +62,7 @@ class TestCameraContextManager:
     @pytest.mark.unit
     def test_context_manager_handles_cleanup_failure(self, test_settings):
         """Context manager handles cleanup failures gracefully."""
-        with patch('cv2.VideoCapture') as mock_capture_class:
+        with patch("cv2.VideoCapture") as mock_capture_class:
             # Setup mock that fails on release
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
@@ -95,7 +95,7 @@ class TestRecorderContextManager:
         recorder = Recorder(settings_obj=test_settings)
 
         # Mock the video writer to avoid actual file creation issues
-        with patch('cv2.VideoWriter') as mock_writer_class:
+        with patch("cv2.VideoWriter") as mock_writer_class:
             mock_writer = Mock()
             mock_writer.isOpened.return_value = True
             mock_writer_class.return_value = mock_writer
@@ -126,7 +126,7 @@ class TestRecorderContextManager:
         recorder = Recorder(settings_obj=test_settings)
 
         # Mock the video writer
-        with patch('cv2.VideoWriter') as mock_writer_class:
+        with patch("cv2.VideoWriter") as mock_writer_class:
             mock_writer = Mock()
             mock_writer.isOpened.return_value = True
             mock_writer_class.return_value = mock_writer
@@ -183,7 +183,7 @@ class TestLiveCameraServiceContextManager:
         )
 
         # Mock stop_session to avoid actual cleanup
-        with patch.object(service, 'stop_session') as mock_stop:
+        with patch.object(service, "stop_session") as mock_stop:
             with service:
                 pass
 
@@ -211,7 +211,7 @@ class TestLiveCameraServiceContextManager:
         )
 
         # Mock stop_session
-        with patch.object(service, 'stop_session') as mock_stop:
+        with patch.object(service, "stop_session") as mock_stop:
             with pytest.raises(RuntimeError):
                 with service:
                     raise RuntimeError("Test error")
@@ -239,7 +239,7 @@ class TestLiveCameraServiceContextManager:
         )
 
         # Mock stop_session to raise exception
-        with patch.object(service, 'stop_session', side_effect=Exception("Stop failed")):
+        with patch.object(service, "stop_session", side_effect=Exception("Stop failed")):
             # Should not raise exception even if stop fails
             with service:
                 pass
@@ -253,8 +253,10 @@ class TestResourceCleanupIntegration:
     @pytest.mark.integration
     def test_nested_context_managers(self, tmp_path, test_settings):
         """Test nested context managers clean up properly."""
-        with patch('cv2.VideoCapture') as mock_capture_class, \
-             patch('cv2.VideoWriter') as mock_writer_class:
+        with (
+            patch("cv2.VideoCapture") as mock_capture_class,
+            patch("cv2.VideoWriter") as mock_writer_class,
+        ):
             # Setup camera mock
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True
@@ -284,8 +286,10 @@ class TestResourceCleanupIntegration:
     @pytest.mark.integration
     def test_exception_in_nested_contexts(self, tmp_path, test_settings):
         """Test exception handling in nested context managers."""
-        with patch('cv2.VideoCapture') as mock_capture_class, \
-             patch('cv2.VideoWriter') as mock_writer_class:
+        with (
+            patch("cv2.VideoCapture") as mock_capture_class,
+            patch("cv2.VideoWriter") as mock_writer_class,
+        ):
             # Setup camera mock
             mock_cap = Mock()
             mock_cap.isOpened.return_value = True

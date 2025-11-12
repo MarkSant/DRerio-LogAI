@@ -18,6 +18,7 @@ def mock_camera():
     """Create a mock camera that returns fake frames."""
     camera = Mock()
     camera.camera_index = 0
+    camera._camera_index = 0  # Private attribute used by LiveCameraService validation
     camera.actual_width = 640
     camera.actual_height = 480
     camera.is_opened.return_value = True
@@ -138,9 +139,7 @@ def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_setting
 
 
 def test_live_camera_analysis_uses_recording_service(mock_main_view_model, mock_camera):
-    """Test that start_live_camera_analysis uses RecordingService instead of direct
-    recorder calls.
-    """
+    """Test that LiveCameraService calls recorder.start_recording directly."""
     from zebtrack.core.main_view_model import MainViewModel
 
     # Patch the dialog, Camera, and LivePreviewWindow to return config
@@ -164,19 +163,21 @@ def test_live_camera_analysis_uses_recording_service(mock_main_view_model, mock_
         # Create MainViewModel instance (partial mock)
         controller = mock_main_view_model
 
+        # Mock recorder.start_recording to return True
+        controller.recorder.start_recording.return_value = True
+
         # Manually call the method (since we're using Mock, we need to bind it)
         MainViewModel.start_live_camera_analysis(controller)
 
-        # Verify RecordingService.start_session was called (not recorder directly)
-        # Check that recorder.start_recording was called via RecordingService
+        # Verify recorder.start_recording was called by LiveCameraService
         assert controller.recorder.start_recording.called
 
-        # Verify context passed to RecordingService contains expected keys
+        # Verify context passed contains expected keys
         call_args = controller.recorder.start_recording.call_args
         assert call_args is not None
 
-        # Verify active_frame_source was set to camera
-        assert controller.active_frame_source == controller.camera
+        # Check that output_folder was passed
+        assert "output_folder" in call_args[1] or len(call_args[0]) > 0
 
 
 def test_live_camera_analysis_sets_active_frame_source(mock_main_view_model, mock_camera):

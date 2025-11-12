@@ -1,6 +1,5 @@
 """Test settings injection in UI components."""
 
-from zebtrack.settings import Settings
 from zebtrack.ui.components.validation_manager import ValidationManager
 from zebtrack.ui.components.widget_factory import WidgetFactory
 

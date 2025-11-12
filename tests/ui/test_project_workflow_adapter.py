@@ -313,9 +313,9 @@ class TestProjectWorkflowAdapter:
     def test_show_post_creation_guide_no_guide_generated(self, adapter, mock_dependencies):
         """Test showing post-creation guide when no guide is generated."""
         # Setup
-        mock_dependencies["project_workflow_service"].generate_post_creation_guide.return_value = (
-            None
-        )
+        mock_dependencies[
+            "project_workflow_service"
+        ].generate_post_creation_guide.return_value = None
 
         wizard_metadata = {"experiment_id": "test_exp"}
 

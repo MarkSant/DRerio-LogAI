@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed wrong camera opening (respects camera_index correctly)
   - Fixed preview window delays and display issues
   - Eliminated unwanted side effects on global state
+- **CRITICAL**: Fixed `TypeError` in LiveCameraService when starting recording
+  - `Recorder.start_recording()` was being called with incorrect parameters
+  - Changed from `folder_name`, `video_filename`, `parquet_filename`, `width`, `height`, `fps`
+  - To correct parameters: `output_folder`, `frame_width`, `frame_height`, `zones`, `is_video_file`, `base_name`
+  - Added regression test to prevent future parameter mismatches
 - Fixed LiveStreamSource ignoring camera_index parameter
 - Fixed FrameSourceFactory ignoring camera_index parameter
 
@@ -43,7 +48,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Context 1: Single video analysis with camera
   - Context 2: Live projects with multi-session recording
 
-## [2.1.0] - 2025-11-09
+## [Unreleased]
+
+### Fixed
+- **🎯 CRITICAL: Ghost Camera Detection**: Fixed wizard detecting "phantom" cameras that report `isOpened=True` but never return frames (e.g., virtual cameras, disconnected devices)
+- **🎯 CRITICAL: Black Frame Detection**: Added detection of cameras that return completely black frames (virtual cameras with no input source)
+- **🎯 CRITICAL: Camera Detection Hang**: Fixed wizard freezing during camera detection when encountering ghost cameras by adding 2-second timeout to frame capture test
+- **🎯 Camera Name Mapping**: Disabled Windows PnP camera names due to unreliable index mapping between PowerShell enumeration and DirectShow device order
+- **Live Camera Warmup**: Added 10-frame warmup period after camera initialization to fix preview lag (exposure/white balance adjustment time)
+- **Live Camera Performance**: Added forced 1280x720 resolution for all cameras to prevent performance degradation with high-resolution cameras (e.g., 1920x1080)
+- **Live Camera Error Handling**: Added user-friendly error dialog when camera fails to open with troubleshooting suggestions
+- **Live Camera Recording**: Fixed `Recorder.start_recording()` TypeError by using correct parameter names (`output_folder`, `frame_width`, `frame_height` instead of deprecated `folder_name`, `width`, `height`)
+- **Live Camera DirectShow**: Added DirectShow backend (`cv2.CAP_DSHOW`) to Camera class for Windows consistency with wizard detection
+- **Detector Empty Polygon**: Fixed ValueError when zone data contains empty polygons in standalone analysis mode
+
+### Changed
+- **🎯 Camera Detection Logic**: Wizard now validates each camera can actually capture frames before adding to list (prevents index misalignment)
+- **🎯 Camera Descriptions**: Changed from Windows device names to sequential numbering with resolution + brightness hints (e.g., "Câmera #1 [índice 1] - SD (640x480) (iluminação clara)")
+- **Live Camera Resolution**: All cameras now forced to 1280x720 regardless of native resolution for consistent performance
+- **Camera Detection Reliability**: Added consecutive failure tracking (stops after 3 consecutive ghost cameras to avoid long scans)
+- **Camera Detection Range**: Reduced scan range from 0-9 to 0-5 for faster detection
+
+### Removed
+- **Live Camera Health Check**: Removed blocking 3-frame capture test that caused program hangs with slow/ghost cameras
+
+## [v2.1.0] - 2025-11-12
 
 ### 🚨 **CRITICAL BUG FIX** - Pytest Hang on Windows
 

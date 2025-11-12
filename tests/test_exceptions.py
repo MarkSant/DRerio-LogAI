@@ -453,9 +453,7 @@ class TestExceptionDocstrings:
         ]
 
         for exc_class in exceptions:
-            assert exc_class.__doc__ is not None, (
-                f"{exc_class.__name__} is missing a docstring"
-            )
+            assert exc_class.__doc__ is not None, f"{exc_class.__name__} is missing a docstring"
             assert len(exc_class.__doc__.strip()) > 0, (
                 f"{exc_class.__name__} has an empty docstring"
             )

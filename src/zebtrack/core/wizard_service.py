@@ -255,7 +255,7 @@ class WizardService:
                 ...
             ]
         """
-        # Check cache first
+        # Check cache first (with ghost camera detection, cache is now reliable)
         cache_is_valid = cls._is_cache_valid(cls._camera_cache_time)
         if use_cache and cls._camera_cache is not None and cache_is_valid:
             log.debug("wizard_service.detect_cameras.cache_hit")
@@ -266,11 +266,13 @@ class WizardService:
         consecutive_failures = 0
         max_consecutive_failures = 3
 
-        # Get real camera names on Windows
-        camera_names = cls._get_camera_names_windows()
+        # Get real camera names on Windows (NOTE: Order may not match OpenCV indices!)
+        # Disabled for now due to unreliable index mapping between PnP and DirectShow
+        # camera_names = cls._get_camera_names_windows()
+        camera_names = {}  # Force using resolution-based descriptions
 
         with cls.suppress_opencv_logs():
-            for i in range(10):
+            for i in range(6):  # Scan indices 0-5 instead of 0-9
                 try:
                     # Use DirectShow backend on Windows for better reliability
                     if sys.platform == "win32":
@@ -279,25 +281,100 @@ class WizardService:
                         cap = cv2.VideoCapture(i)
 
                     if cap.isOpened():
+                        # CRITICAL: Verify camera can actually capture frames with timeout
+                        # Some cameras report isOpened=True but never return frames (ghost cameras)
+                        import threading
+
+                        test_result = {"success": False, "frame": None}
+
+                        def try_read(
+                            capture=cap, result=test_result, camera_index=i
+                        ):
+                            try:
+                                ret, frame = capture.read()
+                                result["success"] = ret
+                                result["frame"] = frame
+                            except Exception as e:
+                                log.warning(
+                                    "wizard_service.camera_read_exception",
+                                    index=camera_index,
+                                    error=str(e),
+                                )
+                                result["success"] = False
+
+                        log.debug("wizard_service.testing_camera_capture", index=i)
+                        read_thread = threading.Thread(target=try_read, daemon=True)
+                        read_thread.start()
+                        read_thread.join(timeout=2.0)  # 2 second timeout
+
+                        if not test_result["success"] or test_result["frame"] is None:
+                            log.warning(
+                                "wizard_service.camera_ghost_detected",
+                                index=i,
+                                reason="isOpened=True but read() failed or timed out",
+                                success=test_result["success"],
+                                frame_is_none=test_result["frame"] is None,
+                            )
+                            cap.release()
+                            consecutive_failures += 1
+                            if consecutive_failures >= max_consecutive_failures:
+                                log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                break
+                            continue
+
+                        # CRITICAL: Check if frame is completely black
+                        # (virtual camera with no content)
+                        import numpy as np
+
+                        frame_mean = np.mean(test_result["frame"])
+                        if frame_mean < 5.0:  # Nearly black frame
+                            log.warning(
+                                "wizard_service.camera_black_frame_detected",
+                                index=i,
+                                frame_mean=frame_mean,
+                                reason="Camera returns black/empty frames",
+                            )
+                            cap.release()
+                            consecutive_failures += 1
+                            if consecutive_failures >= max_consecutive_failures:
+                                log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                break
+                            continue
+
+                        log.info(
+                            "wizard_service.camera_validated",
+                            index=i,
+                            frame_shape=test_result["frame"].shape,
+                            frame_mean=frame_mean,
+                        )
+
+                        # Reset consecutive failures on success
+                        consecutive_failures = 0
+
                         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         fps = cap.get(cv2.CAP_PROP_FPS)
 
                         # Use real camera name if available, otherwise fallback to description
                         if i in camera_names:
-                            description = camera_names[i]
+                            # Append resolution and index to real camera name for clarity
+                            base_name = camera_names[i]
+                            description = f"[{i}] {base_name} - {width}x{height}"
                         else:
                             # Generate descriptive name based on resolution as fallback
+                            # Add camera counter to differentiate cameras with same resolution
+                            camera_count = len(cameras) + 1  # 1-based counter
+
                             if width >= 1920 and height >= 1080:
-                                resolution_desc = "Full HD"
+                                resolution_desc = "Full HD (1920x1080)"
                             elif width >= 1280 and height >= 720:
-                                resolution_desc = "HD"
+                                resolution_desc = "HD (1280x720)"
                             elif width >= 640 and height >= 480:
-                                resolution_desc = "SD"
+                                resolution_desc = "SD (640x480)"
                             else:
                                 resolution_desc = f"{width}x{height}"
 
-                            description = f"Câmera {i} ({resolution_desc})"
+                            description = f"Câmera #{camera_count} [índice {i}] - {resolution_desc}"
 
                         cameras.append(
                             {

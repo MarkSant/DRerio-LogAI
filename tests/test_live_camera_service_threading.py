@@ -751,6 +751,53 @@ class TestLiveCameraServiceRecordingIntegration:
             # Cleanup
             live_camera_service.stop_session()
 
+    def test_recorder_called_with_correct_parameters(self, live_camera_service, mock_camera):
+        """Test that recorder.start_recording is called with correct parameters.
+
+        Regression test for: TypeError: Recorder.start_recording() got an unexpected
+        keyword argument 'folder_name'
+
+        The recorder expects: output_folder, frame_width, frame_height, zones, etc.
+        NOT: folder_name, video_filename, parquet_filename, width, height, fps
+        """
+        with (
+            patch("zebtrack.io.camera.Camera", return_value=mock_camera),
+            patch("zebtrack.ui.dialogs.LivePreviewWindow"),
+            patch("zebtrack.core.live_camera_service.Path.mkdir"),
+        ):
+            # Start session with recording enabled
+            live_camera_service.start_session(
+                camera_index=0,
+                duration_s=1.0,
+                experiment_id="test_exp",
+                record_video=True,
+            )
+
+            # Verify recorder.start_recording was called
+            assert live_camera_service.controller.recorder.start_recording.called
+
+            # Get the call arguments
+            call_args = live_camera_service.controller.recorder.start_recording.call_args
+
+            # Verify correct parameters were used (keyword arguments)
+            assert "output_folder" in call_args.kwargs
+            assert "frame_width" in call_args.kwargs
+            assert "frame_height" in call_args.kwargs
+            assert "zones" in call_args.kwargs
+            assert "is_video_file" in call_args.kwargs
+            assert "base_name" in call_args.kwargs
+
+            # Verify INCORRECT parameters are NOT used
+            assert "folder_name" not in call_args.kwargs
+            assert "video_filename" not in call_args.kwargs
+            assert "parquet_filename" not in call_args.kwargs
+            assert "width" not in call_args.kwargs
+            assert "height" not in call_args.kwargs
+            assert "fps" not in call_args.kwargs
+
+            # Cleanup
+            live_camera_service.stop_session()
+
     def test_output_directory_creation(self, live_camera_service, mock_camera):
         """Test that output directory is created correctly."""
         with (

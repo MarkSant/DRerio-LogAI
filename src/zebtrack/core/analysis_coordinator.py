@@ -191,8 +191,7 @@ class AnalysisCoordinator:
                 {
                     "title": "Erro no Relatório",
                     "message": (
-                        "Não foi possível encontrar dados de resumo "
-                        "para os vídeos selecionados."
+                        "Não foi possível encontrar dados de resumo para os vídeos selecionados."
                     ),
                 },
             )
@@ -269,8 +268,7 @@ class AnalysisCoordinator:
                 {
                     "title": "Processamento em andamento",
                     "message": (
-                        "Aguarde a conclusão do processamento atual "
-                        "antes de gerar os sumários."
+                        "Aguarde a conclusão do processamento atual antes de gerar os sumários."
                     ),
                 },
             )

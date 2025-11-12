@@ -2,8 +2,9 @@
 Tests for hardware detection utilities.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from zebtrack.utils.hardware_detection import (
     get_hardware_summary,

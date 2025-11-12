@@ -380,9 +380,17 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         """Detect available cameras and update UI."""
         try:
             # Import wizard service to use camera detection
+            import time
+
             from zebtrack.core.wizard_service import WizardService
 
             cameras = WizardService.detect_available_cameras()
+
+            # CRITICAL: Add delay to allow Windows/DirectShow to fully release cameras
+            # Without this, camera 0 may remain locked and cause freezes when trying to open it
+            log.info("single_video_config.camera_detection_complete_waiting_for_release")
+            time.sleep(0.5)  # 500ms delay to ensure cameras are fully released
+            log.info("single_video_config.cameras_released")
 
             if not cameras:
                 messagebox.showinfo(
@@ -405,6 +413,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 description = cam.get("description", f"Câmera {cam['index']}")
                 camera_list.append(description)
                 self.camera_index_map[description] = cam["index"]
+                log.info(
+                    "single_video_config.camera_mapped",
+                    description=description,
+                    real_index=cam["index"],
+                )
 
             # Update combobox
             self.camera_combo["values"] = camera_list
@@ -493,6 +506,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         if source_type == "camera":
             camera_description = self.camera_selection_var.get()
             camera_index = self.camera_index_map.get(camera_description, 0)
+            log.info(
+                "single_video_dialog.camera_selected",
+                camera_description=camera_description,
+                mapped_camera_index=camera_index,
+            )
 
         log.info(
             "single_video_dialog.apply",

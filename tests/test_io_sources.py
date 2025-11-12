@@ -36,9 +36,9 @@ def test_create_source_file(tmp_path):
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         source = create_source("file", video_path=video_path)
-        
+
         # Verify VideoFileSource was called with correct path
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance
@@ -91,10 +91,10 @@ def test_create_source_file_with_extra_kwargs(tmp_path):
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         # Extra kwargs should be ignored
         source = create_source("file", video_path=video_path, extra_param="ignored")
-        
+
         # Verify VideoFileSource was called with only video_path (extra_param ignored)
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance
@@ -120,9 +120,9 @@ def test_create_source_file_with_special_characters(tmp_path):
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         source = create_source("file", video_path=video_path)
-        
+
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance
 
@@ -135,9 +135,9 @@ def test_create_source_file_with_unicode(tmp_path):
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         source = create_source("file", video_path=video_path)
-        
+
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance
 
@@ -176,9 +176,9 @@ def test_create_source_file_absolute_path(tmp_path):
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         source = create_source("file", video_path=video_path)
-        
+
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance
 
@@ -191,8 +191,8 @@ def test_create_source_file_relative_path():
     with patch("zebtrack.io.sources.VideoFileSource") as mock_video:
         mock_instance = MagicMock(spec=VideoFileSource)
         mock_video.return_value = mock_instance
-        
+
         source = create_source("file", video_path=video_path)
-        
+
         mock_video.assert_called_once_with(video_path=video_path)
         assert source == mock_instance

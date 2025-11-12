@@ -178,7 +178,7 @@ class ApplicationGUI:
         self.settings = settings_obj
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
-        self._event_bus_handlers: dict[EventType, Callable[[Any], None]] = {}
+        self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
@@ -2932,7 +2932,7 @@ class ApplicationGUI:
                 if not success:
                     self.show_error(
                         "Erro na Gravação",
-                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}."
+                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
                     )
             else:
                 # Legacy path for pre-recorded projects

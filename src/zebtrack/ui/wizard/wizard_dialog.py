@@ -284,7 +284,7 @@ class WizardDialog(Dialog):
     def _initialize_geometry(self):
         """
         Configure initial geometry with FIXED, conservative size.
-        
+
         Forces window to center on screen after Dialog construction.
         """
         if not self.winfo_exists():
@@ -362,7 +362,7 @@ class WizardDialog(Dialog):
     def _center_window(self):
         """
         Center the window on screen using current window size.
-        
+
         Called after Dialog has positioned itself to force centering.
         """
         self.update_idletasks()

@@ -318,8 +318,7 @@ class VideoOrchestrator:
                 {
                     "title": "Processamento",
                     "message": (
-                        "Nenhum vídeo elegível foi encontrado com "
-                        "dados suficientes para análise."
+                        "Nenhum vídeo elegível foi encontrado com dados suficientes para análise."
                     ),
                 },
             )
@@ -525,8 +524,7 @@ class VideoOrchestrator:
                 {
                     "title": "Erro",
                     "message": (
-                        "Não foi possível localizar caminhos válidos "
-                        "para os vídeos selecionados."
+                        "Não foi possível localizar caminhos válidos para os vídeos selecionados."
                     ),
                 },
             )

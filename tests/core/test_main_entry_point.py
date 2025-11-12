@@ -291,7 +291,13 @@ class TestMainFunction:
     @patch("tkinter.messagebox.showerror")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_sets_reproducibility_seed(
-        self, mock_controller, mock_msgbox, mock_tk, mock_set_seed, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_msgbox,
+        mock_tk,
+        mock_set_seed,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test that reproducibility seed is set when configured."""
         from zebtrack.__main__ import main
@@ -354,7 +360,13 @@ class TestMainFunction:
     @patch("zebtrack.__main__.logging.getLogger")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_applies_cli_log_level_overrides(
-        self, mock_controller, mock_get_logger, mock_msgbox, mock_tk, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_get_logger,
+        mock_msgbox,
+        mock_tk,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test CLI --log-level overrides."""
         from zebtrack.__main__ import main
@@ -416,7 +428,13 @@ class TestMainFunction:
     @patch("zebtrack.__main__.logging.getLogger")
     @patch("zebtrack.core.main_view_model.MainViewModel")
     def test_main_ignores_invalid_log_level_format(
-        self, mock_controller, mock_get_logger, mock_msgbox, mock_tk, mock_settings, mock_config_logging
+        self,
+        mock_controller,
+        mock_get_logger,
+        mock_msgbox,
+        mock_tk,
+        mock_settings,
+        mock_config_logging,
     ):
         """Test that invalid --log-level format is ignored."""
         from zebtrack.__main__ import main
@@ -698,7 +716,9 @@ class TestDependencyInjection:
                                                             # Should pass settings_obj to services
                                                             if mock_pm.called:
                                                                 call_args = mock_pm.call_args
-                                                                assert "settings_obj" in str(call_args)
+                                                                assert "settings_obj" in str(
+                                                                    call_args
+                                                                )
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
@@ -752,10 +772,14 @@ class TestDependencyInjection:
                                                         ):
                                                             main()
 
-                                                            # Should pass detector=None (lazy initialization)
+                                                            # Should pass detector=None
+                                                            # (lazy initialization)
                                                             if mock_vps.called:
                                                                 call_args = mock_vps.call_args
-                                                                assert call_args[1].get("detector") is None
+                                                                assert (
+                                                                    call_args[1].get("detector")
+                                                                    is None
+                                                                )
 
 
 if __name__ == "__main__":

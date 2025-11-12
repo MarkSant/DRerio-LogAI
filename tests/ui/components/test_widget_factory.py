@@ -543,11 +543,11 @@ class TestConfigHandlers:
         """Test reloading config editor values with exception."""
         # Set up settings that will cause exception during extraction
         widget_factory._settings = Mock()
-        mock_gui._extract_setting.side_effect = Exception("Test error")
+        mock_gui._extract_setting.side_effect = RuntimeError("Test error")
         mock_gui.show_error = Mock()
 
         # Should handle exception gracefully
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError, match="Test error"):
             widget_factory.reload_config_editor_values_widget()
 
     def test_on_reset_global_config_form_widget(self, widget_factory, mock_gui):

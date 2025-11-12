@@ -135,6 +135,24 @@ class LiveCameraService:
 
         # Setup camera
         if not self._setup_camera(camera_index):
+            # Show user-friendly error message (skip in test environments)
+            import os
+
+            if os.environ.get("PYTEST_CURRENT_TEST") is None:
+                error_msg = (
+                    f"Falha ao abrir câmera {camera_index}.\n\n"
+                    f"Possíveis causas:\n"
+                    f"• Câmera está em uso por outro programa\n"
+                    f"• Hardware com defeito\n"
+                    f"• Driver incompatível\n\n"
+                    f"Tente:\n"
+                    f"• Fechar outros programas de câmera\n"
+                    f"• Reconectar o dispositivo USB\n"
+                    f"• Selecionar outra câmera"
+                )
+                import tkinter.messagebox as messagebox
+
+                messagebox.showerror("Erro na Câmera", error_msg)
             return False
 
         # Create output directory
@@ -191,19 +209,20 @@ class LiveCameraService:
 
         # Initialize lightweight recorder for standalone analysis
         if record_video and self.controller.recorder:
-            # Prepare recorder context (simplified, no project assumptions)
-            video_filename = f"{experiment_id}_{timestamp}.mp4"
-            parquet_filename = f"{experiment_id}_{timestamp}.parquet"
+            # Get zone data for recorder (use empty ZoneData if none available)
+            from zebtrack.core.detector import ZoneData
+
+            recorder_zones = zone_data if zone_data else ZoneData()
 
             # Start recorder directly (no RecordingService intermediary)
             try:
                 recorder_started = self.controller.recorder.start_recording(
-                    folder_name=str(output_dir),
-                    video_filename=video_filename,
-                    parquet_filename=parquet_filename,
-                    width=self.camera.actual_width if self.camera else 640,
-                    height=self.camera.actual_height if self.camera else 480,
-                    fps=self.camera.actual_fps if self.camera else 30.0,
+                    output_folder=str(output_dir),
+                    frame_width=self.camera.actual_width if self.camera else 640,
+                    frame_height=self.camera.actual_height if self.camera else 480,
+                    zones=recorder_zones,
+                    is_video_file=False,  # We want to record video
+                    base_name=f"{experiment_id}_{timestamp}",
                 )
 
                 if not recorder_started:
@@ -214,7 +233,7 @@ class LiveCameraService:
                 log.info(
                     "live_camera_service.recorder_started",
                     output_dir=str(output_dir),
-                    video_file=video_filename,
+                    base_name=f"{experiment_id}_{timestamp}",
                 )
 
             except Exception as e:
@@ -293,21 +312,70 @@ class LiveCameraService:
 
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
-            # Create temporary settings with desired camera index
+            # Create temporary settings with desired camera index and force 720p resolution
             temp_settings = self.controller.settings.model_copy(deep=True)
+            log.info(
+                "live_camera_service.settings_before_override",
+                original_index=temp_settings.camera.index,
+                requested_index=camera_index,
+            )
             temp_settings.camera.index = camera_index
+            # Force 1280x720 resolution for consistent performance across all cameras
+            temp_settings.camera.desired_width = 1280
+            temp_settings.camera.desired_height = 720
+            log.info(
+                "live_camera_service.settings_after_override",
+                new_index=temp_settings.camera.index,
+                forced_resolution="1280x720",
+            )
+
             self.camera = Camera(settings_obj=temp_settings)
 
             if not self.camera.is_opened():
                 log.error("live_camera_service.camera_not_opened", camera_index=camera_index)
                 return False
 
+            # CRITICAL: Warm up camera by discarding first frames
+            # Webcams often need time to adjust exposure/white balance
+            # Notebook cameras may need MORE warmup time than external webcams
+            log.info("live_camera_service.camera_warmup_start", camera_index=camera_index)
+
+            # Adaptive warmup: more frames for low-index cameras (usually integrated cameras)
+            # Index 0-1: 30 frames (~1.5s at 20fps), Index 2+: 10 frames (~0.5s)
+            warmup_frames = 30 if camera_index <= 1 else 10
+
+            successful_warmup = 0
+            for warmup_count in range(warmup_frames):
+                ret, frame = self.camera.get_frame()
+                if ret and frame is not None:
+                    successful_warmup += 1
+                time.sleep(0.05)  # 50ms between warmup frames
+
+            log.info(
+                "live_camera_service.camera_warmup_complete",
+                camera_index=camera_index,
+                frames_requested=warmup_frames,
+                frames_successful=successful_warmup,
+            )
+
+            # Verify the camera is using the correct index
+            actual_camera_index = self.camera._camera_index
             log.info(
                 "live_camera_service.camera_ready",
-                camera_index=camera_index,
+                requested_camera_index=camera_index,
+                actual_camera_index=actual_camera_index,
                 width=self.camera.actual_width,
                 height=self.camera.actual_height,
             )
+
+            if actual_camera_index != camera_index:
+                log.error(
+                    "live_camera_service.camera_index_mismatch",
+                    requested=camera_index,
+                    actual=actual_camera_index,
+                )
+                return False
+
             return True
 
         except Exception as e:
@@ -370,6 +438,14 @@ class LiveCameraService:
     def _capture_loop(self):
         """Thread loop for capturing frames from camera."""
         log.info("live_camera_service.capture_loop_started")
+
+        # Log which camera we're actually using
+        if self.camera:
+            log.info(
+                "live_camera_service.capture_loop_using_camera",
+                camera_index=self.camera._camera_index,
+            )
+
         frame_count = 0
 
         while not self.exit_event.is_set():
@@ -460,6 +536,20 @@ class LiveCameraService:
 
                 # Update preview window if exists
                 if self.preview_window and should_display:
+                    # Add camera index overlay for debugging
+                    if self.camera:
+                        camera_idx = self.camera._camera_index
+                        cv2.putText(
+                            frame,
+                            f"CAMERA INDEX: {camera_idx}",
+                            (10, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            2.0,
+                            (0, 255, 0),  # Green color
+                            4,
+                            cv2.LINE_AA,
+                        )
+
                     if self.root:
                         self.root.after(0, self.preview_window.update_frame, frame, detections)
                     else:
@@ -480,6 +570,7 @@ class LiveCameraService:
             duration_s: Session duration in seconds
             output_dir: Output directory for results
         """
+
         def on_timer_expired():
             """Called when duration expires."""
             log.info(

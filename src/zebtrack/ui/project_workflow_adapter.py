@@ -73,7 +73,7 @@ class ProjectWorkflowAdapter:
         self,
         restore_global_defaults_callback: Callable[[], None],
         settings_obj: Any,
-    ) -> "ProjectManager":
+    ) -> ProjectManager:
         """
         Close the current project and restore global defaults.
 
@@ -184,9 +184,7 @@ class ProjectWorkflowAdapter:
 
             # Show post-creation guide if wizard metadata provided
             if wizard_metadata:
-                self._show_post_creation_guide(
-                    wizard_metadata, view_suppress_guide_check
-                )
+                self._show_post_creation_guide(wizard_metadata, view_suppress_guide_check)
 
             log.info("project_workflow_adapter.create_project.success")
             return True
@@ -333,9 +331,7 @@ class ProjectWorkflowAdapter:
 
         # Check view-level suppression flag if callback provided
         if view_suppress_guide_check and view_suppress_guide_check():
-            log.info(
-                "project_workflow_adapter.post_creation_guide.skipped", reason="view_flag"
-            )
+            log.info("project_workflow_adapter.post_creation_guide.skipped", reason="view_flag")
             return
 
         # Generate guide content via service
@@ -350,4 +346,3 @@ class ProjectWorkflowAdapter:
                 Events.UI_SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
             )
             log.debug("project_workflow_adapter.post_creation_guide.shown")
-
