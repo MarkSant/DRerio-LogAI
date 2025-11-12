@@ -93,6 +93,8 @@ class LiveCameraService:
         self.display_interval_frames = 1
         self.is_capturing_for_video = False
         self.timer_id: str | None = None  # ✅ Session timer ID
+        self.current_output_dir: Path | None = None  # ✅ Current session output directory
+        self._analysis_completed = False  # ✅ Flag to prevent duplicate post-analysis
 
     def start_session(
         self,
@@ -132,6 +134,7 @@ class LiveCameraService:
         self.analysis_interval_frames = analysis_interval_frames
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
+        self._analysis_completed = False  # ✅ Reset flag for new session
 
         # Create preview window FIRST (so we can show status updates)
         log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
@@ -178,6 +181,9 @@ class LiveCameraService:
         folder_name = f"{experiment_id}_{timestamp}"
         output_dir = output_base / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # ✅ Store output_dir for post-analysis when session stops
+        self.current_output_dir = output_dir
 
         # Show detector setup status
         if self.preview_window:
@@ -459,7 +465,13 @@ class LiveCameraService:
         def on_stop_callback():
             """Handle manual stop from preview window."""
             log.info("live_camera_service.manual_stop_requested")
-            self.stop_session()
+            # ✅ FIX: Call _on_session_complete to trigger post-analysis
+            # Previously only called stop_session(), which skipped analysis
+            if self.current_output_dir:
+                self._on_session_complete(self.current_output_dir)
+            else:
+                # Fallback if output_dir not available
+                self.stop_session()
 
         self.preview_window = LivePreviewWindow(
             parent=self.root,
@@ -678,7 +690,18 @@ class LiveCameraService:
 
     def _on_session_complete(self, output_dir: Path):
         """Handle session completion and trigger post-processing analysis."""
+        # ✅ Prevent duplicate analysis if already completed
+        if self._analysis_completed:
+            log.info(
+                "live_camera_service.analysis_already_completed",
+                output_dir=str(output_dir),
+            )
+            return
+
         log.info("live_camera_service.session_complete", output_dir=str(output_dir))
+
+        # Mark as completed to prevent duplicate calls
+        self._analysis_completed = True
 
         # Stop threads and cleanup
         self.stop_session()
@@ -831,7 +854,12 @@ class LiveCameraService:
             False to propagate exceptions
         """
         try:
-            self.stop_session()
+            # ✅ FIX: Trigger post-analysis on context manager exit
+            # This handles cases where session ends via exception or context exit
+            if self.current_output_dir:
+                self._on_session_complete(self.current_output_dir)
+            else:
+                self.stop_session()
         except Exception as e:
             log.warning("live_camera_service.cleanup.failed", error=str(e))
         return False  # Don't suppress exceptions
