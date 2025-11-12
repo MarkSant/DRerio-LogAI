@@ -95,6 +95,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
+        # Duration configuration (for camera analysis)
+        duration_default = "300.0"  # 5 minutes default
+        if self.settings and hasattr(self.settings, "live_analysis"):
+            duration_default = str(self.settings.live_analysis.default_duration_s)
+        self.duration_var = StringVar(value=duration_default)
+
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
@@ -166,6 +172,26 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             text="Detectar Câmeras",
             command=self._detect_cameras,
         ).grid(row=0, column=2, sticky="w", padx=5)
+
+        # Duration selection (only for camera)
+        self.duration_container = ttk.Frame(source_frame)
+        self.duration_container.columnconfigure(0, weight=0)
+        self.duration_container.columnconfigure(1, weight=1)
+
+        ttk.Label(self.duration_container, text="Duração da Gravação (s):").grid(
+            row=0, column=0, sticky="w", padx=(0, 5), pady=(10, 0)
+        )
+
+        ttk.Entry(self.duration_container, textvariable=self.duration_var, width=10).grid(
+            row=0, column=1, sticky="w", padx=(0, 5), pady=(10, 0)
+        )
+
+        ttk.Label(
+            self.duration_container,
+            text="⏱ Tempo de gravação (10s a 3600s / 1h)",
+            font=("TkDefaultFont", 8),
+            foreground="#555",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(2, 0))
 
         # Create two-column layout
         left_column = ttk.Frame(main_frame)
@@ -362,9 +388,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         if source_type == "video":
             self.video_select_container.pack(fill="x")
             self.camera_select_container.pack_forget()
+            self.duration_container.pack_forget()
         else:  # camera
             self.video_select_container.pack_forget()
             self.camera_select_container.pack(fill="x")
+            self.duration_container.pack(fill="x")
 
     def _browse_video(self):
         """Open file dialog to select a video file."""
@@ -471,6 +499,15 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             smoothing_polyorder = int(self.smoothing_polyorder_var.get())
             analysis_interval = int(self.analysis_interval_var.get())
             display_interval = int(self.display_interval_var.get())
+
+            # Validate duration for camera analysis
+            if source_type == "camera":
+                duration_s = float(self.duration_var.get())
+                if duration_s < 10 or duration_s > 3600:
+                    raise ValueError(
+                        "A duração da gravação deve estar entre 10s e 3600s (1 hora)."
+                    )
+
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")
             if analysis_interval <= 0 or display_interval <= 0:
@@ -525,6 +562,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "source_type": source_type,
             "video_path": self.video_path_var.get() if source_type == "video" else None,
             "camera_index": camera_index,
+            "duration_s": float(self.duration_var.get()) if source_type == "camera" else None,
             "num_aquariums": num_aquariums,
             "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),

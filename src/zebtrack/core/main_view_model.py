@@ -2716,11 +2716,13 @@ class MainViewModel:
         # Extract configuration with defaults
         camera_index = config["camera_index"]
 
-        # Duration: use setting or default
-        if hasattr(self.settings, "live_analysis"):
-            duration_s = self.settings.live_analysis.default_duration_s
-        else:
-            duration_s = 300.0  # 5 minutes default
+        # Duration: use from config (user-editable), fallback to setting or default
+        duration_s = config.get("duration_s")
+        if duration_s is None:
+            if hasattr(self.settings, "live_analysis"):
+                duration_s = self.settings.live_analysis.default_duration_s
+            else:
+                duration_s = 300.0  # 5 minutes default
 
         # Experiment ID
         experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
@@ -2740,6 +2742,65 @@ class MainViewModel:
             display_interval=display_interval_frames,
             record_video=record_video,
         )
+
+        # ✅ SINGLE VIDEO ANALYSIS: Ensure default arena if none defined
+        # This allows detection to work without manual zone configuration
+        # NOTE: Only for single video analysis, not for live projects
+        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+        if not zone_data or not zone_data.polygon:
+            import math
+
+            import cv2
+
+            from zebtrack.core.detector import ZoneData
+
+            # Open camera temporarily to get dimensions
+            from zebtrack.io.camera import Camera
+
+            temp_settings = self.settings.model_copy(deep=True)
+            temp_settings.camera.index = camera_index
+            temp_settings.camera.desired_width = 1280
+            temp_settings.camera.desired_height = 720
+            temp_camera = Camera(settings_obj=temp_settings)
+
+            if temp_camera.is_opened():
+                w = temp_camera.actual_width
+                h = temp_camera.actual_height
+                temp_camera.release()
+
+                # Create default arena: centered square occupying 1/6 of total frame area
+                # Formula: side = sqrt(total_area / 6) = sqrt(w*h / 6)
+                area_ratio = 6.0
+                side = math.sqrt((w * h) / area_ratio)
+                cx, cy = w / 2, h / 2
+                half = side / 2
+
+                default_arena = [
+                    [cx - half, cy - half],
+                    [cx + half, cy - half],
+                    [cx + half, cy + half],
+                    [cx - half, cy + half],
+                ]
+
+                zone_data = ZoneData(polygon=default_arena)
+
+                # Save to project_manager so detector can use it
+                if self.project_manager:
+                    self.project_manager.set_zone_data(zone_data)
+
+                log.info(
+                    "controller.live_analysis.default_arena_created",
+                    width=w,
+                    height=h,
+                    side=side,
+                    area_ratio=area_ratio,
+                    reason="no_arena_defined_for_single_video_analysis",
+                )
+            else:
+                log.error(
+                    "controller.live_analysis.default_arena_failed",
+                    reason="camera_not_opened",
+                )
 
         # Delegate to LiveCameraService with complete configuration
         success = self.live_camera_service.start_session(

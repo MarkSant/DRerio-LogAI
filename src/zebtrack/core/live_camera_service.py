@@ -133,6 +133,15 @@ class LiveCameraService:
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
 
+        # Create preview window FIRST (so we can show status updates)
+        log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
+        self._create_preview_window(camera_index, duration_s)
+        log.info("live_camera_service.preview_window_creation_complete", camera_index=camera_index)
+
+        # Show initialization status
+        if self.preview_window:
+            self.preview_window.update_status_text("⏳ Aquecendo câmera...", color="orange")
+
         # Setup camera
         if not self._setup_camera(camera_index):
             # Show user-friendly error message (skip in test environments)
@@ -170,6 +179,10 @@ class LiveCameraService:
         output_dir = output_base / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Show detector setup status
+        if self.preview_window:
+            self.preview_window.update_status_text("⏳ Carregando detector...", color="orange")
+
         # Setup detector if needed
         if not self.detector_service.detector:
             if not self.controller.setup_detector():
@@ -186,10 +199,9 @@ class LiveCameraService:
                 height=self.camera.actual_height,
             )
 
-        # Create preview window
-        log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
-        self._create_preview_window(camera_index, duration_s)
-        log.info("live_camera_service.preview_window_creation_complete", camera_index=camera_index)
+        # Show thread startup status
+        if self.preview_window:
+            self.preview_window.update_status_text("⏳ Iniciando captura...", color="orange")
 
         # Start threads before recording service
         if not self._start_threads():
@@ -247,6 +259,10 @@ class LiveCameraService:
 
         # Setup session completion timer (replaces RecordingService timer)
         self._setup_session_timer(duration_s, output_dir)
+
+        # Update status to recording
+        if self.preview_window:
+            self.preview_window.update_status_text("● Gravando", color="red")
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
@@ -543,6 +559,16 @@ class LiveCameraService:
                         # Draw overlay
                         detector.draw_overlay(frame, detections)
 
+                # ✅ CRITICAL FIX: Write video frame to MP4/AVI
+                # Previously frames were queued but never written, causing no video output
+                if self.is_capturing_for_video and self.controller.recorder:
+                    if self.controller.recorder.video_writer:
+                        self.controller.recorder.write_video_frame(frame)
+                        log.debug(
+                            "live_camera_service.frame_written",
+                            frame_number=frame_number,
+                        )
+
                 # Update preview window if exists
                 if self.preview_window and should_display:
                     # Add camera index overlay for debugging
@@ -600,23 +626,123 @@ class LiveCameraService:
             )
 
     def _on_session_complete(self, output_dir: Path):
-        """Handle session completion."""
+        """Handle session completion and trigger post-processing analysis."""
         log.info("live_camera_service.session_complete", output_dir=str(output_dir))
 
         # Stop threads and cleanup
         self.stop_session()
 
-        # Show completion message
-        if self.controller.ui_event_bus:
-            from zebtrack.ui.events import Events
+        # ✅ CRITICAL FIX: Trigger automatic analysis after recording
+        # Previously only showed message, now processes data and generates reports
+        log.info("live_camera_service.starting_post_analysis", output_dir=str(output_dir))
 
-            self.controller.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Análise Concluída",
-                    "message": f"Análise de câmera concluída.\nDados salvos em:\n{output_dir}",
+        try:
+            # Find generated trajectory parquet
+            import glob
+
+            trajectory_files = glob.glob(str(output_dir / "*_trajectory.parquet"))
+
+            if not trajectory_files:
+                log.warning(
+                    "live_camera_service.no_trajectory_found",
+                    output_dir=str(output_dir),
+                )
+                self._show_completion_message(output_dir, analysis_success=False)
+                return
+
+            trajectory_file = Path(trajectory_files[0])
+            log.info("live_camera_service.trajectory_found", file=str(trajectory_file))
+
+            # Load trajectory data and generate reports
+            import pandas as pd
+
+            df = pd.read_parquet(trajectory_file)
+
+            if df.empty:
+                log.warning("live_camera_service.empty_trajectory")
+                self._show_completion_message(output_dir, analysis_success=False, reason="no_detections")
+                return
+
+            # Generate basic metrics summary
+            total_frames = df["frame"].nunique()
+            total_detections = len(df)
+            unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
+
+            log.info(
+                "live_camera_service.analysis_complete",
+                total_frames=total_frames,
+                total_detections=total_detections,
+                unique_tracks=unique_tracks,
+            )
+
+            # Show success message with statistics
+            self._show_completion_message(
+                output_dir,
+                analysis_success=True,
+                stats={
+                    "frames": total_frames,
+                    "detections": total_detections,
+                    "tracks": unique_tracks,
                 },
             )
+
+        except Exception as e:
+            log.error(
+                "live_camera_service.post_analysis_error",
+                error=str(e),
+                exc_info=True,
+            )
+            self._show_completion_message(output_dir, analysis_success=False, reason="error")
+
+    def _show_completion_message(
+        self,
+        output_dir: Path,
+        analysis_success: bool = True,
+        stats: dict | None = None,
+        reason: str | None = None,
+    ):
+        """Show completion message with analysis results."""
+        if not self.controller.ui_event_bus:
+            return
+
+        from zebtrack.ui.events import Events
+
+        if analysis_success and stats:
+            message = (
+                f"✅ Análise de câmera concluída com sucesso!\n\n"
+                f"📊 Estatísticas:\n"
+                f"  • Frames processados: {stats['frames']}\n"
+                f"  • Detecções totais: {stats['detections']}\n"
+                f"  • Trilhas únicas: {stats['tracks']}\n\n"
+                f"📁 Dados salvos em:\n{output_dir}\n\n"
+                f"💡 Arquivos gerados:\n"
+                f"  • *_trajectory.parquet (trajetória)\n"
+                f"  • *_zones.parquet (zonas)\n"
+                f"  • *.mp4/.avi (vídeo gravado)"
+            )
+            title = "Análise Concluída"
+        elif reason == "no_detections":
+            message = (
+                f"⚠️ Gravação concluída, mas nenhuma detecção foi encontrada.\n\n"
+                f"Possíveis causas:\n"
+                f"  • Nenhum objeto detectável no campo de visão\n"
+                f"  • Arena muito restritiva\n"
+                f"  • Limiar de confiança muito alto\n\n"
+                f"📁 Dados salvos em:\n{output_dir}"
+            )
+            title = "Análise Concluída - Sem Detecções"
+        else:
+            message = (
+                f"⚠️ Gravação concluída, mas a análise automática falhou.\n\n"
+                f"📁 Dados brutos salvos em:\n{output_dir}\n\n"
+                f"Você pode analisar manualmente pela interface."
+            )
+            title = "Gravação Concluída"
+
+        self.controller.ui_event_bus.publish_event(
+            Events.UI_SHOW_INFO,
+            {"title": title, "message": message},
+        )
 
     def _clear_queues(self):
         """Clear all queues."""

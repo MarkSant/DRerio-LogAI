@@ -2,8 +2,6 @@
   <img src="docs/drerio_logai_logo.png" alt="DRerio LogAI Logo" width="256"/>
 </p>
 
-<h1 align="center">DRerio LogAI</h1>
-
 <p align="center">
   <a href="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml"><img src="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
