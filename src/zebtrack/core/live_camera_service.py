@@ -199,6 +199,17 @@ class LiveCameraService:
                 height=self.camera.actual_height,
             )
 
+        # ✅ FIX: Set detector to diagnostic mode for single video analysis
+        # This accepts ALL classes (aquarium AND zebrafish) without filtering
+        # Critical for default arena which may catch aquarium detections (class_id=0)
+        if self.detector_service.detector:
+            self.detector_service.detector.set_context("diagnostic")
+            log.info(
+                "live_camera_service.detector_context_set",
+                context="diagnostic",
+                reason="accept_all_classes_for_single_video_analysis",
+            )
+
         # Show thread startup status
         if self.preview_window:
             self.preview_window.update_status_text("⏳ Iniciando captura...", color="orange")
@@ -562,12 +573,23 @@ class LiveCameraService:
                 # ✅ CRITICAL FIX: Write video frame to MP4/AVI
                 # Previously frames were queued but never written, causing no video output
                 if self.is_capturing_for_video and self.controller.recorder:
-                    if self.controller.recorder.video_writer:
-                        self.controller.recorder.write_video_frame(frame)
-                        log.debug(
-                            "live_camera_service.frame_written",
-                            frame_number=frame_number,
-                        )
+                    # Additional check: only write if recorder is still recording
+                    if (
+                        self.controller.recorder.is_recording
+                        and self.controller.recorder.video_writer
+                    ):
+                        try:
+                            self.controller.recorder.write_video_frame(frame)
+                            log.debug(
+                                "live_camera_service.frame_written",
+                                frame_number=frame_number,
+                            )
+                        except Exception as e:
+                            log.warning(
+                                "live_camera_service.frame_write_failed",
+                                frame_number=frame_number,
+                                error=str(e),
+                            )
 
                 # Update preview window if exists
                 if self.preview_window and should_display:
