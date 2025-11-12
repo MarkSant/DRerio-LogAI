@@ -202,12 +202,41 @@ class LiveCameraService:
         # ✅ FIX: Set detector to diagnostic mode for single video analysis
         # This accepts ALL classes (aquarium AND zebrafish) without filtering
         # Critical for default arena which may catch aquarium detections (class_id=0)
-        if self.detector_service.detector:
+
+        # 🔍 DEBUG: Log detector service status
+        log.info(
+            "live_camera_service.detector_diagnostic_debug",
+            has_detector_service=self.detector_service is not None,
+            has_detector=self.detector_service.detector is not None if self.detector_service else False,
+            detector_type=type(self.detector_service.detector).__name__ if (self.detector_service and self.detector_service.detector) else "None",
+        )
+
+        if self.detector_service and self.detector_service.detector:
+            # Log context BEFORE setting
+            old_context = getattr(self.detector_service.detector, "_context", "unknown")
+            log.info(
+                "live_camera_service.detector_context_before",
+                old_context=old_context,
+            )
+
+            # Set diagnostic mode
             self.detector_service.detector.set_context("diagnostic")
+
+            # Verify context AFTER setting
+            new_context = getattr(self.detector_service.detector, "_context", "unknown")
             log.info(
                 "live_camera_service.detector_context_set",
                 context="diagnostic",
+                old_context=old_context,
+                new_context=new_context,
+                verification_passed=(new_context == "diagnostic"),
                 reason="accept_all_classes_for_single_video_analysis",
+            )
+        else:
+            log.warning(
+                "live_camera_service.detector_not_available",
+                has_detector_service=self.detector_service is not None,
+                has_detector=self.detector_service.detector is not None if self.detector_service else False,
             )
 
         # Show thread startup status

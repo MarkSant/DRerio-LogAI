@@ -317,6 +317,14 @@ class Detector:
             )
 
         # Centralized filtering logic based on context
+        # 🔍 DEBUG: Log current context during filtering
+        log.info(
+            "detector.filtering_context_check",
+            current_context=self._context,
+            detections_in_polygon=len(detections_in_polygon),
+            aquarium_defined=self._aquarium_region_defined,
+        )
+
         filtered_detections = []
         if self._context == "diagnostic":
             # Diagnostic mode shows everything
