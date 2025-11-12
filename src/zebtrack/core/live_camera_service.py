@@ -320,13 +320,22 @@ class LiveCameraService:
                 requested_index=camera_index,
             )
             temp_settings.camera.index = camera_index
+            
             # Force 1280x720 resolution for consistent performance across all cameras
+            # This ensures:
+            # - Consistent frame processing time across different camera hardware
+            # - Reduced memory usage for live analysis sessions
+            # - Better real-time performance for detection algorithms
+            # - Compatibility with cameras that may struggle at higher resolutions
+            # NOTE: This overrides user's desired_width/desired_height from config
+            # If higher resolution is needed, modify these values or make them configurable
             temp_settings.camera.desired_width = 1280
             temp_settings.camera.desired_height = 720
             log.info(
                 "live_camera_service.settings_after_override",
                 new_index=temp_settings.camera.index,
                 forced_resolution="1280x720",
+                reason="consistent_performance",
             )
 
             self.camera = Camera(settings_obj=temp_settings)
