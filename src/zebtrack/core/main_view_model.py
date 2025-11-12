@@ -2786,7 +2786,7 @@ class MainViewModel:
 
                 # Save to project_manager so detector can use it
                 if self.project_manager:
-                    self.project_manager.set_zone_data(zone_data)
+                    self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
 
                 log.info(
                     "controller.live_analysis.default_arena_created",
