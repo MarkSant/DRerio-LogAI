@@ -607,6 +607,12 @@ class LiveCameraService:
                                 self.controller.recorder.write_detection_data(
                                     timestamp, frame_number, detections
                                 )
+                                # 🔍 DEBUG: Log detection writes
+                                log.debug(
+                                    "live_camera_service.detection_written",
+                                    frame_number=frame_number,
+                                    num_detections=len(detections),
+                                )
 
                         # Draw overlay
                         detector.draw_overlay(frame, detections)
@@ -712,14 +718,25 @@ class LiveCameraService:
 
         try:
             # Find generated trajectory parquet
+            # File is saved as: 3_CoordMovimento_{base_name}.parquet
             import glob
 
-            trajectory_files = glob.glob(str(output_dir / "*_trajectory.parquet"))
+            # 🔍 DEBUG: List all files in output_dir
+            all_files = list(output_dir.glob("*"))
+            log.info(
+                "live_camera_service.output_files_check",
+                output_dir=str(output_dir),
+                all_files=[f.name for f in all_files],
+                num_files=len(all_files),
+            )
+
+            trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
 
             if not trajectory_files:
                 log.warning(
                     "live_camera_service.no_trajectory_found",
                     output_dir=str(output_dir),
+                    searched_pattern="3_CoordMovimento_*.parquet",
                 )
                 self._show_completion_message(output_dir, analysis_success=False)
                 return
