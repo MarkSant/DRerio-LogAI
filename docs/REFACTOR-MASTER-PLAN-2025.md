@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.6
+**Versão:** 1.7
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 9 COMPLETO - Dead Code Analysis)
+**Status:** 🚀 EM ANDAMENTO (Sprint 11 COMPLETO - Validation Extraction)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -98,15 +98,41 @@
 - ✅ Estimativas revisadas e ajustadas
 - ✅ Documentação: SPRINT_9_DEAD_CODE_ANALYSIS.md
 - **Impacto:** 0 linhas removidas (boa notícia - código limpo)
-- **Commits:** bb45f07
+- **Commits:** bb45f07, 2cb0cc8
+
+**Sprint 10: Processing Refactoring Analysis** ✅ **COMPLETO**
+- ✅ Análise detalhada de workflows de processing (~749 linhas em 7 métodos)
+- ✅ Identificação de métodos relacionados (~1,100 linhas total - 19% do MainViewModel)
+- ✅ Análise de complexidade: `start_project_processing_workflow()` - 228 linhas, 60% UI
+- ✅ Criação de plano 5-fases (Sprints 11-14)
+- ✅ Identificação de riscos e decisões de design
+- ✅ Documentação: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md
+- **Impacto:** 0 linhas (análise apenas - implementação Sprints 11-14)
+- **Commits:** 34bfb50
+
+**Sprint 11: Validation Extraction** ✅ **COMPLETO**
+- ✅ Criado `ValidationResult` value object (43 linhas)
+- ✅ Adicionado `validate_can_start_processing()` ao ProcessingCoordinator (120 linhas)
+  - Validações: processing_already_active, project_loaded, zones, videos_exist
+  - Retorna ValidationResult estruturado (não mostra UI diretamente)
+- ✅ Extraídas validações de 3 métodos do MainViewModel:
+  - `start_project_processing_workflow()`
+  - `process_pending_project_videos()`
+  - `start_single_video_processing()`
+- ✅ Corrigido bug: `project_coordinator` parâmetro faltante em `_init_coordinators()`
+- ✅ Documentação atualizada (REFACTOR-MASTER-PLAN-2025.md v1.7)
+- **Impacto:** +167 linhas (ProcessingCoordinator), +138 linhas (MainViewModel structured error handling), -40 linhas (removed inline checks)
+- **Net:** +265 linhas (infraestrutura para simplificação futura)
+- **Benefícios:** Separação de concerns, testabilidade, structured error handling
+- **Commits:** cb02db4
 
 **Próximos Sprints:**
-- ⏳ Sprint 10: Processing workflow refactoring (-300 a -800 linhas)
-- ⏳ Sprint 11: RecordingCoordinator completion (-50 a -100 linhas)
-- ⏳ Sprint 12: Helper consolidation (-100 a -200 linhas)
-- ⏳ Sprint 13: Logic simplification (-150 a -300 linhas)
-- ⏳ Sprint 14-16: UI component extraction
-- ⏳ Sprint 17-18: ProjectManager refactoring
+- ⏳ Sprint 12: Helper extraction and consolidation (-150 a -250 linhas)
+- ⏳ Sprint 13: Workflow simplification (-100 a -200 linhas)
+- ⏳ Sprint 14: Final consolidation (-50 a -100 linhas)
+- ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)
+- ⏳ Sprint 16-18: UI component extraction
+- ⏳ Sprint 19-20: ProjectManager refactoring
 
 ---
 
