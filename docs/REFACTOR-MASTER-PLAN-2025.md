@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.2
+**Versão:** 2.3
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 15 COMPLETO - Recording Delegation Complete)
+**Status:** 🚀 EM ANDAMENTO (Sprint 16 COMPLETO - Coordinator Init Simplification)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -203,10 +203,31 @@
   - `_create_processing_context()`: Appropriately in ViewModel (context builder)
   - RecordingCoordinator: Sprint 4 skeleton now fully implemented
 
+**Sprint 16: Coordinator Init Simplification** ✅ **COMPLETO**
+- ✅ **Phase 1: _init_coordinators() Boilerplate Reduction**
+  - Created `_inject_or_create()` helper (12 lines)
+  - Applied to 7 coordinators (eliminated repetitive if/else pattern)
+  - _init_coordinators: 186 → 162 lines (-13%)
+  - Boilerplate: ~70 → ~10 lines (-86%)
+  - **Commit:** 4934629
+  - **Impacto:** -10 linhas total MainViewModel
+
+- ✅ **Analysis: Explored Other Strategies**
+  - Attempted ROI validation extraction: ❌ Added +7 lines (reverted)
+  - Analyzed dead code: Too risky without deep analysis
+  - Measured docstring density: 36% of file (valuable documentation)
+  - **Lesson:** Extract != Always Better - focus on repetitive patterns
+
+- ✅ **Code Quality Focus**
+  - DRY principle applied
+  - Maintainability improved
+  - No functional changes
+  - Following "bem feito" approach
+
 **Próximos Sprints:**
-- ⏳ Sprint 16: Continue aggressive reduction (trivial wrappers, inline helpers)
-- ⏳ Sprint 17-18: UI component extraction
-- ⏳ Sprint 19-20: ProjectManager refactoring
+- ⏳ Sprint 17: Method consolidation and inline helpers
+- ⏳ Sprint 18-19: UI component extraction
+- ⏳ Sprint 20-21: ProjectManager refactoring
 
 ---
 
