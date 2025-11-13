@@ -137,19 +137,26 @@ class RecordingCoordinator(BaseCoordinator):
 
     def start_recording(
         self,
-        output_path: str,
-        experiment_id: str,
-        duration: int | None = None,
-        zones: list[dict] | None = None,
+        context: dict[str, Any],
+        project_data: dict[str, Any],
+        *,
+        trigger_source: str = "manual",
     ) -> bool:
         """
-        Start a recording session.
+        Start a recording session by delegating to RecordingService.
+
+        Sprint 15: Completed implementation - delegates to RecordingService.
 
         Args:
-            output_path: Path where recording will be saved
-            experiment_id: Experiment identifier
-            duration: Optional recording duration in seconds
-            zones: Optional zone configurations
+            context: Recording context with session details:
+                - day, group, cobaia: Experiment identifiers
+                - folder_name: Session folder name
+                - output_folder: Full path to output folder
+                - arduino_enabled: Whether Arduino is active
+                - arduino_port: Arduino port (if enabled)
+                - camera_width, camera_height: Camera dimensions (added by ViewModel)
+            project_data: Project configuration dictionary
+            trigger_source: Source of the recording trigger (manual/external)
 
         Returns:
             True if recording started successfully, False otherwise
@@ -165,51 +172,48 @@ class RecordingCoordinator(BaseCoordinator):
                 operation="start_recording",
             )
 
-        self._validate_not_none(output_path, "output_path")
-        self._validate_not_none(experiment_id, "experiment_id")
+        self._validate_not_none(context, "context")
+        self._validate_not_none(project_data, "project_data")
+
+        output_folder = context.get("output_folder")
+        folder_name = context.get("folder_name")
 
         log.info(
             "recording_coordinator.start_recording.begin",
-            output_path=output_path,
-            experiment_id=experiment_id,
-            duration=duration,
+            folder_name=folder_name,
+            trigger_source=trigger_source,
         )
 
         try:
             # Check if already recording
             recording_state = self.state_manager.get_recording_state()
             if recording_state and recording_state.is_recording:
-                raise RecordingCoordinatorError(
-                    "Recording already in progress",
-                    coordinator="RecordingCoordinator",
-                    operation="start_recording",
-                )
+                log.warning("recording_coordinator.already_recording")
+                return False
 
-            # Update state to recording
-            self._update_state(
-                StateCategory.RECORDING,
-                is_recording=True,
-                output_path=output_path,
-                experiment_id=experiment_id,
-                duration=duration,
+            # Delegate to RecordingService (Sprint 15: completed)
+            self.recording_service.start_session(
+                context=context,
+                project_data=project_data,
+                trigger_source=trigger_source,
             )
 
-            # Delegate to recording service
-            # (actual start would go through RecordingService)
+            # Note: RecordingService updates StateManager directly,
+            # so we don't need to update state here
 
             # Publish event
             self._publish_event(
                 "RECORDING_STARTED",
                 {
-                    "output_path": output_path,
-                    "experiment_id": experiment_id,
-                    "duration": duration,
+                    "folder_name": folder_name,
+                    "output_folder": output_folder,
+                    "trigger_source": trigger_source,
                 },
             )
 
             log.info(
                 "recording_coordinator.start_recording.success",
-                output_path=output_path,
+                folder_name=folder_name,
             )
 
             return True
@@ -217,27 +221,21 @@ class RecordingCoordinator(BaseCoordinator):
         except Exception as e:
             log.error(
                 "recording_coordinator.start_recording.failed",
-                output_path=output_path,
+                folder_name=folder_name,
                 error=str(e),
                 exc_info=True,
             )
 
-            # Revert state on failure
-            self._update_state(
-                StateCategory.RECORDING,
-                is_recording=False,
-            )
-
             raise RecordingCoordinatorError(
                 f"Failed to start recording: {str(e)}",
-                coordinator="RecordingCoordinator",
-                operation="start_recording",
-                output_path=output_path,
+                context={"folder_name": folder_name, "trigger_source": trigger_source},
             ) from e
 
     def stop_recording(self) -> bool:
         """
-        Stop the current recording session.
+        Stop the current recording session by delegating to RecordingService.
+
+        Sprint 15: Completed implementation - delegates to RecordingService.
 
         Returns:
             True if recording stopped successfully, False otherwise
@@ -251,11 +249,11 @@ class RecordingCoordinator(BaseCoordinator):
                 log.warning("recording_coordinator.stop_recording.not_recording")
                 return False
 
-            # Update state
-            self._update_state(
-                StateCategory.RECORDING,
-                is_recording=False,
-            )
+            # Delegate to RecordingService (Sprint 15: completed)
+            self.recording_service.stop_session()
+
+            # Note: RecordingService updates StateManager directly,
+            # so we don't need to update state here
 
             # Publish event
             self._publish_event("RECORDING_STOPPED", {})

@@ -1214,15 +1214,22 @@ class MainViewModel:
         *,
         trigger_source: str,
     ) -> None:
-        """Delegate to RecordingService (Phase 2.2)."""
+        """
+        Schedule a recording session via RecordingCoordinator.
+
+        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        """
         # Inject camera dimensions into context
         camera_width = getattr(self.view.camera, "actual_width", None)
         camera_height = getattr(self.view.camera, "actual_height", None)
         context["camera_width"] = camera_width
         context["camera_height"] = camera_height
 
-        self.recording_service.schedule_recording(
-            context, project_data, trigger_source=trigger_source
+        # Delegate to RecordingCoordinator (Sprint 15)
+        self.recording_coordinator.start_recording(
+            context=context,
+            project_data=project_data,
+            trigger_source=trigger_source,
         )
 
     def close_project(self):
@@ -2906,14 +2913,18 @@ class MainViewModel:
             )
 
     def stop_recording(self):
-        """Stop the current recording session (delegates to RecordingService - Phase 2.2)."""
+        """
+        Stop the current recording session.
+
+        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        """
         log.info("controller.recording.stop")
 
         if self._pending_external_trigger:
             self._clear_external_trigger_wait()
 
-        # Delegate to RecordingService
-        self.recording_service.stop_session()
+        # Delegate to RecordingCoordinator (Sprint 15)
+        self.recording_coordinator.stop_recording()
 
         # Update UI on main thread
         self.ui_event_bus.publish_event(
