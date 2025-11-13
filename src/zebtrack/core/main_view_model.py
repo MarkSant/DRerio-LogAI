@@ -3719,21 +3719,116 @@ class MainViewModel:
         # Get all videos (validation already confirmed they exist)
         all_videos = self.project_manager.get_all_videos() or []
 
-        videos_by_norm: dict[str, dict] = {}
-        for video in all_videos:
-            path_value = video.get("path")
-            if isinstance(path_value, str) and path_value:
-                videos_by_norm[os.path.normpath(path_value)] = video
+        # Sprint 14: Inline _gather_candidate_entries() logic
         skip_dialog = bool(video_paths)
-        candidate_entries = self._gather_candidate_entries(video_paths, all_videos)
-        if candidate_entries is None:
+
+        # Delegate selection logic to VideoSelectionService
+        selection_result = self.video_selection_service.select_candidates(
+            all_videos=all_videos,
+            target_paths=video_paths,
+        )
+
+        # Handle targeted selection mode
+        if selection_result.selection_mode == "targeted":
+            # UI: Show info if no valid targets provided
+            if not video_paths:  # Should not happen but defensive
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento",
+                        "message": "Nenhum vídeo selecionado para processamento.",
+                    },
+                )
+                return
+
+            # UI: Show warning if targets are missing from project
+            if selection_result.has_missing:
+                sample = [
+                    os.path.basename(path) for path in selection_result.missing_targets[:5]
+                ]
+                if len(selection_result.missing_targets) > 5:
+                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Vídeos fora do projeto",
+                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
+                        + "\n".join(sample),
+                    },
+                )
+
+            # UI: Show info if no candidates found
+            if selection_result.candidate_count == 0:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento",
+                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
+                    },
+                )
+                return
+
+        # Handle pending selection mode
+        else:  # selection_mode == "pending"
+            # UI: Show info if no pending videos
+            if selection_result.candidate_count == 0:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento",
+                        "message": "Nenhum vídeo pendente para ser processado.",
+                    },
+                )
+                return
+
+        candidate_entries = selection_result.candidate_entries
+
+        # Sprint 14: Inline _scan_and_validate_candidate_paths() logic
+        # Extract paths from candidate entries
+        candidate_paths = [
+            video.get("path")
+            for video in candidate_entries
+            if isinstance(video.get("path"), str) and video.get("path")
+        ]
+
+        # UI: Show error if no valid paths
+        if not candidate_paths:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro",
+                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
+                },
+            )
             return
 
-        info_by_norm, missing_files, scanned_videos = self._scan_and_validate_candidate_paths(
-            candidate_entries
+        # Delegate scan logic to VideoValidationService
+        scan_result = self.video_validation_service.scan_and_validate_paths(
+            candidate_paths, self.project_manager
         )
-        if info_by_norm is None:
-            return
+
+        # UI: Show warning if files are missing
+        if scan_result.has_missing:
+            sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
+            if len(scan_result.missing_files) > 5:
+                sample_names.append(f"... (+{len(scan_result.missing_files) - 5})")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Vídeos Não Encontrados",
+                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
+                    + "\n".join(sample_names),
+                },
+            )
+            log.warning(
+                "workflow.project_processing.missing_sources",
+                missing=len(scan_result.missing_files),
+            )
+
+        # Extract results from service
+        info_by_norm = scan_result.info_by_norm
+        missing_files = scan_result.missing_files
+        scanned_videos = scan_result.scanned_videos
 
         # Sprint 12: Use VideoClassificationService for classification
         classification_result = self.video_classification_service.classify_videos(
@@ -4207,133 +4302,6 @@ class MainViewModel:
 
         return metadata_context
 
-    def _gather_candidate_entries(
-        self,
-        video_paths: list[str] | None,
-        all_videos: list[dict],
-    ) -> list[dict] | None:
-        """Return a list of candidate video entries to process.
-
-        Sprint 12: Uses VideoSelectionService for selection logic.
-        UI orchestration (events) remains in ViewModel.
-
-        Returns None if the calling function should abort (due to user cancel or invalid selection).
-        """
-        # Sprint 12: Delegate selection logic to VideoSelectionService
-        selection_result = self.video_selection_service.select_candidates(
-            all_videos=all_videos,
-            target_paths=video_paths,
-        )
-
-        # Handle targeted selection mode
-        if selection_result.selection_mode == "targeted":
-            # UI: Show info if no valid targets provided
-            if not video_paths:  # Should not happen but defensive
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo selecionado para processamento.",
-                    },
-                )
-                return None
-
-            # UI: Show warning if targets are missing from project
-            if selection_result.has_missing:
-                sample = [
-                    os.path.basename(path) for path in selection_result.missing_targets[:5]
-                ]
-                if len(selection_result.missing_targets) > 5:
-                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos fora do projeto",
-                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                        + "\n".join(sample),
-                    },
-                )
-
-            # UI: Show info if no candidates found
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                    },
-                )
-                return None
-
-        # Handle pending selection mode
-        else:  # selection_mode == "pending"
-            # UI: Show info if no pending videos
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo pendente para ser processado.",
-                    },
-                )
-                return None
-
-        return selection_result.candidate_entries
-
-    def _classify_candidate_videos(
-        self, candidate_entries: list[dict], info_by_norm: dict
-    ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
-        """Given candidate entries and a lookup, classify them into buckets.
-
-        DEPRECATED (Sprint 12): This method is deprecated.
-        Use self.video_classification_service.classify_videos() instead.
-
-        Returns (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
-        """
-        # Sprint 12: Deprecated - logic moved to VideoClassificationService
-        log.warning(
-            "main_view_model._classify_candidate_videos.deprecated",
-            message="Use video_classification_service.classify_videos() instead",
-        )
-        ready_with_trajectory: list[dict] = []
-        ready_with_zones: list[dict] = []
-        arena_only: list[dict] = []
-        without_arena: list[dict] = []
-
-        data_changed = False
-
-        for video in candidate_entries:
-            path = video.get("path")
-            if not isinstance(path, str) or not path:
-                continue
-
-            info = info_by_norm.get(os.path.normpath(path))
-            if not info:
-                continue
-
-            for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
-                new_value = info.get(key, False)
-                if video.get(key) != new_value:
-                    video[key] = new_value
-                    data_changed = True
-
-            if info.get("has_arena"):
-                if info.get("has_trajectory"):
-                    ready_with_trajectory.append(info)
-                elif info.get("has_rois"):
-                    ready_with_zones.append(info)
-                else:
-                    arena_only.append(info)
-            else:
-                without_arena.append(info)
-
-        return (
-            ready_with_trajectory,
-            ready_with_zones,
-            arena_only,
-            without_arena,
-            data_changed,
-        )
 
     def _select_eligible_videos(
         self,
@@ -4416,58 +4384,6 @@ class MainViewModel:
                 return None
 
         return eligible_videos
-
-    def _scan_and_validate_candidate_paths(self, candidate_entries: list[dict]):
-        """Scan candidate paths and return (info_by_norm, missing_files, scanned_videos).
-
-        Sprint 12: Uses VideoValidationService for scan logic.
-        UI orchestration (events) remains in ViewModel.
-
-        Returns (None, None, None) if there are no valid candidate paths.
-        """
-        # Extract paths from candidate entries
-        candidate_paths = [
-            video.get("path")
-            for video in candidate_entries
-            if isinstance(video.get("path"), str) and video.get("path")
-        ]
-
-        # UI: Show error if no valid paths
-        if not candidate_paths:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
-                },
-            )
-            return None, None, None
-
-        # Sprint 12: Delegate scan logic to VideoValidationService
-        scan_result = self.video_validation_service.scan_and_validate_paths(
-            candidate_paths, self.project_manager
-        )
-
-        # UI: Show warning if files are missing
-        if scan_result.has_missing:
-            sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
-            if len(scan_result.missing_files) > 5:
-                sample_names.append(f"... (+{len(scan_result.missing_files) - 5})")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeos Não Encontrados",
-                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
-                    + "\n".join(sample_names),
-                },
-            )
-            log.warning(
-                "workflow.project_processing.missing_sources",
-                missing=len(scan_result.missing_files),
-            )
-
-        # Return results from service
-        return scan_result.info_by_norm, scan_result.missing_files, scan_result.scanned_videos
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.
