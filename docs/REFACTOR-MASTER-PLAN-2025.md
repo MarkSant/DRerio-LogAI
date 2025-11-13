@@ -68,8 +68,21 @@
 
 **🎉 FASE 1 COMPLETA - Todos os 6 Coordinators Implementados!**
 
+**Sprint 7: MainViewModel Detector Delegation** ✅ **PARCIAL**
+- ✅ DetectorCoordinator delegation completa (7 métodos)
+  - setup_detector(), setup_detector_zones()
+  - get/update/restore detector parameters
+  - configure_single_subject_tracker()
+- ✅ Adicionado `update_detector_parameters()` ao DetectorCoordinator
+- ✅ Documentação atualizada (MAINVIEWMODEL_SIMPLIFICATION_PLAN.md)
+- 🔴 Processing delegation - Adiado (requer refatoração - workflows diferentes)
+- 🔴 Recording delegation - Adiado (RecordingCoordinator incompleto - stubs apenas)
+- **Impacto:** 5,713 linhas (+30 de 5,683 inicial - lógica UI adicionada)
+- **Commits:** 81bef82, 5775dc8, 2b4cb15
+
 **Próximos Sprints:**
-- ⏳ Sprint 7-8: MainViewModel simplification (Fase 2)
+- ⏳ Sprint 8: Cleanup e validação
+- ⏳ Sprint 9+: Completar RecordingCoordinator, Processing refactoring
 - ⏳ Sprint 9-12: UI component extraction
 - ⏳ Sprint 13-14: ProjectManager refactoring
 
@@ -454,17 +467,28 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
   - [x] Integração via DI no MainViewModel
 
 #### **Sprint 7-8: MainViewModel - Fase 2 (2 semanas)**
-**Objetivo:** Simplificar MainViewModel para <800 linhas
+**Objetivo:** Simplificar MainViewModel para <800 linhas (meta ajustada - ver descobertas)
 
-- **Sprint 7:**
-  - [ ] Refatorar `__init__` (injetar coordinators)
-  - [ ] Converter métodos para delegação
-  - [ ] Remover duplicação de código
+- **Sprint 7:** ✅ **PARCIAL**
+  - [x] Coordinators já injetados via DI (Sprints 3-6)
+  - [x] DetectorCoordinator delegation (7 métodos) - commits 81bef82, 5775dc8
+    - setup_detector(), setup_detector_zones()
+    - get/update/restore detector parameters
+    - configure_single_subject_tracker()
+  - [x] Adicionado `update_detector_parameters()` ao DetectorCoordinator (+110 linhas)
+  - [x] Documentação: MAINVIEWMODEL_SIMPLIFICATION_PLAN.md criado - commit 2b4cb15
+  - 🔴 Processing delegation - ADIADO (requer refatoração - workflows diferentes)
+  - 🔴 Recording delegation - ADIADO (RecordingCoordinator incompleto)
+  - 🔴 Código legado - ADIADO (requer análise detalhada)
 
-- **Sprint 8:**
+- **Sprint 8:** ⏳ **PENDENTE**
+  - [ ] Cleanup de código identificado
   - [ ] Testes de integração end-to-end
   - [ ] Validação de performance (sem regressão)
-  - [ ] Documentação da nova arquitetura
+  - [ ] Atualizar REFACTOR-MASTER-PLAN-2025.md final
+
+**Estado Atual:** 5,713 linhas (+30 de 5,683 inicial)
+**Descobertas:** Ver MAINVIEWMODEL_SIMPLIFICATION_PLAN.md seção "Descobertas do Sprint 7"
 
 #### **Sprint 9-12: ApplicationGUI - Fase 1 (4 semanas)**
 **Objetivo:** Extrair componentes UI restantes
