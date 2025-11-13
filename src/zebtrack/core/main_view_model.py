@@ -1322,12 +1322,12 @@ class MainViewModel:
         """
         Restore detector settings from saved configuration.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Args:
             saved_detector_config: Saved detector configuration from project
         """
-        self.detector_service.restore_detector_settings(saved_detector_config)
+        self.detector_coordinator.restore_detector_settings(saved_detector_config)
 
     def _setup_zones_from_project(self) -> None:
         """
@@ -1396,9 +1396,38 @@ class MainViewModel:
         """
         Load zone data from project and sets it on the detector instance.
 
-        Task 2.2: Delegates to HardwareCoordinator.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
-        self.hardware_coordinator.setup_detector_zones()
+        # Delegate to DetectorCoordinator (all params None = load from project)
+        success = self.detector_coordinator.configure_zones(
+            zones_data=None,
+            video_width=None,
+            video_height=None,
+        )
+
+        if not success:
+            log.warning("main_view_model.setup_detector_zones.failed")
+            return
+
+        # UI logic: notify if no arena polygon defined
+        zone_data = self.project_manager.get_zone_data()
+        if not zone_data.polygon:
+            if self.project_manager.get_project_type() == "pre-recorded":
+                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    )
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Configuração Necessária",
+                        "message": "Erro: A área de processamento principal (aquário) não foi "
+                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
+                        "antes de continuar.",
+                    },
+                )
 
     # --- New Methods for Weight Management ---
 
@@ -1724,11 +1753,11 @@ class MainViewModel:
         """
         Return detector thresholds, falling back to saved or default values.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_service.get_detector_parameters()
+        params = self.detector_coordinator.get_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
@@ -1738,11 +1767,11 @@ class MainViewModel:
         """
         Return detector thresholds defined in config.yaml without overrides.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_service.get_factory_detector_parameters()
+        params = self.detector_coordinator.get_factory_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
@@ -1758,10 +1787,10 @@ class MainViewModel:
         """
         Apply detector threshold updates and persist them when possible.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
         try:
-            success = self.detector_service.update_tracking_parameters(
+            success = self.detector_coordinator.update_detector_parameters(
                 params=params,
                 reset_overrides=reset_overrides,
                 scope=scope,
@@ -3899,9 +3928,9 @@ class MainViewModel:
         """
         Configure single-subject tracking mode.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
-        self.detector_service.set_single_subject_mode(bool(enabled))
+        self.detector_coordinator.set_single_subject_mode(bool(enabled))
         self._publish_processing_mode(
             source="tracker_configuration",
             force=True,
