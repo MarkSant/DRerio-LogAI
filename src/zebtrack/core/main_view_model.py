@@ -145,6 +145,8 @@ class MainViewModel:
         analysis_coordinator: AnalysisCoordinator | None = None,
         video_orchestrator: VideoOrchestrator | None = None,
         project_coordinator=None,  # Sprint 3: Project lifecycle coordinator
+        recording_coordinator=None,  # Sprint 4: Recording workflow coordinator
+        live_camera_coordinator=None,  # Sprint 4: Live camera coordinator
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -168,6 +170,8 @@ class MainViewModel:
             analysis_coordinator: Analysis coordinator (Phase 2, optional - created if None)
             video_orchestrator: Video orchestrator (Phase 2, optional - created if None)
             project_coordinator: Project coordinator (Sprint 3, optional)
+            recording_coordinator: Recording coordinator (Sprint 4, optional - created if None)
+            live_camera_coordinator: Live camera coordinator (Sprint 4, optional - created if None)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -382,6 +386,8 @@ class MainViewModel:
             hardware_coordinator=hardware_coordinator,
             analysis_coordinator=analysis_coordinator,
             video_orchestrator=video_orchestrator,
+            recording_coordinator=recording_coordinator,
+            live_camera_coordinator=live_camera_coordinator,
         )
 
     def _init_coordinators(
@@ -389,16 +395,21 @@ class MainViewModel:
         hardware_coordinator: HardwareCoordinator | None,
         analysis_coordinator: AnalysisCoordinator | None,
         video_orchestrator: VideoOrchestrator | None,
+        recording_coordinator=None,
+        live_camera_coordinator=None,
     ) -> None:
-        """Initialize coordinators for hardware, video, and analysis.
+        """Initialize coordinators for hardware, video, analysis, recording, and live camera.
 
         Task 2.2: REFACTOR-VIEWMODEL-001
         Task 2.3: Accept injected coordinators or create them for backward compatibility
+        Sprint 4: Added recording_coordinator and live_camera_coordinator
 
         Args:
             hardware_coordinator: Injected hardware coordinator (or None to create)
             analysis_coordinator: Injected analysis coordinator (or None to create)
             video_orchestrator: Injected video orchestrator (or None to create)
+            recording_coordinator: Injected recording coordinator (Sprint 4, or None to create)
+            live_camera_coordinator: Injected live camera coordinator (Sprint 4, or None to create)
         """
         # Hardware coordinator (detector, Arduino, zones)
         if hardware_coordinator is not None:
@@ -466,6 +477,38 @@ class MainViewModel:
                 "main_view_model.project_coordinator.not_injected",
                 message="ProjectCoordinator not injected - will use legacy workflow",
             )
+
+        # Recording coordinator (Sprint 4: recording workflow orchestration)
+        if recording_coordinator is not None:
+            self.recording_coordinator = recording_coordinator
+            log.info("main_view_model.recording_coordinator.injected")
+        else:
+            # Create internally after RecordingService is initialized
+            from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+
+            self.recording_coordinator = RecordingCoordinator(
+                state_manager=self.state_manager,
+                recording_service=self.recording_service,
+                arduino_manager=self.arduino_manager,
+                event_bus=self.ui_event_bus,
+            )
+            log.info("main_view_model.recording_coordinator.created_internally")
+
+        # Live camera coordinator (Sprint 4: live camera analysis orchestration)
+        if live_camera_coordinator is not None:
+            self.live_camera_coordinator = live_camera_coordinator
+            log.info("main_view_model.live_camera_coordinator.injected")
+        else:
+            # Create internally after LiveCameraService is initialized
+            from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
+
+            self.live_camera_coordinator = LiveCameraCoordinator(
+                state_manager=self.state_manager,
+                live_camera_service=self.live_camera_service,
+                camera=None,  # Camera initialized lazily when needed
+                event_bus=self.ui_event_bus,
+            )
+            log.info("main_view_model.live_camera_coordinator.created_internally")
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(

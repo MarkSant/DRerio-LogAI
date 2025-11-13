@@ -6,11 +6,11 @@ by delegating to services. Part of the v4.0 refactoring plan.
 Available Coordinators:
     BaseCoordinator - Abstract base class for all coordinators
     ProjectCoordinator - Project lifecycle management (Sprint 3)
+    RecordingCoordinator - Recording and Arduino management (Sprint 4)
+    LiveCameraCoordinator - Live camera analysis sessions (Sprint 4)
 
-Planned Coordinators (Sprint 4-6):
+Planned Coordinators (Sprint 5-6):
     DetectorCoordinator - Detector setup and configuration
-    RecordingCoordinator - Recording and Arduino management
-    LiveCameraCoordinator - Live camera analysis sessions
     ProcessingCoordinator - Video processing workflows
 
 See:
@@ -23,9 +23,17 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.coordinators.live_camera_coordinator import (
+    LiveCameraCoordinator,
+    LiveCameraCoordinatorError,
+)
 from zebtrack.coordinators.project_coordinator import (
     ProjectCoordinator,
     ProjectCoordinatorError,
+)
+from zebtrack.coordinators.recording_coordinator import (
+    RecordingCoordinator,
+    RecordingCoordinatorError,
 )
 
 __all__ = [
@@ -35,4 +43,8 @@ __all__ = [
     "CoordinatorDependencyError",
     "ProjectCoordinator",
     "ProjectCoordinatorError",
+    "RecordingCoordinator",
+    "RecordingCoordinatorError",
+    "LiveCameraCoordinator",
+    "LiveCameraCoordinatorError",
 ]
