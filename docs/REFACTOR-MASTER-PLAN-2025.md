@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.7
+**Versão:** 1.8
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 11 COMPLETO - Validation Extraction)
+**Status:** 🚀 EM ANDAMENTO (Sprint 12 Part 1/3 COMPLETO - Helper Extraction Started)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -126,8 +126,23 @@
 - **Benefícios:** Separação de concerns, testabilidade, structured error handling
 - **Commits:** cb02db4
 
+**Sprint 12: Helper Extraction and Consolidation** 🔄 **EM ANDAMENTO** (Part 1/3 COMPLETO)
+- ✅ **Part 1: VideoClassificationService** - Extração limpa de lógica pura
+  - Criado VideoClassificationService (177 linhas)
+  - Método classify_videos() para categorização de vídeos
+  - VideoClassificationResult dataclass para resultados estruturados
+  - 4 categorias: ready_with_trajectory, ready_with_zones, arena_only, without_arena
+  - MainViewModel atualizado para usar service
+  - Método antigo marcado como deprecated (mantido para safety)
+  - **Commits:** 52977f0, 6566992
+  - **Impacto:** +177 linhas (service) + 22 linhas (usage) = +199 linhas net
+- ⏳ **Part 2-3: VideoSelectionService & VideoValidationService** - PENDENTE
+  - Extração parcial (core logic → service, UI orchestration → ViewModel)
+  - _gather_candidate_entries() e _scan_and_validate_candidate_paths()
+  - **Estimativa Part 2-3:** -50 a -100 linhas após cleanup de deprecated methods
+
 **Próximos Sprints:**
-- ⏳ Sprint 12: Helper extraction and consolidation (-150 a -250 linhas)
+- ⏳ Sprint 12 (Parts 2-3): Complete helper extraction (-50 a -100 linhas com cleanup)
 - ⏳ Sprint 13: Workflow simplification (-100 a -200 linhas)
 - ⏳ Sprint 14: Final consolidation (-50 a -100 linhas)
 - ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)

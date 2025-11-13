@@ -334,19 +334,34 @@ def start_project_processing_workflow(self):
   - Separação de concerns alcançada
   - Redução de linhas virá em Sprints 12-14 com consolidação de error handling
 
-### Sprint 12: Extração de Helpers
+### Sprint 12: Extração de Helpers 🔄 **EM ANDAMENTO** (Part 1/3 COMPLETO)
 
-- [ ] Criar `VideoSelectionService`
-- [ ] Criar `VideoClassificationService`
-- [ ] Criar `VideoValidationService`
-- [ ] Criar `MetadataBuilder`
-- [ ] Mover métodos _gather_candidate_entries()
-- [ ] Mover métodos _classify_candidate_videos()
-- [ ] Mover métodos _scan_and_validate_candidate_paths()
-- [ ] Mover métodos _build_metadata_context()
-- [ ] Atualizar injeção de dependências
+**Part 1: VideoClassificationService** ✅ **COMPLETO**
+- [x] Criar `VideoClassificationService`
+- [x] Extrair `_classify_candidate_videos()` para VideoClassificationService
+- [x] Atualizar MainViewModel para usar VideoClassificationService
+- [x] Marcar método antigo como deprecated
+- [x] Validar syntax e linting (ruff checks passed)
+- **Commits:** 52977f0, 6566992
+- **Impacto:** +177 linhas (service), +22 linhas (usage), -0 linhas (kept deprecated)
+- **Net:** +199 linhas
+- **Observações:**
+  - Extração limpa: pura lógica, sem UI dependencies
+  - VideoClassificationResult dataclass para resultados estruturados
+  - 4 categorias: ready_with_trajectory, ready_with_zones, arena_only, without_arena
+  - Método antigo mantido como deprecated para safety
+
+**Part 2-3: Remaining Services** ⏳ **PENDENTE**
+- [ ] Criar `VideoSelectionService` (partial extraction)
+- [ ] Criar `VideoValidationService` (partial extraction)
+- [ ] Mover métodos _gather_candidate_entries() (partial)
+- [ ] Mover métodos _scan_and_validate_candidate_paths() (partial)
+- [ ] Atualizar injeção de dependências (se necessário)
 - [ ] Atualizar testes
 - [ ] Validar que nada quebrou
+
+**Nota:** VideoSelectionService e VideoValidationService requerem extração PARCIAL
+(core logic → service, UI orchestration → ViewModel) devido a forte acoplamento com UI
 
 ### Sprint 13: Simplificação de Workflows
 
