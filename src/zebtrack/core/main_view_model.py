@@ -209,6 +209,11 @@ class MainViewModel:
             else AnalysisService(settings_obj=self.settings)
         )
 
+        # Sprint 12: Helper services for processing workflows
+        from zebtrack.core.video_classification_service import VideoClassificationService
+
+        self.video_classification_service = VideoClassificationService()
+
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
         self.active_weight_name = default_weight if default_weight is not None else ""
@@ -3698,13 +3703,15 @@ class MainViewModel:
         if info_by_norm is None:
             return
 
-        (
-            ready_with_trajectory,
-            ready_with_zones,
-            arena_only,
-            without_arena,
-            data_changed,
-        ) = self._classify_candidate_videos(candidate_entries, info_by_norm)
+        # Sprint 12: Use VideoClassificationService for classification
+        classification_result = self.video_classification_service.classify_videos(
+            candidate_entries, info_by_norm
+        )
+        ready_with_trajectory = classification_result.ready_with_trajectory
+        ready_with_zones = classification_result.ready_with_zones
+        arena_only = classification_result.arena_only
+        without_arena = classification_result.without_arena
+        data_changed = classification_result.data_changed
 
         if data_changed:
             self.project_manager.save_project()
@@ -4258,8 +4265,16 @@ class MainViewModel:
     ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
         """Given candidate entries and a lookup, classify them into buckets.
 
+        DEPRECATED (Sprint 12): This method is deprecated.
+        Use self.video_classification_service.classify_videos() instead.
+
         Returns (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
         """
+        # Sprint 12: Deprecated - logic moved to VideoClassificationService
+        log.warning(
+            "main_view_model._classify_candidate_videos.deprecated",
+            message="Use video_classification_service.classify_videos() instead",
+        )
         ready_with_trajectory: list[dict] = []
         ready_with_zones: list[dict] = []
         arena_only: list[dict] = []
