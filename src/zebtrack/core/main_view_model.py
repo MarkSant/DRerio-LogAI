@@ -3224,6 +3224,227 @@ class MainViewModel:
             {"video_path": video_path, "config": config},
         )
 
+    def _handle_mixed_data_scenario(self, scanned_videos: list[dict]) -> list[dict] | None:
+        """
+        Handle the scenario where some videos have data and some don't.
+
+        Sprint 13: Extracted from start_project_processing_workflow().
+        Handles user interaction for deciding which videos to process.
+
+        Args:
+            scanned_videos: List of scanned video info dictionaries
+
+        Returns:
+            list[dict] | None: Videos to process, or None if all should be skipped/added only
+        """
+        with_data = [v for v in scanned_videos if v["has_data"]]
+        without_data = [v for v in scanned_videos if not v["has_data"]]
+
+        if with_data and without_data:
+            # Mixed case: some have data, some don't
+            msg = (
+                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
+                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
+                "Deseja reprocessar os vídeos que já possuem dados?"
+            )
+            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
+                # User wants to re-process everything
+                return scanned_videos
+            else:
+                # User wants to skip re-processing
+                return without_data
+
+        elif with_data and not without_data:
+            # All selected videos have data
+            if self.view.ask_ok_cancel(
+                "Dados Encontrados",
+                "Todos os vídeos selecionados já possuem dados de análise. "
+                "Deseja reprocessá-los todos?",
+            ):
+                return with_data
+            else:
+                # User doesn't want to reprocess - add to project but don't process
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Ignorado",
+                        "message": "Nenhum novo vídeo foi processado.",
+                    },
+                )
+                # Still add them to the project for reporting purposes
+                self.project_manager.add_video_batch(scanned_videos)
+                return None  # Signal: don't process, already handled
+        else:
+            # No videos have data, process all of them
+            return without_data
+
+    def _validate_zones_with_ui(self) -> bool:
+        """
+        Validate that zones are defined, with UI dialogs for user interaction.
+
+        Sprint 13: Extracted from start_project_processing_workflow().
+        Handles complex zone validation including:
+        - Main arena validation with user dialogs
+        - Default arena creation if user chooses
+        - ROI warning (optional)
+
+        Returns:
+            bool: True if zones are valid/created, False if user cancelled
+        """
+        zone_data = self.project_manager.get_zone_data()
+
+        # Check if main arena is defined
+        if not zone_data or not zone_data.polygon:
+            log.warning("workflow.project_processing.no_main_arena")
+
+            response = self.view.ask_ok_cancel(
+                "Arena Principal Não Definida",
+                "O polígono principal do aquário não foi definido.\n\n"
+                "É necessário definir a arena principal para análise precisa.\n"
+                "Deseja definir agora antes de processar?",
+            )
+
+            if response:
+                # Switch to zone tab and guide user
+                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+
+                # Load frame from first video if available
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    )
+
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Defina a Arena Principal",
+                        "message": "Por favor:\n"
+                        "1. Use 'Detectar Aquário (Auto)' ou\n"
+                        "2. Desenhe manualmente o polígono principal\n"
+                        "3. Depois volte para adicionar vídeos",
+                    },
+                )
+                return False
+            else:
+                # Offer default arena as fallback
+                if not self.view.ask_ok_cancel(
+                    "Usar Arena Padrão?",
+                    "Deseja usar o frame completo como arena?\n"
+                    "(Não recomendado para análise precisa)",
+                ):
+                    log.info("workflow.project_processing.cancelled_no_arena")
+                    return False
+
+                # Create default arena based on first video
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    import cv2
+
+                    cap = cv2.VideoCapture(first_video)
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    cap.release()
+
+                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
+
+                    success = self.set_main_arena_polygon(default_arena)
+                    if success:
+                        log.info(
+                            "workflow.project_processing.default_arena_created",
+                            size=f"{width}x{height}",
+                        )
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_INFO,
+                            {
+                                "title": "Arena Padrão Criada",
+                                "message": f"Arena padrão criada ({width}x{height})\n"
+                                "Recomenda-se ajustar manualmente depois.",
+                            },
+                        )
+                    else:
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {"title": "Erro", "message": "Não foi possível criar arena padrão"},
+                        )
+                        return False
+                else:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
+                    )
+                    return False
+
+        # Warn about missing ROIs (optional but informative)
+        if not zone_data.roi_polygons:
+            if not self.view.ask_ok_cancel(
+                "Nenhuma ROI Definida",
+                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
+                "A análise usará apenas a arena principal.\n"
+                "Para análises detalhadas, considere definir ROIs.\n\n"
+                "Deseja continuar?",
+            ):
+                log.info("workflow.project_processing.cancelled_by_user_no_roi")
+                return False
+
+        log.info(
+            "workflow.project_processing.zones_validated",
+            has_main_arena=bool(zone_data.polygon),
+            roi_count=len(zone_data.roi_polygons),
+        )
+
+        return True
+
+    def _handle_validation_error(self, validation_result) -> bool:
+        """
+        Handle validation errors by showing appropriate UI messages.
+
+        Sprint 13: Consolidated error handling from 3 workflow methods.
+        Reduces duplication of error code -> UI event mapping.
+
+        Args:
+            validation_result: ValidationResult from ProcessingCoordinator
+
+        Returns:
+            bool: True if validation passed, False if error was shown
+        """
+        if validation_result.is_valid:
+            return True
+
+        # Map error codes to appropriate UI events
+        error_code = validation_result.error_code
+        error_message = validation_result.error_message
+
+        if error_code == "processing_already_active":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Análise em Andamento",
+                    "message": error_message,
+                },
+            )
+        elif error_code == "no_project_loaded":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": error_message},
+            )
+        elif error_code == "no_videos_in_project":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento",
+                    "message": error_message,
+                },
+            )
+        else:
+            # Generic error handling
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro de Validação", "message": error_message},
+            )
+
+        return False
+
     def start_single_video_processing(
         self, video_path: Path | str, config: dict, zone_data: ZoneData
     ):
@@ -3231,33 +3452,20 @@ class MainViewModel:
         Start the actual processing for a single video after zone setup.
 
         Sprint 11: Added validation check for processing already active.
+        Sprint 13: Simplified using _handle_validation_error().
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)
 
         # Sprint 11: Validate processing can start (basic check only)
+        # Sprint 13: Use consolidated error handling
         validation_result = self.processing_coordinator.validate_can_start_processing(
             check_project_loaded=False,  # Not required for single video
             check_zones=False,  # Already handled by caller
             check_videos_exist=False,  # Not required for single video
         )
 
-        if not validation_result.is_valid:
-            # Only check for "processing already active" error
-            if validation_result.error_code == "processing_already_active":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Análise em Andamento",
-                        "message": validation_result.error_message,
-                    },
-                )
-            else:
-                # Generic error handling
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro de Validação", "message": validation_result.error_message},
-                )
+        if not self._handle_validation_error(validation_result):
             return
 
         self.project_manager.set_active_zone_video(video_path)
@@ -3401,135 +3609,19 @@ class MainViewModel:
         log.info("workflow.project_processing.start")
 
         # Sprint 11: Delegate basic validations to ProcessingCoordinator
+        # Sprint 13: Use consolidated error handling
         validation_result = self.processing_coordinator.validate_can_start_processing(
             check_project_loaded=True,
             check_zones=False,  # Zone validation is complex with UI, handled below
             check_videos_exist=False,
         )
 
-        if not validation_result.is_valid:
-            # Map error codes to appropriate UI events
-            if validation_result.error_code == "processing_already_active":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Análise em Andamento",
-                        "message": validation_result.error_message,
-                    },
-                )
-            elif validation_result.error_code == "no_project_loaded":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": validation_result.error_message},
-                )
-            else:
-                # Generic error handling
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro de Validação", "message": validation_result.error_message},
-                )
+        if not self._handle_validation_error(validation_result):
             return
 
-        # Validação 2: Zonas definidas (complex UI interaction - remains in ViewModel)
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data or not zone_data.polygon:
-            log.warning("workflow.project_processing.no_main_arena")
-
-            response = self.view.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?",
-            )
-
-            if response:
-                # Muda para aba de zonas
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-
-                # Carrega frame do primeiro vídeo se disponível
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
-                    )
-
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Defina a Arena Principal",
-                        "message": "Por favor:\n"
-                        "1. Use 'Detectar Aquário (Auto)' ou\n"
-                        "2. Desenhe manualmente o polígono principal\n"
-                        "3. Depois volte para adicionar vídeos",
-                    },
-                )
-                return
-            else:
-                # Oferece arena padrão como fallback
-                if not self.view.ask_ok_cancel(
-                    "Usar Arena Padrão?",
-                    "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)",
-                ):
-                    log.info("workflow.project_processing.cancelled_no_arena")
-                    return
-
-                # Cria arena padrão baseada no primeiro vídeo
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    import cv2
-
-                    cap = cv2.VideoCapture(first_video)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    cap.release()
-
-                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
-
-                    success = self.set_main_arena_polygon(default_arena)
-                    if success:
-                        log.info(
-                            "workflow.project_processing.default_arena_created",
-                            size=f"{width}x{height}",
-                        )
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Arena Padrão Criada",
-                                "message": f"Arena padrão criada ({width}x{height})\n"
-                                "Recomenda-se ajustar manualmente depois.",
-                            },
-                        )
-                    else:
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {"title": "Erro", "message": "Não foi possível criar arena padrão"},
-                        )
-                        return
-                else:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
-                    )
-                    return
-
-        # Validação 3: Aviso sobre ROIs (opcional, mas informativo)
-        if not zone_data.roi_polygons:
-            if not self.view.ask_ok_cancel(
-                "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
-                "A análise usará apenas a arena principal.\n"
-                "Para análises detalhadas, considere definir ROIs.\n\n"
-                "Deseja continuar?",
-            ):
-                log.info("workflow.project_processing.cancelled_by_user_no_roi")
-                return
-
-        log.info(
-            "workflow.project_processing.zones_validated",
-            has_main_arena=bool(zone_data.polygon),
-            roi_count=len(zone_data.roi_polygons),
-        )
+        # Sprint 13: Validate zones with UI interaction
+        if not self._validate_zones_with_ui():
+            return
 
         # 1. Ask user to select files or folders
         paths = self.view.ask_open_filenames(
@@ -3555,46 +3647,10 @@ class MainViewModel:
             )
             return
 
-        # 3. Handle mixed data scenario
-        videos_to_process = []
-        with_data = [v for v in scanned_videos if v["has_data"]]
-        without_data = [v for v in scanned_videos if not v["has_data"]]
-
-        if with_data and without_data:
-            # The complex case: some have data, some don't
-            msg = (
-                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
-                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
-                "Deseja reprocessar os vídeos que já possuem dados?"
-            )
-            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
-                # User wants to re-process everything
-                videos_to_process = scanned_videos
-            else:
-                # User wants to skip re-processing
-                videos_to_process = without_data
-        elif with_data and not without_data:
-            # All selected videos have data
-            if self.view.ask_ok_cancel(
-                "Dados Encontrados",
-                "Todos os vídeos selecionados já possuem dados de análise. "
-                "Deseja reprocessá-los todos?",
-            ):
-                videos_to_process = with_data
-            else:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento Ignorado",
-                        "message": "Nenhum novo vídeo foi processado.",
-                    },
-                )
-                # Still add them to the project for reporting purposes
-                self.project_manager.add_video_batch(scanned_videos)
-                return
-        else:
-            # No videos have data, process all of them
-            videos_to_process = without_data
+        # 3. Sprint 13: Handle mixed data scenario
+        videos_to_process = self._handle_mixed_data_scenario(scanned_videos)
+        if videos_to_process is None:
+            return  # User cancelled or videos already added
 
         if not videos_to_process:
             self.ui_event_bus.publish_event(
@@ -3635,7 +3691,7 @@ class MainViewModel:
             },
         )
 
-    def process_pending_project_videos(  # noqa: C901
+    def process_pending_project_videos(
         self,
         video_paths: list[str] | None = None,
     ) -> None:
@@ -3650,42 +3706,14 @@ class MainViewModel:
         )
 
         # Sprint 11: Delegate validations to ProcessingCoordinator
+        # Sprint 13: Use consolidated error handling
         validation_result = self.processing_coordinator.validate_can_start_processing(
             check_project_loaded=True,
             check_zones=False,  # Not required for pending videos
             check_videos_exist=True,  # Must have videos in project
         )
 
-        if not validation_result.is_valid:
-            # Map error codes to appropriate UI events
-            if validation_result.error_code == "processing_already_active":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Análise em Andamento",
-                        "message": "Um processamento já está ativo. Aguarde a conclusão ou "
-                        "cancele a análise atual antes de iniciar um novo lote.",
-                    },
-                )
-            elif validation_result.error_code == "no_project_loaded":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": validation_result.error_message},
-                )
-            elif validation_result.error_code == "no_videos_in_project":
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": validation_result.error_message,
-                    },
-                )
-            else:
-                # Generic error handling
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro de Validação", "message": validation_result.error_message},
-                )
+        if not self._handle_validation_error(validation_result):
             return
 
         # Get all videos (validation already confirmed they exist)
