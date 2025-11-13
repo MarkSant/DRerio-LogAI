@@ -317,6 +317,23 @@ def main():
         from zebtrack.core.analysis_coordinator import AnalysisCoordinator
         from zebtrack.core.hardware_coordinator import HardwareCoordinator
         from zebtrack.core.video_orchestrator import VideoOrchestrator
+        from zebtrack.coordinators.project_coordinator import ProjectCoordinator  # Sprint 3
+
+        # Project coordinator (Sprint 3: project lifecycle workflows)
+        _t0_proj = time.perf_counter()
+        from zebtrack.core.project_service import ProjectService
+
+        project_service = ProjectService()
+        project_coordinator = ProjectCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            project_service=project_service,
+            event_bus=event_bus,
+        )
+        log.info(
+            "timing.project_coordinator_init",
+            elapsed_ms=int((time.perf_counter() - _t0_proj) * 1000),
+        )
 
         # Hardware coordinator (detector, Arduino, zones)
         hardware_coordinator = HardwareCoordinator(
@@ -380,6 +397,7 @@ def main():
             hardware_coordinator=hardware_coordinator,  # Phase 2: Injected coordinator
             analysis_coordinator=analysis_coordinator,  # Phase 2: Injected coordinator
             video_orchestrator=video_orchestrator,  # Phase 2: Injected coordinator
+            project_coordinator=project_coordinator,  # Sprint 3: Project lifecycle coordinator
         )
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 

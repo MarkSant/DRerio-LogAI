@@ -144,6 +144,7 @@ class MainViewModel:
         hardware_coordinator: HardwareCoordinator | None = None,
         analysis_coordinator: AnalysisCoordinator | None = None,
         video_orchestrator: VideoOrchestrator | None = None,
+        project_coordinator=None,  # Sprint 3: Project lifecycle coordinator
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -166,6 +167,7 @@ class MainViewModel:
             hardware_coordinator: Hardware coordinator (Phase 2, optional - created if None)
             analysis_coordinator: Analysis coordinator (Phase 2, optional - created if None)
             video_orchestrator: Video orchestrator (Phase 2, optional - created if None)
+            project_coordinator: Project coordinator (Sprint 3, optional)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -452,6 +454,18 @@ class MainViewModel:
 
         # Set view on coordinator (both injected and internally created)
         self.analysis_coordinator.set_view(self.view)
+
+        # Project coordinator (Sprint 3: project lifecycle workflows)
+        if project_coordinator is not None:
+            self.project_coordinator = project_coordinator
+            log.info("main_view_model.project_coordinator.injected")
+        else:
+            # If not injected, create lazily when needed (backward compatibility)
+            self.project_coordinator = None
+            log.warning(
+                "main_view_model.project_coordinator.not_injected",
+                message="ProjectCoordinator not injected - will use legacy workflow",
+            )
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
