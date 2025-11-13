@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.2
+**Versão:** 1.3
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 4 COMPLETO)
+**Status:** 🚀 EM ANDAMENTO (Sprint 5 COMPLETO)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -35,10 +35,26 @@
 - ✅ Exports no coordinators/__init__.py
 - ✅ Documentação atualizada
 
+**Sprint 5: DetectorCoordinator** ✅ **COMPLETO**
+- ✅ DetectorCoordinator implementado (750 linhas)
+- ✅ 63 testes abrangentes (1190 linhas)
+  - Initialization (4 testes)
+  - Detector setup (11 testes)
+  - Zone configuration (9 testes)
+  - Tracking parameters (12 testes)
+  - Tracking state (4 testes)
+  - Single subject mode (6 testes)
+  - Settings restoration (5 testes)
+  - State queries (4 testes)
+  - Integration tests (8 testes)
+- ✅ Integração via DI no MainViewModel
+- ✅ Exports no coordinators/__init__.py
+- ✅ Documentação atualizada
+
 **Próximos Sprints:**
-- ⏳ Sprint 5: DetectorCoordinator
 - ⏳ Sprint 6: ProcessingCoordinator
 - ⏳ Sprint 7-8: MainViewModel simplification
+- ⏳ Sprint 9-12: UI component extraction
 
 ---
 
@@ -410,9 +426,10 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
   - [x] Testes: 110+ testes abrangentes (1200+ linhas)
   - [x] Integração via DI no MainViewModel
 
-- **Sprint 5:**
-  - [ ] Expandir `HardwareCoordinator` → `DetectorCoordinator` (~400 linhas)
-  - [ ] Testes: 50 novos testes
+- **Sprint 5:** ✅ **COMPLETO**
+  - [x] Criar `DetectorCoordinator` (~750 linhas - implementado)
+  - [x] Testes: 63 testes abrangentes (1190 linhas)
+  - [x] Integração via DI no MainViewModel
 
 - **Sprint 6:**
   - [ ] Expandir `VideoOrchestrator` → `ProcessingCoordinator` (~500 linhas)
@@ -695,10 +712,10 @@ cp -r tests tests_refactoring_backup
 │ Cobertura:           61% →   73%       [███████░░░] 73%│
 │ Complexidade:       850  →  420        [██████░░░░] 51%│
 │                                                          │
-│ Testes Novos:  345 / 500 [█████████████░░░] 69%        │
-│ Coordinators:    4 /   5 [████████████████] 80%        │
+│ Testes Novos:  408 / 500 [████████████████░] 82%        │
+│ Coordinators:    5 /   5 [████████████████████] 100%   │
 │                                                          │
-│ Próximo Milestone: DetectorCoordinator (Sprint 5)       │
+│ Próximo Milestone: ProcessingCoordinator (Sprint 6)     │
 └─────────────────────────────────────────────────────────┘
 ```
 
