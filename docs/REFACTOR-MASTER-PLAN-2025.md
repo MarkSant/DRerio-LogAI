@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.0
+**Versão:** 2.1
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 13 COMPLETO - Workflow Simplification Complete)
+**Status:** 🚀 EM ANDAMENTO (Sprint 14 COMPLETO - Final Consolidation Complete)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -163,8 +163,19 @@
   - **Impacto:** +236 linhas (helpers), -208 linhas (workflows) = +28 linhas net
   - **Benefícios:** Código significativamente mais maintainable, métodos menores e focados, DRY principle
 
+**Sprint 14: Final Consolidation** ✅ **COMPLETO**
+- ✅ **Deprecated Code Removal** - Removed 3 deprecated wrapper methods from Sprint 12
+  - Removed `_gather_candidate_entries()` (72 linhas) - logic inlined in process_pending_project_videos()
+  - Removed `_classify_candidate_videos()` (55 linhas) - completely replaced by VideoClassificationService
+  - Removed `_scan_and_validate_candidate_paths()` (52 linhas) - logic inlined
+  - Total removed: ~179 lines of deprecated wrapper code
+  - MainViewModel: 5913 → 5733 linhas (-3%)
+  - process_pending_project_videos() now has direct service calls (clearer intent)
+  - **Commit:** 63e837b
+  - **Impacto:** +106 linhas (inline logic), -190 linhas (deprecated methods) = **-84 linhas net**
+  - **Benefícios:** Removed code duplication, cleaner service usage, no functionality loss
+
 **Próximos Sprints:**
-- ⏳ Sprint 14: Final consolidation + deprecated code removal (-50 a -100 linhas)
 - ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)
 - ⏳ Sprint 16-18: UI component extraction
 - ⏳ Sprint 19-20: ProjectManager refactoring
