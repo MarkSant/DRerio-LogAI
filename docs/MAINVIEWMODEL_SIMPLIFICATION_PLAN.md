@@ -9,23 +9,35 @@
 
 ## 📊 Estado Atual
 
-| Métrica | Valor Atual | Meta | Redução |
-|---------|-------------|------|---------|
-| **Linhas** | 5,683 | <800 | 86% |
-| **Métodos** | 154 | <40 | 74% |
-| **Responsabilidades** | ~10 | 1-2 | 80-90% |
+| Métrica | Valor Inicial | Atual (Sprint 7) | Meta Final | Progresso |
+|---------|---------------|------------------|------------|-----------|
+| **Linhas** | 5,683 | 5,713 (+30) | <800 | +0.5% |
+| **Métodos** | 154 | ~154 | <40 | 0% |
+| **Responsabilidades** | ~10 | ~10 | 1-2 | 0% |
+
+**Nota:** Linhas aumentaram com adição de lógica UI nas delegações (validação de zonas).
+**Commits:** 81bef82, 5775dc8 (Sprint 7 - Parts 1-2/3)
 
 ---
 
 ## 🎯 Estratégia de Simplificação
 
-### Fase 1: Delegação para Coordinators (Sprint 7)
+### Fase 1: Delegação para Coordinators (Sprint 7) - ✅ PARCIAL
 Converter métodos existentes para simples wrappers que delegam aos coordinators.
 
-### Fase 2: Remoção de Código Legado (Sprint 7)
+**Status:**
+- ✅ **DetectorCoordinator** - 7 métodos delegados (COMPLETO - commits 81bef82, 5775dc8)
+- 🔴 **ProcessingCoordinator** - Requer refatoração (workflows diferentes entre ViewModel e Orchestrator)
+- 🔴 **RecordingCoordinator** - Coordinator incompleto (apenas stubs, não delega para service)
+- ✅ **LiveCameraCoordinator** - Já integrado (Sprint 6)
+- ✅ **ProjectCoordinator** - Já integrado (Sprint 3)
+
+### Fase 2: Remoção de Código Legado (Sprint 7-8) - 🔴 PENDENTE
 Remover código duplicado, métodos obsoletos, e simplificar lógica.
 
-### Fase 3: Testes e Validação (Sprint 8)
+**Requer:** Análise detalhada de código legado e duplicações.
+
+### Fase 3: Testes e Validação (Sprint 8) - 🔴 PENDENTE
 Garantir que todas as delegações funcionam corretamente.
 
 ---
@@ -43,16 +55,22 @@ Garantir que todas as delegações funcionam corretamente.
 
 ---
 
-### DetectorCoordinator (8 métodos principais)
+### DetectorCoordinator (7 métodos principais) - ✅ COMPLETO
 
-**Podem ser Delegados:**
-- `setup_detector()` → `detector_coordinator.setup_detector()`
-- `setup_detector_zones()` → `detector_coordinator.configure_zones()`
-- `update_detector_parameters()` → `detector_coordinator.update_tracking_parameters()`
-- `get_current_detector_parameters()` → `detector_coordinator.get_detector_parameters()`
-- `get_factory_detector_parameters()` → `detector_coordinator.get_factory_detector_parameters()`
+**Delegados (Sprint 7 - commits 81bef82, 5775dc8):**
+- ✅ `setup_detector()` → `detector_coordinator.setup_detector()`
+- ✅ `setup_detector_zones()` → `detector_coordinator.configure_zones()`
+- ✅ `update_detector_parameters()` → `detector_coordinator.update_detector_parameters()`
+- ✅ `get_current_detector_parameters()` → `detector_coordinator.get_detector_parameters()`
+- ✅ `get_factory_detector_parameters()` → `detector_coordinator.get_factory_detector_parameters()`
+- ✅ `_restore_detector_settings()` → `detector_coordinator.restore_detector_settings()`
+- ✅ `_configure_single_subject_tracker()` → `detector_coordinator.set_single_subject_mode()`
 
-**Status:** Estes métodos atualmente delegam para `detector_service` ou `hardware_coordinator`. Devem ser atualizados para usar `detector_coordinator`.
+**Impacto:**
+- +110 linhas no `detector_coordinator.py` (novo método `update_detector_parameters()`)
+- +41 linhas, -12 linhas no `main_view_model.py` (lógica UI adicionada)
+- Backward compatibility mantida (normalização de parâmetros preservada)
+- Property getters/setters para `self.detector` mantidos inalterados
 
 ---
 
@@ -212,4 +230,65 @@ def setup_detector(self, temp_animal_method: str | None = None) -> bool:
 
 ---
 
+---
+
+## 🔍 Descobertas do Sprint 7
+
+### 1. Processing Delegation - Complexidade Identificada
+Os workflows de processing têm responsabilidades diferentes:
+- **VideoOrchestrator**: Valida → Publica evento UI para abrir diálogo
+- **MainViewModel**: Valida → Abre diálogo → Processa vídeos
+
+**Decisão:** Requer refatoração cuidadosa para separar:
+- Orquestração de UI (fica no ViewModel)
+- Lógica de negócio (delega para coordinator)
+
+**Status:** Adiado para Sprint 9+ conforme complexidade identificada.
+
+### 2. Recording Delegation - Coordinator Incompleto
+O `RecordingCoordinator` criado no Sprint 4 tem apenas stubs:
+- Métodos não delegam para `RecordingService`
+- Apenas atualiza StateManager (linha 198: `# Delegate to recording service` - comentário apenas)
+- MainViewModel já delega diretamente para `recording_service`
+
+**Decisão:** Requer completar RecordingCoordinator antes de delegar.
+
+**Status:** Adiado para sprint futuro quando RecordingCoordinator estiver completo.
+
+### 3. Linhas Aumentaram, Não Diminuíram
+Detector delegation adicionou +41 linhas, -12 linhas = **+29 linhas líquidas**.
+
+**Razão:** Lógica de UI foi expandida nas delegações (validação de zonas, notificações).
+
+**Conclusão:** Simplificação virá de:
+- Remoção de código legado
+- Consolidação de helpers
+- Remoção de duplicações
+- Não apenas de delegações
+
+---
+
+## 🎯 Próximas Etapas (Sprint 7-8 Restante)
+
+### Imediato (Sprint 7)
+1. ✅ Detector Delegation - COMPLETO
+2. 🔴 Identificar código legado para remoção
+3. 🔴 Identificar métodos privados não utilizados
+4. 🔴 Identificar duplicações
+
+### Sprint 8
+1. Cleanup de código identificado
+2. Testes de regressão
+3. Performance validation
+4. Atualizar REFACTOR-MASTER-PLAN-2025.md
+
+### Sprints Futuros (9+)
+1. Completar RecordingCoordinator (delegar para service)
+2. Refatorar Processing workflows (separar UI de lógica)
+3. Extrair helpers para módulos apropriados
+4. Continuar redução de linhas para meta <800
+
+---
+
 **Documento vivo - será atualizado conforme o progresso.**
+**Última atualização:** Sprint 7 - Detector Delegation Completa (commits 81bef82, 5775dc8)
