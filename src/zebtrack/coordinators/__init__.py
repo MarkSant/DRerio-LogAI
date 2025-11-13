@@ -8,9 +8,9 @@ Available Coordinators:
     ProjectCoordinator - Project lifecycle management (Sprint 3)
     RecordingCoordinator - Recording and Arduino management (Sprint 4)
     LiveCameraCoordinator - Live camera analysis sessions (Sprint 4)
+    DetectorCoordinator - Detector setup and configuration (Sprint 5)
 
-Planned Coordinators (Sprint 5-6):
-    DetectorCoordinator - Detector setup and configuration
+Planned Coordinators (Sprint 6):
     ProcessingCoordinator - Video processing workflows
 
 See:
@@ -22,6 +22,10 @@ from zebtrack.coordinators.base import (
     CoordinatorDependencyError,
     CoordinatorError,
     CoordinatorValidationError,
+)
+from zebtrack.coordinators.detector_coordinator import (
+    DetectorCoordinator,
+    DetectorCoordinatorError,
 )
 from zebtrack.coordinators.live_camera_coordinator import (
     LiveCameraCoordinator,
@@ -47,4 +51,6 @@ __all__ = [
     "RecordingCoordinatorError",
     "LiveCameraCoordinator",
     "LiveCameraCoordinatorError",
+    "DetectorCoordinator",
+    "DetectorCoordinatorError",
 ]
