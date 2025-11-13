@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.1
+**Versão:** 1.2
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 3 COMPLETO)
+**Status:** 🚀 EM ANDAMENTO (Sprint 4 COMPLETO)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -25,10 +25,20 @@
 - ✅ Wire no MainViewModel
 - ✅ Backward compatibility mantida
 
+**Sprint 4: RecordingCoordinator + LiveCameraCoordinator** ✅ **COMPLETO**
+- ✅ RecordingCoordinator implementado (350 linhas)
+- ✅ LiveCameraCoordinator implementado (450 linhas)
+- ✅ 110+ testes abrangentes (1200+ linhas)
+  - RecordingCoordinator: 40 testes (400 linhas)
+  - LiveCameraCoordinator: 70 testes (800 linhas)
+- ✅ Integração via DI no MainViewModel
+- ✅ Exports no coordinators/__init__.py
+- ✅ Documentação atualizada
+
 **Próximos Sprints:**
-- 🔄 Sprint 4: DetectorCoordinator + RecordingCoordinator
-- ⏳ Sprint 5: LiveCameraCoordinator
+- ⏳ Sprint 5: DetectorCoordinator
 - ⏳ Sprint 6: ProcessingCoordinator
+- ⏳ Sprint 7-8: MainViewModel simplification
 
 ---
 
@@ -394,10 +404,11 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
   - [x] Testes: 70+ testes unitários (728 linhas)
   - [x] Integração com MainViewModel via DI
 
-- **Sprint 4:**
-  - [ ] Criar `RecordingCoordinator` (~300 linhas)
-  - [ ] Criar `LiveCameraCoordinator` (~250 linhas)
-  - [ ] Testes: 60 novos testes
+- **Sprint 4:** ✅ **COMPLETO**
+  - [x] Criar `RecordingCoordinator` (~350 linhas - implementado)
+  - [x] Criar `LiveCameraCoordinator` (~450 linhas - implementado)
+  - [x] Testes: 110+ testes abrangentes (1200+ linhas)
+  - [x] Integração via DI no MainViewModel
 
 - **Sprint 5:**
   - [ ] Expandir `HardwareCoordinator` → `DetectorCoordinator` (~400 linhas)
@@ -684,10 +695,10 @@ cp -r tests tests_refactoring_backup
 │ Cobertura:           61% →   73%       [███████░░░] 73%│
 │ Complexidade:       850  →  420        [██████░░░░] 51%│
 │                                                          │
-│ Testes Novos:  235 / 500 [████████░░░░░░░░] 47%        │
-│ Coordinators:    3 /   5 [████████████░░░░] 60%        │
+│ Testes Novos:  345 / 500 [█████████████░░░] 69%        │
+│ Coordinators:    4 /   5 [████████████████] 80%        │
 │                                                          │
-│ Próximo Milestone: RecordingCoordinator (Sprint 4)      │
+│ Próximo Milestone: DetectorCoordinator (Sprint 5)       │
 └─────────────────────────────────────────────────────────┘
 ```
 
