@@ -2650,76 +2650,102 @@ class MainViewModel:
             )
             self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
+    def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
+        """
+        Handle external trigger setup for recording.
+
+        Sprint 15: Extracted from start_recording() to reduce complexity (~40 lines → ~15 lines).
+
+        Args:
+            context: Recording context with session details
+            arduino_enabled: Whether Arduino is available
+
+        Returns:
+            bool: True if waiting for trigger (stop processing), False if proceed
+        """
+        project_data = self.project_manager.project_data or {}
+        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
+
+        if external_trigger_requested and not arduino_enabled:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Trigger Externo Indisponível",
+                    "message": "O modo de trigger externo exige um Arduino configurado.",
+                },
+            )
+            return True
+
+        if external_trigger_requested and arduino_enabled:
+            self._pending_external_trigger = context
+            port = context.get("arduino_port", "")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+                {
+                    "folder_name": context["folder_name"],
+                    "day": context["day"],
+                    "group": context["group"],
+                    "cobaia": context["cobaia"],
+                    "port": port,
+                },
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Aguardando sinal externo... (porta {port})"},
+            )
+            return True
+
+        return False
+
     def start_recording(
         self,
         day: int | None = None,
         group: str | None = None,
         cobaia: str | None = None,
     ):
-        """Start a recording session (live mode) with zone validation."""
+        """
+        Start a recording session (live mode) with zone validation.
+
+        Sprint 15: Simplified by extracting external trigger logic.
+        """
         log.info("controller.recording.start")
 
-        # Live recordings rely on project-wide zones, not per-video ones
         self.project_manager.set_active_zone_video(None)
-
-        # Reset any previous waiting state before starting a new session
         self._clear_external_trigger_wait()
 
-        # Enhanced zone validation for Live projects
         if not self._ensure_zones_before_recording():
             return
 
-        # Ensure detector is set up before recording
-        if not self.detector:
-            if not self.setup_detector():
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": "Falha ao configurar detector."},
-                )
-                return
+        if not self.detector and not self.setup_detector():
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": "Falha ao configurar detector."},
+            )
+            return
 
-        # Apply zones to detector
         self.setup_detector_zones()
 
-        # 1. Get recording details
+        # Get recording details
         if not all((day, group, cobaia)):
-            # Details not provided, ask user with the new unified dialog
             details = self.view.ask_recording_details_unified()
             if not details:
                 log.warning("controller.recording.cancelled_by_user")
                 return
-            day, group, cobaia = (
-                details["day"],
-                details["group"],
-                details["cobaia"],
-            )
-        else:
-            log.info(
-                "controller.recording.details_from_grid",
-                day=day,
-                group=group,
-                cobaia=cobaia,
-            )
+            day, group, cobaia = details["day"], details["group"], details["cobaia"]
 
-        # 2. Save the selected day and group for "Smart State Retention"
+        # Save session details
         self.project_manager.save_last_session_details(day, group)
 
-        # 3. Create output folder with the new naming convention
+        # Create output folder
         folder_name = f"D{day}_G{group}_S{cobaia}"
         output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
+        # Setup Arduino if needed
         project_data = self.project_manager.project_data or {}
+        arduino_enabled = bool(project_data.get("use_arduino") and self.setup_arduino())
 
-        arduino_enabled = False
-        if project_data.get("use_arduino"):
-            arduino_enabled = self.setup_arduino()
-            if not arduino_enabled:
-                log.warning(
-                    "controller.recording.arduino_unavailable",
-                    port=project_data.get("arduino_port"),
-                )
-
+        # Build recording context
         context = {
             "day": day,
             "group": group,
@@ -2727,55 +2753,14 @@ class MainViewModel:
             "folder_name": folder_name,
             "output_folder": output_folder,
             "arduino_enabled": arduino_enabled,
+            "arduino_port": (project_data.get("arduino_port") or "").strip(),
         }
 
-        arduino_port = (project_data.get("arduino_port") or "").strip()
-        if arduino_port:
-            context["arduino_port"] = arduino_port
-
-        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
-        if external_trigger_requested and not arduino_enabled:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Trigger Externo Indisponível",
-                    "message": "O modo de trigger externo exige um Arduino configurado e "
-                    "conectado. Verifique o hardware e tente novamente.",
-                },
-            )
+        # Handle external trigger (may wait for signal)
+        if self._handle_external_trigger(context, arduino_enabled):
             return
 
-        external_trigger_active = external_trigger_requested and arduino_enabled
-
-        if external_trigger_active:
-            self._pending_external_trigger = context
-            waiting_message = "Aguardando sinal externo do Arduino para iniciar..."
-            if arduino_port:
-                waiting_message = f"{waiting_message} (porta {arduino_port})"
-
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                {
-                    "folder_name": folder_name,
-                    "day": day,
-                    "group": group,
-                    "cobaia": cobaia,
-                    "port": arduino_port,
-                },
-            )
-
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "start_rec", "state": "disabled"},
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "stop_rec", "state": "disabled"},
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": waiting_message})
-            self.log_arduino_event("Modo trigger externo habilitado. Aguardando sinal do Arduino.")
-            return
-
+        # Start recording immediately
         self._pending_external_trigger = None
         self._schedule_recording(context, project_data, trigger_source="manual")
 
