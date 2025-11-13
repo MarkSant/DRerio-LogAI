@@ -286,9 +286,9 @@ class DetectorCoordinator(BaseCoordinator):
         # Delegate to service
         try:
             success = self.detector_service.configure_zones(
-                zones_data=zones_data,
-                video_width=video_width,
-                video_height=video_height,
+                zone_data=zones_data,
+                width=video_width,
+                height=video_height,
             )
 
             if success:
@@ -443,6 +443,116 @@ class DetectorCoordinator(BaseCoordinator):
                     "match_threshold": match_threshold,
                     "track_buffer": track_buffer,
                 },
+            ) from e
+
+    def update_detector_parameters(
+        self,
+        params: dict[str, float],
+        *,
+        reset_overrides: bool = False,
+        scope: str = "global",
+    ) -> bool:
+        """
+        Update detector parameters using dict-based interface.
+
+        Orchestrates detector parameter updates by:
+        1. Validating dependencies and inputs
+        2. Delegating to DetectorService.update_tracking_parameters()
+        3. Updating StateManager with parameter state
+        4. Publishing events for UI updates
+
+        This method provides a dict-based interface for updating detector parameters,
+        complementing the named-parameter interface of update_tracking_parameters().
+
+        Args:
+            params: Dict of parameters to update (e.g., {'conf_threshold': 0.5})
+            reset_overrides: If True, reset overrides for the given scope
+            scope: Whether changes apply globally or only to project ('global' or 'project')
+
+        Returns:
+            bool: True if parameters were updated successfully
+
+        Raises:
+            CoordinatorValidationError: If dependencies are invalid
+            DetectorCoordinatorError: If parameter update fails
+            ValueError: If scope or parameter values are invalid
+
+        Example:
+            >>> success = coordinator.update_detector_parameters(
+            ...     params={'conf_threshold': 0.5, 'track_threshold': 0.3},
+            ...     scope='project'
+            ... )
+            >>> if success:
+            ...     print("Parameters updated successfully")
+
+        Note:
+            Sprint 7: Added to support MainViewModel delegation pattern.
+        """
+        # Validate dependencies
+        if not self.validate_dependencies():
+            raise CoordinatorValidationError(
+                "Cannot update detector parameters - dependencies invalid",
+                context={"params": params, "scope": scope},
+            )
+
+        # Validate scope
+        if scope not in {"global", "project"}:
+            raise ValueError(f"Invalid scope: {scope}. Must be 'global' or 'project'")
+
+        # Delegate to service
+        try:
+            success = self.detector_service.update_tracking_parameters(
+                params=params,
+                reset_overrides=reset_overrides,
+                scope=scope,
+            )
+
+            if success:
+                # Update state with all parameters
+                state_update = {
+                    "detector_parameters_updated": True,
+                    "last_update_scope": scope,
+                }
+                # Add all params to state
+                for key, value in params.items():
+                    state_update[key] = value
+
+                self._update_state(StateCategory.DETECTOR, **state_update)
+
+                # Publish success event
+                self._publish_event(
+                    "DETECTOR_PARAMETERS_UPDATED",
+                    {"params": params, "scope": scope, "reset_overrides": reset_overrides},
+                )
+
+                log.info(
+                    "detector_coordinator.update_detector_parameters.success",
+                    params=params,
+                    scope=scope,
+                    reset_overrides=reset_overrides,
+                )
+
+            return success
+
+        except ValueError as e:
+            log.error(
+                "detector_coordinator.update_detector_parameters.validation_failed",
+                error=str(e),
+                params=params,
+            )
+            raise DetectorCoordinatorError(
+                f"Parameter validation failed: {e}",
+                context={"params": params, "scope": scope},
+            ) from e
+        except Exception as e:
+            log.error(
+                "detector_coordinator.update_detector_parameters.failed",
+                error=str(e),
+                params=params,
+            )
+            raise DetectorCoordinatorError(
+                f"Failed to update detector parameters: {e}",
+                context={"params": params, "scope": scope},
             ) from e
 
     def reset_tracking_state(self) -> bool:

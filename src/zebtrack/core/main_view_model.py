@@ -1361,17 +1361,18 @@ class MainViewModel:
         """
         Initialize the detector instance based on the animal method selection.
 
-        Task 2.2: Delegates to HardwareCoordinator.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Args:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        return self.hardware_coordinator.setup_detector(
-            temp_animal_method=temp_animal_method,
+        success, error = self.detector_coordinator.setup_detector(
+            animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
         )
+        return success
 
     def _is_arduino_connected(self) -> bool:
         """Check whether there is an active Arduino connection.
