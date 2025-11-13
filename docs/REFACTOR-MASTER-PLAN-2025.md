@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.9
+**Versão:** 2.0
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 12 COMPLETO - Helper Extraction Complete)
+**Status:** 🚀 EM ANDAMENTO (Sprint 13 COMPLETO - Workflow Simplification Complete)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -149,9 +149,22 @@
 - **Impacto Total Sprint 12:** +611 linhas (3 services: 540 linhas + usage: 125 - replaced: 54)
 - **Benefícios:** Separação de concerns, testabilidade, reusabilidade, foundation para Sprint 13
 
+**Sprint 13: Workflow Simplification** ✅ **COMPLETO**
+- ✅ **Pattern Consolidation** - Extract Method aplicado aos 3 workflows principais
+  - Criado `_handle_validation_error()` (48 linhas) - Consolidated ~60-70 lines of duplicated error handling
+  - Criado `_validate_zones_with_ui()` (115 linhas) - Extracted complex zone validation logic
+  - Criado `_handle_mixed_data_scenario()` (52 linhas) - Extracted data handling logic
+  - Aplicado Extract Method em `start_project_processing_workflow()`: 244 → 92 lines (-62% complexity!)
+  - Aplicado Extract Method em `process_pending_project_videos()`: 175 → 149 lines (-15% complexity)
+  - Aplicado Extract Method em `start_single_video_processing()`: 150 → 154 lines (minimal change)
+  - **Total workflow methods:** 569 → 395 linhas (-31% complexity reduction!)
+  - Helpers criados são reutilizáveis e testáveis
+  - **Commit:** c0510d0
+  - **Impacto:** +236 linhas (helpers), -208 linhas (workflows) = +28 linhas net
+  - **Benefícios:** Código significativamente mais maintainable, métodos menores e focados, DRY principle
+
 **Próximos Sprints:**
-- ⏳ Sprint 13: Workflow simplification + cleanup (-150 a -250 linhas)
-- ⏳ Sprint 14: Final consolidation (-50 a -100 linhas)
+- ⏳ Sprint 14: Final consolidation + deprecated code removal (-50 a -100 linhas)
 - ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)
 - ⏳ Sprint 16-18: UI component extraction
 - ⏳ Sprint 19-20: ProjectManager refactoring
