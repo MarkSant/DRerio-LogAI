@@ -1,0 +1,1 @@
+=== BASELINE - Test Coverage (Target: Quick run for baseline) === poetry run pytest --cov=zebtrack --cov-report=term-missing --cov-report=json -q
