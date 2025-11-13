@@ -148,6 +148,7 @@ class MainViewModel:
         recording_coordinator=None,  # Sprint 4: Recording workflow coordinator
         live_camera_coordinator=None,  # Sprint 4: Live camera coordinator
         detector_coordinator=None,  # Sprint 5: Detector setup coordinator
+        processing_coordinator=None,  # Sprint 6: Video processing coordinator
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -174,6 +175,7 @@ class MainViewModel:
             recording_coordinator: Recording coordinator (Sprint 4, optional - created if None)
             live_camera_coordinator: Live camera coordinator (Sprint 4, optional - created if None)
             detector_coordinator: Detector coordinator (Sprint 5, optional - created if None)
+            processing_coordinator: Processing coordinator (Sprint 6, optional - created if None)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -391,6 +393,7 @@ class MainViewModel:
             recording_coordinator=recording_coordinator,
             live_camera_coordinator=live_camera_coordinator,
             detector_coordinator=detector_coordinator,
+            processing_coordinator=processing_coordinator,
         )
 
     def _init_coordinators(
@@ -401,13 +404,15 @@ class MainViewModel:
         recording_coordinator=None,
         live_camera_coordinator=None,
         detector_coordinator=None,
+        processing_coordinator=None,
     ) -> None:
-        """Initialize coordinators for hardware, video, analysis, recording, live camera, and detector.
+        """Initialize coordinators for hardware, video, analysis, recording, live camera, detector, and processing.
 
         Task 2.2: REFACTOR-VIEWMODEL-001
         Task 2.3: Accept injected coordinators or create them for backward compatibility
         Sprint 4: Added recording_coordinator and live_camera_coordinator
         Sprint 5: Added detector_coordinator
+        Sprint 6: Added processing_coordinator
 
         Args:
             hardware_coordinator: Injected hardware coordinator (or None to create)
@@ -416,6 +421,7 @@ class MainViewModel:
             recording_coordinator: Injected recording coordinator (Sprint 4, or None to create)
             live_camera_coordinator: Injected live camera coordinator (Sprint 4, or None to create)
             detector_coordinator: Injected detector coordinator (Sprint 5, or None to create)
+            processing_coordinator: Injected processing coordinator (Sprint 6, or None to create)
         """
         # Hardware coordinator (detector, Arduino, zones)
         if hardware_coordinator is not None:
@@ -532,6 +538,25 @@ class MainViewModel:
                 event_bus=self.ui_event_bus,
             )
             log.info("main_view_model.detector_coordinator.created_internally")
+
+        # Processing coordinator (Sprint 6: video processing orchestration)
+        if processing_coordinator is not None:
+            self.processing_coordinator = processing_coordinator
+            log.info("main_view_model.processing_coordinator.injected")
+        else:
+            # Create internally after services are initialized
+            from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+
+            self.processing_coordinator = ProcessingCoordinator(
+                state_manager=self.state_manager,
+                video_orchestrator=self.video_orchestrator,
+                video_processing_service=self.video_processing_service,
+                analysis_service=self.analysis_service,
+                project_manager=self.project_manager,
+                recorder_factory=self.recorder,
+                event_bus=self.ui_event_bus,
+            )
+            log.info("main_view_model.processing_coordinator.created_internally")
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
