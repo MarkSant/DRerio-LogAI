@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.1
+**Versão:** 2.2
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 14 COMPLETO - Final Consolidation Complete)
+**Status:** 🚀 EM ANDAMENTO (Sprint 15 COMPLETO - Recording Delegation Complete)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -175,9 +175,37 @@
   - **Impacto:** +106 linhas (inline logic), -190 linhas (deprecated methods) = **-84 linhas net**
   - **Benefícios:** Removed code duplication, cleaner service usage, no functionality loss
 
+**Sprint 15: Recording Delegation & Simplification** ✅ **COMPLETO**
+- ✅ **Phase 1: start_recording() Simplification**
+  - Extracted `_handle_external_trigger()` helper (~46 lines)
+  - Simplified `start_recording()` from 129 → 66 lines (-49%)
+  - Improved testability (trigger logic isolated)
+  - **Commit:** 96f5a25
+  - **Impacto:** -17 linhas net
+
+- ✅ **Phase 2: RecordingCoordinator Delegation**
+  - Completed RecordingCoordinator.start_recording() implementation
+    - Now delegates to RecordingService.start_session()
+    - Accepts context and project_data (matches service API)
+  - Completed RecordingCoordinator.stop_recording() implementation
+    - Delegates to RecordingService.stop_session()
+  - Updated MainViewModel to use recording_coordinator
+    - _schedule_recording() → uses coordinator
+    - stop_recording() → uses coordinator
+  - **Files:** recording_coordinator.py (390 lines), main_view_model.py (5,729 lines)
+  - **Documentação:** SPRINT_15_PROGRESS.md (detailed analysis)
+  - **Commit:** 98a1b43
+  - **Impacto Total:** MainViewModel 5,733 → 5,729 (-4 linhas), RecordingCoordinator skeleton → complete
+
+- ✅ **Analysis: Processing/Recording Delegation Assessment**
+  - Processing delegation: Already complete (Sprints 11-14)
+  - `_create_processing_callbacks()`: Appropriately in ViewModel (UI orchestration)
+  - `_create_processing_context()`: Appropriately in ViewModel (context builder)
+  - RecordingCoordinator: Sprint 4 skeleton now fully implemented
+
 **Próximos Sprints:**
-- ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)
-- ⏳ Sprint 16-18: UI component extraction
+- ⏳ Sprint 16: Continue aggressive reduction (trivial wrappers, inline helpers)
+- ⏳ Sprint 17-18: UI component extraction
 - ⏳ Sprint 19-20: ProjectManager refactoring
 
 ---
