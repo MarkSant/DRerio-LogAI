@@ -406,6 +406,19 @@ class MainViewModel:
             project_coordinator=project_coordinator,  # Sprint 11: Fix missing parameter
         )
 
+    def _inject_or_create(self, attr_name: str, injected, factory_fn):
+        """
+        Helper to inject coordinator or create with factory.
+
+        Sprint 16: Reduces boilerplate in _init_coordinators().
+        """
+        if injected is not None:
+            setattr(self, attr_name, injected)
+            log.info(f"main_view_model.{attr_name}.injected")
+        else:
+            setattr(self, attr_name, factory_fn())
+            log.info(f"main_view_model.{attr_name}.created_internally")
+
     def _init_coordinators(
         self,
         hardware_coordinator: HardwareCoordinator | None,
@@ -421,42 +434,32 @@ class MainViewModel:
         Initialize coordinators for hardware, video, analysis, recording, live camera,
         detector, and processing.
 
+        Sprint 16: Simplified using _inject_or_create() helper.
         Task 2.2: REFACTOR-VIEWMODEL-001
         Task 2.3: Accept injected coordinators or create them for backward compatibility
         Sprint 4: Added recording_coordinator and live_camera_coordinator
         Sprint 5: Added detector_coordinator
         Sprint 6: Added processing_coordinator
-
-        Args:
-            hardware_coordinator: Injected hardware coordinator (or None to create)
-            analysis_coordinator: Injected analysis coordinator (or None to create)
-            video_orchestrator: Injected video orchestrator (or None to create)
-            recording_coordinator: Injected recording coordinator (Sprint 4, or None to create)
-            live_camera_coordinator: Injected live camera coordinator (Sprint 4, or None to create)
-            detector_coordinator: Injected detector coordinator (Sprint 5, or None to create)
-            processing_coordinator: Injected processing coordinator (Sprint 6, or None to create)
         """
         # Hardware coordinator (detector, Arduino, zones)
-        if hardware_coordinator is not None:
-            self.hardware_coordinator = hardware_coordinator
-            log.info("main_view_model.hardware_coordinator.injected")
-        else:
-            self.hardware_coordinator = HardwareCoordinator(
+        self._inject_or_create(
+            "hardware_coordinator",
+            hardware_coordinator,
+            lambda: HardwareCoordinator(
                 state_manager=self.state_manager,
                 ui_event_bus=self.ui_event_bus,
                 settings_obj=self.settings,
                 project_manager=self.project_manager,
                 detector_service=self.detector_service,
                 arduino_manager_cls=self._arduino_manager_cls,
-            )
-            log.info("main_view_model.hardware_coordinator.created_internally")
+            ),
+        )
 
         # Video orchestrator (batch processing, video workflows)
-        if video_orchestrator is not None:
-            self.video_orchestrator = video_orchestrator
-            log.info("main_view_model.video_orchestrator.injected")
-        else:
-            self.video_orchestrator = VideoOrchestrator(
+        self._inject_or_create(
+            "video_orchestrator",
+            video_orchestrator,
+            lambda: VideoOrchestrator(
                 root=self.root,
                 state_manager=self.state_manager,
                 ui_event_bus=self.ui_event_bus,
@@ -466,18 +469,15 @@ class MainViewModel:
                 video_processing_service=self.video_processing_service,
                 analysis_service=self.analysis_service,
                 recorder=self.recorder,
-            )
-            log.info("main_view_model.video_orchestrator.created_internally")
-
-        # Set view on coordinator (both injected and internally created)
+            ),
+        )
         self.video_orchestrator.set_view(self.view)
 
         # Analysis coordinator (reports, summaries, analysis pipeline)
-        if analysis_coordinator is not None:
-            self.analysis_coordinator = analysis_coordinator
-            log.info("main_view_model.analysis_coordinator.injected")
-        else:
-            self.analysis_coordinator = AnalysisCoordinator(
+        self._inject_or_create(
+            "analysis_coordinator",
+            analysis_coordinator,
+            lambda: AnalysisCoordinator(
                 root=self.root,
                 ui_event_bus=self.ui_event_bus,
                 ui_coordinator=self.ui_coordinator,
@@ -485,10 +485,8 @@ class MainViewModel:
                 project_manager=self.project_manager,
                 analysis_service=self.analysis_service,
                 video_processing_service=self.video_processing_service,
-            )
-            log.info("main_view_model.analysis_coordinator.created_internally")
-
-        # Set view on coordinator (both injected and internally created)
+            ),
+        )
         self.analysis_coordinator.set_view(self.view)
 
         # Project coordinator (Sprint 3: project lifecycle workflows)
@@ -504,63 +502,55 @@ class MainViewModel:
             )
 
         # Recording coordinator (Sprint 4: recording workflow orchestration)
-        if recording_coordinator is not None:
-            self.recording_coordinator = recording_coordinator
-            log.info("main_view_model.recording_coordinator.injected")
-        else:
-            # Create internally after RecordingService is initialized
-            from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+        from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
 
-            self.recording_coordinator = RecordingCoordinator(
+        self._inject_or_create(
+            "recording_coordinator",
+            recording_coordinator,
+            lambda: RecordingCoordinator(
                 state_manager=self.state_manager,
                 recording_service=self.recording_service,
                 arduino_manager=self.arduino_manager,
                 event_bus=self.ui_event_bus,
-            )
-            log.info("main_view_model.recording_coordinator.created_internally")
+            ),
+        )
 
         # Live camera coordinator (Sprint 4: live camera analysis orchestration)
-        if live_camera_coordinator is not None:
-            self.live_camera_coordinator = live_camera_coordinator
-            log.info("main_view_model.live_camera_coordinator.injected")
-        else:
-            # Create internally after LiveCameraService is initialized
-            from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
+        from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
 
-            self.live_camera_coordinator = LiveCameraCoordinator(
+        self._inject_or_create(
+            "live_camera_coordinator",
+            live_camera_coordinator,
+            lambda: LiveCameraCoordinator(
                 state_manager=self.state_manager,
                 live_camera_service=self.live_camera_service,
                 camera=None,  # Camera initialized lazily when needed
                 event_bus=self.ui_event_bus,
-            )
-            log.info("main_view_model.live_camera_coordinator.created_internally")
+            ),
+        )
 
         # Detector coordinator (Sprint 5: detector setup and configuration)
-        if detector_coordinator is not None:
-            self.detector_coordinator = detector_coordinator
-            log.info("main_view_model.detector_coordinator.injected")
-        else:
-            # Create internally after DetectorService is initialized
-            from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
 
-            self.detector_coordinator = DetectorCoordinator(
+        self._inject_or_create(
+            "detector_coordinator",
+            detector_coordinator,
+            lambda: DetectorCoordinator(
                 state_manager=self.state_manager,
                 detector_service=self.detector_service,
                 model_service=self.model_service,
                 weight_manager=self.weight_manager,
                 event_bus=self.ui_event_bus,
-            )
-            log.info("main_view_model.detector_coordinator.created_internally")
+            ),
+        )
 
         # Processing coordinator (Sprint 6: video processing orchestration)
-        if processing_coordinator is not None:
-            self.processing_coordinator = processing_coordinator
-            log.info("main_view_model.processing_coordinator.injected")
-        else:
-            # Create internally after services are initialized
-            from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 
-            self.processing_coordinator = ProcessingCoordinator(
+        self._inject_or_create(
+            "processing_coordinator",
+            processing_coordinator,
+            lambda: ProcessingCoordinator(
                 state_manager=self.state_manager,
                 video_orchestrator=self.video_orchestrator,
                 video_processing_service=self.video_processing_service,
@@ -568,8 +558,8 @@ class MainViewModel:
                 project_manager=self.project_manager,
                 recorder_factory=self.recorder,
                 event_bus=self.ui_event_bus,
-            )
-            log.info("main_view_model.processing_coordinator.created_internally")
+            ),
+        )
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
