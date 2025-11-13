@@ -211,8 +211,12 @@ class MainViewModel:
 
         # Sprint 12: Helper services for processing workflows
         from zebtrack.core.video_classification_service import VideoClassificationService
+        from zebtrack.core.video_selection_service import VideoSelectionService
+        from zebtrack.core.video_validation_service import VideoValidationService
 
         self.video_classification_service = VideoClassificationService()
+        self.video_selection_service = VideoSelectionService()
+        self.video_validation_service = VideoValidationService()
 
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
@@ -4182,25 +4186,21 @@ class MainViewModel:
     ) -> list[dict] | None:
         """Return a list of candidate video entries to process.
 
+        Sprint 12: Uses VideoSelectionService for selection logic.
+        UI orchestration (events) remains in ViewModel.
+
         Returns None if the calling function should abort (due to user cancel or invalid selection).
         """
-        videos_by_norm: dict[str, dict] = {}
-        for video in all_videos:
-            path_value = video.get("path")
-            if isinstance(path_value, str) and path_value:
-                videos_by_norm[os.path.normpath(path_value)] = video
+        # Sprint 12: Delegate selection logic to VideoSelectionService
+        selection_result = self.video_selection_service.select_candidates(
+            all_videos=all_videos,
+            target_paths=video_paths,
+        )
 
-        if video_paths:
-            normalized_targets: list[str] = []
-            raw_lookup: dict[str, str] = {}
-            for raw_path in video_paths:
-                if not isinstance(raw_path, str) or not raw_path:
-                    continue
-                norm_path = os.path.normpath(raw_path)
-                normalized_targets.append(norm_path)
-                raw_lookup.setdefault(norm_path, raw_path)
-
-            if not normalized_targets:
+        # Handle targeted selection mode
+        if selection_result.selection_mode == "targeted":
+            # UI: Show info if no valid targets provided
+            if not video_paths:  # Should not happen but defensive
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
@@ -4210,19 +4210,13 @@ class MainViewModel:
                 )
                 return None
 
-            candidate_entries = [
-                videos_by_norm[norm_path]
-                for norm_path in normalized_targets
-                if norm_path in videos_by_norm
-            ]
-
-            missing_targets = [
-                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
-            ]
-            if missing_targets:
-                sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
-                if len(missing_targets) > 5:
-                    sample.append(f"... (+{len(missing_targets) - 5})")
+            # UI: Show warning if targets are missing from project
+            if selection_result.has_missing:
+                sample = [
+                    os.path.basename(path) for path in selection_result.missing_targets[:5]
+                ]
+                if len(selection_result.missing_targets) > 5:
+                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_WARNING,
                     {
@@ -4232,7 +4226,8 @@ class MainViewModel:
                     },
                 )
 
-            if not candidate_entries:
+            # UI: Show info if no candidates found
+            if selection_result.candidate_count == 0:
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
@@ -4242,14 +4237,10 @@ class MainViewModel:
                 )
                 return None
 
-            return candidate_entries
-        else:
-            candidate_entries = [
-                video
-                for video in all_videos
-                if video.get("status") not in {"processed", "complete"}
-            ]
-            if not candidate_entries:
+        # Handle pending selection mode
+        else:  # selection_mode == "pending"
+            # UI: Show info if no pending videos
+            if selection_result.candidate_count == 0:
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
@@ -4258,7 +4249,8 @@ class MainViewModel:
                     },
                 )
                 return None
-            return candidate_entries
+
+        return selection_result.candidate_entries
 
     def _classify_candidate_videos(
         self, candidate_entries: list[dict], info_by_norm: dict
@@ -4400,13 +4392,19 @@ class MainViewModel:
     def _scan_and_validate_candidate_paths(self, candidate_entries: list[dict]):
         """Scan candidate paths and return (info_by_norm, missing_files, scanned_videos).
 
+        Sprint 12: Uses VideoValidationService for scan logic.
+        UI orchestration (events) remains in ViewModel.
+
         Returns (None, None, None) if there are no valid candidate paths.
         """
+        # Extract paths from candidate entries
         candidate_paths = [
             video.get("path")
             for video in candidate_entries
             if isinstance(video.get("path"), str) and video.get("path")
         ]
+
+        # UI: Show error if no valid paths
         if not candidate_paths:
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
@@ -4417,20 +4415,16 @@ class MainViewModel:
             )
             return None, None, None
 
-        scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
-        info_by_norm = {
-            os.path.normpath(info["path"]): info
-            for info in scanned_videos
-            if isinstance(info.get("path"), str)
-        }
+        # Sprint 12: Delegate scan logic to VideoValidationService
+        scan_result = self.video_validation_service.scan_and_validate_paths(
+            candidate_paths, self.project_manager
+        )
 
-        missing_files = [
-            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
-        ]
-        if missing_files:
-            sample_names = [os.path.basename(path) for path in missing_files[:5]]
-            if len(missing_files) > 5:
-                sample_names.append(f"... (+{len(missing_files) - 5})")
+        # UI: Show warning if files are missing
+        if scan_result.has_missing:
+            sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
+            if len(scan_result.missing_files) > 5:
+                sample_names.append(f"... (+{len(scan_result.missing_files) - 5})")
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_WARNING,
                 {
@@ -4441,10 +4435,11 @@ class MainViewModel:
             )
             log.warning(
                 "workflow.project_processing.missing_sources",
-                missing=len(missing_files),
+                missing=len(scan_result.missing_files),
             )
 
-        return info_by_norm, missing_files, scanned_videos
+        # Return results from service
+        return scan_result.info_by_norm, scan_result.missing_files, scan_result.scanned_videos
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.
