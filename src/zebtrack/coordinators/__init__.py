@@ -5,9 +5,9 @@ by delegating to services. Part of the v4.0 refactoring plan.
 
 Available Coordinators:
     BaseCoordinator - Abstract base class for all coordinators
+    ProjectCoordinator - Project lifecycle management (Sprint 3)
 
-Planned Coordinators (Sprint 3-6):
-    ProjectCoordinator - Project lifecycle management
+Planned Coordinators (Sprint 4-6):
     DetectorCoordinator - Detector setup and configuration
     RecordingCoordinator - Recording and Arduino management
     LiveCameraCoordinator - Live camera analysis sessions
@@ -23,10 +23,16 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.coordinators.project_coordinator import (
+    ProjectCoordinator,
+    ProjectCoordinatorError,
+)
 
 __all__ = [
     "BaseCoordinator",
     "CoordinatorError",
     "CoordinatorValidationError",
     "CoordinatorDependencyError",
+    "ProjectCoordinator",
+    "ProjectCoordinatorError",
 ]
