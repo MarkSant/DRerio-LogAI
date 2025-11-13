@@ -1,14 +1,16 @@
-"""Processing Coordinator - Sprint 6.
+"""Processing Coordinator - Sprint 6 & Sprint 11.
 
 Orchestrates video processing workflows (single video, batch, and project-level).
 Delegates business logic to VideoProcessingService and VideoOrchestrator.
 
-Sprint: 6 of REFACTOR-MASTER-PLAN-2025.md
+Sprint 6: Video processing orchestration
+Sprint 11: Validation extraction and consolidation
 Expands: VideoOrchestrator capabilities
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +32,48 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
+
+
+@dataclass
+class ValidationResult:
+    """
+    Result of processing validation check.
+
+    Sprint 11: Value object for validation results to separate validation logic from UI.
+    Allows coordinators to return structured validation results instead of
+    showing UI dialogs directly.
+
+    Attributes:
+        is_valid: Whether validation passed
+        error_code: Machine-readable error code (None if valid)
+        error_message: Human-readable error message (None if valid)
+        context: Additional context for the error (e.g., video count, missing data)
+    """
+
+    is_valid: bool
+    error_code: str | None = None
+    error_message: str | None = None
+    context: dict[str, Any] | None = None
+
+    @classmethod
+    def success(cls) -> ValidationResult:
+        """Create a successful validation result."""
+        return cls(is_valid=True)
+
+    @classmethod
+    def failure(
+        cls,
+        error_code: str,
+        error_message: str,
+        context: dict[str, Any] | None = None,
+    ) -> ValidationResult:
+        """Create a failed validation result."""
+        return cls(
+            is_valid=False,
+            error_code=error_code,
+            error_message=error_message,
+            context=context or {},
+        )
 
 
 class ProcessingCoordinatorError(Exception):
@@ -116,6 +160,125 @@ class ProcessingCoordinator(BaseCoordinator):
         # At minimum, we need state_manager (checked by BaseCoordinator)
         # Other dependencies are optional and validated per-operation
         return True
+
+    def validate_can_start_processing(
+        self,
+        *,
+        check_project_loaded: bool = True,
+        check_zones: bool = False,
+        check_videos_exist: bool = False,
+    ) -> ValidationResult:
+        """
+        Validate that processing can start.
+
+        Sprint 11: Consolidated validation method that separates validation logic
+        from UI concerns. Returns a structured ValidationResult instead of showing
+        dialogs or publishing events directly.
+
+        Common validations:
+        - Processing not already active
+        - Project is loaded (optional)
+        - Zones/arena defined (optional)
+        - Videos exist in project (optional)
+
+        Args:
+            check_project_loaded: Whether to validate project is loaded
+            check_zones: Whether to validate zones/arena are defined
+            check_videos_exist: Whether to validate videos exist in project
+
+        Returns:
+            ValidationResult: Structured validation result
+
+        Example:
+            >>> result = coordinator.validate_can_start_processing(
+            ...     check_project_loaded=True,
+            ...     check_zones=True
+            ... )
+            >>> if not result.is_valid:
+            ...     # Handle error based on error_code
+            ...     if result.error_code == "processing_already_active":
+            ...         show_warning("Processing already active")
+        """
+        log.debug(
+            "processing_coordinator.validate_can_start_processing",
+            check_project=check_project_loaded,
+            check_zones=check_zones,
+            check_videos=check_videos_exist,
+        )
+
+        # Validation 1: Processing already active?
+        if self.is_processing_active():
+            log.warning("processing_coordinator.validation.already_active")
+            return ValidationResult.failure(
+                error_code="processing_already_active",
+                error_message="Uma análise de vídeo já está em andamento. "
+                "Por favor, aguarde ou cancele a análise atual.",
+                context={"processing_info": self.get_processing_info()},
+            )
+
+        # Validation 2: Project loaded?
+        if check_project_loaded:
+            if not self.project_manager:
+                log.error("processing_coordinator.validation.no_project_manager")
+                return ValidationResult.failure(
+                    error_code="no_project_manager",
+                    error_message="ProjectManager não está disponível",
+                    context={},
+                )
+
+            if not self.project_manager.project_path:
+                log.warning("processing_coordinator.validation.no_project_loaded")
+                return ValidationResult.failure(
+                    error_code="no_project_loaded",
+                    error_message="Nenhum projeto carregado",
+                    context={},
+                )
+
+        # Validation 3: Zones/arena defined?
+        if check_zones:
+            if not self.project_manager:
+                log.error("processing_coordinator.validation.no_project_manager_for_zones")
+                return ValidationResult.failure(
+                    error_code="no_project_manager",
+                    error_message="ProjectManager não está disponível para validação de zonas",
+                    context={},
+                )
+
+            zone_data = self.project_manager.get_zone_data()
+            if not zone_data or not zone_data.polygon:
+                log.warning("processing_coordinator.validation.no_main_arena")
+                return ValidationResult.failure(
+                    error_code="no_main_arena",
+                    error_message="O polígono principal do aquário não foi definido",
+                    context={
+                        "has_zone_data": zone_data is not None,
+                        "has_polygon": bool(zone_data and zone_data.polygon),
+                        "roi_count": len(zone_data.roi_polygons) if zone_data else 0,
+                    },
+                )
+
+        # Validation 4: Videos exist in project?
+        if check_videos_exist:
+            if not self.project_manager:
+                log.error("processing_coordinator.validation.no_project_manager_for_videos")
+                return ValidationResult.failure(
+                    error_code="no_project_manager",
+                    error_message="ProjectManager não está disponível para validação de vídeos",
+                    context={},
+                )
+
+            all_videos = self.project_manager.get_all_videos() or []
+            if not all_videos:
+                log.warning("processing_coordinator.validation.no_videos")
+                return ValidationResult.failure(
+                    error_code="no_videos_in_project",
+                    error_message="Nenhum vídeo cadastrado no projeto atualmente",
+                    context={"video_count": 0},
+                )
+
+        # All validations passed
+        log.debug("processing_coordinator.validate_can_start_processing.success")
+        return ValidationResult.success()
 
     def start_project_processing_workflow(
         self,

@@ -394,6 +394,7 @@ class MainViewModel:
             live_camera_coordinator=live_camera_coordinator,
             detector_coordinator=detector_coordinator,
             processing_coordinator=processing_coordinator,
+            project_coordinator=project_coordinator,  # Sprint 11: Fix missing parameter
         )
 
     def _init_coordinators(
@@ -405,8 +406,11 @@ class MainViewModel:
         live_camera_coordinator=None,
         detector_coordinator=None,
         processing_coordinator=None,
+        project_coordinator=None,  # Sprint 11: Added missing parameter
     ) -> None:
-        """Initialize coordinators for hardware, video, analysis, recording, live camera, detector, and processing.
+        """
+        Initialize coordinators for hardware, video, analysis, recording, live camera,
+        detector, and processing.
 
         Task 2.2: REFACTOR-VIEWMODEL-001
         Task 2.3: Accept injected coordinators or create them for backward compatibility
@@ -3214,9 +3218,38 @@ class MainViewModel:
     def start_single_video_processing(
         self, video_path: Path | str, config: dict, zone_data: ZoneData
     ):
-        """Start the actual processing for a single video after zone setup."""
+        """
+        Start the actual processing for a single video after zone setup.
+
+        Sprint 11: Added validation check for processing already active.
+        """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)
+
+        # Sprint 11: Validate processing can start (basic check only)
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=False,  # Not required for single video
+            check_zones=False,  # Already handled by caller
+            check_videos_exist=False,  # Not required for single video
+        )
+
+        if not validation_result.is_valid:
+            # Only check for "processing already active" error
+            if validation_result.error_code == "processing_already_active":
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Análise em Andamento",
+                        "message": validation_result.error_message,
+                    },
+                )
+            else:
+                # Generic error handling
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro de Validação", "message": validation_result.error_message},
+                )
+            return
 
         self.project_manager.set_active_zone_video(video_path)
 
@@ -3350,29 +3383,45 @@ class MainViewModel:
             )
 
     def start_project_processing_workflow(self):
-        """Adiciona vídeos com validação robusta de zonas."""
+        """
+        Adiciona vídeos com validação robusta de zonas.
+
+        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        Complex UI interactions (zone setup dialogs) remain in ViewModel.
+        """
         log.info("workflow.project_processing.start")
 
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Análise em Andamento",
-                    "message": "Uma análise de vídeo já está em andamento. "
-                    "Por favor, aguarde ou cancele a análise atual.",
-                },
-            )
-            return
+        # Sprint 11: Delegate basic validations to ProcessingCoordinator
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,  # Zone validation is complex with UI, handled below
+            check_videos_exist=False,
+        )
 
-        # Validação 1: Projeto existe
-        if not self.project_manager.project_path:
-            if self.ui_event_bus:
+        if not validation_result.is_valid:
+            # Map error codes to appropriate UI events
+            if validation_result.error_code == "processing_already_active":
                 self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado"}
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Análise em Andamento",
+                        "message": validation_result.error_message,
+                    },
+                )
+            elif validation_result.error_code == "no_project_loaded":
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro", "message": validation_result.error_message},
+                )
+            else:
+                # Generic error handling
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro de Validação", "message": validation_result.error_message},
                 )
             return
 
-        # Validação 2: Zonas definidas
+        # Validação 2: Zonas definidas (complex UI interaction - remains in ViewModel)
         zone_data = self.project_manager.get_zone_data()
         if not zone_data or not zone_data.polygon:
             log.warning("workflow.project_processing.no_main_arena")
@@ -3581,40 +3630,57 @@ class MainViewModel:
         self,
         video_paths: list[str] | None = None,
     ) -> None:
-        """Processa vídeos já adicionados ao projeto que possuem dados pendentes."""
+        """
+        Processa vídeos já adicionados ao projeto que possuem dados pendentes.
+
+        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        """
         log.info(
             "workflow.project_processing.resume_requested",
             targeted=len(video_paths or []),
         )
 
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Análise em Andamento",
-                    "message": "Um processamento já está ativo. Aguarde a conclusão ou "
-                    "cancele a análise atual antes de iniciar um novo lote.",
-                },
-            )
-            return
+        # Sprint 11: Delegate validations to ProcessingCoordinator
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,  # Not required for pending videos
+            check_videos_exist=True,  # Must have videos in project
+        )
 
-        if not self.project_manager.project_path:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado"}
-            )
-            return
-
-        all_videos = self.project_manager.get_all_videos() or []
-        if not all_videos:
-            if self.ui_event_bus:
+        if not validation_result.is_valid:
+            # Map error codes to appropriate UI events
+            if validation_result.error_code == "processing_already_active":
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Análise em Andamento",
+                        "message": "Um processamento já está ativo. Aguarde a conclusão ou "
+                        "cancele a análise atual antes de iniciar um novo lote.",
+                    },
+                )
+            elif validation_result.error_code == "no_project_loaded":
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro", "message": validation_result.error_message},
+                )
+            elif validation_result.error_code == "no_videos_in_project":
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
-                        "message": "Nenhum vídeo cadastrado no projeto atualmente.",
+                        "message": validation_result.error_message,
                     },
                 )
+            else:
+                # Generic error handling
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro de Validação", "message": validation_result.error_message},
+                )
             return
+
+        # Get all videos (validation already confirmed they exist)
+        all_videos = self.project_manager.get_all_videos() or []
 
         videos_by_norm: dict[str, dict] = {}
         for video in all_videos:
