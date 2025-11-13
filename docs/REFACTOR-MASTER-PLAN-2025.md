@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 1.8
+**Versão:** 1.9
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 12 Part 1/3 COMPLETO - Helper Extraction Started)
+**Status:** 🚀 EM ANDAMENTO (Sprint 12 COMPLETO - Helper Extraction Complete)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -126,24 +126,31 @@
 - **Benefícios:** Separação de concerns, testabilidade, structured error handling
 - **Commits:** cb02db4
 
-**Sprint 12: Helper Extraction and Consolidation** 🔄 **EM ANDAMENTO** (Part 1/3 COMPLETO)
+**Sprint 12: Helper Extraction and Consolidation** ✅ **COMPLETO** (3/3 Parts)
 - ✅ **Part 1: VideoClassificationService** - Extração limpa de lógica pura
   - Criado VideoClassificationService (177 linhas)
   - Método classify_videos() para categorização de vídeos
   - VideoClassificationResult dataclass para resultados estruturados
   - 4 categorias: ready_with_trajectory, ready_with_zones, arena_only, without_arena
   - MainViewModel atualizado para usar service
-  - Método antigo marcado como deprecated (mantido para safety)
+  - Método antigo marcado as deprecated (mantido para safety)
   - **Commits:** 52977f0, 6566992
   - **Impacto:** +177 linhas (service) + 22 linhas (usage) = +199 linhas net
-- ⏳ **Part 2-3: VideoSelectionService & VideoValidationService** - PENDENTE
-  - Extração parcial (core logic → service, UI orchestration → ViewModel)
-  - _gather_candidate_entries() e _scan_and_validate_candidate_paths()
-  - **Estimativa Part 2-3:** -50 a -100 linhas após cleanup de deprecated methods
+- ✅ **Parts 2-3: VideoSelectionService & VideoValidationService** - Extração parcial bem-sucedida
+  - Criado VideoValidationService (147 linhas) - scan e validação de paths
+  - Criado VideoSelectionService (216 linhas) - seleção de candidatos
+  - VideoScanResult e VideoSelectionResult dataclasses
+  - 2 modos de seleção: 'targeted' (specific paths) e 'pending' (all pending)
+  - Extração parcial: core logic → services, UI orchestration → ViewModel
+  - MainViewModel atualizado para usar ambos services
+  - Métodos antigos mantidos (serão removidos em cleanup Sprint 13-14)
+  - **Commit:** 3e2ef96
+  - **Impacto:** +363 linhas (services) + 103 linhas (usage) - 54 linhas (replaced) = +412 linhas net
+- **Impacto Total Sprint 12:** +611 linhas (3 services: 540 linhas + usage: 125 - replaced: 54)
+- **Benefícios:** Separação de concerns, testabilidade, reusabilidade, foundation para Sprint 13
 
 **Próximos Sprints:**
-- ⏳ Sprint 12 (Parts 2-3): Complete helper extraction (-50 a -100 linhas com cleanup)
-- ⏳ Sprint 13: Workflow simplification (-100 a -200 linhas)
+- ⏳ Sprint 13: Workflow simplification + cleanup (-150 a -250 linhas)
 - ⏳ Sprint 14: Final consolidation (-50 a -100 linhas)
 - ⏳ Sprint 15: RecordingCoordinator completion (-50 a -100 linhas)
 - ⏳ Sprint 16-18: UI component extraction

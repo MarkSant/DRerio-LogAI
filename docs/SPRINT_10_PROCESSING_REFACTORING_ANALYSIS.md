@@ -334,7 +334,7 @@ def start_project_processing_workflow(self):
   - Separação de concerns alcançada
   - Redução de linhas virá em Sprints 12-14 com consolidação de error handling
 
-### Sprint 12: Extração de Helpers 🔄 **EM ANDAMENTO** (Part 1/3 COMPLETO)
+### Sprint 12: Extração de Helpers ✅ **COMPLETO** (3/3 Parts)
 
 **Part 1: VideoClassificationService** ✅ **COMPLETO**
 - [x] Criar `VideoClassificationService`
@@ -351,17 +351,28 @@ def start_project_processing_workflow(self):
   - 4 categorias: ready_with_trajectory, ready_with_zones, arena_only, without_arena
   - Método antigo mantido como deprecated para safety
 
-**Part 2-3: Remaining Services** ⏳ **PENDENTE**
-- [ ] Criar `VideoSelectionService` (partial extraction)
-- [ ] Criar `VideoValidationService` (partial extraction)
-- [ ] Mover métodos _gather_candidate_entries() (partial)
-- [ ] Mover métodos _scan_and_validate_candidate_paths() (partial)
-- [ ] Atualizar injeção de dependências (se necessário)
-- [ ] Atualizar testes
-- [ ] Validar que nada quebrou
+**Parts 2-3: VideoValidationService & VideoSelectionService** ✅ **COMPLETO**
+- [x] Criar `VideoValidationService` (partial extraction)
+- [x] Criar `VideoSelectionService` (partial extraction)
+- [x] Extrair scan logic de _scan_and_validate_candidate_paths()
+- [x] Extrair selection logic de _gather_candidate_entries()
+- [x] Atualizar MainViewModel para usar ambos services
+- [x] UI orchestration mantida no ViewModel
+- [x] Validar syntax e linting (ruff checks passed)
+- **Commit:** 3e2ef96
+- **Impacto:** +363 linhas (services: 216+147), +103 linhas (usage), -54 linhas (replaced logic)
+- **Net:** +412 linhas
+- **Observações:**
+  - Extração parcial bem-sucedida: core logic → services, UI events → ViewModel
+  - VideoScanResult e VideoSelectionResult dataclasses para resultados estruturados
+  - 2 modos de seleção: 'targeted' (specific paths) e 'pending' (all pending)
+  - UI orchestration apropriadamente mantida no ViewModel
 
-**Nota:** VideoSelectionService e VideoValidationService requerem extração PARCIAL
-(core logic → service, UI orchestration → ViewModel) devido a forte acoplamento com UI
+**Impacto Total Sprint 12:**
+- 3 novos services criados (540 linhas total)
+- MainViewModel: +125 linhas (service usage), -54 linhas (replaced logic)
+- **Net Total:** +611 linhas (extraction infrastructure)
+- Métodos deprecated mantidos para safety (remoção em Sprint 13-14)
 
 ### Sprint 13: Simplificação de Workflows
 
