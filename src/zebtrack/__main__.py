@@ -314,10 +314,10 @@ def main():
         # Create coordinators to encapsulate hardware and analysis logic
 
         _t0 = time.perf_counter()
+        from zebtrack.coordinators.project_coordinator import ProjectCoordinator  # Sprint 3
         from zebtrack.core.analysis_coordinator import AnalysisCoordinator
         from zebtrack.core.hardware_coordinator import HardwareCoordinator
         from zebtrack.core.video_orchestrator import VideoOrchestrator
-        from zebtrack.coordinators.project_coordinator import ProjectCoordinator  # Sprint 3
 
         # Project coordinator (Sprint 3: project lifecycle workflows)
         _t0_proj = time.perf_counter()

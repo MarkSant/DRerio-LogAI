@@ -320,7 +320,7 @@ class LiveCameraService:
                 requested_index=camera_index,
             )
             temp_settings.camera.index = camera_index
-            
+
             # Force 1280x720 resolution for consistent performance across all cameras
             # This ensures:
             # - Consistent frame processing time across different camera hardware

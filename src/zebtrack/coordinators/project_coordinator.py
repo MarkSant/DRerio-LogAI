@@ -205,7 +205,7 @@ class ProjectCoordinator(BaseCoordinator):
                 coordinator="ProjectCoordinator",
                 operation="create_project_from_wizard",
                 wizard_data_keys=list(wizard_data.keys()),
-            )
+            ) from e
 
         log.info(
             "project_coordinator.create_from_wizard.start",
@@ -297,7 +297,7 @@ class ProjectCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             raise ProjectCoordinatorError(
-                f"Failed to create project: {str(e)}",
+                f"Failed to create project: {e!s}",
                 coordinator="ProjectCoordinator",
                 operation="create_project_from_wizard",
                 project_name=project_name,
@@ -483,7 +483,7 @@ class ProjectCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             raise ProjectCoordinatorError(
-                f"Failed to load project: {str(e)}",
+                f"Failed to load project: {e!s}",
                 coordinator="ProjectCoordinator",
                 operation="load_project",
                 project_path=project_path_str,

@@ -270,7 +270,7 @@ class LiveCameraCoordinator(BaseCoordinator):
                 error=str(e),
             )
             raise LiveCameraCoordinatorError(
-                f"Validation error: {str(e)}",
+                f"Validation error: {e!s}",
                 coordinator="LiveCameraCoordinator",
                 operation="start_live_session",
             ) from e
@@ -291,7 +291,7 @@ class LiveCameraCoordinator(BaseCoordinator):
             )
 
             raise LiveCameraCoordinatorError(
-                f"Failed to start live session: {str(e)}",
+                f"Failed to start live session: {e!s}",
                 coordinator="LiveCameraCoordinator",
                 operation="start_live_session",
                 experiment_id=experiment_id,
@@ -401,7 +401,7 @@ class LiveCameraCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             raise LiveCameraCoordinatorError(
-                f"Failed to initialize camera: {str(e)}",
+                f"Failed to initialize camera: {e!s}",
                 coordinator="LiveCameraCoordinator",
                 operation="initialize_camera",
                 camera_index=camera_index,

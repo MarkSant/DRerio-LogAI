@@ -226,7 +226,7 @@ class RecordingCoordinator(BaseCoordinator):
             )
 
             raise RecordingCoordinatorError(
-                f"Failed to start recording: {str(e)}",
+                f"Failed to start recording: {e!s}",
                 context={"folder_name": folder_name, "trigger_source": trigger_source},
             ) from e
 

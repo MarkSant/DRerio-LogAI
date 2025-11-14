@@ -187,8 +187,9 @@ class WizardService:
         consecutive_failures = 0
         max_consecutive_failures = 3
 
-        # NOTE: Windows PnP camera name mapping disabled due to unreliable index correlation
-        # between DirectShow and PnP device enumeration. Using resolution-based descriptions instead.
+        # NOTE: Windows PnP camera name mapping disabled due to unreliable index
+        # correlation between DirectShow and PnP device enumeration.
+        # Using resolution-based descriptions instead.
 
         with cls.suppress_opencv_logs():
             for i in range(6):  # Scan indices 0-5 instead of 0-9
@@ -207,7 +208,11 @@ class WizardService:
                         read_event = threading.Event()
 
                         def try_read(
-                            capture=cap, result=test_result, camera_index=i, lock=result_lock, event=read_event
+                            capture=cap,
+                            result=test_result,
+                            camera_index=i,
+                            lock=result_lock,
+                            event=read_event,
                         ):
                             try:
                                 ret, frame = capture.read()
@@ -242,7 +247,10 @@ class WizardService:
                                 cap.release()
                                 consecutive_failures += 1
                                 if consecutive_failures >= max_consecutive_failures:
-                                    log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                    log.info(
+                                        "wizard_service.max_consecutive_failures_reached",
+                                        index=i,
+                                    )
                                     break
                                 continue
 
@@ -259,7 +267,10 @@ class WizardService:
                                 cap.release()
                                 consecutive_failures += 1
                                 if consecutive_failures >= max_consecutive_failures:
-                                    log.info("wizard_service.max_consecutive_failures_reached", index=i)
+                                    log.info(
+                                        "wizard_service.max_consecutive_failures_reached",
+                                        index=i,
+                                    )
                                     break
                                 continue
 
