@@ -63,7 +63,7 @@ class ProjectOrchestrator:
         """
         # Delegate to adapter which handles all UI coordination
         new_project_manager = self.project_workflow_adapter.close_project(
-            restore_global_defaults_callback=self.main_view_model._restore_global_model_defaults,
+            restore_global_defaults_callback=self._restore_global_model_defaults,
             settings_obj=self.settings,
         )
         # Update reference to new project manager
@@ -308,7 +308,7 @@ class ProjectOrchestrator:
         )
         use_openvino = bool(defaults.get("use_openvino", False))
 
-        overrides = self.main_view_model._persist_project_model_settings(weight, use_openvino)
+        overrides = self._persist_project_model_settings(weight, use_openvino)
 
         message = "Configurações globais aplicadas ao projeto."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
@@ -398,16 +398,152 @@ class ProjectOrchestrator:
             )
             return None
 
-        overrides = self.main_view_model._persist_project_model_settings(
+        overrides = self._persist_project_model_settings(
             self.main_view_model.active_weight_name or None,
             bool(self.main_view_model.use_openvino),
         )
 
         # Garantir que o estado em memória reflita os overrides recém-salvos
-        self.main_view_model.apply_project_model_overrides(overrides)
+        self.apply_project_model_overrides(overrides)
 
         message = "Overrides do projeto atualizados a partir desta calibração."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
         self.main_view_model.refresh_project_views(reason=message, append_summary=True)
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+
+    # ========================================================================
+    # Group D: Model Settings Persistence & Application (Sprint 34)
+    # ========================================================================
+
+    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+        """
+        Persist model settings to project configuration.
+
+        Extracted from MainViewModel in Sprint 34.
+
+        Args:
+            weight: Weight name to persist.
+            use_openvino: OpenVINO usage flag to persist.
+
+        Returns:
+            Updated overrides dictionary.
+        """
+        project_data = self.main_view_model._get_project_data_dict()
+        overrides = self._ensure_project_overrides_record()
+
+        # Update overrides (business logic extracted to helper)
+        overrides["active_weight"] = weight
+        overrides["use_openvino"] = use_openvino
+        project_data["active_weight"] = weight
+        project_data["use_openvino"] = bool(use_openvino)
+
+        # Update in-memory state
+        self.project_manager.project_data = project_data
+
+        # Delegate persistence to ProjectManager (maintains test compatibility)
+        if getattr(self.project_manager, "project_path", None):
+            self.project_manager.save_project()
+
+        return overrides
+
+    def _apply_model_settings(
+        self, weight_name: str | None, use_openvino: bool, dialog=None
+    ) -> None:
+        """Apply model settings (weight and OpenVINO) to the detector.
+
+        Extracted from MainViewModel in Sprint 34.
+
+        Args:
+            weight_name: Weight name to apply.
+            use_openvino: OpenVINO usage flag to apply.
+            dialog: Optional dialog for UI feedback.
+        """
+        if weight_name:
+            self.main_view_model.set_active_weight(weight_name, dialog)
+        else:
+            self.main_view_model.set_active_weight("", dialog)
+        self.main_view_model.set_openvino_usage(bool(use_openvino), dialog)
+
+    def apply_project_model_overrides(
+        self, overrides: dict | None = None
+    ) -> tuple[str | None, bool]:
+        """Apply project-specific model overrides to current settings.
+
+        Extracted from MainViewModel in Sprint 34.
+
+        Args:
+            overrides: Optional override dictionary to use instead of stored overrides.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
+        if not getattr(self.project_manager, "project_data", None):
+            return self.main_view_model.active_weight_name or None, bool(
+                self.main_view_model.use_openvino
+            )
+
+        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
+
+        self.main_view_model._using_project_overrides = True
+        self._apply_model_settings(resolved_weight, resolved_openvino)
+
+        updated = False
+        if self.project_manager.project_data.get("active_weight") != resolved_weight:
+            self.project_manager.project_data["active_weight"] = resolved_weight
+            updated = True
+        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
+            self.project_manager.project_data["use_openvino"] = resolved_openvino
+            updated = True
+
+        if updated and getattr(self.project_manager, "project_path", None):
+            self.project_manager.save_project()
+
+        return resolved_weight, resolved_openvino
+
+    def save_project_model_overrides(
+        self, active_weight_override: str | None, use_openvino_override: bool | None
+    ) -> tuple[str | None, bool]:
+        """Save model settings as project overrides and apply them.
+
+        Extracted from MainViewModel in Sprint 34.
+
+        Args:
+            active_weight_override: Weight name to save as override.
+            use_openvino_override: OpenVINO preference to save as override.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
+        if not getattr(self.project_manager, "project_path", None):
+            logger.warning("controller.project_overrides.no_project_loaded")
+            return (
+                self.main_view_model.active_weight_name or None,
+                self.main_view_model.use_openvino,
+            )
+
+        overrides = self.project_manager.project_data.setdefault(
+            "model_overrides",
+            {"active_weight": None, "use_openvino": None},
+        )
+        overrides["active_weight"] = active_weight_override or None
+        overrides["use_openvino"] = use_openvino_override
+
+        resolved_weight, resolved_openvino = self.apply_project_model_overrides(overrides)
+
+        self.project_manager.project_data["model_overrides"] = overrides
+        self.project_manager.save_project()
+
+        return resolved_weight, resolved_openvino
+
+    def _restore_global_model_defaults(self) -> None:
+        """Restore global model defaults after closing a project.
+
+        Extracted from MainViewModel in Sprint 34.
+        """
+        target_weight = self.main_view_model._global_model_defaults.get("active_weight")
+        target_openvino = bool(
+            self.main_view_model._global_model_defaults.get("use_openvino", False)
+        )
+        self.main_view_model._using_project_overrides = False
+        self._apply_model_settings(target_weight, target_openvino)

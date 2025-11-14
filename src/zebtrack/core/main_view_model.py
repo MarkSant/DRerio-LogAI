@@ -1447,30 +1447,13 @@ class MainViewModel:
         )
 
     def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+        """Persist model settings to project configuration.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
         """
-        Persist model settings to project configuration.
-
-        Phase 2.1: Uses ProjectService for data structure management,
-        but delegates actual persistence to ProjectManager to maintain
-        backward compatibility with existing test mocks.
-        """
-        project_data = self._get_project_data_dict()
-        overrides = self._ensure_project_overrides_record()
-
-        # Update overrides (business logic extracted to helper)
-        overrides["active_weight"] = weight
-        overrides["use_openvino"] = use_openvino
-        project_data["active_weight"] = weight
-        project_data["use_openvino"] = bool(use_openvino)
-
-        # Update in-memory state
-        self.project_manager.project_data = project_data
-
-        # Delegate persistence to ProjectManager (maintains test compatibility)
-        if getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return overrides
+        return self.project_orchestrator._persist_project_model_settings(
+            weight=weight, use_openvino=use_openvino
+        )
 
     def copy_global_model_settings_to_project(self) -> None:
         """Copy global model settings to project.
@@ -1489,11 +1472,13 @@ class MainViewModel:
     def _apply_model_settings(
         self, weight_name: str | None, use_openvino: bool, dialog=None
     ) -> None:
-        if weight_name:
-            self.set_active_weight(weight_name, dialog)
-        else:
-            self.set_active_weight("", dialog)
-        self.set_openvino_usage(bool(use_openvino), dialog)
+        """Apply model settings (weight and OpenVINO) to the detector.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._apply_model_settings(
+            weight_name=weight_name, use_openvino=use_openvino, dialog=dialog
+        )
 
     def resolve_project_model_settings(
         self,
@@ -1518,37 +1503,22 @@ class MainViewModel:
     ) -> tuple[str | None, bool]:
         """Apply project-specific model overrides to current settings.
 
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+
         Args:
             overrides: Optional override dictionary to use instead of stored overrides.
 
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        if not getattr(self.project_manager, "project_data", None):
-            return self.active_weight_name or None, bool(self.use_openvino)
-
-        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
-
-        self._using_project_overrides = True
-        self._apply_model_settings(resolved_weight, resolved_openvino)
-
-        updated = False
-        if self.project_manager.project_data.get("active_weight") != resolved_weight:
-            self.project_manager.project_data["active_weight"] = resolved_weight
-            updated = True
-        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
-            self.project_manager.project_data["use_openvino"] = resolved_openvino
-            updated = True
-
-        if updated and getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
+        return self.project_orchestrator.apply_project_model_overrides(overrides=overrides)
 
     def save_project_model_overrides(
         self, active_weight_override: str | None, use_openvino_override: bool | None
     ) -> tuple[str | None, bool]:
         """Save model settings as project overrides and apply them.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
 
         Args:
             active_weight_override: Weight name to save as override.
@@ -1557,29 +1527,17 @@ class MainViewModel:
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            log.warning("controller.project_overrides.no_project_loaded")
-            return self.active_weight_name or None, self.use_openvino
-
-        overrides = self.project_manager.project_data.setdefault(
-            "model_overrides",
-            {"active_weight": None, "use_openvino": None},
+        return self.project_orchestrator.save_project_model_overrides(
+            active_weight_override=active_weight_override,
+            use_openvino_override=use_openvino_override,
         )
-        overrides["active_weight"] = active_weight_override or None
-        overrides["use_openvino"] = use_openvino_override
-
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides(overrides)
-
-        self.project_manager.project_data["model_overrides"] = overrides
-        self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
 
     def _restore_global_model_defaults(self) -> None:
-        target_weight = self._global_model_defaults.get("active_weight")
-        target_openvino = bool(self._global_model_defaults.get("use_openvino", False))
-        self._using_project_overrides = False
-        self._apply_model_settings(target_weight, target_openvino)
+        """Restore global model defaults after closing a project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._restore_global_model_defaults()
 
     @contextmanager
     def global_calibration_session(self):
