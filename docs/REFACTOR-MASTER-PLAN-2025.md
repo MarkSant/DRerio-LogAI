@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.4
+**Versão:** 2.5
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 17 COMPLETO - Dead Code Removal)
+**Status:** 🚀 EM ANDAMENTO (Sprint 18 COMPLETO - Dead Code Removal Phase 2)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -238,10 +238,25 @@
   - Identified safe-to-remove vs. callbacks/event handlers
   - Focused on genuinely unused code with zero value
 
+**Sprint 18: Dead Code Removal Phase 2** ✅ **COMPLETO**
+- ✅ **Phase 1: Remove _is_arduino_connected** (-7 lines)
+  - Unused wrapper to hardware_coordinator.is_arduino_connected()
+  - **Commit:** 591f605
+
+- ✅ **Phase 2: Remove 3 Parameter Collection Wrappers** (-39 lines)
+  - _collect_params_from_single_video() (8 lines)
+  - _collect_params_from_project() (10 lines)
+  - _collect_analysis_parameters() (18 lines)
+  - All unused legacy delegates to VideoProcessingService
+  - **Commit:** b8f8409
+
+- ✅ **Sprint 18 Total:** -46 lines
+- ✅ **Cumulative Total (Sprints 15-18):** -97 lines (5,733 → 5,636)
+
 **Próximos Sprints:**
-- ⏳ Sprint 18: Continue dead code removal and consolidation
-- ⏳ Sprint 19-20: UI component extraction
-- ⏳ Sprint 21-22: ProjectManager refactoring
+- ⏳ Sprint 19: Continue simplification and consolidation
+- ⏳ Sprint 20-21: UI component extraction
+- ⏳ Sprint 22-23: ProjectManager refactoring
 
 ---
 
