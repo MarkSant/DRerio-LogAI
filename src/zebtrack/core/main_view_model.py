@@ -954,16 +954,6 @@ class MainViewModel:
             "kwargs_get",
         ),
         Events.ZONE_APPLY_ROI_TEMPLATE: ("apply_roi_template", ["template"], "kwargs_get"),
-        Events.ZONE_SAVE_ROI_TEMPLATE: ("save_roi_template", [], "no_params"),
-        Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE: (
-            "import_and_apply_roi_template",
-            [],
-            "no_params",
-        ),
-        Events.ZONE_RENAME_SELECTED_ROI: ("rename_selected_roi", [], "no_params"),
-        Events.ZONE_CHANGE_ROI_COLOR: ("change_roi_color", [], "no_params"),
-        Events.ZONE_REMOVE_SELECTED_ROI: ("remove_selected_roi", [], "no_params"),
-        Events.ZONE_APPLY_ROI_SETTINGS: ("apply_roi_settings", [], "no_params"),
         # Calibration events
         Events.CALIBRATION_RUN_LIVE: (
             "run_live_calibration",
@@ -2240,48 +2230,6 @@ class MainViewModel:
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR, {"title": "Erro ao aplicar template", "message": str(exc)}
             )
-
-    def save_roi_template(self) -> None:
-        """Salva as zonas atuais como um novo template."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def import_and_apply_roi_template(self) -> None:
-        """Importa um template de ROI e o aplica ao vídeo ativo."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def rename_selected_roi(self) -> None:
-        """Renomeia a ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def change_roi_color(self) -> None:
-        """Altera a cor da ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def remove_selected_roi(self) -> None:
-        """Remove a ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def apply_roi_settings(self) -> None:
-        """Aplica as configurações de ROI."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
 
     def set_main_arena_polygon(self, points: list) -> bool:
         """Salva polígono com validações robustas."""
