@@ -4656,45 +4656,6 @@ class MainViewModel:
     # - _ensure_arena_polygon
     # - _load_trajectory_dataframe
 
-    def _collect_params_from_single_video(self, config: dict, experiment_id: str):
-        """Delegate to VideoProcessingService._collect_params_from_single_video.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_params_from_single_video(
-            config, experiment_id
-        )
-
-    def _collect_params_from_project(
-        self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
-    ):
-        """Delegate to VideoProcessingService._collect_params_from_project.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_params_from_project(
-            metadata_context, experiment_id, video_path
-        )
-
-    def _collect_analysis_parameters(
-        self,
-        *,
-        single_video_config: dict | None,
-        metadata_context: dict | None,
-        experiment_id: str,
-        video_path: str,
-    ) -> tuple[dict, float | None, float | None, float, float, float, int, int]:
-        """Delegate to VideoProcessingService._collect_analysis_parameters.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_analysis_parameters(
-            single_video_config=single_video_config,
-            metadata_context=metadata_context,
-            experiment_id=experiment_id,
-            video_path=video_path,
-        )
-
     def _prepare_calibration_context(
         self,
         *,
