@@ -9,9 +9,7 @@ from __future__ import annotations
 import glob
 import os
 import shutil
-import tempfile
 import threading
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,7 +36,6 @@ from zebtrack.analysis.roi import ROI
 
 # Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.detector_service import DetectorService
@@ -63,6 +60,7 @@ from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
+from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
 from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus import EventBus
@@ -372,7 +370,6 @@ class MainViewModel:
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
         self.processing_worker: ProcessingWorker | None = None
-        self._pending_external_trigger: dict | None = None
         self._cancel_feedback_displayed = False
 
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
@@ -587,6 +584,9 @@ class MainViewModel:
         # Sprint 25: Analysis Orchestrator
         self.analysis_orchestrator = AnalysisOrchestrator(self)
 
+        # Sprint 26: Recording Session Orchestrator
+        self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+
     def run(self):
         """Start the Tkinter main event loop.
 
@@ -615,16 +615,19 @@ class MainViewModel:
 
     @property
     def is_recording(self) -> bool:
-        """Get recording status from StateManager."""
-        return self.state_manager.get_recording_state().is_recording
+        """Check if currently recording.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.is_recording
 
     @is_recording.setter
     def is_recording(self, value: bool) -> None:
-        """Update recording status in StateManager."""
-        self.state_manager.update_recording_state(
-            source="controller.is_recording_setter",
-            is_recording=value,
-        )
+        """Set recording state.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        self.recording_session_orchestrator.is_recording = value
 
     @property
     def detector(self) -> Detector | None:
@@ -719,25 +722,15 @@ class MainViewModel:
             self.update_openvino_status()
 
     def _on_recording_state_changed(
-        self, category: StateCategory, key: str, old_value: Any, new_value: Any
-    ):
-        """Publica eventos de UI em resposta a mudanças no estado de Gravação."""
-        if not self.ui_event_bus:
-            return
-        if key == "is_recording":
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "start_rec", "state": "disabled" if new_value else "normal"},
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "stop_rec", "state": "normal" if new_value else "disabled"},
-            )
-        elif key == "arduino_connected":
-            port = self.state_manager.get_recording_state().arduino_port
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ARDUINO_STATUS, {"connected": new_value, "port": port}
-            )
+        self, category: StateCategory, key: str, old_value, new_value
+    ) -> None:
+        """Handle recording state changes.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._on_recording_state_changed(
+            category=category, key=key, old_value=old_value, new_value=new_value
+        )
 
     def _on_processing_state_changed(
         self, category: StateCategory, key: str, old_value: Any, new_value: Any
@@ -820,62 +813,18 @@ class MainViewModel:
         self.ui_coordinator.schedule(func, *args, **kwargs)
 
     def _setup_recording_service_callbacks(self) -> None:
-        """Set up UI callbacks for RecordingService."""
-        if self.recording_service is None:
-            return
+        """Setup callbacks for recording service.
 
-        # Inject UI callbacks for view updates
-        self.recording_service.set_ui_callbacks(
-            {
-                "show_error": lambda title, msg: self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR, {"title": title, "message": msg}
-                ),
-                "update_button_state": lambda btn, state: self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": btn, "state": state}
-                ),
-                "set_status": lambda msg: self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS, {"message": msg}
-                ),
-                "stop_recording_callback": self.stop_recording,
-            }
-        )
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._setup_recording_service_callbacks()
 
     def _init_recording_service(self) -> None:
+        """Initialize recording service.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Initialize RecordingService with dependencies and UI callbacks.
-
-        Phase 2.2: Extracts recording orchestration logic from MainViewModel.
-
-        Note:
-        - recorder, state_manager, project_manager are passed as references (will update)
-        - arduino_manager is initially None and updated via _sync_recording_service_arduino()
-          when setup_arduino() is called.
-        """
-        # Store controller reference so RecordingService can access current recorder/managers
-        self.recording_service = RecordingService(
-            controller=self,  # Pass self to access current recorder/arduino_manager
-            state_manager=self.state_manager,
-            project_manager=self.project_manager,
-            root=self.root,
-        )
-
-        # Setup UI callbacks
-        self._setup_recording_service_callbacks()
-
-        # Initialize LiveCameraService (Phase: Live Camera Analysis)
-        if self._live_camera_service_param is None:
-            from zebtrack.core.live_camera_service import LiveCameraService
-
-            self.live_camera_service = LiveCameraService(
-                controller=self,
-                state_manager=self.state_manager,
-                project_manager=self.project_manager,
-                recording_service=self.recording_service,
-                detector_service=self.detector_service,
-                root=self.root,
-            )
-        else:
-            self.live_camera_service = self._live_camera_service_param
+        return self.recording_session_orchestrator._init_recording_service()
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
     _EVENT_METHOD_MAPPING: ClassVar[dict] = {
@@ -1126,19 +1075,12 @@ class MainViewModel:
             immediate=immediate,
         )
 
-    def _clear_external_trigger_wait(self):
-        if not self._pending_external_trigger:
-            return
+    def _clear_external_trigger_wait(self) -> None:
+        """Clear external trigger wait state.
 
-        self._pending_external_trigger = None
-        self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
-        )
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._clear_external_trigger_wait()
 
     def log_arduino_event(self, message: str):
         """Task 2.2: Delegates to HardwareCoordinator."""
@@ -1152,45 +1094,23 @@ class MainViewModel:
         """Task 2.2: Delegates to HardwareCoordinator."""
         self.hardware_coordinator.on_arduino_command_sent(command, success, source)
 
-    def on_arduino_event(self, event_code: int):
-        """Handle Arduino event signals for external trigger control.
+    def on_arduino_event(self, event_code: int) -> None:
+        """Handle Arduino event.
 
-        Args:
-            event_code: Integer code from Arduino (1 for start, 0 for stop).
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        log.info("controller.arduino.event_received", code=event_code)
-        self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
-
-        if event_code == 1:
-            if self._pending_external_trigger:
-                self.log_arduino_event("Sinal externo recebido. Iniciando gravação...")
-                self.trigger_recording(event_code)
-            else:
-                log.warning("controller.arduino.event.unexpected_start")
-        elif event_code == 0:
-            if self.is_recording or self._pending_external_trigger:
-                self.log_arduino_event("Sinal externo solicitando parada.")
-                self.stop_recording()
-        else:
-            log.info("controller.arduino.event.ignored", code=event_code)
+        return self.recording_session_orchestrator.on_arduino_event(
+            event_code=event_code
+        )
 
     def trigger_recording(self, event_code: int | None = None):
-        """Trigger a pending recording session from external Arduino event.
+        """Trigger recording via external event.
 
-        Args:
-            event_code: Optional Arduino event code that triggered recording.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        if not self._pending_external_trigger:
-            log.warning("controller.external_trigger.no_pending", code=event_code)
-            return
-
-        context = self._pending_external_trigger
-        self._pending_external_trigger = None
-
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
-        project_data = self.project_manager.project_data or {}
-        self._schedule_recording(context, project_data, trigger_source="external")
+        return self.recording_session_orchestrator.trigger_recording(
+            event_code=event_code
+        )
 
     def _schedule_recording(
         self,
@@ -1199,19 +1119,11 @@ class MainViewModel:
         *,
         trigger_source: str,
     ) -> None:
-        """
-        Schedule a recording session via RecordingCoordinator.
+        """Schedule recording after delay.
 
-        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        # Inject camera dimensions into context
-        camera_width = getattr(self.view.camera, "actual_width", None)
-        camera_height = getattr(self.view.camera, "actual_height", None)
-        context["camera_width"] = camera_width
-        context["camera_height"] = camera_height
-
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.start_recording(
+        return self.recording_session_orchestrator._schedule_recording(
             context=context,
             project_data=project_data,
             trigger_source=trigger_source,
@@ -2409,108 +2321,20 @@ class MainViewModel:
     def run_live_calibration(self, temp_aquarium_method: str | None = None):
         """Record a short clip from the live camera and runs aquarium detection.
 
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+
         Args:
             temp_aquarium_method: Temporary override for aquarium detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        log.info("controller.live_calibration.start")
-        if not self.view.camera or not self.view.camera.is_opened():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "A câmera não está disponível ou aberta."},
-            )
-            return
-
-        temp_video_path = None
-        self._publish_processing_mode(
-            source="calibration.live.start",
-            force=True,
-            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        return self.recording_session_orchestrator.run_live_calibration(
+            temp_aquarium_method=temp_aquarium_method
         )
-        try:
-            # 1. Create a temporary file for the calibration video
-            temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-            temp_video_path = temp_video_file.name
-            temp_video_file.close()
-
-            # 2. Record a short clip
-            w, h = self.view.camera.actual_width, self.view.camera.actual_height
-            fps = self.settings.video_processing.fps
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
-
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": "Calibrando... Gravando um pequeno clipe."},
-            )
-
-            start_time = time.time()
-            while time.time() - start_time < 5:  # Record for 5 seconds
-                ret, frame = self.view.camera.get_frame()
-                if not ret:
-                    break
-                writer.write(frame)
-            writer.release()
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": "Calibração: Analisando o clipe..."},
-            )
-
-            # 3. Run detection on the clip using selected aquarium method
-            # Use temporary override if provided, otherwise use global settings
-            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-
-            if not model_path:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": f"Não foi possível encontrar um modelo {aquarium_method} para "
-                        "detecção do aquário.",
-                    },
-                )
-                return
-
-            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
-            polygons = detector.detect_aquariums(temp_video_path)
-
-            if not polygons:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Detecção Falhou",
-                        "message": "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",  # noqa: E501
-                    },
-                )
-                return
-
-            main_polygon = polygons[0]
-            self.ui_event_bus.publish_event(
-                Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
-            )
-
-        except Exception as e:
-            log.error("controller.live_calibration.error", exc_info=True)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro na Calibração", "message": f"Ocorreu um erro: {e}"},
-            )
-        finally:
-            # 4. Clean up the temporary file
-            if temp_video_path and os.path.exists(temp_video_path):
-                os.remove(temp_video_path)
-            self._publish_processing_mode(
-                source="calibration.live.complete",
-                force=True,
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
-        """
-        Handle external trigger setup for recording.
+        """Handle external trigger setup for recording.
 
-        Sprint 15: Extracted from start_recording() to reduce complexity (~40 lines → ~15 lines).
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             context: Recording context with session details
@@ -2519,39 +2343,9 @@ class MainViewModel:
         Returns:
             bool: True if waiting for trigger (stop processing), False if proceed
         """
-        project_data = self.project_manager.project_data or {}
-        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
-
-        if external_trigger_requested and not arduino_enabled:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Trigger Externo Indisponível",
-                    "message": "O modo de trigger externo exige um Arduino configurado.",
-                },
-            )
-            return True
-
-        if external_trigger_requested and arduino_enabled:
-            self._pending_external_trigger = context
-            port = context.get("arduino_port", "")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                {
-                    "folder_name": context["folder_name"],
-                    "day": context["day"],
-                    "group": context["group"],
-                    "cobaia": context["cobaia"],
-                    "port": port,
-                },
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Aguardando sinal externo... (porta {port})"},
-            )
-            return True
-
-        return False
+        return self.recording_session_orchestrator._handle_external_trigger(
+            context=context, arduino_enabled=arduino_enabled
+        )
 
     def start_recording(
         self,
@@ -2559,132 +2353,26 @@ class MainViewModel:
         group: str | None = None,
         cobaia: str | None = None,
     ):
+        """Start a recording session (live mode) with zone validation.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Start a recording session (live mode) with zone validation.
-
-        Sprint 15: Simplified by extracting external trigger logic.
-        """
-        log.info("controller.recording.start")
-
-        self.project_manager.set_active_zone_video(None)
-        self._clear_external_trigger_wait()
-
-        if not self._ensure_zones_before_recording():
-            return
-
-        if not self.detector and not self.setup_detector():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "Falha ao configurar detector."},
-            )
-            return
-
-        self.setup_detector_zones()
-
-        # Get recording details
-        if not all((day, group, cobaia)):
-            details = self.view.ask_recording_details_unified()
-            if not details:
-                log.warning("controller.recording.cancelled_by_user")
-                return
-            day, group, cobaia = details["day"], details["group"], details["cobaia"]
-
-        # Save session details
-        self.project_manager.save_last_session_details(day, group)
-
-        # Create output folder
-        folder_name = f"D{day}_G{group}_S{cobaia}"
-        output_folder = os.path.join(self.project_manager.project_path, folder_name)
-        os.makedirs(output_folder, exist_ok=True)
-
-        # Setup Arduino if needed
-        project_data = self.project_manager.project_data or {}
-        arduino_enabled = bool(project_data.get("use_arduino") and self.setup_arduino())
-
-        # Build recording context
-        context = {
-            "day": day,
-            "group": group,
-            "cobaia": cobaia,
-            "folder_name": folder_name,
-            "output_folder": output_folder,
-            "arduino_enabled": arduino_enabled,
-            "arduino_port": (project_data.get("arduino_port") or "").strip(),
-        }
-
-        # Handle external trigger (may wait for signal)
-        if self._handle_external_trigger(context, arduino_enabled):
-            return
-
-        # Start recording immediately
-        self._pending_external_trigger = None
-        self._schedule_recording(context, project_data, trigger_source="manual")
+        return self.recording_session_orchestrator.start_recording(
+            day=day, group=group, cobaia=cobaia
+        )
 
     def start_live_camera_analysis(self, camera_index: int | None = None):
-        """
-        Start a live camera analysis session.
+        """Start a live camera analysis session.
 
-        Delegates to LiveCameraService for thread management and coordination.
-        Shows a dialog to configure the session if camera_index is not provided.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             camera_index: Optional camera index. If provided, uses this camera directly
                          without showing the configuration dialog. If None, shows dialog.
         """
-        log.info("controller.live_analysis.start", camera_index=camera_index)
-
-        # Get configuration from dialog or use defaults
-        if camera_index is not None:
-            # Use camera directly with default settings
-            if hasattr(self.settings, "live_analysis"):
-                duration_s = self.settings.live_analysis.default_duration_s
-            else:
-                duration_s = 300
-            experiment_id = f"camera_{camera_index}"
-            analysis_interval_frames = 1
-            display_interval_frames = 1
-            record_video = True
-        else:
-            # Show configuration dialog
-            from zebtrack.ui.dialogs import LiveAnalysisDialog
-
-            dialog = LiveAnalysisDialog(self.view.root, settings_obj=self.settings)
-
-            if not dialog.result:
-                log.info("controller.live_analysis.cancelled")
-                return
-
-            config = dialog.result
-            camera_index = config["camera_index"]
-            duration_s = config["duration_s"]
-            experiment_id = config["experiment_id"]
-            analysis_interval_frames = config.get("analysis_interval_frames", 1)
-            display_interval_frames = config.get("display_interval_frames", 1)
-            record_video = config.get("record_video", True)
-
-        # Delegate to LiveCameraService
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=record_video,
+        return self.recording_session_orchestrator.start_live_camera_analysis(
+            camera_index=camera_index
         )
-
-        if success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
-            )
-        elif not success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": "Falha ao iniciar análise de câmera.",
-                },
-            )
 
     def start_live_camera_analysis_from_config(self, config: dict):
         """
@@ -2836,26 +2524,11 @@ class MainViewModel:
             )
 
     def stop_recording(self):
+        """Stop the current recording session.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Stop the current recording session.
-
-        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
-        """
-        log.info("controller.recording.stop")
-
-        if self._pending_external_trigger:
-            self._clear_external_trigger_wait()
-
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.stop_recording()
-
-        # Update UI on main thread
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
-        )
+        return self.recording_session_orchestrator.stop_recording()
 
     def start_live_project_session(
         self,
@@ -2864,11 +2537,9 @@ class MainViewModel:
         subject: str,
         duration_s: float | None = None,
     ) -> bool:
-        """
-        Start a live recording session for a Live project.
+        """Start a live recording session for a Live project.
 
-        This method replaces the legacy thread-based system in gui.py,
-        using LiveCameraService for unified camera management.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             day: Day number (from project grid)
@@ -2879,47 +2550,9 @@ class MainViewModel:
         Returns:
             True if session started successfully, False otherwise
         """
-        pm = self.project_manager
-
-        # Validate project type
-        if pm.get_project_type() != "live":
-            log.error("start_live_project_session.wrong_project_type")
-            return False
-
-        # Extract project configuration
-        project_data = pm.project_data
-        camera_index = project_data.get("camera_index", 0)
-
-        # Duration: use parameter, project default, or fallback
-        if duration_s is None:
-            duration_s = project_data.get("recording_duration_s", 300.0)
-
-        # Intervals
-        analysis_interval_frames = project_data.get("analysis_interval_frames", 1)
-        display_interval_frames = project_data.get("display_interval_frames", 1)
-
-        # Experiment ID for this session
-        experiment_id = f"day{day}_{group}_{subject}"
-
-        log.info(
-            "controller.live_project_session.start",
-            project=pm.get_project_name(),
-            experiment_id=experiment_id,
-            camera_index=camera_index,
-            duration_s=duration_s,
+        return self.recording_session_orchestrator.start_live_project_session(
+            day=day, group=group, subject=subject, duration_s=duration_s
         )
-
-        # Delegate to LiveCameraService (unified system)
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=True,  # Projects always record
-        )
-
-        return success
 
     def _ensure_zones_before_recording(self) -> bool:
         """Ensure project zones are defined (live or non-live) before starting recording.
