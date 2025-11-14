@@ -75,6 +75,8 @@ class ProcessingConfigOrchestrator:
             if use_single:
                 return ProcessingMode.SINGLE_SUBJECT
         except AttributeError:  # pragma: no cover - optional settings
+            # AttributeError occurs when video_processing settings don't exist.
+            # This is expected behavior - fall through to default MULTI_TRACK mode.
             pass
 
         return ProcessingMode.MULTI_TRACK
