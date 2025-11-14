@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.7
+**Versão:** 2.8
 **Data:** 2025-01-14 (atualizado: 2025-01-14)
-**Status:** 🚀 EM ANDAMENTO (Sprint 20 COMPLETO - Code Quality Improvements)
+**Status:** 🚀 EM ANDAMENTO (Sprint 21 COMPLETO - Codebase-wide Quality)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -300,10 +300,30 @@
 - ✅ **Cumulative Total (Sprints 15-20):** -167 lines (5,733 → 5,568, -2.9%)
 - ✅ **Documentação:** docs/SPRINT_20_RESULTS.md
 
+**Sprint 21: Codebase-wide Code Quality** ✅ **COMPLETO**
+- ✅ **Phase 1: Linting Fixes** (+11 lines net, 15 issues fixed)
+  - Auto-fixed: RUF010 (6), RUF022 (2), I001 (1), W293 (1)
+  - Manual fixes: E501 (4 in wizard_service.py), B904 (1 in project_coordinator.py)
+  - Files: __main__.py, coordinators/__init__.py, wizard_service.py, etc.
+  - **Commit:** 592b6ba
+
+- ✅ **Phase 2: gui.py Analysis**
+  - Current state: 3,737 lines, 239 methods
+  - Components extracted: ~11,926 lines (19 files)
+  - Dialogs extracted: ~4,432 lines (16 files)
+  - Total extracted: ~16,358 lines ✨
+  - Result: gui.py already has excellent componentization
+  - No linting issues found in gui.py ✅
+
+- ✅ **Sprint 21 Total:** +11 lines (formatting), 15 linting issues fixed
+- ✅ **Remaining:** Only 1 C901 complexity warning (known, deferred)
+- ✅ **Linting Reduction:** 17 → 1 warnings (94% reduction) 🎯
+- ✅ **Documentação:** docs/SPRINT_21_RESULTS.md
+
 **Próximos Sprints:**
-- ⏳ Sprint 21: Continue quality improvements or UI extraction
-- ⏳ Sprint 22-23: UI component extraction
-- ⏳ Sprint 24-25: ProjectManager refactoring
+- ⏳ Sprint 22: project_manager.py improvements OR complete gui.py migration
+- ⏳ Sprint 23-24: Continue quality improvements
+- ⏳ Sprint 25: Final consolidation
 
 ---
 
