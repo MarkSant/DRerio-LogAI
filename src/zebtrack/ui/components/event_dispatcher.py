@@ -521,7 +521,7 @@ class EventDispatcher:
             # Camera analysis: Pass complete configuration to respect all settings
             # (camera_index, analysis_interval_frames, display_interval_frames, etc.)
             config = dialog.result
-            self.gui.controller.start_live_camera_analysis_from_config(config)
+            self.gui.controller.live_camera_coordinator.start_session_from_config(config)
             return
 
         # Video file analysis: require video_path

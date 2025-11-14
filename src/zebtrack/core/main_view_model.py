@@ -522,6 +522,8 @@ class MainViewModel:
             lambda: LiveCameraCoordinator(
                 state_manager=self.state_manager,
                 live_camera_service=self.live_camera_service,
+                project_manager=self.project_manager,
+                settings=self.settings,
                 camera=None,  # Camera initialized lazily when needed
                 event_bus=self.ui_event_bus,
             ),
@@ -1730,12 +1732,10 @@ class MainViewModel:
             camera_index=camera_index
         )
 
-    def start_live_camera_analysis_from_config(self, config: dict):
-        """
-        Start live camera analysis with full configuration from SingleVideoConfigDialog.
+    def start_live_camera_analysis_from_config(self, config: dict) -> bool:
+        """Start live camera analysis with full configuration.
 
-        This method extracts all parameters from the config dictionary and delegates
-        to LiveCameraService, ensuring intervals and other settings are respected.
+        Facade - delegates to LiveCameraCoordinator (Sprint 33).
 
         Args:
             config: Configuration dictionary from SingleVideoConfigDialog containing:
@@ -1743,141 +1743,11 @@ class MainViewModel:
                 - analysis_interval_frames: int - Analyze every N frames
                 - display_interval_frames: int - Display every N frames
                 - (other dialog parameters)
+
+        Returns:
+            True if session started successfully, False otherwise
         """
-        log.info("controller.live_analysis.start_from_config", config_keys=list(config.keys()))
-
-        # Extract configuration with defaults
-        camera_index = config["camera_index"]
-
-        # Duration: use from config (user-editable), fallback to setting or default
-        duration_s = config.get("duration_s")
-        if duration_s is None:
-            if hasattr(self.settings, "live_analysis"):
-                duration_s = self.settings.live_analysis.default_duration_s
-            else:
-                duration_s = 300.0  # 5 minutes default
-
-        # Experiment ID
-        experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
-
-        # ✅ CRITICAL: Extract intervals from config (not hardcoded defaults!)
-        analysis_interval_frames = config.get("analysis_interval_frames", 1)
-        display_interval_frames = config.get("display_interval_frames", 1)
-
-        # Video recording (optional)
-        record_video = config.get("record_video", True)
-
-        log.info(
-            "controller.live_analysis.extracted_config",
-            camera_index=camera_index,
-            duration_s=duration_s,
-            analysis_interval=analysis_interval_frames,
-            display_interval=display_interval_frames,
-            record_video=record_video,
-        )
-
-        # ✅ SINGLE VIDEO ANALYSIS: Ensure default arena if none defined
-        # This allows detection to work without manual zone configuration
-        # NOTE: Only for single video analysis, not for live projects
-        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
-
-        log.info(
-            "controller.live_analysis.checking_zones",
-            has_zone_data=zone_data is not None,
-            has_polygon=bool(zone_data.polygon) if zone_data else False,
-        )
-
-        if not zone_data or not zone_data.polygon:
-            import math
-
-            from zebtrack.core.detector import ZoneData
-
-            log.info("controller.live_analysis.creating_default_arena", reason="no_arena_defined")
-
-            # Open camera temporarily to get dimensions
-            from zebtrack.io.camera import Camera
-
-            temp_settings = self.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-            temp_settings.camera.desired_width = 1280
-            temp_settings.camera.desired_height = 720
-            temp_camera = Camera(settings_obj=temp_settings)
-
-            if temp_camera.is_opened():
-                w = temp_camera.actual_width
-                h = temp_camera.actual_height
-                temp_camera.release()
-
-                # Create default arena: centered square occupying 1/6 of total frame area
-                # Formula: side = sqrt(total_area / 6) = sqrt(w*h / 6)
-                area_ratio = 6.0
-                side = math.sqrt((w * h) / area_ratio)
-                cx, cy = w / 2, h / 2
-                half = side / 2
-
-                default_arena = [
-                    [cx - half, cy - half],
-                    [cx + half, cy - half],
-                    [cx + half, cy + half],
-                    [cx - half, cy + half],
-                ]
-
-                zone_data = ZoneData(polygon=default_arena)
-
-                # Save to project_manager so detector can use it
-                if self.project_manager:
-                    self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
-
-                log.info(
-                    "controller.live_analysis.default_arena_created",
-                    width=w,
-                    height=h,
-                    side=side,
-                    area_ratio=area_ratio,
-                    reason="no_arena_defined_for_single_video_analysis",
-                )
-            else:
-                log.error(
-                    "controller.live_analysis.default_arena_failed",
-                    reason="camera_not_opened",
-                )
-        else:
-            log.info(
-                "controller.live_analysis.using_existing_zones",
-                has_polygon=bool(zone_data.polygon),
-                num_rois=len(zone_data.roi_polygons) if zone_data else 0,
-            )
-
-        # Delegate to LiveCameraService with complete configuration
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=record_video,
-        )
-
-        # UI feedback
-        if success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {
-                    "message": (
-                        f"Analisando câmera {camera_index} "
-                        f"(análise: {analysis_interval_frames}f, "
-                        f"exibição: {display_interval_frames}f)"
-                    )
-                },
-            )
-        elif not success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": f"Falha ao iniciar análise de câmera {camera_index}.",
-                },
-            )
+        return self.live_camera_coordinator.start_session_from_config(config=config)
 
     def stop_recording(self):
         """Stop the current recording session.
@@ -1911,98 +1781,11 @@ class MainViewModel:
         )
 
     def _ensure_zones_before_recording(self) -> bool:
-        """Ensure project zones are defined (live or non-live) before starting recording.
+        """Ensure project zones are defined before starting recording.
 
-        Returns True if recording can proceed, False if it should be cancelled.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 33).
         """
-        # Enhanced zone validation for Live projects
-        if self.project_manager.project_path:
-            project_type = self.project_manager.get_project_type()
-            zone_data = self.project_manager.get_zone_data()
-
-            if project_type == "live" and (not zone_data or not zone_data.polygon):
-                log.info("controller.recording.live_zone_validation.start")
-
-                # For Live projects, prompt for automatic calibration
-                response = self.view.ask_ok_cancel(
-                    "Calibração Necessária",
-                    "Deseja fazer calibração automática do aquário?\n"
-                    "(Recomendado para projetos ao vivo)",
-                )
-
-                if response:
-                    # Run auto-calibration
-                    self.run_live_calibration()
-
-                    # Check if calibration was successful
-                    zone_data = self.project_manager.get_zone_data()
-                    if not zone_data or not zone_data.polygon:
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {
-                                "title": "Calibração Falhou",
-                                "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",  # noqa: E501
-                            },
-                        )
-                        # Switch to zones tab
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SELECT_TAB, {"tab_name": "zone_tab"}
-                        )
-                        return False
-                    else:
-                        log.info("controller.recording.live_zone_validation.success")
-                else:
-                    # User declined calibration
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Zonas Obrigatórias",
-                            "message": "Projetos ao vivo requerem definição de zonas.\n"
-                            "Defina o polígono principal antes de gravar.",
-                        },
-                    )
-                    return False
-
-            elif not zone_data or not zone_data.polygon:
-                # Generic validation for non-Live projects (preserve existing behavior)
-                log.warning("controller.recording.no_main_arena")
-
-                response = self.view.ask_ok_cancel(
-                    "Arena Principal Não Definida",
-                    "O polígono principal do aquário não foi definido.\n\n"
-                    "É recomendado definir a arena antes de iniciar gravação.\n"
-                    "Deseja definir agora?",
-                )
-
-                if response:
-                    # Muda para aba de zonas e inicia câmera para calibração
-                    self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Defina a Arena Principal",
-                            "message": "Por favor:\n"
-                            "1. Use a câmera ao vivo para calibrar\n"
-                            "2. Use 'Detectar Aquário (Auto)' ou\n"
-                            "3. Desenhe manualmente o polígono principal\n"
-                            "4. Depois volte para iniciar a gravação",
-                        },
-                    )
-                    return False
-                else:
-                    # Continua sem arena definida (usando padrão)
-                    if not self.view.ask_ok_cancel(
-                        "Continuar Sem Arena?",
-                        "Deseja continuar a gravação sem arena definida?\n"
-                        "(A arena padrão será o frame completo)",
-                    ):
-                        log.info("controller.recording.cancelled_no_arena")
-                        return False
-
-                    log.info("controller.recording.proceeding_without_arena")
-
-        return True
+        return self.recording_session_orchestrator._ensure_zones_before_recording()
 
     # --- New Refactored Workflows ---
 

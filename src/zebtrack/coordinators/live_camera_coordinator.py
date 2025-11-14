@@ -31,8 +31,10 @@ from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
     from zebtrack.core.live_camera_service import LiveCameraService
+    from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.camera import Camera
+    from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
@@ -65,6 +67,8 @@ class LiveCameraCoordinator(BaseCoordinator):
     Dependencies:
         state_manager: StateManager for state tracking
         live_camera_service: LiveCameraService for camera operations
+        project_manager: ProjectManager for zone data and project state
+        settings: Settings configuration object
         camera: Camera hardware instance (optional)
         event_bus: Optional EventBus for notifications
 
@@ -73,6 +77,8 @@ class LiveCameraCoordinator(BaseCoordinator):
         coordinator = LiveCameraCoordinator(
             state_manager=state_manager,
             live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            settings=settings,
             camera=camera,
             event_bus=event_bus,
         )
@@ -93,6 +99,8 @@ class LiveCameraCoordinator(BaseCoordinator):
         self,
         state_manager: StateManager,
         live_camera_service: LiveCameraService,
+        project_manager: ProjectManager,
+        settings: Settings,
         camera: Camera | None = None,
         event_bus: EventBus | None = None,
     ):
@@ -101,12 +109,16 @@ class LiveCameraCoordinator(BaseCoordinator):
         Args:
             state_manager: StateManager for state tracking
             live_camera_service: LiveCameraService for camera operations
+            project_manager: ProjectManager for zone data and project state
+            settings: Settings configuration object
             camera: Optional Camera hardware instance
             event_bus: Optional EventBus for event publishing
         """
         super().__init__(state_manager=state_manager, event_bus=event_bus)
 
         self.live_camera_service = live_camera_service
+        self.project_manager = project_manager
+        self.settings = settings
         self.camera = camera
 
         # Session state
@@ -115,6 +127,8 @@ class LiveCameraCoordinator(BaseCoordinator):
         log.info(
             "live_camera_coordinator.initialized",
             has_live_camera_service=live_camera_service is not None,
+            has_project_manager=project_manager is not None,
+            has_settings=settings is not None,
             has_camera=camera is not None,
         )
 
@@ -485,6 +499,172 @@ class LiveCameraCoordinator(BaseCoordinator):
             Session ID string, or None if no active session
         """
         return self._active_session_id
+
+    # =========================================================================
+    # Configuration-Based Session Start (Sprint 33)
+    # =========================================================================
+
+    def start_session_from_config(self, config: dict) -> bool:
+        """
+        Start live camera analysis with full configuration from SingleVideoConfigDialog.
+
+        This method extracts all parameters from the config dictionary and delegates
+        to LiveCameraService, ensuring intervals and other settings are respected.
+
+        Extracted from MainViewModel (Sprint 33) to improve separation of concerns.
+
+        Args:
+            config: Configuration dictionary from SingleVideoConfigDialog containing:
+                - camera_index: int - Camera device index
+                - analysis_interval_frames: int - Analyze every N frames
+                - display_interval_frames: int - Display every N frames
+                - duration_s: float (optional) - Session duration in seconds
+                - experiment_id: str (optional) - Experiment identifier
+                - record_video: bool (optional) - Whether to record video
+
+        Returns:
+            True if session started successfully, False otherwise
+        """
+        log.info("coordinator.live_analysis.start_from_config", config_keys=list(config.keys()))
+
+        # Extract configuration with defaults
+        camera_index = config["camera_index"]
+
+        # Duration: use from config (user-editable), fallback to setting or default
+        duration_s = config.get("duration_s")
+        if duration_s is None:
+            if hasattr(self.settings, "live_analysis"):
+                duration_s = self.settings.live_analysis.default_duration_s
+            else:
+                duration_s = 300.0  # 5 minutes default
+
+        # Experiment ID
+        experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
+
+        # ✅ CRITICAL: Extract intervals from config (not hardcoded defaults!)
+        analysis_interval_frames = config.get("analysis_interval_frames", 1)
+        display_interval_frames = config.get("display_interval_frames", 1)
+
+        # Video recording (optional)
+        record_video = config.get("record_video", True)
+
+        log.info(
+            "coordinator.live_analysis.extracted_config",
+            camera_index=camera_index,
+            duration_s=duration_s,
+            analysis_interval=analysis_interval_frames,
+            display_interval=display_interval_frames,
+            record_video=record_video,
+        )
+
+        # ✅ SINGLE VIDEO ANALYSIS: Ensure default arena if none defined
+        # This allows detection to work without manual zone configuration
+        # NOTE: Only for single video analysis, not for live projects
+        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+
+        log.info(
+            "coordinator.live_analysis.checking_zones",
+            has_zone_data=zone_data is not None,
+            has_polygon=bool(zone_data.polygon) if zone_data else False,
+        )
+
+        if not zone_data or not zone_data.polygon:
+            import math
+
+            from zebtrack.core.detector import ZoneData
+
+            log.info("coordinator.live_analysis.creating_default_arena", reason="no_arena_defined")
+
+            # Open camera temporarily to get dimensions
+            from zebtrack.io.camera import Camera
+
+            temp_settings = self.settings.model_copy(deep=True)
+            temp_settings.camera.index = camera_index
+            temp_settings.camera.desired_width = 1280
+            temp_settings.camera.desired_height = 720
+            temp_camera = Camera(settings_obj=temp_settings)
+
+            if temp_camera.is_opened():
+                w = temp_camera.actual_width
+                h = temp_camera.actual_height
+                temp_camera.release()
+
+                # Create default arena: centered square occupying 1/6 of total frame area
+                # Formula: side = sqrt(total_area / 6) = sqrt(w*h / 6)
+                area_ratio = 6.0
+                side = math.sqrt((w * h) / area_ratio)
+                cx, cy = w / 2, h / 2
+                half = side / 2
+
+                default_arena = [
+                    [cx - half, cy - half],
+                    [cx + half, cy - half],
+                    [cx + half, cy + half],
+                    [cx - half, cy + half],
+                ]
+
+                zone_data = ZoneData(polygon=default_arena)
+
+                # Save to project_manager so detector can use it
+                if self.project_manager:
+                    self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
+
+                log.info(
+                    "coordinator.live_analysis.default_arena_created",
+                    width=w,
+                    height=h,
+                    side=side,
+                    area_ratio=area_ratio,
+                    reason="no_arena_defined_for_single_video_analysis",
+                )
+            else:
+                log.error(
+                    "coordinator.live_analysis.default_arena_failed",
+                    reason="camera_not_opened",
+                )
+        else:
+            log.info(
+                "coordinator.live_analysis.using_existing_zones",
+                has_polygon=bool(zone_data.polygon),
+                num_rois=len(zone_data.roi_polygons) if zone_data else 0,
+            )
+
+        # Delegate to LiveCameraService with complete configuration
+        success = self.live_camera_service.start_session(
+            camera_index=camera_index,
+            duration_s=duration_s,
+            experiment_id=experiment_id,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            record_video=record_video,
+        )
+
+        # UI feedback
+        if success and self.event_bus:
+            from zebtrack.ui.events import Events
+
+            self.event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {
+                    "message": (
+                        f"Analisando câmera {camera_index} "
+                        f"(análise: {analysis_interval_frames}f, "
+                        f"exibição: {display_interval_frames}f)"
+                    )
+                },
+            )
+        elif not success and self.event_bus:
+            from zebtrack.ui.events import Events
+
+            self.event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro na Análise",
+                    "message": f"Falha ao iniciar análise de câmera {camera_index}.",
+                },
+            )
+
+        return success
 
     def __repr__(self) -> str:
         """String representation for debugging."""

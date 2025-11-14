@@ -283,6 +283,100 @@ class RecordingSessionOrchestrator:
 
     # ========== Phase 4: Core Recording (150 lines) ==========
 
+    def _ensure_zones_before_recording(self) -> bool:
+        """Ensure project zones are defined (live or non-live) before starting recording.
+
+        Returns True if recording can proceed, False if it should be cancelled.
+        """
+        # Enhanced zone validation for Live projects
+        if self.project_manager.project_path:
+            project_type = self.project_manager.get_project_type()
+            zone_data = self.project_manager.get_zone_data()
+
+            if project_type == "live" and (not zone_data or not zone_data.polygon):
+                log.info("controller.recording.live_zone_validation.start")
+
+                # For Live projects, prompt for automatic calibration
+                response = self.view.ask_ok_cancel(
+                    "Calibração Necessária",
+                    "Deseja fazer calibração automática do aquário?\n"
+                    "(Recomendado para projetos ao vivo)",
+                )
+
+                if response:
+                    # Run auto-calibration
+                    self.run_live_calibration()
+
+                    # Check if calibration was successful
+                    zone_data = self.project_manager.get_zone_data()
+                    if not zone_data or not zone_data.polygon:
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {
+                                "title": "Calibração Falhou",
+                                "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",  # noqa: E501
+                            },
+                        )
+                        # Switch to zones tab
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SELECT_TAB, {"tab_name": "zone_tab"}
+                        )
+                        return False
+                    else:
+                        log.info("controller.recording.live_zone_validation.success")
+                else:
+                    # User declined calibration
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Zonas Obrigatórias",
+                            "message": "Projetos ao vivo requerem definição de zonas.\n"
+                            "Defina o polígono principal antes de gravar.",
+                        },
+                    )
+                    return False
+
+            elif not zone_data or not zone_data.polygon:
+                # Generic validation for non-Live projects (preserve existing behavior)
+                log.warning("controller.recording.no_main_arena")
+
+                response = self.view.ask_ok_cancel(
+                    "Arena Principal Não Definida",
+                    "O polígono principal do aquário não foi definido.\n\n"
+                    "É recomendado definir a arena antes de iniciar gravação.\n"
+                    "Deseja definir agora?",
+                )
+
+                if response:
+                    # Muda para aba de zonas e inicia câmera para calibração
+                    self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_INFO,
+                        {
+                            "title": "Defina a Arena Principal",
+                            "message": "Por favor:\n"
+                            "1. Use a câmera ao vivo para calibrar\n"
+                            "2. Use 'Detectar Aquário (Auto)' ou\n"
+                            "3. Desenhe manualmente o polígono principal\n"
+                            "4. Depois volte para iniciar a gravação",
+                        },
+                    )
+                    return False
+                else:
+                    # Continua sem arena definida (usando padrão)
+                    if not self.view.ask_ok_cancel(
+                        "Continuar Sem Arena?",
+                        "Deseja continuar a gravação sem arena definida?\n"
+                        "(A arena padrão será o frame completo)",
+                    ):
+                        log.info("controller.recording.cancelled_no_arena")
+                        return False
+
+                    log.info("controller.recording.proceeding_without_arena")
+
+        return True
+
     def start_recording(
         self,
         day: int | None = None,
@@ -299,7 +393,7 @@ class RecordingSessionOrchestrator:
         self.project_manager.set_active_zone_video(None)
         self._clear_external_trigger_wait()
 
-        if not self.main_view_model._ensure_zones_before_recording():
+        if not self._ensure_zones_before_recording():
             return
 
         if not self.main_view_model.detector and not self.main_view_model.setup_detector():
