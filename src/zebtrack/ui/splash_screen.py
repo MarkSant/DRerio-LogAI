@@ -63,17 +63,7 @@ class SplashScreen:
 
         self._logo_label = self._create_logo(logo_frame)
 
-        # Application title
-        title_label = tk.Label(
-            container,
-            text="DRerio LogAI",
-            font=(FONT_FAMILY, 28, "bold"),
-            bg=BG_COLOR,
-            fg=TEXT_PRIMARY,
-        )
-        title_label.pack(pady=(0, 5))
-
-        # Subtitle
+        # Subtitle (title removed - already in logo)
         subtitle_label = tk.Label(
             container,
             text="Zebrafish Tracking & Analysis",

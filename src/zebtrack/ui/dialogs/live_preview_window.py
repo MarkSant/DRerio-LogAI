@@ -310,6 +310,16 @@ class LivePreviewWindow:
         except Exception as e:
             log.error("live_preview.update_frame_error", error=str(e), exc_info=True)
 
+    def update_status_text(self, text: str, color: str = "red"):
+        """Update the status label text and color.
+
+        Args:
+            text: Status text to display
+            color: Text color (default: "red" for recording)
+        """
+        if hasattr(self, "status_label"):
+            self.status_label.config(text=text, foreground=color)
+
     def show(self):
         """Show the window."""
         self.window.deiconify()
