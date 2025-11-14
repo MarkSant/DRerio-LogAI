@@ -4861,20 +4861,6 @@ class MainViewModel:
         """
         self.video_processing_service._prepare_results_directory(results_dir)
 
-    def _snapshot_results_dir(self, results_path: Path) -> set[str]:
-        """Delegate to VideoProcessingService._snapshot_results_dir.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._snapshot_results_dir(results_path)
-
-    def _cleanup_cancelled_results(self, results_dir: str, baseline_items: set[str]) -> None:
-        """Delegate to VideoProcessingService._cleanup_cancelled_results.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._cleanup_cancelled_results(results_dir, baseline_items)
-
     def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """
         Create thread-safe callbacks for the processing worker.
