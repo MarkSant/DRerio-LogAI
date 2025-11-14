@@ -412,7 +412,6 @@ class VideoProcessingOrchestrator:
         video_entry = self.project_manager.find_video_entry(path=video_path)
         if not video_entry:
             log.info("workflow.single_video.registering_video", video=video_path)
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
 
             # Prepare metadata for single video - use config if available
             metadata = {}

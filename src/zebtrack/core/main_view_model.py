@@ -19,14 +19,6 @@ if TYPE_CHECKING:
 
 import structlog
 
-try:
-    from ultralytics import YOLO
-
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
-
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI

@@ -232,6 +232,8 @@ class ModelDiagnosticsOrchestrator:
             # --- Schedule report generation on main thread ---
             self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
         except DiagnosticAbortError:
+            # DiagnosticAbortError is raised to abort diagnostics (e.g., user cancellation).
+            # No further action needed; abort is intentional and handled gracefully.
             pass
         except Exception as e:
             logger.error("diagnostic.thread.load_error", exc_info=True)
